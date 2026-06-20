@@ -74,9 +74,15 @@ class DnDApp:
         self.page.update()
 
     def _show_wizard(self):
-        """Avvia il wizard guidato (placeholder fino all'implementazione)."""
-        # TODO: implementare il wizard guidato
-        self._show_placeholder_wizard()
+        """Avvia il wizard guidato."""
+        from ui.views.creation_wizard.wizard_view import WizardView
+        self.page.controls.clear()
+        wizard = WizardView(
+            on_complete=self._on_character_selected,
+            on_cancel=self._show_home,
+        )
+        self.page.add(wizard)
+        self.page.update()
 
     def _on_character_selected(self, character_id: str):
         """Carica la scheda del personaggio selezionato."""
@@ -215,40 +221,6 @@ class DnDApp:
                 expand=True,
             ),
         )
-
-    # ------------------------------------------------------------------
-    # Wizard placeholder
-    # ------------------------------------------------------------------
-
-    def _show_placeholder_wizard(self):
-        self.page.controls.clear()
-        self.page.add(ft.Container(
-            expand=True,
-            content=ft.Column(
-                [
-                    ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=64, color=COLOR_BORDER),
-                    ft.Container(height=16),
-                    title_text("Wizard Guidato", size=24),
-                    ft.Container(height=8),
-                    muted_text("In sviluppo — disponibile nella prossima versione.", size=14),
-                    ft.Container(height=24),
-                    ft.ElevatedButton(
-                        "Torna indietro",
-                        icon=ft.Icons.ARROW_BACK,
-                        on_click=lambda e: self._show_home(),
-                        style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_GOLD,
-                            color=COLOR_BG_PRIMARY,
-                            shape=ft.RoundedRectangleBorder(radius=6),
-                        ),
-                    ),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                expand=True,
-            ),
-        ))
-        self.page.update()
 
 
 # ---------------------------------------------------------------------------

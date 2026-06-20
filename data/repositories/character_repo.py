@@ -314,6 +314,30 @@ def delete(character_id: str) -> bool:
         return False
 
 
+def _save_single_proficiency(
+    character_id: str,
+    proficiency_type: str,
+    name: str,
+    is_expert: bool = False,
+) -> bool:
+    """Inserisce una singola competenza (usata dal wizard)."""
+    import uuid
+    try:
+        conn = get_connection()
+        conn.execute(
+            """INSERT OR IGNORE INTO character_proficiencies
+               (id, character_id, proficiency_type, name, is_expert)
+               VALUES (?, ?, ?, ?, ?)""",
+            (str(uuid.uuid4()), character_id, proficiency_type, name, int(is_expert)),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore salvataggio competenza '{name}': {e}")
+        return False
+
+
 def update_hp(character_id: str, hp_current: int, hp_temp: int = None) -> bool:
     """Aggiornamento rapido degli HP senza ricaricare tutto il personaggio."""
     try:
