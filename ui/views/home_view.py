@@ -55,9 +55,9 @@ class HomeView(ft.Column):
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=32, vertical=24),
+            padding=ft.Padding.symmetric(horizontal=32, vertical=24),
             bgcolor=COLOR_BG_SECONDARY,
-            border=ft.border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
         )
 
         body = ft.Container(
@@ -67,7 +67,7 @@ class HomeView(ft.Column):
                 expand=True,
             ),
             expand=True,
-            padding=ft.padding.all(32),
+            padding=ft.Padding.all(32),
         )
 
         self.controls = [header, body]
@@ -75,7 +75,7 @@ class HomeView(ft.Column):
     def _new_character_button(self) -> ft.Control:
         """Bottone '+' che apre il dialog per scegliere wizard o manuale."""
         return ft.ElevatedButton(
-            text="Nuovo Personaggio",
+            "Nuovo Personaggio",
             icon=ft.Icons.ADD,
             on_click=self._on_new_click,
             style=ft.ButtonStyle(
@@ -102,7 +102,11 @@ class HomeView(ft.Column):
                     self._character_card(char)
                 )
 
-        self._char_list_column.update()
+        # update() è valido solo dopo il mount sulla page
+        try:
+            self._char_list_column.update()
+        except RuntimeError:
+            pass  # chiamata da __init__, il render avviene con page.add()
 
     # ------------------------------------------------------------------
     # Card personaggio
@@ -117,8 +121,8 @@ class HomeView(ft.Column):
                 src=char.image_path,
                 width=72,
                 height=72,
-                fit=ft.ImageFit.COVER,
-                border_radius=ft.border_radius.all(6),
+                fit=ft.BoxFit.COVER,
+                border_radius=ft.BorderRadius.all(6),
             )
         else:
             avatar = ft.Container(
@@ -126,13 +130,13 @@ class HomeView(ft.Column):
                 height=72,
                 bgcolor=COLOR_BG_SECONDARY,
                 border_radius=6,
-                border=ft.border.all(1, COLOR_BORDER),
+                border=ft.Border.all(1, COLOR_BORDER),
                 content=ft.Icon(
                     ft.Icons.PERSON,
                     color=COLOR_TEXT_MUTED,
                     size=36,
                 ),
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
             )
 
         # Badge livello
@@ -145,7 +149,7 @@ class HomeView(ft.Column):
             ),
             bgcolor=COLOR_ACCENT_GOLD,
             border_radius=4,
-            padding=ft.padding.symmetric(horizontal=6, vertical=2),
+            padding=ft.Padding.symmetric(horizontal=6, vertical=2),
         )
 
         info = ft.Column(
@@ -204,11 +208,11 @@ class HomeView(ft.Column):
             content=card_content,
             padding=16,
             bgcolor=COLOR_BG_CARD,
-            border=ft.border.all(1, COLOR_BORDER),
+            border=ft.Border.all(1, COLOR_BORDER),
             border_radius=8,
             on_click=lambda e, cid=char.id: self.on_select(cid),
             ink=True,
-            animate=ft.animation.Animation(150, ft.AnimationCurve.EASE_OUT),
+            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
         )
 
     # ------------------------------------------------------------------
@@ -248,7 +252,7 @@ class HomeView(ft.Column):
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             expand=True,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             padding=64,
         )
 
@@ -276,10 +280,10 @@ class HomeView(ft.Column):
                     ft.Row(
                         [
                             ft.ElevatedButton(
-                                text="Wizard guidato",
+                                "Wizard guidato",
                                 icon=ft.Icons.AUTO_FIX_HIGH,
                                 tooltip="Rispondi ad alcune domande e l'app crea il personaggio più adatto a te",
-                                on_click=lambda e: self._close_and(dlg, self.on_create_wizard),
+                                on_click=lambda e: self._close_and(self.on_create_wizard),
                                 expand=True,
                                 style=ft.ButtonStyle(
                                     bgcolor=COLOR_ACCENT_GOLD,
@@ -293,10 +297,10 @@ class HomeView(ft.Column):
                     ft.Row(
                         [
                             ft.OutlinedButton(
-                                text="Creazione manuale",
+                                "Creazione manuale",
                                 icon=ft.Icons.EDIT_NOTE,
                                 tooltip="Compila direttamente tutti i campi della scheda",
-                                on_click=lambda e: self._close_and(dlg, self.on_create_manual),
+                                on_click=lambda e: self._close_and(self.on_create_manual),
                                 expand=True,
                                 style=ft.ButtonStyle(
                                     color=COLOR_ACCENT_GOLD,
@@ -313,14 +317,12 @@ class HomeView(ft.Column):
             actions=[
                 ft.TextButton(
                     "Annulla",
-                    on_click=lambda e: self._close_dialog(dlg),
+                    on_click=lambda e: self._close_dialog(),
                     style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY),
                 ),
             ],
         )
-        self.page.dialog = dlg
-        dlg.open = True
-        self.page.update()
+        self.page.show_dialog(dlg)
 
     def _confirm_delete(self, char: Character):
         """Dialog di conferma eliminazione."""
@@ -335,7 +337,7 @@ class HomeView(ft.Column):
             actions=[
                 ft.TextButton(
                     "Annulla",
-                    on_click=lambda e: self._close_dialog(dlg),
+                    on_click=lambda e: self._close_dialog(),
                     style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY),
                 ),
                 ft.ElevatedButton(
@@ -350,23 +352,20 @@ class HomeView(ft.Column):
                 ),
             ],
         )
-        self.page.dialog = dlg
-        dlg.open = True
-        self.page.update()
+        self.page.show_dialog(dlg)
 
     def _do_delete(self, dlg: ft.AlertDialog, character_id: str):
-        self._close_dialog(dlg)
+        self.page.pop_dialog()
         if character_repo.delete(character_id):
             self.refresh()
         else:
             self._show_error("Errore durante l'eliminazione del personaggio.")
 
-    def _close_dialog(self, dlg: ft.AlertDialog):
-        dlg.open = False
-        self.page.update()
+    def _close_dialog(self):
+        self.page.pop_dialog()
 
-    def _close_and(self, dlg: ft.AlertDialog, callback):
-        self._close_dialog(dlg)
+    def _close_and(self, callback):
+        self.page.pop_dialog()
         callback()
 
     def _show_error(self, message: str):
@@ -374,6 +373,4 @@ class HomeView(ft.Column):
             content=ft.Text(message, color=COLOR_TEXT_PRIMARY),
             bgcolor=COLOR_ACCENT_RED,
         )
-        self.page.snack_bar = snack
-        snack.open = True
-        self.page.update()
+        self.page.show_dialog(snack)

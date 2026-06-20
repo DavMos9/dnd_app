@@ -29,7 +29,7 @@ def main():
         logger.error(f"Impossibile inizializzare il database: {e}")
         sys.exit(1)
 
-    ft.app(target=run_app)
+    ft.run(run_app)
 
 
 if __name__ == "__main__":

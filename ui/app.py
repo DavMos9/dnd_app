@@ -193,7 +193,13 @@ class DnDApp:
 
     def _get_section_view(self, key: str) -> ft.Control:
         if key == "sheet":
-            return self._placeholder_view("Scheda Personaggio", ft.Icons.PERSON, "In sviluppo...")
+            from data.repositories import character_repo
+            from ui.views.character_sheet.sheet_view import SheetView
+            char = character_repo.get_by_id(self.current_character_id)
+            profs = character_repo.get_proficiencies(self.current_character_id)
+            if char:
+                return SheetView(char, profs)
+            return self._placeholder_view("Personaggio non trovato", ft.Icons.ERROR_OUTLINE, "")
         elif key == "spells":
             return self._placeholder_view("Incantesimi", ft.Icons.AUTO_AWESOME, "In sviluppo...")
         elif key == "diary":

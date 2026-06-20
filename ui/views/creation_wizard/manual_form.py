@@ -60,9 +60,9 @@ class ManualCreationForm(ft.Column):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8,
             ),
-            padding=ft.padding.symmetric(horizontal=24, vertical=16),
+            padding=ft.Padding.symmetric(horizontal=24, vertical=16),
             bgcolor=COLOR_BG_SECONDARY,
-            border=ft.border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
         )
 
         form_body = ft.Column(
@@ -92,9 +92,9 @@ class ManualCreationForm(ft.Column):
                 alignment=ft.MainAxisAlignment.END,
                 spacing=12,
             ),
-            padding=ft.padding.symmetric(horizontal=32, vertical=16),
+            padding=ft.Padding.symmetric(horizontal=32, vertical=16),
             bgcolor=COLOR_BG_SECONDARY,
-            border=ft.border.only(top=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border.only(top=ft.BorderSide(1, COLOR_BORDER)),
         )
 
         self.controls = [
@@ -260,7 +260,7 @@ class ManualCreationForm(ft.Column):
             border_color=COLOR_BORDER,
             focused_border_color=COLOR_ACCENT_GOLD,
             border_radius=6,
-            content_padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            content_padding=ft.Padding.symmetric(horizontal=12, vertical=10),
         )
         self._fields[key] = tf
         return tf
@@ -278,7 +278,7 @@ class ManualCreationForm(ft.Column):
             border_color=COLOR_BORDER,
             focused_border_color=COLOR_ACCENT_GOLD,
             border_radius=6,
-            content_padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            content_padding=ft.Padding.symmetric(horizontal=12, vertical=10),
         )
         self._fields[key] = tf
         return tf
@@ -286,7 +286,7 @@ class ManualCreationForm(ft.Column):
     def _dropdown(self, key: str, label: str, options: list[str]) -> ft.Dropdown:
         dd = ft.Dropdown(
             label=label,
-            options=[ft.dropdown.Option(o) for o in options],
+            options=[ft.DropdownOption(key=o, text=str(o)) for o in options],
             expand=True,
             label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY, size=12),
             text_style=ft.TextStyle(color=COLOR_TEXT_PRIMARY, size=14),
@@ -294,7 +294,7 @@ class ManualCreationForm(ft.Column):
             border_color=COLOR_BORDER,
             focused_border_color=COLOR_ACCENT_GOLD,
             border_radius=6,
-            content_padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            content_padding=ft.Padding.symmetric(horizontal=12, vertical=10),
         )
         self._fields[key] = dd
         return dd
@@ -312,7 +312,7 @@ class ManualCreationForm(ft.Column):
             border_color=COLOR_BORDER,
             focused_border_color=COLOR_ACCENT_GOLD,
             border_radius=6,
-            content_padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            content_padding=ft.Padding.symmetric(horizontal=12, vertical=10),
         )
         self._fields[key] = tf
         return tf
@@ -449,6 +449,4 @@ class ManualCreationForm(ft.Column):
             content=ft.Text(message, color=COLOR_TEXT_PRIMARY),
             bgcolor=COLOR_ACCENT_RED,
         )
-        self.page.snack_bar = snack
-        snack.open = True
-        self.page.update()
+        self.page.show_dialog(snack)

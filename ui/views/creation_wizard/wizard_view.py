@@ -137,9 +137,9 @@ class WizardView(ft.Column):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8,
             ),
-            padding=ft.padding.symmetric(horizontal=24, vertical=14),
+            padding=ft.Padding.symmetric(horizontal=24, vertical=14),
             bgcolor=COLOR_BG_SECONDARY,
-            border=ft.border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
         )
 
         self.controls = [
@@ -152,11 +152,17 @@ class WizardView(ft.Column):
         total = len(WIZARD_QUESTIONS)
         done = self._current_q_index
         self._progress_bar.value = done / total if total > 0 else 0
-        self._progress_bar.update()
+        try:
+            self._progress_bar.update()
+        except RuntimeError:
+            pass  # non ancora montato sulla page
 
     def _set_content(self, control: ft.Control):
         self._content.content = control
-        self._content.update()
+        try:
+            self._content.update()
+        except RuntimeError:
+            pass  # non ancora montato sulla page
 
     # ------------------------------------------------------------------
     # Navigazione
@@ -214,10 +220,10 @@ class WizardView(ft.Column):
                 size=10,
                 weight=ft.FontWeight.BOLD,
                 color=COLOR_ACCENT_GOLD,
-                letter_spacing=2,
+                style=ft.TextStyle(letter_spacing=2),
             ),
-            padding=ft.padding.symmetric(horizontal=10, vertical=4),
-            border=ft.border.all(1, COLOR_ACCENT_GOLD),
+            padding=ft.Padding.symmetric(horizontal=10, vertical=4),
+            border=ft.Border.all(1, COLOR_ACCENT_GOLD),
             border_radius=4,
         )
 
@@ -268,13 +274,13 @@ class WizardView(ft.Column):
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                padding=ft.padding.symmetric(horizontal=20, vertical=14),
+                padding=ft.Padding.symmetric(horizontal=20, vertical=14),
                 bgcolor=COLOR_BG_CARD,
-                border=ft.border.all(1, COLOR_BORDER),
+                border=ft.Border.all(1, COLOR_BORDER),
                 border_radius=8,
                 on_click=lambda e, o=opt: _toggle_option(o["id"]),
                 ink=True,
-                animate=ft.animation.Animation(120, ft.AnimationCurve.EASE_OUT),
+                animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
             )
             option_refs[opt["id"]] = card
             return card
@@ -295,7 +301,7 @@ class WizardView(ft.Column):
             for oid, card in option_refs.items():
                 if oid in selected:
                     card.bgcolor = "#2a1f08"
-                    card.border = ft.border.all(2, COLOR_ACCENT_GOLD)
+                    card.border = ft.Border.all(2, COLOR_ACCENT_GOLD)
                     # Aggiorna colore icona
                     row = card.content
                     row.controls[0] = _icon(
@@ -304,7 +310,7 @@ class WizardView(ft.Column):
                     )
                 else:
                     card.bgcolor = COLOR_BG_CARD
-                    card.border = ft.border.all(1, COLOR_BORDER)
+                    card.border = ft.Border.all(1, COLOR_BORDER)
                     row = card.content
                     row.controls[0] = _icon(
                         next(o["icon"] for o in q["options"] if o["id"] == oid),
@@ -314,7 +320,7 @@ class WizardView(ft.Column):
 
         # Bottone Avanti
         next_btn = ft.ElevatedButton(
-            text="Avanti",
+            "Avanti",
             icon=ft.Icons.ARROW_FORWARD,
             disabled=True,
             on_click=lambda e: _on_next(),
@@ -373,7 +379,7 @@ class WizardView(ft.Column):
             ft.Container(
                 content=content,
                 expand=True,
-                padding=ft.padding.symmetric(horizontal=40, vertical=24),
+                padding=ft.Padding.symmetric(horizontal=40, vertical=24),
             )
         )
 
@@ -404,7 +410,7 @@ class WizardView(ft.Column):
                 ),
                 bgcolor=COLOR_ACCENT_GOLD if is_top else COLOR_BG_SECONDARY,
                 border_radius=4,
-                padding=ft.padding.symmetric(horizontal=8, vertical=3),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=3),
             )
             hit_die = CLASSES.get(cls, {}).get("hit_die", 8)
             spell_ab = CLASSES.get(cls, {}).get("spellcasting_ability")
@@ -451,7 +457,7 @@ class WizardView(ft.Column):
                 ),
                 padding=16,
                 bgcolor="#2a1f08" if is_top else COLOR_BG_CARD,
-                border=ft.border.all(border_width, border_color),
+                border=ft.Border.all(border_width, border_color),
                 border_radius=8,
             )
 
@@ -540,7 +546,7 @@ class WizardView(ft.Column):
             ft.Container(
                 content=content,
                 expand=True,
-                padding=ft.padding.symmetric(horizontal=40, vertical=24),
+                padding=ft.Padding.symmetric(horizontal=40, vertical=24),
             )
         )
 
@@ -564,8 +570,8 @@ class WizardView(ft.Column):
         class_dd = ft.Dropdown(
             label="Classe",
             value=self._review_class,
-            options=[ft.dropdown.Option(c) for c in CLASSES.keys()],
-            on_change=self._on_class_change,
+            options=[ft.DropdownOption(key=c, text=str(c)) for c in CLASSES.keys()],
+            on_select=lambda e: _on_class_change(e),
             bgcolor=COLOR_BG_CARD,
             color=COLOR_TEXT_PRIMARY,
             label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -576,8 +582,8 @@ class WizardView(ft.Column):
         race_dd = ft.Dropdown(
             label="Razza",
             value=self._review_race,
-            options=[ft.dropdown.Option(r) for r in RACES],
-            on_change=lambda e: setattr(self, "_review_race", e.control.value),
+            options=[ft.DropdownOption(key=r, text=str(r)) for r in RACES],
+            on_select=lambda e: setattr(self, "_review_race", e.control.value),
             bgcolor=COLOR_BG_CARD,
             color=COLOR_TEXT_PRIMARY,
             label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -588,8 +594,8 @@ class WizardView(ft.Column):
         bg_dd = ft.Dropdown(
             label="Background",
             value=self._review_bg,
-            options=[ft.dropdown.Option(b) for b in BACKGROUNDS.keys()],
-            on_change=lambda e: setattr(self, "_review_bg", e.control.value),
+            options=[ft.DropdownOption(key=b, text=str(b)) for b in BACKGROUNDS.keys()],
+            on_select=lambda e: setattr(self, "_review_bg", e.control.value),
             bgcolor=COLOR_BG_CARD,
             color=COLOR_TEXT_PRIMARY,
             label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -600,8 +606,8 @@ class WizardView(ft.Column):
         align_dd = ft.Dropdown(
             label="Allineamento",
             value=self._review_align if self._review_align in ALIGNMENTS else ALIGNMENTS[0],
-            options=[ft.dropdown.Option(a) for a in ALIGNMENTS],
-            on_change=lambda e: setattr(self, "_review_align", e.control.value),
+            options=[ft.DropdownOption(key=a, text=str(a)) for a in ALIGNMENTS],
+            on_select=lambda e: setattr(self, "_review_align", e.control.value),
             bgcolor=COLOR_BG_CARD,
             color=COLOR_TEXT_PRIMARY,
             label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -624,8 +630,8 @@ class WizardView(ft.Column):
 
             dd = ft.Dropdown(
                 value=str(current_val),
-                options=[ft.dropdown.Option(str(v)) for v in sorted(available_values, reverse=True)],
-                on_change=lambda e, k=key: _on_stat_change(k, int(e.control.value)),
+                options=[ft.DropdownOption(key=str(v), text=str(v)) for v in sorted(available_values, reverse=True)],
+                on_select=lambda e, k=key: _on_stat_change(k, int(e.control.value)),
                 bgcolor=COLOR_BG_CARD,
                 color=COLOR_TEXT_PRIMARY,
                 border_color=COLOR_BORDER,
@@ -642,7 +648,7 @@ class WizardView(ft.Column):
                     color=COLOR_ACCENT_GOLD if mod >= 0 else COLOR_ACCENT_RED,
                 ),
                 width=42,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
             )
 
             return ft.Row(
@@ -761,7 +767,7 @@ class WizardView(ft.Column):
             ft.Container(
                 content=content,
                 expand=True,
-                padding=ft.padding.symmetric(horizontal=40, vertical=24),
+                padding=ft.Padding.symmetric(horizontal=40, vertical=24),
             )
         )
 
@@ -816,9 +822,9 @@ class WizardView(ft.Column):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=2,
                 ),
-                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                 bgcolor=COLOR_BG_SECONDARY,
-                border=ft.border.all(1, COLOR_BORDER),
+                border=ft.Border.all(1, COLOR_BORDER),
                 border_radius=6,
             )
 
@@ -960,6 +966,6 @@ class WizardView(ft.Column):
             ft.Container(
                 content=content,
                 expand=True,
-                padding=ft.padding.symmetric(horizontal=40, vertical=24),
+                padding=ft.Padding.symmetric(horizontal=40, vertical=24),
             )
         )

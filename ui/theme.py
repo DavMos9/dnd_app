@@ -14,8 +14,6 @@ def get_theme() -> ft.Theme:
             on_primary=COLOR_BG_PRIMARY,
             secondary=COLOR_ACCENT_BLUE,
             surface=COLOR_BG_CARD,
-            background=COLOR_BG_PRIMARY,
-            on_background=COLOR_TEXT_PRIMARY,
             on_surface=COLOR_TEXT_PRIMARY,
             error=COLOR_ACCENT_RED,
         ),
@@ -37,18 +35,19 @@ def title_text(text: str, size: int = 20) -> ft.Text:
     )
 
 
-def body_text(text: str, size: int = 14, color: str = COLOR_TEXT_PRIMARY) -> ft.Text:
-    return ft.Text(text, size=size, color=color, font_family=FONT_BODY)
+def body_text(text: str, size: int = 14, color: str = COLOR_TEXT_PRIMARY, weight=None) -> ft.Text:
+    return ft.Text(text, size=size, color=color, font_family=FONT_BODY, weight=weight)
 
 
-def muted_text(text: str, size: int = 12) -> ft.Text:
-    return ft.Text(text, size=size, color=COLOR_TEXT_MUTED, font_family=FONT_BODY)
+def muted_text(text: str, size: int = 12, text_align: ft.TextAlign = None, weight=None) -> ft.Text:
+    return ft.Text(text, size=size, color=COLOR_TEXT_MUTED, font_family=FONT_BODY,
+                   text_align=text_align, weight=weight)
 
 
-def label_text(text: str) -> ft.Text:
+def label_text(text: str, size: int = 10) -> ft.Text:
     return ft.Text(
         text.upper(),
-        size=10,
+        size=size,
         color=COLOR_TEXT_SECONDARY,
         font_family=FONT_BODY,
         weight=ft.FontWeight.BOLD,
@@ -65,7 +64,7 @@ def fantasy_card(content: ft.Control, padding: int = 16) -> ft.Container:
         content=content,
         padding=padding,
         bgcolor=COLOR_BG_CARD,
-        border=ft.border.all(1, COLOR_BORDER),
+        border=ft.Border.all(1, COLOR_BORDER),
         border_radius=6,
     )
 
@@ -80,7 +79,7 @@ def section_header(text: str) -> ft.Container:
             ft.Container(width=4),
             ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER_ACCENT),
         ]),
-        margin=ft.margin.only(bottom=8),
+        margin=ft.Margin.only(bottom=8),
     )
 
 
@@ -94,7 +93,7 @@ def divider() -> ft.Divider:
 
 def primary_button(text: str, on_click=None, icon: str = None) -> ft.ElevatedButton:
     return ft.ElevatedButton(
-        text=text,
+        text,
         icon=icon,
         on_click=on_click,
         style=ft.ButtonStyle(
@@ -107,7 +106,7 @@ def primary_button(text: str, on_click=None, icon: str = None) -> ft.ElevatedBut
 
 def ghost_button(text: str, on_click=None) -> ft.OutlinedButton:
     return ft.OutlinedButton(
-        text=text,
+        text,
         on_click=on_click,
         style=ft.ButtonStyle(
             color=COLOR_ACCENT_GOLD,
@@ -119,7 +118,7 @@ def ghost_button(text: str, on_click=None) -> ft.OutlinedButton:
 
 def danger_button(text: str, on_click=None) -> ft.ElevatedButton:
     return ft.ElevatedButton(
-        text=text,
+        text,
         on_click=on_click,
         style=ft.ButtonStyle(
             bgcolor=COLOR_ACCENT_RED,

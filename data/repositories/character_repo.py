@@ -9,9 +9,14 @@ from datetime import datetime
 from typing import Optional
 
 from data.database import get_connection
-from data.models import Character, Currency
+from data.models import Character, CharacterProficiency, Currency
 
 logger = logging.getLogger(__name__)
+
+
+def _s(value) -> str:
+    """Converte None in stringa vuota per i campi TEXT NOT NULL."""
+    return value if value is not None else ""
 
 
 def _row_to_character(row) -> Character:
@@ -129,17 +134,17 @@ def create(character: Character) -> bool:
             )
         """, {
             "id": character.id,
-            "name": character.name,
-            "player_name": character.player_name,
-            "class_name": character.class_name,
-            "subclass": character.subclass,
+            "name": _s(character.name),
+            "player_name": _s(character.player_name),
+            "class_name": _s(character.class_name),
+            "subclass": _s(character.subclass),
             "level": character.level,
-            "race": character.race,
-            "subrace": character.subrace,
-            "background": character.background,
-            "alignment": character.alignment,
+            "race": _s(character.race),
+            "subrace": _s(character.subrace),
+            "background": _s(character.background),
+            "alignment": _s(character.alignment),
             "xp": character.xp,
-            "image_path": character.image_path,
+            "image_path": _s(character.image_path),
             "str_score": character.str_score,
             "dex_score": character.dex_score,
             "con_score": character.con_score,
@@ -160,23 +165,23 @@ def create(character: Character) -> bool:
             "bonus_action_used": int(character.bonus_action_used),
             "reaction_used": int(character.reaction_used),
             "movement_used": character.movement_used,
-            "previous_turn_state": character.previous_turn_state,
-            "spellcasting_ability": character.spellcasting_ability,
+            "previous_turn_state": _s(character.previous_turn_state),
+            "spellcasting_ability": _s(character.spellcasting_ability),
             "inspiration": int(character.inspiration),
-            "age": character.age,
-            "height": character.height,
-            "weight": character.weight,
-            "eyes": character.eyes,
-            "skin": character.skin,
-            "hair": character.hair,
-            "personality_traits": character.personality_traits,
-            "ideals": character.ideals,
-            "bonds": character.bonds,
-            "flaws": character.flaws,
-            "backstory": character.backstory,
-            "allies_organizations": character.allies_organizations,
-            "additional_traits": character.additional_traits,
-            "appearance_notes": character.appearance_notes,
+            "age": _s(character.age),
+            "height": _s(character.height),
+            "weight": _s(character.weight),
+            "eyes": _s(character.eyes),
+            "skin": _s(character.skin),
+            "hair": _s(character.hair),
+            "personality_traits": _s(character.personality_traits),
+            "ideals": _s(character.ideals),
+            "bonds": _s(character.bonds),
+            "flaws": _s(character.flaws),
+            "backstory": _s(character.backstory),
+            "allies_organizations": _s(character.allies_organizations),
+            "additional_traits": _s(character.additional_traits),
+            "appearance_notes": _s(character.appearance_notes),
             "created_at": character.created_at,
             "updated_at": character.updated_at,
         })
@@ -239,17 +244,17 @@ def update(character: Character) -> bool:
             WHERE id=:id
         """, {
             "id": character.id,
-            "name": character.name,
-            "player_name": character.player_name,
-            "class_name": character.class_name,
-            "subclass": character.subclass,
+            "name": _s(character.name),
+            "player_name": _s(character.player_name),
+            "class_name": _s(character.class_name),
+            "subclass": _s(character.subclass),
             "level": character.level,
-            "race": character.race,
-            "subrace": character.subrace,
-            "background": character.background,
-            "alignment": character.alignment,
+            "race": _s(character.race),
+            "subrace": _s(character.subrace),
+            "background": _s(character.background),
+            "alignment": _s(character.alignment),
             "xp": character.xp,
-            "image_path": character.image_path,
+            "image_path": _s(character.image_path),
             "str_score": character.str_score,
             "dex_score": character.dex_score,
             "con_score": character.con_score,
@@ -270,23 +275,23 @@ def update(character: Character) -> bool:
             "bonus_action_used": int(character.bonus_action_used),
             "reaction_used": int(character.reaction_used),
             "movement_used": character.movement_used,
-            "previous_turn_state": character.previous_turn_state,
-            "spellcasting_ability": character.spellcasting_ability,
+            "previous_turn_state": _s(character.previous_turn_state),
+            "spellcasting_ability": _s(character.spellcasting_ability),
             "inspiration": int(character.inspiration),
-            "age": character.age,
-            "height": character.height,
-            "weight": character.weight,
-            "eyes": character.eyes,
-            "skin": character.skin,
-            "hair": character.hair,
-            "personality_traits": character.personality_traits,
-            "ideals": character.ideals,
-            "bonds": character.bonds,
-            "flaws": character.flaws,
-            "backstory": character.backstory,
-            "allies_organizations": character.allies_organizations,
-            "additional_traits": character.additional_traits,
-            "appearance_notes": character.appearance_notes,
+            "age": _s(character.age),
+            "height": _s(character.height),
+            "weight": _s(character.weight),
+            "eyes": _s(character.eyes),
+            "skin": _s(character.skin),
+            "hair": _s(character.hair),
+            "personality_traits": _s(character.personality_traits),
+            "ideals": _s(character.ideals),
+            "bonds": _s(character.bonds),
+            "flaws": _s(character.flaws),
+            "backstory": _s(character.backstory),
+            "allies_organizations": _s(character.allies_organizations),
+            "additional_traits": _s(character.additional_traits),
+            "appearance_notes": _s(character.appearance_notes),
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -336,6 +341,30 @@ def _save_single_proficiency(
     except Exception as e:
         logger.error(f"Errore salvataggio competenza '{name}': {e}")
         return False
+
+
+def get_proficiencies(character_id: str) -> list[CharacterProficiency]:
+    """Restituisce tutte le competenze di un personaggio."""
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM character_proficiencies WHERE character_id = ?",
+            (character_id,)
+        ).fetchall()
+        conn.close()
+        return [
+            CharacterProficiency(
+                id=r["id"],
+                character_id=r["character_id"],
+                proficiency_type=r["proficiency_type"],
+                name=r["name"],
+                is_expert=bool(r["is_expert"]),
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore nel recupero competenze {character_id}: {e}")
+        return []
 
 
 def update_hp(character_id: str, hp_current: int, hp_temp: int = None) -> bool:
