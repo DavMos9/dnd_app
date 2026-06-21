@@ -12,6 +12,7 @@ Output: ft.Column che occupa tutta l'area disponibile
 
 import flet as ft
 import logging
+from typing import cast
 from config.settings import *
 from data.models import Character, CharacterProficiency
 from ui.theme import title_text, muted_text
@@ -181,8 +182,9 @@ class SheetView(ft.Column):
         # Aggiorna stile bottoni
         for k, btn in self._tab_buttons.items():
             active = k == key
-            btn.content.color = COLOR_ACCENT_CRIMSON if active else COLOR_TEXT_SECONDARY
-            btn.content.weight = ft.FontWeight.BOLD if active else ft.FontWeight.NORMAL
+            label = cast(ft.Text, btn.content)
+            label.color = COLOR_ACCENT_CRIMSON if active else COLOR_TEXT_SECONDARY
+            label.weight = ft.FontWeight.BOLD if active else ft.FontWeight.NORMAL
             btn.bgcolor = COLOR_BG_TAB_ACTIVE if active else COLOR_BG_TAB_INACTIVE
             btn.border = ft.Border.only(
                 bottom=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if active else "transparent")
@@ -202,6 +204,9 @@ class SheetView(ft.Column):
         if key == "combattimento":
             from ui.views.character_sheet.combattimento_tab import CombattimentoTab
             return CombattimentoTab(self.character)
+        if key == "esplorazione":
+            from ui.views.character_sheet.esplorazione_tab import EsplorazioneTab
+            return EsplorazioneTab(self.character)
         return self._placeholder_tab(key)
 
     def _placeholder_tab(self, key: str) -> ft.Container:

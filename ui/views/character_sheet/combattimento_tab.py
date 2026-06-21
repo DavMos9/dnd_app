@@ -20,6 +20,7 @@ Nota movimento: stored come int (metri interi). Il passo 1.5m usa delta=2.
 import flet as ft
 import json
 import logging
+from typing import cast
 from config.settings import *
 from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell
 import data.repositories.character_repo as character_repo
@@ -48,7 +49,7 @@ class CombattimentoTab(ft.ListView):
         self._build()
 
     def did_mount(self):
-        self._page = self.page
+        self._page = cast(ft.Page, self.page)
 
     # ------------------------------------------------------------------
     # Build principale
@@ -240,6 +241,7 @@ class CombattimentoTab(ft.ListView):
     def _on_damage_click(self, e):
         if not self._page:
             return
+        page = self._page
         field = ft.TextField(
             label="Quantità danno", keyboard_type=ft.KeyboardType.NUMBER,
             autofocus=True, text_align=ft.TextAlign.CENTER,
@@ -249,6 +251,8 @@ class CombattimentoTab(ft.ListView):
         )
 
         def apply(ev):
+            if page is None:
+                return
             try:
                 amt = max(0, int(field.value or 0))
             except ValueError:
@@ -261,15 +265,15 @@ class CombattimentoTab(ft.ListView):
                 amt -= absorbed
             c.hp_current = max(0, c.hp_current - amt)
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
-        self._page.show_dialog(ft.AlertDialog(
+        page.show_dialog(ft.AlertDialog(
             title=ft.Text("Applica Danno", size=14, weight=ft.FontWeight.BOLD,
                           color=COLOR_HP_LOW),
             content=ft.Column([field], width=240, spacing=0),
             actions=[
-                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Applica", on_click=apply,
                                   style=ft.ButtonStyle(bgcolor=COLOR_HP_LOW, color="#ffffff",
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
@@ -280,6 +284,7 @@ class CombattimentoTab(ft.ListView):
     def _on_heal_click(self, e):
         if not self._page:
             return
+        page = self._page
         field = ft.TextField(
             label="Quantità cura", keyboard_type=ft.KeyboardType.NUMBER,
             autofocus=True, text_align=ft.TextAlign.CENTER,
@@ -289,6 +294,8 @@ class CombattimentoTab(ft.ListView):
         )
 
         def apply(ev):
+            if page is None:
+                return
             try:
                 amt = max(0, int(field.value or 0))
             except ValueError:
@@ -296,15 +303,15 @@ class CombattimentoTab(ft.ListView):
             c = self.character
             c.hp_current = min(c.hp_max, c.hp_current + amt)
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
-        self._page.show_dialog(ft.AlertDialog(
+        page.show_dialog(ft.AlertDialog(
             title=ft.Text("Applica Cura", size=14, weight=ft.FontWeight.BOLD,
                           color=COLOR_HP_FULL),
             content=ft.Column([field], width=240, spacing=0),
             actions=[
-                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Cura", on_click=apply,
                                   style=ft.ButtonStyle(bgcolor=COLOR_HP_FULL, color="#ffffff",
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
@@ -313,7 +320,8 @@ class CombattimentoTab(ft.ListView):
         ))
 
     def _on_edit_hp_click(self, e):
-        if not self._page:
+        page = self._page
+        if page is None:
             return
         c = self.character
 
@@ -331,6 +339,8 @@ class CombattimentoTab(ft.ListView):
         f_temp = _num_field("HP Temporanei", c.hp_temp or 0)
 
         def save(ev):
+            if page is None:
+                return
             try:
                 c.hp_max     = max(1, int(f_max.value or c.hp_max))
                 c.hp_current = max(0, min(c.hp_max, int(f_curr.value or c.hp_current)))
@@ -339,15 +349,15 @@ class CombattimentoTab(ft.ListView):
                 return
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
             character_repo.update(c)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
-        self._page.show_dialog(ft.AlertDialog(
+        page.show_dialog(ft.AlertDialog(
             title=ft.Text("Modifica HP", size=14, weight=ft.FontWeight.BOLD,
                           color=COLOR_TEXT_TITLE),
             content=ft.Column([f_max, f_curr, f_temp], spacing=10, width=300),
             actions=[
-                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
@@ -450,7 +460,8 @@ class CombattimentoTab(ft.ListView):
         self._refresh()
 
     def _on_edit_stats_click(self, e):
-        if not self._page:
+        page = self._page
+        if not page:
             return
         c = self.character
         f_ac    = ft.TextField(label="Classe Armatura (CA)", value=str(c.ac),
@@ -465,21 +476,23 @@ class CombattimentoTab(ft.ListView):
                                bgcolor=COLOR_BG_CARD)
 
         def save(ev):
+            if page is None:
+                return
             try:
                 c.ac    = max(0, int(f_ac.value or c.ac))
                 c.speed = max(0, int(f_speed.value or c.speed))
             except ValueError:
                 return
             character_repo.update(c)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
-        self._page.show_dialog(ft.AlertDialog(
+        page.show_dialog(ft.AlertDialog(
             title=ft.Text("Modifica Statistiche", size=14, weight=ft.FontWeight.BOLD,
                           color=COLOR_TEXT_TITLE),
             content=ft.Column([f_ac, f_speed], spacing=10, width=280),
             actions=[
-                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
@@ -741,12 +754,12 @@ class CombattimentoTab(ft.ListView):
 
         # --- Tiri Salvezza ---
         save_pairs = list(zip(ABILITY_SCORES, ABILITY_KEYS))
-        saves_col = ft.Column(
-            [ft.Text("TIRI SALVEZZA", size=9, color=COLOR_TEXT_MUTED,
-                     weight=ft.FontWeight.BOLD, style=ft.TextStyle(letter_spacing=0.8))]
-            + [_save_row(name, key) for name, key in save_pairs],
-            spacing=3,
-        )
+        save_controls: list[ft.Control] = [
+            ft.Text("TIRI SALVEZZA", size=9, color=COLOR_TEXT_MUTED,
+                    weight=ft.FontWeight.BOLD, style=ft.TextStyle(letter_spacing=0.8))
+        ]
+        save_controls.extend(_save_row(name, key) for name, key in save_pairs)
+        saves_col = ft.Column(controls=save_controls, spacing=3)
 
         # --- Abilità — due colonne da 9 ---
         skill_items = list(SKILLS.items())
@@ -1063,7 +1076,8 @@ class CombattimentoTab(ft.ListView):
                 return
 
     def _on_configure_slots_click(self, e):
-        if not self._page:
+        page = self._page
+        if page is None:
             return
         slot_map = {s.slot_level: s for s in self._slots}
         fields: dict[int, ft.TextField] = {}
@@ -1091,6 +1105,8 @@ class CombattimentoTab(ft.ListView):
         )
 
         def save(ev):
+            if page is None:
+                return
             for lv, field in fields.items():
                 try:
                     total = max(0, min(9, int(field.value or 0)))
@@ -1098,10 +1114,10 @@ class CombattimentoTab(ft.ListView):
                     total = 0
                 character_repo.update_spell_slot_total(self.character.id, lv, total)
             self._slots = character_repo.get_spell_slots(self.character.id)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
-        self._page.show_dialog(ft.AlertDialog(
+        page.show_dialog(ft.AlertDialog(
             title=ft.Text("Configura Slot Incantesimo", size=14,
                           weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Column(
@@ -1117,7 +1133,7 @@ class CombattimentoTab(ft.ListView):
                 scroll=ft.ScrollMode.AUTO,
             ),
             actions=[
-                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Salva", on_click=save,
                     style=ft.ButtonStyle(
@@ -1203,7 +1219,8 @@ class CombattimentoTab(ft.ListView):
         )
 
     def _on_short_rest_click(self, e):
-        if not self._page:
+        page = self._page
+        if page is None:
             return
         c = self.character
         die       = c.hit_dice_type or 8
@@ -1228,6 +1245,8 @@ class CombattimentoTab(ft.ListView):
         )
 
         def apply(ev):
+            if page is None:
+                return
             try:
                 n = max(1, min(remaining, int(f_dice.value or 1)))
                 roll = max(n, int(f_roll.value or n))
@@ -1238,10 +1257,10 @@ class CombattimentoTab(ft.ListView):
             c.hit_dice_remaining = max(0, remaining - n)
             character_repo.update_hp(c.id, c.hp_current)
             character_repo.update_hit_dice(c.id, c.hit_dice_remaining)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
-        self._page.show_dialog(ft.AlertDialog(
+        page.show_dialog(ft.AlertDialog(
             title=ft.Text("Riposo Breve", size=14, weight=ft.FontWeight.BOLD,
                           color=COLOR_ACCENT_AMBER),
             content=ft.Column(
@@ -1257,7 +1276,7 @@ class CombattimentoTab(ft.ListView):
                 spacing=8, width=320,
             ),
             actions=[
-                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Applica Riposo", on_click=apply,
                     style=ft.ButtonStyle(
@@ -1276,6 +1295,9 @@ class CombattimentoTab(ft.ListView):
     def _section_riposo_lungo(self, c: Character) -> ft.Container:
 
         def do_rest(ev):
+            page = self._page
+            if page is None:
+                return
             # HP e HP temp
             c.hp_current = c.hp_max
             c.hp_temp = 0
@@ -1301,15 +1323,16 @@ class CombattimentoTab(ft.ListView):
             # Salva tutto
             character_repo.update(c)
             character_repo.update_hp(c.id, c.hp_max, 0)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
         def confirm(e):
-            if not self._page:
+            page = self._page
+            if page is None:
                 return
             total = c.hit_dice_total or c.level
             recovered = max(1, total // 2)
-            self._page.show_dialog(ft.AlertDialog(
+            page.show_dialog(ft.AlertDialog(
                 title=ft.Text("Riposo Lungo", size=14, weight=ft.FontWeight.BOLD,
                               color=COLOR_TEXT_TITLE),
                 content=ft.Text(
@@ -1322,7 +1345,7 @@ class CombattimentoTab(ft.ListView):
                     size=13, color=COLOR_TEXT_PRIMARY,
                 ),
                 actions=[
-                    ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                    ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                     ft.ElevatedButton(
                         "Riposa",
                         on_click=do_rest,

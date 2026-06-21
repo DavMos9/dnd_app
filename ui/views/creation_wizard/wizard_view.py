@@ -12,6 +12,7 @@ Il wizard è offline: nessuna API, solo albero decisionale + dati PHB.
 
 import flet as ft
 import logging
+from typing import cast
 
 from config.settings import (
     COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_CARD, COLOR_BG_SELECTED,
@@ -304,7 +305,7 @@ class WizardView(ft.Column):
                     card.bgcolor = "#2a1f08"
                     card.border = ft.Border.all(2, COLOR_ACCENT_GOLD)
                     # Aggiorna colore icona
-                    row = card.content
+                    row = cast(ft.Row, card.content)
                     row.controls[0] = _icon(
                         next(o["icon"] for o in q["options"] if o["id"] == oid),
                         COLOR_ACCENT_GOLD, 28,
@@ -312,7 +313,7 @@ class WizardView(ft.Column):
                 else:
                     card.bgcolor = COLOR_BG_CARD
                     card.border = ft.Border.all(1, COLOR_BORDER)
-                    row = card.content
+                    row = cast(ft.Row, card.content)
                     row.controls[0] = _icon(
                         next(o["icon"] for o in q["options"] if o["id"] == oid),
                         COLOR_TEXT_MUTED, 28,
@@ -467,20 +468,23 @@ class WizardView(ft.Column):
                 if spell_ab else "—"
             )
             card = ft.Container(
-                content=ft.Column([
-                    ft.Row(badges, alignment=ft.MainAxisAlignment.START),
-                    ft.Container(height=8),
-                    ft.Text(cls, size=18 if is_top else 15, weight=ft.FontWeight.BOLD,
-                            color=COLOR_ACCENT_GOLD if is_top else COLOR_TEXT_PRIMARY),
-                    ft.Container(height=4),
-                    muted_text(CLASS_DESCRIPTIONS.get(cls, ""), size=12),
-                    ft.Container(height=8),
-                    ft.Row([
-                        ft.Column([label_text("Dado Vita", 9), body_text(f"d{hit_die}", 14)], spacing=2),
-                        ft.Container(width=24),
-                        ft.Column([label_text("Incantesimi", 9), body_text(spell_label, 14)], spacing=2),
-                    ], spacing=0),
-                ], spacing=0),
+                content=ft.Column(
+                    controls=cast(list[ft.Control], [
+                        ft.Row(cast(list[ft.Control], badges), alignment=ft.MainAxisAlignment.START),
+                        ft.Container(height=8),
+                        ft.Text(cls, size=18 if is_top else 15, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_GOLD if is_top else COLOR_TEXT_PRIMARY),
+                        ft.Container(height=4),
+                        muted_text(CLASS_DESCRIPTIONS.get(cls, ""), size=12),
+                        ft.Container(height=8),
+                        ft.Row([
+                            ft.Column([label_text("Dado Vita", 9), body_text(f"d{hit_die}", 14)], spacing=2),
+                            ft.Container(width=24),
+                            ft.Column([label_text("Incantesimi", 9), body_text(spell_label, 14)], spacing=2),
+                        ], spacing=0),
+                    ]),
+                    spacing=0,
+                ),
                 padding=14,
                 bgcolor=COLOR_BG_SELECTED if is_top else COLOR_BG_CARD,
                 border=ft.Border(
@@ -650,7 +654,7 @@ class WizardView(ft.Column):
             dd = ft.Dropdown(
                 value=str(current_val),
                 options=[ft.DropdownOption(key=str(v), text=str(v)) for v in sorted(available_values, reverse=True)],
-                on_select=lambda e, k=key: _on_stat_change(k, int(e.control.value)),
+                on_select=lambda e, k=key: _on_stat_change(k, int(e.control.value or 10)),
                 bgcolor=COLOR_BG_CARD,
                 color=COLOR_TEXT_PRIMARY,
                 border_color=COLOR_BORDER,
@@ -688,11 +692,11 @@ class WizardView(ft.Column):
                 v = self._review_stats.get(k, 10)
                 ms = get_modifier_str(v)
                 row = dd_ctrl.parent
-                if row and len(row.controls) >= 3:
-                    badge = row.controls[2]
-                    badge.content.value = ms
+                if row and len(cast(ft.Row, row).controls) >= 3:
+                    badge = cast(ft.Container, cast(ft.Row, row).controls[2])
+                    cast(ft.Text, badge.content).value = ms
                     m = get_modifier(v)
-                    badge.content.color = COLOR_ACCENT_GOLD if m >= 0 else COLOR_ACCENT_RED
+                    cast(ft.Text, badge.content).color = COLOR_ACCENT_GOLD if m >= 0 else COLOR_ACCENT_RED
                     badge.update()
 
         stat_rows = ft.Column(

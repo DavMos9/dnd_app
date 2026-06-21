@@ -15,6 +15,7 @@ Usa ft.ListView (non Column scroll=AUTO) per evitare bug height in Flet 0.85.3.
 
 import base64
 import threading
+from typing import cast
 import flet as ft
 import logging
 from config.settings import *
@@ -113,7 +114,7 @@ class ProfiloTab(ft.ListView):
         ]
 
     def did_mount(self):
-        self._page = self.page
+        self._page = cast(ft.Page, self.page)
 
     # ------------------------------------------------------------------
     # Header foto + XP + Level Up
@@ -300,7 +301,7 @@ class ProfiloTab(ft.ListView):
         darkvision = race_info.get("darkvision", 0)
         traits = race_info.get("traits", [])
 
-        rows = [
+        rows: list[ft.Control] = [
             self._info_row("Velocità", f"{speed} m"),
             self._info_row("Scurovisione", f"{darkvision} m" if darkvision else "Nessuna"),
         ]
@@ -488,6 +489,8 @@ class ProfiloTab(ft.ListView):
         return (c.xp or 0) >= next_xp
 
     def _on_save_xp(self, e):
+        if self._xp_field is None:
+            return
         try:
             xp = int((self._xp_field.value or "0").strip())
         except ValueError:
@@ -500,8 +503,6 @@ class ProfiloTab(ft.ListView):
     # ------------------------------------------------------------------
 
     def _on_level_up_click(self, e):
-        if not self._page:
-            return
         c = self.character
         new_level = c.level + 1
         if new_level > 20:
@@ -638,6 +639,8 @@ class ProfiloTab(ft.ListView):
                 ))
 
         def do_level_up(ev):
+            if page is None:
+                return
             # HP
             choice = hp_choice.value
             if choice == "max":
@@ -670,13 +673,16 @@ class ProfiloTab(ft.ListView):
                                 min(20, getattr(c, f"{stat_dd2.value}_score") + 1))
 
             character_repo.update(c)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
+        page = self._page
+        if page is None:
+            return
         dlg = ft.AlertDialog(
             content=ft.Column(dlg_rows, spacing=8, scroll=ft.ScrollMode.AUTO, width=340),
             actions=[
-                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     f"Sali a Lv.{new_level}",
                     on_click=do_level_up,
@@ -688,10 +694,11 @@ class ProfiloTab(ft.ListView):
             ],
             bgcolor=COLOR_BG_CARD,
         )
-        self._page.show_dialog(dlg)
+        page.show_dialog(dlg)
 
     def _on_level_down_click(self, e):
-        if not self._page:
+        page = self._page
+        if page is None:
             return
         c = self.character
         if c.level <= 1:
@@ -703,11 +710,13 @@ class ProfiloTab(ft.ListView):
         hp_loss = estimate_hp_loss(hit_die, con_mod)
 
         def do_level_down(ev):
+            if page is None:
+                return
             c.level = new_level
             c.hp_max = max(1, c.hp_max - hp_loss)
             c.hp_current = min(c.hp_current, c.hp_max)
             character_repo.update(c)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
         dlg = ft.AlertDialog(
@@ -734,7 +743,7 @@ class ProfiloTab(ft.ListView):
                 ),
             ], spacing=4, width=320),
             actions=[
-                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     f"Scendi a Lv.{new_level}",
                     on_click=do_level_down,
@@ -746,18 +755,19 @@ class ProfiloTab(ft.ListView):
             ],
             bgcolor=COLOR_BG_CARD,
         )
-        self._page.show_dialog(dlg)
+        page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
     # Dialog modifica sezione
     # ------------------------------------------------------------------
 
     def _open_edit_dialog(self, section: str):
-        if not self._page:
+        page = self._page
+        if page is None:
             return
         c = self.character
-        # Mappa attr → Control (TextField o Dropdown: entrambi hanno .value)
-        fields: dict[str, ft.Control] = {}
+        # Mappa attr → TextField o Dropdown (entrambi hanno .value)
+        fields: dict[str, ft.TextField | ft.Dropdown] = {}
 
         def f(label: str, value: str, multiline: bool = False, min_lines: int = 1) -> ft.TextField:
             return ft.TextField(
@@ -820,6 +830,8 @@ class ProfiloTab(ft.ListView):
             return
 
         def on_save(ev):
+            if page is None:
+                return
             for attr, ctrl in fields.items():
                 val = (ctrl.value or "").strip()
                 if attr == "age":
@@ -830,7 +842,7 @@ class ProfiloTab(ft.ListView):
                 else:
                     setattr(c, attr, val)
             character_repo.update(c)
-            self._page.pop_dialog()
+            page.pop_dialog()
             self._refresh()
 
         titles = {
@@ -850,7 +862,7 @@ class ProfiloTab(ft.ListView):
                 width=360,
             ),
             actions=[
-                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Salva",
                     on_click=on_save,
@@ -863,7 +875,7 @@ class ProfiloTab(ft.ListView):
             ],
             bgcolor=COLOR_BG_CARD,
         )
-        self._page.show_dialog(dlg)
+        page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
     # Selezione foto — cross-platform
@@ -952,20 +964,28 @@ class ProfiloTab(ft.ListView):
         Apre il file picker nativo Android/iOS tramite ft.FilePicker.
         Funziona su Flet mobile; NON usare su desktop (causa "Unknown control").
         """
-        picker = ft.FilePicker(on_result=self._on_mobile_file_picked)
-        self._page.overlay.append(picker)
-        self._page.update()
-        picker.pick_files(
+        page = self._page
+        if page is None:
+            return
+        picker = ft.FilePicker()
+        picker.on_result = self._on_mobile_file_picked  # type: ignore[assignment]
+        page.overlay.append(picker)
+        page.update()  # type: ignore[unused-coroutine]
+        picker.pick_files(  # type: ignore[unused-coroutine]
             allow_multiple=False,
+            file_type=ft.FilePickerFileType.CUSTOM,
             allowed_extensions=["png", "jpg", "jpeg", "gif", "webp", "bmp"],
         )
 
     def _on_mobile_file_picked(self, e):
         """Callback del FilePicker mobile — legge il path e carica la foto."""
+        page = self._page
+        if page is None:
+            return
         # Rimuovi il picker dall'overlay
-        if e.control in self._page.overlay:
-            self._page.overlay.remove(e.control)
-            self._page.update()
+        if e.control in page.overlay:
+            page.overlay.remove(e.control)
+            page.update()  # type: ignore[unused-coroutine]
         if e.files and len(e.files) > 0:
             path = e.files[0].path
             if path:
@@ -977,6 +997,10 @@ class ProfiloTab(ft.ListView):
         incolla o digita il percorso dell'immagine.
         Usato su mobile e su Linux senza zenity/kdialog.
         """
+        page = self._page
+        if page is None:
+            return
+
         path_field = ft.TextField(
             label="Percorso immagine",
             hint_text="/percorso/immagine.png",
@@ -988,8 +1012,10 @@ class ProfiloTab(ft.ListView):
         )
 
         def _confirm(e):
+            if page is None:
+                return
             p = (path_field.value or "").strip()
-            self._page.pop_dialog()
+            page.pop_dialog()
             if p:
                 self._load_photo(p)
 
@@ -1006,7 +1032,7 @@ class ProfiloTab(ft.ListView):
             ], tight=True, spacing=0),
             actions=[
                 ft.TextButton("Annulla",
-                              on_click=lambda e: self._page.pop_dialog(),
+                              on_click=lambda e: page.pop_dialog() if page else None,
                               style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY)),
                 ft.ElevatedButton("Carica",
                                   icon=ft.Icons.UPLOAD,
@@ -1018,7 +1044,7 @@ class ProfiloTab(ft.ListView):
                                   )),
             ],
         )
-        self._page.show_dialog(dlg)
+        page.show_dialog(dlg)
 
     def _load_photo(self, path: str):
         """
@@ -1028,7 +1054,7 @@ class ProfiloTab(ft.ListView):
         """
         try:
             import io
-            from PIL import Image as PILImage
+            from PIL import Image as PILImage  # type: ignore[import-untyped]
             with PILImage.open(path) as img:
                 img = img.convert("RGB")          # rimuovi alpha per JPEG
                 buf = io.BytesIO()

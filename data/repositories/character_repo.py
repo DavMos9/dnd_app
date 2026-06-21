@@ -371,7 +371,7 @@ def get_proficiencies(character_id: str) -> list[CharacterProficiency]:
         return []
 
 
-def update_hp(character_id: str, hp_current: int, hp_temp: int = None) -> bool:
+def update_hp(character_id: str, hp_current: int, hp_temp: int | None = None) -> bool:
     """Aggiornamento rapido degli HP senza ricaricare tutto il personaggio."""
     try:
         conn = get_connection()

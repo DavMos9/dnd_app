@@ -40,9 +40,9 @@ def body_text(text: str, size: int = 14, color: str = COLOR_TEXT_PRIMARY, weight
     return ft.Text(text, size=size, color=color, font_family=FONT_BODY, weight=weight)
 
 
-def muted_text(text: str, size: int = 12, text_align: ft.TextAlign = None, weight=None) -> ft.Text:
+def muted_text(text: str, size: int = 12, text_align: ft.TextAlign | None = None, weight=None) -> ft.Text:
     return ft.Text(text, size=size, color=COLOR_TEXT_MUTED, font_family=FONT_BODY,
-                   text_align=text_align, weight=weight)
+                   text_align=text_align or ft.TextAlign.LEFT, weight=weight)
 
 
 def label_text(text: str, size: int = 10) -> ft.Text:
@@ -148,21 +148,21 @@ def stat_badge(value: str, label: str, color: str = COLOR_TEXT_PRIMARY) -> ft.Co
 # Helper: bottoni
 # ---------------------------------------------------------------------------
 
-def primary_button(text: str, on_click=None, icon: str = None) -> ft.ElevatedButton:
+def primary_button(text: str, on_click=None, icon: ft.IconData | None = None) -> ft.ElevatedButton:
     return ft.ElevatedButton(
         text,
         icon=icon,
         on_click=on_click,
         style=ft.ButtonStyle(
             bgcolor=COLOR_ACCENT_CRIMSON,
-            color=COLOR_TEXT_PRIMARY,
+            color="#ffffff",
             shape=ft.RoundedRectangleBorder(radius=4),
             side=ft.BorderSide(1, "#d0303e"),
         ),
     )
 
 
-def gold_button(text: str, on_click=None, icon: str = None) -> ft.ElevatedButton:
+def gold_button(text: str, on_click=None, icon: ft.IconData | None = None) -> ft.ElevatedButton:
     """Bottone secondario in oro (per azioni importanti non distruttive)."""
     return ft.ElevatedButton(
         text,

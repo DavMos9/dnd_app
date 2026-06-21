@@ -263,10 +263,6 @@ class DnDApp:
         self.content_area.content = self._get_section_view(key)
         self.page.update()
 
-    # Alias per compatibilità con _show_main_layout
-    def _on_nav_change(self, e):
-        pass
-
     # ------------------------------------------------------------------
     # Routing sezioni interne
     # ------------------------------------------------------------------
@@ -275,6 +271,8 @@ class DnDApp:
         if key == "sheet":
             from data.repositories import character_repo
             from ui.views.character_sheet.sheet_view import SheetView
+            if not self.current_character_id:
+                return self._placeholder_view("Personaggio non trovato", ft.Icons.ERROR_OUTLINE, "")
             char = character_repo.get_by_id(self.current_character_id)
             profs = character_repo.get_proficiencies(self.current_character_id)
             if char:

@@ -28,7 +28,7 @@ class ManualCreationForm(ft.Column):
         self.on_complete = on_complete
         self.on_cancel = on_cancel
 
-        self._fields: dict[str, ft.Control] = {}
+        self._fields: dict[str, ft.TextField | ft.Dropdown] = {}
         self._skill_checkboxes: dict[str, ft.Checkbox] = {}
         self._save_checkboxes: dict[str, ft.Checkbox] = {}
 

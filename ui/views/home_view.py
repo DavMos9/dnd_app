@@ -4,6 +4,7 @@ Schermata Home: selezione, creazione ed eliminazione dei personaggi.
 """
 
 import flet as ft
+from typing import cast
 from config.settings import *
 from data.models import Character
 from data.repositories import character_repo
@@ -264,7 +265,7 @@ class HomeView(ft.Column):
                     ),
                     ft.Container(height=24),
                     ft.Row(
-                        [
+                        controls=cast(list[ft.Control], [
                             primary_button(
                                 "Wizard guidato",
                                 on_click=lambda e: self.on_create_wizard(),
@@ -274,7 +275,7 @@ class HomeView(ft.Column):
                                 "Creazione manuale",
                                 on_click=lambda e: self.on_create_manual(),
                             ),
-                        ],
+                        ]),
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=12,
                     ),
