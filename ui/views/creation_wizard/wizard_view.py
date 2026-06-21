@@ -14,10 +14,11 @@ import flet as ft
 import logging
 
 from config.settings import (
-    COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_CARD,
-    COLOR_ACCENT_GOLD, COLOR_ACCENT_RED, COLOR_BORDER,
+    COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_CARD, COLOR_BG_SELECTED,
+    COLOR_ACCENT_GOLD, COLOR_ACCENT_RED, COLOR_ACCENT_CRIMSON, COLOR_BORDER,
     COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED, COLOR_TEXT_TITLE,
     CLASSES, RACES, ALIGNMENTS, ABILITY_SCORES, ABILITY_KEYS, STANDARD_ARRAY,
+    CLASS_SAVING_THROWS,
     get_modifier, get_modifier_str,
 )
 from ui.theme import (
@@ -393,146 +394,164 @@ class WizardView(ft.Column):
         self._progress_bar.update()
 
         top3 = self.engine.get_top_classes(3)
-        rec_class = top3[0][0]
+        # Stato di selezione: default alla classe top
+        selected_class = [top3[0][0]]
+        card_refs: dict[str, ft.Container] = {}
+
         rec_bg    = self.engine.get_recommended_background()
-        rec_race  = self.engine.get_recommended_race(rec_class)
+        rec_race_by_class = {cls: self.engine.get_recommended_race(cls) for cls, _ in top3}
         rec_align = self.engine.get_alignment_string()
 
-        def _class_card(cls: str, pts: int, is_top: bool) -> ft.Container:
-            border_color = COLOR_ACCENT_GOLD if is_top else COLOR_BORDER
-            border_width = 2 if is_top else 1
-            badge = ft.Container(
-                content=ft.Text(
-                    "★ CONSIGLIATO" if is_top else f"#{top3.index((cls, pts)) + 1}",
-                    size=10,
-                    weight=ft.FontWeight.BOLD,
-                    color=COLOR_BG_PRIMARY if is_top else COLOR_TEXT_MUTED,
+        # Etichette razza dinamiche in base alla classe selezionata
+        race_label_ref = ft.Ref[ft.Text]()
+        race_note_ref  = ft.Ref[ft.Text]()
+        continue_btn_ref = ft.Ref[ft.ElevatedButton]()
+
+        def _refresh_cards():
+            sel = selected_class[0]
+            for cls, card in card_refs.items():
+                is_sel = cls == sel
+                card.bgcolor = COLOR_BG_SELECTED if is_sel else COLOR_BG_CARD
+                card.border = ft.Border(
+                    top=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if is_sel else COLOR_BORDER),
+                    left=ft.BorderSide(1, COLOR_ACCENT_CRIMSON if is_sel else COLOR_BORDER),
+                    right=ft.BorderSide(1, COLOR_BORDER),
+                    bottom=ft.BorderSide(1, COLOR_BORDER),
+                )
+                try:
+                    card.update()
+                except RuntimeError:
+                    pass
+            # Aggiorna razza suggerita in base alla classe selezionata
+            new_race = rec_race_by_class.get(sel, "Umano")
+            if race_label_ref.current:
+                race_label_ref.current.value = new_race
+                try:
+                    race_label_ref.current.update()
+                except RuntimeError:
+                    pass
+
+        def _select_class(cls: str):
+            selected_class[0] = cls
+            _refresh_cards()
+
+        def _class_card(cls: str, pts: int, rank: int) -> ft.Container:
+            is_top = rank == 0
+            badges = [
+                ft.Container(
+                    content=ft.Text(
+                        "★ CONSIGLIATO" if is_top else f"#{rank + 1}",
+                        size=9, weight=ft.FontWeight.BOLD,
+                        color=COLOR_BG_PRIMARY if is_top else COLOR_TEXT_MUTED,
+                    ),
+                    bgcolor=COLOR_ACCENT_GOLD if is_top else COLOR_BG_SECONDARY,
+                    border_radius=3,
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=3),
                 ),
-                bgcolor=COLOR_ACCENT_GOLD if is_top else COLOR_BG_SECONDARY,
-                border_radius=4,
-                padding=ft.Padding.symmetric(horizontal=8, vertical=3),
-            )
+                ft.Container(width=6),
+                ft.Container(
+                    content=ft.Text(
+                        "● SELEZIONATO" if is_top else "  Seleziona",
+                        size=9, weight=ft.FontWeight.BOLD,
+                        color=COLOR_ACCENT_CRIMSON if is_top else COLOR_TEXT_MUTED,
+                    ),
+                    border=ft.Border.all(1, COLOR_ACCENT_CRIMSON if is_top else COLOR_BORDER),
+                    border_radius=3,
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=3),
+                ),
+            ]
             hit_die = CLASSES.get(cls, {}).get("hit_die", 8)
             spell_ab = CLASSES.get(cls, {}).get("spellcasting_ability")
             spell_label = (
                 {"int": "Intelligenza", "wis": "Saggezza", "cha": "Carisma"}.get(spell_ab, "—")
                 if spell_ab else "—"
             )
-            return ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Row([badge], alignment=ft.MainAxisAlignment.START),
-                        ft.Container(height=8),
-                        ft.Text(
-                            cls,
-                            size=20 if is_top else 16,
-                            weight=ft.FontWeight.BOLD,
-                            color=COLOR_ACCENT_GOLD if is_top else COLOR_TEXT_PRIMARY,
-                        ),
-                        ft.Container(height=6),
-                        muted_text(CLASS_DESCRIPTIONS.get(cls, ""), size=12),
-                        ft.Container(height=8),
-                        ft.Row(
-                            [
-                                ft.Column(
-                                    [
-                                        label_text("Dado Vita", size=10),
-                                        body_text(f"d{hit_die}", size=14),
-                                    ],
-                                    spacing=2,
-                                ),
-                                ft.VerticalDivider(width=1, color=COLOR_BORDER),
-                                ft.Column(
-                                    [
-                                        label_text("Incantesimi", size=10),
-                                        body_text(spell_label, size=14),
-                                    ],
-                                    spacing=2,
-                                ),
-                            ],
-                            spacing=16,
-                        ),
-                    ],
-                    spacing=0,
+            card = ft.Container(
+                content=ft.Column([
+                    ft.Row(badges, alignment=ft.MainAxisAlignment.START),
+                    ft.Container(height=8),
+                    ft.Text(cls, size=18 if is_top else 15, weight=ft.FontWeight.BOLD,
+                            color=COLOR_ACCENT_GOLD if is_top else COLOR_TEXT_PRIMARY),
+                    ft.Container(height=4),
+                    muted_text(CLASS_DESCRIPTIONS.get(cls, ""), size=12),
+                    ft.Container(height=8),
+                    ft.Row([
+                        ft.Column([label_text("Dado Vita", 9), body_text(f"d{hit_die}", 14)], spacing=2),
+                        ft.Container(width=24),
+                        ft.Column([label_text("Incantesimi", 9), body_text(spell_label, 14)], spacing=2),
+                    ], spacing=0),
+                ], spacing=0),
+                padding=14,
+                bgcolor=COLOR_BG_SELECTED if is_top else COLOR_BG_CARD,
+                border=ft.Border(
+                    top=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if is_top else COLOR_BORDER),
+                    left=ft.BorderSide(1, COLOR_ACCENT_CRIMSON if is_top else COLOR_BORDER),
+                    right=ft.BorderSide(1, COLOR_BORDER),
+                    bottom=ft.BorderSide(1, COLOR_BORDER),
                 ),
-                padding=16,
-                bgcolor="#2a1f08" if is_top else COLOR_BG_CARD,
-                border=ft.Border.all(border_width, border_color),
-                border_radius=8,
+                border_radius=6,
+                on_click=lambda e, c=cls: _select_class(c),
+                ink=True,
             )
+            card_refs[cls] = card
+            return card
 
         class_cards = ft.Column(
-            [_class_card(cls, pts, i == 0) for i, (cls, pts) in enumerate(top3)],
-            spacing=10,
+            [_class_card(cls, pts, i) for i, (cls, pts) in enumerate(top3)],
+            spacing=8,
         )
 
-        # Suggerimenti razza e background
+        # Suggerimenti dinamici
         summary_row = ft.Row(
             [
-                ft.Column(
-                    [
-                        label_text("RAZZA SUGGERITA", size=10),
-                        body_text(rec_race, size=15, weight=ft.FontWeight.W_600),
-                        muted_text("Ottima sinergia con la classe", size=11),
-                    ],
-                    spacing=4,
-                    expand=True,
-                ),
+                ft.Column([
+                    label_text("RAZZA SUGGERITA", 10),
+                    ft.Text(
+                        rec_race_by_class[top3[0][0]], size=15,
+                        weight=ft.FontWeight.W_600, color=COLOR_TEXT_PRIMARY,
+                        ref=race_label_ref,
+                    ),
+                    muted_text("Sinergia ottimale con la classe", 11),
+                ], spacing=4, expand=True),
                 ft.VerticalDivider(width=1, color=COLOR_BORDER),
-                ft.Column(
-                    [
-                        label_text("BACKGROUND SUGGERITO", size=10),
-                        body_text(rec_bg, size=15, weight=ft.FontWeight.W_600),
-                        muted_text(
-                            ", ".join(BACKGROUNDS.get(rec_bg, {}).get("skills", [])),
-                            size=11,
-                        ),
-                    ],
-                    spacing=4,
-                    expand=True,
-                ),
+                ft.Column([
+                    label_text("BACKGROUND SUGGERITO", 10),
+                    body_text(rec_bg, 15, weight=ft.FontWeight.W_600),
+                    muted_text(", ".join(BACKGROUNDS.get(rec_bg, {}).get("skills", [])), 11),
+                ], spacing=4, expand=True),
                 ft.VerticalDivider(width=1, color=COLOR_BORDER),
-                ft.Column(
-                    [
-                        label_text("ALLINEAMENTO", size=10),
-                        body_text(rec_align, size=15, weight=ft.FontWeight.W_600),
-                        muted_text("Dalle tue risposte", size=11),
-                    ],
-                    spacing=4,
-                    expand=True,
-                ),
+                ft.Column([
+                    label_text("ALLINEAMENTO", 10),
+                    body_text(rec_align, 15, weight=ft.FontWeight.W_600),
+                    muted_text("Dalle tue risposte", 11),
+                ], spacing=4, expand=True),
             ],
             spacing=16,
         )
 
+        def _on_continue(e):
+            cls  = selected_class[0]
+            race = rec_race_by_class.get(cls, "Umano")
+            self._goto_review(cls, race, rec_bg, rec_align)
+
         content = ft.Column(
             [
-                ft.Text(
-                    "Il tuo personaggio ideale",
-                    size=24,
-                    weight=ft.FontWeight.BOLD,
-                    color=COLOR_TEXT_TITLE,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                ft.Container(height=6),
-                muted_text(
-                    "Ecco i tre archetipi più adatti alle tue preferenze.",
-                    size=13,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                ft.Container(height=20),
-                class_cards,
+                ft.Text("Il tuo personaggio ideale", size=22, weight=ft.FontWeight.BOLD,
+                        color=COLOR_TEXT_TITLE, text_align=ft.TextAlign.CENTER),
+                ft.Container(height=4),
+                muted_text("Clicca su una classe per selezionarla, poi personalizza.",
+                           size=13, text_align=ft.TextAlign.CENTER),
                 ft.Container(height=16),
+                class_cards,
+                ft.Container(height=14),
                 fantasy_card(summary_row, padding=16),
                 ft.Container(height=20),
                 ft.Row(
                     [
                         ghost_button("Indietro", on_click=self._on_back),
-                        primary_button(
-                            "Personalizza e continua",
-                            on_click=lambda e: self._goto_review(rec_class, rec_race, rec_bg, rec_align),
-                            icon=ft.Icons.ARROW_FORWARD,
-                        ),
+                        primary_button("Personalizza e continua",
+                                       on_click=_on_continue,
+                                       icon=ft.Icons.ARROW_FORWARD),
                     ],
                     alignment=ft.MainAxisAlignment.END,
                     spacing=12,
@@ -907,12 +926,14 @@ class WizardView(ft.Column):
                 if not ok:
                     raise RuntimeError("Errore nel salvataggio sul database.")
 
-                # Salva competenze del background (abilità suggerite)
+                # Tiri salvezza competenti dalla classe (PHB)
+                for stat_name in CLASS_SAVING_THROWS.get(self._review_class, []):
+                    character_repo._save_single_proficiency(char.id, "save", stat_name)
+
+                # Abilità competenti dal background
                 bg_skills = BACKGROUNDS.get(self._review_bg, {}).get("skills", [])
                 for skill in bg_skills:
-                    character_repo._save_single_proficiency(
-                        char.id, "skill", skill
-                    )
+                    character_repo._save_single_proficiency(char.id, "skill", skill)
 
                 logger.info(f"Personaggio wizard creato: {char.name} ({char.id})")
                 self.on_complete(char.id)

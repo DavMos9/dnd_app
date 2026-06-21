@@ -16,6 +16,23 @@ from ui.theme import get_theme, title_text, muted_text
 
 logger = logging.getLogger(__name__)
 
+
+def _data_uri(b64: str) -> str:
+    """Data URI da base64 con rilevamento formato (Flet 0.85.3 non ha src_base64)."""
+    try:
+        import base64 as _b64
+        h = _b64.b64decode(b64[:16] + "==")
+        if h[:3] == b"\xff\xd8\xff":
+            mime = "image/jpeg"
+        elif h[:8] == b"\x89PNG\r\n\x1a\n":
+            mime = "image/png"
+        else:
+            mime = "image/jpeg"
+    except Exception:
+        mime = "image/jpeg"
+    return f"data:{mime};base64,{b64}"
+
+
 SECTIONS = [
     {"key": "sheet",     "label": "Scheda",      "icon_off": ft.Icons.PERSON_OUTLINE,       "icon_on": ft.Icons.PERSON},
     {"key": "spells",    "label": "Incantesimi", "icon_off": ft.Icons.AUTO_AWESOME_OUTLINED, "icon_on": ft.Icons.AUTO_AWESOME},
@@ -42,6 +59,7 @@ class DnDApp:
 
     def _setup_page(self):
         self.page.title = APP_NAME
+        self.page.theme_mode = ft.ThemeMode.LIGHT   # tema marmo chiaro
         self.page.theme = get_theme()
         self.page.bgcolor = COLOR_BG_PRIMARY
         self.page.padding = 0
@@ -118,74 +136,136 @@ class DnDApp:
         )
         self.page.update()
 
-    def _build_nav_rail(self) -> ft.NavigationRail:
-        destinations = [
-            ft.NavigationRailDestination(
-                icon=s["icon_off"],
-                selected_icon=s["icon_on"],
-                label=s["label"],
-            )
-            for s in SECTIONS
-        ]
+    def _build_char_avatar(self) -> ft.Control:
+        """Icona del personaggio corrente per la sidebar."""
+        from data.repositories import character_repo
+        char = character_repo.get_by_id(self.current_character_id) if self.current_character_id else None
 
-        # Tasto "Cambia personaggio" nel footer della navbar
+        if char and char.image_data:
+            return ft.Container(
+                content=ft.Image(
+                    src=_data_uri(char.image_data),
+                    width=56, height=56,
+                    fit=ft.BoxFit.COVER,
+                ),
+                width=56, height=56,
+                border_radius=28,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                border=ft.Border.all(2, COLOR_ACCENT_CRIMSON),
+            )
+
+        # Placeholder: scudo con iniziali
+        initials = ""
+        if char and char.name:
+            parts = char.name.strip().split()
+            initials = (parts[0][0] + (parts[-1][0] if len(parts) > 1 else "")).upper()
+        if not initials:
+            initials = "?"
+
+        return ft.Container(
+            content=ft.Text(
+                initials, size=18, weight=ft.FontWeight.BOLD,
+                color="#ffffff", text_align=ft.TextAlign.CENTER,
+            ),
+            width=56, height=56,
+            bgcolor="#3a1010",
+            border=ft.Border.all(2, COLOR_ACCENT_CRIMSON),
+            border_radius=28,
+            alignment=ft.Alignment.CENTER,
+        )
+
+    def _build_nav_rail(self) -> ft.Container:
+        """
+        Sidebar custom (Column) invece di NavigationRail — controllo totale sui colori.
+        Sfondo scuro COLOR_NAV_BG, icone e testo bianchi/grigi.
+        """
+
+        char_avatar = self._build_char_avatar()
+
+        nav_items = []
+        for s in SECTIONS:
+            is_sel = s["key"] == self.active_section
+            nav_items.append(
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Icon(
+                                s["icon_on"] if is_sel else s["icon_off"],
+                                color="#ffffff" if is_sel else "#9a8888",
+                                size=22,
+                            ),
+                            ft.Text(
+                                s["label"], size=10,
+                                color="#ffffff" if is_sel else "#9a8888",
+                                text_align=ft.TextAlign.CENTER,
+                                weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=3,
+                    ),
+                    padding=ft.Padding.symmetric(horizontal=6, vertical=10),
+                    bgcolor=COLOR_ACCENT_CRIMSON if is_sel else "transparent",
+                    border_radius=8,
+                    width=80,
+                    on_click=lambda e, k=s["key"]: self._on_nav_click(k),
+                    ink=True,
+                )
+            )
+
         switch_btn = ft.Container(
             content=ft.Column(
                 [
-                    ft.Container(height=8),
-                    ft.IconButton(
-                        icon=ft.Icons.SWAP_HORIZ,
-                        icon_color=COLOR_TEXT_SECONDARY,
-                        tooltip="Cambia personaggio",
-                        on_click=lambda e: self._show_home(),
-                    ),
-                    ft.Text(
-                        "Cambia",
-                        size=10,
-                        color=COLOR_TEXT_MUTED,
-                        text_align=ft.TextAlign.CENTER,
-                    ),
-                    ft.Container(height=8),
+                    ft.Icon(ft.Icons.SWAP_HORIZ, color="#9a8888", size=22),
+                    ft.Text("Cambia", size=10, color="#9a8888",
+                            text_align=ft.TextAlign.CENTER),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=2,
+                spacing=3,
             ),
+            padding=ft.Padding.symmetric(horizontal=6, vertical=10),
+            border_radius=8,
+            width=80,
+            on_click=lambda e: self._show_home(),
+            ink=True,
         )
 
-        return ft.NavigationRail(
-            selected_index=list(s["key"] for s in SECTIONS).index(self.active_section),
-            destinations=destinations,
-            on_change=self._on_nav_change,
-            bgcolor=COLOR_BG_SECONDARY,
-            indicator_color=COLOR_ACCENT_GOLD,
-            indicator_shape=ft.RoundedRectangleBorder(radius=4),
-            label_type=ft.NavigationRailLabelType.ALL,
-            leading=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Container(height=8),
-                        ft.Icon(ft.Icons.SHIELD, color=COLOR_ACCENT_GOLD, size=32),
-                        ft.Text(
-                            "D&D",
-                            size=11,
-                            weight=ft.FontWeight.BOLD,
-                            color=COLOR_ACCENT_GOLD,
-                            text_align=ft.TextAlign.CENTER,
-                        ),
-                        ft.Container(height=8),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=2,
-                ),
-            ),
-            trailing=switch_btn,
+        sidebar_col = ft.Column(
+            [
+                ft.Container(height=14),
+                char_avatar,
+                ft.Container(height=10),
+                ft.Divider(color="#3a2828", height=1),
+                ft.Container(height=4),
+                *nav_items,
+                ft.Container(expand=True),   # spazio flessibile
+                ft.Divider(color="#3a2828", height=1),
+                switch_btn,
+                ft.Container(height=8),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=2,
+            expand=True,
         )
 
-    def _on_nav_change(self, e):
-        index = e.control.selected_index
-        self.active_section = SECTIONS[index]["key"]
-        self.content_area.content = self._get_section_view(self.active_section)
+        return ft.Container(
+            content=sidebar_col,
+            bgcolor=COLOR_NAV_BG,
+            width=82,
+        )
+
+    def _on_nav_click(self, key: str):
+        if key == self.active_section:
+            return
+        self.active_section = key
+        # Ricostruisce il contenuto della sidebar per aggiornare lo stile selezionato
+        self.nav_rail.content = self._build_nav_rail().content
+        self.content_area.content = self._get_section_view(key)
         self.page.update()
+
+    # Alias per compatibilità con _show_main_layout
+    def _on_nav_change(self, e):
+        pass
 
     # ------------------------------------------------------------------
     # Routing sezioni interne

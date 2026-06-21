@@ -13,6 +13,22 @@ from ui.theme import (
 )
 
 
+def _data_uri(b64: str) -> str:
+    """Data URI da base64 con rilevamento formato (Flet 0.85.3 non ha src_base64)."""
+    try:
+        import base64 as _b64
+        h = _b64.b64decode(b64[:16] + "==")
+        if h[:3] == b"\xff\xd8\xff":
+            mime = "image/jpeg"
+        elif h[:8] == b"\x89PNG\r\n\x1a\n":
+            mime = "image/png"
+        else:
+            mime = "image/jpeg"
+    except Exception:
+        mime = "image/jpeg"
+    return f"data:{mime};base64,{b64}"
+
+
 class HomeView(ft.Column):
     """
     Lista dei personaggi esistenti con azioni di selezione, eliminazione
@@ -39,9 +55,19 @@ class HomeView(ft.Column):
     # ------------------------------------------------------------------
 
     def _build(self):
+        # Logo D&D come widget Flet — testo bold rosso, nessuna immagine
+        logo_widget = ft.Text(
+            "D&D",
+            size=52,
+            weight=ft.FontWeight.BOLD,
+            color=COLOR_ACCENT_CRIMSON,
+        )
+
         header = ft.Container(
             content=ft.Row(
                 [
+                    logo_widget,
+                    ft.Container(width=16),
                     ft.Column(
                         [
                             title_text("D&D Companion", size=28),
@@ -52,10 +78,10 @@ class HomeView(ft.Column):
                     ),
                     self._new_character_button(),
                 ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                alignment=ft.MainAxisAlignment.START,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.symmetric(horizontal=32, vertical=24),
+            padding=ft.Padding.symmetric(horizontal=32, vertical=20),
             bgcolor=COLOR_BG_SECONDARY,
             border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
         )
@@ -115,27 +141,32 @@ class HomeView(ft.Column):
     def _character_card(self, char: Character) -> ft.Container:
         """Card con info essenziali del personaggio e azioni."""
 
-        # Foto o placeholder
-        if char.image_path:
+        # Foto o placeholder (priorità: base64 in DB > percorso file > icona)
+        if char.image_data:
+            avatar = ft.Container(
+                content=ft.Image(
+                    src=_data_uri(char.image_data),
+                    width=72, height=72,
+                    fit=ft.BoxFit.COVER,
+                ),
+                width=72, height=72,
+                border_radius=6,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            )
+        elif char.image_path:
             avatar = ft.Image(
                 src=char.image_path,
-                width=72,
-                height=72,
+                width=72, height=72,
                 fit=ft.BoxFit.COVER,
                 border_radius=ft.BorderRadius.all(6),
             )
         else:
             avatar = ft.Container(
-                width=72,
-                height=72,
+                width=72, height=72,
                 bgcolor=COLOR_BG_SECONDARY,
                 border_radius=6,
                 border=ft.Border.all(1, COLOR_BORDER),
-                content=ft.Icon(
-                    ft.Icons.PERSON,
-                    color=COLOR_TEXT_MUTED,
-                    size=36,
-                ),
+                content=ft.Icon(ft.Icons.PERSON, color=COLOR_TEXT_MUTED, size=36),
                 alignment=ft.Alignment.CENTER,
             )
 

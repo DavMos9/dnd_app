@@ -26,7 +26,8 @@ class Character:
     background: str = ""
     alignment: str = ""
     xp: int = 0
-    image_path: str = ""          # percorso foto personaggio
+    image_path: str = ""          # percorso foto (legacy, usare image_data)
+    image_data: str = ""          # foto codificata base64 (salvata nel DB)
 
     # Caratteristiche base (punteggi grezzi, modificatori calcolati runtime)
     str_score: int = 10

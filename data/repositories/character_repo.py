@@ -35,6 +35,7 @@ def _row_to_character(row) -> Character:
         alignment=d["alignment"],
         xp=d["xp"],
         image_path=d["image_path"],
+        image_data=d.get("image_data", "") or "",
         str_score=d["str_score"],
         dex_score=d["dex_score"],
         con_score=d["con_score"],
@@ -130,7 +131,7 @@ def create(character: Character) -> bool:
                 :age, :height, :weight, :eyes, :skin, :hair,
                 :personality_traits, :ideals, :bonds, :flaws,
                 :backstory, :allies_organizations, :additional_traits, :appearance_notes,
-                :created_at, :updated_at
+                :created_at, :updated_at, :image_data
             )
         """, {
             "id": character.id,
@@ -145,6 +146,7 @@ def create(character: Character) -> bool:
             "alignment": _s(character.alignment),
             "xp": character.xp,
             "image_path": _s(character.image_path),
+            "image_data": _s(character.image_data),
             "str_score": character.str_score,
             "dex_score": character.dex_score,
             "con_score": character.con_score,
@@ -240,6 +242,7 @@ def update(character: Character) -> bool:
                 allies_organizations=:allies_organizations,
                 additional_traits=:additional_traits,
                 appearance_notes=:appearance_notes,
+                image_data=:image_data,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -292,6 +295,7 @@ def update(character: Character) -> bool:
             "allies_organizations": _s(character.allies_organizations),
             "additional_traits": _s(character.additional_traits),
             "appearance_notes": _s(character.appearance_notes),
+            "image_data": _s(character.image_data),
             "updated_at": character.updated_at,
         })
         conn.commit()

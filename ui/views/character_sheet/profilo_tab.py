@@ -1,40 +1,80 @@
 """
 Tab Profilo della scheda personaggio.
 
-Sezioni:
-    Anagrafica   — identità, livello, XP, bonus competenza
-    Fisico       — età, altezza, peso, occhi, carnagione, capelli
-    Personalità  — tratti, ideali, legami, difetti
-    Storia       — backstory, alleanze, tratti aggiuntivi
-    Competenze   — tiri salvezza e abilità con modificatori calcolati
+Struttura (ListView scrollabile):
+  - Header foto + XP + bottone Level Up
+  - Anagrafica  (classe, razza, background, allineamento, XP, livello)
+  - Tratti Razziali  (velocità, scurovisione, tratti speciali)
+  - Dettagli Fisici  (età, altezza, peso, occhi, carnagione, capelli)
+  - Personalità  (tratti, ideali, legami, difetti)
+  - Storia  (background narrativo, alleanze, tratti extra)
+  - Competenze  (tiri salvezza + tutte le 18 abilità con indicatore pieno/vuoto)
 
-Input:  Character + list[CharacterProficiency]
-Output: ft.Column scrollabile
+Usa ft.ListView (non Column scroll=AUTO) per evitare bug height in Flet 0.85.3.
 """
 
+import base64
+import threading
 import flet as ft
 import logging
 from config.settings import *
 from data.models import Character, CharacterProficiency
-from ui.theme import label_text, body_text, muted_text, fantasy_card, section_header
+import data.repositories.character_repo as character_repo
+from ui.theme import section_header
 
 logger = logging.getLogger(__name__)
 
 
-class ProfiloTab(ft.Column):
+def _data_uri(b64: str) -> str:
     """
-    Tab Profilo: sola lettura, dati dal DB senza modifiche in-place.
+    Costruisce un data URI dal base64, rilevando il formato dai magic bytes.
+    Usato per mostrare immagini con ft.Image(src=...) in Flet 0.85.3
+    (src_base64 non è supportato in questa versione).
+    """
+    try:
+        import base64 as _b64
+        header = _b64.b64decode(b64[:16] + "==")
+        if header[:3] == b"\xff\xd8\xff":
+            mime = "image/jpeg"
+        elif header[:8] == b"\x89PNG\r\n\x1a\n":
+            mime = "image/png"
+        elif header[:4] == b"GIF8":
+            mime = "image/gif"
+        elif header[:4] == b"RIFF" and len(header) >= 12 and header[8:12] == b"WEBP":
+            mime = "image/webp"
+        else:
+            mime = "image/jpeg"
+    except Exception:
+        mime = "image/jpeg"
+    return f"data:{mime};base64,{b64}"
+
+# Livelli ASI per classe — PHB 5e
+_ASI_LEVELS: dict[str, set[int]] = {
+    "Guerriero": {4, 6, 8, 12, 14, 16, 19},
+    "Ladro":     {4, 8, 10, 12, 16, 19},
+}
+_ASI_DEFAULT: set[int] = {4, 8, 12, 16, 19}
+
+
+def _is_asi_level(class_name: str, level: int) -> bool:
+    return level in _ASI_LEVELS.get(class_name, _ASI_DEFAULT)
+
+
+class ProfiloTab(ft.ListView):
+    """
+    Tab profilo: lista scrollabile di sezioni con edit inline.
+    Eredita da ft.ListView per garantire scroll corretto in Flet 0.85.3.
     """
 
     def __init__(self, character: Character, proficiencies: list[CharacterProficiency]):
-        super().__init__(
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
-            spacing=12,
-            margin=ft.Margin.all(16),
-        )
+        super().__init__(expand=True, spacing=12, padding=16)
         self.character = character
         self.proficiencies = proficiencies
+        self._page: ft.Page | None = None
+
+        self._xp_field: ft.TextField | None = None
+        self._levelup_btn: ft.TextButton | None = None
+
         self._build()
 
     # ------------------------------------------------------------------
@@ -45,191 +85,882 @@ class ProfiloTab(ft.Column):
         c = self.character
         prof_bonus = get_proficiency_bonus(c.level)
 
+        skill_map: dict[str, bool] = {}
+        save_map: dict[str, bool] = {}
+        for p in self.proficiencies:
+            if p.proficiency_type == "skill":
+                skill_map[p.name] = p.is_expert
+            elif p.proficiency_type == "save":
+                save_map[p.name] = p.is_expert
+
         self.controls = [
+            self._build_photo_header(c),
             section_header("Anagrafica"),
-            self._build_anagrafica(c, prof_bonus),
+            self._build_anagrafica(c),
+            section_header("Tratti Razziali"),
+            self._build_razza(c),
             section_header("Dettagli Fisici"),
             self._build_fisico(c),
             section_header("Personalità"),
             self._build_personalita(c),
-            section_header("Storia e Alleanze"),
+            section_header("Storia"),
             self._build_storia(c),
             section_header("Competenze"),
-            self._build_competenze(prof_bonus),
-            ft.Container(height=20),  # padding bottom
+            self._build_competenze(c, prof_bonus, skill_map, save_map),
         ]
+
+    def did_mount(self):
+        self._page = self.page
 
     # ------------------------------------------------------------------
-    # Sezioni
+    # Header foto + XP + Level Up
     # ------------------------------------------------------------------
 
-    def _build_anagrafica(self, c: Character, prof_bonus: int) -> ft.Container:
-        xp_next = get_xp_for_level(c.level + 1) if c.level < 20 else None
-        xp_label = f"{c.xp:,} / {xp_next:,} PE" if xp_next else f"{c.xp:,} PE (livello max)"
+    def _build_photo_header(self, c: Character) -> ft.Container:
+        # Mostra image_data (base64 dal DB) oppure image_path (legacy) oppure placeholder
+        if c.image_data:
+            avatar_content = ft.Image(src=_data_uri(c.image_data), fit=ft.BoxFit.COVER)
+        elif c.image_path:
+            avatar_content = ft.Image(src=c.image_path, fit=ft.BoxFit.COVER)
+        else:
+            avatar_content = ft.Icon(ft.Icons.PERSON, size=38, color=COLOR_NAV_MUTED)
 
-        rows = [
-            self._info_row("Nome", c.name),
-            self._info_row("Giocatore", c.player_name or "—"),
-            self._info_row(
-                "Classe",
-                c.class_name + (f"  •  {c.subclass}" if c.subclass else "")
-            ),
-            self._info_row("Livello", str(c.level)),
-            self._info_row(
-                "Razza",
-                c.race + (f" ({c.subrace})" if c.subrace else "")
-            ),
-            self._info_row("Background", c.background or "—"),
-            self._info_row("Allineamento", c.alignment or "—"),
-            self._info_row("Punti Esperienza", xp_label),
-            self._info_row("Bonus Competenza", f"+{prof_bonus}"),
-            self._info_row("Ispirazione", "✦ Attiva" if c.inspiration else "—"),
-        ]
-        return fantasy_card(ft.Column(rows, spacing=6))
+        avatar = ft.Container(
+            content=avatar_content,
+            width=80, height=80,
+            border_radius=40,
+            bgcolor=COLOR_NAV_BG if not (c.image_data or c.image_path) else None,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            alignment=ft.Alignment.CENTER,
+            on_click=lambda e: self._pick_photo(),
+            tooltip="Clicca per cambiare foto",
+        )
 
-    def _build_fisico(self, c: Character) -> ft.Container:
-        rows = [
-            self._info_row("Età",        c.age    or "—"),
-            self._info_row("Altezza",    c.height or "—"),
-            self._info_row("Peso",       c.weight or "—"),
-            self._info_row("Occhi",      c.eyes   or "—"),
-            self._info_row("Carnagione", c.skin   or "—"),
-            self._info_row("Capelli",    c.hair   or "—"),
-        ]
-        return fantasy_card(ft.Column(rows, spacing=6))
+        pb = get_proficiency_bonus(c.level)
 
-    def _build_personalita(self, c: Character) -> ft.Container:
-        return fantasy_card(ft.Column([
-            self._text_block("Tratti caratteriali", c.personality_traits),
-            ft.Container(height=10),
-            self._text_block("Ideali",  c.ideals),
-            ft.Container(height=10),
-            self._text_block("Legami",  c.bonds),
-            ft.Container(height=10),
-            self._text_block("Difetti", c.flaws),
-        ], spacing=0))
+        self._xp_field = ft.TextField(
+            value=str(c.xp or 0),
+            width=80,
+            height=32,
+            text_align=ft.TextAlign.CENTER,
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_BLUE,
+            bgcolor=COLOR_BG_CARD,
+            content_padding=ft.Padding.symmetric(horizontal=6, vertical=4),
+            keyboard_type=ft.KeyboardType.NUMBER,
+        )
 
-    def _build_storia(self, c: Character) -> ft.Container:
-        blocks = [self._text_block("Storia del personaggio", c.backstory)]
-        if c.allies_organizations:
-            blocks += [ft.Container(height=10),
-                       self._text_block("Alleati e organizzazioni", c.allies_organizations)]
-        if c.additional_traits:
-            blocks += [ft.Container(height=10),
-                       self._text_block("Tratti e privilegi aggiuntivi", c.additional_traits)]
-        if c.appearance_notes:
-            blocks += [ft.Container(height=10),
-                       self._text_block("Note sull'aspetto", c.appearance_notes)]
-        return fantasy_card(ft.Column(blocks, spacing=0))
+        self._levelup_btn = ft.TextButton(
+            "⬆ Sali di Livello",
+            on_click=self._on_level_up_click,
+            style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
+            visible=self._can_level_up(c),
+        )
 
-    def _build_competenze(self, prof_bonus: int) -> ft.Container:
-        # Set nomi competenti per tiri salvezza e abilità
-        save_names = {
-            p.name for p in self.proficiencies if p.proficiency_type == "save"
-        }
-        skill_map = {
-            p.name: p.is_expert
-            for p in self.proficiencies if p.proficiency_type == "skill"
-        }
-
-        # Tiri salvezza — una riga per caratteristica
-        save_rows = []
-        for score_name, abbr, key in zip(ABILITY_SCORES, ABILITY_ABBR, ABILITY_KEYS):
-            is_prof = score_name in save_names
-            score = getattr(self.character, f"{key}_score")
-            mod = get_modifier(score) + (prof_bonus if is_prof else 0)
-            mod_str = f"+{mod}" if mod >= 0 else str(mod)
-            save_rows.append(
-                ft.Row([
-                    ft.Icon(
-                        ft.Icons.CIRCLE if is_prof else ft.Icons.RADIO_BUTTON_UNCHECKED,
-                        size=10,
-                        color=COLOR_ACCENT_GOLD if is_prof else COLOR_TEXT_MUTED,
+        return ft.Container(
+            content=ft.Row(
+                [
+                    avatar,
+                    ft.Container(width=14),
+                    ft.Column(
+                        [
+                            ft.Text(c.name or "—", size=18, weight=ft.FontWeight.BOLD,
+                                    color=COLOR_TEXT_TITLE, font_family=FONT_TITLE),
+                            ft.Row([
+                                ft.Text(f"Lv.{c.level}", size=11, color=COLOR_ACCENT_CRIMSON,
+                                        weight=ft.FontWeight.BOLD),
+                                ft.Text(f"  Comp. +{pb}", size=11, color=COLOR_TEXT_SECONDARY),
+                            ]),
+                            ft.Text(
+                                (c.class_name or "—")
+                                + (f" ({c.subclass})" if c.subclass else "")
+                                + f"  •  {c.race or '—'}",
+                                size=12, color=COLOR_TEXT_SECONDARY,
+                            ),
+                            ft.Row(
+                                [
+                                    ft.Text("XP:", size=12, color=COLOR_TEXT_SECONDARY),
+                                    self._xp_field,
+                                    ft.TextButton(
+                                        "Salva",
+                                        on_click=self._on_save_xp,
+                                        style=ft.ButtonStyle(color=COLOR_ACCENT_BLUE),
+                                    ),
+                                    self._levelup_btn,
+                                ],
+                                spacing=6,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                        ],
+                        spacing=3,
                     ),
-                    ft.Container(width=6),
-                    ft.Text(score_name, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
-                    ft.Text(mod_str, size=12,
-                            color=COLOR_ACCENT_GOLD if is_prof else COLOR_TEXT_SECONDARY,
-                            weight=ft.FontWeight.BOLD,
-                            width=32,
-                            text_align=ft.TextAlign.RIGHT,
-                            font_family=FONT_MONO),
-                ], spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER)
-            )
-
-        # Abilità — solo quelle con competenza
-        skill_rows = []
-        for skill_name, ability_key in SKILLS.items():
-            if skill_name not in skill_map:
-                continue
-            is_expert = skill_map[skill_name]
-            score = getattr(self.character, f"{ability_key}_score")
-            bonus = prof_bonus * (2 if is_expert else 1)
-            mod = get_modifier(score) + bonus
-            mod_str = f"+{mod}" if mod >= 0 else str(mod)
-            ability_abbr = ABILITY_ABBR[ABILITY_KEYS.index(ability_key)]
-            skill_rows.append(
-                ft.Row([
-                    ft.Icon(
-                        ft.Icons.STAR if is_expert else ft.Icons.CIRCLE,
-                        size=10,
-                        color=COLOR_ACCENT_GOLD,
-                    ),
-                    ft.Container(width=6),
-                    ft.Text(skill_name, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
-                    ft.Text(f"({ability_abbr})", size=10, color=COLOR_TEXT_MUTED, width=36),
-                    ft.Text(mod_str, size=12,
-                            color=COLOR_ACCENT_GOLD,
-                            weight=ft.FontWeight.BOLD,
-                            width=32,
-                            text_align=ft.TextAlign.RIGHT,
-                            font_family=FONT_MONO),
-                ], spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER)
-            )
-
-        if not skill_rows:
-            skill_rows.append(muted_text("Nessuna competenza nelle abilità", 12))
-
-        return fantasy_card(ft.Column([
-            ft.Text("Tiri Salvezza", size=11, color=COLOR_TEXT_SECONDARY,
-                    weight=ft.FontWeight.BOLD),
-            ft.Container(height=6),
-            *save_rows,
-            ft.Container(height=14),
-            ft.Text("Abilità", size=11, color=COLOR_TEXT_SECONDARY,
-                    weight=ft.FontWeight.BOLD),
-            ft.Container(height=6),
-            *skill_rows,
-        ], spacing=4))
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.START,
+            ),
+            bgcolor=COLOR_BG_CARD,
+            padding=16,
+            border=ft.Border.all(1, COLOR_BORDER),
+            border_radius=8,
+        )
 
     # ------------------------------------------------------------------
-    # Helper widget
+    # Card editabile generica
     # ------------------------------------------------------------------
+
+    def _editable_card(self, controls: list[ft.Control], section_key: str) -> ft.Container:
+        """Card con bordo rosso superiore e bottone Modifica in fondo a destra."""
+        edit_btn = ft.TextButton(
+            "✎ Modifica",
+            on_click=lambda e, s=section_key: self._open_edit_dialog(s),
+            style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+        )
+        return ft.Container(
+            content=ft.Column(
+                controls + [
+                    ft.Container(height=4),
+                    ft.Row([edit_btn], alignment=ft.MainAxisAlignment.END),
+                ],
+                spacing=6,
+            ),
+            bgcolor=COLOR_BG_CARD,
+            padding=16,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
 
     def _info_row(self, label: str, value: str) -> ft.Row:
         return ft.Row(
             [
                 ft.Container(
-                    content=label_text(label),
-                    width=160,
+                    content=ft.Text(label, size=11, color=COLOR_TEXT_SECONDARY,
+                                    weight=ft.FontWeight.W_600),
+                    width=130,
                 ),
-                ft.Text(value, size=13, color=COLOR_TEXT_PRIMARY, selectable=True),
+                ft.Text(value or "—", size=13, color=COLOR_TEXT_PRIMARY,
+                        weight=ft.FontWeight.W_500),
             ],
             spacing=8,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.START,
         )
 
-    def _text_block(self, label: str, text: str) -> ft.Column:
-        return ft.Column(
-            [
-                label_text(label),
+    def _text_block(self, text: str) -> ft.Container:
+        return ft.Container(
+            content=ft.Text(text or "—", size=13,
+                            color=COLOR_TEXT_PRIMARY if text else COLOR_TEXT_MUTED),
+            bgcolor=COLOR_BG_SECONDARY,
+            padding=10,
+            border_radius=4,
+            border=ft.Border.all(1, COLOR_BORDER),
+        )
+
+    # ------------------------------------------------------------------
+    # Sezioni specifiche
+    # ------------------------------------------------------------------
+
+    def _build_anagrafica(self, c: Character) -> ft.Container:
+        return self._editable_card([
+            self._info_row("Giocatore", c.player_name),
+            self._info_row("Classe", (c.class_name or "") + (f" · {c.subclass}" if c.subclass else "")),
+            self._info_row("Razza", (c.race or "") + (f" ({c.subrace})" if c.subrace else "")),
+            self._info_row("Background", c.background),
+            self._info_row("Allineamento", c.alignment),
+            self._info_row("Livello", str(c.level)),
+            self._info_row("XP", str(c.xp or 0)),
+        ], "anagrafica")
+
+    def _build_razza(self, c: Character) -> ft.Container:
+        race_info = RACE_DATA.get(c.race, {})
+        speed = race_info.get("speed", c.speed or 9)
+        darkvision = race_info.get("darkvision", 0)
+        traits = race_info.get("traits", [])
+
+        rows = [
+            self._info_row("Velocità", f"{speed} m"),
+            self._info_row("Scurovisione", f"{darkvision} m" if darkvision else "Nessuna"),
+        ]
+        if traits:
+            rows.append(ft.Container(height=4))
+            rows.append(ft.Text("Tratti Speciali", size=9, color=COLOR_TEXT_MUTED,
+                                 weight=ft.FontWeight.BOLD,
+                                 style=ft.TextStyle(letter_spacing=0.8)))
+            for t in traits:
+                # t è una stringa "Nome — descrizione"
+                if " — " in t:
+                    name, desc = t.split(" — ", 1)
+                else:
+                    name, desc = t, ""
+                rows.append(ft.Container(
+                    content=ft.Column([
+                        ft.Text(name.strip(), size=12, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_CRIMSON),
+                        *(
+                            [ft.Text(desc.strip(), size=12, color=COLOR_TEXT_SECONDARY)]
+                            if desc else []
+                        ),
+                    ], spacing=2),
+                    padding=ft.Padding.only(left=8, top=2),
+                ))
+        return self._editable_card(rows, "razza")
+
+    def _build_fisico(self, c: Character) -> ft.Container:
+        return self._editable_card([
+            self._info_row("Età", str(c.age) if c.age else ""),
+            self._info_row("Altezza", c.height),
+            self._info_row("Peso", c.weight),
+            self._info_row("Occhi", c.eyes),
+            self._info_row("Carnagione", c.skin),
+            self._info_row("Capelli", c.hair),
+        ], "fisico")
+
+    def _build_personalita(self, c: Character) -> ft.Container:
+        return self._editable_card([
+            ft.Text("Tratti", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            self._text_block(c.personality_traits),
+            ft.Text("Ideali", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            self._text_block(c.ideals),
+            ft.Text("Legami", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            self._text_block(c.bonds),
+            ft.Text("Difetti", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            self._text_block(c.flaws),
+        ], "personalita")
+
+    def _build_storia(self, c: Character) -> ft.Container:
+        return self._editable_card([
+            ft.Text("Storia", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            self._text_block(c.backstory),
+            ft.Text("Alleanze e Organizzazioni", size=10, color=COLOR_TEXT_MUTED,
+                    weight=ft.FontWeight.BOLD),
+            self._text_block(c.allies_organizations),
+            ft.Text("Tratti Aggiuntivi", size=10, color=COLOR_TEXT_MUTED,
+                    weight=ft.FontWeight.BOLD),
+            self._text_block(c.additional_traits),
+        ], "storia")
+
+    # ------------------------------------------------------------------
+    # Competenze — tutte 18 abilità + 6 tiri salvezza
+    # ------------------------------------------------------------------
+
+    def _build_competenze(
+        self, c: Character, prof_bonus: int,
+        skill_map: dict, save_map: dict,
+    ) -> ft.Container:
+
+        def _dot_row(name: str, mod_str: str, is_prof: bool, is_expert: bool,
+                     extra: str = "") -> ft.Row:
+            if is_expert:
+                dot = ft.Text("★", size=13, color=COLOR_ACCENT_BLUE)
+                mod_color = COLOR_ACCENT_BLUE
+            elif is_prof:
+                dot = ft.Text("●", size=13, color=COLOR_ACCENT_CRIMSON)
+                mod_color = COLOR_ACCENT_CRIMSON
+            else:
+                dot = ft.Text("○", size=13, color=COLOR_TEXT_MUTED)
+                mod_color = COLOR_TEXT_SECONDARY
+
+            return ft.Row(
+                [
+                    dot,
+                    ft.Container(
+                        content=ft.Text(
+                            mod_str, size=12, font_family=FONT_MONO,
+                            color=mod_color,
+                            weight=ft.FontWeight.BOLD if is_prof else ft.FontWeight.NORMAL,
+                        ),
+                        width=30,
+                    ),
+                    ft.Text(
+                        name, size=12, expand=True,
+                        color=COLOR_TEXT_PRIMARY,
+                        weight=ft.FontWeight.BOLD if is_prof else ft.FontWeight.NORMAL,
+                    ),
+                    ft.Text(extra, size=10, color=COLOR_TEXT_MUTED),
+                ],
+                spacing=4,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+
+        # --- Tiri salvezza ---
+        save_rows = []
+        for stat_name, key in zip(ABILITY_SCORES, ABILITY_KEYS):
+            score = getattr(c, f"{key}_score", 10)
+            base_mod = get_modifier(score)
+            is_prof = stat_name in save_map
+            total = base_mod + (prof_bonus if is_prof else 0)
+            mod_str = f"+{total}" if total >= 0 else str(total)
+            save_rows.append(_dot_row(stat_name, mod_str, is_prof, False,
+                                      ABILITY_ABBR[ABILITY_KEYS.index(key)]))
+
+        # --- Abilità (tutte e 18) ---
+        skill_rows = []
+        for skill_name, ability_key in SKILLS.items():
+            score = getattr(c, f"{ability_key}_score", 10)
+            base_mod = get_modifier(score)
+            is_prof = skill_name in skill_map
+            is_expert = bool(skill_map.get(skill_name)) if is_prof else False
+            if is_expert:
+                total = base_mod + prof_bonus * 2
+            elif is_prof:
+                total = base_mod + prof_bonus
+            else:
+                total = base_mod
+            mod_str = f"+{total}" if total >= 0 else str(total)
+            abbr = ABILITY_ABBR[ABILITY_KEYS.index(ability_key)]
+            skill_rows.append(_dot_row(skill_name, mod_str, is_prof, is_expert, f"({abbr})"))
+
+        # Due colonne per le abilità
+        mid = (len(skill_rows) + 1) // 2
+        col_a = ft.Column(skill_rows[:mid], spacing=3)
+        col_b = ft.Column(skill_rows[mid:], spacing=3)
+
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text("TIRI SALVEZZA", size=9, color=COLOR_TEXT_MUTED,
+                            weight=ft.FontWeight.BOLD,
+                            style=ft.TextStyle(letter_spacing=0.8)),
+                    ft.Container(
+                        content=ft.Column(save_rows, spacing=3),
+                        bgcolor=COLOR_BG_SECONDARY,
+                        padding=10,
+                        border_radius=4,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                    ),
+                    ft.Container(height=8),
+                    ft.Row([
+                        ft.Text("ABILITÀ", size=9, color=COLOR_TEXT_MUTED,
+                                weight=ft.FontWeight.BOLD,
+                                style=ft.TextStyle(letter_spacing=0.8)),
+                        ft.Text(" ● competente   ★ maestria", size=9, color=COLOR_TEXT_MUTED),
+                    ], spacing=16),
+                    ft.Row(
+                        [col_a, ft.VerticalDivider(width=1, color=COLOR_BORDER), col_b],
+                        spacing=12,
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                    ),
+                ],
+                spacing=6,
+            ),
+            bgcolor=COLOR_BG_CARD,
+            padding=16,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    # ------------------------------------------------------------------
+    # XP
+    # ------------------------------------------------------------------
+
+    def _can_level_up(self, c: Character) -> bool:
+        if c.level >= 20:
+            return False
+        next_xp = LEVEL_PROGRESSION.get(c.level + 1, (999999, 0))[0]
+        return (c.xp or 0) >= next_xp
+
+    def _on_save_xp(self, e):
+        try:
+            xp = int((self._xp_field.value or "0").strip())
+        except ValueError:
+            return
+        self.character.xp = xp
+        character_repo.update(self.character)
+        if self._levelup_btn:
+            self._levelup_btn.visible = self._can_level_up(self.character)
+            try:
+                self._levelup_btn.update()
+            except RuntimeError:
+                pass
+
+    # ------------------------------------------------------------------
+    # Level Up guidato
+    # ------------------------------------------------------------------
+
+    def _on_level_up_click(self, e):
+        if not self._page:
+            return
+        c = self.character
+        new_level = c.level + 1
+        hit_die = c.hit_dice_type or 8
+        con_mod = get_modifier(c.con_score)
+        hp_max_gain = hit_die
+        hp_avg_gain = max(1, hit_die // 2 + 1)
+
+        hp_choice = ft.RadioGroup(
+            content=ft.Column([
+                ft.Radio(
+                    value="max",
+                    label=f"Massimo ({hp_max_gain} + {con_mod:+d} CON = {hp_max_gain + con_mod})",
+                ),
+                ft.Radio(
+                    value="avg",
+                    label=f"Media ({hp_avg_gain} + {con_mod:+d} CON = {hp_avg_gain + con_mod})",
+                ),
+                ft.Radio(value="manual", label=f"Inserisci il risultato del dado (d{hit_die})"),
+            ], spacing=4),
+            value="avg",
+        )
+
+        manual_roll = ft.TextField(
+            label=f"Risultato dado d{hit_die} (1–{hit_die})",
+            width=200,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            visible=False,
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_BLUE,
+            bgcolor=COLOR_BG_CARD,
+        )
+
+        def on_hp_choice_change(ev):
+            manual_roll.visible = ev.control.value == "manual"
+            try:
+                manual_roll.update()
+            except RuntimeError:
+                pass
+
+        hp_choice.on_change = on_hp_choice_change
+
+        # ASI — solo ai livelli appropriati
+        is_asi = _is_asi_level(c.class_name or "", new_level)
+        stat_options = [
+            ft.DropdownOption(key=k, text=f"{n} (attuale: {getattr(c, k + '_score')})")
+            for k, n in zip(ABILITY_KEYS, ABILITY_SCORES)
+        ]
+        asi_type = ft.RadioGroup(
+            content=ft.Column([
+                ft.Radio(value="two_one", label="+2 a una caratteristica"),
+                ft.Radio(value="one_one", label="+1 a due caratteristiche diverse"),
+            ], spacing=4),
+            value="two_one",
+        )
+        stat_dd1 = ft.Dropdown(
+            label="Caratteristica", options=stat_options, width=280,
+        )
+        stat_dd2 = ft.Dropdown(
+            label="Seconda caratteristica (+1)", options=stat_options, width=280,
+            visible=False,
+        )
+
+        def on_asi_type_change(ev):
+            stat_dd2.visible = ev.control.value == "one_one"
+            try:
+                stat_dd2.update()
+            except RuntimeError:
+                pass
+
+        asi_type.on_change = on_asi_type_change
+
+        new_pb = get_proficiency_bonus(new_level)
+        old_pb = get_proficiency_bonus(c.level)
+        pb_row = []
+        if new_pb > old_pb:
+            pb_row = [ft.Container(
+                content=ft.Text(
+                    f"⬆ Bonus Competenza: +{old_pb} → +{new_pb}",
+                    size=12, color=COLOR_ACCENT_BLUE, weight=ft.FontWeight.BOLD,
+                ),
+                bgcolor="#e8eef8",
+                padding=8,
+                border_radius=4,
+                border=ft.Border.all(1, COLOR_ACCENT_BLUE),
+            )]
+
+        asi_controls = []
+        if is_asi:
+            asi_controls = [
                 ft.Container(height=4),
-                ft.Text(
-                    text or "—",
-                    size=13,
-                    color=COLOR_TEXT_PRIMARY if text else COLOR_TEXT_MUTED,
-                    selectable=True,
+                ft.Divider(color=COLOR_BORDER),
+                ft.Text(f"Miglioramento Caratteristiche — Lv.{new_level}",
+                        size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE),
+                ft.Text("Scegli come distribuire i tuoi 2 punti.",
+                        size=12, color=COLOR_TEXT_SECONDARY),
+                asi_type,
+                stat_dd1,
+                stat_dd2,
+            ]
+
+        dlg_content = ft.Column(
+            [
+                ft.Text(f"Avanzamento a Livello {new_level}",
+                        size=15, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                ft.Text(f"{c.class_name} · {c.race}", size=12, color=COLOR_TEXT_SECONDARY),
+                ft.Divider(color=COLOR_BORDER),
+                ft.Text("Punti Ferita", size=13, weight=ft.FontWeight.BOLD,
+                        color=COLOR_ACCENT_CRIMSON),
+                ft.Text(f"Dado vita: d{hit_die}  |  Mod. CON: {con_mod:+d}",
+                        size=12, color=COLOR_TEXT_SECONDARY),
+                hp_choice,
+                manual_roll,
+                *asi_controls,
+                *pb_row,
+            ],
+            spacing=8,
+            scroll=ft.ScrollMode.AUTO,
+            width=340,
+        )
+
+        def do_level_up(ev):
+            choice = hp_choice.value
+            if choice == "max":
+                gained = hp_max_gain + con_mod
+            elif choice == "manual":
+                try:
+                    roll = max(1, min(hit_die, int(manual_roll.value or 1)))
+                except ValueError:
+                    roll = 1
+                gained = roll + con_mod
+            else:
+                gained = hp_avg_gain + con_mod
+            gained = max(1, gained)
+
+            c.level = new_level
+            c.hp_max += gained
+            c.hp_current = min(c.hp_current + gained, c.hp_max)
+
+            if is_asi:
+                if asi_type.value == "two_one" and stat_dd1.value:
+                    k = stat_dd1.value
+                    setattr(c, f"{k}_score", min(20, getattr(c, f"{k}_score") + 2))
+                elif asi_type.value == "one_one":
+                    if stat_dd1.value:
+                        k1 = stat_dd1.value
+                        setattr(c, f"{k1}_score", min(20, getattr(c, f"{k1}_score") + 1))
+                    if stat_dd2.value and stat_dd2.value != stat_dd1.value:
+                        k2 = stat_dd2.value
+                        setattr(c, f"{k2}_score", min(20, getattr(c, f"{k2}_score") + 1))
+
+            character_repo.update(c)
+            self._page.pop_dialog()
+            self._refresh()
+
+        dlg = ft.AlertDialog(
+            content=dlg_content,
+            actions=[
+                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.ElevatedButton(
+                    f"Sali a Lv.{new_level}",
+                    on_click=do_level_up,
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_CRIMSON,
+                        color="#ffffff",
+                        shape=ft.RoundedRectangleBorder(radius=4),
+                    ),
                 ),
             ],
-            spacing=0,
+            bgcolor=COLOR_BG_CARD,
         )
+        self._page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
+    # Dialog modifica sezione
+    # ------------------------------------------------------------------
+
+    def _open_edit_dialog(self, section: str):
+        if not self._page:
+            return
+        c = self.character
+        fields: dict[str, ft.TextField] = {}
+
+        def f(label: str, value: str, multiline: bool = False, min_lines: int = 1) -> ft.TextField:
+            return ft.TextField(
+                label=label,
+                value=value or "",
+                multiline=multiline,
+                min_lines=min_lines,
+                max_lines=8 if multiline else 1,
+                text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+                border_color=COLOR_BORDER,
+                focused_border_color=COLOR_ACCENT_BLUE,
+                bgcolor=COLOR_BG_CARD,
+                label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+                expand=not multiline,
+            )
+
+        if section == "anagrafica":
+            fields["player_name"] = f("Giocatore", c.player_name)
+            fields["class_name"]  = f("Classe", c.class_name)
+            fields["subclass"]    = f("Sottoclasse", c.subclass)
+            fields["race"]        = f("Razza", c.race)
+            fields["subrace"]     = f("Sottorazza", c.subrace)
+            fields["background"]  = f("Background", c.background)
+            fields["alignment"]   = f("Allineamento", c.alignment)
+        elif section == "fisico":
+            fields["age"]    = f("Età", str(c.age) if c.age else "")
+            fields["height"] = f("Altezza", c.height)
+            fields["weight"] = f("Peso", c.weight)
+            fields["eyes"]   = f("Occhi", c.eyes)
+            fields["skin"]   = f("Carnagione", c.skin)
+            fields["hair"]   = f("Capelli", c.hair)
+        elif section == "personalita":
+            fields["personality_traits"] = f("Tratti", c.personality_traits,
+                                              multiline=True, min_lines=2)
+            fields["ideals"]  = f("Ideali", c.ideals, multiline=True, min_lines=2)
+            fields["bonds"]   = f("Legami", c.bonds, multiline=True, min_lines=2)
+            fields["flaws"]   = f("Difetti", c.flaws, multiline=True, min_lines=2)
+        elif section == "storia":
+            fields["backstory"]            = f("Storia", c.backstory,
+                                                multiline=True, min_lines=3)
+            fields["allies_organizations"] = f("Alleanze", c.allies_organizations,
+                                                multiline=True, min_lines=2)
+            fields["additional_traits"]    = f("Tratti Aggiuntivi", c.additional_traits,
+                                                multiline=True, min_lines=2)
+        elif section == "razza":
+            fields["race"]    = f("Razza", c.race)
+            fields["subrace"] = f("Sottorazza", c.subrace)
+        else:
+            return
+
+        def on_save(ev):
+            for attr, tf in fields.items():
+                val = tf.value.strip()
+                if attr == "age":
+                    try:
+                        setattr(c, attr, int(val))
+                    except ValueError:
+                        setattr(c, attr, None)
+                else:
+                    setattr(c, attr, val)
+            character_repo.update(c)
+            self._page.pop_dialog()
+            self._refresh()
+
+        titles = {
+            "anagrafica": "Modifica Anagrafica",
+            "fisico": "Modifica Dettagli Fisici",
+            "personalita": "Modifica Personalità",
+            "storia": "Modifica Storia",
+            "razza": "Modifica Razza",
+        }
+        dlg = ft.AlertDialog(
+            title=ft.Text(titles.get(section, "Modifica"), size=14,
+                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            content=ft.Column(
+                list(fields.values()),
+                spacing=10,
+                scroll=ft.ScrollMode.AUTO,
+                width=340,
+            ),
+            actions=[
+                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.ElevatedButton(
+                    "Salva",
+                    on_click=on_save,
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_CRIMSON,
+                        color="#ffffff",
+                        shape=ft.RoundedRectangleBorder(radius=4),
+                    ),
+                ),
+            ],
+            bgcolor=COLOR_BG_CARD,
+        )
+        self._page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
+    # Selezione foto — cross-platform
+    # Desktop: dialogo nativo (macOS/Windows/Linux)
+    # Mobile / fallback: dialog con TextField per incollare il percorso
+    # Salvataggio come base64 nel DB — la foto non dipende dal percorso file
+    # ------------------------------------------------------------------
+
+    def _pick_photo(self):
+        """
+        Entry point: sceglie la strategia giusta per la piattaforma.
+        - Mobile (Android/iOS): ft.FilePicker nativo — funziona su Flet mobile
+        - Desktop (macOS/Windows/Linux): dialogo nativo del SO via subprocess
+          (ft.FilePicker è broken su Flet 0.85.3 desktop)
+        """
+        if self._page is None:
+            return
+        platform = self._page.platform
+        if platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+            self._pick_photo_mobile()
+        else:
+            import platform as sys_platform
+            system = sys_platform.system()
+            threading.Thread(
+                target=self._pick_photo_desktop, args=(system,), daemon=True
+            ).start()
+
+    def _pick_photo_desktop(self, system: str):
+        """Apre il dialogo file nativo del SO. Chiamato in un thread separato."""
+        import subprocess
+        path = None
+        try:
+            if system == "Darwin":
+                script = (
+                    'tell application "System Events"\n'
+                    '  activate\n'
+                    '  set f to choose file with prompt "Seleziona immagine personaggio" '
+                    'of type {"public.image"}\n'
+                    '  return POSIX path of f\n'
+                    'end tell'
+                )
+                r = subprocess.run(["osascript", "-e", script],
+                                   capture_output=True, text=True, timeout=60)
+                if r.returncode == 0:
+                    path = r.stdout.strip()
+
+            elif system == "Windows":
+                ps = (
+                    "Add-Type -AssemblyName System.Windows.Forms; "
+                    "$d = New-Object System.Windows.Forms.OpenFileDialog; "
+                    "$d.Title = 'Seleziona immagine personaggio'; "
+                    "$d.Filter = 'Immagini|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp'; "
+                    "if ($d.ShowDialog() -eq 'OK') { $d.FileName }"
+                )
+                r = subprocess.run(["powershell", "-Command", ps],
+                                   capture_output=True, text=True, timeout=60)
+                if r.returncode == 0:
+                    path = r.stdout.strip()
+
+            elif system == "Linux":
+                # Prova zenity (GNOME), poi kdialog (KDE)
+                for cmd in [
+                    ["zenity", "--file-selection", "--title=Seleziona immagine",
+                     "--file-filter=Immagini | *.png *.jpg *.jpeg *.bmp *.gif *.webp"],
+                    ["kdialog", "--getopenfilename", ".", "*.png *.jpg *.jpeg *.bmp *.gif *.webp"],
+                ]:
+                    try:
+                        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                        if r.returncode == 0 and r.stdout.strip():
+                            path = r.stdout.strip()
+                            break
+                    except FileNotFoundError:
+                        continue
+
+        except Exception as ex:
+            logger.warning(f"Dialogo file nativo non disponibile ({system}): {ex}")
+
+        if path:
+            self._load_photo(path)
+        elif not path and system == "Linux":
+            # Nessun gestore dialogo trovato: fallback testo
+            self._show_path_input_dialog()
+
+    def _pick_photo_mobile(self):
+        """
+        Apre il file picker nativo Android/iOS tramite ft.FilePicker.
+        Funziona su Flet mobile; NON usare su desktop (causa "Unknown control").
+        """
+        picker = ft.FilePicker(on_result=self._on_mobile_file_picked)
+        self._page.overlay.append(picker)
+        self._page.update()
+        picker.pick_files(
+            allow_multiple=False,
+            allowed_extensions=["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+        )
+
+    def _on_mobile_file_picked(self, e):
+        """Callback del FilePicker mobile — legge il path e carica la foto."""
+        # Rimuovi il picker dall'overlay
+        if e.control in self._page.overlay:
+            self._page.overlay.remove(e.control)
+            self._page.update()
+        if e.files and len(e.files) > 0:
+            path = e.files[0].path
+            if path:
+                self._load_photo(path)
+
+    def _show_path_input_dialog(self):
+        """
+        Fallback universale: dialog con TextField dove l'utente
+        incolla o digita il percorso dell'immagine.
+        Usato su mobile e su Linux senza zenity/kdialog.
+        """
+        path_field = ft.TextField(
+            label="Percorso immagine",
+            hint_text="/percorso/immagine.png",
+            expand=True,
+            autofocus=True,
+            bgcolor=COLOR_BG_SECONDARY,
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_CRIMSON,
+        )
+
+        def _confirm(e):
+            p = (path_field.value or "").strip()
+            self._page.pop_dialog()
+            if p:
+                self._load_photo(p)
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Percorso immagine", color=COLOR_TEXT_TITLE,
+                          weight=ft.FontWeight.BOLD),
+            bgcolor=COLOR_BG_CARD,
+            content=ft.Column([
+                ft.Text("Incolla o digita il percorso del file immagine:",
+                        color=COLOR_TEXT_SECONDARY, size=13),
+                ft.Container(height=8),
+                path_field,
+            ], tight=True, spacing=0),
+            actions=[
+                ft.TextButton("Annulla",
+                              on_click=lambda e: self._page.pop_dialog(),
+                              style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY)),
+                ft.ElevatedButton("Carica",
+                                  icon=ft.Icons.UPLOAD,
+                                  on_click=_confirm,
+                                  style=ft.ButtonStyle(
+                                      bgcolor=COLOR_ACCENT_CRIMSON,
+                                      color="#ffffff",
+                                      shape=ft.RoundedRectangleBorder(radius=6),
+                                  )),
+            ],
+        )
+        self._page.show_dialog(dlg)
+
+    def _load_photo(self, path: str):
+        """
+        Legge il file immagine, lo normalizza in JPEG via PIL e lo salva
+        come base64 nel DB. La conversione JPEG garantisce un formato uniforme
+        compatibile con il data URI usato da ft.Image(src=...) in Flet 0.85.3.
+        """
+        try:
+            import io
+            from PIL import Image as PILImage
+            with PILImage.open(path) as img:
+                img = img.convert("RGB")          # rimuovi alpha per JPEG
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=85)
+                raw = buf.getvalue()
+        except ImportError:
+            # PIL non disponibile: usa i bytes raw
+            with open(path, "rb") as f:
+                raw = f.read()
+        except Exception as ex:
+            logger.error(f"Errore nel caricamento foto: {ex}")
+            return
+
+        encoded = base64.b64encode(raw).decode("utf-8")
+        self.character.image_data = encoded
+        character_repo.update(self.character)
+        logger.info(f"Foto salvata nel DB ({len(raw)} bytes) per {self.character.name}")
+        self._refresh()
+
+    # ------------------------------------------------------------------
+    # Refresh — ricarica dal DB e ricostruisce
+    # ------------------------------------------------------------------
+
+    def _refresh(self):
+        refreshed = character_repo.get_by_id(self.character.id)
+        if refreshed:
+            self.character = refreshed
+        self.proficiencies = character_repo.get_proficiencies(self.character.id)
+        self.controls.clear()
+        self._build()
+        try:
+            self.update()
+        except RuntimeError:
+            pass

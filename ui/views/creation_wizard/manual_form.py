@@ -107,10 +107,23 @@ class ManualCreationForm(ft.Column):
     # Sezioni del form
     # ------------------------------------------------------------------
 
+    def _auto_check_saves(self, class_name: str):
+        """Pre-seleziona i tiri salvezza competenti in base alla classe (PHB)."""
+        saves = CLASS_SAVING_THROWS.get(class_name, [])
+        save_keys = {name: key for key, name in zip(ABILITY_KEYS, ABILITY_SCORES)}
+        for key, cb in self._save_checkboxes.items():
+            stat_name = ABILITY_SCORES[ABILITY_KEYS.index(key)]
+            cb.value = stat_name in saves
+            try:
+                cb.update()
+            except RuntimeError:
+                pass
+
     def _section_identita(self) -> ft.Control:
         name        = self._text_field("name", "Nome Personaggio*")
         player_name = self._text_field("player_name", "Nome Giocatore")
         class_dd    = self._dropdown("class_name", "Classe*", list(CLASSES.keys()))
+        class_dd.on_select = lambda e: self._auto_check_saves(e.control.value or "")
         subclass    = self._text_field("subclass", "Sottoclasse")
         level       = self._number_field("level", "Livello*", value="1", min_val=1, max_val=20)
         race        = self._dropdown("race", "Razza*", RACES)

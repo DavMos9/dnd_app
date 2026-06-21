@@ -32,6 +32,7 @@ def init_db() -> None:
     conn = get_connection()
     try:
         _create_tables(conn)
+        _migrate(conn)
         conn.commit()
         logger.info("Database inizializzato correttamente.")
     except Exception as e:
@@ -39,6 +40,17 @@ def init_db() -> None:
         raise
     finally:
         conn.close()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Esegue migrazioni incrementali sul DB esistente."""
+    cur = conn.cursor()
+    # Aggiunge image_data (base64) se non presente — retrocompatibile
+    try:
+        cur.execute("ALTER TABLE characters ADD COLUMN image_data TEXT DEFAULT ''")
+        logger.info("Migrazione: aggiunta colonna image_data")
+    except sqlite3.OperationalError:
+        pass   # colonna già esistente
 
 
 def _create_tables(conn: sqlite3.Connection) -> None:

@@ -8,7 +8,7 @@ import uuid
 import logging
 from typing import Optional
 
-from config.settings import CLASSES, RACES, ALIGNMENTS, STANDARD_ARRAY, get_modifier
+from config.settings import CLASSES, RACES, ALIGNMENTS, STANDARD_ARRAY, RACE_DATA, get_modifier
 from data.models import Character
 from data.game_data.wizard_data import (
     WIZARD_QUESTIONS, BACKGROUNDS,
@@ -192,8 +192,18 @@ class WizardEngine:
         hit_die = CLASSES.get(class_name, {}).get("hit_die", 8)
         spellcasting = CLASSES.get(class_name, {}).get("spellcasting_ability")
 
-        con_score = stat_assignment.get("con", 10)
-        dex_score = stat_assignment.get("dex", 10)
+        # Applica bonus razziali alle caratteristiche base
+        race_info = RACE_DATA.get(race, {})
+        racial_bonuses = race_info.get("ability_bonuses", {})
+        race_speed = race_info.get("speed", 9)
+
+        final_stats = {k: v for k, v in stat_assignment.items()}
+        for stat_key, bonus in racial_bonuses.items():
+            if stat_key in final_stats:
+                final_stats[stat_key] = final_stats[stat_key] + bonus
+
+        con_score = final_stats.get("con", 10)
+        dex_score = final_stats.get("dex", 10)
         con_mod = get_modifier(con_score)
         dex_mod = get_modifier(dex_score)
 
@@ -220,19 +230,19 @@ class WizardEngine:
             alignment=alignment,
             xp=0,
             image_path=None,
-            # Caratteristiche
-            str_score=stat_assignment.get("str", 10),
-            dex_score=stat_assignment.get("dex", 10),
-            con_score=stat_assignment.get("con", 10),
-            int_score=stat_assignment.get("int", 10),
-            wis_score=stat_assignment.get("wis", 10),
-            cha_score=stat_assignment.get("cha", 10),
+            # Caratteristiche con bonus razziali applicati
+            str_score=final_stats.get("str", 10),
+            dex_score=final_stats.get("dex", 10),
+            con_score=final_stats.get("con", 10),
+            int_score=final_stats.get("int", 10),
+            wis_score=final_stats.get("wis", 10),
+            cha_score=final_stats.get("cha", 10),
             # Combattimento
             hp_max=hp_max,
             hp_current=hp_max,
             hp_temp=0,
-            ac=10 + dex_mod,          # armatura di cuoio naturale senza equipaggiamento
-            speed=9,                   # 30 ft standard = 9 m
+            ac=10 + dex_mod,          # senza armatura
+            speed=race_speed,          # velocità dalla razza (PHB)
             hit_dice_type=hit_die,
             hit_dice_total=1,
             hit_dice_remaining=1,

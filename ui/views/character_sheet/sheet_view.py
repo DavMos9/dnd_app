@@ -156,13 +156,14 @@ class SheetView(ft.Column):
             content=ft.Text(
                 label,
                 size=12,
-                color=COLOR_ACCENT_GOLD if is_active else COLOR_TEXT_SECONDARY,
+                color=COLOR_ACCENT_CRIMSON if is_active else COLOR_TEXT_SECONDARY,
                 weight=ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL,
                 text_align=ft.TextAlign.CENTER,
             ),
             padding=ft.Padding.symmetric(horizontal=14, vertical=9),
+            bgcolor=COLOR_BG_TAB_ACTIVE if is_active else COLOR_BG_TAB_INACTIVE,
             border=ft.Border.only(
-                bottom=ft.BorderSide(2, COLOR_ACCENT_GOLD if is_active else "transparent")
+                bottom=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if is_active else "transparent")
             ),
             on_click=lambda e, k=key: self._switch_tab(k),
             ink=True,
@@ -180,10 +181,11 @@ class SheetView(ft.Column):
         # Aggiorna stile bottoni
         for k, btn in self._tab_buttons.items():
             active = k == key
-            btn.content.color = COLOR_ACCENT_GOLD if active else COLOR_TEXT_SECONDARY
+            btn.content.color = COLOR_ACCENT_CRIMSON if active else COLOR_TEXT_SECONDARY
             btn.content.weight = ft.FontWeight.BOLD if active else ft.FontWeight.NORMAL
+            btn.bgcolor = COLOR_BG_TAB_ACTIVE if active else COLOR_BG_TAB_INACTIVE
             btn.border = ft.Border.only(
-                bottom=ft.BorderSide(2, COLOR_ACCENT_GOLD if active else "transparent")
+                bottom=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if active else "transparent")
             )
 
         self.content_container.content = self._get_tab_content(key)
