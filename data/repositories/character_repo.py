@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from data.database import get_connection
-from data.models import Character, CharacterProficiency, Currency
+from data.models import Character, CharacterProficiency, Currency, SpellSlot
 
 logger = logging.getLogger(__name__)
 
@@ -391,6 +391,164 @@ def update_hp(character_id: str, hp_current: int, hp_temp: int = None) -> bool:
     except Exception as e:
         logger.error(f"Errore aggiornamento HP: {e}")
         return False
+
+
+def get_spell_slots(character_id: str) -> list[SpellSlot]:
+    """Restituisce i 9 slot incantesimo del personaggio (livelli 1-9)."""
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM spell_slots WHERE character_id = ? ORDER BY slot_level",
+            (character_id,)
+        ).fetchall()
+        conn.close()
+        return [
+            SpellSlot(
+                character_id=r["character_id"],
+                slot_level=r["slot_level"],
+                total=r["total"],
+                used=r["used"],
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore recupero slot incantesimo {character_id}: {e}")
+        return []
+
+
+def update_spell_slot(character_id: str, slot_level: int, used: int) -> bool:
+    """Aggiorna il contatore 'used' di uno slot incantesimo."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE spell_slots SET used=? WHERE character_id=? AND slot_level=?",
+            (used, character_id, slot_level)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento slot Lv.{slot_level}: {e}")
+        return False
+
+
+def update_spell_slot_total(character_id: str, slot_level: int, total: int) -> bool:
+    """
+    Aggiorna il totale massimo di uno slot incantesimo.
+    Se il nuovo totale è inferiore all'usato corrente, riduce anche 'used'.
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE spell_slots SET total=?, used=MIN(used, ?) WHERE character_id=? AND slot_level=?",
+            (total, total, character_id, slot_level)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento totale slot Lv.{slot_level}: {e}")
+        return False
+
+
+def update_death_saves(character_id: str, success: int, failure: int) -> bool:
+    """Aggiorna i tiri salvezza contro morte."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET death_saves_success=?, death_saves_failure=?, updated_at=? WHERE id=?",
+            (success, failure, datetime.now().isoformat(), character_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento death saves: {e}")
+        return False
+
+
+def update_hit_dice(character_id: str, remaining: int) -> bool:
+    """Aggiorna il contatore di dadi vita rimanenti."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET hit_dice_remaining=?, updated_at=? WHERE id=?",
+            (remaining, datetime.now().isoformat(), character_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento dadi vita: {e}")
+        return False
+
+
+def get_weapons(character_id: str, equipped_only: bool = True) -> list:
+    """Restituisce le armi del personaggio (di default solo quelle equipaggiate)."""
+    from data.models import Weapon
+    try:
+        conn = get_connection()
+        q = "SELECT * FROM weapons WHERE character_id=?"
+        params: tuple = (character_id,)
+        if equipped_only:
+            q += " AND is_equipped=1"
+        q += " ORDER BY rowid"
+        rows = conn.execute(q, params).fetchall()
+        conn.close()
+        return [
+            Weapon(
+                id=r["id"],
+                character_id=r["character_id"],
+                name=r["name"],
+                damage_dice=r["damage_dice"],
+                damage_type=r["damage_type"],
+                attack_bonus=r["attack_bonus"],
+                damage_bonus=r["damage_bonus"],
+                properties=r["properties"],
+                is_magical=bool(r["is_magical"]),
+                magic_description=r["magic_description"] or "",
+                is_equipped=bool(r["is_equipped"]),
+                range_normal=r["range_normal"] or 0,
+                range_max=r["range_max"] or 0,
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore recupero armi {character_id}: {e}")
+        return []
+
+
+def get_prepared_spells(character_id: str) -> list:
+    """Restituisce gli incantesimi preparati (is_prepared=True), ordinati per livello."""
+    from data.models import KnownSpell
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM known_spells WHERE character_id=? AND is_prepared=1 ORDER BY spell_level, name",
+            (character_id,)
+        ).fetchall()
+        conn.close()
+        return [
+            KnownSpell(
+                id=r["id"],
+                character_id=r["character_id"],
+                name=r["name"],
+                spell_level=r["spell_level"],
+                is_prepared=True,
+                school=r["school"] or "",
+                casting_time=r["casting_time"] or "",
+                spell_range=r["spell_range"] or "",
+                components=r["components"] or "",
+                duration=r["duration"] or "",
+                description=r["description"] or "",
+                higher_levels=r["higher_levels"] or "",
+                class_list=r["class_list"] or "",
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore recupero incantesimi preparati {character_id}: {e}")
+        return []
 
 
 def update_turn_state(character_id: str, action: bool, bonus: bool,

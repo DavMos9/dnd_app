@@ -199,6 +199,9 @@ class SheetView(ft.Column):
         if key == "profilo":
             from ui.views.character_sheet.profilo_tab import ProfiloTab
             return ProfiloTab(self.character, self.proficiencies)
+        if key == "combattimento":
+            from ui.views.character_sheet.combattimento_tab import CombattimentoTab
+            return CombattimentoTab(self.character)
         return self._placeholder_tab(key)
 
     def _placeholder_tab(self, key: str) -> ft.Container:
