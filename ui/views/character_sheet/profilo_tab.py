@@ -21,6 +21,8 @@ from config.settings import *
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
 from ui.theme import section_header
+from data.game_data.wizard_data import BACKGROUNDS
+from core.level_manager import get_level_up_steps, estimate_hp_loss, StepType
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +75,8 @@ class ProfiloTab(ft.ListView):
         self._page: ft.Page | None = None
 
         self._xp_field: ft.TextField | None = None
-        self._levelup_btn: ft.TextButton | None = None
+        self._level_up_btn: ft.IconButton | None = None
+        self._level_down_btn: ft.IconButton | None = None
 
         self._build()
 
@@ -151,11 +154,23 @@ class ProfiloTab(ft.ListView):
             keyboard_type=ft.KeyboardType.NUMBER,
         )
 
-        self._levelup_btn = ft.TextButton(
-            "⬆ Sali di Livello",
+        self._level_up_btn = ft.IconButton(
+            icon=ft.Icons.ARROW_DROP_UP,
+            icon_size=22,
+            tooltip=f"Sali a Lv.{c.level + 1}",
             on_click=self._on_level_up_click,
-            style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
-            visible=self._can_level_up(c),
+            disabled=(c.level >= 20),
+            icon_color=COLOR_ACCENT_CRIMSON,
+            style=ft.ButtonStyle(padding=ft.Padding.all(0)),
+        )
+        self._level_down_btn = ft.IconButton(
+            icon=ft.Icons.ARROW_DROP_DOWN,
+            icon_size=22,
+            tooltip=f"Scendi a Lv.{c.level - 1}",
+            on_click=self._on_level_down_click,
+            disabled=(c.level <= 1),
+            icon_color=COLOR_TEXT_MUTED,
+            style=ft.ButtonStyle(padding=ft.Padding.all(0)),
         )
 
         return ft.Container(
@@ -167,11 +182,17 @@ class ProfiloTab(ft.ListView):
                         [
                             ft.Text(c.name or "—", size=18, weight=ft.FontWeight.BOLD,
                                     color=COLOR_TEXT_TITLE, font_family=FONT_TITLE),
-                            ft.Row([
-                                ft.Text(f"Lv.{c.level}", size=11, color=COLOR_ACCENT_CRIMSON,
-                                        weight=ft.FontWeight.BOLD),
-                                ft.Text(f"  Comp. +{pb}", size=11, color=COLOR_TEXT_SECONDARY),
-                            ]),
+                            ft.Row(
+                                [
+                                    ft.Text(f"Lv.{c.level}", size=11, color=COLOR_ACCENT_CRIMSON,
+                                            weight=ft.FontWeight.BOLD),
+                                    ft.Text(f"  Comp. +{pb}", size=11, color=COLOR_TEXT_SECONDARY),
+                                    self._level_up_btn,
+                                    self._level_down_btn,
+                                ],
+                                spacing=0,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
                             ft.Text(
                                 (c.class_name or "—")
                                 + (f" ({c.subclass})" if c.subclass else "")
@@ -187,7 +208,6 @@ class ProfiloTab(ft.ListView):
                                         on_click=self._on_save_xp,
                                         style=ft.ButtonStyle(color=COLOR_ACCENT_BLUE),
                                     ),
-                                    self._levelup_btn,
                                 ],
                                 spacing=6,
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -474,12 +494,6 @@ class ProfiloTab(ft.ListView):
             return
         self.character.xp = xp
         character_repo.update(self.character)
-        if self._levelup_btn:
-            self._levelup_btn.visible = self._can_level_up(self.character)
-            try:
-                self._levelup_btn.update()
-            except RuntimeError:
-                pass
 
     # ------------------------------------------------------------------
     # Level Up guidato
@@ -490,34 +504,34 @@ class ProfiloTab(ft.ListView):
             return
         c = self.character
         new_level = c.level + 1
+        if new_level > 20:
+            return
+
+        old_pb = get_proficiency_bonus(c.level)
+        new_pb = get_proficiency_bonus(new_level)
+        steps = get_level_up_steps(c.class_name or "", new_level, old_pb, new_pb)
+
         hit_die = c.hit_dice_type or 8
         con_mod = get_modifier(c.con_score)
         hp_max_gain = hit_die
         hp_avg_gain = max(1, hit_die // 2 + 1)
 
+        # --- Widget HP ---
         hp_choice = ft.RadioGroup(
             content=ft.Column([
-                ft.Radio(
-                    value="max",
-                    label=f"Massimo ({hp_max_gain} + {con_mod:+d} CON = {hp_max_gain + con_mod})",
-                ),
-                ft.Radio(
-                    value="avg",
-                    label=f"Media ({hp_avg_gain} + {con_mod:+d} CON = {hp_avg_gain + con_mod})",
-                ),
+                ft.Radio(value="max",
+                         label=f"Massimo ({hp_max_gain} + {con_mod:+d} CON = {hp_max_gain + con_mod})"),
+                ft.Radio(value="avg",
+                         label=f"Media ({hp_avg_gain} + {con_mod:+d} CON = {hp_avg_gain + con_mod})"),
                 ft.Radio(value="manual", label=f"Inserisci il risultato del dado (d{hit_die})"),
             ], spacing=4),
             value="avg",
         )
-
         manual_roll = ft.TextField(
             label=f"Risultato dado d{hit_die} (1–{hit_die})",
-            width=200,
-            keyboard_type=ft.KeyboardType.NUMBER,
-            visible=False,
+            width=200, keyboard_type=ft.KeyboardType.NUMBER, visible=False,
             text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_BLUE,
+            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_BLUE,
             bgcolor=COLOR_BG_CARD,
         )
 
@@ -530,8 +544,7 @@ class ProfiloTab(ft.ListView):
 
         hp_choice.on_change = on_hp_choice_change
 
-        # ASI — solo ai livelli appropriati
-        is_asi = _is_asi_level(c.class_name or "", new_level)
+        # --- Widget ASI ---
         stat_options = [
             ft.DropdownOption(key=k, text=f"{n} (attuale: {getattr(c, k + '_score')})")
             for k, n in zip(ABILITY_KEYS, ABILITY_SCORES)
@@ -543,13 +556,9 @@ class ProfiloTab(ft.ListView):
             ], spacing=4),
             value="two_one",
         )
-        stat_dd1 = ft.Dropdown(
-            label="Caratteristica", options=stat_options, width=280,
-        )
-        stat_dd2 = ft.Dropdown(
-            label="Seconda caratteristica (+1)", options=stat_options, width=280,
-            visible=False,
-        )
+        stat_dd1 = ft.Dropdown(label="Caratteristica", options=stat_options, width=280)
+        stat_dd2 = ft.Dropdown(label="Seconda caratteristica (+1)", options=stat_options,
+                               width=280, visible=False)
 
         def on_asi_type_change(ev):
             stat_dd2.visible = ev.control.value == "one_one"
@@ -560,56 +569,76 @@ class ProfiloTab(ft.ListView):
 
         asi_type.on_change = on_asi_type_change
 
-        new_pb = get_proficiency_bonus(new_level)
-        old_pb = get_proficiency_bonus(c.level)
-        pb_row = []
-        if new_pb > old_pb:
-            pb_row = [ft.Container(
-                content=ft.Text(
-                    f"⬆ Bonus Competenza: +{old_pb} → +{new_pb}",
-                    size=12, color=COLOR_ACCENT_BLUE, weight=ft.FontWeight.BOLD,
-                ),
-                bgcolor="#e8eef8",
-                padding=8,
-                border_radius=4,
-                border=ft.Border.all(1, COLOR_ACCENT_BLUE),
-            )]
+        # --- Costruzione dialog da steps ---
+        dlg_rows: list[ft.Control] = [
+            ft.Text(f"Avanzamento a Livello {new_level}",
+                    size=15, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            ft.Text(f"{c.class_name or '—'}  •  {c.race or '—'}",
+                    size=12, color=COLOR_TEXT_SECONDARY),
+            ft.Divider(color=COLOR_BORDER),
+        ]
 
-        asi_controls = []
-        if is_asi:
-            asi_controls = [
-                ft.Container(height=4),
-                ft.Divider(color=COLOR_BORDER),
-                ft.Text(f"Miglioramento Caratteristiche — Lv.{new_level}",
-                        size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE),
-                ft.Text("Scegli come distribuire i tuoi 2 punti.",
-                        size=12, color=COLOR_TEXT_SECONDARY),
-                asi_type,
-                stat_dd1,
-                stat_dd2,
-            ]
+        has_asi = False
+        for step in steps:
+            if step.step_type == StepType.HP_GAIN:
+                dlg_rows += [
+                    ft.Text("Punti Ferita", size=13, weight=ft.FontWeight.BOLD,
+                            color=COLOR_ACCENT_CRIMSON),
+                    ft.Text(f"Dado vita: d{hit_die}  |  Mod. CON: {con_mod:+d}",
+                            size=12, color=COLOR_TEXT_SECONDARY),
+                    hp_choice,
+                    manual_roll,
+                ]
 
-        dlg_content = ft.Column(
-            [
-                ft.Text(f"Avanzamento a Livello {new_level}",
-                        size=15, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
-                ft.Text(f"{c.class_name} · {c.race}", size=12, color=COLOR_TEXT_SECONDARY),
-                ft.Divider(color=COLOR_BORDER),
-                ft.Text("Punti Ferita", size=13, weight=ft.FontWeight.BOLD,
-                        color=COLOR_ACCENT_CRIMSON),
-                ft.Text(f"Dado vita: d{hit_die}  |  Mod. CON: {con_mod:+d}",
-                        size=12, color=COLOR_TEXT_SECONDARY),
-                hp_choice,
-                manual_roll,
-                *asi_controls,
-                *pb_row,
-            ],
-            spacing=8,
-            scroll=ft.ScrollMode.AUTO,
-            width=340,
-        )
+            elif step.step_type == StepType.FEATURE_AUTO:
+                dlg_rows.append(ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                    ], spacing=6),
+                    bgcolor=COLOR_BG_SECONDARY,
+                    padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                    border_radius=4,
+                    border=ft.Border.all(1, COLOR_BORDER),
+                ))
+
+            elif step.step_type == StepType.SUBCLASS_CHOICE:
+                # Futuro: apre picker sottoclasse. Per ora mostra solo info.
+                dlg_rows.append(ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.STAR, size=14, color=COLOR_ACCENT_AMBER),
+                        ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                        ft.Text("(prossimamente)", size=10, color=COLOR_TEXT_MUTED),
+                    ], spacing=6),
+                    bgcolor="#fef9ec",
+                    padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                    border_radius=4,
+                    border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+                ))
+
+            elif step.step_type == StepType.ASI:
+                has_asi = True
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Text(f"Miglioramento Caratteristiche — Lv.{new_level}",
+                            size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE),
+                    ft.Text("Scegli come distribuire i 2 punti.",
+                            size=12, color=COLOR_TEXT_SECONDARY),
+                    asi_type,
+                    stat_dd1,
+                    stat_dd2,
+                ]
+
+            elif step.step_type == StepType.PROFICIENCY_BONUS_UP:
+                dlg_rows.append(ft.Container(
+                    content=ft.Text(f"⬆ {step.label}", size=12,
+                                    color=COLOR_ACCENT_BLUE, weight=ft.FontWeight.BOLD),
+                    bgcolor="#e8eef8", padding=8, border_radius=4,
+                    border=ft.Border.all(1, COLOR_ACCENT_BLUE),
+                ))
 
         def do_level_up(ev):
+            # HP
             choice = hp_choice.value
             if choice == "max":
                 gained = hp_max_gain + con_mod
@@ -627,32 +656,90 @@ class ProfiloTab(ft.ListView):
             c.hp_max += gained
             c.hp_current = min(c.hp_current + gained, c.hp_max)
 
-            if is_asi:
+            # ASI
+            if has_asi:
                 if asi_type.value == "two_one" and stat_dd1.value:
                     k = stat_dd1.value
                     setattr(c, f"{k}_score", min(20, getattr(c, f"{k}_score") + 2))
                 elif asi_type.value == "one_one":
                     if stat_dd1.value:
-                        k1 = stat_dd1.value
-                        setattr(c, f"{k1}_score", min(20, getattr(c, f"{k1}_score") + 1))
+                        setattr(c, f"{stat_dd1.value}_score",
+                                min(20, getattr(c, f"{stat_dd1.value}_score") + 1))
                     if stat_dd2.value and stat_dd2.value != stat_dd1.value:
-                        k2 = stat_dd2.value
-                        setattr(c, f"{k2}_score", min(20, getattr(c, f"{k2}_score") + 1))
+                        setattr(c, f"{stat_dd2.value}_score",
+                                min(20, getattr(c, f"{stat_dd2.value}_score") + 1))
 
             character_repo.update(c)
             self._page.pop_dialog()
             self._refresh()
 
         dlg = ft.AlertDialog(
-            content=dlg_content,
+            content=ft.Column(dlg_rows, spacing=8, scroll=ft.ScrollMode.AUTO, width=340),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
                 ft.ElevatedButton(
                     f"Sali a Lv.{new_level}",
                     on_click=do_level_up,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON,
-                        color="#ffffff",
+                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        shape=ft.RoundedRectangleBorder(radius=4),
+                    ),
+                ),
+            ],
+            bgcolor=COLOR_BG_CARD,
+        )
+        self._page.show_dialog(dlg)
+
+    def _on_level_down_click(self, e):
+        if not self._page:
+            return
+        c = self.character
+        if c.level <= 1:
+            return
+
+        new_level = c.level - 1
+        hit_die = c.hit_dice_type or 8
+        con_mod = get_modifier(c.con_score)
+        hp_loss = estimate_hp_loss(hit_die, con_mod)
+
+        def do_level_down(ev):
+            c.level = new_level
+            c.hp_max = max(1, c.hp_max - hp_loss)
+            c.hp_current = min(c.hp_current, c.hp_max)
+            character_repo.update(c)
+            self._page.pop_dialog()
+            self._refresh()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Scendi di Livello", size=14,
+                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            content=ft.Column([
+                ft.Text(f"Il personaggio scenderà a Livello {new_level}.",
+                        size=13, color=COLOR_TEXT_PRIMARY),
+                ft.Container(height=4),
+                ft.Text(
+                    f"HP max verrà ridotto di ~{hp_loss} PF "
+                    f"(stima media: d{hit_die} + {con_mod:+d} CON).",
+                    size=12, color=COLOR_TEXT_SECONDARY,
+                ),
+                ft.Container(height=4),
+                ft.Container(
+                    content=ft.Text(
+                        "⚠ Feature di classe e ASI ottenuti a quel livello non vengono "
+                        "ripristinati automaticamente. Correggili manualmente se necessario.",
+                        size=11, color=COLOR_ACCENT_AMBER,
+                    ),
+                    bgcolor="#fef9ec", padding=8, border_radius=4,
+                    border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+                ),
+            ], spacing=4, width=320),
+            actions=[
+                ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
+                ft.ElevatedButton(
+                    f"Scendi a Lv.{new_level}",
+                    on_click=do_level_down,
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_AMBER, color="#ffffff",
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -669,7 +756,8 @@ class ProfiloTab(ft.ListView):
         if not self._page:
             return
         c = self.character
-        fields: dict[str, ft.TextField] = {}
+        # Mappa attr → Control (TextField o Dropdown: entrambi hanno .value)
+        fields: dict[str, ft.Control] = {}
 
         def f(label: str, value: str, multiline: bool = False, min_lines: int = 1) -> ft.TextField:
             return ft.TextField(
@@ -686,14 +774,25 @@ class ProfiloTab(ft.ListView):
                 expand=not multiline,
             )
 
+        def dd(label: str, options: list[str], value: str) -> ft.Dropdown:
+            """Dropdown stilizzato coerente con il tema."""
+            return ft.Dropdown(
+                label=label,
+                value=value or None,
+                options=[ft.DropdownOption(key=o, text=o) for o in options],
+                text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+                border_color=COLOR_BORDER,
+                focused_border_color=COLOR_ACCENT_BLUE,
+                bgcolor=COLOR_BG_CARD,
+                label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            )
+
         if section == "anagrafica":
             fields["player_name"] = f("Giocatore", c.player_name)
-            fields["class_name"]  = f("Classe", c.class_name)
-            fields["subclass"]    = f("Sottoclasse", c.subclass)
-            fields["race"]        = f("Razza", c.race)
-            fields["subrace"]     = f("Sottorazza", c.subrace)
-            fields["background"]  = f("Background", c.background)
-            fields["alignment"]   = f("Allineamento", c.alignment)
+            fields["class_name"]  = dd("Classe", list(CLASSES.keys()), c.class_name or "")
+            fields["race"]        = dd("Razza", RACES, c.race or "")
+            fields["background"]  = dd("Background", list(BACKGROUNDS.keys()), c.background or "")
+            fields["alignment"]   = dd("Allineamento", ALIGNMENTS, c.alignment or "")
         elif section == "fisico":
             fields["age"]    = f("Età", str(c.age) if c.age else "")
             fields["height"] = f("Altezza", c.height)
@@ -715,14 +814,14 @@ class ProfiloTab(ft.ListView):
             fields["additional_traits"]    = f("Tratti Aggiuntivi", c.additional_traits,
                                                 multiline=True, min_lines=2)
         elif section == "razza":
-            fields["race"]    = f("Razza", c.race)
-            fields["subrace"] = f("Sottorazza", c.subrace)
+            # Solo cambio razza — i tratti razziali si aggiornano automaticamente al refresh
+            fields["race"] = dd("Razza", RACES, c.race or "")
         else:
             return
 
         def on_save(ev):
-            for attr, tf in fields.items():
-                val = tf.value.strip()
+            for attr, ctrl in fields.items():
+                val = (ctrl.value or "").strip()
                 if attr == "age":
                     try:
                         setattr(c, attr, int(val))
@@ -736,19 +835,19 @@ class ProfiloTab(ft.ListView):
 
         titles = {
             "anagrafica": "Modifica Anagrafica",
-            "fisico": "Modifica Dettagli Fisici",
-            "personalita": "Modifica Personalità",
-            "storia": "Modifica Storia",
-            "razza": "Modifica Razza",
+            "fisico":     "Modifica Dettagli Fisici",
+            "personalita":"Modifica Personalità",
+            "storia":     "Modifica Storia",
+            "razza":      "Cambia Razza",
         }
         dlg = ft.AlertDialog(
             title=ft.Text(titles.get(section, "Modifica"), size=14,
                           weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Column(
-                list(fields.values()),
+                list(fields.values()),  # mix di TextField e Dropdown — entrambi hanno .value
                 spacing=10,
                 scroll=ft.ScrollMode.AUTO,
-                width=340,
+                width=360,
             ),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: self._page.pop_dialog()),
