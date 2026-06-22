@@ -13,7 +13,7 @@ Struttura (ListView scrollabile):
 
 import flet as ft
 import logging
-from typing import cast
+from typing import Any, cast
 from config.settings import *
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
@@ -484,13 +484,13 @@ class EsplorazioneTab(ft.ListView):
         def _save(e):
             nome = tf_nome.value.strip() if tf_nome.value else ""
             if not nome:
-                tf_nome.error_text = "Inserisci il nome della lingua"
+                cast(Any, tf_nome).error_text = "Inserisci il nome della lingua"
                 tf_nome.update()
                 return
             # Evita duplicati
             existing = {p.name.lower() for p in self._profs if p.proficiency_type == "language"}
             if nome.lower() in existing:
-                tf_nome.error_text = "Lingua già presente"
+                cast(Any, tf_nome).error_text = "Lingua già presente"
                 tf_nome.update()
                 return
             character_repo._save_single_proficiency(
@@ -531,12 +531,12 @@ class EsplorazioneTab(ft.ListView):
         def _save(e):
             nome = tf_nome.value.strip() if tf_nome.value else ""
             if not nome:
-                tf_nome.error_text = "Inserisci il nome dello strumento"
+                cast(Any, tf_nome).error_text = "Inserisci il nome dello strumento"
                 tf_nome.update()
                 return
             existing = {p.name.lower() for p in self._profs if p.proficiency_type == "tool"}
             if nome.lower() in existing:
-                tf_nome.error_text = "Strumento già presente"
+                cast(Any, tf_nome).error_text = "Strumento già presente"
                 tf_nome.update()
                 return
             is_expert = bool(cb_maestria.value)
@@ -653,7 +653,7 @@ class EsplorazioneTab(ft.ListView):
             expand=True,
         )
 
-        def on_blur(ev: ft.ControlEvent) -> None:
+        def on_blur(ev: ft.Event[ft.TextField]) -> None:
             notes = notes_field.value or ""
             if notes != (c.session_notes or ""):
                 character_repo.update_session_notes(c.id, notes)

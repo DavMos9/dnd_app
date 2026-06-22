@@ -11,7 +11,7 @@ Struttura (ListView scrollabile):
 import flet as ft
 import json
 import logging
-from typing import cast
+from typing import Any, cast
 from config.settings import *
 from data.models import Character, Currency, InventoryItem, Weapon
 import data.repositories.character_repo as character_repo
@@ -586,10 +586,11 @@ class InventarioTab(ft.ListView):
             ft.Checkbox(label=p, value=(p in existing_props))
             for p in _WEAPON_PROPERTIES
         ]
-        props_section = ft.Column([
-            label_text("Proprietà", 10),
-            ft.Column(props_checks, spacing=2),
-        ], spacing=4)
+        props_section = ft.Column(
+            cast(list[ft.Control], [label_text("Proprietà", 10),
+                                    ft.Column(cast(list[ft.Control], props_checks), spacing=2)]),
+            spacing=4,
+        )
 
         f_rng    = _tf("Gittata normale (m, 0=mischia)",
                         "0" if is_new else str(weapon.range_normal or 0),
@@ -631,7 +632,7 @@ class InventarioTab(ft.ListView):
             )
             row_ref: list[ft.Row] = []
 
-            def remove_this(ev: ft.ControlEvent) -> None:
+            def remove_this(ev: ft.Event[ft.IconButton]) -> None:
                 if row_ref:
                     try:
                         magic_rows_col.controls.remove(row_ref[0])
@@ -640,11 +641,11 @@ class InventarioTab(ft.ListView):
                         pass
 
             r = ft.Row(
-                [row_dice, row_type, row_note,
-                 ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE,
-                               icon_color=COLOR_ACCENT_CRIMSON, icon_size=16,
-                               on_click=remove_this, tooltip="Rimuovi",
-                               padding=ft.Padding.all(0))],
+                cast(list[ft.Control], [row_dice, row_type, row_note,
+                     ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                                   icon_color=COLOR_ACCENT_CRIMSON, icon_size=16,
+                                   on_click=remove_this, tooltip="Rimuovi",
+                                   padding=ft.Padding.all(0))]),
                 spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER,
             )
             row_ref.append(r)
@@ -655,21 +656,27 @@ class InventarioTab(ft.ListView):
                 _make_magic_row(md.get("dice", ""), md.get("type", "Fuoco"), md.get("note", ""))
             )
 
-        def add_magic_row(ev: ft.ControlEvent) -> None:
+        def add_magic_row(ev: ft.Event[ft.TextButton]) -> None:
             magic_rows_col.controls.append(_make_magic_row())
             magic_rows_col.update()
 
-        magic_section = ft.Column([
-            ft.Row([
-                label_text("Danni magici aggiuntivi", 10),
-                ft.TextButton(
-                    "+ Aggiungi danno",
-                    on_click=add_magic_row,
-                    style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
+        magic_section = ft.Column(
+            cast(list[ft.Control], [
+                ft.Row(
+                    cast(list[ft.Control], [
+                        label_text("Danni magici aggiuntivi", 10),
+                        ft.TextButton(
+                            "+ Aggiungi danno",
+                            on_click=add_magic_row,
+                            style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
+                        ),
+                    ]),
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 ),
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            magic_rows_col,
-        ], spacing=2)
+                magic_rows_col,
+            ]),
+            spacing=2,
+        )
 
         def save(ev):
             if page is None:
@@ -687,12 +694,12 @@ class InventarioTab(ft.ListView):
             magic_desc = (f_magic.value or "").strip()
             equipped   = bool(equip_cb.value)
 
-            # Proprietà selezionate
-            selected_props = ",".join(
-                cast(ft.Checkbox, cb).label or ""
+            # Proprietà selezionate (cb.label è StrOrControl nei type stub → str() safe)
+            selected_props = ",".join([
+                str(cb.label) if cb.label else ""
                 for cb in props_checks
-                if cast(ft.Checkbox, cb).value
-            )
+                if cb.value
+            ])
 
             # Colleziona danni magici dalle righe dinamiche
             magic_dmgs = []
@@ -879,12 +886,13 @@ class InventarioTab(ft.ListView):
             bgcolor=COLOR_BG_CARD,
         )
         armor_fields = ft.Column(
-            [label_text("CAMPI ARMATURA / SCUDO", 10), f_ca, armor_type_dd],
+            cast(list[ft.Control], [label_text("CAMPI ARMATURA / SCUDO", 10),
+                                    f_ca, armor_type_dd]),
             spacing=8,
             visible=(initial_cat == "armor"),
         )
 
-        def on_cat_select(ev: ft.ControlEvent) -> None:
+        def on_cat_select(ev: ft.Event[ft.Dropdown]) -> None:
             armor_fields.visible = (cat_dd.value == "armor")
             armor_fields.update()
 
@@ -923,7 +931,7 @@ class InventarioTab(ft.ListView):
                     ca_value=ca_val, armor_type=arm_type, effects=effects,
                 )
             # Ricalcola CA se ci sono armature/scudi coinvolti
-            if cat == "armor" or (not is_new and item.category == "armor"):
+            if cat == "armor" or (not is_new and item is not None and item.category == "armor"):
                 new_ca = character_repo.calculate_and_update_ca(self.character.id)
                 self.character.ac = new_ca
             page.pop_dialog()
