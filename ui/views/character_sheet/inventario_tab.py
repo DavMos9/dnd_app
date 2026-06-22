@@ -221,82 +221,92 @@ class InventarioTab(ft.ListView):
         return ft.Container(content=ft.Column(cards, spacing=6))
 
     def _weapon_card(self, w: Weapon) -> ft.Container:
-        att_str = f"+{w.attack_bonus}" if w.attack_bonus >= 0 else str(w.attack_bonus)
-        db_str  = (f"+{w.damage_bonus}" if w.damage_bonus > 0
-                   else (str(w.damage_bonus) if w.damage_bonus < 0 else ""))
-        dmg_str = f"{w.damage_dice}{db_str}  {w.damage_type}"
-        rng_str = (f"{w.range_normal}/{w.range_max} m" if w.range_max
-                   else (f"{w.range_normal} m" if w.range_normal else "mischia"))
+        # Guard null: campi int possono essere None se il DB ha NULL
+        atk_bonus = w.attack_bonus if w.attack_bonus is not None else 0
+        dmg_bonus = w.damage_bonus if w.damage_bonus is not None else 0
+        att_str = f"+{atk_bonus}" if atk_bonus >= 0 else str(atk_bonus)
+        db_str  = (f"+{dmg_bonus}" if dmg_bonus > 0
+                   else (str(dmg_bonus) if dmg_bonus < 0 else ""))
+        dmg_str = f"{w.damage_dice or ''}{db_str}  {w.damage_type or ''}"
+        rng_n   = w.range_normal if w.range_normal is not None else 0
+        rng_x   = w.range_max   if w.range_max   is not None else 0
+        rng_str = (f"{rng_n}/{rng_x} m" if rng_x
+                   else (f"{rng_n} m" if rng_n else "mischia"))
 
         equip_color = COLOR_ACCENT_CRIMSON if w.is_equipped else COLOR_BORDER
 
+        # Riga badge magica (opzionale)
+        badge_items: list[ft.Control] = [
+            self._badge(att_str, "ATT", COLOR_ACCENT_BLUE),
+            self._badge(dmg_str, "DANNO", COLOR_ACCENT_CRIMSON),
+        ]
+        if w.is_magical:
+            badge_items.append(ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.STAR, size=10, color=COLOR_ACCENT_AMBER),
+                    ft.Text("magica", size=10, color=COLOR_ACCENT_AMBER),
+                ], spacing=2),
+                bgcolor="#fef9ec",
+                padding=ft.Padding.symmetric(horizontal=6, vertical=3),
+                border_radius=4,
+                border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+            ))
+
+        # Colonna azioni (destra)
+        action_col = ft.Column([
+            ft.IconButton(
+                icon=ft.Icons.SHIELD,
+                icon_color=equip_color, icon_size=16,
+                tooltip="Equipaggiata" if w.is_equipped else "Non equipaggiata",
+                on_click=lambda e, ww=w: self._toggle_weapon_equipped(ww),
+                padding=ft.Padding.all(2),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.EDIT,
+                icon_color=COLOR_TEXT_MUTED, icon_size=16,
+                tooltip="Modifica",
+                on_click=lambda e, ww=w: self._on_edit_weapon(ww),
+                padding=ft.Padding.all(2),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.DELETE,
+                icon_color=COLOR_ACCENT_CRIMSON, icon_size=16,
+                tooltip="Elimina",
+                on_click=lambda e, ww=w: self._on_delete_weapon(ww),
+                padding=ft.Padding.all(2),
+            ),
+        ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+        # Colonna contenuto — NO expand=True (causa layout infinito in ListView)
+        content_rows: list[ft.Control] = [
+            ft.Row([
+                ft.Text(w.name, size=14, weight=ft.FontWeight.BOLD,
+                        color=COLOR_TEXT_TITLE),
+                ft.Container(expand=True),   # spacer leggero
+                muted_text(rng_str, 11),
+            ], spacing=6),
+            ft.Row(badge_items, spacing=6, wrap=True),
+        ]
+        if w.properties:
+            content_rows.append(muted_text(w.properties, 11))
+
+        # Il bordo sinistro colorato sostituisce la sidebar Container (evita STRETCH)
         return ft.Container(
             content=ft.Row([
-                # Barra laterale equipaggiato
-                ft.Container(width=4, bgcolor=equip_color, border_radius=2),
-                ft.Container(width=6),
-                # Contenuto
-                ft.Column([
-                    ft.Row([
-                        ft.Text(w.name, size=14, weight=ft.FontWeight.BOLD,
-                                color=COLOR_TEXT_TITLE, expand=True),
-                        muted_text(rng_str, 11),
-                    ], spacing=6),
-                    ft.Row([
-                        self._badge(att_str, "ATT", COLOR_ACCENT_BLUE),
-                        self._badge(dmg_str, "DANNO", COLOR_ACCENT_CRIMSON),
-                        *(
-                            [ft.Container(
-                                content=ft.Row([
-                                    ft.Icon(ft.Icons.STAR, size=10,
-                                            color=COLOR_ACCENT_AMBER),
-                                    ft.Text("magica", size=10,
-                                            color=COLOR_ACCENT_AMBER),
-                                ], spacing=2),
-                                bgcolor="#fef9ec",
-                                padding=ft.Padding.symmetric(horizontal=6, vertical=3),
-                                border_radius=4,
-                                border=ft.Border.all(1, COLOR_ACCENT_AMBER),
-                            )]
-                            if w.is_magical else []
-                        ),
-                    ], spacing=6),
-                    *(
-                        [muted_text(w.properties, 11)]
-                        if w.properties else []
-                    ),
-                ], spacing=4, expand=True),
-                # Azioni
-                ft.Column([
-                    ft.IconButton(
-                        icon=ft.Icons.SHIELD,
-                        icon_color=equip_color,
-                        icon_size=16,
-                        tooltip="Equipaggiata" if w.is_equipped else "Non equipaggiata — clicca per equipaggiare",
-                        on_click=lambda e, ww=w: self._toggle_weapon_equipped(ww),
-                        padding=ft.Padding.all(2),
-                    ),
-                    ft.IconButton(
-                        icon=ft.Icons.EDIT,
-                        icon_color=COLOR_TEXT_MUTED,
-                        icon_size=16,
-                        tooltip="Modifica",
-                        on_click=lambda e, ww=w: self._on_edit_weapon(ww),
-                        padding=ft.Padding.all(2),
-                    ),
-                    ft.IconButton(
-                        icon=ft.Icons.DELETE,
-                        icon_color=COLOR_ACCENT_CRIMSON,
-                        icon_size=16,
-                        tooltip="Elimina",
-                        on_click=lambda e, ww=w: self._on_delete_weapon(ww),
-                        padding=ft.Padding.all(2),
-                    ),
-                ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            ], spacing=0, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
+                ft.Column(content_rows, spacing=4),
+                action_col,
+            ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.START,
+            ),
             bgcolor=COLOR_BG_SECONDARY if w.is_equipped else COLOR_BG_CARD,
-            padding=ft.Padding.symmetric(horizontal=8, vertical=10),
-            border=ft.Border.all(1, COLOR_BORDER),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+            border=ft.Border(
+                left=ft.BorderSide(4, equip_color),
+                top=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
             border_radius=6,
         )
 
@@ -1027,8 +1037,19 @@ class InventarioTab(ft.ListView):
         self._currencies = character_repo.get_currencies(self.character.id)
         self._weapons    = character_repo.get_weapons(self.character.id, equipped_only=False)
         self._items      = character_repo.get_inventory(self.character.id)
-        self._build()  # già chiama controls.clear() internamente
         try:
-            self.update()
+            self._build()
+        except Exception as exc:
+            logger.error("InventarioTab._build() fallito in _refresh: %s", exc, exc_info=True)
+            self.controls.clear()
+            self.controls.append(
+                ft.Text(f"Errore aggiornamento inventario: {exc}",
+                        color=COLOR_ACCENT_CRIMSON, size=13)
+            )
+        try:
+            if self._page:
+                self._page.update()
+            else:
+                self.update()
         except RuntimeError:
             pass

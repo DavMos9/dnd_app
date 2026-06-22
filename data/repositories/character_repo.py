@@ -60,6 +60,7 @@ def _row_to_character(row) -> Character:
         spellcasting_ability=d["spellcasting_ability"],
         inspiration=bool(d["inspiration"]),
         ca_bonus=d.get("ca_bonus", 0) or 0,
+        proficiency_bonus_override=d.get("proficiency_bonus_override", 0) or 0,
         session_notes=d.get("session_notes", "") or "",
         age=d["age"],
         height=d["height"],
@@ -120,9 +121,24 @@ def create(character: Character) -> bool:
     try:
         conn = get_connection()
         conn.execute("""
-            INSERT INTO characters VALUES (
+            INSERT INTO characters (
+                id, name, player_name, class_name, subclass, level,
+                race, subrace, background, alignment, xp, image_path, image_data,
+                str_score, dex_score, con_score, int_score, wis_score, cha_score,
+                hp_max, hp_current, hp_temp,
+                ac, speed, hit_dice_type, hit_dice_total, hit_dice_remaining,
+                death_saves_success, death_saves_failure,
+                action_used, bonus_action_used, reaction_used,
+                movement_used, previous_turn_state,
+                spellcasting_ability, inspiration,
+                ca_bonus, proficiency_bonus_override, session_notes,
+                age, height, weight, eyes, skin, hair,
+                personality_traits, ideals, bonds, flaws,
+                backstory, allies_organizations, additional_traits, appearance_notes,
+                created_at, updated_at
+            ) VALUES (
                 :id, :name, :player_name, :class_name, :subclass, :level,
-                :race, :subrace, :background, :alignment, :xp, :image_path,
+                :race, :subrace, :background, :alignment, :xp, :image_path, :image_data,
                 :str_score, :dex_score, :con_score, :int_score, :wis_score, :cha_score,
                 :hp_max, :hp_current, :hp_temp,
                 :ac, :speed, :hit_dice_type, :hit_dice_total, :hit_dice_remaining,
@@ -130,10 +146,11 @@ def create(character: Character) -> bool:
                 :action_used, :bonus_action_used, :reaction_used,
                 :movement_used, :previous_turn_state,
                 :spellcasting_ability, :inspiration,
+                :ca_bonus, :proficiency_bonus_override, :session_notes,
                 :age, :height, :weight, :eyes, :skin, :hair,
                 :personality_traits, :ideals, :bonds, :flaws,
                 :backstory, :allies_organizations, :additional_traits, :appearance_notes,
-                :created_at, :updated_at, :image_data
+                :created_at, :updated_at
             )
         """, {
             "id": character.id,
@@ -186,6 +203,9 @@ def create(character: Character) -> bool:
             "allies_organizations": _s(character.allies_organizations),
             "additional_traits": _s(character.additional_traits),
             "appearance_notes": _s(character.appearance_notes),
+            "ca_bonus": character.ca_bonus,
+            "proficiency_bonus_override": character.proficiency_bonus_override,
+            "session_notes": _s(character.session_notes),
             "created_at": character.created_at,
             "updated_at": character.updated_at,
         })
@@ -246,6 +266,7 @@ def update(character: Character) -> bool:
                 appearance_notes=:appearance_notes,
                 image_data=:image_data,
                 ca_bonus=:ca_bonus,
+                proficiency_bonus_override=:proficiency_bonus_override,
                 session_notes=:session_notes,
                 updated_at=:updated_at
             WHERE id=:id
@@ -301,6 +322,7 @@ def update(character: Character) -> bool:
             "appearance_notes": _s(character.appearance_notes),
             "image_data": _s(character.image_data),
             "ca_bonus": character.ca_bonus,
+            "proficiency_bonus_override": character.proficiency_bonus_override,
             "session_notes": _s(character.session_notes),
             "updated_at": character.updated_at,
         })
@@ -350,6 +372,38 @@ def _save_single_proficiency(
         return True
     except Exception as e:
         logger.error(f"Errore salvataggio competenza '{name}': {e}")
+        return False
+
+
+def replace_proficiencies_by_types(
+    character_id: str,
+    proficiency_type: str,
+    entries: list[tuple[str, bool]],
+) -> bool:
+    """
+    Sostituisce in una transazione tutte le competenze di un tipo specifico
+    (es. "save" oppure "skill") con il nuovo set fornito.
+    Usato dalla dialog di modifica manuale competenze in ProfiloTab.
+    """
+    import uuid
+    try:
+        conn = get_connection()
+        conn.execute(
+            "DELETE FROM character_proficiencies WHERE character_id=? AND proficiency_type=?",
+            (character_id, proficiency_type),
+        )
+        for name, is_expert in entries:
+            conn.execute(
+                """INSERT INTO character_proficiencies
+                   (id, character_id, proficiency_type, name, is_expert)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (str(uuid.uuid4()), character_id, proficiency_type, name, int(is_expert)),
+            )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore replace_proficiencies_by_types ({proficiency_type}): {e}")
         return False
 
 

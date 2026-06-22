@@ -69,6 +69,9 @@ class Character:
     # CA temporanea (bonus da incantesimi, reazioni, ecc. — resettabile)
     ca_bonus: int = 0
 
+    # Override manuale del bonus competenza (0 = usa tabella PHB standard)
+    proficiency_bonus_override: int = 0
+
     # Appunti di sessione (testo libero, per note al volo durante il gioco)
     session_notes: str = ""
 

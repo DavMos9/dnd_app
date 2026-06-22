@@ -87,7 +87,7 @@ class ProfiloTab(ft.ListView):
 
     def _build(self):
         c = self.character
-        prof_bonus = get_proficiency_bonus(c.level)
+        prof_bonus = char_prof_bonus(c)
 
         skill_map: dict[str, bool] = {}
         save_map: dict[str, bool] = {}
@@ -254,6 +254,133 @@ class ProfiloTab(ft.ListView):
             ),
             border_radius=6,
         )
+
+    # ------------------------------------------------------------------
+    # Dialog modifica competenze (tiri salvezza + abilità)
+    # ------------------------------------------------------------------
+
+    def _on_edit_competenze(self):
+        """
+        Dialog interattivo per toggle competenza/maestria su
+        tiri salvezza e abilità. Clicca una riga per ciclare: ○ → ● → ★ → ○.
+        """
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+
+        # Stato iniziale dal DB: 0=nessuna, 1=competente, 2=maestria
+        states: dict[str, int] = {}
+        for p in self.proficiencies:
+            if p.proficiency_type in ("save", "skill"):
+                states[p.name] = 2 if p.is_expert else 1
+
+        _DOTS  = ["○", "●", "★"]
+        _CLRS  = [COLOR_TEXT_MUTED, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_BLUE]
+
+        def make_row(name: str, extra: str = "") -> ft.Container:
+            s = states.get(name, 0)
+            dot = ft.Text(_DOTS[s], size=13, color=_CLRS[s])
+
+            def cycle(ev, n=name, d=dot):
+                states[n] = (states.get(n, 0) + 1) % 3
+                d.value = _DOTS[states[n]]
+                d.color = _CLRS[states[n]]
+                d.update()
+
+            return ft.Container(
+                content=ft.Row(
+                    [
+                        dot,
+                        ft.Text(name, size=12, expand=True, color=COLOR_TEXT_PRIMARY),
+                        ft.Text(extra, size=10, color=COLOR_TEXT_MUTED),
+                    ],
+                    spacing=6,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.Padding.only(left=4, top=3, bottom=3, right=4),
+                border_radius=4,
+                on_click=cycle,
+                ink=True,
+            )
+
+        save_rows: list[ft.Control] = []
+        for stat_name, key in zip(ABILITY_SCORES, ABILITY_KEYS):
+            abbr = ABILITY_ABBR[ABILITY_KEYS.index(key)]
+            save_rows.append(make_row(stat_name, abbr))
+
+        skill_rows: list[ft.Control] = []
+        for skill_name, ability_key in SKILLS.items():
+            abbr = ABILITY_ABBR[ABILITY_KEYS.index(ability_key)]
+            skill_rows.append(make_row(skill_name, f"({abbr})"))
+
+        def on_save(ev):
+            if page is None:
+                return
+            save_entries: list[tuple[str, bool]] = [
+                (n, states[n] == 2) for n in ABILITY_SCORES if states.get(n, 0) > 0
+            ]
+            skill_entries: list[tuple[str, bool]] = [
+                (n, states[n] == 2) for n in SKILLS if states.get(n, 0) > 0
+            ]
+            character_repo.replace_proficiencies_by_types(c.id, "save", save_entries)
+            character_repo.replace_proficiencies_by_types(c.id, "skill", skill_entries)
+            self.proficiencies = character_repo.get_proficiencies(c.id)
+            page.pop_dialog()
+            self._refresh()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Modifica Competenze", size=14,
+                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        "Tocca una riga per ciclare: ○ nessuna  ●  competente  ★ maestria",
+                        size=11, color=COLOR_TEXT_MUTED,
+                    ),
+                    ft.Container(height=4),
+                    ft.Text("TIRI SALVEZZA", size=9, color=COLOR_TEXT_MUTED,
+                            weight=ft.FontWeight.BOLD,
+                            style=ft.TextStyle(letter_spacing=0.8)),
+                    ft.Container(
+                        content=ft.Column(save_rows, spacing=2),
+                        bgcolor=COLOR_BG_SECONDARY,
+                        padding=8,
+                        border_radius=4,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                    ),
+                    ft.Container(height=6),
+                    ft.Text("ABILITÀ", size=9, color=COLOR_TEXT_MUTED,
+                            weight=ft.FontWeight.BOLD,
+                            style=ft.TextStyle(letter_spacing=0.8)),
+                    ft.Container(
+                        content=ft.Column(skill_rows, spacing=2),
+                        bgcolor=COLOR_BG_SECONDARY,
+                        padding=8,
+                        border_radius=4,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                    ),
+                ],
+                spacing=6,
+                scroll=ft.ScrollMode.AUTO,
+                width=360,
+                height=480,
+            ),
+            actions=[
+                ft.TextButton("Annulla",
+                              on_click=lambda ev: page.pop_dialog() if page else None),
+                ft.ElevatedButton(
+                    "Salva",
+                    on_click=on_save,
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        shape=ft.RoundedRectangleBorder(radius=4),
+                    ),
+                ),
+            ],
+            bgcolor=COLOR_BG_CARD,
+        )
+        page.show_dialog(dlg)
 
     def _info_row(self, label: str, value: str) -> ft.Row:
         return ft.Row(
@@ -439,6 +566,12 @@ class ProfiloTab(ft.ListView):
         col_a = ft.Column(skill_rows[:mid], spacing=3)
         col_b = ft.Column(skill_rows[mid:], spacing=3)
 
+        edit_btn = ft.TextButton(
+            "✎ Modifica",
+            on_click=lambda e: self._on_edit_competenze(),
+            style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+        )
+
         return ft.Container(
             content=ft.Column(
                 [
@@ -464,6 +597,8 @@ class ProfiloTab(ft.ListView):
                         spacing=12,
                         vertical_alignment=ft.CrossAxisAlignment.START,
                     ),
+                    ft.Container(height=4),
+                    ft.Row([edit_btn], alignment=ft.MainAxisAlignment.END),
                 ],
                 spacing=6,
             ),

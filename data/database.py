@@ -47,8 +47,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
 
     _add_column(cur, "characters",     "image_data",      "TEXT DEFAULT ''")
-    _add_column(cur, "characters",     "ca_bonus",        "INTEGER DEFAULT 0")
-    _add_column(cur, "characters",     "session_notes",   "TEXT DEFAULT ''")
+    _add_column(cur, "characters",     "ca_bonus",                    "INTEGER DEFAULT 0")
+    _add_column(cur, "characters",     "proficiency_bonus_override",  "INTEGER DEFAULT 0")
+    _add_column(cur, "characters",     "session_notes",               "TEXT DEFAULT ''")
     _add_column(cur, "weapons",        "magic_damages",   "TEXT DEFAULT '[]'")
     _add_column(cur, "inventory_items","ca_value",        "INTEGER DEFAULT 0")
     _add_column(cur, "inventory_items","armor_type",      "TEXT DEFAULT ''")

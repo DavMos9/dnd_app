@@ -91,6 +91,17 @@ def get_modifier_str(score: int) -> str:
 def get_proficiency_bonus(level: int) -> int:
     return LEVEL_PROGRESSION.get(level, (0, 2))[1]
 
+def char_prof_bonus(character) -> int:
+    """
+    Restituisce il bonus competenza effettivo del personaggio.
+    Se proficiency_bonus_override > 0 usa quello (house rules),
+    altrimenti usa la tabella PHB standard.
+    """
+    override = getattr(character, "proficiency_bonus_override", 0) or 0
+    if override > 0:
+        return override
+    return get_proficiency_bonus(character.level)
+
 def get_xp_for_level(level: int) -> int:
     return LEVEL_PROGRESSION.get(level, (0, 2))[0]
 

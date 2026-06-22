@@ -2,7 +2,7 @@
 Container principale della scheda personaggio.
 
 Struttura:
-    MiniStatBar  — 6 caratteristiche fisse in cima, sempre visibili
+    MiniStatBar  — 6 caratteristiche fisse in cima (cliccabili per modifica)
     TabBar       — Profilo | Combattimento | Esplorazione | Inventario | Diario
     Content area — contenuto del tab attivo
 
@@ -16,6 +16,7 @@ from typing import cast
 from config.settings import *
 from data.models import Character, CharacterProficiency
 from ui.theme import title_text, muted_text
+import data.repositories.character_repo as character_repo
 
 logger = logging.getLogger(__name__)
 
@@ -40,26 +41,34 @@ class SheetView(ft.Column):
         self.proficiencies = proficiencies
         self.active_tab = "profilo"
         self._tab_buttons: dict[str, ft.Container] = {}
+        self._page: ft.Page | None = None
+        self._stat_bar_container: ft.Container | None = None
+        self._header_container: ft.Container | None = None
         self._build()
+
+    def did_mount(self):
+        self._page = cast(ft.Page, self.page)
 
     # ------------------------------------------------------------------
     # Build
     # ------------------------------------------------------------------
 
     def _build(self):
+        self._stat_bar_container = self._build_stat_bar()
+        self._header_container = self._build_header_and_tabs()
         self.content_container = ft.Container(
             expand=True,
             content=self._get_tab_content("profilo"),
         )
 
         self.controls = [
-            self._build_stat_bar(),
-            self._build_header_and_tabs(),
+            self._stat_bar_container,
+            self._header_container,
             self.content_container,
         ]
 
     # ------------------------------------------------------------------
-    # Mini stat bar
+    # Mini stat bar — cliccabile per editare le caratteristiche
     # ------------------------------------------------------------------
 
     def _build_stat_bar(self) -> ft.Container:
@@ -91,6 +100,9 @@ class SheetView(ft.Column):
                     border=ft.Border.all(1, COLOR_BORDER),
                     border_radius=4,
                     expand=True,
+                    on_click=lambda e: self._open_ability_score_dialog(),
+                    ink=True,
+                    tooltip="Clicca per modificare le caratteristiche",
                 )
             )
 
@@ -107,13 +119,30 @@ class SheetView(ft.Column):
 
     def _build_header_and_tabs(self) -> ft.Container:
         c = self.character
-        prof_bonus = get_proficiency_bonus(c.level)
+        pb = char_prof_bonus(c)
+        is_override = (c.proficiency_bonus_override or 0) > 0
+
+        # Testo bonus competenza — cliccabile per override
+        pb_label = ft.Text(
+            f"+{pb} comp." + (" ✎" if is_override else ""),
+            size=11,
+            color=COLOR_ACCENT_BLUE if is_override else COLOR_TEXT_SECONDARY,
+            weight=ft.FontWeight.BOLD if is_override else ft.FontWeight.NORMAL,
+        )
+        pb_btn = ft.Container(
+            content=pb_label,
+            on_click=lambda e: self._open_prof_bonus_dialog(),
+            ink=True,
+            border_radius=4,
+            padding=ft.Padding.symmetric(horizontal=4, vertical=2),
+            tooltip="Clicca per modificare il bonus competenza",
+        )
 
         name_row = ft.Row(
             [
                 ft.Text(c.name, size=15, weight=ft.FontWeight.BOLD,
                         color=COLOR_TEXT_TITLE, font_family=FONT_TITLE, expand=True),
-                ft.Text(f"+{prof_bonus} comp.", size=11, color=COLOR_TEXT_SECONDARY),
+                pb_btn,
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
@@ -128,6 +157,7 @@ class SheetView(ft.Column):
 
         # Tab buttons
         tab_row = []
+        self._tab_buttons = {}
         for tab in SHEET_TABS:
             btn = self._make_tab_button(tab["key"], tab["label"])
             self._tab_buttons[tab["key"]] = btn
@@ -169,6 +199,215 @@ class SheetView(ft.Column):
             on_click=lambda e, k=key: self._switch_tab(k),
             ink=True,
         )
+
+    # ------------------------------------------------------------------
+    # Dialog — modifica caratteristiche
+    # ------------------------------------------------------------------
+
+    def _open_ability_score_dialog(self):
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+
+        fields: dict[str, ft.TextField] = {}
+        for key, name, abbr in zip(ABILITY_KEYS, ABILITY_SCORES, ABILITY_ABBR):
+            score = getattr(c, f"{key}_score", 10)
+            fields[key] = ft.TextField(
+                label=f"{name} ({abbr})",
+                value=str(score),
+                keyboard_type=ft.KeyboardType.NUMBER,
+                text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+                border_color=COLOR_BORDER,
+                focused_border_color=COLOR_ACCENT_BLUE,
+                bgcolor=COLOR_BG_CARD,
+                label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+                width=160,
+            )
+
+        error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
+
+        def on_save(ev):
+            if page is None:
+                return
+            new_vals: dict[str, int] = {}
+            for key in ABILITY_KEYS:
+                try:
+                    val = int((fields[key].value or "").strip())
+                    if not (1 <= val <= 30):
+                        raise ValueError
+                    new_vals[key] = val
+                except ValueError:
+                    idx = ABILITY_KEYS.index(key)
+                    error_text.value = (
+                        f"Valore non valido per {ABILITY_SCORES[idx]} "
+                        f"({ABILITY_ABBR[idx]}) — inserire un numero tra 1 e 30"
+                    )
+                    error_text.update()
+                    return
+            for key, val in new_vals.items():
+                setattr(c, f"{key}_score", val)
+            character_repo.update(c)
+            page.pop_dialog()
+            self._refresh_all()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Modifica Caratteristiche", size=14,
+                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        "Valori ammessi: 1–30  (house rules: nessun limite a 20)",
+                        size=11, color=COLOR_TEXT_MUTED,
+                    ),
+                    ft.Container(height=4),
+                    ft.Row([fields["str"], fields["dex"]], spacing=10),
+                    ft.Row([fields["con"], fields["int"]], spacing=10),
+                    ft.Row([fields["wis"], fields["cha"]], spacing=10),
+                    error_text,
+                ],
+                spacing=10,
+                width=360,
+            ),
+            actions=[
+                ft.TextButton("Annulla",
+                              on_click=lambda ev: page.pop_dialog() if page else None),
+                ft.ElevatedButton(
+                    "Salva",
+                    on_click=on_save,
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        shape=ft.RoundedRectangleBorder(radius=4),
+                    ),
+                ),
+            ],
+            bgcolor=COLOR_BG_CARD,
+        )
+        page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
+    # Dialog — override bonus competenza
+    # ------------------------------------------------------------------
+
+    def _open_prof_bonus_dialog(self):
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+        standard_pb = get_proficiency_bonus(c.level)
+        current_override = c.proficiency_bonus_override or 0
+
+        tf = ft.TextField(
+            label="Bonus competenza personalizzato",
+            value=str(current_override) if current_override > 0 else "",
+            hint_text=f"Standard PHB: +{standard_pb}",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_BLUE,
+            bgcolor=COLOR_BG_CARD,
+            label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            width=280,
+        )
+        error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
+
+        def on_save(ev):
+            if page is None:
+                return
+            raw = (tf.value or "").strip()
+            if raw == "":
+                # Reset a standard PHB
+                c.proficiency_bonus_override = 0
+            else:
+                try:
+                    val = int(raw)
+                    if not (1 <= val <= 20):
+                        raise ValueError
+                    c.proficiency_bonus_override = val
+                except ValueError:
+                    error_text.value = "Inserire un numero tra 1 e 20 (o lasciare vuoto per standard PHB)"
+                    error_text.update()
+                    return
+            character_repo.update(c)
+            page.pop_dialog()
+            self._refresh_all()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Bonus Competenza", size=14,
+                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        f"Standard PHB per Lv.{c.level}: +{standard_pb}",
+                        size=12, color=COLOR_TEXT_SECONDARY,
+                    ),
+                    ft.Text(
+                        "Lascia vuoto per usare la tabella PHB standard. "
+                        "Imposta un valore diverso per house rules.",
+                        size=11, color=COLOR_TEXT_MUTED,
+                    ),
+                    ft.Container(height=4),
+                    tf,
+                    error_text,
+                ],
+                spacing=8,
+                width=320,
+            ),
+            actions=[
+                ft.TextButton("Annulla",
+                              on_click=lambda ev: page.pop_dialog() if page else None),
+                ft.TextButton(
+                    "Reset PHB",
+                    on_click=lambda ev: (
+                        setattr(c, "proficiency_bonus_override", 0),
+                        character_repo.update(c),
+                        page.pop_dialog(),
+                        self._refresh_all(),
+                    ) if page else None,
+                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                ),
+                ft.ElevatedButton(
+                    "Salva",
+                    on_click=on_save,
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        shape=ft.RoundedRectangleBorder(radius=4),
+                    ),
+                ),
+            ],
+            bgcolor=COLOR_BG_CARD,
+        )
+        page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
+    # Refresh globale (dopo modifica caratteristiche o bonus competenza)
+    # ------------------------------------------------------------------
+
+    def _refresh_all(self):
+        """
+        Ricarica il personaggio dal DB, aggiorna la stat bar, l'header
+        e ricostruisce il tab corrente (che mostra valori derivati).
+        """
+        updated = character_repo.get_by_id(self.character.id)
+        if updated:
+            self.character = updated
+        self.proficiencies = character_repo.get_proficiencies(self.character.id)
+
+        # Ricostruisce stat bar e header in-place
+        new_bar = self._build_stat_bar()
+        new_hdr = self._build_header_and_tabs()
+        self.controls[0] = new_bar
+        self.controls[1] = new_hdr
+        self._stat_bar_container = new_bar
+        self._header_container = new_hdr
+
+        # Ricostruisce il tab corrente
+        self.content_container.content = self._get_tab_content(self.active_tab)
+
+        try:
+            self.update()
+        except RuntimeError:
+            pass
 
     # ------------------------------------------------------------------
     # Navigazione tra tab

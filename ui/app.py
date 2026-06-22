@@ -285,7 +285,8 @@ class DnDApp:
         elif key == "maps":
             return self._placeholder_view("Mappe", ft.Icons.MAP, "In sviluppo...")
         elif key == "dice":
-            return self._placeholder_view("Dadi", ft.Icons.CASINO, "In sviluppo...")
+            from ui.views.dice_view import DiceView
+            return DiceView()
         return ft.Container()
 
     def _placeholder_view(self, title: str, icon, subtitle: str) -> ft.Container:

@@ -55,7 +55,7 @@ class EsplorazioneTab(ft.ListView):
 
     def _build(self):
         c = self.character
-        pb = get_proficiency_bonus(c.level)
+        pb = char_prof_bonus(c)
 
         self._skill_profs: dict[str, bool] = {}
         self._save_profs: set[str] = set()

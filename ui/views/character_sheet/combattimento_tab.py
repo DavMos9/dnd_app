@@ -801,7 +801,7 @@ class CombattimentoTab(ft.ListView):
         Griglia compatta: 6 tiri salvezza + 18 abilità con modificatori.
         ✦ = competente, ★ = maestria (doppio bonus competenza).
         """
-        pb = get_proficiency_bonus(c.level)
+        pb = char_prof_bonus(c)
         scores = {
             "str": c.str_score, "dex": c.dex_score, "con": c.con_score,
             "int": c.int_score, "wis": c.wis_score, "cha": c.cha_score,
@@ -919,6 +919,8 @@ class CombattimentoTab(ft.ListView):
 
         def _weapon_card(w: Weapon) -> ft.Container:
             props = w.properties.strip() if w.properties else ""
+
+            # Descrizione magica (testo libero)
             magic_row = (
                 ft.Row([
                     ft.Icon(ft.Icons.AUTO_AWESOME, size=12, color=COLOR_ACCENT_AMBER),
@@ -927,6 +929,29 @@ class CombattimentoTab(ft.ListView):
                 ], spacing=4)
                 if w.is_magical and w.magic_description else None
             )
+
+            # Danni magici aggiuntivi (JSON array: [{dice, type, note}])
+            extra_damage_rows: list[ft.Control] = []
+            try:
+                magic_dmgs = json.loads(w.magic_damages or "[]")
+                for md in magic_dmgs:
+                    dice = md.get("dice", "")
+                    typ  = md.get("type", "")
+                    note = md.get("note", "")
+                    if not dice:
+                        continue
+                    label = f"+ {dice}  {typ}"
+                    if note:
+                        label += f"  ({note})"
+                    extra_damage_rows.append(
+                        ft.Row([
+                            ft.Icon(ft.Icons.WHATSHOT, size=11, color=COLOR_ACCENT_AMBER),
+                            ft.Text(label, size=11, color=COLOR_ACCENT_AMBER,
+                                    font_family=FONT_MONO),
+                        ], spacing=4)
+                    )
+            except (json.JSONDecodeError, AttributeError):
+                pass
 
             rows: list[ft.Control] = [
                 ft.Row([
@@ -974,6 +999,7 @@ class CombattimentoTab(ft.ListView):
                 rows.append(ft.Text(props, size=11, color=COLOR_TEXT_MUTED, italic=True))
             if magic_row:
                 rows.append(magic_row)
+            rows.extend(extra_damage_rows)
 
             return ft.Container(
                 content=ft.Column(rows, spacing=6),
@@ -1026,7 +1052,7 @@ class CombattimentoTab(ft.ListView):
             "int": c.int_score, "wis": c.wis_score, "cha": c.cha_score,
         }
 
-        pb = get_proficiency_bonus(c.level)
+        pb = char_prof_bonus(c)
         sp_key = c.spellcasting_ability or ""
         is_caster = bool(sp_key and sp_key in _KEY_TO_SCORE)
 
