@@ -43,14 +43,25 @@ def init_db() -> None:
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
-    """Esegue migrazioni incrementali sul DB esistente."""
+    """Esegue migrazioni incrementali sul DB esistente (idempotenti)."""
     cur = conn.cursor()
-    # Aggiunge image_data (base64) se non presente — retrocompatibile
+
+    _add_column(cur, "characters",     "image_data",      "TEXT DEFAULT ''")
+    _add_column(cur, "characters",     "ca_bonus",        "INTEGER DEFAULT 0")
+    _add_column(cur, "characters",     "session_notes",   "TEXT DEFAULT ''")
+    _add_column(cur, "weapons",        "magic_damages",   "TEXT DEFAULT '[]'")
+    _add_column(cur, "inventory_items","ca_value",        "INTEGER DEFAULT 0")
+    _add_column(cur, "inventory_items","armor_type",      "TEXT DEFAULT ''")
+    _add_column(cur, "inventory_items","effects",         "TEXT DEFAULT ''")
+
+
+def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
+    """Aggiunge una colonna a una tabella se non esiste già."""
     try:
-        cur.execute("ALTER TABLE characters ADD COLUMN image_data TEXT DEFAULT ''")
-        logger.info("Migrazione: aggiunta colonna image_data")
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        logger.info("Migrazione: aggiunta colonna %s.%s", table, column)
     except sqlite3.OperationalError:
-        pass   # colonna già esistente
+        pass  # colonna già esistente
 
 
 def _create_tables(conn: sqlite3.Connection) -> None:

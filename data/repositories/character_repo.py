@@ -59,6 +59,8 @@ def _row_to_character(row) -> Character:
         previous_turn_state=d["previous_turn_state"],
         spellcasting_ability=d["spellcasting_ability"],
         inspiration=bool(d["inspiration"]),
+        ca_bonus=d.get("ca_bonus", 0) or 0,
+        session_notes=d.get("session_notes", "") or "",
         age=d["age"],
         height=d["height"],
         weight=d["weight"],
@@ -243,6 +245,8 @@ def update(character: Character) -> bool:
                 additional_traits=:additional_traits,
                 appearance_notes=:appearance_notes,
                 image_data=:image_data,
+                ca_bonus=:ca_bonus,
+                session_notes=:session_notes,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -296,6 +300,8 @@ def update(character: Character) -> bool:
             "additional_traits": _s(character.additional_traits),
             "appearance_notes": _s(character.appearance_notes),
             "image_data": _s(character.image_data),
+            "ca_bonus": character.ca_bonus,
+            "session_notes": _s(character.session_notes),
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -510,6 +516,7 @@ def get_weapons(character_id: str, equipped_only: bool = True) -> list:
                 is_equipped=bool(r["is_equipped"]),
                 range_normal=r["range_normal"] or 0,
                 range_max=r["range_max"] or 0,
+                magic_damages=r["magic_damages"] or "[]",
             )
             for r in rows
         ]
@@ -571,6 +578,9 @@ def get_inventory(character_id: str) -> list:
                 description=r["description"] or "",
                 category=r["category"] or "misc",
                 is_equipped=bool(r["is_equipped"]),
+                ca_value=r["ca_value"] or 0,
+                armor_type=r["armor_type"] or "",
+                effects=r["effects"] or "",
             )
             for r in rows
         ]
@@ -584,7 +594,7 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
                   damage_bonus: int = 0, properties: str = "",
                   is_equipped: bool = True, is_magical: bool = False,
                   magic_description: str = "", range_normal: int = 0,
-                  range_max: int = 0) -> bool:
+                  range_max: int = 0, magic_damages: str = "[]") -> bool:
     """Crea una nuova arma per il personaggio."""
     import uuid as _uuid
     try:
@@ -593,11 +603,11 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
             """INSERT INTO weapons
                (id, character_id, name, damage_dice, damage_type, attack_bonus,
                 damage_bonus, properties, is_magical, magic_description,
-                is_equipped, range_normal, range_max)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                is_equipped, range_normal, range_max, magic_damages)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (str(_uuid.uuid4()), character_id, name, damage_dice, damage_type,
              attack_bonus, damage_bonus, properties, int(is_magical),
-             magic_description, int(is_equipped), range_normal, range_max)
+             magic_description, int(is_equipped), range_normal, range_max, magic_damages)
         )
         conn.commit()
         conn.close()
@@ -610,18 +620,20 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
 def update_weapon(weapon_id: str, name: str, damage_dice: str, damage_type: str,
                   attack_bonus: int, damage_bonus: int, properties: str,
                   is_equipped: bool, is_magical: bool, magic_description: str,
-                  range_normal: int, range_max: int) -> bool:
+                  range_normal: int, range_max: int,
+                  magic_damages: str = "[]") -> bool:
     """Aggiorna un'arma esistente."""
     try:
         conn = get_connection()
         conn.execute(
             """UPDATE weapons SET name=?, damage_dice=?, damage_type=?,
                attack_bonus=?, damage_bonus=?, properties=?, is_equipped=?,
-               is_magical=?, magic_description=?, range_normal=?, range_max=?
+               is_magical=?, magic_description=?, range_normal=?, range_max=?,
+               magic_damages=?
                WHERE id=?""",
             (name, damage_dice, damage_type, attack_bonus, damage_bonus,
              properties, int(is_equipped), int(is_magical), magic_description,
-             range_normal, range_max, weapon_id)
+             range_normal, range_max, magic_damages, weapon_id)
         )
         conn.commit()
         conn.close()
@@ -646,17 +658,20 @@ def delete_weapon(weapon_id: str) -> bool:
 
 def create_inventory_item(character_id: str, name: str, quantity: int = 1,
                           weight: float = 0.0, description: str = "",
-                          category: str = "misc", is_equipped: bool = False) -> bool:
+                          category: str = "misc", is_equipped: bool = False,
+                          ca_value: int = 0, armor_type: str = "",
+                          effects: str = "") -> bool:
     """Crea un nuovo oggetto nell'inventario."""
     import uuid as _uuid
     try:
         conn = get_connection()
         conn.execute(
             """INSERT INTO inventory_items
-               (id, character_id, name, quantity, weight, description, category, is_equipped)
-               VALUES (?,?,?,?,?,?,?,?)""",
+               (id, character_id, name, quantity, weight, description,
+                category, is_equipped, ca_value, armor_type, effects)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (str(_uuid.uuid4()), character_id, name, quantity, weight,
-             description, category, int(is_equipped))
+             description, category, int(is_equipped), ca_value, armor_type, effects)
         )
         conn.commit()
         conn.close()
@@ -667,14 +682,18 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
 
 
 def update_inventory_item(item_id: str, name: str, quantity: int, weight: float,
-                          description: str, category: str, is_equipped: bool) -> bool:
+                          description: str, category: str, is_equipped: bool,
+                          ca_value: int = 0, armor_type: str = "",
+                          effects: str = "") -> bool:
     """Aggiorna un oggetto dell'inventario."""
     try:
         conn = get_connection()
         conn.execute(
             """UPDATE inventory_items SET name=?, quantity=?, weight=?,
-               description=?, category=?, is_equipped=? WHERE id=?""",
-            (name, quantity, weight, description, category, int(is_equipped), item_id)
+               description=?, category=?, is_equipped=?,
+               ca_value=?, armor_type=?, effects=? WHERE id=?""",
+            (name, quantity, weight, description, category, int(is_equipped),
+             ca_value, armor_type, effects, item_id)
         )
         conn.commit()
         conn.close()
@@ -815,6 +834,94 @@ def delete_diary_entry(entry_id: str) -> bool:
     except Exception as e:
         logger.error(f"Errore eliminazione voce diario: {e}")
         return False
+
+
+def update_ca_bonus(character_id: str, ca_bonus: int) -> bool:
+    """Aggiorna il bonus CA temporaneo (da incantesimi, reazioni, ecc.)."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET ca_bonus=?, updated_at=? WHERE id=?",
+            (ca_bonus, datetime.now().isoformat(), character_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento CA bonus: {e}")
+        return False
+
+
+def update_session_notes(character_id: str, notes: str) -> bool:
+    """Aggiorna gli appunti di sessione del personaggio."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET session_notes=?, updated_at=? WHERE id=?",
+            (notes, datetime.now().isoformat(), character_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento note sessione: {e}")
+        return False
+
+
+def calculate_and_update_ca(character_id: str) -> int:
+    """
+    Ricalcola la CA del personaggio in base all'armatura e agli scudi equipaggiati.
+
+    Logica PHB:
+      - Nessuna armatura  → 10 + mod DES
+      - Armatura leggera  → ca_value + mod DES
+      - Armatura media    → ca_value + min(mod DES, 2)
+      - Armatura pesante  → ca_value  (DES ignorato)
+      - Scudo             → somma i ca_value di tutti gli scudi equipaggiati
+
+    Aggiorna il campo `ac` nel DB e restituisce il nuovo valore.
+    """
+    from config.settings import get_modifier
+    try:
+        char = get_by_id(character_id)
+        if not char:
+            return 10
+        dex_mod = get_modifier(char.dex_score)
+
+        items = get_inventory(character_id)
+        equipped_armor = [i for i in items
+                          if i.is_equipped and i.category == "armor"
+                          and i.armor_type in ("leggera", "media", "pesante")]
+        equipped_shields = [i for i in items
+                            if i.is_equipped and i.category == "armor"
+                            and i.armor_type == "scudo"]
+
+        if equipped_armor:
+            armor = equipped_armor[0]  # si indossa una sola armatura alla volta
+            if armor.armor_type == "leggera":
+                base_ca = armor.ca_value + dex_mod
+            elif armor.armor_type == "media":
+                base_ca = armor.ca_value + min(dex_mod, 2)
+            else:  # pesante
+                base_ca = armor.ca_value
+        else:
+            base_ca = 10 + dex_mod  # senza armatura
+
+        shield_ca = sum(s.ca_value for s in equipped_shields)
+        new_ca = base_ca + shield_ca
+
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET ac=?, updated_at=? WHERE id=?",
+            (new_ca, datetime.now().isoformat(), character_id)
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"CA aggiornata: {new_ca} (armatura={base_ca}, scudo={shield_ca})")
+        return new_ca
+    except Exception as e:
+        logger.error(f"Errore calcolo CA: {e}")
+        return 10
 
 
 def update_turn_state(character_id: str, action: bool, bonus: bool,

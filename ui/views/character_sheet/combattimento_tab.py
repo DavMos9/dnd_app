@@ -418,12 +418,41 @@ class CombattimentoTab(ft.ListView):
             tooltip="Attiva / disattiva ispirazione",
         )
 
+        # Box CA cliccabile — mostra bonus temporaneo se attivo
+        ca_bonus = c.ca_bonus
+        ca_total = c.ac + ca_bonus
+        ca_label = "CA" if ca_bonus == 0 else f"CA (+{ca_bonus})" if ca_bonus > 0 else f"CA ({ca_bonus})"
+        ca_color = COLOR_ACCENT_BLUE if ca_bonus > 0 else (COLOR_ACCENT_CRIMSON if ca_bonus < 0 else COLOR_TEXT_PRIMARY)
+        ca_box = ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text(ca_label, size=9, color=COLOR_TEXT_MUTED,
+                            weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                    ft.Text(str(ca_total), size=22, color=ca_color,
+                            weight=ft.FontWeight.BOLD,
+                            text_align=ft.TextAlign.CENTER,
+                            font_family=FONT_MONO),
+                ],
+                spacing=2,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            bgcolor=COLOR_BG_CARD,
+            padding=ft.Padding.symmetric(vertical=10, horizontal=8),
+            border=ft.Border.all(2 if ca_bonus != 0 else 1,
+                                 ca_color if ca_bonus != 0 else COLOR_BORDER),
+            border_radius=6,
+            expand=True,
+            on_click=self._on_ca_bonus_click,
+            ink=True,
+            tooltip="Clicca per aggiungere/rimuovere bonus CA temporaneo",
+        )
+
         return ft.Container(
             content=ft.Column(
                 [
                     ft.Row(
                         [
-                            _stat_box("CA", str(c.ac)),
+                            ca_box,
                             _stat_box("VELOCITÀ", f"{c.speed}m"),
                             _stat_box("INIZIAT.", init_str, COLOR_ACCENT_BLUE),
                             ispir_box,
@@ -496,6 +525,75 @@ class CombattimentoTab(ft.ListView):
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
+            ],
+            bgcolor=COLOR_BG_CARD,
+        ))
+
+    def _on_ca_bonus_click(self, e):
+        """Dialog per aggiungere/modificare/rimuovere il bonus CA temporaneo."""
+        page = self._page
+        if not page:
+            return
+        c = self.character
+        cur_bonus = c.ca_bonus
+
+        f_bonus = ft.TextField(
+            label="Bonus CA temporaneo (positivo o negativo)",
+            value=str(cur_bonus),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            text_style=ft.TextStyle(size=16, color=COLOR_TEXT_PRIMARY,
+                                    font_family=FONT_MONO),
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_BLUE,
+            bgcolor=COLOR_BG_CARD,
+            autofocus=True,
+        )
+
+        info_text = ft.Text(
+            f"CA base (armatura): {c.ac}   |   CA totale con bonus: {c.ac + cur_bonus}",
+            size=11, color=COLOR_TEXT_MUTED,
+        )
+
+        def save(ev):
+            if page is None:
+                return
+            try:
+                new_bonus = int(f_bonus.value or 0)
+            except ValueError:
+                new_bonus = 0
+            character_repo.update_ca_bonus(c.id, new_bonus)
+            c.ca_bonus = new_bonus
+            page.pop_dialog()
+            self._refresh()
+
+        def reset(ev):
+            if page is None:
+                return
+            character_repo.update_ca_bonus(c.id, 0)
+            c.ca_bonus = 0
+            page.pop_dialog()
+            self._refresh()
+
+        page.show_dialog(ft.AlertDialog(
+            title=ft.Text("Bonus CA Temporaneo", size=14,
+                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            content=ft.Column([
+                info_text,
+                f_bonus,
+                ft.Text(
+                    "Usato per incantesimi (es. Scudo), reazioni o condizioni temporanee.\n"
+                    "Resetta a 0 a fine round o quando l'effetto termina.",
+                    size=11, color=COLOR_TEXT_MUTED,
+                ),
+            ], spacing=8, width=300),
+            actions=[
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
+                ft.TextButton("Reset a 0", on_click=reset,
+                              style=ft.ButtonStyle(color=COLOR_TEXT_MUTED)),
+                ft.ElevatedButton("Applica", on_click=save,
+                                  style=ft.ButtonStyle(
+                                      bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                                      shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
         ))

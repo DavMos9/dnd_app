@@ -248,6 +248,7 @@ class DiarioTab(ft.ListView):
             if is_new:
                 character_repo.create_diary_entry(self.character.id, title, content, date)
             else:
+                assert entry is not None
                 character_repo.update_diary_entry(entry.id, title, content, date)
             page.pop_dialog()
             self._refresh()

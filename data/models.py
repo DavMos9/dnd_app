@@ -66,6 +66,12 @@ class Character:
     # Ispirazione
     inspiration: bool = False
 
+    # CA temporanea (bonus da incantesimi, reazioni, ecc. — resettabile)
+    ca_bonus: int = 0
+
+    # Appunti di sessione (testo libero, per note al volo durante il gioco)
+    session_notes: str = ""
+
     # Dettagli fisici
     age: str = ""
     height: str = ""
@@ -112,12 +118,14 @@ class Weapon:
     damage_type: str = ""         # es. "tagliente", "perforante", "contundente"
     attack_bonus: int = 0         # bonus totale al tiro per colpire
     damage_bonus: int = 0         # bonus ai danni
-    properties: str = ""          # es. "versatile, da lancio" (CSV)
+    properties: str = ""          # CSV proprietà PHB: "Leggera,Versatile,Da Lancio"
     is_magical: bool = False
-    magic_description: str = ""   # descrizione potere se magica
+    magic_description: str = ""   # descrizione effetti magici
     is_equipped: bool = False
     range_normal: int = 0         # gittata normale in metri (0 = mischia)
     range_max: int = 0            # gittata massima in metri
+    # Danni magici aggiuntivi — JSON: [{"dice":"1d6","type":"Fuoco","note":""}]
+    magic_damages: str = "[]"
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +142,11 @@ class InventoryItem:
     description: str = ""
     category: str = "misc"        # "armor" | "weapon" | "tool" | "magic" | "misc"
     is_equipped: bool = False
+    # Campi armatura/scudo (usati quando category="armor")
+    ca_value: int = 0             # valore CA base (es. 14 per cotta di maglia)
+    armor_type: str = ""          # "leggera" | "media" | "pesante" | "scudo" | ""
+    # Effetti magici (per armature, scudi e qualsiasi item incantato)
+    effects: str = ""
 
 
 @dataclass

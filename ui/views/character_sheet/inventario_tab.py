@@ -9,6 +9,7 @@ Struttura (ListView scrollabile):
 """
 
 import flet as ft
+import json
 import logging
 from typing import cast
 from config.settings import *
@@ -20,13 +21,6 @@ logger = logging.getLogger(__name__)
 
 _CARRY_PER_STR = 7.5   # kg per punto Forza — PHB p.176
 
-_CATEGORY_ICON: dict[str, ft.IconData] = {
-    "armor":  ft.Icons.SHIELD_OUTLINED,
-    "weapon": ft.Icons.SPORTS_MARTIAL_ARTS,
-    "tool":   ft.Icons.BUILD_OUTLINED,
-    "magic":  ft.Icons.AUTO_AWESOME_OUTLINED,
-    "misc":   ft.Icons.INVENTORY_2_OUTLINED,
-}
 _CATEGORY_LABELS = {
     "armor":  "Armature & Scudi",
     "weapon": "Armi (riserva)",
@@ -39,6 +33,20 @@ _DAMAGE_TYPES = [
     "Fuoco", "Freddo", "Fulmine", "Tuono",
     "Acido", "Veleno", "Psichico", "Radiante",
     "Necrotico", "Forza", "—",
+]
+_WEAPON_PROPERTIES = [
+    "Accurata",        # Finesse — usa FOR o DES
+    "A due mani",      # Two-Handed
+    "Da lancio",       # Thrown
+    "Leggera",         # Light — attacco con due armi
+    "Lunga gittata",   # Long range (per archi/balestre)
+    "Munizioni",       # Ammunition
+    "Pesante",         # Heavy — svantaggio per razze piccole
+    "Portata",         # Reach — +1,5 m di portata
+    "Speciale",        # Special (regola propria)
+    "Versatile",       # Versatile — uso a 1 o 2 mani
+    "Carica",          # Loading — un solo attacco per azione
+    "Lanciabile",      # (arma lanciabile generica)
 ]
 _CATEGORIES = ["misc", "armor", "weapon", "tool", "magic"]
 
@@ -55,7 +63,13 @@ class InventarioTab(ft.ListView):
         self._currencies: Currency | None = character_repo.get_currencies(character.id)
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id, equipped_only=False)
         self._items: list[InventoryItem] = character_repo.get_inventory(character.id)
-        self._build()
+        try:
+            self._build()
+        except Exception as exc:
+            logger.error("InventarioTab._build() fallito: %s", exc, exc_info=True)
+            self.controls.clear()
+            self.controls.append(ft.Text(f"Errore caricamento inventario: {exc}",
+                                         color=COLOR_ACCENT_CRIMSON, size=13))
 
     def did_mount(self) -> None:
         self._page = cast(ft.Page, self.page)
@@ -65,15 +79,18 @@ class InventarioTab(ft.ListView):
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
-        self.controls = [
-            section_header("Monete"),
-            self._section_monete(),
-            section_header("Peso"),
-            self._section_peso(),
-            self._section_armi(),
-            self._section_oggetti(),
-            ft.Container(height=24),
-        ]
+        # IMPORTANTE: modificare self.controls IN-PLACE.
+        # In Flet 0.85.3, self.controls = [...] rimpiazza la ControlsList interna
+        # che Flutter usa per il rendering → schermata bianca.
+        self.controls.clear()
+        self.controls.append(section_header("Monete"))
+        self.controls.append(self._section_monete())
+        self.controls.append(section_header("Peso"))
+        self.controls.append(self._section_peso())
+        self.controls.append(section_header("Armi"))
+        self.controls.append(self._section_armi())
+        self.controls.append(section_header("Oggetti"))
+        self.controls.append(self._section_oggetti())
 
     # ------------------------------------------------------------------
     # Monete
@@ -135,6 +152,13 @@ class InventarioTab(ft.ListView):
         else:
             bar_color, status = COLOR_ACCENT_GREEN, "Carico normale"
 
+        # La ProgressBar in Flutter richiede un vincolo di larghezza esplicito.
+        # Wrapping in ft.Row(expand=True) glielo fornisce correttamente.
+        bar = ft.Row([
+            ft.ProgressBar(value=pct, height=8, color=bar_color,
+                           bgcolor=COLOR_BG_SECONDARY, expand=True),
+        ])
+
         return ft.Container(
             content=ft.Column([
                 ft.Row([
@@ -142,11 +166,9 @@ class InventarioTab(ft.ListView):
                             weight=ft.FontWeight.BOLD,
                             color=COLOR_TEXT_PRIMARY, font_family=FONT_MONO),
                     muted_text(f"/ {max_carry:.0f} kg  ({c.str_score} FOR × 7.5)", 12),
-                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.BASELINE),
+                ], spacing=8),
                 ft.Container(height=6),
-                ft.ProgressBar(value=pct, height=8, color=bar_color,
-                               bgcolor=COLOR_BG_SECONDARY,
-                               border_radius=ft.BorderRadius.all(4)),
+                bar,
                 ft.Container(height=4),
                 muted_text(status, 11),
             ], spacing=0),
@@ -165,7 +187,7 @@ class InventarioTab(ft.ListView):
     # Armi
     # ------------------------------------------------------------------
 
-    def _section_armi(self) -> ft.Column:
+    def _section_armi(self) -> ft.Container:
         header: list[ft.Control] = [
             ft.Text("ARMI", size=10, color=COLOR_TEXT_MUTED,
                     weight=ft.FontWeight.BOLD,
@@ -196,7 +218,7 @@ class InventarioTab(ft.ListView):
             for w in self._weapons:
                 cards.append(self._weapon_card(w))
 
-        return ft.Column(cards, spacing=6)
+        return ft.Container(content=ft.Column(cards, spacing=6))
 
     def _weapon_card(self, w: Weapon) -> ft.Container:
         att_str = f"+{w.attack_bonus}" if w.attack_bonus >= 0 else str(w.attack_bonus)
@@ -226,7 +248,7 @@ class InventarioTab(ft.ListView):
                         *(
                             [ft.Container(
                                 content=ft.Row([
-                                    ft.Icon(ft.Icons.AUTO_AWESOME, size=10,
+                                    ft.Icon(ft.Icons.STAR, size=10,
                                             color=COLOR_ACCENT_AMBER),
                                     ft.Text("magica", size=10,
                                             color=COLOR_ACCENT_AMBER),
@@ -247,7 +269,7 @@ class InventarioTab(ft.ListView):
                 # Azioni
                 ft.Column([
                     ft.IconButton(
-                        icon=ft.Icons.SHIELD if w.is_equipped else ft.Icons.SHIELD_OUTLINED,
+                        icon=ft.Icons.SHIELD,
                         icon_color=equip_color,
                         icon_size=16,
                         tooltip="Equipaggiata" if w.is_equipped else "Non equipaggiata — clicca per equipaggiare",
@@ -255,7 +277,7 @@ class InventarioTab(ft.ListView):
                         padding=ft.Padding.all(2),
                     ),
                     ft.IconButton(
-                        icon=ft.Icons.EDIT_OUTLINED,
+                        icon=ft.Icons.EDIT,
                         icon_color=COLOR_TEXT_MUTED,
                         icon_size=16,
                         tooltip="Modifica",
@@ -263,7 +285,7 @@ class InventarioTab(ft.ListView):
                         padding=ft.Padding.all(2),
                     ),
                     ft.IconButton(
-                        icon=ft.Icons.DELETE_OUTLINE,
+                        icon=ft.Icons.DELETE,
                         icon_color=COLOR_ACCENT_CRIMSON,
                         icon_size=16,
                         tooltip="Elimina",
@@ -282,7 +304,7 @@ class InventarioTab(ft.ListView):
     # Oggetti
     # ------------------------------------------------------------------
 
-    def _section_oggetti(self) -> ft.Column:
+    def _section_oggetti(self) -> ft.Container:
         header: list[ft.Control] = [
             ft.Text("OGGETTI", size=10, color=COLOR_TEXT_MUTED,
                     weight=ft.FontWeight.BOLD,
@@ -309,7 +331,7 @@ class InventarioTab(ft.ListView):
 
         if not self._items:
             rows.append(self._empty_card("Inventario vuoto — usa «Aggiungi Oggetto»"))
-            return ft.Column(rows, spacing=6)
+            return ft.Container(content=ft.Column(rows, spacing=6))
 
         by_cat: dict[str, list[InventoryItem]] = {}
         for item in self._items:
@@ -331,24 +353,28 @@ class InventarioTab(ft.ListView):
             for item in sorted(items, key=lambda x: x.name):
                 rows.append(self._item_row(item))
 
-        return ft.Column(
-            [ft.Container(
-                content=ft.Column(rows, spacing=4),
-                bgcolor=COLOR_BG_CARD,
-                padding=ft.Padding.symmetric(horizontal=12, vertical=12),
-                border=ft.Border(
-                    top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                    left=ft.BorderSide(1, COLOR_BORDER),
-                    right=ft.BorderSide(1, COLOR_BORDER),
-                    bottom=ft.BorderSide(1, COLOR_BORDER),
-                ),
-                border_radius=6,
-            )],
-            spacing=0,
+        return ft.Container(
+            content=ft.Column(rows, spacing=4),
+            bgcolor=COLOR_BG_CARD,
+            padding=ft.Padding.symmetric(horizontal=12, vertical=12),
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
         )
 
     def _item_row(self, item: InventoryItem) -> ft.Row:
-        icon = _CATEGORY_ICON.get(item.category or "misc", ft.Icons.INVENTORY_2_OUTLINED)
+        _cat_icon: dict[str, ft.IconData] = {
+            "armor":  ft.Icons.SHIELD,
+            "weapon": ft.Icons.FLASH_ON,
+            "tool":   ft.Icons.BUILD,
+            "magic":  ft.Icons.STAR,
+            "misc":   ft.Icons.INBOX,
+        }
+        icon = _cat_icon.get(item.category or "misc", ft.Icons.INBOX)
         wt_str = f"{item.weight * item.quantity:.1f} kg" if item.weight else ""
         equip_mark = " ◆" if item.is_equipped else ""
 
@@ -366,13 +392,13 @@ class InventarioTab(ft.ListView):
                     text_align=ft.TextAlign.RIGHT),
             muted_text(wt_str, 11),
             ft.IconButton(
-                icon=ft.Icons.EDIT_OUTLINED,
+                icon=ft.Icons.EDIT,
                 icon_color=COLOR_TEXT_MUTED, icon_size=14, tooltip="Modifica",
                 on_click=lambda e, it=item: self._on_edit_item(it),
                 padding=ft.Padding.all(2),
             ),
             ft.IconButton(
-                icon=ft.Icons.DELETE_OUTLINE,
+                icon=ft.Icons.DELETE,
                 icon_color=COLOR_ACCENT_CRIMSON, icon_size=14, tooltip="Elimina",
                 on_click=lambda e, it=item: self._on_delete_item(it),
                 padding=ft.Padding.all(2),
@@ -388,7 +414,7 @@ class InventarioTab(ft.ListView):
         if page is None:
             return
         cur = self._currencies
-        field_map = {
+        field_map: dict[str, tuple[str, int]] = {
             "MR": ("copper",   cur.copper   if cur else 0),
             "MA": ("silver",   cur.silver   if cur else 0),
             "ME": ("electrum", cur.electrum if cur else 0),
@@ -399,46 +425,107 @@ class InventarioTab(ft.ListView):
             "MR": "Monete di Rame", "MA": "Monete d'Argento",
             "ME": "Monete di Elettro", "MO": "Monete d'Oro", "MP": "Monete di Platino",
         }
-        _, current_val = field_map[abbr]
-        field = ft.TextField(
-            label=full_names[abbr], value=str(current_val),
-            keyboard_type=ft.KeyboardType.NUMBER, autofocus=True,
+        col_name, current_val = field_map[abbr]
+
+        # Testo "attuale" aggiornabile dinamicamente
+        current_text = ft.Text(
+            str(current_val),
+            size=48, weight=ft.FontWeight.BOLD,
+            color=COLOR_TEXT_PRIMARY, font_family=FONT_MONO,
             text_align=ft.TextAlign.CENTER,
-            text_style=ft.TextStyle(size=20, color=COLOR_TEXT_PRIMARY,
-                                    font_family=FONT_MONO),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
         )
 
-        def save(ev):
+        delta_field = ft.TextField(
+            value="1",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            autofocus=True,
+            text_align=ft.TextAlign.CENTER,
+            text_style=ft.TextStyle(size=22, color=COLOR_TEXT_PRIMARY,
+                                    font_family=FONT_MONO, weight=ft.FontWeight.BOLD),
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+            width=100,
+            height=56,
+            content_padding=ft.Padding.symmetric(horizontal=8, vertical=0),
+        )
+
+        def _apply(delta: int) -> None:
             if page is None:
                 return
             try:
-                new_val = max(0, int(field.value or 0))
+                amount = max(1, int(delta_field.value or 1))
             except ValueError:
-                page.pop_dialog()
-                return
+                amount = 1
             cur_now = self._currencies or Currency(character_id=self.character.id)
-            setattr(cur_now, field_map[abbr][0], new_val)
+            old = getattr(cur_now, col_name)
+            new_val = max(0, old + delta * amount)
+            setattr(cur_now, col_name, new_val)
             character_repo.update_currencies(
                 self.character.id,
                 cur_now.copper, cur_now.silver, cur_now.electrum,
                 cur_now.gold, cur_now.platinum,
             )
-            page.pop_dialog()
+            self._currencies = cur_now
+            current_text.value = str(new_val)
+            try:
+                current_text.update()
+            except RuntimeError:
+                pass
             self._refresh()
+
+        btn_style_sub = ft.ButtonStyle(
+            bgcolor=COLOR_BG_SECONDARY, color=COLOR_ACCENT_CRIMSON,
+            shape=ft.RoundedRectangleBorder(radius=8),
+            text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
+        )
+        btn_style_add = ft.ButtonStyle(
+            bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+            shape=ft.RoundedRectangleBorder(radius=8),
+            text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
+        )
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text(full_names[abbr], size=14,
                           weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
-            content=ft.Column([field], width=220, spacing=0),
+            content=ft.Column([
+                # Quantità attuale — numero grande centrato
+                ft.Container(
+                    content=ft.Column([
+                        current_text,
+                        muted_text("quantità attuale", 11),
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                    alignment=ft.Alignment.CENTER,
+                    width=300,
+                    padding=ft.Padding.symmetric(vertical=8),
+                ),
+                ft.Divider(height=1, color=COLOR_BORDER),
+                ft.Container(height=8),
+                # Riga: [− Sottrai] [campo] [+ Aggiungi]
+                ft.Row([
+                    ft.ElevatedButton(
+                        "−",
+                        on_click=lambda ev: _apply(-1),
+                        style=btn_style_sub,
+                        width=72, height=52,
+                    ),
+                    delta_field,
+                    ft.ElevatedButton(
+                        "+",
+                        on_click=lambda ev: _apply(+1),
+                        style=btn_style_add,
+                        width=72, height=52,
+                    ),
+                ], spacing=12,
+                   alignment=ft.MainAxisAlignment.CENTER,
+                   vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Container(height=4),
+                muted_text("inserisci la quantità e premi + o −", 11),
+            ], width=300, spacing=4,
+               horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             actions=[
-                ft.TextButton("Annulla",
+                ft.TextButton("Chiudi",
                               on_click=lambda ev: page.pop_dialog() if page else None),
-                ft.ElevatedButton("Salva", on_click=save,
-                                  style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
-                                      shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
         ))
@@ -462,10 +549,10 @@ class InventarioTab(ft.ListView):
     def _open_weapon_dialog(self, page: ft.Page, weapon: Weapon | None) -> None:
         is_new = weapon is None
 
-        def _tf(label: str, value: str = "", kb=ft.KeyboardType.TEXT) -> ft.TextField:
+        def _tf(label: str, value: str = "", kb=ft.KeyboardType.TEXT,
+                expand: bool = False) -> ft.TextField:
             return ft.TextField(
-                label=label, value=value,
-                keyboard_type=kb,
+                label=label, value=value, keyboard_type=kb, expand=expand,
                 text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
                 border_color=COLOR_BORDER,
                 focused_border_color=COLOR_ACCENT_CRIMSON,
@@ -475,12 +562,35 @@ class InventarioTab(ft.ListView):
 
         f_name   = _tf("Nome arma *",      "" if is_new else weapon.name)
         f_dice   = _tf("Dadi danno (es. 1d8)", "" if is_new else weapon.damage_dice)
-        f_dtype  = _tf("Tipo danno",       "" if is_new else weapon.damage_type)
+
+        # Tipo danno — dropdown
+        dtype_dd = ft.Dropdown(
+            label="Tipo danno",
+            value=(weapon.damage_type or None) if not is_new else None,
+            options=[ft.DropdownOption(key=t, text=t) for t in _DAMAGE_TYPES],
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+        )
+
         f_atk    = _tf("Bonus attacco",    "0" if is_new else str(weapon.attack_bonus),
                         ft.KeyboardType.NUMBER)
         f_dbonus = _tf("Bonus danno",      "0" if is_new else str(weapon.damage_bonus),
                         ft.KeyboardType.NUMBER)
-        f_props  = _tf("Proprietà (es. Versatile, Lancio)", "" if is_new else weapon.properties)
+
+        # Proprietà — checkbox multi-select
+        existing_props: set[str] = set()
+        if not is_new and weapon.properties:
+            existing_props = {p.strip() for p in weapon.properties.split(",") if p.strip()}
+        props_checks = [
+            ft.Checkbox(label=p, value=(p in existing_props))
+            for p in _WEAPON_PROPERTIES
+        ]
+        props_section = ft.Column([
+            label_text("Proprietà", 10),
+            ft.Column(props_checks, spacing=2),
+        ], spacing=4)
+
         f_rng    = _tf("Gittata normale (m, 0=mischia)",
                         "0" if is_new else str(weapon.range_normal or 0),
                         ft.KeyboardType.NUMBER)
@@ -494,6 +604,72 @@ class InventarioTab(ft.ListView):
             label="Equipaggiata",
             value=True if is_new else weapon.is_equipped,
         )
+
+        # --- Sezione danni magici aggiuntivi (repeatable) ---
+        existing_magic = json.loads((weapon.magic_damages or "[]") if not is_new else "[]")
+        magic_rows_col = ft.Column(spacing=4)
+
+        def _make_magic_row(dice_v: str = "", type_v: str = "Fuoco", note_v: str = "") -> ft.Row:
+            row_dice = ft.TextField(
+                label="Dadi (es. 1d6)", value=dice_v, width=100,
+                text_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            )
+            row_type = ft.Dropdown(
+                label="Tipo", value=type_v, width=120,
+                options=[ft.DropdownOption(key=t, text=t) for t in _DAMAGE_TYPES],
+                text_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                bgcolor=COLOR_BG_CARD,
+            )
+            row_note = ft.TextField(
+                label="Note", value=note_v, expand=True,
+                text_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            )
+            row_ref: list[ft.Row] = []
+
+            def remove_this(ev: ft.ControlEvent) -> None:
+                if row_ref:
+                    try:
+                        magic_rows_col.controls.remove(row_ref[0])
+                        magic_rows_col.update()
+                    except ValueError:
+                        pass
+
+            r = ft.Row(
+                [row_dice, row_type, row_note,
+                 ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                               icon_color=COLOR_ACCENT_CRIMSON, icon_size=16,
+                               on_click=remove_this, tooltip="Rimuovi",
+                               padding=ft.Padding.all(0))],
+                spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+            row_ref.append(r)
+            return r
+
+        for md in existing_magic:
+            magic_rows_col.controls.append(
+                _make_magic_row(md.get("dice", ""), md.get("type", "Fuoco"), md.get("note", ""))
+            )
+
+        def add_magic_row(ev: ft.ControlEvent) -> None:
+            magic_rows_col.controls.append(_make_magic_row())
+            magic_rows_col.update()
+
+        magic_section = ft.Column([
+            ft.Row([
+                label_text("Danni magici aggiuntivi", 10),
+                ft.TextButton(
+                    "+ Aggiungi danno",
+                    on_click=add_magic_row,
+                    style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
+                ),
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            magic_rows_col,
+        ], spacing=2)
 
         def save(ev):
             if page is None:
@@ -509,30 +685,52 @@ class InventarioTab(ft.ListView):
             except ValueError:
                 atk = dbonus = rng = rngmax = 0
             magic_desc = (f_magic.value or "").strip()
-            is_magical = bool(magic_desc)
             equipped   = bool(equip_cb.value)
+
+            # Proprietà selezionate
+            selected_props = ",".join(
+                cast(ft.Checkbox, cb).label or ""
+                for cb in props_checks
+                if cast(ft.Checkbox, cb).value
+            )
+
+            # Colleziona danni magici dalle righe dinamiche
+            magic_dmgs = []
+            for row_ctrl in magic_rows_col.controls:
+                row = cast(ft.Row, row_ctrl)
+                dice_v = cast(ft.TextField, row.controls[0]).value or ""
+                type_v = cast(ft.Dropdown, row.controls[1]).value or "Fuoco"
+                note_v = cast(ft.TextField, row.controls[2]).value or ""
+                if dice_v.strip():
+                    magic_dmgs.append({"dice": dice_v.strip(),
+                                       "type": type_v, "note": note_v.strip()})
+            magic_damages_str = json.dumps(magic_dmgs, ensure_ascii=False)
+            is_magical = bool(magic_desc) or bool(magic_dmgs)
 
             if is_new:
                 character_repo.create_weapon(
                     self.character.id, name,
                     damage_dice=f_dice.value or "",
-                    damage_type=f_dtype.value or "",
+                    damage_type=dtype_dd.value or "",
                     attack_bonus=atk, damage_bonus=dbonus,
-                    properties=f_props.value or "",
+                    properties=selected_props,
                     is_equipped=equipped, is_magical=is_magical,
                     magic_description=magic_desc,
                     range_normal=rng, range_max=rngmax,
+                    magic_damages=magic_damages_str,
                 )
             else:
+                assert weapon is not None
                 character_repo.update_weapon(
                     weapon.id, name,
                     damage_dice=f_dice.value or "",
-                    damage_type=f_dtype.value or "",
+                    damage_type=dtype_dd.value or "",
                     attack_bonus=atk, damage_bonus=dbonus,
-                    properties=f_props.value or "",
+                    properties=selected_props,
                     is_equipped=equipped, is_magical=is_magical,
                     magic_description=magic_desc,
                     range_normal=rng, range_max=rngmax,
+                    magic_damages=magic_damages_str,
                 )
             page.pop_dialog()
             self._refresh()
@@ -541,9 +739,9 @@ class InventarioTab(ft.ListView):
             title=ft.Text("Nuova Arma" if is_new else "Modifica Arma",
                           size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Column(
-                [f_name, f_dice, f_dtype, f_atk, f_dbonus,
-                 f_props, f_rng, f_rngmax, f_magic, equip_cb],
-                spacing=8, scroll=ft.ScrollMode.AUTO, width=360,
+                [f_name, f_dice, dtype_dd, f_atk, f_dbonus,
+                 props_section, f_rng, f_rngmax, f_magic, magic_section, equip_cb],
+                spacing=8, scroll=ft.ScrollMode.AUTO, width=380,
             ),
             actions=[
                 ft.TextButton("Annulla",
@@ -597,6 +795,7 @@ class InventarioTab(ft.ListView):
             magic_description=weapon.magic_description or "",
             range_normal=weapon.range_normal or 0,
             range_max=weapon.range_max or 0,
+            magic_damages=weapon.magic_damages or "[]",
         )
         self._refresh()
 
@@ -635,10 +834,14 @@ class InventarioTab(ft.ListView):
         f_wt   = _tf("Peso (kg per unità)", "0" if is_new else str(item.weight),
                      ft.KeyboardType.NUMBER)
         f_desc = _tf("Descrizione / note", "" if is_new else item.description)
+        f_effects = _tf("Effetti magici / note speciali",
+                        "" if is_new else (item.effects or ""))
+
+        initial_cat = "misc" if is_new else (item.category or "misc")
 
         cat_dd = ft.Dropdown(
             label="Categoria",
-            value="misc" if is_new else (item.category or "misc"),
+            value=initial_cat,
             options=[
                 ft.DropdownOption(key="misc",   text="Varie"),
                 ft.DropdownOption(key="armor",  text="Armature & Scudi"),
@@ -656,6 +859,37 @@ class InventarioTab(ft.ListView):
             value=False if is_new else item.is_equipped,
         )
 
+        # --- Campi specifici per armature/scudi (category="armor") ---
+        f_ca = _tf("Valore CA base (es. 14 per cotta di maglia)",
+                   "0" if is_new else str(item.ca_value or 0),
+                   ft.KeyboardType.NUMBER)
+        armor_type_dd = ft.Dropdown(
+            label="Tipo armatura",
+            value="" if is_new else (item.armor_type or ""),
+            options=[
+                ft.DropdownOption(key="",        text="— seleziona —"),
+                ft.DropdownOption(key="leggera", text="Leggera (+ mod DES)"),
+                ft.DropdownOption(key="media",   text="Media (+ min(mod DES, 2))"),
+                ft.DropdownOption(key="pesante", text="Pesante (DES ignorato)"),
+                ft.DropdownOption(key="scudo",   text="Scudo (bonus CA fisso)"),
+            ],
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+        )
+        armor_fields = ft.Column(
+            [label_text("CAMPI ARMATURA / SCUDO", 10), f_ca, armor_type_dd],
+            spacing=8,
+            visible=(initial_cat == "armor"),
+        )
+
+        def on_cat_select(ev: ft.ControlEvent) -> None:
+            armor_fields.visible = (cat_dd.value == "armor")
+            armor_fields.update()
+
+        cat_dd.on_select = on_cat_select
+
         def save(ev):
             if page is None:
                 return
@@ -669,16 +903,29 @@ class InventarioTab(ft.ListView):
                 qty, wt = 1, 0.0
             cat      = cat_dd.value or "misc"
             desc     = (f_desc.value or "").strip()
+            effects  = (f_effects.value or "").strip()
             equipped = bool(equip_cb.value)
+            try:
+                ca_val = int(f_ca.value or 0)
+            except ValueError:
+                ca_val = 0
+            arm_type = (armor_type_dd.value or "") if cat == "armor" else ""
 
             if is_new:
                 character_repo.create_inventory_item(
                     self.character.id, name, qty, wt, desc, cat, equipped,
+                    ca_value=ca_val, armor_type=arm_type, effects=effects,
                 )
             else:
+                assert item is not None
                 character_repo.update_inventory_item(
                     item.id, name, qty, wt, desc, cat, equipped,
+                    ca_value=ca_val, armor_type=arm_type, effects=effects,
                 )
+            # Ricalcola CA se ci sono armature/scudi coinvolti
+            if cat == "armor" or (not is_new and item.category == "armor"):
+                new_ca = character_repo.calculate_and_update_ca(self.character.id)
+                self.character.ac = new_ca
             page.pop_dialog()
             self._refresh()
 
@@ -686,8 +933,9 @@ class InventarioTab(ft.ListView):
             title=ft.Text("Nuovo Oggetto" if is_new else "Modifica Oggetto",
                           size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Column(
-                [f_name, f_qty, f_wt, cat_dd, equip_cb, f_desc],
-                spacing=8, scroll=ft.ScrollMode.AUTO, width=340,
+                [f_name, f_qty, f_wt, cat_dd, armor_fields,
+                 equip_cb, f_desc, f_effects],
+                spacing=8, scroll=ft.ScrollMode.AUTO, width=360,
             ),
             actions=[
                 ft.TextButton("Annulla",
@@ -751,7 +999,7 @@ class InventarioTab(ft.ListView):
     def _empty_card(self, msg: str) -> ft.Container:
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.Icons.INBOX_OUTLINED, size=18, color=COLOR_TEXT_MUTED),
+                ft.Icon(ft.Icons.INBOX, size=18, color=COLOR_TEXT_MUTED),
                 muted_text(msg, 13),
             ], spacing=8),
             bgcolor=COLOR_BG_CARD,
@@ -771,8 +1019,7 @@ class InventarioTab(ft.ListView):
         self._currencies = character_repo.get_currencies(self.character.id)
         self._weapons    = character_repo.get_weapons(self.character.id, equipped_only=False)
         self._items      = character_repo.get_inventory(self.character.id)
-        self.controls.clear()
-        self._build()
+        self._build()  # già chiama controls.clear() internamente
         try:
             self.update()
         except RuntimeError:
