@@ -1,0 +1,61 @@
+{
+  "name": "Barbaro",
+  "hit_die": 12,
+  "primary_ability": "str",
+  "saving_throws": ["str", "con"],
+  "spellcasting_ability": null,
+  "armor_proficiencies": ["#armature_leggere", "#armature_medie", "#scudi"],
+  "weapon_proficiencies": ["#armi_semplici", "#armi_da_guerra"],
+  "tool_proficiencies": [],
+  "skill_choices": {
+    "count": 2,
+    "options": ["Addestrare Animali", "Atletica", "Intimidire", "Natura", "Percezione", "Sopravvivenza"]
+  },
+  "languages": [],
+  "starting_equipment": [
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Ascia bipenne", "item_type": "weapon"}],
+        [{"name": "Ascia da battaglia", "item_type": "weapon"}, {"name": "Qualsiasi arma semplice da mischia", "item_type": "item"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Quattro zagaglie", "item_type": "item", "quantity": 4}],
+        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+      ]
+    },
+    {"type": "fixed", "items": [
+      {"name": "Zaino da esploratore", "item_type": "item"},
+      {"name": "Ascia da lancio", "item_type": "weapon", "quantity": 4}
+    ]}
+  ],
+  "starting_gold_alternative": {"dice": "2d4", "multiplier": 10},
+  "subclass_label": "Totem Primordiale",
+  "subclass_choice_level": 3,
+  "subclasses": [
+    {
+      "name": "Percorso del Berserker",
+      "bonus_proficiencies": [],
+      "features": [
+        {"level": 3,  "name": "Frenesia", "description": "Puoi entrare in una frenesia durante la tua furia. Puoi effettuare un attacco con un'arma come azione bonus."},
+        {"level": 6,  "name": "Furia Senza Mente", "description": "Non puoi essere affascinato o spaventato mentre sei in furia."},
+        {"level": 10, "name": "Presenza Intimidatoria", "description": "Puoi usare la tua azione per spaventare qualcuno."},
+        {"level": 14, "name": "Ritorsione", "description": "Quando subisci danni da una creatura entro 1,5 m, puoi usare la tua reazione per effettuare un attacco."}
+      ]
+    },
+    {
+      "name": "Percorso del Totem Guerriero",
+      "bonus_proficiencies": [],
+      "features": [
+        {"level": 3,  "name": "Cercatore dello Spirito", "description": "Puoi lanciare Individuazione del Bene e del Male e Parlare con gli Animali come rituali."},
+        {"level": 3,  "name": "Spirito del Totem", "description": "Scegli un totem: Orso, Aquila o Lupo. Ottieni un beneficio durante la furia."},
+        {"level": 6,  "name": "Aspetto del Totem", "description": "Ottieni un beneficio magico basato sul tuo spirito totem."},
+        {"level": 10, "name": "Camminatore Spirituale", "description": "Puoi lanciare Comunione con la Natura come rituale."},
+        {"level": 14, "name": "Simbiosi del Totem", "description": "Ottieni un potente beneficio basato sul tuo spirito totem."}
+      ]
+    }
+  ]
+}

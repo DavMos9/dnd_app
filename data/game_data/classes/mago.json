@@ -1,0 +1,126 @@
+{
+  "name": "Mago",
+  "hit_die": 6,
+  "primary_ability": "int",
+  "saving_throws": ["int", "wis"],
+  "spellcasting_ability": "int",
+  "armor_proficiencies": [],
+  "weapon_proficiencies": ["Pugnale", "Dardo", "Fionda", "Bastone", "Balestra leggera"],
+  "tool_proficiencies": [],
+  "skill_choices": {
+    "count": 2,
+    "options": ["Arcano", "Storia", "Intuizione", "Investigazione", "Medicina", "Religione"]
+  },
+  "languages": [],
+  "starting_equipment": [
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Bastone", "item_type": "weapon"}],
+        [{"name": "Pugnale", "item_type": "weapon"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Sacca dei Componenti", "item_type": "item"}],
+        [{"name": "Fuoco da Arcano", "item_type": "item"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Zaino da studioso", "item_type": "item"}],
+        [{"name": "Zaino da esploratore", "item_type": "item"}]
+      ]
+    },
+    {"type": "fixed", "items": [
+      {"name": "Libro degli Incantesimi", "item_type": "item"}
+    ]}
+  ],
+  "starting_gold_alternative": {"dice": "4d4", "multiplier": 10},
+  "subclass_label": "Tradizione Arcana",
+  "subclass_choice_level": 2,
+  "subclasses": [
+    {
+      "name": "Scuola di Abiurazione",
+      "features": [
+        {"level": 2,  "name": "Stregoneria dell'Abiurazione", "description": "Quando lanci un incantesimo di abiurazione, aggiunge 2 + metà livello mago ai PF del tuo Wards Arcano."},
+        {"level": 2,  "name": "Scudo Arcano", "description": "Crei un Wards Arcano con PF pari a 2 × livello mago + mod Intelligenza. Assorbe i danni prima dei tuoi PF."},
+        {"level": 6,  "name": "Abiurazione Proiettata", "description": "Quando lanci un'abiurazione che protegge un'altra creatura, anche tu ricevi protezione."},
+        {"level": 10, "name": "Resistenza Migliorata", "description": "Puoi scegliere due tipi di danno ogni volta che usi Resistenza Arcana."},
+        {"level": 14, "name": "Negazione degli Incantesimi", "description": "Puoi usare la tua reazione per tentare di dissolvere gli incantesimi avversari."}
+      ]
+    },
+    {
+      "name": "Scuola di Ammaliamento",
+      "features": [
+        {"level": 2,  "name": "Ammaliamento Ipnotico", "description": "Quando lanci un incantesimo di ammaliamento e una creatura lo supera, puoi rilanciare il TS un'altra volta (1/riposo breve)."},
+        {"level": 2,  "name": "Tocco Mesmerico", "description": "Puoi usare la tua azione per toccare una creatura e ammaliare la per 1 ora."},
+        {"level": 6,  "name": "Ammaliamento Intuitivo", "description": "Puoi far diventare immune a un tuo ammaliamento anche le creature immuni."},
+        {"level": 10, "name": "Mente Divisa", "description": "Puoi ammaliare fino a due creature con incantesimi che normalmente ne colpiscono solo una."},
+        {"level": 14, "name": "Ammaliamento dell'Anima", "description": "Incanali un ammaliamento potente che fa diventare la creatura un tuo alleato temporaneo."}
+      ]
+    },
+    {
+      "name": "Scuola di Divinazione",
+      "features": [
+        {"level": 2,  "name": "Presagio", "description": "Dopo un riposo lungo, tira due d20. Puoi sostituire qualsiasi tiro con uno di questi risultati (fino al prossimo riposo lungo)."},
+        {"level": 2,  "name": "Stregoneria della Divinazione", "description": "L'oro e il tempo per copiare incantesimi di divinazione si riducono della metà."},
+        {"level": 6,  "name": "Oracolo Esperto", "description": "Inizi ogni combattimento con iniziativa più alta; non puoi essere sorpreso se sei vigile."},
+        {"level": 10, "name": "La Terza Vista", "description": "Puoi attivare la Visione del Passato (1/riposo breve)."},
+        {"level": 14, "name": "Presagio Maggiore", "description": "Tiri tre d20 invece di due per Presagio."}
+      ]
+    },
+    {
+      "name": "Scuola di Evocazione",
+      "features": [
+        {"level": 2,  "name": "Stregoneria dell'Evocazione", "description": "Puoi escludere dall'effetto degli incantesimi di evocazione fino a un numero di creature pari al tuo modificatore di Intelligenza."},
+        {"level": 2,  "name": "Scolpire Incantesimi", "description": "Scegli automaticamente le creature esentate da un incantesimo di evocazione con area."},
+        {"level": 6,  "name": "Potenza dei Trucchetti", "description": "I trucchetti di evocazione infliggono danni minimi pari al modificatore di Intelligenza."},
+        {"level": 10, "name": "Evocazione Potenziata", "description": "Aggiungi il modificatore di Intelligenza ai danni degli incantesimi di evocazione del Mago."},
+        {"level": 14, "name": "Sovraccarico di Incantesimo", "description": "Puoi usare slot di livello superiore per massimizzare i dadi del danno di un incantesimo."}
+      ]
+    },
+    {
+      "name": "Scuola di Illusione",
+      "features": [
+        {"level": 2,  "name": "Stregoneria dell'Illusione", "description": "Puoi creare un'illusione minore (non udibile) come azione bonus."},
+        {"level": 2,  "name": "Illusione Migliorata", "description": "Le tue illusioni possono essere sia visive sia udibili."},
+        {"level": 6,  "name": "Realtà Malleabile", "description": "Puoi muovere un'illusione come azione bonus."},
+        {"level": 10, "name": "Sosia Illusorio", "description": "Puoi creare un'illusione di te stesso che intercetta gli attacchi."},
+        {"level": 14, "name": "Realtà Illusoria", "description": "Puoi rendere un componente non-creatura della tua illusione reale per 1 minuto."}
+      ]
+    },
+    {
+      "name": "Scuola di Invocazione",
+      "features": [
+        {"level": 2,  "name": "Stregoneria dell'Invocazione", "description": "Dimezza il tempo e l'oro necessario per copiare incantesimi di invocazione."},
+        {"level": 2,  "name": "Evocazione Focale", "description": "Quando usi un incantesimo di invocazione per evocare una creatura, puoi trasportarla o te stesso a un posto a tua scelta entro gittata."},
+        {"level": 6,  "name": "Evocare Benevolenza", "description": "Le creature evocate ottengono bonus ai tiri di attacco e salvezza."},
+        {"level": 10, "name": "Passo dell'Invocazione", "description": "Come azione bonus, ti teletrasporti a 9 m in uno spazio libero (1/riposo breve)."},
+        {"level": 14, "name": "Evoca a Distanza", "description": "Puoi evocare creature in qualsiasi spazio visibile entro 18 m."}
+      ]
+    },
+    {
+      "name": "Scuola di Necromanzia",
+      "features": [
+        {"level": 2,  "name": "Stregoneria della Necromanzia", "description": "Dimezza il tempo e l'oro per copiare incantesimi di necromanzia."},
+        {"level": 2,  "name": "Mietere la Vita", "description": "Quando lanci un incantesimo di necromanzia che uccide una creatura, puoi recuperare PF pari al livello dell'incantesimo + modificatore Intelligenza."},
+        {"level": 6,  "name": "Non Morto Non Svigorito", "description": "I non morti da te creati ottengono bonus ai PF e ai tiri di attacco."},
+        {"level": 10, "name": "Arma Inumana", "description": "Puoi creare un'arma non morta da uno scheletro, infliggendo danni aggiuntivi."},
+        {"level": 14, "name": "Comandante dei Non Morti", "description": "I non morti non magici nelle vicinanze devono superare un TS su Saggezza per resistere ai tuoi comandi."}
+      ]
+    },
+    {
+      "name": "Scuola di Trasmutazione",
+      "features": [
+        {"level": 2,  "name": "Stregoneria della Trasmutazione", "description": "Dimezza il tempo e l'oro per copiare incantesimi di trasmutazione."},
+        {"level": 2,  "name": "Alchimia Minore", "description": "Puoi trasformare fisicamente un materiale non magico in un altro (rame, ferro, argento, oro, legno)."},
+        {"level": 6,  "name": "Trasmutare", "description": "Crei una pietra della trasmutazione che conferisce un beneficio magico costante al portatore."},
+        {"level": 10, "name": "Immortalità", "description": "Non invecchi; sei immune alle malattie magiche."},
+        {"level": 14, "name": "Padronanza della Trasmutazione", "description": "Puoi trasformare una creatura in un'altra (usando uno slot di 7° livello)."}
+      ]
+    }
+  ]
+}

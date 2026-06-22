@@ -1,0 +1,68 @@
+{
+  "name": "Monaco",
+  "hit_die": 8,
+  "primary_ability": "dex",
+  "saving_throws": ["str", "dex"],
+  "spellcasting_ability": null,
+  "armor_proficiencies": [],
+  "weapon_proficiencies": ["#armi_semplici", "Spada corta"],
+  "tool_proficiencies": [
+    {"type": "choice", "count": 1, "from": "strumenti_artigiani_o_musicali"}
+  ],
+  "skill_choices": {
+    "count": 2,
+    "options": ["Acrobazia", "Atletica", "Storia", "Intuizione", "Religione", "Furtività"]
+  },
+  "languages": [],
+  "starting_equipment": [
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Spada corta", "item_type": "weapon"}],
+        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Zaino da dungeon", "item_type": "item"}],
+        [{"name": "Zaino da esploratore", "item_type": "item"}]
+      ]
+    },
+    {"type": "fixed", "items": [
+      {"name": "Dardi", "item_type": "weapon", "quantity": 10}
+    ]}
+  ],
+  "starting_gold_alternative": {"dice": "5d4", "multiplier": 1},
+  "subclass_label": "Tradizione Monastica",
+  "subclass_choice_level": 3,
+  "subclasses": [
+    {
+      "name": "Via della Mano Aperta",
+      "features": [
+        {"level": 3,  "name": "Tecnica della Mano Aperta", "description": "Quando usi Tempesta di Pugni, puoi aggiungere effetti bonus: far cadere il bersaglio, spingerlo via o impedirgli reazioni."},
+        {"level": 6,  "name": "Wholeness of Body", "description": "Curi te stesso di PF pari a 3 × livello monaco (1/riposo lungo)."},
+        {"level": 11, "name": "Tranquillità", "description": "Entrando in meditazione durante un riposo lungo, guadagni l'effetto dell'incantesimo Santuario per la durata del riposo."},
+        {"level": 17, "name": "Palma Vibrante", "description": "Tocchi una creatura causando vibrazioni interne; entro 24 ore puoi infliggere 10d10 danni ai polmoni."}
+      ]
+    },
+    {
+      "name": "Via delle Quattro Elementali",
+      "features": [
+        {"level": 3,  "name": "Discepolo degli Elementi", "description": "Apprendi discipline elementali che ti permettono di imitare incantesimi spendendo ki."},
+        {"level": 6,  "name": "Discipline Extra", "description": "Apprendi discipline elementali aggiuntive."},
+        {"level": 11, "name": "Colpo degli Elementi", "description": "I tuoi attacchi inarmi infliggono danni elementali aggiuntivi."},
+        {"level": 17, "name": "Maestria degli Elementi", "description": "Apprendi discipline avanzate e puoi spendere ki extra per potenziare gli incantesimi."}
+      ]
+    },
+    {
+      "name": "Via delle Ombre",
+      "features": [
+        {"level": 3,  "name": "Arti delle Ombre", "description": "Puoi spendere ki per lanciare Oscurità, Darkvision, Silenzio e Passo del Vento."},
+        {"level": 6,  "name": "Passo delle Ombre", "description": "In luce fioca o oscurità, puoi usare azione bonus per teletrasportarti a un'altra zona d'ombra entro 18 m."},
+        {"level": 11, "name": "Mantello dell'Ombra", "description": "Puoi diventare invisibile nelle zone d'ombra come azione bonus."},
+        {"level": 17, "name": "Silenzio delle Ombre", "description": "Puoi usare Passo delle Ombre senza azione bonus e senza limiti di distanza."}
+      ]
+    }
+  ]
+}

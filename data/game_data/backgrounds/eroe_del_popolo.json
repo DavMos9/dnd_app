@@ -1,0 +1,55 @@
+{
+  "name": "Eroe del Popolo",
+  "description": "Vieni da umili origini, ma sei destinato a qualcosa di più grande. La gente del tuo villaggio ti considera uno di loro, anche se il tuo destino ti ha portato altrove.",
+  "skill_proficiencies": ["Addestrare Animali", "Sopravvivenza"],
+  "tool_proficiencies": [
+    {"type": "choice", "count": 1, "from": "strumenti_artigiani"},
+    "Veicoli terrestri"
+  ],
+  "languages": [],
+  "equipment": [
+    {"name": "Attrezzi dell'artigiano (a scelta)", "item_type": "item"},
+    {"name": "Pala", "item_type": "item"},
+    {"name": "Pentola di ferro", "item_type": "item"},
+    {"name": "Abiti comuni", "item_type": "item"},
+    {"name": "Borsa con 10 MO", "item_type": "item"}
+  ],
+  "feature": {
+    "name": "Ospitalità della Gente Comune",
+    "description": "Puoi trovare un posto dove nasconderti, riposare o recuperare tra la gente comune, a meno che tu non abbia dimostrato di essere un pericolo per loro. Sanno come proteggere i propri segreti dalla legge e non li riveleranno a nessuno senza motivo."
+  },
+  "personality_traits": [
+    "Giudico le persone in base alle loro azioni, non alle loro parole.",
+    "Se qualcuno è in difficoltà, non posso fare a meno di aiutarlo.",
+    "Quando risolvo un problema, voglio farlo nel modo più diretto possibile.",
+    "Ho fiducia nell'ordine morale del mondo.",
+    "Non ho nessuna voglia di vivere in città. Odio la folla.",
+    "Sono brutalmente onesto. Dire bugie è per vigliacchi.",
+    "Cambio umore spesso.",
+    "Non mi fido delle persone potenti."
+  ],
+  "ideals": [
+    {"name": "Rispetto", "alignment": "Buono", "description": "La gente merita di essere trattata con dignità e rispetto."},
+    {"name": "Libertà", "alignment": "Caotico", "description": "I tiranni non devono opprimere la gente comune."},
+    {"name": "Potere", "alignment": "Malvagio", "description": "Voglio diventare abbastanza potente da ottenere quello che voglio."},
+    {"name": "Onestà", "alignment": "Legale", "description": "Nessuno dovrebbe ottenere un vantaggio ingannando gli altri."},
+    {"name": "Destino", "alignment": "Neutrale", "description": "Nessuno può sfuggire al proprio destino."},
+    {"name": "Sincerità", "alignment": "Qualsiasi", "description": "Non c'è spazio per le bugie nella mia vita."}
+  ],
+  "bonds": [
+    "Ho una famiglia che dipende da me.",
+    "Il mio villaggio è sotto minaccia e devo proteggerlo.",
+    "Sono stato adottato da una coppia anziana che ora dipende da me.",
+    "Voglio vendicarmi del signorotto locale che ha oppresso la mia famiglia.",
+    "Devo ricostruire la mia comunità che è stata distrutta da una calamità.",
+    "Devo il mio successo agli insegnamenti del mio mentore."
+  ],
+  "flaws": [
+    "Sono troppo ostinato per ammettere i miei errori.",
+    "Sono pieno di orgoglio e difficilmente accetto gli aiuti degli altri.",
+    "Sono impulsivo e agisco senza pensare.",
+    "Sono sospettoso di quelli con potere.",
+    "Non riesco a smettere di imborghesirmi, il che imbarazza la mia famiglia.",
+    "Quando c'è un problema, do la colpa agli altri."
+  ]
+}

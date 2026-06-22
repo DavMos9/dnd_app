@@ -1,0 +1,52 @@
+{
+  "name": "Soldato",
+  "description": "Hai trascorso anni di addestramento nel servizio militare. Hai combattuto in battaglia, e la guerra ha lasciato il suo segno su di te.",
+  "skill_proficiencies": ["Atletica", "Intimidire"],
+  "tool_proficiencies": [{"type": "choice", "count": 1, "from": ["gioco_dadi", "gioco_carte"]}, "Veicoli terrestri"],
+  "languages": [],
+  "equipment": [
+    {"name": "Grado militare (insegna o simbolo)", "item_type": "item"},
+    {"name": "Trofeo di un nemico sconfitto", "item_type": "item"},
+    {"name": "Osso con i dadi", "item_type": "item"},
+    {"name": "Abiti comuni", "item_type": "item"},
+    {"name": "Borsa con 10 MO", "item_type": "item"}
+  ],
+  "feature": {
+    "name": "Rango Militare",
+    "description": "Hai un rango militare grazie alla tua carriera nelle forze armate. I soldati fedeli alla tua ex organizzazione militare ti riconoscono ancora l'autorità, e se ricoprono un rango inferiore al tuo, si piegheranno a te. Puoi usare questa influenza per procurare cavalli, equipaggiamento e ospitalità."
+  },
+  "personality_traits": [
+    "Sono sempre pronto a combattere per quelli che amo.",
+    "Sono un leader naturale.",
+    "Sono diretto e vado dritto al punto.",
+    "Rispetto la gerarchia e l'ordine.",
+    "Sono più a mio agio in battaglia che in conversazione.",
+    "Sono sempre vigile e pronto a rispondere a qualsiasi minaccia.",
+    "Tendo a pensare alla tattica in ogni situazione.",
+    "Non posso tolerare la codardia."
+  ],
+  "ideals": [
+    {"name": "Grande Bene", "alignment": "Buono", "description": "La nostra causa giusta richiederà dei sacrifici."},
+    {"name": "Responsabilità", "alignment": "Legale", "description": "Fare la cosa giusta anche quando è difficile."},
+    {"name": "Indipendenza", "alignment": "Caotico", "description": "Quando la gente segue gli ordini ciecamente, abbraccia la tirannia."},
+    {"name": "Potere", "alignment": "Malvagio", "description": "In guerra, il potere è tutto."},
+    {"name": "Nazione", "alignment": "Neutrale", "description": "Il mio paese, i miei ordini, i miei compagni, tutto quello che conta."},
+    {"name": "Vita", "alignment": "Qualsiasi", "description": "Bisogna fare di tutto per proteggere la vita degli innocenti."}
+  ],
+  "bonds": [
+    "Devo a tutto quello che so al mio comandante.",
+    "Devo trovare gli uomini che hanno disertato e farli tornare.",
+    "Ricordo ogni uomo che ho perso in combattimento.",
+    "Ho giurato fedeltà alla mia nazione.",
+    "La mia unità era la mia famiglia.",
+    "Voglio vendicare l'onore della mia unità."
+  ],
+  "flaws": [
+    "I mostri che vedo in battaglia non possono essere perdonati.",
+    "Non mi fido facilmente di chi non ha combattuto al mio fianco.",
+    "Ho orribili incubi sulle battaglie a cui ho partecipato.",
+    "Ucciderei innocenti per proteggere la mia unità.",
+    "Non posso fare a meno di pensare alla guerra e alla tattica in ogni situazione.",
+    "Non riesco a sfuggire all'impulso di saccheggiare quello che trovo."
+  ]
+}

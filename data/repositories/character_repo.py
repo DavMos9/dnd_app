@@ -551,6 +551,272 @@ def get_prepared_spells(character_id: str) -> list:
         return []
 
 
+def get_inventory(character_id: str) -> list:
+    """Restituisce tutti gli oggetti in inventario del personaggio."""
+    from data.models import InventoryItem
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM inventory_items WHERE character_id=? ORDER BY rowid",
+            (character_id,)
+        ).fetchall()
+        conn.close()
+        return [
+            InventoryItem(
+                id=r["id"],
+                character_id=r["character_id"],
+                name=r["name"],
+                quantity=r["quantity"],
+                weight=r["weight"],
+                description=r["description"] or "",
+                category=r["category"] or "misc",
+                is_equipped=bool(r["is_equipped"]),
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore recupero inventario {character_id}: {e}")
+        return []
+
+
+def create_weapon(character_id: str, name: str, damage_dice: str = "",
+                  damage_type: str = "", attack_bonus: int = 0,
+                  damage_bonus: int = 0, properties: str = "",
+                  is_equipped: bool = True, is_magical: bool = False,
+                  magic_description: str = "", range_normal: int = 0,
+                  range_max: int = 0) -> bool:
+    """Crea una nuova arma per il personaggio."""
+    import uuid as _uuid
+    try:
+        conn = get_connection()
+        conn.execute(
+            """INSERT INTO weapons
+               (id, character_id, name, damage_dice, damage_type, attack_bonus,
+                damage_bonus, properties, is_magical, magic_description,
+                is_equipped, range_normal, range_max)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (str(_uuid.uuid4()), character_id, name, damage_dice, damage_type,
+             attack_bonus, damage_bonus, properties, int(is_magical),
+             magic_description, int(is_equipped), range_normal, range_max)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore creazione arma: {e}")
+        return False
+
+
+def update_weapon(weapon_id: str, name: str, damage_dice: str, damage_type: str,
+                  attack_bonus: int, damage_bonus: int, properties: str,
+                  is_equipped: bool, is_magical: bool, magic_description: str,
+                  range_normal: int, range_max: int) -> bool:
+    """Aggiorna un'arma esistente."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            """UPDATE weapons SET name=?, damage_dice=?, damage_type=?,
+               attack_bonus=?, damage_bonus=?, properties=?, is_equipped=?,
+               is_magical=?, magic_description=?, range_normal=?, range_max=?
+               WHERE id=?""",
+            (name, damage_dice, damage_type, attack_bonus, damage_bonus,
+             properties, int(is_equipped), int(is_magical), magic_description,
+             range_normal, range_max, weapon_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento arma {weapon_id}: {e}")
+        return False
+
+
+def delete_weapon(weapon_id: str) -> bool:
+    """Elimina un'arma."""
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM weapons WHERE id=?", (weapon_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore eliminazione arma {weapon_id}: {e}")
+        return False
+
+
+def create_inventory_item(character_id: str, name: str, quantity: int = 1,
+                          weight: float = 0.0, description: str = "",
+                          category: str = "misc", is_equipped: bool = False) -> bool:
+    """Crea un nuovo oggetto nell'inventario."""
+    import uuid as _uuid
+    try:
+        conn = get_connection()
+        conn.execute(
+            """INSERT INTO inventory_items
+               (id, character_id, name, quantity, weight, description, category, is_equipped)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (str(_uuid.uuid4()), character_id, name, quantity, weight,
+             description, category, int(is_equipped))
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore creazione oggetto inventario: {e}")
+        return False
+
+
+def update_inventory_item(item_id: str, name: str, quantity: int, weight: float,
+                          description: str, category: str, is_equipped: bool) -> bool:
+    """Aggiorna un oggetto dell'inventario."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            """UPDATE inventory_items SET name=?, quantity=?, weight=?,
+               description=?, category=?, is_equipped=? WHERE id=?""",
+            (name, quantity, weight, description, category, int(is_equipped), item_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento oggetto {item_id}: {e}")
+        return False
+
+
+def delete_inventory_item(item_id: str) -> bool:
+    """Elimina un oggetto dall'inventario."""
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM inventory_items WHERE id=?", (item_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore eliminazione oggetto {item_id}: {e}")
+        return False
+
+
+def get_currencies(character_id: str) -> "Currency | None":
+    """Restituisce le monete del personaggio, None se non trovate."""
+    from data.models import Currency
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT * FROM currencies WHERE character_id=?", (character_id,)
+        ).fetchone()
+        conn.close()
+        if row:
+            return Currency(
+                character_id=row["character_id"],
+                copper=row["copper"],
+                silver=row["silver"],
+                electrum=row["electrum"],
+                gold=row["gold"],
+                platinum=row["platinum"],
+            )
+        return None
+    except Exception as e:
+        logger.error(f"Errore recupero valute {character_id}: {e}")
+        return None
+
+
+def update_currencies(character_id: str, copper: int, silver: int,
+                      electrum: int, gold: int, platinum: int) -> bool:
+    """Aggiorna le monete del personaggio."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE currencies SET copper=?, silver=?, electrum=?, gold=?, platinum=? WHERE character_id=?",
+            (copper, silver, electrum, gold, platinum, character_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento valute {character_id}: {e}")
+        return False
+
+
+def get_diary_entries(character_id: str) -> list:
+    """Restituisce le voci di diario ordinate per data di creazione (più recente prima)."""
+    from data.models import DiaryEntry
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM diary_entries WHERE character_id=? ORDER BY created_at DESC",
+            (character_id,)
+        ).fetchall()
+        conn.close()
+        return [
+            DiaryEntry(
+                id=r["id"],
+                character_id=r["character_id"],
+                title=r["title"] or "",
+                content=r["content"] or "",
+                session_date=r["session_date"] or "",
+                created_at=r["created_at"] or "",
+                updated_at=r["updated_at"] or "",
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore recupero diario {character_id}: {e}")
+        return []
+
+
+def create_diary_entry(character_id: str, title: str, content: str,
+                       session_date: str = "") -> bool:
+    """Crea una nuova voce di diario."""
+    import uuid as _uuid
+    now = datetime.now().isoformat()
+    try:
+        conn = get_connection()
+        conn.execute(
+            """INSERT INTO diary_entries
+               (id, character_id, title, content, session_date, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (str(_uuid.uuid4()), character_id, title, content, session_date, now, now)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore creazione voce diario: {e}")
+        return False
+
+
+def update_diary_entry(entry_id: str, title: str, content: str,
+                       session_date: str = "") -> bool:
+    """Aggiorna una voce di diario esistente."""
+    now = datetime.now().isoformat()
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE diary_entries SET title=?, content=?, session_date=?, updated_at=? WHERE id=?",
+            (title, content, session_date, now, entry_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento voce diario: {e}")
+        return False
+
+
+def delete_diary_entry(entry_id: str) -> bool:
+    """Elimina una voce di diario."""
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM diary_entries WHERE id=?", (entry_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore eliminazione voce diario: {e}")
+        return False
+
+
 def update_turn_state(character_id: str, action: bool, bonus: bool,
                       reaction: bool, movement: int, prev_state: str) -> bool:
     """Aggiornamento rapido dello stato turno."""

@@ -1,0 +1,23 @@
+{
+  "name": "Mezzorco",
+  "has_subrace": false,
+  "ability_bonuses": {"str": 2, "con": 1},
+  "speed": 9,
+  "darkvision": 18,
+  "size": "Media",
+  "languages": ["Comune", "Orchesco"],
+  "traits": [
+    {
+      "name": "Minacciante",
+      "description": "Hai competenza nell'abilità Intimidire."
+    },
+    {
+      "name": "Resistenza Implacabile",
+      "description": "Quando vieni ridotto a 0 PF ma non sei ucciso sul colpo, puoi invece essere ridotto a 1 PF. Non puoi usare questa capacità di nuovo finché non completi un riposo lungo."
+    },
+    {
+      "name": "Attacchi Selvaggi",
+      "description": "Quando ottieni un colpo critico con un'arma da mischia, puoi tirare uno dei dadi del danno dell'arma un'ulteriore volta e aggiungere il risultato al danno extra del colpo critico."
+    }
+  ]
+}

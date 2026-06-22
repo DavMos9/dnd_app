@@ -1,0 +1,28 @@
+{
+  "name": "Mezzelf",
+  "has_subrace": false,
+  "ability_bonuses": {"cha": 2},
+  "ability_bonuses_flex": {
+    "count": 2,
+    "bonus": 1,
+    "from": "any_except_cha",
+    "note": "Assegna +1 a due caratteristiche diverse dal Carisma"
+  },
+  "speed": 9,
+  "darkvision": 18,
+  "size": "Media",
+  "languages": [
+    "Comune", "Elfico",
+    {"type": "choice", "count": 1, "from": "any"}
+  ],
+  "traits": [
+    {
+      "name": "Discendenza Fatata",
+      "description": "Hai vantaggio ai tiri salvezza contro l'essere affascinato e la magia non può farti addormentare."
+    },
+    {
+      "name": "Versatilità nelle Abilità",
+      "description": "Ottieni competenza in due abilità a tua scelta."
+    }
+  ]
+}

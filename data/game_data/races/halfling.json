@@ -1,0 +1,45 @@
+{
+  "name": "Halfling",
+  "has_subrace": true,
+  "ability_bonuses": {"dex": 2},
+  "speed": 7,
+  "darkvision": 0,
+  "size": "Piccola",
+  "languages": ["Comune", "Halfling"],
+  "traits": [
+    {
+      "name": "Fortunato",
+      "description": "Quando ottieni un 1 naturale su un tiro per colpire, prova di caratteristica o tiro salvezza, puoi ritirare il dado e devi usare il nuovo risultato."
+    },
+    {
+      "name": "Coraggioso",
+      "description": "Hai vantaggio ai tiri salvezza contro lo spavento."
+    },
+    {
+      "name": "Agilità degli Halfling",
+      "description": "Puoi muoverti attraverso lo spazio occupato da creature di taglia più grande della tua."
+    }
+  ],
+  "subraces": [
+    {
+      "name": "Halfling Piedelesto",
+      "ability_bonuses": {"dex": 1},
+      "traits": [
+        {
+          "name": "Naturalmente Furtivo",
+          "description": "Puoi tentare di nasconderti quando sei oscurato solo da una creatura di almeno una taglia più grande della tua."
+        }
+      ]
+    },
+    {
+      "name": "Halfling Stoutfoot",
+      "ability_bonuses": {"con": 1},
+      "traits": [
+        {
+          "name": "Resistenza degli Stout",
+          "description": "Hai vantaggio ai tiri salvezza contro il veleno e hai resistenza ai danni da veleno."
+        }
+      ]
+    }
+  ]
+}

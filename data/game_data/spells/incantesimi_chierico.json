@@ -1,0 +1,28 @@
+[
+  {
+    "name": "Parola Sacra",
+    "level": 7,
+    "school": "Ammaliamento",
+    "casting_time": "1 azione bonus",
+    "range": "9 m",
+    "components": "V",
+    "duration": "Istantaneo",
+    "ritual": false,
+    "concentration": false,
+    "description": "Pronunci una parola sacra impregnata del potere che ha plasmato il mondo all'alba della creazione. Ogni creatura nemica che riesci a vedere entro gittata che può sentirti deve effettuare un tiro salvezza su Carisma. Se fallisce, la creatura è maledetta in base ai suoi punti ferita attuali:\n- 50 pf o meno: intontita per 1 minuto\n- 40 pf o meno: accecata per 10 minuti\n- 30 pf o meno: assordita e accecata per 1 ora\n- 20 pf o meno: uccisa istantaneamente",
+    "higher_levels": null
+  },
+  {
+    "name": "Cura Ferite",
+    "level": 1,
+    "school": "Evocazione",
+    "casting_time": "1 azione",
+    "range": "Contatto",
+    "components": "V, S",
+    "duration": "Istantaneo",
+    "ritual": false,
+    "concentration": false,
+    "description": "Una creatura che tocchi recupera un numero di punti ferita pari a 1d8 + il tuo modificatore di caratteristica da lancio di incantesimi.",
+    "higher_levels": "Quando lanci questo incantesimo usando uno slot di livello 2 o superiore, la guarigione aumenta di 1d8 per ogni livello dello slot superiore al 1°."
+  }
+]

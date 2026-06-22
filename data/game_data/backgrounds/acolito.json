@@ -1,0 +1,52 @@
+{
+  "name": "Acolito",
+  "description": "Hai trascorso la tua vita al servizio in un tempio di un dio specifico o in un pantheon di dei. Agisci come intermediario tra il regno del sacro e il mondo mortale.",
+  "skill_proficiencies": ["Intuizione", "Religione"],
+  "tool_proficiencies": [],
+  "languages": [{"type": "choice", "count": 2, "from": "any"}],
+  "equipment": [
+    {"name": "Simbolo sacro (regalo di qualcuno di importante per te)", "item_type": "item"},
+    {"name": "Libro di preghiere o ruota di preghiere", "item_type": "item"},
+    {"name": "5 bastoncini di incenso", "item_type": "item"},
+    {"name": "Abito", "item_type": "item"},
+    {"name": "Borsa con 15 MO", "item_type": "item"}
+  ],
+  "feature": {
+    "name": "Rifugio dei Fedeli",
+    "description": "Come acolito, puoi richiedere la cura e il rifugio del tuo tempio. Quando hai bisogno di cure, i sacerdoti ti curano gratuitamente. Puoi anche richiedere alloggio e pasti in qualsiasi struttura che ospiti la tua religione o la tua fede."
+  },
+  "personality_traits": [
+    "Idolatro i miei dei e trovo pace e conforto nella preghiera.",
+    "Sono tollerante e rispettoso di tutti coloro che praticano la fede.",
+    "Ho passato tanti anni in studi religiosi che sono molto distaccato dalla realtà mondana.",
+    "Ho una certa tendenza a citare le scritture sacre in ogni conversazione.",
+    "Sono generoso con i miei conoscenti e voglio aiutare chi ne ha bisogno.",
+    "Sono indulgente con la debolezza degli altri e trovo ispirazione nei loro slanci di speranza.",
+    "Sono meticoloso e ordinato in tutto ciò che faccio.",
+    "Ho trascorso così tanto tempo in meditazione che ho difficoltà a concentrarmi su più di una cosa alla volta."
+  ],
+  "ideals": [
+    {"name": "Tradizione", "alignment": "Legale", "description": "L'ordine antico e la dottrina del mio tempio devono essere preservati e rispettati."},
+    {"name": "Carità", "alignment": "Buono", "description": "Cerco sempre di aiutare chi ne ha bisogno, qualunque cosa costi."},
+    {"name": "Cambiamento", "alignment": "Caotico", "description": "Dobbiamo portare avanti il cambiamento. I nostri dei ci stanno guidando verso qualcosa di migliore."},
+    {"name": "Potere", "alignment": "Malvagio", "description": "Spero di salire alle alte sfere della gerarchia del mio tempio."},
+    {"name": "Fede", "alignment": "Neutrale", "description": "Confido che il mio dio mi guiderà nelle mie azioni."},
+    {"name": "Aspirazione", "alignment": "Qualsiasi", "description": "Spero di dimostrare la mia devozione ai miei dei attraverso le mie azioni."}
+  ],
+  "bonds": [
+    "Sono disposto a dare la vita per le Scritture Sacre del mio tempio.",
+    "Cerco di trovare un manufatto perduto che ha un grande significato per la mia fede.",
+    "Devo la mia vita al sacerdote che mi ha accolto quando ero un orfano.",
+    "Tutto ciò che faccio è per il bene della gente comune.",
+    "Proteggerò gli altri a qualunque costo.",
+    "Cerco di diffondere la parola del mio dio a quante più persone possibile."
+  ],
+  "flaws": [
+    "Sono inflessibile nel mio pensiero.",
+    "Mi fido troppo facilmente di quelli con cui mi associo.",
+    "Sono rigido nel mio pensiero.",
+    "Mostro la mia pietà religiosa a ogni occasione e posso essere monotono.",
+    "Sono facilmente influenzato da quelli che mostrano devozione ai miei dei.",
+    "Mi sento superiore ai non credenti e agli apostati."
+  ]
+}

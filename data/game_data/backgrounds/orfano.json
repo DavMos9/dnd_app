@@ -1,0 +1,53 @@
+{
+  "name": "Orfano",
+  "description": "Sei cresciuto solo per le strade di una città, imparando come sopravvivere senza una famiglia. Hai fatto tutto il necessario per sopravvivere.",
+  "skill_proficiencies": ["Furtività", "Rapidità di Mano"],
+  "tool_proficiencies": ["Strumenti da ladro", "Kit del travestimento"],
+  "languages": [],
+  "equipment": [
+    {"name": "Piccolo coltello", "item_type": "weapon"},
+    {"name": "Mappa della città dove sei cresciuto", "item_type": "item"},
+    {"name": "Topo domestico", "item_type": "item"},
+    {"name": "Ricordo di genitori (anello, capelli, ecc.)", "item_type": "item"},
+    {"name": "Abiti comuni", "item_type": "item"},
+    {"name": "Borsa con 10 MO", "item_type": "item"}
+  ],
+  "feature": {
+    "name": "Conoscenza della Città",
+    "description": "Conosci i vicoli nascosti della città. Puoi trovare passaggi segreti, negozi del mercato nero e persone di dubbi mezzi. Puoi nasconderti efficacemente in città e trovare chi cerca di sfuggire alla giustizia."
+  },
+  "personality_traits": [
+    "Ho sempre nascosto il mio cibo, anche quando ce n'è in abbondanza.",
+    "Mi fido solo di poche persone.",
+    "Sono sempre alla ricerca di un'opportunità per guadagnare.",
+    "Sono cauto e diffidente.",
+    "Ho imparato a cavarmela in ogni situazione.",
+    "Non mi separo mai dai miei pochi possedimenti.",
+    "Sono veloce nel giudicare le persone.",
+    "Non parlo mai della mia infanzia."
+  ],
+  "ideals": [
+    {"name": "Rispetto", "alignment": "Buono", "description": "Tutti meritano rispetto, indipendentemente dalla loro condizione."},
+    {"name": "Comunità", "alignment": "Legale", "description": "Dobbiamo aiutarci a vicenda per sopravvivere."},
+    {"name": "Libertà", "alignment": "Caotico", "description": "Nessuno può costringermi a fare quello che non voglio."},
+    {"name": "Avidità", "alignment": "Malvagio", "description": "Non permetterò mai più di non avere abbastanza."},
+    {"name": "Popolo", "alignment": "Neutrale", "description": "La gente di strada capisce quello che ho passato."},
+    {"name": "Aspirazione", "alignment": "Qualsiasi", "description": "Voglio costruire qualcosa di grande dalla nulla."}
+  ],
+  "bonds": [
+    "Devo proteggere la banda di orfani con cui sono cresciuto.",
+    "Voglio scoprire chi erano i miei genitori.",
+    "Sono fedele a chi mi ha aiutato quando ne avevo bisogno.",
+    "Ho rubato qualcosa di prezioso a un nobile e lo vuole indietro.",
+    "Voglio vendicarmi di chi mi ha fatto del male quando ero bambino.",
+    "Ho un fratello o una sorella che non ho mai incontrato."
+  ],
+  "flaws": [
+    "Non sono in grado di resistere all'impulso di rubare se penso di poterla fare franca.",
+    "Tendo a essere brusco e scortese.",
+    "Non mi fido facilmente degli altri, anche di quelli che mi hanno dimostrato di meritarsi la mia fiducia.",
+    "Mento di istinto, anche quando non è necessario.",
+    "Sono paranoico e vedo minacce ovunque.",
+    "Non sopporto i ricchi e i privilegiati."
+  ]
+}

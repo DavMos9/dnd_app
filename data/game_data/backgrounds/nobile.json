@@ -1,0 +1,51 @@
+{
+  "name": "Nobile",
+  "description": "Capisci ricchezza, potere e privilegio. Porti un titolo nobile e la tua famiglia possiede terre, raccoglie tasse e detiene una posizione di potere politico.",
+  "skill_proficiencies": ["Storia", "Persuasione"],
+  "tool_proficiencies": [{"type": "choice", "count": 1, "from": ["gioco_carte", "gioco_dadi", "scacchi", "gioco_tre_draghi"]}],
+  "languages": [{"type": "choice", "count": 1, "from": "any"}],
+  "equipment": [
+    {"name": "Abiti fini", "item_type": "item"},
+    {"name": "Anello con sigillo", "item_type": "item"},
+    {"name": "Pergamena della propria stirpe", "item_type": "item"},
+    {"name": "Borsa con 25 MO", "item_type": "item"}
+  ],
+  "feature": {
+    "name": "Posizione di Privilegio",
+    "description": "Grazie al tuo rango nobile, le persone sono pronte ad assumersi il meglio di te. Sei accolto nell'alta società, e le persone presumono che tu abbia il diritto di essere ovunque tu vada. I nobili ordinari si avvicineranno a te per fare amicizia, e puoi ottenere udienza dai nobili locali e dai funzionari governativi."
+  },
+  "personality_traits": [
+    "La mia eleganza e raffinatezza mi sono state infuse fin dall'infanzia.",
+    "Mi aspetto che tutti rispettino il mio rango e la mia posizione sociale.",
+    "Sono gentile e rispettoso con tutti, non importa il loro rango.",
+    "La gente comune non può capire gli affari di stato.",
+    "Sto cercando di capire il mondo al di fuori del mio cerchio ristretto.",
+    "Voglio dimostrare di valere più della mia nascita privilegiata.",
+    "Sono sempre pronto a fare beneficenza ai bisognosi.",
+    "Non dimentico mai un'offesa e aspetto il momento giusto per vendicarmi."
+  ],
+  "ideals": [
+    {"name": "Rispetto", "alignment": "Buono", "description": "Il rispetto è dovuto a tutti, indipendentemente dalla nascita."},
+    {"name": "Responsabilità", "alignment": "Legale", "description": "Devo fare quello che devo fare, non quello che voglio."},
+    {"name": "Indipendenza", "alignment": "Caotico", "description": "Devo dimostrare di poter farcela da solo."},
+    {"name": "Potere", "alignment": "Malvagio", "description": "Se posso arrivare in cima, lo farò."},
+    {"name": "Noblesse Oblige", "alignment": "Neutrale", "description": "È mio dovere proteggere coloro che sono al di sotto di me."},
+    {"name": "Famiglia", "alignment": "Qualsiasi", "description": "Il sangue è più denso dell'acqua."}
+  ],
+  "bonds": [
+    "Sono legato alla mia famiglia nobile.",
+    "Il mio titolo non significa nulla senza la fedeltà dei miei servitori.",
+    "La reputazione della mia famiglia dipende dalle mie azioni.",
+    "L'alleanza di una famiglia vicina è importante per proteggere le mie terre.",
+    "Ho una relazione segreta che non può essere rivelata.",
+    "La mia famiglia è in declino e devo portarla in alto."
+  ],
+  "flaws": [
+    "Sono convinto di essere superiore alla gente comune.",
+    "Maschero il mio disprezzo per chi non è della mia classe con educazione formale.",
+    "Prendo decisioni rischiose spesso senza consultare i miei compagni.",
+    "Odio sporcarmi le mani.",
+    "Non sopporto le persone rozze.",
+    "Mi preoccupo troppo per come vengo percepito dagli altri."
+  ]
+}

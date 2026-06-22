@@ -1,0 +1,87 @@
+{
+  "name": "Ladro",
+  "hit_die": 8,
+  "primary_ability": "dex",
+  "saving_throws": ["dex", "int"],
+  "spellcasting_ability": null,
+  "armor_proficiencies": ["#armature_leggere"],
+  "weapon_proficiencies": [
+    "#armi_semplici", "Balestra a mano", "Spada lunga", "Rapiera", "Spada corta"
+  ],
+  "tool_proficiencies": ["Strumenti da ladro"],
+  "skill_choices": {
+    "count": 4,
+    "options": ["Acrobazia", "Atletica", "Inganno", "Intuizione", "Intimidire", "Investigazione", "Percezione", "Rapidità di Mano", "Furtività", "Persuasione", "Intrattenimento", "Storia"]
+  },
+  "expertise": {
+    "count": 2,
+    "note": "Scegli 2 competenze già acquisite per ottenere Competenza Doppia"
+  },
+  "languages": [],
+  "starting_equipment": [
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Rapiera", "item_type": "weapon"}],
+        [{"name": "Spada corta", "item_type": "weapon"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Arco corto", "item_type": "weapon"}, {"name": "Faretra con 20 frecce", "item_type": "item"}],
+        [{"name": "Spada corta", "item_type": "weapon"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Zaino da scassinatore", "item_type": "item"}],
+        [{"name": "Zaino da dungeon", "item_type": "item"}],
+        [{"name": "Zaino da esploratore", "item_type": "item"}]
+      ]
+    },
+    {"type": "fixed", "items": [
+      {"name": "Armatura di cuoio", "item_type": "armor"},
+      {"name": "Due pugnali", "item_type": "weapon", "quantity": 2},
+      {"name": "Strumenti da ladro", "item_type": "item"}
+    ]}
+  ],
+  "starting_gold_alternative": {"dice": "4d4", "multiplier": 10},
+  "subclass_label": "Archetipo Furfantesco",
+  "subclass_choice_level": 3,
+  "subclasses": [
+    {
+      "name": "Ladro",
+      "features": [
+        {"level": 3,  "name": "Mani Veloci", "description": "Puoi usare la tua azione bonus per effettuare una prova di Rapidità di Mano, usare gli Strumenti da Ladro o Disimpegnarsi/Nascondersi."},
+        {"level": 3,  "name": "Scalatore Urbano", "description": "Vantaggio alle prove di Atletica per arrampicarti; non costa movimento extra spostarsi in verticale."},
+        {"level": 9,  "name": "Curvatura Suprema", "description": "Puoi scalare superfici verticali e a testa in giù senza prove."},
+        {"level": 13, "name": "Riflessi di Curvatura", "description": "Puoi reagire a incantesimi che ti colpiscono."},
+        {"level": 17, "name": "Maestro Ladro", "description": "Puoi compiere tre azioni bonus in un round."}
+      ]
+    },
+    {
+      "name": "Assassino",
+      "bonus_proficiencies": ["Kit del Travestimento", "Strumenti da Avvelenatore"],
+      "features": [
+        {"level": 3,  "name": "Assassinare", "description": "Vantaggio agli attacchi contro creature che non hanno ancora agito. Critico automatico contro creature sorprese."},
+        {"level": 9,  "name": "Capacità Infiltrazione", "description": "Puoi creare identità false; impieghi 7 giorni e 25 MO per preparare la documentazione."},
+        {"level": 13, "name": "Impostore", "description": "Puoi imitare perfettamente voce e comportamento di una persona studiata per 3 ore."},
+        {"level": 17, "name": "Colpi della Morte", "description": "Se colpisci una creatura sorpresa, subisce i danni due volte (se non è immune o resistente al danno dell'arma)."}
+      ]
+    },
+    {
+      "name": "Canaglia Arcana",
+      "spellcasting_ability": "int",
+      "features": [
+        {"level": 3,  "name": "Incantesimi", "description": "Apprendi trucchetti e incantesimi di Mago (illusione e ammaliamento). Puoi usare la magia per migliorare le tue abilità."},
+        {"level": 3,  "name": "Mano del Mago", "description": "Impari il trucchetto Mano del Mago se non lo conosci già."},
+        {"level": 3,  "name": "Sguardo Furtivo", "description": "Puoi sferrare un Attacco Furtivo con la tua Mano del Mago."},
+        {"level": 9,  "name": "Passo Magico", "description": "Puoi usare Passo del Vento senza slot."},
+        {"level": 13, "name": "Pensiero Cerebrale", "description": "Puoi proiettare Suggestione senza consumare slot (1/riposo lungo)."},
+        {"level": 17, "name": "Furto di Incantesimo", "description": "Puoi rubare l'incantesimo a una creatura che lancia e rilanciarlo tu."}
+      ]
+    }
+  ]
+}

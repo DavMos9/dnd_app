@@ -1,0 +1,17 @@
+{
+  "name": "Umano",
+  "has_subrace": false,
+  "ability_bonuses": {"str": 1, "dex": 1, "con": 1, "int": 1, "wis": 1, "cha": 1},
+  "speed": 9,
+  "darkvision": 0,
+  "size": "Media",
+  "languages": ["Comune",
+    {"type": "choice", "count": 1, "from": "any", "note": "Qualsiasi lingua a scelta"}
+  ],
+  "traits": [
+    {
+      "name": "Versatile",
+      "description": "Gli umani ricevono +1 a tutti i punteggi di caratteristica e imparano una lingua aggiuntiva a scelta."
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "Draconide",
+  "has_subrace": false,
+  "ability_bonuses": {"str": 2, "cha": 1},
+  "speed": 9,
+  "darkvision": 0,
+  "size": "Media",
+  "languages": ["Comune", "Draconico"],
+  "traits": [
+    {
+      "name": "Discendenza Draconiana",
+      "description": "Scegli un tipo di drago. Determina la tua Resistenza ai Danni e il tipo di soffio.",
+      "options": [
+        {"dragon": "Bianco",  "damage": "Freddo",       "breath": "Cono 4,5 m",  "save": "con"},
+        {"dragon": "Blu",     "damage": "Fulmine",      "breath": "Linea 9×1,5 m","save": "dex"},
+        {"dragon": "Verde",   "damage": "Veleno",       "breath": "Cono 4,5 m",  "save": "con"},
+        {"dragon": "Nero",    "damage": "Acido",        "breath": "Linea 9×1,5 m","save": "dex"},
+        {"dragon": "Rosso",   "damage": "Fuoco",        "breath": "Cono 4,5 m",  "save": "dex"},
+        {"dragon": "Oro",     "damage": "Fuoco",        "breath": "Cono 4,5 m",  "save": "dex"},
+        {"dragon": "Argento", "damage": "Freddo",       "breath": "Cono 4,5 m",  "save": "con"},
+        {"dragon": "Rame",    "damage": "Acido",        "breath": "Linea 9×1,5 m","save": "dex"},
+        {"dragon": "Ottone",  "damage": "Fuoco",        "breath": "Linea 9×1,5 m","save": "dex"},
+        {"dragon": "Bronzo",  "damage": "Fulmine",      "breath": "Linea 9×1,5 m","save": "dex"}
+      ]
+    },
+    {
+      "name": "Resistenza ai Danni",
+      "description": "Hai resistenza al tipo di danno associato alla tua Discendenza Draconiana."
+    },
+    {
+      "name": "Soffio",
+      "description": "Come azione, puoi espirare un'energia distruttiva. Il suo tipo di danno e la sua forma sono determinati dalla tua Discendenza Draconiana. Usi = 1 / riposo breve o lungo. Danno: 2d6 al 1° livello (+1d6 ogni 5 livelli). TS Destrezza o Costituzione (CD 8 + bonus competenza + mod Costituzione) per dimezzare."
+    }
+  ]
+}

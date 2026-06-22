@@ -207,6 +207,12 @@ class SheetView(ft.Column):
         if key == "esplorazione":
             from ui.views.character_sheet.esplorazione_tab import EsplorazioneTab
             return EsplorazioneTab(self.character)
+        if key == "inventario":
+            from ui.views.character_sheet.inventario_tab import InventarioTab
+            return InventarioTab(self.character)
+        if key == "diario":
+            from ui.views.character_sheet.diario_tab import DiarioTab
+            return DiarioTab(self.character)
         return self._placeholder_tab(key)
 
     def _placeholder_tab(self, key: str) -> ft.Container:

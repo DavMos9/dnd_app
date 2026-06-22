@@ -1,0 +1,78 @@
+{
+  "name": "Elfo",
+  "has_subrace": true,
+  "ability_bonuses": {"dex": 2},
+  "speed": 9,
+  "darkvision": 18,
+  "size": "Media",
+  "languages": ["Comune", "Elfico"],
+  "traits": [
+    {
+      "name": "Sensi Acuti",
+      "description": "Hai competenza nell'abilità Percezione."
+    },
+    {
+      "name": "Discendenza Fatata",
+      "description": "Hai vantaggio ai tiri salvezza contro l'essere affascinato e la magia non può farti addormentare."
+    },
+    {
+      "name": "Trance",
+      "description": "Anziché dormire, mediti profondamente per 4 ore al giorno. Questo ti concede gli stessi benefici di 8 ore di sonno per un umano."
+    }
+  ],
+  "subraces": [
+    {
+      "name": "Alto Elfo",
+      "ability_bonuses": {"int": 1},
+      "languages": [{"type": "choice", "count": 1, "from": "any"}],
+      "traits": [
+        {
+          "name": "Addestramento con le Armi degli Elfi",
+          "description": "Hai competenza con spada lunga, spada corta, arco corto e arco lungo."
+        },
+        {
+          "name": "Trucchetto",
+          "description": "Conosci un trucchetto dalla lista degli incantesimi del Mago. Il modificatore di caratteristica per esso è Intelligenza."
+        }
+      ]
+    },
+    {
+      "name": "Elfo del Bosco",
+      "ability_bonuses": {"wis": 1},
+      "speed": 10,
+      "traits": [
+        {
+          "name": "Addestramento con le Armi degli Elfi",
+          "description": "Hai competenza con spada lunga, spada corta, arco corto e arco lungo."
+        },
+        {
+          "name": "Passo della Foresta",
+          "description": "Muoverti attraverso la vegetazione non magica non ti costa movimento aggiuntivo e non ti provoca attacchi di opportunità."
+        },
+        {
+          "name": "Nascondersi nella Natura",
+          "description": "Puoi tentare di nasconderti anche quando sei solo leggermente oscurato dal fogliame, forte pioggia, neve, nebbia e altri fenomeni naturali."
+        }
+      ]
+    },
+    {
+      "name": "Elfo Oscuro (Drow)",
+      "ability_bonuses": {"cha": 1},
+      "darkvision": 36,
+      "traits": [
+        {
+          "name": "Sensibilità alla Luce Solare",
+          "description": "Hai svantaggio ai tiri di attacco e alle prove di Percezione (vista) quando tu o il tuo bersaglio siete in piena luce solare."
+        },
+        {
+          "name": "Magia Drow",
+          "description": "Conosci il trucchetto Luci Danzanti. Puoi lanciare Luci Fatue e Oscurità una volta per riposo lungo. Il modificatore è Carisma."
+        },
+        {
+          "name": "Addestramento con le Armi dei Drow",
+          "description": "Hai competenza con rapiere, spada corta e balestra a mano."
+        }
+      ]
+    }
+  ]
+}

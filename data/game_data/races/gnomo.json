@@ -1,0 +1,44 @@
+{
+  "name": "Gnomo",
+  "has_subrace": true,
+  "ability_bonuses": {"int": 2},
+  "speed": 7,
+  "darkvision": 18,
+  "size": "Piccola",
+  "languages": ["Comune", "Gnomesco"],
+  "traits": [
+    {
+      "name": "Furbizia degli Gnomi",
+      "description": "Hai vantaggio ai tiri salvezza su Intelligenza, Saggezza e Carisma contro la magia."
+    }
+  ],
+  "subraces": [
+    {
+      "name": "Gnomo della Foresta",
+      "ability_bonuses": {"dex": 1},
+      "traits": [
+        {
+          "name": "Illusionista Nato",
+          "description": "Conosci il trucchetto Illusione Minore. Il modificatore è Intelligenza."
+        },
+        {
+          "name": "Parlare con gli Animali",
+          "description": "Puoi comunicare idee semplici con bestie di dimensione Piccola o inferiore attraverso suoni e gesti."
+        }
+      ]
+    },
+    {
+      "name": "Gnomo delle Rocce",
+      "ability_bonuses": {"con": 1},
+      "traits": [
+        {
+          "name": "Conoscitore degli Arnesi",
+          "description": "Hai competenza con gli strumenti dell'artigiano (a scelta), i gadget illusori e le trappole."},
+        {
+          "name": "Conoscenza dei Meccanismi",
+          "description": "Ogni volta che fai una prova di Intelligenza (Storia) relativa a oggetti magici, congegni alchemici o marchingegni meccanici, aggiungi il doppio del bonus di competenza."
+        }
+      ]
+    }
+  ]
+}

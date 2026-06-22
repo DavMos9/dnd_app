@@ -1,0 +1,75 @@
+{
+  "name": "Bardo",
+  "hit_die": 8,
+  "primary_ability": "cha",
+  "saving_throws": ["dex", "cha"],
+  "spellcasting_ability": "cha",
+  "armor_proficiencies": ["#armature_leggere"],
+  "weapon_proficiencies": [
+    "Balestra a mano", "Pugnale", "Dardo", "Rapiera",
+    "Spada corta", "Spada lunga", "Arco corto"
+  ],
+  "tool_proficiencies": [
+    {"type": "choice", "count": 3, "from": "strumenti_musicali"}
+  ],
+  "skill_choices": {
+    "count": 3,
+    "options": "any"
+  },
+  "languages": [
+    {"type": "choice", "count": 1, "from": "any"}
+  ],
+  "starting_equipment": [
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Rapiera", "item_type": "weapon"}],
+        [{"name": "Spada lunga", "item_type": "weapon"}],
+        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Zaino da diplomatico", "item_type": "item"}],
+        [{"name": "Zaino da intrattenitore", "item_type": "item"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Liuto", "item_type": "item"}],
+        [{"name": "Qualsiasi strumento musicale", "item_type": "item"}]
+      ]
+    },
+    {"type": "fixed", "items": [
+      {"name": "Armatura di cuoio", "item_type": "armor"},
+      {"name": "Pugnale", "item_type": "weapon"}
+    ]}
+  ],
+  "starting_gold_alternative": {"dice": "5d4", "multiplier": 10},
+  "subclass_label": "Collegio Bardico",
+  "subclass_choice_level": 3,
+  "subclasses": [
+    {
+      "name": "Collegio della Conoscenza",
+      "bonus_proficiencies": [
+        {"type": "choice", "count": 3, "from": "any_skill"}
+      ],
+      "features": [
+        {"level": 3,  "name": "Parole Taglienti", "description": "Puoi usare un dado bardico per ridurre il tiro di un attacco, la prova di caratteristica o il tiro salvezza di una creatura."},
+        {"level": 6,  "name": "Segreti Magici Aggiuntivi", "description": "Apprendi due incantesimi da qualsiasi classe."},
+        {"level": 14, "name": "Capacità Impareggiabile", "description": "Puoi aggiungere un dado bardico a qualsiasi prova di caratteristica o tiro salvezza effettuato con competenza."}
+      ]
+    },
+    {
+      "name": "Collegio del Valore",
+      "bonus_proficiencies": ["#armature_medie", "#scudi", "#armi_da_guerra"],
+      "features": [
+        {"level": 3,  "name": "Ispirazione di Combattimento", "description": "I tuoi dadi bardici possono essere usati per aumentare il danno o la CA."},
+        {"level": 6,  "name": "Attacco Extra", "description": "Puoi attaccare due volte invece di una quando esegui l'azione Attacca."},
+        {"level": 14, "name": "Magia di Battaglia", "description": "Quando lanci un incantesimo da bardo, puoi effettuare un attacco come azione bonus."}
+      ]
+    }
+  ]
+}

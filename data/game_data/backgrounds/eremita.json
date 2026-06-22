@@ -1,0 +1,52 @@
+{
+  "name": "Eremita",
+  "description": "Hai vissuto in isolamento per un periodo della tua vita, in riflessione o ricerca spirituale. Durante quel tempo, hai guadagnato intuizioni sulla vita che pochi altri hanno.",
+  "skill_proficiencies": ["Medicina", "Religione"],
+  "tool_proficiencies": ["Forniture erboristiche"],
+  "languages": [{"type": "choice", "count": 1, "from": "any"}],
+  "equipment": [
+    {"name": "Contenitore per erbe", "item_type": "item"},
+    {"name": "Coperta invernale", "item_type": "item"},
+    {"name": "Abiti comuni", "item_type": "item"},
+    {"name": "Libro delle note", "item_type": "item"},
+    {"name": "Borsa con 5 MO", "item_type": "item"}
+  ],
+  "feature": {
+    "name": "Scoperta",
+    "description": "Il tuo isolamento ti ha dato accesso a una scoperta unica e potente. Lavora con il tuo DM per determinare quale forma prende questa scoperta. Potrebbe essere una grande verità sull'universo, degli dei, delle forze potenti o di qualche essere."
+  },
+  "personality_traits": [
+    "Sto cercando la pace interiore.",
+    "Sono convinto che l'ispirazione venga dal dentro.",
+    "Mi piace la solitudine e trovo difficile stare in mezzo alla folla.",
+    "Passo le giornate in meditazione e riflessione.",
+    "Parlo poco, ma quando parlo, le mie parole sono piene di significato.",
+    "Vedo il mondo come un insieme complesso di relazioni.",
+    "Sono sempre curioso di scoprire nuove verità.",
+    "Non mi interessa la ricchezza o la fama."
+  ],
+  "ideals": [
+    {"name": "Grande Bene", "alignment": "Buono", "description": "Il mio dono va a tutti quelli che possono trarne vantaggio."},
+    {"name": "Logica", "alignment": "Legale", "description": "La logica e la ragione devono guidare tutte le nostre scelte."},
+    {"name": "Libertà", "alignment": "Caotico", "description": "Non ho bisogno di catene o obblighi verso nessuno."},
+    {"name": "Potere", "alignment": "Malvagio", "description": "La mia comprensione del mondo mi dà potere sugli altri."},
+    {"name": "Vita", "alignment": "Neutrale", "description": "Tutte le vite hanno uguale valore."},
+    {"name": "Illuminazione", "alignment": "Qualsiasi", "description": "Sto cercando di capire il significato ultimo dell'esistenza."}
+  ],
+  "bonds": [
+    "Niente è più importante della mia ricerca spirituale.",
+    "Sono uscito dall'isolamento per proteggere qualcuno che mi è caro.",
+    "Voglio portare la mia conoscenza a chi ne ha bisogno.",
+    "Sono alla ricerca di qualcuno che possa rispondere alle mie domande.",
+    "Devo proteggere il luogo sacro dove ho vissuto la mia solitudine.",
+    "Il mio maestro spirituale mi ha incaricato di portare avanti il suo lavoro."
+  ],
+  "flaws": [
+    "Ora che sono uscito dall'isolamento, sono facilmente confuso dal trambusto del mondo.",
+    "Dico la verità senza preoccuparmi delle conseguenze.",
+    "Sono convinto che la mia comprensione del mondo sia superiore a quella degli altri.",
+    "Passo molto tempo a riflettere invece di agire.",
+    "Mi comporto in modo strano e imbarazzo i miei compagni.",
+    "Ignoro le cose di tutti i giorni in favore della meditazione."
+  ]
+}

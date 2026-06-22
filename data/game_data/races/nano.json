@@ -1,0 +1,51 @@
+{
+  "name": "Nano",
+  "has_subrace": true,
+  "ability_bonuses": {"con": 2},
+  "speed": 7,
+  "darkvision": 18,
+  "size": "Media",
+  "languages": ["Comune", "Nanico"],
+  "traits": [
+    {
+      "name": "Resistenza dei Nani",
+      "description": "Hai vantaggio ai tiri salvezza contro il veleno e hai resistenza ai danni da veleno."
+    },
+    {
+      "name": "Addestramento con le Armi dei Nani",
+      "description": "Hai competenza con ascia da battaglia, ascia da mano, martello leggero e martello da guerra."
+    },
+    {
+      "name": "Competenza negli Strumenti",
+      "description": "Hai competenza con gli strumenti dell'artigiano a scelta: falegname, fabbro o birraio."
+    },
+    {
+      "name": "Senso della Pietra",
+      "description": "Ogni volta che effettui una prova di Intelligenza (Storia) riguardante l'origine di un lavoro in pietra, sei considerato competente e aggiungi il doppio del tuo bonus di competenza."
+    }
+  ],
+  "subraces": [
+    {
+      "name": "Nano del Monte",
+      "ability_bonuses": {"str": 2},
+      "armor_proficiency": ["#armature_leggere", "#armature_medie"],
+      "traits": [
+        {
+          "name": "Addestramento con l'Armatura dei Nani",
+          "description": "Hai competenza con le armature leggere e medie."
+        }
+      ]
+    },
+    {
+      "name": "Nano delle Colline",
+      "ability_bonuses": {"wis": 1},
+      "hp_bonus_per_level": 1,
+      "traits": [
+        {
+          "name": "Durezza dei Nani",
+          "description": "I tuoi punti ferita massimi aumentano di 1 e aumentano di 1 ulteriore ogni volta che sali di livello."
+        }
+      ]
+    }
+  ]
+}

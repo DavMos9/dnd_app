@@ -1,0 +1,65 @@
+{
+  "name": "Ranger",
+  "hit_die": 10,
+  "primary_ability": "dex",
+  "saving_throws": ["str", "dex"],
+  "spellcasting_ability": "wis",
+  "armor_proficiencies": ["#armature_leggere", "#armature_medie", "#scudi"],
+  "weapon_proficiencies": ["#armi_semplici", "#armi_da_guerra"],
+  "tool_proficiencies": [],
+  "skill_choices": {
+    "count": 3,
+    "options": ["Addestrare Animali", "Atletica", "Intuizione", "Investigazione", "Natura", "Percezione", "Furtività", "Sopravvivenza"]
+  },
+  "languages": [],
+  "starting_equipment": [
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Cotta di maglia", "item_type": "armor"}],
+        [{"name": "Armatura di cuoio", "item_type": "armor"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Due spade corte", "item_type": "weapon", "quantity": 2}],
+        [{"name": "Due armi semplici da mischia", "item_type": "item", "quantity": 2}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Zaino da dungeon", "item_type": "item"}],
+        [{"name": "Zaino da esploratore", "item_type": "item"}]
+      ]
+    },
+    {"type": "fixed", "items": [
+      {"name": "Arco lungo", "item_type": "weapon"},
+      {"name": "Faretra con 20 frecce", "item_type": "item"}
+    ]}
+  ],
+  "starting_gold_alternative": {"dice": "5d4", "multiplier": 10},
+  "subclass_label": "Archetipo del Ranger",
+  "subclass_choice_level": 3,
+  "subclasses": [
+    {
+      "name": "Cacciatore",
+      "features": [
+        {"level": 3,  "name": "Preda del Cacciatore", "description": "Scegli: Sterminatore di Colossi (bonus ai danni contro creature di taglia Grande o più grande), Sterminatore di Orde (attacchi extra contro creature adiacenti) o Difesa da Duellante (reazione per imporre svantaggio agli attacchi)."},
+        {"level": 7,  "name": "Tattiche Difensive", "description": "Scegli: Scatto Evasivo (vantaggio alle prove di Destrezza contro effetti che richiedono TS), Difesa Multiattacco (resistenza a eventuali attacchi extra) o Difendersi in Turba (CA +4 quando sei circondato)."},
+        {"level": 11, "name": "Attacco Multiplo", "description": "Scegli: Scarica (due frecce su creature diverse) o Raffica di Tagli (colpisci tutti nella portata dell'arma)."},
+        {"level": 15, "name": "Sensi del Cacciatore Superiore", "description": "Scegli: Occhio d'Aquila (vantaggio alle percezioni passive) o Sgambetto Istintivo (reazione agli attacchi di opportunità altrui)."}
+      ]
+    },
+    {
+      "name": "Maestro delle Bestie",
+      "features": [
+        {"level": 3,  "name": "Compagno di Caccia", "description": "Ottieni un compagno animale che agisce in modo indipendente. Usi Addestramento al Combattimento per comandarlo."},
+        {"level": 7,  "name": "Compagno Eccezionale", "description": "Il compagno può attaccare due volte se tu non dai comandi, e ottieni bonus ai tiri di attacco quando combattete insieme."},
+        {"level": 11, "name": "Tattica della Bestia", "description": "Quando il compagno attacca, tu puoi anche effettuare un attacco con un'arma come azione bonus."},
+        {"level": 15, "name": "Condivisione degli Incantesimi", "description": "Il tuo compagno beneficia degli incantesimi che lanci su te stesso."}
+      ]
+    }
+  ]
+}

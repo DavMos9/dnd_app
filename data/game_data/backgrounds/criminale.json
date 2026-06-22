@@ -1,0 +1,50 @@
+{
+  "name": "Criminale",
+  "description": "Sei un esperto a stare fuori dalla legge. Hai passato gran parte della tua vita a rubare, truffare o uccidere per sopravvivere.",
+  "skill_proficiencies": ["Inganno", "Furtività"],
+  "tool_proficiencies": ["Strumenti da ladro", {"type": "choice", "count": 1, "from": ["gioco_carte", "gioco_dadi", "altro_gioco"]}],
+  "languages": [],
+  "equipment": [
+    {"name": "Piede di porco", "item_type": "item"},
+    {"name": "Abiti scuri comuni", "item_type": "item"},
+    {"name": "Borsa con 15 MO", "item_type": "item"}
+  ],
+  "feature": {
+    "name": "Contatti Criminali",
+    "description": "Hai un contatto affidabile e fidato che agisce come tuo tramite con una rete di altri criminali. Sai come trovare i messaggi attraverso codici specifici, e puoi far passare e ricevere messaggi attraverso bande di contrabbandieri, gilde di ladri, assassini e altre organizzazioni illegali."
+  },
+  "personality_traits": [
+    "Sempre ho un piano di uscita di emergenza.",
+    "Sono sempre calmo, non importa la situazione. Non lascio mai vedere il panico.",
+    "Sono stato ingannato più e più volte; preferisco fare le cose nel modo sporco.",
+    "La lealtà per me è un imperativo: non li tradirò mai.",
+    "Sono incredibilmente curioso.",
+    "Preferisco fare le cose in modo discreto.",
+    "Dono parte del mio guadagno alle organizzazioni di carità.",
+    "Sono un bugiardo compulsivo."
+  ],
+  "ideals": [
+    {"name": "Onore", "alignment": "Legale", "description": "Non rubo ai poveri. Seguo le regole della mia banda."},
+    {"name": "Libertà", "alignment": "Caotico", "description": "Le catene devono essere spezzate e la burocrazia è nemica della libertà."},
+    {"name": "Carità", "alignment": "Buono", "description": "Rubo ai ricchi e do ai poveri."},
+    {"name": "Avidità", "alignment": "Malvagio", "description": "Voglio tutto il denaro possibile."},
+    {"name": "Popolo", "alignment": "Neutrale", "description": "Mi preoccupo della gente del posto."},
+    {"name": "Redenzione", "alignment": "Qualsiasi", "description": "Voglio smetterla con questo stile di vita criminale."}
+  ],
+  "bonds": [
+    "Sono fedele alla mia banda.",
+    "Sto cercando di ripagare un vecchio debito.",
+    "Qualcuno che mi è vicino è stato ucciso e sto cercando vendetta.",
+    "Sono fedele alla mia città, non alla legge.",
+    "Uno sbirro corrotto mi ha rovinato la vita.",
+    "I poveri mi hanno aiutato quando ne avevo bisogno, quindi li aiuterò a mia volta."
+  ],
+  "flaws": [
+    "Non riesco a resistere a rubare qualcosa di prezioso.",
+    "Sono sempre paranoico che le persone mi stiano spiando.",
+    "Una volta che qualcuno mi ha fatto del male, non lo dimentico mai.",
+    "Sono un giocatore d'azzardo compulsivo.",
+    "Mi piace il rischio e l'eccitazione del pericolo.",
+    "Quando vedo qualcosa di prezioso, devo avercelo."
+  ]
+}

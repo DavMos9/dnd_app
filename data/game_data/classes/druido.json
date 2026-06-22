@@ -1,0 +1,65 @@
+{
+  "name": "Druido",
+  "hit_die": 8,
+  "primary_ability": "wis",
+  "saving_throws": ["int", "wis"],
+  "spellcasting_ability": "wis",
+  "armor_proficiencies": ["#armature_leggere", "#armature_medie", "#scudi"],
+  "armor_notes": "I druidi non indossano armature di metallo",
+  "weapon_proficiencies": [
+    "Clava", "Pugnale", "Dardo", "Giavellotto", "Mazza", "Bastone",
+    "Scimitarra", "Falce", "Fionda", "Lancia"
+  ],
+  "tool_proficiencies": ["Forniture erboristiche"],
+  "skill_choices": {
+    "count": 2,
+    "options": ["Arcano", "Addestrare Animali", "Intuizione", "Medicina", "Natura", "Percezione", "Religione", "Sopravvivenza"]
+  },
+  "languages": ["Druidico"],
+  "starting_equipment": [
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Scudo di legno", "item_type": "armor"}],
+        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Scimitarra", "item_type": "weapon"}],
+        [{"name": "Qualsiasi arma semplice da mischia", "item_type": "item"}]
+      ]
+    },
+    {"type": "fixed", "items": [
+      {"name": "Armatura di cuoio", "item_type": "armor"},
+      {"name": "Zaino da esploratore", "item_type": "item"},
+      {"name": "Fuoco della Druidia", "item_type": "item"}
+    ]}
+  ],
+  "starting_gold_alternative": {"dice": "2d4", "multiplier": 10},
+  "subclass_label": "Cerchio Druidico",
+  "subclass_choice_level": 2,
+  "subclasses": [
+    {
+      "name": "Cerchio della Terra",
+      "bonus_cantrip": "Trucco (trucchetto aggiuntivo)",
+      "features": [
+        {"level": 2,  "name": "Recupero Naturale", "description": "Dopo un riposo breve, recuperi slot incantesimo il cui totale livelli non supera la metà del livello druido (min 1°)."},
+        {"level": 2,  "name": "Incantesimi del Cerchio", "description": "Ottieni incantesimi bonus basati sul terreno scelto (Artico, Costa, Deserto, Foresta, Piana, Montagna, Palude, Sottosuolo)."},
+        {"level": 6,  "name": "Passo della Terra", "description": "Muoversi su terreno difficile non magico non ti costa movimento aggiuntivo."},
+        {"level": 10, "name": "Mente della Natura", "description": "Non puoi essere affascinato o spaventato da elementali o fate."},
+        {"level": 14, "name": "Santuario della Natura", "description": "Le bestie e le piante devono superare un TS su Saggezza per attaccarti."}
+      ]
+    },
+    {
+      "name": "Cerchio della Luna",
+      "features": [
+        {"level": 2,  "name": "Forma Selvatica da Combattimento", "description": "Puoi usare Forma Selvatica come azione bonus. Le tue forme assumono CR più elevate: CR 1 al 2° livello, CR fino a 1/3 livello al 6°."},
+        {"level": 6,  "name": "Forme Elementali", "description": "Puoi trasformarti in un elementale (Aria, Terra, Fuoco, Acqua) spendendo 2 usi di Forma Selvatica."},
+        {"level": 10, "name": "Resistenza nella Forma Selvatica", "description": "Nella forma animale, sei immune ai danni contundenti, perforanti e da taglio non magici."},
+        {"level": 14, "name": "Maestro della Luna", "description": "Puoi trasformarti in qualsiasi bestia con CR ≤ livello / 3 (max CR 20)."}
+      ]
+    }
+  ]
+}

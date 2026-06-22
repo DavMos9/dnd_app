@@ -1,0 +1,91 @@
+{
+  "name": "Warlock",
+  "hit_die": 8,
+  "primary_ability": "cha",
+  "saving_throws": ["wis", "cha"],
+  "spellcasting_ability": "cha",
+  "armor_proficiencies": ["#armature_leggere"],
+  "weapon_proficiencies": ["#armi_semplici"],
+  "tool_proficiencies": [],
+  "skill_choices": {
+    "count": 2,
+    "options": ["Arcano", "Inganno", "Storia", "Intimidire", "Investigazione", "Natura", "Religione"]
+  },
+  "languages": [],
+  "starting_equipment": [
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Balestra leggera", "item_type": "weapon"}, {"name": "Dardi", "item_type": "item", "quantity": 20}],
+        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+      ]
+    },
+    {
+      "type": "choice", "count": 1, "from": "packages",
+      "options": [
+        [{"name": "Sacca dei Componenti", "item_type": "item"}],
+        [{"name": "Fuoco Arcano", "item_type": "item"}]
+      ]
+    },
+    {"type": "fixed", "items": [
+      {"name": "Armatura di cuoio", "item_type": "armor"},
+      {"name": "Qualsiasi arma semplice", "item_type": "item"},
+      {"name": "Due pugnali", "item_type": "weapon", "quantity": 2},
+      {"name": "Zaino da dungeon", "item_type": "item"}
+    ]}
+  ],
+  "starting_gold_alternative": {"dice": "4d4", "multiplier": 10},
+  "spellcasting_notes": "Gli slot del Warlock si recuperano con riposo breve. Tutti gli slot sono dello stesso livello (1°-5° scalato per livello del personaggio). Il Warlock può scegliere Invocazioni Occulte per ampliare i propri poteri.",
+  "subclass_label": "Patrono Ultraterreno",
+  "subclass_choice_level": 1,
+  "subclasses": [
+    {
+      "name": "L'Antico",
+      "expanded_spells": {
+        "1": ["Colpo Inebriante", "Parlare con gli Animali"],
+        "2": ["Raggi di Luna", "Passo del Vento"],
+        "3": ["Crescita di Spine", "Mandare"],
+        "4": ["Libertà di Movimento", "Guardiano della Natura"],
+        "5": ["Comunione con la Natura", "Invocazione di Elementale"]
+      },
+      "features": [
+        {"level": 1,  "name": "Senso di Guarigione", "description": "Come azione, tocchi una creatura e ripristini PF pari a 1d8 + modificatore di Carisma (usi = Carisma / riposo lungo). Non funziona sui non morti o i costrutti."},
+        {"level": 6,  "name": "Legame con il Tuo Signore delle Ombre", "description": "Puoi aggiungere il tuo modificatore di Carisma alle prove di Arcano relative alla natura."},
+        {"level": 10, "name": "Cuore di Tenebra", "description": "Il tuo signore cede una protezione: sei immune alle malattie e ai veleni; ottieni resistenza ai danni da freddo."},
+        {"level": 14, "name": "Creare Vita dal Buio", "description": "Come azione, evochi un servitore non morto (CR ≤ livello/2) legato a te."}
+      ]
+    },
+    {
+      "name": "Il Signore degli Inferi",
+      "expanded_spells": {
+        "1": ["Sferzata degli Inferi", "Scudo Bruciante"],
+        "2": ["Cecità/Sordità", "Raggio Bruciante"],
+        "3": ["Palla di Fuoco", "Affrettarsi"],
+        "4": ["Muro di Fuoco", "Scudo del Fuoco"],
+        "5": ["Sfera di Fuoco", "Porta delle Fiamme"]
+      },
+      "features": [
+        {"level": 1,  "name": "Benedizione degli Inferi", "description": "Come azione bonus, quando uccidi una creatura con un incantesimo, ottieni PF temporanei pari al livello di Warlock + modificatore di Carisma."},
+        {"level": 6,  "name": "Il Tuo Beneficio Diabolico", "description": "Puoi lanciare Alter Self una volta per riposo breve senza usare slot incantesimo."},
+        {"level": 10, "name": "Fortunato Demone", "description": "Quando fai un tiro di attacco, prova abilità o TS, puoi aggiungere 1d10 (pari a Carisma / riposo lungo)."},
+        {"level": 14, "name": "Portale delle Fiamme", "description": "Come azione bonus (spendendo slot), teletrasporti te e creature adiacenti in un luogo entro 9 m, infliggendo danni da fuoco."}
+      ]
+    },
+    {
+      "name": "Il Grande Antico",
+      "expanded_spells": {
+        "1": ["Lettera di Dissolvimento", "Onda Psichica"],
+        "2": ["Rilevare i Pensieri", "Immagine Speculare"],
+        "3": ["Telecinesi Minore", "Inviare Messaggi"],
+        "4": ["Dominare le Bestie", "Separare la Mente"],
+        "5": ["Dominare Persone", "Legame Telepatico"]
+      },
+      "features": [
+        {"level": 1,  "name": "Telepatia Potenziata", "description": "Puoi comunicare telepaticamente con qualsiasi creatura che capisca una lingua entro 18 m."},
+        {"level": 6,  "name": "Senso dell'Aldilà", "description": "I tuoi trucchetti che infliggono danni ottengono un tipo di danno aggiuntivo: psichico."},
+        {"level": 10, "name": "Portale della Mente", "description": "Puoi lanciare Telecinesi senza usare slot una volta per riposo lungo."},
+        {"level": 14, "name": "Creare uno Scudo di Vortice", "description": "Come reazione, quando subisci danni, puoi usare 4 punti di stregoneria per ridurre i danni subiti della metà."}
+      ]
+    }
+  ]
+}

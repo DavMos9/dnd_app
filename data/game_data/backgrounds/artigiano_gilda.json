@@ -1,0 +1,51 @@
+{
+  "name": "Artigiano di Gilda",
+  "description": "Sei membro di una gilda artigiana, provvisto delle risorse per creare oggetti finemente lavorati. La tua gilda ti ha supportato, ti ha insegnato il tuo mestiere e ha garantito un certo livello di benessere.",
+  "skill_proficiencies": ["Intuizione", "Persuasione"],
+  "tool_proficiencies": [{"type": "choice", "count": 1, "from": "strumenti_artigiani"}],
+  "languages": [{"type": "choice", "count": 1, "from": "any"}],
+  "equipment": [
+    {"name": "Strumenti dell'artigiano (a scelta)", "item_type": "item"},
+    {"name": "Lettera d'introduzione della tua gilda", "item_type": "item"},
+    {"name": "Abiti da viaggio", "item_type": "item"},
+    {"name": "Borsa con 15 MO", "item_type": "item"}
+  ],
+  "feature": {
+    "name": "Membro della Gilda",
+    "description": "Come membro di gilda, puoi richiedere alloggio e pasti gratuiti ai tuoi confratelli. La gilda potrebbe anche fornire assistenza legale, in certi limiti. Puoi anche aumentare la tua reputazione all'interno della gilda, salendo di rango."
+  },
+  "personality_traits": [
+    "Sono orgoglioso del mio lavoro.",
+    "Mi piace creare oggetti belli e utili.",
+    "Sono sempre pronto a dare una mano a chi ha bisogno di aiuto.",
+    "Mi preoccupo molto della qualità del mio lavoro.",
+    "Sono curioso di ogni mestiere e arte.",
+    "Sono abituato a lavorare in gruppo.",
+    "Sono paziente e meticoloso.",
+    "Valuto le persone in base a quello che riescono a fare con le mani."
+  ],
+  "ideals": [
+    {"name": "Comunità", "alignment": "Legale", "description": "Il singolo deve sacrificarsi per il bene della comunità."},
+    {"name": "Generosità", "alignment": "Buono", "description": "Il denaro e il talento devono essere condivisi con tutti."},
+    {"name": "Libertà", "alignment": "Caotico", "description": "Chiunque dovrebbe poter diventare qualcuno attraverso il lavoro duro."},
+    {"name": "Avidità", "alignment": "Malvagio", "description": "Sono in questo per i soldi, nient'altro."},
+    {"name": "Popolo", "alignment": "Neutrale", "description": "Mi preoccupo solo di quelli che amo."},
+    {"name": "Aspirazione", "alignment": "Qualsiasi", "description": "Voglio creare l'opera d'arte più grande mai concepita."}
+  ],
+  "bonds": [
+    "La gilda è la mia famiglia.",
+    "Voglio portare onore alla mia famiglia lavorando sodo.",
+    "Qualcuno che conosco ha bisogno del mio aiuto.",
+    "Devo onorare il debito che ho con il mio maestro artigiano.",
+    "Voglio creare un capolavoro che sia ricordato nei secoli.",
+    "Ho rubato qualcosa di prezioso e devo restituirlo."
+  ],
+  "flaws": [
+    "Sono convinto di essere il migliore nel mio mestiere.",
+    "Sono geloso del successo degli altri.",
+    "Mi ostino a fare le cose a modo mio.",
+    "Non riesco a smettere di criticare il lavoro altrui.",
+    "Non ammetto mai di sbagliarmi.",
+    "Antepongo sempre il lavoro alle relazioni personali."
+  ]
+}

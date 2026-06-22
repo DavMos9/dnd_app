@@ -1,0 +1,54 @@
+{
+  "name": "Intrattenitore",
+  "description": "Sei cresciuto davanti a un pubblico. Hai imparato a recitare, suonare, cantare o praticare acrobazie, e usi queste abilità per guadagnarti da vivere.",
+  "skill_proficiencies": ["Acrobazia", "Intrattenimento"],
+  "tool_proficiencies": [
+    {"type": "choice", "count": 1, "from": "strumenti_musicali"},
+    "Kit del travestimento"
+  ],
+  "languages": [],
+  "equipment": [
+    {"name": "Strumento musicale a scelta", "item_type": "item"},
+    {"name": "Favore di un ammiratore (ciuffo di capelli, lettera d'amore, ecc.)", "item_type": "item"},
+    {"name": "Costume", "item_type": "item"},
+    {"name": "Borsa con 15 MO", "item_type": "item"}
+  ],
+  "feature": {
+    "name": "Per Amore del Palcoscenico",
+    "description": "Puoi sempre trovare alloggio e pasti gratuiti in un luogo in cui esibisci la tua arte, di qualità sufficiente per il tuo stile di vita. Oltre a questo, la tua esibizione crea entusiasmo per te in quella comunità."
+  },
+  "personality_traits": [
+    "Amo stare al centro dell'attenzione.",
+    "Non posso fare a meno di intrattenermi con tutti quelli che incontro.",
+    "Mi sento perso se non c'è un pubblico.",
+    "Parlo sempre con un tono drammatico, anche per le cose banali.",
+    "Mi affido alla voce, al gesto e all'espressione per comunicare.",
+    "Sono appassionato di storie emozionanti.",
+    "Non riesco a smettere di migliorare le mie abilità.",
+    "Adoro le feste e le celebrazioni."
+  ],
+  "ideals": [
+    {"name": "Bellezza", "alignment": "Buono", "description": "Quando eseguo la mia arte, devo farlo con bellezza e grazia."},
+    {"name": "Tradizione", "alignment": "Legale", "description": "Le storie e le canzoni del passato devono essere preservate."},
+    {"name": "Creatività", "alignment": "Caotico", "description": "Il mondo deve cambiare e io voglio contribuire a quel cambiamento."},
+    {"name": "Avidità", "alignment": "Malvagio", "description": "Ho un talento speciale e voglio essere pagato bene per esso."},
+    {"name": "Popolo", "alignment": "Neutrale", "description": "Mi importa solo di quelli che mi ascoltano e mi amano."},
+    {"name": "Onestà", "alignment": "Qualsiasi", "description": "L'arte è la verità più pura."}
+  ],
+  "bonds": [
+    "Voglio diventare famoso.",
+    "Devo qualcosa a un impresario che mi ha scoperto.",
+    "Un rivale cerca di rubarmi la scena.",
+    "Voglio dedicare le mie esibizioni alla memoria di qualcuno che amavo.",
+    "Il pubblico è la mia famiglia.",
+    "Voglio creare l'opera d'arte più grande mai concepita."
+  ],
+  "flaws": [
+    "Non riesco a resistere ai complimenti.",
+    "Faccio tutto per stare al centro dell'attenzione.",
+    "Sono geloso del talento altrui.",
+    "Mento spesso per abbellire le mie storie.",
+    "Sono facilmente distratto da persone belle.",
+    "Non riesco a smettere di cercare riconoscimento e apprezzamento."
+  ]
+}
