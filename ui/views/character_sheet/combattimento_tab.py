@@ -47,6 +47,12 @@ class CombattimentoTab(ft.ListView):
         self.character = character
         self._page: ft.Page | None = None
         self._slots: list[SpellSlot] = character_repo.get_spell_slots(character.id)
+        # Auto-init slot PHB se il personaggio è un incantatore e non ha ancora slot configurati
+        if character.spellcasting_ability and all(s.total == 0 for s in self._slots):
+            character_repo.auto_init_spell_slots(
+                character.id, character.class_name or "", character.level
+            )
+            self._slots = character_repo.get_spell_slots(character.id)
         self._profs: list[CharacterProficiency] = character_repo.get_proficiencies(character.id)
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id)
         self._prepared: list[KnownSpell] = character_repo.get_prepared_spells(character.id)
@@ -1563,11 +1569,11 @@ class CombattimentoTab(ft.ListView):
         Ogni riga: badge livello + nome + fonte (sottoclasse se diversa).
         Click → dialog con descrizione completa.
         """
-        page = self._page
-
         def _open_feature_dialog(feat: dict, e=None):
-            if not page:
+            # Usa self._page direttamente: la closure viene invocata DOPO did_mount()
+            if not self._page:
                 return
+            page = self._page
             source_label = (
                 f"  ·  {feat['source']}"
                 if feat["source"].lower() != (self.character.class_name or "").lower()

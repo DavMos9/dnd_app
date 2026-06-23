@@ -280,7 +280,14 @@ class DnDApp:
                 return SheetView(char, profs)
             return self._placeholder_view("Personaggio non trovato", ft.Icons.ERROR_OUTLINE, "")
         elif key == "spells":
-            return self._placeholder_view("Incantesimi", ft.Icons.AUTO_AWESOME, "In sviluppo...")
+            from data.repositories import character_repo
+            from ui.views.spells_view import SpellsView
+            if not self.current_character_id:
+                return self._placeholder_view("Incantesimi", ft.Icons.AUTO_AWESOME, "")
+            char = character_repo.get_by_id(self.current_character_id)
+            if char:
+                return SpellsView(char)
+            return self._placeholder_view("Incantesimi", ft.Icons.AUTO_AWESOME, "")
         elif key == "diary":
             from data.repositories import character_repo
             from ui.views.diary_view import DiaryView

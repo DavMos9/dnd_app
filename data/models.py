@@ -72,8 +72,18 @@ class Character:
     # Override manuale del bonus competenza (0 = usa tabella PHB standard)
     proficiency_bonus_override: int = 0
 
+    # Override manuale del massimo incantesimi preparabili (0 = usa formula PHB)
+    max_prepared_spells_override: int = 0
+
     # Appunti di sessione (testo libero, per note al volo durante il gioco)
     session_notes: str = ""
+
+    # Scelte di classe/razza che influenzano feature successive
+    dragon_ancestry: str = ""       # Stregone Discendenza Draconiana: tipo drago (es. "Rosso")
+    fighting_style: str = ""        # Guerriero/Paladino/Ranger: stile di combattimento scelto
+    totem_animal: str = ""          # Barbaro Percorso del Totem: animale (Orso/Aquila/Lupo)
+    land_terrain: str = ""          # Druido Cerchio della Terra: terreno scelto
+    pact_boon: str = ""             # Warlock Dono del Patto: "Patto della Catena/Lama/Tomo"
 
     # Dettagli fisici
     age: str = ""

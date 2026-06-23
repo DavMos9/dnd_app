@@ -21,10 +21,11 @@ import logging
 from config.settings import *
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
-from ui.theme import section_header
+from ui.theme import section_header, muted_text
 from data.game_data.wizard_data import BACKGROUNDS
 from data.game_data.game_data_loader import GameDataLoader
 from core.level_manager import get_level_up_steps, estimate_hp_loss, StepType
+import re as _re
 
 _loader = GameDataLoader()
 
@@ -114,6 +115,8 @@ class ProfiloTab(ft.ListView):
             self._build_storia(c),
             section_header("Competenze"),
             self._build_competenze(c, prof_bonus, skill_map, save_map),
+            section_header("Talenti"),
+            self._build_talenti(c),
         ]
 
     def did_mount(self):
@@ -617,6 +620,141 @@ class ProfiloTab(ft.ListView):
         )
 
     # ------------------------------------------------------------------
+    # Talenti scelti
+    # ------------------------------------------------------------------
+
+    def _build_talenti(self, c: Character) -> ft.Container:
+        """Mostra talenti (feat) e invocazioni occulte (Warlock) acquisiti."""
+        all_profs = character_repo.get_proficiencies(c.id)
+        feats = [p for p in all_profs if p.proficiency_type == "feat"]
+        invocations = [p for p in all_profs if p.proficiency_type == "invocation"]
+
+        rows: list[ft.Control] = []
+
+        # --- Talenti ---
+        if feats:
+            for prof in feats:
+                feat_data = _loader.get_feat(prof.name)
+                desc   = feat_data.get("description", "") if feat_data else ""
+                prereq = feat_data.get("prerequisite", "") if feat_data else ""
+                rows.append(ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Icon(ft.Icons.STAR, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Text(prof.name, size=13, weight=ft.FontWeight.BOLD,
+                                    color=COLOR_TEXT_TITLE),
+                        ], spacing=6),
+                        ft.Text(f"Prerequisito: {prereq}", size=11, color=COLOR_TEXT_MUTED,
+                                visible=bool(prereq)),
+                        ft.Text(desc, size=12, color=COLOR_TEXT_PRIMARY, visible=bool(desc)),
+                    ], spacing=4),
+                    bgcolor=COLOR_BG_CARD,
+                    border=ft.Border.all(1, COLOR_BORDER),
+                    border_radius=6,
+                    padding=ft.Padding.all(10),
+                ))
+        else:
+            rows.append(ft.Text(
+                "Nessun talento acquisito. Scegli 'Talento' al prossimo ASI.",
+                size=12, color=COLOR_TEXT_MUTED, italic=True,
+            ))
+
+        # --- Metamagia (solo se Stregone) ---
+        if (c.class_name or "").lower() == "stregone":
+            metamagic = [p for p in all_profs if p.proficiency_type == "metamagic"]
+            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Text(
+                "Metamagia", size=13, weight=ft.FontWeight.BOLD, color="#7b1fa2",
+            ))
+            if metamagic:
+                for mm in metamagic:
+                    rows.append(ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.BOLT, size=14, color="#7b1fa2"),
+                            ft.Text(mm.name, size=12, color=COLOR_TEXT_PRIMARY),
+                        ], spacing=6),
+                        bgcolor=COLOR_BG_CARD,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                        border_radius=6,
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                    ))
+            else:
+                rows.append(ft.Text(
+                    "Nessuna metamagia — disponibile dal Lv.2.",
+                    size=12, color=COLOR_TEXT_MUTED, italic=True,
+                ))
+
+        # --- Invocazioni Occulte + Patto (solo se Warlock) ---
+        if (c.class_name or "").lower() == "warlock":
+            # Patto
+            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Text(
+                "Dono del Patto", size=13, weight=ft.FontWeight.BOLD,
+                color=COLOR_ACCENT_CRIMSON,
+            ))
+            if c.pact_boon:
+                rows.append(ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.BOOK, size=14, color=COLOR_ACCENT_CRIMSON),
+                        ft.Text(c.pact_boon, size=12, color=COLOR_TEXT_PRIMARY),
+                    ], spacing=6),
+                    bgcolor=COLOR_BG_CARD,
+                    border=ft.Border.all(1, COLOR_BORDER),
+                    border_radius=6,
+                    padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                ))
+            else:
+                rows.append(ft.Text(
+                    "Nessun patto ancora — sceglierai al Lv.3.",
+                    size=12, color=COLOR_TEXT_MUTED, italic=True,
+                ))
+
+        # --- Invocazioni Occulte (solo se Warlock) ---
+        if (c.class_name or "").lower() == "warlock":
+            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Text(
+                "Invocazioni Occulte",
+                size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON,
+            ))
+            if invocations:
+                for inv in invocations:
+                    inv_data = next(
+                        (i for i in _loader.get_invocations()
+                         if i.get("name") == inv.name), None
+                    )
+                    desc = inv_data.get("description", "") if inv_data else ""
+                    prereq_lv = inv_data.get("prerequisite_level", 0) if inv_data else 0
+                    rows.append(ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14,
+                                        color=COLOR_ACCENT_CRIMSON),
+                                ft.Text(inv.name, size=13, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_TEXT_TITLE),
+                                ft.Text(f"  Lv.{prereq_lv}+", size=11,
+                                        color=COLOR_TEXT_MUTED,
+                                        visible=bool(prereq_lv)),
+                            ], spacing=4),
+                            ft.Text(desc, size=12, color=COLOR_TEXT_PRIMARY,
+                                    visible=bool(desc)),
+                        ], spacing=4),
+                        bgcolor=COLOR_BG_CARD,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                        border_radius=6,
+                        padding=ft.Padding.all(10),
+                    ))
+            else:
+                rows.append(ft.Text(
+                    "Nessuna invocazione ancora — verranno mostrate dal Lv.2.",
+                    size=12, color=COLOR_TEXT_MUTED, italic=True,
+                ))
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=8),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+        )
+
+    # ------------------------------------------------------------------
     # XP
     # ------------------------------------------------------------------
 
@@ -688,21 +826,41 @@ class ProfiloTab(ft.ListView):
             ft.DropdownOption(key=k, text=f"{n} (attuale: {getattr(c, k + '_score')})")
             for k, n in zip(ABILITY_KEYS, ABILITY_SCORES)
         ]
+        feat_names = _loader.get_feat_names()
+        feat_options = [ft.DropdownOption(key=f, text=f) for f in feat_names]
+
         asi_type = ft.RadioGroup(
             content=ft.Column([
                 ft.Radio(value="two_one", label="+2 a una caratteristica"),
                 ft.Radio(value="one_one", label="+1 a due caratteristiche diverse"),
+                ft.Radio(value="feat",    label="Talento"),
             ], spacing=4),
             value="two_one",
         )
         stat_dd1 = ft.Dropdown(label="Caratteristica", options=stat_options, width=280)
         stat_dd2 = ft.Dropdown(label="Seconda caratteristica (+1)", options=stat_options,
                                width=280, visible=False)
+        feat_dd  = ft.Dropdown(
+            label="Scegli talento",
+            options=feat_options if feat_options else [ft.DropdownOption(key="__none__", text="— nessun talento disponibile —")],
+            width=280,
+            visible=False,
+            bgcolor=COLOR_BG_CARD,
+            color=COLOR_TEXT_PRIMARY,
+            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_BLUE,
+        )
 
         def on_asi_type_change(ev):
-            stat_dd2.visible = ev.control.value == "one_one"
+            val = ev.control.value
+            stat_dd1.visible = val in ("two_one", "one_one")
+            stat_dd2.visible = val == "one_one"
+            feat_dd.visible  = val == "feat"
             try:
+                stat_dd1.update()
                 stat_dd2.update()
+                feat_dd.update()
             except RuntimeError:
                 pass
 
@@ -716,6 +874,25 @@ class ProfiloTab(ft.ListView):
                     size=12, color=COLOR_TEXT_SECONDARY),
             ft.Divider(color=COLOR_BORDER),
         ]
+
+        # Abilità/strumenti su cui il personaggio è già competente (candidati Perizia)
+        _all_profs = character_repo.get_proficiencies(c.id)
+        _expertise_candidates = [
+            p.name for p in _all_profs
+            if p.proficiency_type in ("skill", "tool") and not p.is_expert
+        ]
+
+        # Lista di riferimenti ai Checkbox di Perizia per raccogliere le scelte
+        expertise_cb_groups: list[list[ft.Checkbox]] = []
+
+        # Invocazioni: (count_to_add, list[Checkbox])
+        invocation_cb_groups: list[tuple[int, list[ft.Checkbox]]] = []
+
+        # Metamagia: (count, list[Checkbox])
+        metamagic_cb_groups: list[tuple[int, list[ft.Checkbox]]] = []
+
+        # Patto del Warlock
+        pact_rg_ref: list[ft.RadioGroup] = []
 
         has_asi = False
         subclass_dd_ref: list[ft.Dropdown] = []  # [0] = dropdown sottoclasse, se presente
@@ -791,12 +968,234 @@ class ProfiloTab(ft.ListView):
                     ft.Divider(color=COLOR_BORDER),
                     ft.Text(f"Miglioramento Caratteristiche — Lv.{new_level}",
                             size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE),
-                    ft.Text("Scegli come distribuire i 2 punti.",
+                    ft.Text("Scegli come distribuire i 2 punti, oppure prendi un Talento.",
                             size=12, color=COLOR_TEXT_SECONDARY),
                     asi_type,
                     stat_dd1,
                     stat_dd2,
+                    feat_dd,
                 ]
+
+            elif step.step_type == StepType.PACT_CHOICE:
+                if not c.pact_boon:
+                    pact_rg = ft.RadioGroup(
+                        content=ft.Column([
+                            ft.Radio(value=b, label=b)
+                            for b in PACT_BOONS
+                        ], spacing=4),
+                        value=PACT_BOONS[0],
+                    )
+                    pact_rg_ref.append(pact_rg)
+                    dlg_rows += [
+                        ft.Divider(color=COLOR_BORDER),
+                        ft.Row([
+                            ft.Icon(ft.Icons.BOOK, size=14, color=COLOR_ACCENT_CRIMSON),
+                            ft.Text("Dono del Patto — scegli il tuo patto",
+                                    size=13, weight=ft.FontWeight.BOLD,
+                                    color=COLOR_ACCENT_CRIMSON),
+                        ], spacing=6),
+                        muted_text("Determina il tipo di patto con il tuo Patrono.", size=11),
+                        pact_rg,
+                    ]
+                else:
+                    dlg_rows.append(ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.BOOK, size=14, color=COLOR_ACCENT_CRIMSON),
+                            ft.Text(f"Dono del Patto: {c.pact_boon} (già scelto)",
+                                    size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                        ], spacing=6),
+                        bgcolor=COLOR_BG_SECONDARY, padding=8, border_radius=4,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                    ))
+
+            elif step.step_type == StepType.METAMAGIC:
+                count = step.data.get("count", 2)
+                known_mm = {
+                    p.name for p in _all_profs
+                    if p.proficiency_type == "metamagic"
+                }
+                available_mm = [o for o in METAMAGIC_OPTIONS if o not in known_mm]
+                to_add_mm = min(count, len(available_mm))
+
+                if available_mm:
+                    mm_cbs: list[ft.Checkbox] = []
+                    metamagic_cb_groups.append((to_add_mm, mm_cbs))
+
+                    def _make_mm_cb(name: str, cbs_ref: list, limit: int) -> ft.Checkbox:
+                        def on_toggle(ev):
+                            if len([cb for cb in cbs_ref if cb.value]) > limit:
+                                ev.control.value = False
+                                try: ev.control.update()
+                                except RuntimeError: pass
+                        cb = ft.Checkbox(
+                            label=name, value=False,
+                            active_color="#7b1fa2",
+                            on_change=on_toggle,
+                        )
+                        cbs_ref.append(cb)
+                        return cb
+
+                    mm_cb_widgets = [
+                        _make_mm_cb(name, mm_cbs, to_add_mm)
+                        for name in available_mm
+                    ]
+                    dlg_rows += [
+                        ft.Divider(color=COLOR_BORDER),
+                        ft.Row([
+                            ft.Icon(ft.Icons.BOLT, size=14, color="#7b1fa2"),
+                            ft.Text(f"Metamagia — scegli {to_add_mm} opzion{'e' if to_add_mm == 1 else 'i'}",
+                                    size=13, weight=ft.FontWeight.BOLD, color="#7b1fa2"),
+                        ], spacing=6),
+                        muted_text(
+                            f"Già note: {', '.join(known_mm) or 'nessuna'}." if known_mm
+                            else "Prima scelta di Metamagia.", size=11),
+                        ft.Column(mm_cb_widgets, spacing=2),
+                    ]
+                else:
+                    dlg_rows.append(ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.BOLT, size=14, color="#7b1fa2"),
+                            ft.Text(f"{step.label} — tutte le opzioni già note",
+                                    size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                        ], spacing=6),
+                        bgcolor=COLOR_BG_SECONDARY, padding=8, border_radius=4,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                    ))
+
+            elif step.step_type == StepType.INVOCATION:
+                total_inv = step.data.get("total", 0)
+                # Conta invocazioni già note
+                known_inv = {
+                    p.name for p in _all_profs
+                    if p.proficiency_type == "invocation"
+                }
+                to_add = max(0, total_inv - len(known_inv))
+                # Invocazioni disponibili filtrate per livello
+                available_inv = [
+                    n for n in _loader.get_invocation_names(new_level)
+                    if n not in known_inv
+                ]
+
+                if to_add > 0:
+                    inv_cbs: list[ft.Checkbox] = []
+                    invocation_cb_groups.append((to_add, inv_cbs))
+
+                    def _make_inv_cb(name: str, cbs_ref: list, limit: int) -> ft.Checkbox:
+                        def on_toggle(ev):
+                            selected = [cb for cb in cbs_ref if cb.value]
+                            if len(selected) > limit:
+                                ev.control.value = False
+                                try: ev.control.update()
+                                except RuntimeError: pass
+                        cb = ft.Checkbox(
+                            label=name, value=False,
+                            active_color=COLOR_ACCENT_CRIMSON,
+                            on_change=on_toggle,
+                        )
+                        cbs_ref.append(cb)
+                        return cb
+
+                    if available_inv:
+                        inv_cb_widgets = [
+                            _make_inv_cb(name, inv_cbs, to_add)
+                            for name in available_inv
+                        ]
+                        dlg_rows += [
+                            ft.Divider(color=COLOR_BORDER),
+                            ft.Row([
+                                ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14,
+                                        color=COLOR_ACCENT_CRIMSON),
+                                ft.Text(
+                                    f"Invocazioni Occulte — scegli {to_add} nuov{'a' if to_add == 1 else 'e'}",
+                                    size=13, weight=ft.FontWeight.BOLD,
+                                    color=COLOR_ACCENT_CRIMSON),
+                            ], spacing=6),
+                            muted_text(
+                                f"Totale invocazioni a Lv.{new_level}: {total_inv} "
+                                f"(già note: {len(known_inv)}).",
+                                size=11),
+                            ft.Column(inv_cb_widgets, spacing=2),
+                        ]
+                    else:
+                        # JSON ancora vuoto — info generica
+                        dlg_rows += [
+                            ft.Divider(color=COLOR_BORDER),
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14,
+                                            color=COLOR_ACCENT_CRIMSON),
+                                    ft.Text(
+                                        f"{step.label} (+{to_add} — scegli manualmente per ora)",
+                                        size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                                ], spacing=6),
+                                bgcolor=COLOR_BG_SECONDARY,
+                                padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                                border_radius=4,
+                                border=ft.Border.all(1, COLOR_BORDER),
+                            ),
+                        ]
+                else:
+                    # Nessuna nuova da scegliere (caso edge: downgrade/undo)
+                    dlg_rows.append(ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14, color=COLOR_ACCENT_CRIMSON),
+                            ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                        ], spacing=6),
+                        bgcolor=COLOR_BG_SECONDARY,
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                        border_radius=4,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                    ))
+
+            elif step.step_type == StepType.EXPERTISE:
+                count = step.data.get("count", 2)
+                if _expertise_candidates:
+                    cbs: list[ft.Checkbox] = []
+                    expertise_cb_groups.append(cbs)
+
+                    def _make_expertise_cb(name: str, cbs_ref: list) -> ft.Checkbox:
+                        def on_toggle(ev):
+                            # Limita la selezione a `count`
+                            selected = [cb for cb in cbs_ref if cb.value]
+                            if len(selected) > count:
+                                ev.control.value = False
+                                try: ev.control.update()
+                                except RuntimeError: pass
+                        cb = ft.Checkbox(
+                            label=name, value=False,
+                            active_color=COLOR_ACCENT_BLUE,
+                            on_change=on_toggle,
+                        )
+                        cbs_ref.append(cb)
+                        return cb
+
+                    cb_widgets = [
+                        _make_expertise_cb(name, cbs)
+                        for name in _expertise_candidates
+                    ]
+                    dlg_rows += [
+                        ft.Divider(color=COLOR_BORDER),
+                        ft.Row([
+                            ft.Icon(ft.Icons.STAR_HALF, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Text(f"Perizia — scegli {count} abilità da portare a Maestria",
+                                    size=13, weight=ft.FontWeight.BOLD,
+                                    color=COLOR_ACCENT_AMBER),
+                        ], spacing=6),
+                        muted_text("Raddoppia il bonus competenza su queste abilità.", size=11),
+                        ft.Column(cb_widgets, spacing=2),
+                    ]
+                else:
+                    # Nessuna competenza senza maestria — mostro solo info
+                    dlg_rows.append(ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.STAR_HALF, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                        ], spacing=6),
+                        bgcolor=COLOR_BG_SECONDARY,
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                        border_radius=4,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                    ))
 
             elif step.step_type == StepType.PROFICIENCY_BONUS_UP:
                 dlg_rows.append(ft.Container(
@@ -805,6 +1204,77 @@ class ProfiloTab(ft.ListView):
                     bgcolor="#e8eef8", padding=8, border_radius=4,
                     border=ft.Border.all(1, COLOR_ACCENT_BLUE),
                 ))
+
+        # ------------------------------------------------------------------
+        # Scelte extra specifiche per classe/sottoclasse
+        # ------------------------------------------------------------------
+        cls_lower = (c.class_name or "").strip().lower()
+        sc_lower  = (c.subclass   or "").strip().lower()
+
+        fighting_style_dd_ref: list[ft.Dropdown] = []
+        totem_animal_dd_ref:   list[ft.Dropdown] = []
+        land_terrain_dd_ref:   list[ft.Dropdown] = []
+
+        def _make_choice_dd(label: str, opts: list[str], current: str) -> ft.Dropdown:
+            return ft.Dropdown(
+                label=label,
+                value=current if current in opts else opts[0],
+                options=[ft.DropdownOption(key=o, text=o) for o in opts],
+                bgcolor=COLOR_BG_CARD,
+                color=COLOR_TEXT_PRIMARY,
+                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                border_color=COLOR_BORDER,
+                focused_border_color=COLOR_ACCENT_BLUE,
+                expand=True,
+            )
+
+        # Stile di Combattimento — Paladino Lv2 / Ranger Lv2
+        if not c.fighting_style:
+            styles = FIGHTING_STYLES.get(cls_lower, [])
+            if styles and new_level == 2 and cls_lower in ("paladino", "ranger"):
+                fs_dd = _make_choice_dd("Stile di Combattimento", styles, "")
+                fighting_style_dd_ref.append(fs_dd)
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.SHIELD, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text("Scegli il tuo Stile di Combattimento",
+                                size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE),
+                    ], spacing=6),
+                    fs_dd,
+                ]
+
+        # Animale Totem — Barbaro Percorso del Totem Guerriero, Lv3
+        if (not c.totem_animal and cls_lower == "barbaro"
+                and "totem" in sc_lower and new_level == 3):
+            ta_dd = _make_choice_dd("Spirito del Totem", TOTEM_ANIMALS, "")
+            totem_animal_dd_ref.append(ta_dd)
+            dlg_rows += [
+                ft.Divider(color=COLOR_BORDER),
+                ft.Row([
+                    ft.Icon(ft.Icons.PETS, size=14, color=COLOR_ACCENT_AMBER),
+                    ft.Text("Scegli il tuo Spirito Totem",
+                            size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_AMBER),
+                ], spacing=6),
+                muted_text("L'animale scelto a Lv.3 determina tutte le feature future del Percorso.", size=11),
+                ta_dd,
+            ]
+
+        # Terreno — Druido Cerchio della Terra, Lv2
+        if (not c.land_terrain and cls_lower == "druido"
+                and "terra" in sc_lower and new_level == 2):
+            lt_dd = _make_choice_dd("Terreno del Cerchio", LAND_TERRAINS, "")
+            land_terrain_dd_ref.append(lt_dd)
+            dlg_rows += [
+                ft.Divider(color=COLOR_BORDER),
+                ft.Row([
+                    ft.Icon(ft.Icons.LANDSCAPE, size=14, color="#4caf50"),
+                    ft.Text("Scegli il Terreno del Cerchio della Terra",
+                            size=13, weight=ft.FontWeight.BOLD, color="#4caf50"),
+                ], spacing=6),
+                muted_text("Il terreno determina gli Incantesimi del Cerchio per ogni livello.", size=11),
+                lt_dd,
+            ]
 
         def do_level_up(ev):
             if page is None:
@@ -839,10 +1309,49 @@ class ProfiloTab(ft.ListView):
                     if stat_dd2.value and stat_dd2.value != stat_dd1.value:
                         setattr(c, f"{stat_dd2.value}_score",
                                 min(20, getattr(c, f"{stat_dd2.value}_score") + 1))
+                elif asi_type.value == "feat" and feat_dd.value and feat_dd.value != "__none__":
+                    # Salva il talento come competenza di tipo "feat"
+                    character_repo._save_single_proficiency(c.id, "feat", feat_dd.value)
 
             # Sottoclasse scelta al level-up
             if subclass_dd_ref and subclass_dd_ref[0].value:
                 c.subclass = subclass_dd_ref[0].value
+
+            # Patto del Warlock
+            if pact_rg_ref and pact_rg_ref[0].value:
+                c.pact_boon = pact_rg_ref[0].value
+
+            # Metamagia
+            for _mm_count, mm_cbs in metamagic_cb_groups:
+                for cb in mm_cbs:
+                    if cb.value and cb.label:
+                        character_repo._save_single_proficiency(
+                            c.id, "metamagic", str(cb.label)
+                        )
+
+            # Invocazioni Occulte
+            for _to_add, inv_cbs in invocation_cb_groups:
+                for cb in inv_cbs:
+                    if cb.value and cb.label:
+                        character_repo._save_single_proficiency(
+                            c.id, "invocation", str(cb.label)
+                        )
+
+            # Expertise (Perizia)
+            for cb_group in expertise_cb_groups:
+                chosen = [
+                    str(cb.label) for cb in cb_group if cb.value and cb.label
+                ]
+                if chosen:
+                    character_repo.set_expertise(c.id, chosen)
+
+            # Scelte extra: stile di combattimento, animale totem, terreno
+            if fighting_style_dd_ref and fighting_style_dd_ref[0].value:
+                c.fighting_style = fighting_style_dd_ref[0].value
+            if totem_animal_dd_ref and totem_animal_dd_ref[0].value:
+                c.totem_animal = totem_animal_dd_ref[0].value
+            if land_terrain_dd_ref and land_terrain_dd_ref[0].value:
+                c.land_terrain = land_terrain_dd_ref[0].value
 
             character_repo.update(c)
             page.pop_dialog()

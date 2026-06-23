@@ -58,11 +58,17 @@ class GameDataLoader:
         self._spells: dict[str, list[dict[str, Any]]] = {}
         # tag: "#tag" → list[str]
         self._tags: dict[str, list[str]] = {}
+        # talenti PHB
+        self._feats: list[dict[str, Any]] = []
+        # invocazioni occulte Warlock
+        self._invocations: list[dict[str, Any]] = []
 
         self._classes_loaded     = False
         self._races_loaded       = False
         self._backgrounds_loaded = False
         self._tags_loaded        = False
+        self._feats_loaded       = False
+        self._invocations_loaded = False
 
     # ------------------------------------------------------------------
     # Classi
@@ -243,6 +249,72 @@ class GameDataLoader:
         Utile per visualizzare slot per livello nella sezione Incantesimi.
         """
         return [s for s in self.get_spells(class_name) if s.get("level") == level]
+
+    # ------------------------------------------------------------------
+    # Talenti (Feats)
+    # ------------------------------------------------------------------
+
+    def get_feats(self) -> list[dict[str, Any]]:
+        """
+        Lista completa dei talenti PHB.
+        Restituisce lista vuota finché feats.json non viene compilato.
+        """
+        self._ensure_feats()
+        return self._feats
+
+    def get_feat_names(self) -> list[str]:
+        """Nomi di tutti i talenti disponibili, ordinati alfabeticamente."""
+        return sorted(f["name"] for f in self.get_feats() if f.get("name"))
+
+    def get_feat(self, name: str) -> dict[str, Any] | None:
+        """Restituisce i dati di un talento per nome esatto, o None se non trovato."""
+        self._ensure_feats()
+        return next((f for f in self._feats if f.get("name") == name), None)
+
+    # ------------------------------------------------------------------
+    # Invocazioni Occulte (Warlock)
+    # ------------------------------------------------------------------
+
+    def get_invocations(self, warlock_level: int = 20) -> list[dict[str, Any]]:
+        """
+        Lista invocazioni disponibili filtrate per livello Warlock.
+        Restituisce lista vuota finché invocations.json non è compilato.
+        """
+        self._ensure_invocations()
+        return [
+            inv for inv in self._invocations
+            if inv.get("prerequisite_level", 0) <= warlock_level
+        ]
+
+    def get_invocation_names(self, warlock_level: int = 20) -> list[str]:
+        """Nomi delle invocazioni disponibili a quel livello, ordinati."""
+        return sorted(i["name"] for i in self.get_invocations(warlock_level) if i.get("name"))
+
+    def _ensure_invocations(self) -> None:
+        if self._invocations_loaded:
+            return
+        self._invocations_loaded = True
+        path = _DATA_DIR / "invocations.json"
+        try:
+            data = _load_json(path)
+            self._invocations = data.get("invocations", [])
+            logger.debug("Invocazioni caricate: %d", len(self._invocations))
+        except Exception as exc:
+            logger.error("Errore caricamento invocations.json: %s", exc)
+            self._invocations = []
+
+    def _ensure_feats(self) -> None:
+        if self._feats_loaded:
+            return
+        self._feats_loaded = True
+        path = _DATA_DIR / "feats.json"
+        try:
+            data = _load_json(path)
+            self._feats = data.get("feats", [])
+            logger.debug("Talenti caricati: %d", len(self._feats))
+        except Exception as exc:
+            logger.error("Errore caricamento feats.json: %s", exc)
+            self._feats = []
 
     # ------------------------------------------------------------------
     # Tag

@@ -23,6 +23,7 @@ from config.settings import (
     CLASSES, RACES_BASE, DRACONIDE_ANCESTRIES, ALIGNMENTS,
     ABILITY_SCORES, ABILITY_KEYS, STANDARD_ARRAY, SKILLS,
     CLASS_SAVING_THROWS, LANGUAGES, TOOL_CATEGORIES, TOOL_CATEGORY_LABEL,
+    FIGHTING_STYLES, MAGO_CANTRIPS,
     get_modifier, get_modifier_str,
 )
 from ui.theme import (
@@ -118,6 +119,13 @@ class WizardView(ft.Column):
         self._review_skills:    list[str]  = []   # abilità scelte dalla lista di classe
         self._review_languages: list[str]  = []   # lingue scelte dal background
         self._review_tools:     list[str]  = []   # strumenti scelti dal background
+        # Scelte extra per razza/classe
+        self._review_dragon_ancestry: str       = ""   # Stregone Discendenza Draconiana
+        self._review_fighting_style:  str       = ""   # Guerriero/Paladino/Ranger
+        self._review_mezzelf_flex:    list[str] = []   # 2 stat key per +1 Mezzelf
+        self._review_mezzelf_skills:  list[str] = []   # 2 abilità Mezzelf (Versatilità)
+        self._review_elf_cantrip:     str       = ""   # trucchetto Alto Elfo
+        self._review_umano_language:  str       = ""   # lingua aggiuntiva Umano
 
         # Stato equipment (popolato in _render_equipment)
         # lista di dict: {name, item_type, quantity, selected}
@@ -615,6 +623,12 @@ class WizardView(ft.Column):
         self._review_skills   = []
         self._review_languages = []
         self._review_tools    = []
+        self._review_dragon_ancestry = ""
+        self._review_fighting_style  = ""
+        self._review_mezzelf_flex    = []
+        self._review_mezzelf_skills  = []
+        self._review_elf_cantrip     = ""
+        self._review_umano_language  = ""
         self._phase = "review"
         self._render_review()
 
@@ -821,7 +835,10 @@ class WizardView(ft.Column):
                     label="Sottorazza",
                     value=val,
                     options=[ft.DropdownOption(key=s, text=s) for s in subraces],
-                    on_select=lambda e: setattr(self, "_review_subrace", e.control.value),
+                    on_select=lambda e: [
+                        setattr(self, "_review_subrace", e.control.value or ""),
+                        _rebuild_race_extras_col(),
+                    ],
                     bgcolor=COLOR_BG_CARD,
                     color=COLOR_TEXT_PRIMARY,
                     label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -863,7 +880,10 @@ class WizardView(ft.Column):
                 label=label_name,
                 value=val,
                 options=[ft.DropdownOption(key=s, text=s) for s in subclasses],
-                on_select=lambda e: setattr(self, "_review_subclass", e.control.value),
+                on_select=lambda e: [
+                    setattr(self, "_review_subclass", e.control.value or ""),
+                    _rebuild_dragon_col(),
+                ],
                 bgcolor=COLOR_BG_CARD,
                 color=COLOR_TEXT_PRIMARY,
                 label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -879,6 +899,227 @@ class WizardView(ft.Column):
                 pass
 
         _rebuild_subclass_col()
+
+        # ------ Tipo drago antenato (Stregone + Discendenza Draconiana) ------
+        dragon_col = ft.Column([], spacing=8, visible=False)
+
+        def _rebuild_dragon_col():
+            dragon_col.controls.clear()
+            if self._review_subclass == "Discendenza Draconiana":
+                if not self._review_dragon_ancestry:
+                    self._review_dragon_ancestry = DRACONIDE_ANCESTRIES[0]
+                curr = self._review_dragon_ancestry if self._review_dragon_ancestry in DRACONIDE_ANCESTRIES else DRACONIDE_ANCESTRIES[0]
+                self._review_dragon_ancestry = curr
+                dragon_col.controls.append(ft.Dropdown(
+                    label="Tipo di Drago Antenato",
+                    hint_text="Determina resistenza e tipo di danno magico",
+                    value=curr,
+                    options=[ft.DropdownOption(key=a, text=a) for a in DRACONIDE_ANCESTRIES],
+                    on_select=lambda e: setattr(self, "_review_dragon_ancestry", e.control.value or ""),
+                    bgcolor=COLOR_BG_CARD,
+                    color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_GOLD,
+                    expand=True,
+                ))
+                dragon_col.visible = True
+            else:
+                self._review_dragon_ancestry = ""
+                dragon_col.visible = False
+            try:
+                dragon_col.update()
+            except RuntimeError:
+                pass
+
+        _rebuild_dragon_col()
+
+        # ------ Stile di combattimento (Guerriero Lv1) ------
+        fighting_style_col = ft.Column([], spacing=8, visible=False)
+
+        def _rebuild_fighting_style_col():
+            fighting_style_col.controls.clear()
+            styles = FIGHTING_STYLES.get((self._review_class or "").strip().lower(), [])
+            if styles:
+                if not self._review_fighting_style or self._review_fighting_style not in styles:
+                    self._review_fighting_style = styles[0]
+                fighting_style_col.controls.append(ft.Dropdown(
+                    label="Stile di Combattimento",
+                    value=self._review_fighting_style,
+                    options=[ft.DropdownOption(key=s, text=s) for s in styles],
+                    on_select=lambda e: setattr(self, "_review_fighting_style", e.control.value or ""),
+                    bgcolor=COLOR_BG_CARD,
+                    color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_GOLD,
+                    expand=True,
+                ))
+                fighting_style_col.visible = True
+            else:
+                self._review_fighting_style = ""
+                fighting_style_col.visible = False
+            try:
+                fighting_style_col.update()
+            except RuntimeError:
+                pass
+
+        _rebuild_fighting_style_col()
+
+        # ------ Extra razziali: Mezzelf flex / Alto Elfo trucchetto / Umano lingua ------
+        race_extras_col = ft.Column([], spacing=10, visible=False)
+
+        def _rebuild_race_extras_col():
+            race_extras_col.controls.clear()
+            has_content = False
+            race   = (self._review_race or "").strip()
+            subrace = (self._review_subrace or "").strip()
+
+            # --- Mezzelf: +1 a 2 caratteristiche (escluso CHA già +2) ---
+            if race == "Mezzelf":
+                has_content = True
+                all_stat_keys = [k for k in ABILITY_KEYS if k != "cha"]
+                all_stat_labels = {k: ABILITY_SCORES[i] for i, k in enumerate(ABILITY_KEYS)}
+                # Mantieni selezioni valide
+                self._review_mezzelf_flex = [k for k in self._review_mezzelf_flex if k in all_stat_keys]
+                while len(self._review_mezzelf_flex) < 2:
+                    for k in all_stat_keys:
+                        if k not in self._review_mezzelf_flex:
+                            self._review_mezzelf_flex.append(k)
+                            break
+
+                race_extras_col.controls.append(
+                    ft.Text("Versatilità Mezzelf — assegna +1 a due caratteristiche (escluso Carisma)",
+                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                )
+                flex_dds: list[ft.Control] = []
+                for slot in range(2):
+                    curr_key = self._review_mezzelf_flex[slot] if slot < len(self._review_mezzelf_flex) else all_stat_keys[slot]
+
+                    def _make_flex_handler(slot_idx: int):
+                        def _handler(e: Any):
+                            while len(self._review_mezzelf_flex) <= slot_idx:
+                                self._review_mezzelf_flex.append("")
+                            self._review_mezzelf_flex[slot_idx] = e.control.value or ""
+                        return _handler
+
+                    flex_dds.append(ft.Dropdown(
+                        label=f"+1 a (scelta {slot + 1})",
+                        value=curr_key,
+                        options=[ft.DropdownOption(key=k, text=all_stat_labels.get(k, k)) for k in all_stat_keys],
+                        on_select=_make_flex_handler(slot),
+                        bgcolor=COLOR_BG_CARD,
+                        color=COLOR_TEXT_PRIMARY,
+                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                        border_color=COLOR_BORDER,
+                        focused_border_color=COLOR_ACCENT_GOLD,
+                        expand=True,
+                    ))
+                race_extras_col.controls.append(ft.Row(flex_dds, spacing=12))
+
+                # Mezzelf: 2 abilità a scelta (Versatilità nelle Abilità)
+                all_skills = list(SKILLS.keys())
+                self._review_mezzelf_skills = [s for s in self._review_mezzelf_skills if s in all_skills]
+                mez_skill_count = 2
+                mez_label_row = ft.Row([
+                    ft.Text(f"Scegli {mez_skill_count} abilità (tratto razziale)",
+                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                    ft.Container(expand=True),
+                    ft.Text(f"({len(self._review_mezzelf_skills)}/{mez_skill_count})",
+                            size=11, color=COLOR_TEXT_MUTED),
+                ])
+                race_extras_col.controls.append(mez_label_row)
+                mez_counter = cast(ft.Text, mez_label_row.controls[2])
+                mez_checks: dict[str, ft.Checkbox] = {}
+
+                def _on_mez_skill(skill: str, val: bool):
+                    if val:
+                        if len(self._review_mezzelf_skills) < mez_skill_count:
+                            if skill not in self._review_mezzelf_skills:
+                                self._review_mezzelf_skills.append(skill)
+                        else:
+                            cb = mez_checks.get(skill)
+                            if cb:
+                                cb.value = False
+                                try: cb.update()
+                                except RuntimeError: pass
+                            return
+                    else:
+                        if skill in self._review_mezzelf_skills:
+                            self._review_mezzelf_skills.remove(skill)
+                    mez_counter.value = f"({len(self._review_mezzelf_skills)}/{mez_skill_count})"
+                    try: mez_counter.update()
+                    except RuntimeError: pass
+
+                left_m: list[ft.Control] = []
+                right_m: list[ft.Control] = []
+                for i, sk in enumerate(all_skills):
+                    cb = ft.Checkbox(
+                        label=sk,
+                        value=sk in self._review_mezzelf_skills,
+                        fill_color=COLOR_ACCENT_GOLD,
+                        check_color="#ffffff",
+                        label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                        on_change=lambda e, s=sk: _on_mez_skill(s, bool(e.control.value)),
+                    )
+                    mez_checks[sk] = cb
+                    if i % 2 == 0: left_m.append(cb)
+                    else: right_m.append(cb)
+                race_extras_col.controls.append(ft.Row(
+                    [ft.Column(left_m, spacing=4, expand=True),
+                     ft.Column(right_m, spacing=4, expand=True)],
+                    spacing=8,
+                ))
+
+            # --- Alto Elfo: trucchetto del Mago ---
+            if race == "Elfo" and subrace == "Alto Elfo":
+                has_content = True
+                if not self._review_elf_cantrip or self._review_elf_cantrip not in MAGO_CANTRIPS:
+                    self._review_elf_cantrip = MAGO_CANTRIPS[0]
+                race_extras_col.controls.append(ft.Dropdown(
+                    label="Trucchetto del Mago (tratto Alto Elfo)",
+                    value=self._review_elf_cantrip,
+                    options=[ft.DropdownOption(key=c, text=c) for c in MAGO_CANTRIPS],
+                    on_select=lambda e: setattr(self, "_review_elf_cantrip", e.control.value or ""),
+                    bgcolor=COLOR_BG_CARD,
+                    color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_GOLD,
+                    expand=True,
+                ))
+            else:
+                if race != "Elfo":
+                    self._review_elf_cantrip = ""
+
+            # --- Umano: lingua aggiuntiva ---
+            if race == "Umano":
+                has_content = True
+                avail = [l for l in LANGUAGES if l != "Comune"]
+                if not self._review_umano_language or self._review_umano_language not in avail:
+                    self._review_umano_language = avail[0] if avail else ""
+                race_extras_col.controls.append(ft.Dropdown(
+                    label="Lingua aggiuntiva (tratto Umano)",
+                    value=self._review_umano_language,
+                    options=[ft.DropdownOption(key=l, text=l) for l in avail],
+                    on_select=lambda e: setattr(self, "_review_umano_language", e.control.value or ""),
+                    bgcolor=COLOR_BG_CARD,
+                    color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_GOLD,
+                    expand=True,
+                ))
+            else:
+                self._review_umano_language = ""
+
+            race_extras_col.visible = has_content
+            try:
+                race_extras_col.update()
+            except RuntimeError:
+                pass
+
+        _rebuild_race_extras_col()
 
         # ------ Sezione abilità di classe (dinamica) ------
         skills_col = ft.Column([], spacing=6, visible=False)
@@ -1094,6 +1335,8 @@ class WizardView(ft.Column):
             self._review_stats = self.engine.get_suggested_stat_assignment(self._review_class)
             self._review_skills = []
             self._review_subclass = ""
+            self._review_dragon_ancestry = ""
+            self._review_fighting_style = ""
             for key, dd_ctrl in stat_dropdowns.items():
                 dd_ctrl.value = str(self._review_stats.get(key, 10))
                 dd_ctrl.update()
@@ -1101,12 +1344,21 @@ class WizardView(ft.Column):
             hp_note_text.value = _hit_die_note()
             hp_note_text.update()
             _rebuild_subclass_col()
+            _rebuild_dragon_col()
+            _rebuild_fighting_style_col()
             _rebuild_skills_col()
+            _update_extra_card()
 
         def _on_race_change(e):
             self._review_race = e.control.value or ""
             self._review_subrace = ""
+            self._review_mezzelf_flex = []
+            self._review_mezzelf_skills = []
+            self._review_elf_cantrip = ""
+            self._review_umano_language = ""
             _rebuild_subrace_col()
+            _rebuild_race_extras_col()
+            _update_extra_card()
 
         def _on_bg_change(e):
             self._review_bg = e.control.value or ""
@@ -1115,28 +1367,52 @@ class WizardView(ft.Column):
             self._review_tools = []
             _rebuild_skills_col()
             _rebuild_lang_tool_col()
+            _update_extra_card()
 
-        # ------ Layout finale ------
-        has_extra = (
-            subrace_col.visible
-            or subclass_col.visible
-            or skills_col.visible
-            or lang_tool_col.visible
+        # ------ Layout finale (dinamico: extra_card aggiornata via _update_extra_card) ------
+
+        # Section headers come widget per poterne aggiornare la visibilità
+        sec_razza_classe  = ft.Container(content=section_header("Razza e Classe"),  visible=False)
+        sec_extra_razziali = ft.Container(content=section_header("Extra Razziali"),  visible=False)
+        sec_abilita       = ft.Container(content=section_header("Abilità di Classe"), visible=False)
+        sec_lang_tool     = ft.Container(content=section_header("Lingue e Strumenti"), visible=False)
+
+        extra_card_content = ft.Column([
+            sec_razza_classe,
+            subrace_col,
+            subclass_col,
+            dragon_col,
+            fighting_style_col,
+            sec_extra_razziali,
+            race_extras_col,
+            sec_abilita,
+            skills_col,
+            sec_lang_tool,
+            lang_tool_col,
+        ], spacing=12)
+
+        extra_card = ft.Container(
+            content=extra_card_content,
+            visible=False,
+            bgcolor=COLOR_BG_CARD,
+            border=ft.Border.only(top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON)),
+            border_radius=ft.BorderRadius.all(8),
+            padding=20,
         )
 
-        extra_card_content = ft.Column([], spacing=12)
-        if subrace_col.visible or subclass_col.visible:
-            extra_card_content.controls.append(section_header("Razza e Classe"))
-            if subrace_col.visible:
-                extra_card_content.controls.append(subrace_col)
-            if subclass_col.visible:
-                extra_card_content.controls.append(subclass_col)
-        if skills_col.visible:
-            extra_card_content.controls.append(section_header("Abilità di Classe"))
-            extra_card_content.controls.append(skills_col)
-        if lang_tool_col.visible:
-            extra_card_content.controls.append(section_header("Lingue e Strumenti"))
-            extra_card_content.controls.append(lang_tool_col)
+        def _update_extra_card():
+            has_rc = subrace_col.visible or subclass_col.visible or dragon_col.visible or fighting_style_col.visible
+            sec_razza_classe.visible   = has_rc
+            sec_extra_razziali.visible = race_extras_col.visible
+            sec_abilita.visible        = skills_col.visible
+            sec_lang_tool.visible      = lang_tool_col.visible
+            extra_card.visible = has_rc or race_extras_col.visible or skills_col.visible or lang_tool_col.visible
+            try:
+                extra_card.update()
+            except RuntimeError:
+                pass
+
+        _update_extra_card()
 
         content_sections: list[ft.Control] = [
             ft.Text("Personalizza il tuo personaggio", size=22,
@@ -1164,11 +1440,11 @@ class WizardView(ft.Column):
             ], spacing=8), padding=20),
         ]
 
-        if has_extra:
-            content_sections += [
-                ft.Container(height=16),
-                fantasy_card(extra_card_content, padding=20),
-            ]
+        # extra_card gestisce autonomamente la propria visibilità via _update_extra_card()
+        content_sections += [
+            ft.Container(height=16),
+            extra_card,
+        ]
 
         content_sections += [
             ft.Container(height=20),
@@ -1445,6 +1721,23 @@ class WizardView(ft.Column):
                 if self._review_subclass:
                     char.subclass = self._review_subclass
 
+                # Scelte razza/classe extra
+                if self._review_dragon_ancestry:
+                    char.dragon_ancestry = self._review_dragon_ancestry
+                if self._review_fighting_style:
+                    char.fighting_style = self._review_fighting_style
+
+                # Mezzelf: applica i bonus flessibili (+1 a 2 stat)
+                if self._review_race == "Mezzelf" and len(self._review_mezzelf_flex) == 2:
+                    stat_map = {
+                        "str": "str_score", "dex": "dex_score", "con": "con_score",
+                        "int": "int_score", "wis": "wis_score", "cha": "cha_score",
+                    }
+                    for stat_key in self._review_mezzelf_flex:
+                        attr = stat_map.get(stat_key)
+                        if attr:
+                            setattr(char, attr, min(20, getattr(char, attr) + 1))
+
                 ok = character_repo.create(char)
                 if not ok:
                     raise RuntimeError("Errore nel salvataggio sul database.")
@@ -1466,7 +1759,33 @@ class WizardView(ft.Column):
                     if skill and skill not in bg_skills:
                         character_repo._save_single_proficiency(char.id, "skill", skill)
 
-                # Lingue scelte
+                # Abilità Mezzelf (Versatilità nelle Abilità — 2 abilità razziali)
+                for skill in self._review_mezzelf_skills:
+                    if skill:
+                        character_repo._save_single_proficiency(char.id, "skill", skill)
+
+                # Trucchetto Alto Elfo → known_spell level 0
+                if self._review_elf_cantrip:
+                    character_repo.upsert_known_spell(
+                        character_id=char.id,
+                        name=self._review_elf_cantrip,
+                        level=0,
+                        is_prepared=True,
+                        school="",
+                        casting_time="",
+                        spell_range="",
+                        components="",
+                        duration="",
+                        description="Trucchetto del Mago (tratto Alto Elfo — INT)",
+                        higher_levels="",
+                        class_list="Mago",
+                    )
+
+                # Lingua aggiuntiva Umano
+                if self._review_umano_language:
+                    character_repo._save_single_proficiency(char.id, "language", self._review_umano_language)
+
+                # Lingue scelte da background
                 for lang in self._review_languages:
                     if lang:
                         character_repo._save_single_proficiency(char.id, "language", lang)

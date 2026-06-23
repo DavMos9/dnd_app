@@ -1,0 +1,10 @@
+{
+  "_note": "Talenti PHB 5e 2014 (italiano). Da completare — stesso sprint dei JSON incantesimi.",
+  "_schema": {
+    "name": "string — nome italiano del talento",
+    "prerequisite": "string — prerequisito testuale, es. 'FOR 13' oppure '' se nessuno",
+    "description": "string — descrizione meccanica completa dal PHB",
+    "ability_bonus": "object — es. {'str': 1} oppure {'choose_one': true} se la scelta è del giocatore"
+  },
+  "feats": []
+}

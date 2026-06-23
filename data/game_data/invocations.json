@@ -1,0 +1,11 @@
+{
+  "_note": "Invocazioni Occulte (Eldritch Invocations) PHB 5e 2014 italiano. Da compilare insieme ai JSON incantesimi.",
+  "_schema": {
+    "name": "string — nome italiano",
+    "prerequisite_level": "int — livello Warlock minimo (0 = nessuno)",
+    "prerequisite_pact": "string — 'catena'|'lama'|'tomo'|'' se nessun patto richiesto",
+    "prerequisite_spell": "string — nome incantesimo richiesto oppure ''",
+    "description": "string — effetto meccanico completo dal PHB"
+  },
+  "invocations": []
+}

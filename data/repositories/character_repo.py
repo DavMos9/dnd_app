@@ -62,6 +62,12 @@ def _row_to_character(row) -> Character:
         ca_bonus=d.get("ca_bonus", 0) or 0,
         proficiency_bonus_override=d.get("proficiency_bonus_override", 0) or 0,
         session_notes=d.get("session_notes", "") or "",
+        max_prepared_spells_override=d.get("max_prepared_spells_override", 0) or 0,
+        dragon_ancestry=d.get("dragon_ancestry", "") or "",
+        fighting_style=d.get("fighting_style", "") or "",
+        totem_animal=d.get("totem_animal", "") or "",
+        land_terrain=d.get("land_terrain", "") or "",
+        pact_boon=d.get("pact_boon", "") or "",
         age=d["age"],
         height=d["height"],
         weight=d["weight"],
@@ -272,6 +278,11 @@ def update(character: Character) -> bool:
                 ca_bonus=:ca_bonus,
                 proficiency_bonus_override=:proficiency_bonus_override,
                 session_notes=:session_notes,
+                dragon_ancestry=:dragon_ancestry,
+                fighting_style=:fighting_style,
+                totem_animal=:totem_animal,
+                land_terrain=:land_terrain,
+                pact_boon=:pact_boon,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -328,6 +339,11 @@ def update(character: Character) -> bool:
             "ca_bonus": character.ca_bonus,
             "proficiency_bonus_override": character.proficiency_bonus_override,
             "session_notes": _s(character.session_notes),
+            "dragon_ancestry": _s(character.dragon_ancestry),
+            "fighting_style": _s(character.fighting_style),
+            "totem_animal": _s(character.totem_animal),
+            "land_terrain": _s(character.land_terrain),
+            "pact_boon": _s(character.pact_boon),
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -408,6 +424,31 @@ def replace_proficiencies_by_types(
         return True
     except Exception as e:
         logger.error(f"Errore replace_proficiencies_by_types ({proficiency_type}): {e}")
+        return False
+
+
+def set_expertise(character_id: str, skill_names: list[str]) -> bool:
+    """
+    Imposta is_expert=True sulle competenze di tipo 'skill' o 'tool'
+    il cui name è in skill_names. Non rimuove expertise esistenti.
+    """
+    if not skill_names:
+        return True
+    try:
+        conn = get_connection()
+        for name in skill_names:
+            conn.execute(
+                """UPDATE character_proficiencies
+                   SET is_expert = 1
+                   WHERE character_id = ? AND name = ?
+                     AND proficiency_type IN ('skill', 'tool')""",
+                (character_id, name),
+            )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore set_expertise {character_id}: {e}")
         return False
 
 
@@ -493,6 +534,65 @@ def update_spell_slot(character_id: str, slot_level: int, used: int) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento slot Lv.{slot_level}: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Tabella PHB slot incantesimo per livello di personaggio
+# Indice 0 = Lv 1, indice 19 = Lv 20. Ogni lista: [1°,2°,3°,...,9°]
+# ---------------------------------------------------------------------------
+_FULL_CASTER_SLOTS = [
+    [2,0,0,0,0,0,0,0,0], [3,0,0,0,0,0,0,0,0], [4,2,0,0,0,0,0,0,0],
+    [4,3,0,0,0,0,0,0,0], [4,3,2,0,0,0,0,0,0], [4,3,3,0,0,0,0,0,0],
+    [4,3,3,1,0,0,0,0,0], [4,3,3,2,0,0,0,0,0], [4,3,3,3,1,0,0,0,0],
+    [4,3,3,3,2,0,0,0,0], [4,3,3,3,2,1,0,0,0], [4,3,3,3,2,1,0,0,0],
+    [4,3,3,3,2,1,1,0,0], [4,3,3,3,2,1,1,0,0], [4,3,3,3,2,1,1,1,0],
+    [4,3,3,3,2,1,1,1,0], [4,3,3,3,2,1,1,1,1], [4,3,3,3,3,1,1,1,1],
+    [4,3,3,3,3,2,1,1,1], [4,3,3,3,3,2,2,1,1],
+]
+_HALF_CASTER_SLOTS = [
+    [0,0,0,0,0,0,0,0,0], [2,0,0,0,0,0,0,0,0], [3,0,0,0,0,0,0,0,0],
+    [3,0,0,0,0,0,0,0,0], [4,2,0,0,0,0,0,0,0], [4,2,0,0,0,0,0,0,0],
+    [4,3,0,0,0,0,0,0,0], [4,3,0,0,0,0,0,0,0], [4,3,2,0,0,0,0,0,0],
+    [4,3,2,0,0,0,0,0,0], [4,3,3,0,0,0,0,0,0], [4,3,3,0,0,0,0,0,0],
+    [4,3,3,1,0,0,0,0,0], [4,3,3,1,0,0,0,0,0], [4,3,3,2,0,0,0,0,0],
+    [4,3,3,2,0,0,0,0,0], [4,3,3,3,1,0,0,0,0], [4,3,3,3,1,0,0,0,0],
+    [4,3,3,3,2,0,0,0,0], [4,3,3,3,2,0,0,0,0],
+]
+_FULL_CASTERS  = {"bardo","chierico","druido","mago","stregone"}
+_HALF_CASTERS  = {"paladino","ranger"}
+
+
+def auto_init_spell_slots(character_id: str, class_name: str, level: int) -> bool:
+    """
+    Imposta i totali slot in base a classe e livello PHB.
+    Da chiamare una volta sola: solo se tutti i totali sono ancora 0.
+    Non azzera gli slot già usati in questo modo il giocatore non perde progressi.
+    """
+    key = class_name.strip().lower()
+    if key in _FULL_CASTERS:
+        table = _FULL_CASTER_SLOTS
+    elif key in _HALF_CASTERS:
+        table = _HALF_CASTER_SLOTS
+    else:
+        return False  # Classe non incantatore o non gestita
+
+    lv_idx = max(0, min(level - 1, 19))
+    slots = table[lv_idx]
+    try:
+        conn = get_connection()
+        for slot_lv, total in enumerate(slots, start=1):
+            conn.execute(
+                "UPDATE spell_slots SET total=?, used=MIN(used,?) "
+                "WHERE character_id=? AND slot_level=?",
+                (total, total, character_id, slot_lv),
+            )
+        conn.commit()
+        conn.close()
+        logger.info("Slot auto-init: %s Lv%d → %s", class_name, level, slots)
+        return True
+    except Exception as e:
+        logger.error(f"Errore auto_init_spell_slots {character_id}: {e}")
         return False
 
 
@@ -614,6 +714,98 @@ def get_prepared_spells(character_id: str) -> list:
     except Exception as e:
         logger.error(f"Errore recupero incantesimi preparati {character_id}: {e}")
         return []
+
+
+def get_known_spells(character_id: str) -> list:
+    """Restituisce tutti gli incantesimi in known_spells (preparati e non)."""
+    from data.models import KnownSpell
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM known_spells WHERE character_id=? ORDER BY spell_level, name",
+            (character_id,)
+        ).fetchall()
+        conn.close()
+        return [
+            KnownSpell(
+                id=r["id"], character_id=r["character_id"], name=r["name"],
+                spell_level=r["spell_level"], is_prepared=bool(r["is_prepared"]),
+                school=r["school"] or "", casting_time=r["casting_time"] or "",
+                spell_range=r["spell_range"] or "", components=r["components"] or "",
+                duration=r["duration"] or "", description=r["description"] or "",
+                higher_levels=r["higher_levels"] or "", class_list=r["class_list"] or "",
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore get_known_spells {character_id}: {e}")
+        return []
+
+
+def upsert_known_spell(
+    character_id: str,
+    name: str,
+    level: int,
+    is_prepared: bool,
+    school: str = "",
+    casting_time: str = "",
+    spell_range: str = "",
+    components: str = "",
+    duration: str = "",
+    description: str = "",
+    higher_levels: str = "",
+    class_list: str = "",
+) -> bool:
+    """
+    Inserisce o aggiorna un incantesimo in known_spells.
+    Identifica la riga per (character_id, name, spell_level).
+    """
+    import uuid as _uuid
+    try:
+        conn = get_connection()
+        existing = conn.execute(
+            "SELECT id FROM known_spells WHERE character_id=? AND name=? AND spell_level=?",
+            (character_id, name, level),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE known_spells SET is_prepared=?, school=?, casting_time=?, "
+                "spell_range=?, components=?, duration=?, description=?, higher_levels=?, "
+                "class_list=? WHERE id=?",
+                (int(is_prepared), school, casting_time, spell_range, components,
+                 duration, description, higher_levels, class_list, existing["id"]),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO known_spells (id, character_id, name, spell_level, is_prepared, "
+                "school, casting_time, spell_range, components, duration, description, "
+                "higher_levels, class_list) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (str(_uuid.uuid4()), character_id, name, level, int(is_prepared),
+                 school, casting_time, spell_range, components, duration, description,
+                 higher_levels, class_list),
+            )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore upsert_known_spell {character_id}/{name}: {e}")
+        return False
+
+
+def remove_known_spell(character_id: str, name: str, level: int) -> bool:
+    """Rimuove un incantesimo dalla tabella known_spells."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "DELETE FROM known_spells WHERE character_id=? AND name=? AND spell_level=?",
+            (character_id, name, level),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore remove_known_spell {character_id}/{name}: {e}")
+        return False
 
 
 def get_inventory(character_id: str) -> list:
@@ -1010,6 +1202,22 @@ def update_ca_bonus(character_id: str, ca_bonus: int) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento CA bonus: {e}")
+        return False
+
+
+def update_max_prepared_override(character_id: str, value: int) -> bool:
+    """Salva l'override manuale del massimo incantesimi preparabili (0 = usa formula PHB)."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET max_prepared_spells_override=?, updated_at=? WHERE id=?",
+            (value, datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore update_max_prepared_override: {e}")
         return False
 
 

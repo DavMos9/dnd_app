@@ -25,6 +25,7 @@ Flusso atteso:
 """
 
 from __future__ import annotations
+import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
@@ -40,9 +41,12 @@ class StepType(Enum):
     PROFICIENCY_BONUS_UP = auto()  # aumento bonus competenza — automatico
     ASI                  = auto()  # miglioramento caratteristiche o talento — scelta giocatore
     FEATURE_AUTO         = auto()  # feature di classe automatica — solo info
-    SUBCLASS_CHOICE      = auto()  # scelta sottoclasse — futuro picker
+    SUBCLASS_CHOICE      = auto()  # scelta sottoclasse
     SPELL_LEARN          = auto()  # scelta nuovi incantesimi — futuro picker
-    EXPERTISE            = auto()  # scelta maestria abilità — futuro (Ladro/Bardo)
+    EXPERTISE            = auto()  # scelta maestria abilità (Ladro/Bardo)
+    INVOCATION           = auto()  # scelta invocazioni occulte (Warlock)
+    METAMAGIC            = auto()  # scelta metamagia (Stregone)
+    PACT_CHOICE          = auto()  # scelta dono del patto (Warlock Lv3)
 
 
 @dataclass
@@ -368,13 +372,53 @@ def get_level_up_steps(
     # 2. Feature di classe per questo livello
     features = _CLASS_FEATURES.get(class_name, {}).get(new_level, [])
     for feat in features:
-        needs_choice = "scegli" in feat.lower()
-        steps.append(LevelStep(
-            step_type=StepType.SUBCLASS_CHOICE if needs_choice else StepType.FEATURE_AUTO,
-            label=feat,
-            requires_player_choice=needs_choice,
-            data={"future": True} if needs_choice else {},
-        ))
+        feat_lower = feat.lower()
+        if "dono del patto" in feat_lower:
+            steps.append(LevelStep(
+                step_type=StepType.PACT_CHOICE,
+                label=feat,
+                requires_player_choice=True,
+            ))
+        elif "metamagia" in feat_lower:
+            m = re.search(r"\((\d+)", feat)
+            count = int(m.group(1)) if m else 1
+            steps.append(LevelStep(
+                step_type=StepType.METAMAGIC,
+                label=feat,
+                requires_player_choice=True,
+                data={"count": count},
+            ))
+        elif "invocazioni" in feat_lower:
+            # Invocazioni Occulte: il numero tra parentesi è il totale cumulativo
+            m = re.search(r"\((\d+)\)", feat)
+            total = int(m.group(1)) if m else 0
+            steps.append(LevelStep(
+                step_type=StepType.INVOCATION,
+                label=feat,
+                requires_player_choice=True,
+                data={"total": total},
+            ))
+        elif "perizia" in feat_lower:
+            # Expertise: scelta di 2 abilità da rendere maestria
+            steps.append(LevelStep(
+                step_type=StepType.EXPERTISE,
+                label=feat,
+                requires_player_choice=True,
+                data={"count": 2},
+            ))
+        elif "scegli" in feat_lower:
+            steps.append(LevelStep(
+                step_type=StepType.SUBCLASS_CHOICE,
+                label=feat,
+                requires_player_choice=True,
+                data={"future": True},
+            ))
+        else:
+            steps.append(LevelStep(
+                step_type=StepType.FEATURE_AUTO,
+                label=feat,
+                requires_player_choice=False,
+            ))
 
     # 3. ASI — ai livelli appropriati per la classe
     asi_set = ASI_LEVELS.get(class_name, ASI_LEVELS_DEFAULT)

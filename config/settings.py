@@ -269,9 +269,70 @@ RACES_BASE: dict[str, list[str]] = {
 }
 
 # Discendenze del Draconide (determina tipo soffio e resistenza)
+# Riutilizzato anche per la Discendenza Draconiana dello Stregone
 DRACONIDE_ANCESTRIES = [
     "Bianco", "Blu", "Verde", "Nero", "Rosso",
     "Oro", "Argento", "Rame", "Ottone", "Bronzo",
+]
+
+# Stili di combattimento PHB per classe (PHB p.72, p.84, p.91)
+FIGHTING_STYLES: dict[str, list[str]] = {
+    "guerriero": [
+        "Arciere",
+        "Combattimento con due armi",
+        "Difesa",
+        "Duello",
+        "Grande arma",
+        "Protezione",
+    ],
+    "paladino": [
+        "Difesa",
+        "Duello",
+        "Grande arma",
+        "Protezione",
+    ],
+    "ranger": [
+        "Arciere",
+        "Combattimento con due armi",
+        "Difesa",
+    ],
+}
+
+# Animali totem del Barbaro (Percorso del Totem Guerriero)
+TOTEM_ANIMALS = ["Orso", "Aquila", "Lupo"]
+
+# Terreni del Druido (Cerchio della Terra — Incantesimi del Cerchio)
+LAND_TERRAINS = [
+    "Artico", "Costa", "Deserto", "Foresta",
+    "Montagna", "Piana", "Palude", "Sottosuolo",
+]
+
+# Trucchetti del Mago disponibili per l'Alto Elfo (PHB — lista completa)
+MAGO_CANTRIPS = [
+    "Amici", "Danno Acido", "Danza Delle Spade", "Fulmine Guida",
+    "Getto di Veleno", "Illusione Minore", "Luce", "Mano del Mago",
+    "Messaggio", "Occhio del Mago", "Prestidigitazione",
+    "Raggio di Gelo", "Raggio di Fuoco", "Scossa Tonante",
+    "Saggio Mano", "Tocco del Gelo",
+]
+
+# Opzioni di Metamagia dello Stregone (PHB p.102)
+METAMAGIC_OPTIONS = [
+    "Incantesimo Attento",      # Careful Spell  — 1 PS: alleati esclusi dall'area
+    "Incantesimo Distante",     # Distant Spell  — 1 PS: raddoppia gittata
+    "Potenziamento Incantesimo",# Empowered Spell — 1 PS: rilancia N dadi danno
+    "Estensione Incantesimo",   # Extended Spell  — 1 PS: raddoppia durata
+    "Intensificazione",         # Heightened Spell— 3 PS: bersaglio svantaggio al TS
+    "Velocizzazione Incantesimo",# Quickened Spell — 2 PS: lanci come azione bonus
+    "Occultamento Incantesimo", # Subtle Spell    — 1 PS: niente componenti V/S
+    "Incantesimo Gemellato",    # Twinned Spell   — 1+ PS: colpisce 2 bersagli
+]
+
+# Doni del Patto del Warlock (PHB p.107)
+PACT_BOONS = [
+    "Patto della Catena",  # Famiglio potenziato
+    "Patto della Lama",    # Arma del patto evocata
+    "Patto del Tomo",      # Libro delle Ombre (3 trucchetti extra)
 ]
 
 # Lingue D&D 5e (PHB)
