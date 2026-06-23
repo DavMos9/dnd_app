@@ -11,6 +11,7 @@ Flusso:
 
 import flet as ft
 import logging
+from typing import Any
 from config.settings import *
 from ui.theme import get_theme, title_text, muted_text
 
@@ -33,7 +34,7 @@ def _data_uri(b64: str) -> str:
     return f"data:{mime};base64,{b64}"
 
 
-SECTIONS = [
+SECTIONS: list[dict[str, Any]] = [
     {"key": "sheet",     "label": "Scheda",      "icon_off": ft.Icons.PERSON_OUTLINE,       "icon_on": ft.Icons.PERSON},
     {"key": "spells",    "label": "Incantesimi", "icon_off": ft.Icons.AUTO_AWESOME_OUTLINED, "icon_on": ft.Icons.AUTO_AWESOME},
     {"key": "diary",     "label": "Diario",      "icon_off": ft.Icons.MENU_BOOK_OUTLINED,    "icon_on": ft.Icons.MENU_BOOK},
@@ -283,7 +284,14 @@ class DnDApp:
         elif key == "diary":
             return self._placeholder_view("Diario", ft.Icons.MENU_BOOK, "In sviluppo...")
         elif key == "maps":
-            return self._placeholder_view("Mappe", ft.Icons.MAP, "In sviluppo...")
+            from data.repositories import character_repo
+            from ui.views.maps_view import MapsView
+            if not self.current_character_id:
+                return self._placeholder_view("Mappe", ft.Icons.MAP, "")
+            char = character_repo.get_by_id(self.current_character_id)
+            if char:
+                return MapsView(char)
+            return self._placeholder_view("Mappe", ft.Icons.MAP, "")
         elif key == "dice":
             from ui.views.dice_view import DiceView
             return DiceView()

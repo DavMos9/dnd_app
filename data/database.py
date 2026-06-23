@@ -53,7 +53,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "weapons",        "magic_damages",   "TEXT DEFAULT '[]'")
     _add_column(cur, "inventory_items","ca_value",        "INTEGER DEFAULT 0")
     _add_column(cur, "inventory_items","armor_type",      "TEXT DEFAULT ''")
-    _add_column(cur, "inventory_items","effects",         "TEXT DEFAULT ''")
+    _add_column(cur, "inventory_items","effects",          "TEXT DEFAULT ''")
+    _add_column(cur, "game_maps",      "image_data",       "TEXT DEFAULT ''")
+    _add_column(cur, "game_maps",      "notes",            "TEXT DEFAULT ''")
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:

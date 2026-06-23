@@ -217,7 +217,9 @@ class GameMap:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     character_id: str = ""
     name: str = ""
-    image_path: str = ""
-    annotations: str = "[]"       # JSON list di annotazioni
+    image_path: str = ""           # legacy — usare image_data
+    image_data: str = ""           # immagine base64 (stessa convenzione di Character)
+    annotations: str = "[]"        # JSON list di annotazioni testuali
+    notes: str = ""                # testo libero associato alla mappa
     created_at: str = ""
     updated_at: str = ""
