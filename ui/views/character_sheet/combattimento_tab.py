@@ -22,9 +22,13 @@ import json
 import logging
 from typing import cast
 from config.settings import *
-from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell
+from config.settings import get_race_display_traits
+from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource
 import data.repositories.character_repo as character_repo
+from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header
+
+_loader = GameDataLoader()
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +50,17 @@ class CombattimentoTab(ft.ListView):
         self._profs: list[CharacterProficiency] = character_repo.get_proficiencies(character.id)
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id)
         self._prepared: list[KnownSpell] = character_repo.get_prepared_spells(character.id)
+        self._resources: list[ClassResource] = character_repo.get_class_resources(character.id)
+        # Lazy init per personaggi creati prima di questa feature
+        if not self._resources and character.class_name:
+            character_repo.init_class_resources(
+                character.id, character.class_name, character.level, character
+            )
+            self._resources = character_repo.get_class_resources(character.id)
+        self._features: list[dict] = self._load_class_features(character)
+        self._race_traits: dict = get_race_display_traits(
+            character.race or "", character.subrace or ""
+        )
         self._build()
 
     def did_mount(self):
@@ -57,7 +72,7 @@ class CombattimentoTab(ft.ListView):
 
     def _build(self):
         c = self.character
-        self.controls = [
+        controls: list[ft.Control] = [
             self._section_hp(c),
             section_header("Statistiche di Combattimento"),
             self._section_stats(c),
@@ -69,10 +84,29 @@ class CombattimentoTab(ft.ListView):
             self._section_weapons(),
             section_header("Magia"),
             self._section_spell_slots(c),
+        ]
+        if self._resources:
+            controls += [
+                section_header("Risorse di Classe"),
+                self._section_class_resources(),
+            ]
+        if self._features:
+            controls += [
+                section_header("Abilità di Classe"),
+                self._section_class_features(),
+            ]
+        _rt = self._race_traits
+        if _rt["resistances"] or _rt["advantage_saves"]:
+            controls += [
+                section_header("Tratti di Razza"),
+                self._section_racial_traits(),
+            ]
+        controls += [
             section_header("Dadi Vita"),
             self._section_hit_dice(c),
             self._section_riposo_lungo(c),
         ]
+        self.controls = controls
 
     # ------------------------------------------------------------------
     # Sezione HP
@@ -1270,6 +1304,373 @@ class CombattimentoTab(ft.ListView):
         ))
 
     # ------------------------------------------------------------------
+    # Risorse di Classe
+    # ------------------------------------------------------------------
+
+    def _section_class_resources(self) -> ft.Container:
+        """
+        Sezione risorse di classe (Furia, Ki, Incanalare Divinità, ecc.).
+        - display_type "circles": cerchietti ● cliccabili (click = usa/recupera).
+        - display_type "counter": etichetta numerica con bottoni − e +.
+        """
+        rows: list[ft.Control] = []
+        for res in self._resources:
+            if res.display_type == "circles":
+                rows.append(self._resource_circles_row(res))
+            else:
+                rows.append(self._resource_counter_row(res))
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=10),
+            bgcolor=COLOR_BG_CARD,
+            padding=14,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _resource_circles_row(self, res: ClassResource) -> ft.Row:
+        """Riga con cerchietti BG3-style per risorse a pool piccolo (≤ 6)."""
+        reset_icon  = "☽" if res.reset_on == "short_rest" else "☀"
+        reset_label = "Ripristino: riposo breve" if res.reset_on == "short_rest" else "Ripristino: riposo lungo"
+
+        circles: list[ft.Control] = []
+        for i in range(res.max_value):
+            is_avail = i < res.current_value
+            circles.append(ft.Container(
+                content=ft.Text(
+                    "●" if is_avail else "○",
+                    size=22,
+                    color=COLOR_ACCENT_CRIMSON if is_avail else COLOR_TEXT_MUTED,
+                ),
+                on_click=lambda e, r=res, use=is_avail: self._toggle_resource(r, use),
+                tooltip="Usa" if is_avail else "Recupera",
+                border_radius=14,
+                ink=True,
+                padding=ft.Padding.all(2),
+            ))
+
+        return ft.Row(
+            [
+                ft.Text(res.name, size=12, color=COLOR_TEXT_PRIMARY,
+                        weight=ft.FontWeight.W_600, expand=True),
+                ft.Text(reset_icon, size=14, color=COLOR_TEXT_MUTED,
+                        tooltip=reset_label),
+                ft.Container(width=6),
+                ft.Row(circles, spacing=2),
+                ft.Container(width=4),
+                ft.Text(f"{res.current_value}/{res.max_value}", size=11,
+                        color=COLOR_TEXT_MUTED, font_family=FONT_MONO),
+            ],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=4,
+        )
+
+    def _resource_counter_row(self, res: ClassResource) -> ft.Column:
+        """Riga con counter −/+ per risorse a pool grande (Ki, Stregoneria, ecc.)."""
+        reset_icon  = "☽" if res.reset_on == "short_rest" else "☀"
+        reset_label = "Ripristino: riposo breve" if res.reset_on == "short_rest" else "Ripristino: riposo lungo"
+
+        ratio = (res.current_value / res.max_value) if res.max_value > 0 else 0.0
+        bar_color = COLOR_ACCENT_CRIMSON if ratio > 0.4 else COLOR_ACCENT_AMBER
+
+        return ft.Column([
+            ft.Row(
+                [
+                    ft.Text(res.name, size=12, color=COLOR_TEXT_PRIMARY,
+                            weight=ft.FontWeight.W_600, expand=True),
+                    ft.Text(reset_icon, size=14, color=COLOR_TEXT_MUTED,
+                            tooltip=reset_label),
+                    ft.Container(width=8),
+                    ft.IconButton(
+                        ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                        icon_size=18,
+                        icon_color=COLOR_ACCENT_CRIMSON,
+                        on_click=lambda e, r=res: self._decrement_resource(r),
+                        disabled=res.current_value <= 0,
+                        tooltip="Usa 1",
+                    ),
+                    ft.Text(
+                        f"{res.current_value}/{res.max_value}",
+                        size=15, color=COLOR_TEXT_PRIMARY,
+                        weight=ft.FontWeight.BOLD, font_family=FONT_MONO,
+                        width=70, text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.IconButton(
+                        ft.Icons.ADD_CIRCLE_OUTLINE,
+                        icon_size=18,
+                        icon_color=COLOR_HP_FULL,
+                        on_click=lambda e, r=res: self._increment_resource(r),
+                        disabled=res.current_value >= res.max_value,
+                        tooltip="Recupera 1",
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=0,
+            ),
+            ft.Row([ft.ProgressBar(
+                value=ratio, color=bar_color,
+                bgcolor=COLOR_BG_SECONDARY, height=6,
+                border_radius=3, expand=True,
+            )]),
+        ], spacing=4)
+
+    def _toggle_resource(self, res: ClassResource, use: bool):
+        """Click su cerchietto: usa (●→○) o recupera (○→●)."""
+        if use:
+            res.current_value = max(0, res.current_value - 1)
+        else:
+            res.current_value = min(res.max_value, res.current_value + 1)
+        character_repo.update_class_resource(res.id, res.current_value)
+        self._refresh()
+
+    def _decrement_resource(self, res: ClassResource):
+        res.current_value = max(0, res.current_value - 1)
+        character_repo.update_class_resource(res.id, res.current_value)
+        self._refresh()
+
+    def _increment_resource(self, res: ClassResource):
+        res.current_value = min(res.max_value, res.current_value + 1)
+        character_repo.update_class_resource(res.id, res.current_value)
+        self._refresh()
+
+    # ------------------------------------------------------------------
+    # Tratti di Razza
+    # ------------------------------------------------------------------
+
+    def _section_racial_traits(self) -> ft.Container:
+        """
+        Sezione di riferimento rapido: resistenze e vantaggi ai TS razziali.
+        Puramente informativa, nessuna interazione.
+        """
+        rt = self._race_traits
+        rows: list[ft.Control] = []
+
+        def _chip(label: str, icon: str, color: str) -> ft.Container:
+            return ft.Container(
+                content=ft.Row([
+                    ft.Text(icon, size=14),
+                    ft.Text(label, size=12, color=color,
+                            weight=ft.FontWeight.W_600),
+                ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                bgcolor=f"{color}18",
+                border=ft.Border.all(1, f"{color}60"),
+                border_radius=16,
+                padding=ft.Padding.symmetric(horizontal=10, vertical=4),
+            )
+
+        if rt["resistances"]:
+            rows.append(ft.Text(
+                "RESISTENZE", size=9, color=COLOR_TEXT_MUTED,
+                weight=ft.FontWeight.BOLD,
+                style=ft.TextStyle(letter_spacing=0.8),
+            ))
+            rows.append(ft.Row(
+                [_chip(r, "🛡", COLOR_ACCENT_BLUE) for r in rt["resistances"]],
+                spacing=6, wrap=True,
+            ))
+
+        if rt["advantage_saves"] and rows:
+            rows.append(ft.Container(height=4))
+
+        if rt["advantage_saves"]:
+            rows.append(ft.Text(
+                "VANTAGGIO AI TIRI SALVEZZA", size=9, color=COLOR_TEXT_MUTED,
+                weight=ft.FontWeight.BOLD,
+                style=ft.TextStyle(letter_spacing=0.8),
+            ))
+            rows.append(ft.Row(
+                [_chip(s, "↑", COLOR_ACCENT_AMBER) for s in rt["advantage_saves"]],
+                spacing=6, wrap=True,
+            ))
+
+        race_label = self.character.race or ""
+        if self.character.subrace:
+            race_label += f" · {self.character.subrace}"
+
+        rows.append(ft.Container(height=2))
+        rows.append(ft.Text(
+            race_label, size=10, color=COLOR_TEXT_MUTED, italic=True,
+        ))
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=6),
+            bgcolor=COLOR_BG_CARD,
+            padding=14,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_BLUE),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    # ------------------------------------------------------------------
+    # Abilità di Classe
+    # ------------------------------------------------------------------
+
+    def _load_class_features(self, c: Character) -> list[dict]:
+        """
+        Carica le feature base + sottoclasse dalla classe JSON,
+        filtrate per livello ≤ livello personaggio.
+        Ordina per livello poi per nome.
+        """
+        if not c.class_name:
+            return []
+
+        cls_data = _loader.get_class(c.class_name)
+        if not cls_data:
+            return []
+
+        features: list[dict] = []
+
+        # Feature base della classe
+        for feat in cls_data.get("features", []):
+            if feat.get("level", 1) <= c.level:
+                features.append({
+                    "level": feat["level"],
+                    "name": feat["name"],
+                    "description": feat.get("description", ""),
+                    "source": c.class_name,
+                })
+
+        # Feature della sottoclasse selezionata
+        subclass_name = (c.subclass or "").strip()
+        if subclass_name:
+            for sc in cls_data.get("subclasses", []):
+                if sc.get("name", "").lower() == subclass_name.lower():
+                    for feat in sc.get("features", []):
+                        if feat.get("level", 1) <= c.level:
+                            features.append({
+                                "level": feat["level"],
+                                "name": feat["name"],
+                                "description": feat.get("description", ""),
+                                "source": subclass_name,
+                            })
+                    break
+
+        features.sort(key=lambda f: (f["level"], f["name"]))
+        return features
+
+    def _section_class_features(self) -> ft.Container:
+        """
+        Lista compatta delle abilità di classe disponibili al livello attuale.
+        Ogni riga: badge livello + nome + fonte (sottoclasse se diversa).
+        Click → dialog con descrizione completa.
+        """
+        page = self._page
+
+        def _open_feature_dialog(feat: dict, e=None):
+            if not page:
+                return
+            source_label = (
+                f"  ·  {feat['source']}"
+                if feat["source"].lower() != (self.character.class_name or "").lower()
+                else ""
+            )
+            page.show_dialog(ft.AlertDialog(
+                title=ft.Row([
+                    ft.Container(
+                        content=ft.Text(
+                            f"Lv {feat['level']}",
+                            size=10, color="#ffffff",
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                        bgcolor=COLOR_ACCENT_CRIMSON,
+                        padding=ft.Padding.symmetric(horizontal=6, vertical=3),
+                        border_radius=4,
+                    ),
+                    ft.Container(width=8),
+                    ft.Text(feat["name"], size=14, weight=ft.FontWeight.BOLD,
+                            color=COLOR_TEXT_TITLE, expand=True),
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                content=ft.Column([
+                    ft.Text(
+                        feat["description"] or "Nessuna descrizione disponibile.",
+                        size=13, color=COLOR_TEXT_PRIMARY,
+                        selectable=True,
+                    ),
+                    ft.Text(
+                        f"{self.character.class_name}{source_label}",
+                        size=11, color=COLOR_TEXT_MUTED, italic=True,
+                    ) if source_label else ft.Container(height=0),
+                ], spacing=10, width=340, scroll=ft.ScrollMode.AUTO),
+                actions=[
+                    ft.TextButton("Chiudi",
+                                  on_click=lambda ev: page.pop_dialog() if page else None),
+                ],
+                bgcolor=COLOR_BG_CARD,
+            ))
+
+        rows: list[ft.Control] = []
+        current_level = -1
+        for feat in self._features:
+            # Separatore di livello
+            if feat["level"] != current_level:
+                current_level = feat["level"]
+                if rows:
+                    rows.append(ft.Divider(color=COLOR_BORDER, height=1))
+
+            is_subclass = feat["source"].lower() != (self.character.class_name or "").lower()
+            badge_color = COLOR_ACCENT_BLUE if is_subclass else COLOR_ACCENT_CRIMSON
+
+            row = ft.Container(
+                content=ft.Row([
+                    ft.Container(
+                        content=ft.Text(
+                            f"Lv{feat['level']}",
+                            size=9, color="#ffffff",
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                        bgcolor=badge_color,
+                        padding=ft.Padding.symmetric(horizontal=5, vertical=2),
+                        border_radius=3,
+                        width=32,
+                    ),
+                    ft.Container(width=8),
+                    ft.Text(
+                        feat["name"],
+                        size=13, color=COLOR_TEXT_PRIMARY,
+                        weight=ft.FontWeight.W_600,
+                        expand=True,
+                    ),
+                    ft.Icon(ft.Icons.CHEVRON_RIGHT, size=16, color=COLOR_TEXT_MUTED),
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
+                on_click=lambda e, f=feat: _open_feature_dialog(f),
+                ink=True,
+                border_radius=4,
+                padding=ft.Padding.symmetric(vertical=6, horizontal=4),
+            )
+            rows.append(row)
+
+        legend = ft.Row([
+            ft.Container(width=10, height=10, bgcolor=COLOR_ACCENT_CRIMSON,
+                         border_radius=2),
+            ft.Text(" classe base  ", size=10, color=COLOR_TEXT_MUTED),
+            ft.Container(width=10, height=10, bgcolor=COLOR_ACCENT_BLUE,
+                         border_radius=2),
+            ft.Text(" sottoclasse", size=10, color=COLOR_TEXT_MUTED),
+        ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+        return ft.Container(
+            content=ft.Column([*rows, ft.Divider(color=COLOR_BORDER), legend], spacing=2),
+            bgcolor=COLOR_BG_CARD,
+            padding=14,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    # ------------------------------------------------------------------
     # Dadi Vita
     # ------------------------------------------------------------------
 
@@ -1381,6 +1782,8 @@ class CombattimentoTab(ft.ListView):
             c.hit_dice_remaining = max(0, remaining - n)
             character_repo.update_hp(c.id, c.hp_current)
             character_repo.update_hit_dice(c.id, c.hit_dice_remaining)
+            # Riposo breve: ripristina risorse short_rest
+            character_repo.reset_class_resources(c.id, "short_rest")
             page.pop_dialog()
             self._refresh()
 
@@ -1444,6 +1847,9 @@ class CombattimentoTab(ft.ListView):
             for slot in self._slots:
                 if slot.total > 0:
                     character_repo.update_spell_slot(c.id, slot.slot_level, 0)
+            # Ripristina tutte le risorse di classe (short_rest e long_rest)
+            character_repo.reset_class_resources(c.id, "short_rest")
+            character_repo.reset_class_resources(c.id, "long_rest")
             # Salva tutto
             character_repo.update(c)
             character_repo.update_hp(c.id, c.hp_max, 0)
@@ -1464,6 +1870,7 @@ class CombattimentoTab(ft.ListView):
                     f"  ❤  HP ripristinati ({c.hp_current} → {c.hp_max})\n"
                     f"  ◆  Dadi vita recuperati (+{recovered})\n"
                     f"  ●  Slot incantesimo ripristinati\n"
+                    f"  ⚡  Risorse di classe ripristinate\n"
                     f"  ↺  Azioni turno azzerate\n"
                     f"  ☠  Tiri salvezza morte azzerati",
                     size=13, color=COLOR_TEXT_PRIMARY,
@@ -1505,10 +1912,15 @@ class CombattimentoTab(ft.ListView):
         refreshed = character_repo.get_by_id(self.character.id)
         if refreshed:
             self.character = refreshed
-        self._slots    = character_repo.get_spell_slots(self.character.id)
-        self._profs    = character_repo.get_proficiencies(self.character.id)
-        self._weapons  = character_repo.get_weapons(self.character.id)
-        self._prepared = character_repo.get_prepared_spells(self.character.id)
+        self._slots     = character_repo.get_spell_slots(self.character.id)
+        self._profs     = character_repo.get_proficiencies(self.character.id)
+        self._weapons   = character_repo.get_weapons(self.character.id)
+        self._prepared  = character_repo.get_prepared_spells(self.character.id)
+        self._resources = character_repo.get_class_resources(self.character.id)
+        self._features     = self._load_class_features(self.character)
+        self._race_traits  = get_race_display_traits(
+            self.character.race or "", self.character.subrace or ""
+        )
         self.controls.clear()
         self._build()
         try:

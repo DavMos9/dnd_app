@@ -2,185 +2,573 @@
   "name": "Chierico",
   "hit_die": 8,
   "primary_ability": "wis",
-  "saving_throws": ["wis", "cha"],
+  "saving_throws": [
+    "wis",
+    "cha"
+  ],
   "spellcasting_ability": "wis",
-  "armor_proficiencies": ["#armature_leggere", "#armature_medie", "#scudi"],
-  "weapon_proficiencies": ["#armi_semplici"],
+  "armor_proficiencies": [
+    "#armature_leggere",
+    "#armature_medie",
+    "#scudi"
+  ],
+  "weapon_proficiencies": [
+    "#armi_semplici"
+  ],
   "tool_proficiencies": [],
   "skill_choices": {
     "count": 2,
-    "options": ["Storia", "Intuizione", "Medicina", "Persuasione", "Religione"]
+    "options": [
+      "Storia",
+      "Intuizione",
+      "Medicina",
+      "Persuasione",
+      "Religione"
+    ]
   },
   "languages": [],
   "starting_equipment": [
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Mazza", "item_type": "weapon"}],
-        [{"name": "Martello da guerra", "item_type": "weapon"}]
+        [
+          {
+            "name": "Mazza",
+            "item_type": "weapon"
+          }
+        ],
+        [
+          {
+            "name": "Martello da guerra",
+            "item_type": "weapon"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Armatura a scaglie", "item_type": "armor"}],
-        [{"name": "Armatura di cuoio", "item_type": "armor"}],
-        [{"name": "Cotta di maglia", "item_type": "armor"}]
+        [
+          {
+            "name": "Armatura a scaglie",
+            "item_type": "armor"
+          }
+        ],
+        [
+          {
+            "name": "Armatura di cuoio",
+            "item_type": "armor"
+          }
+        ],
+        [
+          {
+            "name": "Cotta di maglia",
+            "item_type": "armor"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Balestra leggera", "item_type": "weapon"}, {"name": "Dardi", "item_type": "item", "quantity": 20}],
-        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+        [
+          {
+            "name": "Balestra leggera",
+            "item_type": "weapon"
+          },
+          {
+            "name": "Dardi",
+            "item_type": "item",
+            "quantity": 20
+          }
+        ],
+        [
+          {
+            "name": "Qualsiasi arma semplice",
+            "item_type": "item"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Zaino da sacerdote", "item_type": "item"}],
-        [{"name": "Zaino da esploratore", "item_type": "item"}]
+        [
+          {
+            "name": "Zaino da sacerdote",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Zaino da esploratore",
+            "item_type": "item"
+          }
+        ]
       ]
     },
-    {"type": "fixed", "items": [
-      {"name": "Scudo", "item_type": "armor"},
-      {"name": "Simbolo sacro", "item_type": "item"}
-    ]}
+    {
+      "type": "fixed",
+      "items": [
+        {
+          "name": "Scudo",
+          "item_type": "armor"
+        },
+        {
+          "name": "Simbolo sacro",
+          "item_type": "item"
+        }
+      ]
+    }
   ],
-  "starting_gold_alternative": {"dice": "5d4", "multiplier": 10},
+  "starting_gold_alternative": {
+    "dice": "5d4",
+    "multiplier": 10
+  },
   "subclass_label": "Dominio Divino",
   "subclass_choice_level": 1,
   "subclasses": [
     {
       "name": "Dominio della Vita",
-      "bonus_proficiencies": ["#armature_pesanti"],
+      "bonus_proficiencies": [
+        "#armature_pesanti"
+      ],
       "bonus_spells": {
-        "1": ["Benedici", "Cura Ferite"],
-        "3": ["Ristorare", "Zona della Verità"],
-        "5": ["Revivify", "Luce del Giorno"],
-        "7": ["Guardiano della Fede", "Libertà di Movimento"],
-        "9": ["Masse Curate", "Resurrezione"]
+        "1": [
+          "Benedici",
+          "Cura Ferite"
+        ],
+        "3": [
+          "Ristorare",
+          "Zona della Verità"
+        ],
+        "5": [
+          "Revivify",
+          "Luce del Giorno"
+        ],
+        "7": [
+          "Guardiano della Fede",
+          "Libertà di Movimento"
+        ],
+        "9": [
+          "Masse Curate",
+          "Resurrezione"
+        ]
       },
       "features": [
-        {"level": 1,  "name": "Discepolo della Vita", "description": "Ogni volta che lanci un incantesimo di 1° livello o superiore che ripristina PF, la creatura recupera ulteriori PF pari a 2 + livello dell'incantesimo."},
-        {"level": 2,  "name": "Incanalare Divinità: Preservare la Vita", "description": "Ripristini fino a 5 × livello del chierico PF tra le creature adiacenti."},
-        {"level": 6,  "name": "Guaritore Benedetto", "description": "Gli incantesimi di cura che lanci sugli altri ti curano di 2 + livello dell'incantesimo."},
-        {"level": 8,  "name": "Colpo Divino", "description": "Una volta per turno puoi aggiungere 1d8 danni radianti a un colpo d'arma (2d8 dal 14° livello)."},
-        {"level": 17, "name": "Guarigione Suprema", "description": "Invece di tirare i dadi per gli incantesimi di cura, usa sempre il valore massimo."}
+        {
+          "level": 1,
+          "name": "Discepolo della Vita",
+          "description": "Ogni volta che lanci un incantesimo di 1° livello o superiore che ripristina PF, la creatura recupera ulteriori PF pari a 2 + livello dell'incantesimo."
+        },
+        {
+          "level": 2,
+          "name": "Incanalare Divinità: Preservare la Vita",
+          "description": "Ripristini fino a 5 × livello del chierico PF tra le creature adiacenti."
+        },
+        {
+          "level": 6,
+          "name": "Guaritore Benedetto",
+          "description": "Gli incantesimi di cura che lanci sugli altri ti curano di 2 + livello dell'incantesimo."
+        },
+        {
+          "level": 8,
+          "name": "Colpo Divino",
+          "description": "Una volta per turno puoi aggiungere 1d8 danni radianti a un colpo d'arma (2d8 dal 14° livello)."
+        },
+        {
+          "level": 17,
+          "name": "Guarigione Suprema",
+          "description": "Invece di tirare i dadi per gli incantesimi di cura, usa sempre il valore massimo."
+        }
       ]
     },
     {
       "name": "Dominio della Luce",
       "bonus_proficiencies": [],
-      "bonus_cantrips": ["Fuoco Fatuo"],
+      "bonus_cantrips": [
+        "Fuoco Fatuo"
+      ],
       "bonus_spells": {
-        "1": ["Mani Brucianti", "Luce Faerie"],
-        "3": ["Palla di Fiamme", "Raggi di Luna"],
-        "5": ["Luce del Giorno", "Palla di Fuoco"],
-        "7": ["Custode della Fede", "Muro di Fuoco"],
-        "9": ["Fiamma Sacra", "Visione delle Fiamme"]
+        "1": [
+          "Mani Brucianti",
+          "Luce Faerie"
+        ],
+        "3": [
+          "Palla di Fiamme",
+          "Raggi di Luna"
+        ],
+        "5": [
+          "Luce del Giorno",
+          "Palla di Fuoco"
+        ],
+        "7": [
+          "Custode della Fede",
+          "Muro di Fuoco"
+        ],
+        "9": [
+          "Fiamma Sacra",
+          "Visione delle Fiamme"
+        ]
       },
       "features": [
-        {"level": 1,  "name": "Proiezione di Luce Abbagliante", "description": "Quando una creatura ti attacca, puoi usare la tua reazione per imporre svantaggio."},
-        {"level": 2,  "name": "Incanalare Divinità: Bagliore dell'Alba", "description": "Presenti il tuo simbolo sacro ed evochi un bagliore che fa 2d10 + livello chierico danni radianti alle creature non acecate."},
-        {"level": 6,  "name": "Bagliore Migliorato", "description": "Aggiungi il modificatore di Saggezza ai danni degli incantesimi del dominio."},
-        {"level": 8,  "name": "Colpo Divino", "description": "Aggiungi 1d8 danni radianti a un colpo d'arma per turno."},
-        {"level": 17, "name": "Corona di Luce", "description": "Azione bonus: emana una sfera di luce solare per 1 minuto."}
+        {
+          "level": 1,
+          "name": "Proiezione di Luce Abbagliante",
+          "description": "Quando una creatura ti attacca, puoi usare la tua reazione per imporre svantaggio."
+        },
+        {
+          "level": 2,
+          "name": "Incanalare Divinità: Bagliore dell'Alba",
+          "description": "Presenti il tuo simbolo sacro ed evochi un bagliore che fa 2d10 + livello chierico danni radianti alle creature non acecate."
+        },
+        {
+          "level": 6,
+          "name": "Bagliore Migliorato",
+          "description": "Aggiungi il modificatore di Saggezza ai danni degli incantesimi del dominio."
+        },
+        {
+          "level": 8,
+          "name": "Colpo Divino",
+          "description": "Aggiungi 1d8 danni radianti a un colpo d'arma per turno."
+        },
+        {
+          "level": 17,
+          "name": "Corona di Luce",
+          "description": "Azione bonus: emana una sfera di luce solare per 1 minuto."
+        }
       ]
     },
     {
       "name": "Dominio della Natura",
-      "bonus_proficiencies": ["#armature_pesanti"],
+      "bonus_proficiencies": [
+        "#armature_pesanti"
+      ],
       "bonus_cantrips_choice": 1,
-      "bonus_cantrips_options": ["Infestazione", "Mold Earth", "Forma di Animale"],
+      "bonus_cantrips_options": [
+        "Infestazione",
+        "Mold Earth",
+        "Forma di Animale"
+      ],
       "bonus_spells": {
-        "1": ["Amicizia con gli Animali", "Parlare con gli Animali"],
-        "3": ["Crescita di Spine", "Pelle di Quercia"],
-        "5": ["Muro di Vento", "Controllo del Vento"],
-        "7": ["Forma di Pietra", "Vortice"],
-        "9": ["Comunione con la Natura", "Muro di Pietra"]
+        "1": [
+          "Amicizia con gli Animali",
+          "Parlare con gli Animali"
+        ],
+        "3": [
+          "Crescita di Spine",
+          "Pelle di Quercia"
+        ],
+        "5": [
+          "Muro di Vento",
+          "Controllo del Vento"
+        ],
+        "7": [
+          "Forma di Pietra",
+          "Vortice"
+        ],
+        "9": [
+          "Comunione con la Natura",
+          "Muro di Pietra"
+        ]
       },
       "features": [
-        {"level": 1,  "name": "Ammansire gli Animali e le Piante", "description": "Puoi usare Incanalare Divinità per affascinare animali e piante entità."},
-        {"level": 6,  "name": "Assorbi Elementi", "description": "Quando subisci danni da acido, freddo, fuoco, fulmine o tuono, usa la reazione per ridurli e aggiungerne al tuo prossimo attacco."},
-        {"level": 8,  "name": "Colpo Divino", "description": "Aggiungi 1d8 danni del tipo dell'elemento che hai assorbito."},
-        {"level": 17, "name": "Padrone della Natura", "description": "Puoi comandare agli animali e alle piante affascinati di compiere azioni."}
+        {
+          "level": 1,
+          "name": "Ammansire gli Animali e le Piante",
+          "description": "Puoi usare Incanalare Divinità per affascinare animali e piante entità."
+        },
+        {
+          "level": 6,
+          "name": "Assorbi Elementi",
+          "description": "Quando subisci danni da acido, freddo, fuoco, fulmine o tuono, usa la reazione per ridurli e aggiungerne al tuo prossimo attacco."
+        },
+        {
+          "level": 8,
+          "name": "Colpo Divino",
+          "description": "Aggiungi 1d8 danni del tipo dell'elemento che hai assorbito."
+        },
+        {
+          "level": 17,
+          "name": "Padrone della Natura",
+          "description": "Puoi comandare agli animali e alle piante affascinati di compiere azioni."
+        }
       ]
     },
     {
       "name": "Dominio della Tempesta",
-      "bonus_proficiencies": ["#armature_pesanti", "#armi_da_guerra_mischia"],
+      "bonus_proficiencies": [
+        "#armature_pesanti",
+        "#armi_da_guerra_mischia"
+      ],
       "bonus_spells": {
-        "1": ["Nebbia", "Tuono d'Onda"],
-        "3": ["Passo del Vento", "Sfera di Fulmine"],
-        "5": ["Chiamata del Fulmine", "Tempesta di Fulmini"],
-        "7": ["Controllo dell'Acqua", "Controllo del Vento"],
-        "9": ["Vortice di Distruzione", "Colonna del Tuono"]
+        "1": [
+          "Nebbia",
+          "Tuono d'Onda"
+        ],
+        "3": [
+          "Passo del Vento",
+          "Sfera di Fulmine"
+        ],
+        "5": [
+          "Chiamata del Fulmine",
+          "Tempesta di Fulmini"
+        ],
+        "7": [
+          "Controllo dell'Acqua",
+          "Controllo del Vento"
+        ],
+        "9": [
+          "Vortice di Distruzione",
+          "Colonna del Tuono"
+        ]
       },
       "features": [
-        {"level": 1,  "name": "Furia della Tempesta", "description": "Quando vieni colpito da un attacco, puoi reagire infliggendo 2d8 danni da fulmine o tuono all'attaccante."},
-        {"level": 2,  "name": "Incanalare Divinità: Destro della Tempesta", "description": "Affascini o spaventi creature entro 9 m che falliscono un TS su Saggezza."},
-        {"level": 6,  "name": "Distruzione Tuonante", "description": "Quando colpisci con un attacco, puoi fare un tiro su Forza all'avversario o respingerlo di 3 m."},
-        {"level": 8,  "name": "Colpo Divino", "description": "Aggiungi 1d8 danni da fulmine a un colpo d'arma per turno."},
-        {"level": 17, "name": "Occhio della Tempesta", "description": "Sei immune ai danni da fulmine e tuono; le creature entro 9 m subiscono svantaggio ai TS contro i tuoi incantesimi."}
+        {
+          "level": 1,
+          "name": "Furia della Tempesta",
+          "description": "Quando vieni colpito da un attacco, puoi reagire infliggendo 2d8 danni da fulmine o tuono all'attaccante."
+        },
+        {
+          "level": 2,
+          "name": "Incanalare Divinità: Destro della Tempesta",
+          "description": "Affascini o spaventi creature entro 9 m che falliscono un TS su Saggezza."
+        },
+        {
+          "level": 6,
+          "name": "Distruzione Tuonante",
+          "description": "Quando colpisci con un attacco, puoi fare un tiro su Forza all'avversario o respingerlo di 3 m."
+        },
+        {
+          "level": 8,
+          "name": "Colpo Divino",
+          "description": "Aggiungi 1d8 danni da fulmine a un colpo d'arma per turno."
+        },
+        {
+          "level": 17,
+          "name": "Occhio della Tempesta",
+          "description": "Sei immune ai danni da fulmine e tuono; le creature entro 9 m subiscono svantaggio ai TS contro i tuoi incantesimi."
+        }
       ]
     },
     {
       "name": "Dominio dell'Inganno",
       "bonus_proficiencies": [],
       "bonus_spells": {
-        "1": ["Charme su Persone", "Mascherare"],
-        "3": ["Immagine Speculare", "Passo Nebbioso"],
-        "5": ["Amuleto contro il Rilevamento", "Travestimento Non Magico"],
-        "7": ["Localizzare Creatura", "Polimorfismo"],
-        "9": ["Dominare Persone", "Modificare la Memoria"]
+        "1": [
+          "Charme su Persone",
+          "Mascherare"
+        ],
+        "3": [
+          "Immagine Speculare",
+          "Passo Nebbioso"
+        ],
+        "5": [
+          "Amuleto contro il Rilevamento",
+          "Travestimento Non Magico"
+        ],
+        "7": [
+          "Localizzare Creatura",
+          "Polimorfismo"
+        ],
+        "9": [
+          "Dominare Persone",
+          "Modificare la Memoria"
+        ]
       },
       "features": [
-        {"level": 1,  "name": "Benedizione dell'Imbroglione", "description": "Puoi usare la tua azione bonus per conferire vantaggio al prossimo tiro di attacco contro un nemico entro 9 m."},
-        {"level": 2,  "name": "Incanalare Divinità: Invocazione di Duplicato", "description": "Crei un duplicato illusorio di te stesso a 9 m."},
-        {"level": 6,  "name": "Canale di Divinità: Mantello di Ombre", "description": "Diventi invisibile fino alla fine del turno successivo."},
-        {"level": 8,  "name": "Colpo Divino", "description": "Aggiungi 1d8 danni da veleno a un colpo d'arma per turno."},
-        {"level": 17, "name": "Duplicato Migliorato", "description": "Il tuo duplicato può usare incantesimi."}
+        {
+          "level": 1,
+          "name": "Benedizione dell'Imbroglione",
+          "description": "Puoi usare la tua azione bonus per conferire vantaggio al prossimo tiro di attacco contro un nemico entro 9 m."
+        },
+        {
+          "level": 2,
+          "name": "Incanalare Divinità: Invocazione di Duplicato",
+          "description": "Crei un duplicato illusorio di te stesso a 9 m."
+        },
+        {
+          "level": 6,
+          "name": "Canale di Divinità: Mantello di Ombre",
+          "description": "Diventi invisibile fino alla fine del turno successivo."
+        },
+        {
+          "level": 8,
+          "name": "Colpo Divino",
+          "description": "Aggiungi 1d8 danni da veleno a un colpo d'arma per turno."
+        },
+        {
+          "level": 17,
+          "name": "Duplicato Migliorato",
+          "description": "Il tuo duplicato può usare incantesimi."
+        }
       ]
     },
     {
       "name": "Dominio della Guerra",
-      "bonus_proficiencies": ["#armature_pesanti", "#armi_da_guerra"],
+      "bonus_proficiencies": [
+        "#armature_pesanti",
+        "#armi_da_guerra"
+      ],
       "bonus_spells": {
-        "1": ["Benedici", "Scudo della Fede"],
-        "3": ["Arma Magica", "Arma Spirituale"],
-        "5": ["Spirito del Crocifissore", "Aura del Crociato"],
-        "7": ["Libertà di Movimento", "Guardiano della Fede"],
-        "9": ["Falce Fiammeggiante", "Portale"]
+        "1": [
+          "Benedici",
+          "Scudo della Fede"
+        ],
+        "3": [
+          "Arma Magica",
+          "Arma Spirituale"
+        ],
+        "5": [
+          "Spirito del Crocifissore",
+          "Aura del Crociato"
+        ],
+        "7": [
+          "Libertà di Movimento",
+          "Guardiano della Fede"
+        ],
+        "9": [
+          "Falce Fiammeggiante",
+          "Portale"
+        ]
       },
       "features": [
-        {"level": 1,  "name": "Sacerdote della Guerra", "description": "Quando usi l'azione Attacca, puoi effettuare un attacco aggiuntivo come azione bonus (usi = mod. Saggezza per riposo lungo)."},
-        {"level": 2,  "name": "Incanalare Divinità: Colpo Guidato", "description": "Quando effettui un tiro di attacco, puoi aggiungere +10 al tiro."},
-        {"level": 6,  "name": "Benedizione del Dio della Guerra", "description": "Quando una creatura entro 9 m effettua un tiro di attacco, puoi aggiungere +10 con la tua reazione."},
-        {"level": 8,  "name": "Colpo Divino", "description": "Aggiungi 1d8 danni dello stesso tipo dell'arma a un colpo per turno."},
-        {"level": 17, "name": "Campione Divino", "description": "Quando usi Sacerdote della Guerra, puoi effettuare due attacchi extra invece di uno."}
+        {
+          "level": 1,
+          "name": "Sacerdote della Guerra",
+          "description": "Quando usi l'azione Attacca, puoi effettuare un attacco aggiuntivo come azione bonus (usi = mod. Saggezza per riposo lungo)."
+        },
+        {
+          "level": 2,
+          "name": "Incanalare Divinità: Colpo Guidato",
+          "description": "Quando effettui un tiro di attacco, puoi aggiungere +10 al tiro."
+        },
+        {
+          "level": 6,
+          "name": "Benedizione del Dio della Guerra",
+          "description": "Quando una creatura entro 9 m effettua un tiro di attacco, puoi aggiungere +10 con la tua reazione."
+        },
+        {
+          "level": 8,
+          "name": "Colpo Divino",
+          "description": "Aggiungi 1d8 danni dello stesso tipo dell'arma a un colpo per turno."
+        },
+        {
+          "level": 17,
+          "name": "Campione Divino",
+          "description": "Quando usi Sacerdote della Guerra, puoi effettuare due attacchi extra invece di uno."
+        }
       ]
     },
     {
       "name": "Dominio della Conoscenza",
       "bonus_proficiencies": [
-        {"type": "choice", "count": 2, "from": ["Arcano", "Storia", "Natura", "Religione"]}
+        {
+          "type": "choice",
+          "count": 2,
+          "from": [
+            "Arcano",
+            "Storia",
+            "Natura",
+            "Religione"
+          ]
+        }
       ],
       "languages_choice": 2,
       "bonus_spells": {
-        "1": ["Comando", "Identificazione"],
-        "3": ["Incremento dell'Abilità", "Suggestione"],
-        "5": ["Chiaroveggenza", "Parlare con i Morti"],
-        "7": ["Arcana Occhio", "Confusione"],
-        "9": ["Leggere Legende", "Scrutare"]
+        "1": [
+          "Comando",
+          "Identificazione"
+        ],
+        "3": [
+          "Incremento dell'Abilità",
+          "Suggestione"
+        ],
+        "5": [
+          "Chiaroveggenza",
+          "Parlare con i Morti"
+        ],
+        "7": [
+          "Arcana Occhio",
+          "Confusione"
+        ],
+        "9": [
+          "Leggere Legende",
+          "Scrutare"
+        ]
       },
       "features": [
-        {"level": 1,  "name": "Benedizioni della Conoscenza", "description": "Ottieni competenza in due abilità dalla lista del dominio."},
-        {"level": 2,  "name": "Incanalare Divinità: Conoscenza del Passato", "description": "Scegli una competenza in abilità o strumento; hai vantaggio alle prove per 10 minuti."},
-        {"level": 6,  "name": "Incanalare Divinità: Leggere i Pensieri", "description": "Leggi i pensieri superficiali di una creatura per 1 minuto."},
-        {"level": 8,  "name": "Colpo Potenziato", "description": "Aggiungi 1d8 danni psichici a un colpo per turno."},
-        {"level": 17, "name": "Visioni del Passato", "description": "Puoi vedere visioni del passato recente di oggetti o luoghi toccati."}
+        {
+          "level": 1,
+          "name": "Benedizioni della Conoscenza",
+          "description": "Ottieni competenza in due abilità dalla lista del dominio."
+        },
+        {
+          "level": 2,
+          "name": "Incanalare Divinità: Conoscenza del Passato",
+          "description": "Scegli una competenza in abilità o strumento; hai vantaggio alle prove per 10 minuti."
+        },
+        {
+          "level": 6,
+          "name": "Incanalare Divinità: Leggere i Pensieri",
+          "description": "Leggi i pensieri superficiali di una creatura per 1 minuto."
+        },
+        {
+          "level": 8,
+          "name": "Colpo Potenziato",
+          "description": "Aggiungi 1d8 danni psichici a un colpo per turno."
+        },
+        {
+          "level": 17,
+          "name": "Visioni del Passato",
+          "description": "Puoi vedere visioni del passato recente di oggetti o luoghi toccati."
+        }
       ]
+    }
+  ],
+  "features": [
+    {
+      "level": 1,
+      "name": "Incantesimi",
+      "description": "La magia divina fluisce attraverso di te grazie al tuo dio. Usi la tabella Chierico per gli slot incantesimo. La caratteristica da incantatore è Saggezza. Prepari ogni giorno un numero di incantesimi pari al tuo modificatore di Saggezza + il tuo livello da chierico (min. 1), scegliendoli dalla lista del chierico."
+    },
+    {
+      "level": 1,
+      "name": "Dominio Divino",
+      "description": "Scegli un dominio divino relativo alla tua divinità. Il dominio ti concede incantesimi di dominio (sempre preparati) e privilegi esclusivi al 1°, 2°, 6°, 8° e 17° livello."
+    },
+    {
+      "level": 2,
+      "name": "Incanalare Divinità",
+      "description": "Puoi canalizzare l'energia divina direttamente attraverso la tua divinità per alimentare effetti magici. Ogni utilizzo ti consente di usare l'effetto 'Allontanare Non Morti' o un effetto del tuo dominio. Usi: 1/riposo breve al lv2, 2/riposo al lv6, 3/riposo al lv18."
+    },
+    {
+      "level": 2,
+      "name": "Allontanare Non Morti",
+      "description": "Come azione, mostri il tuo simbolo sacro e reciti una preghiera contro i non morti. Ogni non morto che ti veda o senta entro 9 m deve effettuare un tiro salvezza su Saggezza (CD = CD incantesimi). Se fallisce, è allontanato per 1 minuto o finché non subisce danni."
+    },
+    {
+      "level": 5,
+      "name": "Distruggere Non Morti",
+      "description": "Quando un non morto fallisce il tiro salvezza contro il tuo Allontanare Non Morti, se il suo GS è pari o inferiore alla soglia, viene immediatamente distrutto. Soglia: GS 1/2 (lv5), GS 1 (lv8), GS 2 (lv11), GS 3 (lv14), GS 4 (lv17)."
+    },
+    {
+      "level": 10,
+      "name": "Intervento Divino",
+      "description": "Puoi invocare il tuo dio chiedendogli aiuto quando sei in difficoltà. Tiri percentuale: se il risultato è ≤ al tuo livello da chierico, il tuo dio interviene. Il DM sceglie la natura dell'intervento. Se ha successo, non puoi usarlo di nuovo per 7 giorni. Se non ha successo, puoi riprovare dopo un riposo lungo."
+    },
+    {
+      "level": 20,
+      "name": "Intervento Divino Migliorato",
+      "description": "La chiamata al tuo dio per l'Intervento Divino ha sempre successo automaticamente, senza necessità di tirare i dadi."
     }
   ]
 }

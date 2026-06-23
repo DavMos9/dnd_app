@@ -2,64 +2,222 @@
   "name": "Ranger",
   "hit_die": 10,
   "primary_ability": "dex",
-  "saving_throws": ["str", "dex"],
+  "saving_throws": [
+    "str",
+    "dex"
+  ],
   "spellcasting_ability": "wis",
-  "armor_proficiencies": ["#armature_leggere", "#armature_medie", "#scudi"],
-  "weapon_proficiencies": ["#armi_semplici", "#armi_da_guerra"],
+  "armor_proficiencies": [
+    "#armature_leggere",
+    "#armature_medie",
+    "#scudi"
+  ],
+  "weapon_proficiencies": [
+    "#armi_semplici",
+    "#armi_da_guerra"
+  ],
   "tool_proficiencies": [],
   "skill_choices": {
     "count": 3,
-    "options": ["Addestrare Animali", "Atletica", "Intuizione", "Investigazione", "Natura", "Percezione", "Furtività", "Sopravvivenza"]
+    "options": [
+      "Addestrare Animali",
+      "Atletica",
+      "Intuizione",
+      "Investigazione",
+      "Natura",
+      "Percezione",
+      "Furtività",
+      "Sopravvivenza"
+    ]
   },
   "languages": [],
   "starting_equipment": [
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Cotta di maglia", "item_type": "armor"}],
-        [{"name": "Armatura di cuoio", "item_type": "armor"}]
+        [
+          {
+            "name": "Cotta di maglia",
+            "item_type": "armor"
+          }
+        ],
+        [
+          {
+            "name": "Armatura di cuoio",
+            "item_type": "armor"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Due spade corte", "item_type": "weapon", "quantity": 2}],
-        [{"name": "Due armi semplici da mischia", "item_type": "item", "quantity": 2}]
+        [
+          {
+            "name": "Due spade corte",
+            "item_type": "weapon",
+            "quantity": 2
+          }
+        ],
+        [
+          {
+            "name": "Due armi semplici da mischia",
+            "item_type": "item",
+            "quantity": 2
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Zaino da dungeon", "item_type": "item"}],
-        [{"name": "Zaino da esploratore", "item_type": "item"}]
+        [
+          {
+            "name": "Zaino da dungeon",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Zaino da esploratore",
+            "item_type": "item"
+          }
+        ]
       ]
     },
-    {"type": "fixed", "items": [
-      {"name": "Arco lungo", "item_type": "weapon"},
-      {"name": "Faretra con 20 frecce", "item_type": "item"}
-    ]}
+    {
+      "type": "fixed",
+      "items": [
+        {
+          "name": "Arco lungo",
+          "item_type": "weapon"
+        },
+        {
+          "name": "Faretra con 20 frecce",
+          "item_type": "item"
+        }
+      ]
+    }
   ],
-  "starting_gold_alternative": {"dice": "5d4", "multiplier": 10},
+  "starting_gold_alternative": {
+    "dice": "5d4",
+    "multiplier": 10
+  },
   "subclass_label": "Archetipo del Ranger",
   "subclass_choice_level": 3,
   "subclasses": [
     {
       "name": "Cacciatore",
       "features": [
-        {"level": 3,  "name": "Preda del Cacciatore", "description": "Scegli: Sterminatore di Colossi (bonus ai danni contro creature di taglia Grande o più grande), Sterminatore di Orde (attacchi extra contro creature adiacenti) o Difesa da Duellante (reazione per imporre svantaggio agli attacchi)."},
-        {"level": 7,  "name": "Tattiche Difensive", "description": "Scegli: Scatto Evasivo (vantaggio alle prove di Destrezza contro effetti che richiedono TS), Difesa Multiattacco (resistenza a eventuali attacchi extra) o Difendersi in Turba (CA +4 quando sei circondato)."},
-        {"level": 11, "name": "Attacco Multiplo", "description": "Scegli: Scarica (due frecce su creature diverse) o Raffica di Tagli (colpisci tutti nella portata dell'arma)."},
-        {"level": 15, "name": "Sensi del Cacciatore Superiore", "description": "Scegli: Occhio d'Aquila (vantaggio alle percezioni passive) o Sgambetto Istintivo (reazione agli attacchi di opportunità altrui)."}
+        {
+          "level": 3,
+          "name": "Preda del Cacciatore",
+          "description": "Scegli: Sterminatore di Colossi (bonus ai danni contro creature di taglia Grande o più grande), Sterminatore di Orde (attacchi extra contro creature adiacenti) o Difesa da Duellante (reazione per imporre svantaggio agli attacchi)."
+        },
+        {
+          "level": 7,
+          "name": "Tattiche Difensive",
+          "description": "Scegli: Scatto Evasivo (vantaggio alle prove di Destrezza contro effetti che richiedono TS), Difesa Multiattacco (resistenza a eventuali attacchi extra) o Difendersi in Turba (CA +4 quando sei circondato)."
+        },
+        {
+          "level": 11,
+          "name": "Attacco Multiplo",
+          "description": "Scegli: Scarica (due frecce su creature diverse) o Raffica di Tagli (colpisci tutti nella portata dell'arma)."
+        },
+        {
+          "level": 15,
+          "name": "Sensi del Cacciatore Superiore",
+          "description": "Scegli: Occhio d'Aquila (vantaggio alle percezioni passive) o Sgambetto Istintivo (reazione agli attacchi di opportunità altrui)."
+        }
       ]
     },
     {
       "name": "Maestro delle Bestie",
       "features": [
-        {"level": 3,  "name": "Compagno di Caccia", "description": "Ottieni un compagno animale che agisce in modo indipendente. Usi Addestramento al Combattimento per comandarlo."},
-        {"level": 7,  "name": "Compagno Eccezionale", "description": "Il compagno può attaccare due volte se tu non dai comandi, e ottieni bonus ai tiri di attacco quando combattete insieme."},
-        {"level": 11, "name": "Tattica della Bestia", "description": "Quando il compagno attacca, tu puoi anche effettuare un attacco con un'arma come azione bonus."},
-        {"level": 15, "name": "Condivisione degli Incantesimi", "description": "Il tuo compagno beneficia degli incantesimi che lanci su te stesso."}
+        {
+          "level": 3,
+          "name": "Compagno di Caccia",
+          "description": "Ottieni un compagno animale che agisce in modo indipendente. Usi Addestramento al Combattimento per comandarlo."
+        },
+        {
+          "level": 7,
+          "name": "Compagno Eccezionale",
+          "description": "Il compagno può attaccare due volte se tu non dai comandi, e ottieni bonus ai tiri di attacco quando combattete insieme."
+        },
+        {
+          "level": 11,
+          "name": "Tattica della Bestia",
+          "description": "Quando il compagno attacca, tu puoi anche effettuare un attacco con un'arma come azione bonus."
+        },
+        {
+          "level": 15,
+          "name": "Condivisione degli Incantesimi",
+          "description": "Il tuo compagno beneficia degli incantesimi che lanci su te stesso."
+        }
       ]
+    }
+  ],
+  "features": [
+    {
+      "level": 1,
+      "name": "Nemico Prescelto",
+      "description": "Hai esperienza significativa nello studiare, rintracciare, cacciare e persino parlare con un certo tipo di nemico. Scegli un tipo di nemico prescelto: aberrazioni, bestie, celesti, costrutti, draghi, elementali, fate, demoni, giganti, mostruosità, melme, piante o non morti. Ottieni vantaggio alle prove di Saggezza (Sopravvivenza) per inseguire i tuoi nemici prescelti e alle prove di Intelligenza per ricordare informazioni su di essi. Al 6° e 14° livello scegli un tipo aggiuntivo."
+    },
+    {
+      "level": 1,
+      "name": "Esploratore Nato",
+      "description": "Sei particolarmente a tuo agio in un certo tipo di ambiente naturale. Scegli un tipo di terreno preferito: Artico, Costiero, Deserto, Foresta, Prateria, Montagna o Palude. Mentre viaggi per un'ora o più nel tuo terreno preferito, ottieni vari benefici: difficoltà nel seguire le tue tracce, mai perso, velocità normale anche furtivo, ecc. Al 6° e 10° livello scegli altri tipi di terreno."
+    },
+    {
+      "level": 2,
+      "name": "Stile di Combattimento",
+      "description": "Adotti uno stile come specialità. Scegli tra: Arciere (+2 tiri per colpire con armi a distanza), Difesa (+1 CA con armatura), Duello (+2 danni con arma a una mano), Combattimento con Due Armi (aggiungi il modificatore ai danni del secondo attacco)."
+    },
+    {
+      "level": 2,
+      "name": "Incantesimi",
+      "description": "Hai imparato a usare la magia del mondo naturale. La caratteristica da incantatore è Saggezza. Hai accesso alla lista degli incantesimi da ranger; il numero di incantesimi conosciuti e di slot incantesimo disponibili si trovano nella tabella Ranger."
+    },
+    {
+      "level": 3,
+      "name": "Consapevolezza Primordiale",
+      "description": "Puoi usare la tua azione e spendere uno slot incantesimo da ranger per concentrarti sul tuo ambiente percependo quelle forze. Per 1 minuto per livello dello slot speso, puoi percepire se i seguenti tipi di creature sono presenti entro 1,5 km (6 km in pianura aperta): aberrazioni, celesti, draghi, elementali, fate, demoni e non morti."
+    },
+    {
+      "level": 5,
+      "name": "Attacco Extra",
+      "description": "Puoi attaccare due volte anziché una ogni volta che effettui l'azione di Attacco nel tuo turno."
+    },
+    {
+      "level": 8,
+      "name": "Andatura sul Territorio",
+      "description": "Muoversi su un terreno difficile non ti costa movimento aggiuntivo purché ti trovi nel tuo terreno preferito. Puoi anche passare attraverso piante non magiche senza essere rallentato e senza subire danni, se tali piante solitamente causano rallentamento o danni."
+    },
+    {
+      "level": 10,
+      "name": "Nascondersi in Piena Vista",
+      "description": "Puoi spendere 1 minuto a creare un mimetismo. Puoi nasconderti mentre stai in un'area all'aperto o quando vieni osservato da creature entro 30 m. Devi avere accesso a fango, terra, piante, fuliggine e altri materiali naturali. Smetti di essere nascosto se ti muovi o compi un'azione o una reazione."
+    },
+    {
+      "level": 14,
+      "name": "Svanire",
+      "description": "Puoi usare l'azione Nascondersi come azione bonus nel tuo turno. Inoltre, non puoi essere rintracciato tramite mezzi magici, a meno che tu non scelga di permetterlo."
+    },
+    {
+      "level": 18,
+      "name": "Sensi Ferini",
+      "description": "Ottieni sensi soprannaturali che ti aiutano a combattere le creature che non riesci a vedere. Quando attacchi una creatura che non riesci a vedere, la tua incapacità di vederla non impone svantaggio ai tuoi tiri per colpire contro di essa. Sei comunque consapevole della posizione della creatura."
+    },
+    {
+      "level": 20,
+      "name": "Sterminatore di Nemici",
+      "description": "Diventi un cacciatore senza pari. Una volta per turno, puoi aggiungere il tuo modificatore di Saggezza al tiro per colpire o ai danni contro uno dei tuoi nemici prescelti (non entrambi)."
     }
   ]
 }

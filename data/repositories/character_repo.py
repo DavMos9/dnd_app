@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from data.database import get_connection
-from data.models import Character, CharacterProficiency, Currency, SpellSlot
+from data.models import Character, CharacterProficiency, Currency, SpellSlot, ClassResource
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +226,10 @@ def create(character: Character) -> bool:
         conn.commit()
         conn.close()
         logger.info(f"Personaggio creato: {character.name} ({character.id})")
+
+        # Inizializza risorse di classe
+        init_class_resources(character.id, character.class_name, character.level, character)
+
         return True
 
     except Exception as e:
@@ -890,6 +894,109 @@ def delete_diary_entry(entry_id: str) -> bool:
         return False
 
 
+# ---------------------------------------------------------------------------
+# Note di Campagna (PNG, Luoghi, Missioni, Fazioni)
+# ---------------------------------------------------------------------------
+
+def get_campaign_notes(character_id: str,
+                       category: str | None = None) -> list:
+    """
+    Restituisce le note di campagna del personaggio.
+    Se category è specificato, filtra per categoria.
+    Ordine: created_at ASC (cronologico).
+    """
+    from data.models import CampaignNote
+    try:
+        conn = get_connection()
+        if category:
+            rows = conn.execute(
+                "SELECT * FROM campaign_notes WHERE character_id=? AND category=?"
+                " ORDER BY created_at ASC",
+                (character_id, category)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM campaign_notes WHERE character_id=?"
+                " ORDER BY category, created_at ASC",
+                (character_id,)
+            ).fetchall()
+        conn.close()
+        return [
+            CampaignNote(
+                id=r["id"],
+                character_id=r["character_id"],
+                category=r["category"],
+                name=r["name"],
+                description=r["description"] or "",
+                status=r["status"] or "",
+                tags=r["tags"] or "",
+                created_at=r["created_at"] or "",
+                updated_at=r["updated_at"] or "",
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore recupero campaign_notes {character_id}: {e}")
+        return []
+
+
+def create_campaign_note(character_id: str, category: str, name: str,
+                          description: str = "", status: str = "",
+                          tags: str = "") -> bool:
+    """Crea una nuova nota di campagna."""
+    import uuid as _uuid
+    now = datetime.now().isoformat()
+    try:
+        conn = get_connection()
+        conn.execute(
+            """INSERT INTO campaign_notes
+               (id, character_id, category, name, description, status, tags,
+                created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (str(_uuid.uuid4()), character_id, category, name,
+             description, status, tags, now, now)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore creazione campaign_note: {e}")
+        return False
+
+
+def update_campaign_note(note_id: str, name: str, description: str,
+                          status: str, tags: str) -> bool:
+    """Aggiorna una nota di campagna esistente."""
+    now = datetime.now().isoformat()
+    try:
+        conn = get_connection()
+        conn.execute(
+            """UPDATE campaign_notes
+               SET name=?, description=?, status=?, tags=?, updated_at=?
+               WHERE id=?""",
+            (name, description, status, tags, now, note_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento campaign_note {note_id}: {e}")
+        return False
+
+
+def delete_campaign_note(note_id: str) -> bool:
+    """Elimina una nota di campagna."""
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM campaign_notes WHERE id=?", (note_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore eliminazione campaign_note {note_id}: {e}")
+        return False
+
+
 def update_ca_bonus(character_id: str, ca_bonus: int) -> bool:
     """Aggiorna il bonus CA temporaneo (da incantesimi, reazioni, ecc.)."""
     try:
@@ -976,6 +1083,138 @@ def calculate_and_update_ca(character_id: str) -> int:
     except Exception as e:
         logger.error(f"Errore calcolo CA: {e}")
         return 10
+
+
+# ---------------------------------------------------------------------------
+# Risorse di classe
+# ---------------------------------------------------------------------------
+
+def get_class_resources(character_id: str) -> list[ClassResource]:
+    """Restituisce tutte le risorse di classe del personaggio."""
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM class_resources WHERE character_id=? ORDER BY rowid",
+            (character_id,)
+        ).fetchall()
+        conn.close()
+        return [
+            ClassResource(
+                id=r["id"],
+                character_id=r["character_id"],
+                name=r["name"],
+                max_value=r["max_value"],
+                current_value=r["current_value"],
+                reset_on=r["reset_on"],
+                display_type=r["display_type"],
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore recupero risorse di classe {character_id}: {e}")
+        return []
+
+
+def update_class_resource(resource_id: str, current_value: int) -> bool:
+    """Aggiorna il valore corrente di una risorsa di classe."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE class_resources SET current_value=? WHERE id=?",
+            (current_value, resource_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento risorsa {resource_id}: {e}")
+        return False
+
+
+def reset_class_resources(character_id: str, reset_on: str) -> bool:
+    """
+    Ripristina current_value = max_value per tutte le risorse con il reset_on indicato.
+    Usato da riposo breve (reset_on='short_rest') e riposo lungo (chiamare due volte).
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE class_resources SET current_value=max_value WHERE character_id=? AND reset_on=?",
+            (character_id, reset_on)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore reset risorse {reset_on} per {character_id}: {e}")
+        return False
+
+
+def init_class_resources(
+    character_id: str,
+    class_name: str,
+    level: int,
+    character=None,
+) -> bool:
+    """
+    Inizializza o aggiorna le risorse di classe E razziali dopo creazione o level-up.
+
+    Strategia merge:
+      - Risorse presenti in defaults ma non nel DB → create con current=max.
+      - Risorse presenti nel DB e in defaults → max_value aggiornato;
+        current_value = min(current_value, nuovo_max).
+      - Risorse nel DB ma non più nei defaults → eliminate.
+    """
+    import uuid as _uuid
+    from config.settings import get_class_resource_defaults, get_race_resource_defaults
+    try:
+        # Risorse di classe
+        defaults = get_class_resource_defaults(class_name, level, character)
+
+        # Risorse razziali (aggiunte allo stesso pool)
+        race_name  = getattr(character, "race",    "") or "" if character else ""
+        subrace    = getattr(character, "subrace", "") or "" if character else ""
+        race_defaults = get_race_resource_defaults(race_name, subrace, level)
+        defaults = defaults + race_defaults
+
+        existing = {r.name: r for r in get_class_resources(character_id)}
+        default_names = {d["name"] for d in defaults}
+
+        conn = get_connection()
+
+        # Rimuovi risorse non più applicabili
+        for name, res in existing.items():
+            if name not in default_names:
+                conn.execute("DELETE FROM class_resources WHERE id=?", (res.id,))
+                logger.info(f"Rimossa risorsa obsoleta '{name}' per {character_id}")
+
+        # Crea o aggiorna
+        for d in defaults:
+            if d["name"] in existing:
+                ex = existing[d["name"]]
+                new_current = min(ex.current_value, d["max_value"])
+                conn.execute(
+                    """UPDATE class_resources
+                       SET max_value=?, current_value=?, reset_on=?, display_type=?
+                       WHERE id=?""",
+                    (d["max_value"], new_current, d["reset_on"], d["display_type"], ex.id)
+                )
+            else:
+                conn.execute(
+                    """INSERT INTO class_resources
+                       (id, character_id, name, max_value, current_value, reset_on, display_type)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (str(_uuid.uuid4()), character_id,
+                     d["name"], d["max_value"], d["current_value"],
+                     d["reset_on"], d["display_type"])
+                )
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore init_class_resources ({class_name} lv{level}): {e}")
+        return False
 
 
 def update_turn_state(character_id: str, action: bool, bonus: bool,

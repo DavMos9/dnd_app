@@ -1,28 +1,1846 @@
-[
-  {
-    "name": "Parola Sacra",
-    "level": 7,
-    "school": "Ammaliamento",
-    "casting_time": "1 azione bonus",
-    "range": "9 m",
-    "components": "V",
-    "duration": "Istantaneo",
-    "ritual": false,
-    "concentration": false,
-    "description": "Pronunci una parola sacra impregnata del potere che ha plasmato il mondo all'alba della creazione. Ogni creatura nemica che riesci a vedere entro gittata che può sentirti deve effettuare un tiro salvezza su Carisma. Se fallisce, la creatura è maledetta in base ai suoi punti ferita attuali:\n- 50 pf o meno: intontita per 1 minuto\n- 40 pf o meno: accecata per 10 minuti\n- 30 pf o meno: assordita e accecata per 1 ora\n- 20 pf o meno: uccisa istantaneamente",
-    "higher_levels": null
-  },
-  {
-    "name": "Cura Ferite",
-    "level": 1,
-    "school": "Evocazione",
-    "casting_time": "1 azione",
-    "range": "Contatto",
-    "components": "V, S",
-    "duration": "Istantaneo",
-    "ritual": false,
-    "concentration": false,
-    "description": "Una creatura che tocchi recupera un numero di punti ferita pari a 1d8 + il tuo modificatore di caratteristica da lancio di incantesimi.",
-    "higher_levels": "Quando lanci questo incantesimo usando uno slot di livello 2 o superiore, la guarigione aumenta di 1d8 per ogni livello dello slot superiore al 1°."
-  }
-]
+{
+  "class": "Chierico",
+  "spells": [
+    {
+      "name": "Fiamma Sacra",
+      "level": 0,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Un bagliore simile a una fiamma discende su una creatura entro gittata che egli è in grado di vedere. Il bersaglio deve superare un tiro salvezza su Destrezza, altrimenti subisce 1d8 danni radiosi. Per questo tiro salvezza, il bersaglio non trae beneficio dalla mezza copertura o dai tre quarti di copertura. Trucchetto potenziato. I danni aumentano di 1d8 quando l'incantatore raggiunge il 5º livello (2d8), l'11º livello (3d8) e il 17º livello (4d8).",
+      "higher_levels": null
+    },
+    {
+      "name": "Guida",
+      "level": 0,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "Contatto",
+      "components": [],
+      "material": null,
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore tocca una creatura consenziente e sceglie un'abilità. Fino al termine dell'incantesimo, la creatura aggiunge 1d4 a qualsiasi prova di caratteristica effettuata utilizzando l'abilità scelta.",
+      "higher_levels": null
+    },
+    {
+      "name": "Luce",
+      "level": 0,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "M"
+      ],
+      "material": "una lucciola o del muschio fosforescente",
+      "duration": "1 ora",
+      "ritual": false,
+      "concentration": false,
+      "description": "ora L'incantatore tocca un oggetto di taglia Grande o inferiore che non sia stato indossato o trasportato da altri. Fino al termine dell'incantesimo, l'oggetto proietta luce intensa entro un raggio di 6 metri e luce fioca per altri 6 metri. L'incantatore può scegliere il colore di luce che desidera. Coprire l'oggetto con qualcosa di opaco blocca la luce. L'incantesimo termina se l'incantatore lo lancia di nuovo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Resistenza",
+      "level": 0,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "Contatto",
+      "components": [],
+      "material": null,
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore tocca una creatura consenziente e sceglie un tipo di danno: acido, contundente, freddo, fulmine, fuoco, necrotico, perforante, radioso, tagliente, tuono, veleno. Quando una creatura subisce danni del tipo scelto prima del termine dell'incantesimo, riduce il totale dei danni subiti di 1d4. Una creatura può beneficiare di questo incantesimo solo una volta per turno.",
+      "higher_levels": null
+    },
+    {
+      "name": "Riparare",
+      "level": 0,
+      "school": "Trasmutazione",
+      "casting_time": "1 minuto",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "due calamite",
+      "duration": "Istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Questo incantesimo ripara una singola crepa o uno squarcio in un oggetto toccato dall'incantatore, come l'anello spezzato di una catena, due metà di una chiave spezzata, un mantello strappato o un otre forato. Se le dimensioni della crepa o dello squarcio non superano i 30 centimetri, l'incantatore ripara l'oggetto senza lasciare traccia del danno precedente. Questo incantesimo può riparare un oggetto magico solo fisicamente, senza ripristinare la magia in esso contenuta.",
+      "higher_levels": null
+    },
+    {
+      "name": "Salvare i Morenti",
+      "level": 0,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "4,5 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore sceglie una creatura entro gittata con 0 punti ferita ma che è ancora in vita, facendola diventare stabile. Trucchetto potenziato. La gittata raddoppia quando l'incantatore raggiunge il 5º livello 183 System Reference Document 5.2.1 (9 metri), l'11º livello (18 metri) e il 17º livello (36 metri).",
+      "higher_levels": null
+    },
+    {
+      "name": "Taumaturgia",
+      "level": 0,
+      "school": "Trasmutazione",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "Fino a 1 minuto",
+      "ritual": false,
+      "concentration": false,
+      "description": "a 1 minuto L'incantatore genera una meraviglia minore entro gittata, oltre a uno degli effetti elencati di seguito. Se l'incantatore lancia questo incantesimo più volte, può tenere attivi contemporaneamente fino a tre dei suoi effetti dalla durata di 1 minuto. Mano invisibile. L'incantatore fa in modo che una porta o una finestra non chiusa a chiave si spalanchi o si chiuda di colpo da sola. Occhi alterati. L'incantatore altera l'aspetto dei suoi occhi per 1 minuto. Suono spettrale. L'incantatore crea un suono improvviso che ha origine da un punto entro gittata a sua scelta, come un rombo di tuono, il verso di un corvo o un mormorio sinistro. Tremiti. L'incantatore genera un tremito innocuo sul terreno per 1 minuto. Trucchetto col fuoco. L'incantatore fa in modo che una fiamma tremi, si intensifichi, si affievolisca o cambi colore per 1 minuto. Voce tonante. La voce dell'incantatore rimbomba con potenza tre volte superiore rispetto al normale per 1 minuto. Per la durata dell'incantesimo, dispone di vantaggio alle prove di Carisma (Intimidire).",
+      "higher_levels": null
+    },
+    {
+      "name": "Anatema",
+      "level": 1,
+      "school": "Ammaliamento",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una goccia di sangue",
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore sceglie fino a tre creature situate entro gittata che egli è in grado di vedere, ciascuna delle quali deve effettuare un tiro salvezza su Carisma. Se un bersaglio fallisce il tiro, ogni volta che effettua un tiro per colpire o un tiro salvezza prima del termine dell'incantesimo deve sottrarre 1d4 da essi. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 1º.",
+      "higher_levels": "L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 1º."
+    },
+    {
+      "name": "Benedizione",
+      "level": 1,
+      "school": "Ammaliamento",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un simbolo sacro del valore di 5 mo o più",
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore benedice fino a tre creature entro gittata. Se un bersaglio effettua un tiro per colpire o un tiro salvezza prima del termine dell'incantesimo, il bersaglio aggiunge a essi 1d4. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 1º.",
+      "higher_levels": "L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 1º."
+    },
+    {
+      "name": "Comando",
+      "level": 1,
+      "school": "Ammaliamento",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore rivolge una parola di comando a una creatura entro gittata che egli è in grado di vedere. Il bersaglio deve superare un tiro salvezza su Saggezza, altrimenti dovrà obbedire al comando nel suo turno successivo. Scegli il comando tra le seguenti opzioni: Avvicinati. Il bersaglio si muove verso l'incantatore seguendo il percorso più breve e diretto, terminando il suo turno se giunge entro 1,5 metri da lui. Fermo. Nel suo turno, il bersaglio non si muove e non effettua alcuna azione o azione bonus. Fuggi. Il bersaglio usa il suo turno per allontanarsi dall'incantatore nel modo più rapido possibile. Lascia. Il bersaglio lascia cadere ciò che stava impugnando, poi termina il suo turno. Prostrati. Il bersaglio cade a terra prono e termina il suo turno. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore può influenzare una creatura aggiuntiva per ogni slot di livello superiore al 1º.",
+      "higher_levels": "L'incantatore può influenzare una creatura aggiuntiva per ogni slot di livello superiore al 1º."
+    },
+    {
+      "name": "Creare o Distruggere Acqua",
+      "level": 1,
+      "school": "Trasmutazione",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una miscela di acqua e sabbia",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore esegue una delle seguenti azioni: Creare acqua. L'incantatore crea fino a 40 litri d'acqua pulita in un contenitore aperto entro gittata. In alternativa, l'acqua cade sotto forma di pioggia in un cubo con spigolo di 9 metri entro gittata, estinguendo le fiamme presenti nell'area. Distruggere acqua. L'incantatore distrugge fino a 40 litri d'acqua in un contenitore aperto entro gittata. In alternativa, distrugge la nebbia presente in un cubo con spigolo di 9 metri entro gittata. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore crea o distrugge 40 litri aggiuntivi d'acqua, oppure la grandezza del cubo aumenta di 1,5 metri per spigolo, per ogni slot di livello superiore al 1º.",
+      "higher_levels": "L'incantatore crea o distrugge 40 litri aggiuntivi d'acqua, oppure la grandezza del cubo aumenta di 1,5 metri per spigolo, per ogni slot di livello superiore al 1º."
+    },
+    {
+      "name": "Cura Ferite",
+      "level": 1,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Una creatura toccata dall'incantatore recupera un numero di punti ferita pari a 2d8 più il modificatore di caratteristica da incantatore dell'incantatore. Utilizzo di uno slot incantesimo di livello superiore. La guarigione aumenta di 2d8 per ogni slot di livello superiore al 1º.",
+      "higher_levels": "La guarigione aumenta di 2d8 per ogni slot di livello superiore al 1º."
+    },
+    {
+      "name": "Dardo Tracciante",
+      "level": 1,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "36 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "1 round",
+      "ritual": false,
+      "concentration": false,
+      "description": "round L'incantatore scaglia un lampo di luce verso una creatura entro gittata, effettuando un attacco a distanza con incantesimo contro il bersaglio. Se il colpo va a segno, esso subisce 4d6 danni radiosi, e il successivo tiro per colpire effettuato contro il bersaglio prima del termine del turno successivo dell'incantatore dispone di vantaggio. Utilizzo di uno slot incantesimo di livello superiore. I danni aumentano di 1d6 per ogni slot di livello superiore al 1º.",
+      "higher_levels": "I danni aumentano di 1d6 per ogni slot di livello superiore al 1º."
+    },
+    {
+      "name": "Individuazione del Bene e del Male",
+      "level": 1,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti Per la durata dell'incantesimo, l'incantatore percepisce la posizione di aberrazioni, celestiali, elementali, folletti, immondi o non morti entro 9 metri di distanza da sé. Percepisce inoltre se l'incantesimo santificare è attivo e, se sì, dove. L'incantesimo viene bloccato da 30 cm di pietra, terriccio o legno, 2,5 centimetri di metallo o una sottile lamina di piombo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Individuazione del Magico",
+      "level": 1,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": true,
+      "concentration": true,
+      "description": "fino a 10 minuti Per la durata dell'incantesimo, l'incantatore percepisce la presenza di effetti magici entro 9 metri da sé. Se percepisce tali effetti, può eseguire un azione di Magia per vedere una debole aura attorno a ogni creatura o oggetto visibile nell'area che contenga magia e apprende di che scuola di magia si tratta, se ne esiste una. L'incantesimo viene bloccato da 30 cm di pietra, terriccio o legno, 2,5 centimetri di metallo o una sottile lamina di piombo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Individuazione delle Malattie e dei Veleni",
+      "level": 1,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una foglia di tasso",
+      "duration": "concentrazione, fino a 10 minuti 157",
+      "ritual": true,
+      "concentration": true,
+      "description": "fino a 10 minuti 157 System Reference Document 5.2.1 Per la durata dell'incantesimo, l'incantatore percepisce l'ubicazione di veleni, creature velenose e contagi magici entro 9 metri da sé. Inoltre, in ciascun caso può identificare il tipo di veleno, di creatura velenosa o di malattia. L'incantesimo viene bloccato da 30 cm di pietra, terriccio o legno, 2,5 centimetri di metallo o una sottile lamina di piombo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Infliggi Ferite",
+      "level": 1,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Una creatura toccata dall'incantatore effettua un tiro salvezza su Costituzione, subendo 2d10 danni necrotici in caso di fallimento, o la metà dei danni in caso di successo. Utilizzo di uno slot incantesimo di livello superiore. I danni aumentano di 1d10 per ogni slot di livello superiore al 1º. Ingrandire/ridurre Trasmutazione di 2º livello (bardo, druido, mago, stregone) Tempo di lancio: azione Gittata: 9 metri Componenti: V, S, M (un pizzico di polvere di ferro) Durata: concentrazione, fino a 1 minuto Per la durata dell'incantesimo, l'incantatore ingrandisce o riduce una creatura o un oggetto entro gittata che egli è in grado di vedere (vedi di seguito l'effetto scelto). L'oggetto bersaglio non deve essere né indossato né trasportato. Se il bersaglio è una creatura non consenziente, può effettuare un tiro salvezza su Costituzione. Se lo supera, l'incantesimo non sortisce alcun effetto. Tutto ciò che la creatura indossa o trasporta cambia di taglia insieme a lei. Se un oggetto cade a terra, torna immediatamente alle sue dimensioni normali. Le armi da lancio e le munizioni tornano alle loro dimensioni normali subito dopo aver colpito o mancato un bersaglio. Ingrandire. La taglia del bersaglio aumenta di una categoria (da Media a Grande, per esempio). Il bersaglio dispone anche di vantaggio alle prove di Forza e ai tiri salvezza su Forza. Gli attacchi effettuati dal bersaglio con armi ingrandite o con colpi senz'armi infliggono 1d4 danni extra se il colpo va a segno. Ridurre. La taglia del bersaglio diminuisce di una categoria (da Media a Piccola, per esempio). Il bersaglio dispone anche di svantaggio alle prove di Forza e ai tiri salvezza su Forza. Gli attacchi effettuati dal bersaglio con armi ridotte o con colpi senz'armi infliggono 1d4 danni in meno se il colpo va a segno (i danni non possono scendere a meno di 1).",
+      "higher_levels": "I danni aumentano di 1d10 per ogni slot di livello superiore al 1º. Ingrandire/ridurre Trasmutazione di 2º livello (bardo, druido, mago, stregone) Tempo di lancio: azione Gittata: 9 metri Componenti: V, S, M (un pizzico di polvere di ferro) Durata: concentrazione, fino a 1 minuto Per la durata dell'incantesimo, l'incantatore ingrandisce o riduce una creatura o un oggetto entro gittata che egli è in grado di vedere (vedi di seguito l'effetto scelto). L'oggetto bersaglio non deve essere né indossato né trasportato. Se il bersaglio è una creatura non consenziente, può effettuare un tiro salvezza su Costituzione. Se lo supera, l'incantesimo non sortisce alcun effetto. Tutto ciò che la creatura indossa o trasporta cambia di taglia insieme a lei. Se un oggetto cade a terra, torna immediatamente alle sue dimensioni normali. Le armi da lancio e le munizioni tornano alle loro dimensioni normali subito dopo aver colpito o mancato un bersaglio. Ingrandire. La taglia del bersaglio aumenta di una categoria (da Media a Grande, per esempio). Il bersaglio dispone anche di vantaggio alle prove di Forza e ai tiri salvezza su Forza. Gli attacchi effettuati dal bersaglio con armi ingrandite o con colpi senz'armi infliggono 1d4 danni extra se il colpo va a segno. Ridurre. La taglia del bersaglio diminuisce di una categoria (da Media a Piccola, per esempio). Il bersaglio dispone anche di svantaggio alle prove di Forza e ai tiri salvezza su Forza. Gli attacchi effettuati dal bersaglio con armi ridotte o con colpi senz'armi infliggono 1d4 danni in meno se il colpo va a segno (i danni non possono scendere a meno di 1)."
+    },
+    {
+      "name": "Parola Guaritrice",
+      "level": 1,
+      "school": "Abiurazione",
+      "casting_time": "1 azione bonus",
+      "range": "18 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Una creatura scelta dall'incantatore entro gittata e che egli è in grado di vedere recupera un ammontare di punti ferita pari a 2d4 più il modificatore di caratteristica da incantatore dell'incantatore. Utilizzo di uno slot incantesimo di livello superiore. La guarigione aumenta di 2d4 per ogni slot di livello superiore al 1º.",
+      "higher_levels": "La guarigione aumenta di 2d4 per ogni slot di livello superiore al 1º."
+    },
+    {
+      "name": "Protezione dal Bene e dal Male",
+      "level": 1,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un'ampolla di acqua santa del valore di 25 mo o più, che l'incantesimo consuma",
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti Fino al termine dell'incantesimo, una creatura consenziente toccata dall'incantatore è protetta da certi tipi di creature: aberrazioni, celestiali, elementali, folletti, immondi o non morti. La protezione garantisce diversi vantaggi. Le creature contro cui è attiva subiscono svantaggio ai tiri per colpire indirizzati contro il bersaglio; inoltre, il bersaglio non può essere affascinato, spaventato o posseduto 177 System Reference Document 5.2.1 da creature analoghe. Se il bersaglio è già affascinato, spaventato o posseduto da una tale creatura, dispone di vantaggio a qualsiasi nuovo tiro salvezza contro il relativo effetto.",
+      "higher_levels": null
+    },
+    {
+      "name": "Purificare Cibo e Bevande",
+      "level": 1,
+      "school": "Trasmutazione",
+      "casting_time": "1 azione",
+      "range": "3 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": true,
+      "concentration": false,
+      "description": "L'incantatore rimuove veleno e marciume da cibi e bevande non magici situati in una sfera del raggio di 1,5 metri centrata su un punto entro gittata.",
+      "higher_levels": null
+    },
+    {
+      "name": "Santuario",
+      "level": 1,
+      "school": "Abiurazione",
+      "casting_time": "1 azione bonus",
+      "range": "9 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un frammento di vetro di uno specchio",
+      "duration": "1 minuto",
+      "ritual": false,
+      "concentration": false,
+      "description": "minuto L'incantatore protegge una creatura situata entro gittata. Fino al termine dell'incantesimo, ogni creatura che bersaglia la creatura protetta con un tiro per colpire o con un incantesimo dannoso deve prima superare un tiro salvezza su Saggezza, altrimenti deve scegliere un bersaglio diverso o perdere l'attacco o l'incantesimo. Questo incantesimo non protegge la creatura protetta dalle aree di effetto. L'incantesimo termina se la creatura protetta effettua un tiro per colpire, lancia un incantesimo o infligge danni.",
+      "higher_levels": null
+    },
+    {
+      "name": "Scudo della Fede",
+      "level": 1,
+      "school": "Abiurazione",
+      "casting_time": "1 azione bonus",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una pergamena con una preghiera",
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti Un campo di energia scintillante avvolge una creatura scelta dall'incantatore entro gittata, conferendole un bonus di +2 alla CA per la durata dell'incantesimo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Aiuto",
+      "level": 2,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una striscia di tessuto bianco",
+      "duration": "8 ore",
+      "ritual": false,
+      "concentration": false,
+      "description": "ore L'incantatore sceglie fino a tre creature entro gittata. I punti ferita massimi e i punti ferita attuali di ogni bersaglio aumentano di 5 per la durata dell'incantesimo. Utilizzo di uno slot incantesimo di livello superiore. I punti ferita di ciascun bersaglio aumentano di 5 per ogni slot incantesimo di livello superiore al 2º. 122 System Reference Document 5.2.1",
+      "higher_levels": "I punti ferita di ciascun bersaglio aumentano di 5 per ogni slot incantesimo di livello superiore al 2º. 122 System Reference Document 5.2.1"
+    },
+    {
+      "name": "Arma Spirituale",
+      "level": 2,
+      "school": "Evocazione",
+      "casting_time": "1 azione bonus",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore crea una forza spettrale e fluttuante che ha la forma di un'arma a sua scelta e permane per la durata dell'incantesimo. L'arma appare entro 126 System Reference Document 5.2.1 gittata in un luogo a scelta dell'incantatore, il quale può subito effettuare un attacco in mischia con incantesimo contro una creatura entro 1,5 metri dall'arma. Se il colpo va a segno, il bersaglio subisce 1d8 danni da forza + il modificatore di caratteristica da incantatore dell'incantatore. Come azione bonus nei suoi turni successivi, l'incantatore può muovere l'arma spirituale di un massimo di 6 metri e ripetere l'attacco contro una creatura situata entro 1,5 metri da essa. Utilizzo di uno slot incantesimo di livello superiore. I danni aumentano di 1d8 per ogni slot di livello superiore al 2º.",
+      "higher_levels": "I danni aumentano di 1d8 per ogni slot di livello superiore al 2º."
+    },
+    {
+      "name": "Blocca Persone",
+      "level": 2,
+      "school": "Ammaliamento",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una sbarra di ferro",
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore sceglie un umanoide entro gittata che egli è in grado di vedere. Il bersaglio deve superare un tiro salvezza su Saggezza, altrimenti rimane paralizzato per la durata dell'incantesimo. Alla fine di ogni suo turno, il bersaglio ripete il tiro salvezza e, se lo supera, termina l'incantesimo su di sé. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore può bersagliare un umanoide aggiuntivo per ogni slot di livello superiore al 2º.",
+      "higher_levels": "L'incantatore può bersagliare un umanoide aggiuntivo per ogni slot di livello superiore al 2º."
+    },
+    {
+      "name": "Calmare Emozioni",
+      "level": 2,
+      "school": "Ammaliamento",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto Ogni umanoide all'interno di una sfera del raggio di 6 metri centrata su un punto scelto dall'incantatore entro gittata deve effettuare un tiro salvezza su Carisma o essere influenzato da uno dei seguenti effetti (a scelta per ogni creatura): • La creatura è immune alle condizioni affascinato e spaventato fino al termine dell'incantesimo. Se la creatura è già affascinata o spaventata, queste condizioni sono soppresse per la durata dell'incantesimo. • La creatura diventa indifferente alle creature (a scelta dell'incantatore) verso cui è ostile. Questa indifferenza termina se il bersaglio subisce danni o se vede uno dei suoi alleati subire danni. Al termine dell'incantesimo, l'atteggiamento della creatura torna alla normalità.",
+      "higher_levels": null
+    },
+    {
+      "name": "Caratteristica Potenziata",
+      "level": 2,
+      "school": "Trasmutazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un ciuffo di peli o una piuma",
+      "duration": "concentrazione, fino a 1 ora",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 ora L'incantatore tocca una creatura e sceglie Forza, Destrezza, Intelligenza, Saggezza o Carisma. Per la durata dell'incantesimo, il bersaglio dispone di vantaggio sulle prove di caratteristica effettuate utilizzando l'abilità scelta. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 2º. L'incantatore può scegliere una caratteristica differente per ogni bersaglio.",
+      "higher_levels": "L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 2º. L'incantatore può scegliere una caratteristica differente per ogni bersaglio."
+    },
+    {
+      "name": "Cecità/Sordità",
+      "level": 2,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "1 minuto",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore può accecare o assordare un nemico. Sceglie una creatura entro gittata che egli sia in grado di vedere. Quella creatura deve effettuare un tiro salvezza su Costituzione. Se lo fallisce, è accecata o assordara (a scelta dell'incantatore) per la durata dell'incantesimo. Alla fine di ogni suo turno può effettuare un nuovo tiro salvezza su Costituzione. Se lo supera, l'incantesimo termina.",
+      "higher_levels": "Quando l'incantatore lancia questo incantesimo usando uno slot incantesimo di 3° livello o superiore, può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 2°."
+    },
+    {
+      "name": "Fiamma Perenne",
+      "level": 2,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "polvere di rubino del valore di 50 mo o più, che l'incantesimo consuma",
+      "duration": "finché non viene dissolto",
+      "ritual": false,
+      "concentration": false,
+      "description": "non viene dissolto Una fiamma si sprigiona da un oggetto toccato dall'incantatore. L'effetto proietta luce intensa in un raggio di 6 metri e luce fioca per ulteriori 6 metri. L'effetto è quello di una fiamma comune, ma non genera calore e non utilizza combustibile. La fiamma può essere coperta o nascosta, ma non soffocata o estinta.",
+      "higher_levels": null
+    },
+    {
+      "name": "Localizza Oggetto",
+      "level": 2,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un ramoscello biforcuto",
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti L'incantatore descrive o nomina un oggetto a lui familiare, percependo la direzione della sua ubicazione se l'oggetto si trova entro 300 metri da lui. Se l'oggetto è in movimento, l'incantatore apprende verso quale direzione si sta dirigendo. L'incantesimo può localizzare un oggetto specifico noto all'incantatore, purché l'abbia visto da vicino (entro 9 metri) almeno una volta. In alternativa, può localizzare l'oggetto di un tipo particolare più vicino, come per esempio un certo tipo di veste, gioiello, mobile, strumento o arma. Questo incantesimo non può localizzare un oggetto se uno strato di piombo blocca il percorso diretto tra esso e l'incantatore.",
+      "higher_levels": null
+    },
+    {
+      "name": "Preghiera di Guarigione",
+      "level": 2,
+      "school": "Abiurazione",
+      "casting_time": "10 minuti",
+      "range": "9 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "istantanea 175",
+      "ritual": false,
+      "concentration": false,
+      "description": "175 System Reference Document 5.2.1 Fino a cinque creature a scelta dell'incantatore, situate entro gittata per l'intera durata del lancio dell'incantesimo, ottengono i benefici di un riposo breve e recuperano 2d8 punti ferita. Una creatura non può essere nuovamente influenzata da questo incantesimo fino a che non completa un riposo lungo. Utilizzo di uno slot incantesimo di livello superiore. La guarigione aumenta di 1d8 per ogni slot di livello superiore al 2º.",
+      "higher_levels": "La guarigione aumenta di 1d8 per ogni slot di livello superiore al 2º."
+    },
+    {
+      "name": "Presagio",
+      "level": 2,
+      "school": "Divinazione",
+      "casting_time": "1 minuto",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "bastoncini, ossa, carte o altri oggetti da divinazione dotati di contrassegni speciali, del valore di 25 mo o più",
+      "duration": "istantanea",
+      "ritual": true,
+      "concentration": false,
+      "description": "L'incantatore riceve un presagio da un'entità ultraterrena sui risultati di un corso d'azione che intende effettuare nei prossimi 30 minuti. Il GM sceglie il presagio dalla tabella Presagi. Presagi Presagio Con risultati... Ventura Positivi Sventura Negativi Ventura e sventura Positivi e negativi Indifferenza Né positivi né negativi L'incantesimo non tiene conto delle circostanze, come altri incantesimi, che potrebbero modificare i risultati. Se l'incantatore lancia l'incantesimo più volte prima di completare un riposo lungo, esiste una probabilità cumulativa del 25% di non ottenere risposta per ogni lancio dopo il primo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Protezione dai Veleni",
+      "level": 2,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "1 ora",
+      "ritual": false,
+      "concentration": false,
+      "description": "ora L'incantatore tocca una creatura e pone fine alla condizione avvelenato che la affligge. Per la durata dell'incantesimo, il bersaglio dispone di vantaggio ai tiri salvezza eseguiti per evitare o terminare la condizione avvelenato, ed è resistente ai danni da veleno.",
+      "higher_levels": null
+    },
+    {
+      "name": "Riposo Inviolato",
+      "level": 2,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "2 monete di rame, che l'incantesimo consuma",
+      "duration": "10 giorni",
+      "ritual": true,
+      "concentration": false,
+      "description": "giorni L'incantatore tocca un cadavere o altri resti. Per la durata dell'incantesimo, il bersaglio è protetto dalla decomposizione e non può diventare un non morto. Inoltre, l'incantesimo estende il limite di tempo entro cui rianimare il bersaglio dalla morte, in quanto i giorni trascorsi sotto l'influenza di questo incantesimo non contano al fine di determinare il limite di tempo di incantesimi come rianimare morti.",
+      "higher_levels": null
+    },
+    {
+      "name": "Ristorare Inferiore",
+      "level": 2,
+      "school": "Abiurazione",
+      "casting_time": "1 azione bonus",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore tocca una creatura e pone fine a una delle condizioni che la affligge tra: accecato, assordato, avvelenato o paralizzato.",
+      "higher_levels": null
+    },
+    {
+      "name": "Scopri Trappole",
+      "level": 2,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "36 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore percepisce qualsiasi trappola piazzata entro gittata e nel suo campo visivo. Ai fini di questo incantesimo, per trappola si intende qualsiasi oggetto o meccanismo creato per provocare danni o altri pericoli. Pertanto, l'incantesimo è in grado di percepire gli incantesimi allarme o glifo di interdizione, o una fossa meccanica nascosta, ma non di rivelare un cedimento naturale del pavimento, un soffitto instabile o una voragine nascosta. Questo incantesimo rivela la presenza di una trappola ma non la sua ubicazione. L'incantatore scopre solo la natura generale del pericolo che la trappola pone.",
+      "higher_levels": null
+    },
+    {
+      "name": "Silenzio",
+      "level": 2,
+      "school": "Illusione",
+      "casting_time": "1 azione",
+      "range": "36 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": true,
+      "concentration": true,
+      "description": "fino a 10 minuti L'incantatore genera una sfera del raggio di 6 metri centrata su un punto a sua scelta situato entro gittata e, per la durata dell'incantesimo, nessun suono può essere creato all'interno di quella sfera o attraversarla. Ogni creatura o oggetto interamente all'interno della sfera è immune ai danni da tuono e ogni creatura interamente all'interno della sfera è assordata. All'interno dell'area è impossibile lanciare un incantesimo che includa una componente verbale.",
+      "higher_levels": null
+    },
+    {
+      "name": "Vincolo di Interdizione",
+      "level": 2,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un paio di anelli di platino del valore di 50 mo o più, che l'incantatore e il bersaglio devono indossare per la durata dell'incantesimo",
+      "duration": "1 ora",
+      "ritual": false,
+      "concentration": false,
+      "description": "ora L'incantatore tocca un'altra creatura consenziente e crea un collegamento mistico tra sé e il bersaglio fino al termine dell'incantesimo. Finché il bersaglio si trova entro 18 metri dall'incantatore, ottiene un bonus di +1 alla CA e ai tiri salvezza e dispone 201 System Reference Document 5.2.1 di resistenza a tutti i danni. Inoltre, ogni volta che subisce danni, l'incantatore ne subisce la stessa quantità. L'incantesimo termina se l'incantatore scende a 0 punti ferita, se lui e il bersaglio si allontanano di più di 18 metri o se l'incantesimo viene lanciato di nuovo su una delle due creature collegate.",
+      "higher_levels": null
+    },
+    {
+      "name": "Zona di Verità",
+      "level": 2,
+      "school": "Ammaliamento",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "10 minuti",
+      "ritual": false,
+      "concentration": false,
+      "description": "minuti L'incantatore crea una zona magica che protegge dagli inganni all'interno di una sfera del raggio di 4,5 metri, centrata su un punto entro gittata. Fino al termine dell'incantesimo, una creatura che entra nell'area dell'incantesimo per la prima volta in un turno o che inizia qui il suo turno effettua un tiro salvezza su Carisma. Se lo fallisce, non può mentire deliberatamente mentre si trova nell'area. L'incantatore sa se il bersaglio supera o meno il tiro salvezza. Una creatura influenzata è consapevole dell'incantesimo e può evitare di rispondere alle domande a cui normalmente risponderebbe mentendo. In tal caso, deve essere evasiva, ma sincera.",
+      "higher_levels": null
+    },
+    {
+      "name": "Animare Morti",
+      "level": 3,
+      "school": "Necromanzia",
+      "casting_time": "1 minuto",
+      "range": "3 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una goccia di sangue, un pezzo di carne e un pizzico di polvere d'osso",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore sceglie una pila di ossa o un cadavere umanoide di taglia Media o Piccola entro gittata, animandolo come creatura non morta. Il bersaglio si trasforma in uno scheletro se l'incantatore sceglie la pila di ossa, o in uno zombi se l'incantatore sceglie un cadavere (vedi \"Mostri\" per le schede delle statistiche). A ogni suo turno, l'incantatore può effettuare un'azione bonus per comandare mentalmente qualsiasi creatura creata con questo incantesimo, a patto che si trovi entro 18 metri da lui (se controlla varie creature, l'incantatore può comandarne più di una allo stesso momento, impartendo lo stesso comando a ciascuna di loro). L'incantatore decide quale azione effettuerà la creatura e dove si muoverà nel suo turno successivo, oppure può impartirle un comando generale, come restare a guardia di una stanza o un di corridoio. Se invece non impartisce alcun comando, la creatura effettua l'azione Schivata e si sposta solo per evitare di subire danni. Una volta ricevuto un ordine, la creatura continua a seguirlo finché non ha portato a termine il compito. La creatura rimane sotto il controllo dell'incantatore per 24 ore, passate le quali smette di obbedire a qualsiasi comando ulteriore. Per mantenere il controllo sulla creatura per altre 24 ore, l'incantatore deve lanciare di nuovo questo incantesimo su di essa prima che l'attuale periodo di 24 ore termini. Questo uso dell'incantesimo gli permette di ristabilire il controllo su un massimo di quattro creature da lui animate tramite questo incantesimo, anziché animarne una nuova. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore anima due creature non morte aggiuntive o ristabilisce il controllo su di esse per ogni slot incantesimo di livello superiore al 3º. Ognuna delle creature deve provenire da un diverso cadavere o mucchio d'ossa.",
+      "higher_levels": "L'incantatore anima due creature non morte aggiuntive o ristabilisce il controllo su di esse per ogni slot incantesimo di livello superiore al 3º. Ognuna delle creature deve provenire da un diverso cadavere o mucchio d'ossa."
+    },
+    {
+      "name": "Camminare sull'Acqua",
+      "level": 3,
+      "school": "Trasmutazione",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un pezzo di sughero",
+      "duration": "1 ora",
+      "ritual": true,
+      "concentration": false,
+      "description": "ora Questo incantesimo conferisce la capacità di muoversi su una qualsiasi superficie liquida, come l'acqua, l'acido, il fango, la neve, le sabbie mobili o la lava, come se si trattasse di un innocuo terreno solido (ma le creature che attraversano un tratto di lava fusa possono comunque subire danni dal calore). Fino a dieci creature consenzienti entro gittata a scelta dell'incantatore ottengono questa capacità per la durata dell'incantesimo. Un bersaglio colpito deve usare un'azione bonus per passare dalla superficie del liquido all'interno del liquido stesso e viceversa, ma se il bersaglio cade dentro di esso passa attraverso la superficie nel liquido sottostante.",
+      "higher_levels": null
+    },
+    {
+      "name": "Cerchio Magico",
+      "level": 3,
+      "school": "Abiurazione",
+      "casting_time": "1 minuto",
+      "range": "3 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "sale e polvere d'argento del valore di 100 mo o più, che l'incantesimo consuma",
+      "duration": "1 ora",
+      "ritual": false,
+      "concentration": false,
+      "description": "ora L'incantatore crea un cilindro di energia magica di 3 metri di raggio e 6 metri di altezza, centrato su un punto del terreno entro gittata che egli è in grado di vedere. Rune luminose appaiono nei punti in cui il cilindro si interseca con il pavimento o altre superfici. L'incantatore sceglie uno o più tra i tipi di creature seguenti: celestiali, elementali, folletti, immondi o non morti. Il cerchio influenza una creatura del tipo scelto nei seguenti modi: • La creatura non può entrare volontariamente nel cilindro tramite mezzi non magici. Se prova a utilizzare il teletrasporto o il viaggio interplanare, deve prima superare un tiro salvezza su Carisma. • La creatura subisce svantaggio ai tiri per colpire contro i bersagli all'interno del cilindro. • I bersagli all'interno del cilindro non possono essere posseduti, affascinati o spaventati dalla creatura. Ogni volta che lancia questo incantesimo, l'incantatore può far funzionare la sua magia nella direzione inversa, impedendo cioè a una creatura di un tipo specifico di uscire dal cilindro e proteggendo i bersagli all'esterno. Utilizzo di uno slot incantesimo di livello superiore. La durata aumenta di 1 ora per ogni slot di livello superiore al 3º.",
+      "higher_levels": "La durata aumenta di 1 ora per ogni slot di livello superiore al 3º."
+    },
+    {
+      "name": "Chiaroveggenza",
+      "level": 3,
+      "school": "Divinazione",
+      "casting_time": "10 minuti",
+      "range": "1,5 chilometri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un focus del valore di 100 mo o più, a scelta tra un cornetto acustico incastonato di gemme o un occhio di vetro per la vista",
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti L'incantatore crea un sensore invisibile entro gittata in un luogo a lui familiare (cioè che ha già visitato o visto), oppure in un luogo ovvio a lui non familiare (come per esempio dietro una porta, dietro un angolo o in un boschetto). Questo sensore intangibile e invulnerabile rimane in quella posizione per la durata dell'incantesimo. Quando lancia l'incantesimo, l'incantatore sceglie tra vista e udito, potendo utilizzare il senso scelto attraverso il sensore come se si trovasse nel suo spazio. Come azione bonus, l'incantatore può passare dalla vista all'udito e viceversa. 133 System Reference Document 5.2.1 Una creatura che vede il sensore (per esempio una creatura che beneficia di vedere invisibilità o vista pura) scorge una sfera luminosa grande quanto il pugno dell'incantatore.",
+      "higher_levels": null
+    },
+    {
+      "name": "Creare Cibo e Acqua",
+      "level": 3,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore crea 22,5 chili di cibo e 120 litri d'acqua fresca sul terreno o all'interno di un contenitore entro gittata, utili per tenere lontani i rischi di malnutrizione e disidratazione. Il cibo è insipido ma nutriente e assomiglia a un alimento a scelta dell'incantatore; l'acqua è pulita. Il cibo marcisce dopo 24 ore se non viene consumato.",
+      "higher_levels": null
+    },
+    {
+      "name": "Dissolvi Magie",
+      "level": 3,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "36 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "Istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore sceglie una creatura, un oggetto o un effetto magico situato entro gittata. Ogni incantesimo di 3º livello o inferiore presente sul bersaglio termina. Per ogni incantesimo di 4º livello o superiore presente sul bersaglio, l'incantatore effettua una prova di caratteristica usando la propria caratteristica da incantatore (CD 10 più il livello di quell'incantesimo). Se la prova viene superata, l'incantesimo termina. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore termina automaticamente un incantesimo sul bersaglio se il livello di quell'incantesimo è pari o inferiore al livello dello slot incantesimo usato dall'incantatore. 143 System Reference Document 5.2.1",
+      "higher_levels": "L'incantatore termina automaticamente un incantesimo sul bersaglio se il livello di quell'incantesimo è pari o inferiore al livello dello slot incantesimo usato dall'incantatore. 143 System Reference Document 5.2.1"
+    },
+    {
+      "name": "Faro di Speranza",
+      "level": 3,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore sceglie un qualsiasi numero di creature entro gittata. Per la durata dell'incantesimo, ogni bersaglio dispone di vantaggio ai tiri salvezza su Saggezza, ai tiri salvezza contro morte e recupera il numero massimo di punti ferita possibile da qualsiasi guarigione.",
+      "higher_levels": null
+    },
+    {
+      "name": "Fondersi nella Pietra",
+      "level": 3,
+      "school": "Trasmutazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "8 ore",
+      "ritual": true,
+      "concentration": false,
+      "description": "ore L'incantatore entra in un oggetto o in una superficie di pietra sufficientemente grande da contenere il suo corpo, fondendosi con esso insieme al suo l'equipaggiamento per la durata dell'incantesimo. Per farlo, l'incantatore deve toccare la pietra, e nulla della sua presenza rimane visibile o individuabile da qualsiasi senso non magico. Mentre è fuso nella pietra, l'incantatore non può vedere ciò che accade al di fuori e subisce svantaggio in qualsiasi prova di Saggezza (Percezione) effettuata per udire i suoni all'esterno. Rimane tuttavia cosciente del passare del tempo e può lanciare incantesimi su di sé. L'incantatore può usare 1,5 metri del suo movimento per uscire dalla pietra nel punto in cui è entrato, ponendo fine all'incantesimo; altrimenti, non può muoversi. Eventuali danni fisici minori inflitti alla pietra non danneggiano l'incantatore, ma una distruzione parziale o un'alterazione nella forma (al punto da non contenerne più il corpo) provoca l'espulsione 149 System Reference Document 5.2.1 dell'incantatore, infliggendogli 6d6 danni da forza. La completa distruzione della pietra (o la sua trasmutazione in una sostanza differente) provoca l'espulsione dell'incantatore e gli infligge 50 danni da forza. Se l'incantatore viene espulso, cade a terra prono nello spazio libero più vicino al punto in cui era entrato.",
+      "higher_levels": null
+    },
+    {
+      "name": "Glifo di Interdizione",
+      "level": 3,
+      "school": "Abiurazione",
+      "casting_time": "1 ora",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "polvere di diamante del valore di 200 mo o più, che l'incantesimo consuma",
+      "duration": "finché non viene dissolto o innescato",
+      "ritual": false,
+      "concentration": false,
+      "description": "non viene dissolto o innescato L'incantatore traccia un glifo da cui, in seguito, si sprigionerà un effetto magico. Il glifo può essere tracciato su una superficie (come un tavolo o una sezione di pavimento) o, al fine di nasconderlo, all'interno di un oggetto che può essere chiuso (come un libro o un forziere). Il glifo può coprire un'area massima del diametro di 3 metri. Se la superficie o l'oggetto viene spostato per più di 3 metri dal punto in cui l'incantatore ha lanciato questo incantesimo, il glifo si infrange e l'incantesimo termina senza essere innescato. Il glifo è quasi impercettibile e, per notarlo, è necessario superare una prova di Saggezza (Percezione) contro la CD del tiro salvezza sull'incantesimo. Quando l'incantatore traccia il glifo, ne programma l'innesco e sceglie se si tratta di una runa esplosiva o di un glifo magico, come illustrato di seguito. Programmare l'innesco. Quando questo incantesimo viene lanciato, l'incantatore decide cosa innesca il glifo. Nel caso di glifi tracciati su una superficie, gli inneschi più comuni includono: toccare o camminare su di essi, rimuovere un altro oggetto che li copre o avvicinarsi a una certa distanza da loro. Nel caso di glifi tracciati all'interno di un oggetto, gli inneschi più comuni includono aprire quell'oggetto o vedere il glifo. Una volta che un glifo viene innescato, l'incantesimo termina. L'incantatore può perfezionare l'innesco in modo che venga attivato solo da un certo tipo di creature (ad esempio, il glifo potrebbe essere programmato per influenzare le aberrazioni). L'incantatore può inoltre impostare delle condizioni per evitare di innescare il glifo, come pronunciare una specifica parola d'ordine. 152 System Reference Document 5.2.1 Runa esplosiva. Quando attivato, il glifo esplode in una sfera di energia magica con raggio di 6 metri centrata su di esso. Ogni creatura presente nell'area effettua un tiro salvezza su Destrezza. In caso di fallimento, subisce 5d8 danni da acido, freddo, fulmine, fuoco o tuono (a scelta dell'incantatore al momento della creazione del glifo), o la metà dei danni in caso di successo. Glifo magico. L'incantatore può custodire un incantesimo preparato di 3º livello o inferiore all'interno del glifo lanciandolo come parte del suo processo di creazione. L'incantesimo deve avere come bersaglio una sola creatura o un'area. In questo modo, l'incantesimo custodito non ha effetto immediato, ma ha effetto quando il glifo si attiva. Se l'incantesimo ha un bersaglio, risulterà essere la creatura che ha attivato il glifo, mentre se influenza un'area, tale area sarà centrata su quella creatura. Se ­l'incantesimo evoca creature ostili oppure crea oggetti o trappole dannose, ciò che viene evocato o creato appare nel punto più vicino possibile all'intruso e lo attacca. Se l'incantesimo richiede concentrazione, permane per tutta la sua durata. Utilizzo di uno slot incantesimo di livello superiore. I danni di una runa esplosiva aumentano di 1d8 per ogni slot di livello superiore al 3º. Se l'incantatore crea un glifo magico, può custodirvi qualsiasi incantesimo di livello pari o inferiore a quello dello slot incantesimo usato per il glifo di interdizione.",
+      "higher_levels": "I danni di una runa esplosiva aumentano di 1d8 per ogni slot di livello superiore al 3º. Se l'incantatore crea un glifo magico, può custodirvi qualsiasi incantesimo di livello pari o inferiore a quello dello slot incantesimo usato per il glifo di interdizione."
+    },
+    {
+      "name": "Guardiani Spirituali",
+      "level": 3,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una pergamena con una preghiera",
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti Degli spiriti protettori fluttuano attorno al personaggio in un'emanazione di 4,5 metri per la durata dell'incantesimo. Se l'incantatore è buono o neutrale, la loro forma spettrale appare angelica o fatata (a scelta dell'incantatore). Se è malvagio, appaiono con sembianze demoniache. Quando l'incantatore lancia questo incantesimo, può indicare le creature che non ne saranno influenzate. All'interno dell'emanazione, la velocità di ogni altra creatura è dimezzata e, ogni volta che una creatura entra nel suo spazio e viceversa, o ogni volta che vi termina lì il turno, dovrà effettuare un tiro salvezza su Saggezza. Se lo fallisce, subisce 3d8 danni radiosi (se l'incantatore è buono o neutrale) o 3d8 danni necrotici (se è malvagio), mentre se lo supera subisce soltanto la metà di quei danni. Una creatura effettua questo tiro salvezza solo una volta per turno. Utilizzo di uno slot incantesimo di livello superiore. I danni aumentano di 1d8 per ogni slot di livello superiore al 3º. 153 System Reference Document 5.2.1",
+      "higher_levels": "I danni aumentano di 1d8 per ogni slot di livello superiore al 3º. 153 System Reference Document 5.2.1"
+    },
+    {
+      "name": "Inviare",
+      "level": 3,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "Illimitata",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un filo di rame",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore invia un breve messaggio di un massimo di 25 parole a una creatura che ha incontrato o a una creatura che gli è stata descritta da qualcuno che ha conosciuto. Il bersaglio sente il messaggio nella sua mente, riconosce l'incantatore come colui che l'ha inviato e può rispondere immediatamente allo stesso modo. L'incantesimo consente ai bersagli di comprendere il significato del messaggio dell'incantatore. L'incantatore può inviare il messaggio a qualsiasi distanza e perfino ad altri piani di esistenza, ma se il bersaglio si trova su un piano di esistenza diverso dal suo, c'è una probabilità del 5% che il messaggio non arrivi. Se l'invio del messaggio fallisce, l'incantatore se ne rende conto. Quando riceve il messaggio, una creatura può bloccare la capacità dell'incantatore di contattarla nuovamente tramite questo incantesimo per 8 ore. Se l'incantatore cerca di inviare un altro messaggio durante quel periodo, capisce di essere stato bloccato e l'incantesimo fallisce.",
+      "higher_levels": null
+    },
+    {
+      "name": "Linguaggi",
+      "level": 3,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "M"
+      ],
+      "material": "una ziggurat in miniatura",
+      "duration": "1 ora",
+      "ritual": false,
+      "concentration": false,
+      "description": "ora Questo incantesimo concede alla creatura toccata dall'incantatore l'abilità di comprendere qualsiasi lingua (parlata o non) che sente o vede. Inoltre, quando comunica con parole o gesti, qualsiasi creatura che conosce almeno una lingua può comprenderla se è in grado di sentire ciò che dice o vedere i suoi gesti.",
+      "higher_levels": null
+    },
+    {
+      "name": "Luce Diurna",
+      "level": 3,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "1 ora",
+      "ritual": false,
+      "concentration": false,
+      "description": "ora Per la durata dell'incantesimo, un fascio di luce solare si sprigiona da un punto entro gittata e riempie una sfera del raggio di 18 metri. L'area della luce solare emette luce intensa e poi luce fioca per ulteriori 18 metri. In alternativa, l'incantatore lancia l'incantesimo su un oggetto che non sia indossato o trasportato, facendo sì che la luce solare riempia un'emanazione di 18 metri di cui l'oggetto è il punto di origine. Coprire l'oggetto con qualcosa di opaco, come una ciotola o un elmo, blocca la luce solare. Se una parte dell'area di questo incantesimo si sovrappone a un'area di oscurità creata da un incantesimo di 3º livello o inferiore, l'incantesimo che ha creato la luce viene dissolto.",
+      "higher_levels": null
+    },
+    {
+      "name": "Morte Apparente",
+      "level": 3,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "Contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un pizzico di terriccio prelevato da un cimitero",
+      "duration": "1 ora",
+      "ritual": true,
+      "concentration": false,
+      "description": "L'incantatore tocca una creatura consenziente, ponendola in uno stato catatonico indistinguibile dalla morte. Per la durata dell'incantesimo, o finché l'incantatore non usa un'azione per toccare il bersaglio e terminare l'incantesimo, il bersaglio appare morto a ogni ispezione esterna e agli incantesimi usati per determinare il suo status. Il bersaglio è accecato e incapacitato e la sua velocità scende a 0. Il bersaglio dispone di resistenza a tutti i danni tranne i danni psichici. Se il bersaglio è ammalato o avvelenato quando l'incantatore lancia l'incantesimo, o diventa ammalato o avvelenato finché si trova sotto l'effetto dell'incantesimo, la malattia e il veleno non hanno effetto finché l'incantesimo non termina.",
+      "higher_levels": null
+    },
+    {
+      "name": "Parlare con i Morti",
+      "level": 3,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "3 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "incenso bruciato",
+      "duration": "10 minuti",
+      "ritual": false,
+      "concentration": false,
+      "description": "minuti L'incantatore conferisce una parvenza di vita a un cadavere a sua scelta situato entro gittata, permettendogli di rispondere alle domande che gli vengono poste. Il cadavere deve avere la bocca e, se la creatura deceduta era un non morto al momento del trapasso, l'incantesimo fallisce. Fallisce allo stesso modo se il cadavere è già stato il bersaglio di questo incantesimo negli ultimi 10 giorni. Fino al termine dell'incantesimo, l'incantatore può porre al cadavere un massimo di cinque domande. Il cadavere conosce solo quello che sapeva in vita, incluse le lingue. Generalmente, le risposte sono brevi, criptiche o ripetitive e il cadavere non è obbligato a offrirne una sincera se l'incantatore gli è ostile o se il cadavere lo riconosce come nemico. Questo incantesimo non riporta l'anima della creatura nel suo corpo, solamente lo spirito animante. Perciò il cadavere non può apprendere nuove informazioni, non conosce nulla di ciò che è accaduto dopo la sua morte e non può speculare sugli eventi futuri.",
+      "higher_levels": null
+    },
+    {
+      "name": "Parola Guaritrice di Massa",
+      "level": 3,
+      "school": "Abiurazione",
+      "casting_time": "1 azione bonus",
+      "range": "18 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Fino a sei creature a scelta dall'incantatore entro gittata e che egli è in grado di vedere recuperano un ammontare di punti ferita pari a 2d4 più il modificatore di caratteristica da incantatore dell'incantatore. Utilizzo di uno slot incantesimo di livello superiore. La guarigione aumenta di 1d4 per ogni slot di livello superiore al 3º.",
+      "higher_levels": "La guarigione aumenta di 1d4 per ogni slot di livello superiore al 3º."
+    },
+    {
+      "name": "Protezione dall'Energia",
+      "level": 3,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 1 ora",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 ora Per la durata dell'incantesimo, una creatura consenziente toccata dall'incantatore dispone di resistenza a un tipo di danni a scelta di quest'ultimo: acido, freddo, fulmine, fuoco o tuono.",
+      "higher_levels": null
+    },
+    {
+      "name": "Rimuovi Maledizione",
+      "level": 3,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "Istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Al tocco dell'incantatore, tutte le maledizioni che affliggono una creatura o un oggetto terminano. Nel caso di un oggetto magico maledetto, la sua maledizione permane, ma l'incantesimo spezza la sintonia del suo proprietario, consentendogli di rimuoverlo o di liberarsene.",
+      "higher_levels": null
+    },
+    {
+      "name": "Rinascita",
+      "level": 3,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un diamante del valore di 300 mo o più, che l'incantesimo consuma",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore tocca una creatura morta nell'ultimo minuto, la quale ritorna in vita con 1 punto ferita. Questo incantesimo non può riportare in vita una creatura morta di vecchiaia e non ripristina le eventuali parti del corpo mancanti.",
+      "higher_levels": null
+    },
+    {
+      "name": "Scagliare Maledizione",
+      "level": 3,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore tocca una creatura che deve superare un tiro salvezza su Saggezza, altrimenti verrà maledetta per la durata dell'incantesimo. Finché la maledizione non svanisce, il bersaglio subisce uno dei seguenti effetti a scelta: • L'incantatore sceglie una caratteristica. Il bersaglio subisce svantaggio alle prove di caratteristica e ai tiri salvezza effettuati con quella caratteristica. • Il bersaglio subisce svantaggio ai tiri per colpire contro l'incantatore. • In combattimento, il bersaglio deve superare un tiro salvezza su Saggezza all'inizio di ogni suo turno, altrimenti in quel turno è costretto a effettuare l'azione Schivata. • Se l'incantatore infligge danni al bersaglio con un tiro per colpire o un incantesimo, il bersaglio subisce 1d8 danni necrotici extra. Utilizzo di uno slot incantesimo di livello superiore. Se l'incantatore lancia questo incantesimo usando uno slot incantesimo di 4º livello, può mantenere la concentrazione su di esso fino a un massimo di 10 minuti. Se usa uno slot incantesimo di 5º livello o superiore, l'incantesimo non richiede concentrazione e la durata diventa di 8 ore (slot di 5º e 6º livello) o 24 ore (slot di 7º o 8º livello). Se usa uno slot incantesimo di 9º livello, l'incantesimo dura finché non viene dissolto.",
+      "higher_levels": "Se l'incantatore lancia questo incantesimo usando uno slot incantesimo di 4º livello, può mantenere la concentrazione su di esso fino a un massimo di 10 minuti. Se usa uno slot incantesimo di 5º livello o superiore, l'incantesimo non richiede concentrazione e la durata diventa di 8 ore (slot di 5º e 6º livello) o 24 ore (slot di 7º o 8º livello). Se usa uno slot incantesimo di 9º livello, l'incantesimo dura finché non viene dissolto."
+    },
+    {
+      "name": "Controllare Acqua",
+      "level": 4,
+      "school": "Trasmutazione",
+      "casting_time": "1 azione",
+      "range": "90 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una miscela di acqua e polvere",
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti Fino al termine dell'incantesimo, l'incantatore controlla una massa d'acqua all'interno di un'area a sua scelta, con un volume massimo pari a un cubo con spigolo di 30 metri, usando uno dei seguenti effetti. Come azione di Magia durante i suoi turni successivi, può ripetere il medesimo effetto o sceglierne uno differente. Deviare la corrente. L'incantatore fa in modo che l'acqua corrente nell'area si muova in una direzione scelta da lui, anche se l'acqua deve risalire 137 System Reference Document 5.2.1 ostacoli e pareti o scorrere in altre direzioni inverosimili. L'acqua nell'area si muove secondo le indicazioni dell'incantatore, ma una volta superata l'area dell'incantesimo, riprende il suo corso in base al ­terreno. L'acqua continua a scorrere nella direzione scelta fino al termine dell'incantesimo o finché l'incantatore non sceglie un effetto diverso. Gorgo. L'incantatore crea un gorgo al centro dell'area, che deve essere di almeno 15 metri per lato e 7,5 metri di profondità. Il gorgo permane finché l'incantatore non sceglie un effetto diverso o fino al termine dell'incantesimo. Il gorgo è alto 7,5 metri e ampio 1,5 metri alla base e fino a 15 metri alla sommità. Qualsiasi creatura nell'acqua ed entro 7,5 metri dal gorgo viene trascinata per 3 metri verso di esso. Quando una creatura viene trascinata nel gorgo per la prima volta in un turno o vi finisce il suo turno, effettua un tiro salvezza su Forza. In caso di fallimento, la creatura subisce 2d8 danni contundenti, mentre se lo supera, subisce soltanto la metà di quei danni. Una creatura può nuotare via dal gorgo solo se prima effettua un'azione per allontanarsi e supera una prova di Forza (Atletica) contro la CD del tiro salvezza sull'incantesimo dell'incantatore. Il livello dell'acqua rimane elevato fino al termine dell'incantesimo o finché l'incantatore non sceglie un effetto diverso. Se questo effetto produce un'onda, questa si ripete all'inizio del turno successivo dell'incantatore finché l'effetto di inondazione permane. Inondazione. L'incantatore fa in modo che il livello di tutta l'acqua ferma dell'area si alzi di un massimo di 6 metri. Se l'incantatore sceglie un'area all'interno di un grande specchio d'acqua, genera invece un'onda alta 6 metri che da una parte dell'area si infrange sull'altra. Qualsiasi veicolo di taglia Enorme o inferiore sul percorso dell'onda viene trascinato dall'altra parte dell'area e ha una probabilità del 25% di capovolgersi. Separare le acque. L'incantatore fa in modo che l'acqua presente nell'area si separi, creando un canale che si estende per tutta l'area dell'incantesimo; le acque divise formano un muro su entrambi i lati. Il canale permane fino al termine dell'incantesimo o finché l'incantatore non sceglie un effetto diverso. L'acqua poi riempie lentamente il canale nel corso del round successivo, finché il livello normale dell'acqua non viene ripristinato.",
+      "higher_levels": null
+    },
+    {
+      "name": "Divinazione",
+      "level": 4,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "incenso del valore di 25 mo o più, che l'incantesimo consuma",
+      "duration": "istantanea",
+      "ritual": true,
+      "concentration": false,
+      "description": "Questo incantesimo mette in contatto l'incantatore con una divinità o con un servitore della divinità. L'incantatore pone una sola domanda relativa a uno specifico obiettivo, evento o attività che si verificherà entro 7 giorni. Il GM fornisce una risposta onesta, che può essere una breve frase o una rima enigmatica. L'incantesimo non tiene conto delle circostanze che potrebbero modificare la risposta, come il lancio di altri incantesimi. Se l'incantatore lancia l'incantesimo più volte prima di completare un riposo lungo, esiste una probabilità cumulativa del 25% di non ottenere risposta per ogni lancio dopo il primo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Esilio",
+      "level": 4,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un pentacolo",
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto Una creatura entro gittata che l'incantatore è in grado di vedere deve superare un tiro salvezza su Carisma o essere trasportata in un semipiano sicuro per la durata dell'incantesimo. Mentre si trova lì, il bersaglio è incapacitato. Al termine dell'incantesimo, il bersaglio riappare nello spazio in cui si trovava prima del lancio o, se è occupato, nello spazio libero più vicino. Se l'incantesimo sul bersaglio dura 1 minuto, il bersaglio non fa ritorno se è un'aberrazione, un celestiale, un elementale, un folletto o un immondo. In questo caso, viene trasportato in un luogo casuale di un piano (a scelta del GM) associato al tipo di creatura di cui fa parte. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 4º. 145 System Reference Document 5.2.1 spostare anche il branco fino a 9 metri in uno spazio libero che è in grado di vedere. Ogni volta che il branco si muove entro 3 metri da una creatura che l'incantatore è in grado di vedere e ogni volta che una creatura che l'incantatore è in grado di vedere entra in uno spazio entro 3 metri dal branco o vi termina il suo turno, l'incantatore può costringerla a effettuare un tiro salvezza su Destrezza. In caso di fallimento, subisce 3d10 danni taglienti. Una creatura effettua questo tiro salvezza solo una volta per turno. Utilizzo di uno slot incantesimo di livello superiore. I danni aumentano di 1d10 per ogni slot di livello superiore al 3º.",
+      "higher_levels": "L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 4º. 145 System Reference Document 5.2.1 spostare anche il branco fino a 9 metri in uno spazio libero che è in grado di vedere. Ogni volta che il branco si muove entro 3 metri da una creatura che l'incantatore è in grado di vedere e ogni volta che una creatura che l'incantatore è in grado di vedere entra in uno spazio entro 3 metri dal branco o vi termina il suo turno, l'incantatore può costringerla a effettuare un tiro salvezza su Destrezza. In caso di fallimento, subisce 3d10 danni taglienti. Una creatura effettua questo tiro salvezza solo una volta per turno. Utilizzo di uno slot incantesimo di livello superiore. I danni aumentano di 1d10 per ogni slot di livello superiore al 3º."
+    },
+    {
+      "name": "Guardiano della Fede",
+      "level": 4,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "9 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "8 ore",
+      "ritual": false,
+      "concentration": false,
+      "description": "ore Per la durata dell'incantesimo, un guardiano spettrale di taglia Grande compare e fluttua in uno spazio libero entro gittata che l'incantatore è in grado di vedere. Il guardiano occupa quello spazio ed è invulnerabile: assume inoltre una forma appropriata alla divinità o al pantheon dell'incantatore. Qualsiasi nemico si muova in uno spazio entro 3 metri dal guardiano per la prima volta in un turno o che inizi il proprio turno lì, effettua un tiro salvezza su Destrezza. In caso di fallimento, subisce 20 danni radiosi o la metà dei danni in caso di successo. Il guardiano svanisce quando ha inflitto un totale di 60 danni.",
+      "higher_levels": null
+    },
+    {
+      "name": "Interdizione alla Morte",
+      "level": 4,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "8 ore",
+      "ritual": false,
+      "concentration": false,
+      "description": "ore L'incantatore tocca una creatura e le concede una misura di protezione dalla morte. La prima volta che il bersaglio scende a 0 punti ferita prima del termine dell'incantesimo, scende invece a 1 punto ferita e l'incantesimo termina. Se l'incantesimo è ancora attivo quando il bersaglio è soggetto a un effetto che ne provocherebbe la morte istantanea senza infliggere danni, quell'effetto viene annullato e l'incantesimo termina.",
+      "higher_levels": null
+    },
+    {
+      "name": "Libertà di Movimento",
+      "level": 4,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una cinghia di cuoio",
+      "duration": "1 ora",
+      "ritual": false,
+      "concentration": false,
+      "description": "ora L'incantatore tocca una creatura consenziente. Per la durata dell'incantesimo, il movimento del bersaglio non è influenzato dal terreno difficile, inoltre incantesimi e altri effetti magici non possono né ridurne la velocità né trattenerlo o renderlo paralizzato. Il bersaglio dispone anche di una velocità di nuoto pari alla sua velocità. Inoltre, il bersaglio può usare 1,5 metri di movimento per sfuggire automaticamente alle restrizioni non magiche, come un paio di manette o la presa di una creatura che lo afferra. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 4º.",
+      "higher_levels": "L'incantatore può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 4º."
+    },
+    {
+      "name": "Localizza Creatura",
+      "level": 4,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un ciuffo di peli di un segugio",
+      "duration": "concentrazione, fino a 1 ora",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 ora L'incantatore descrive o nomina una creatura a lui familiare, percependo la direzione della sua ubicazione se la creatura si trova entro 300 metri da lui. Se la creatura è in movimento, l'incantatore apprende verso quale direzione si sta dirigendo. L'incantesimo può localizzare una creatura specifica nota all'incantatore o una creatura di un tipo specifico più vicina (come un umano o un unicorno), purché l'incantatore abbia visto tale creatura da vicino (entro 9 metri) almeno una volta. Se la creatura descritta o nominata ha una forma diversa, per esempio se si trova sotto l'effetto di un incantesimo carne in pietra o metamorfosi, questo incantesimo non riesce a localizzarla. Questo incantesimo non può localizzare una creatura se uno strato di piombo blocca il percorso diretto tra essa e l'incantatore.",
+      "higher_levels": null
+    },
+    {
+      "name": "Scolpire Pietra",
+      "level": 4,
+      "school": "Trasmutazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "argilla morbida",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore tocca un oggetto di pietra di taglia Media o inferiore, oppure una sezione di pietra non più grande di 1,5 metri in ogni dimensione, modellandola nella forma che desidera. Per esempio, potrebbe trasformare una grossa roccia in un'arma, una statua, un forziere o creare un piccolo sentiero di passaggio attraverso un muro spesso 1,5 metri. L'incantatore può anche modellare una porta di pietra o i suoi stipiti per sigillarla. L'oggetto creato può avere un massimo di due cardini e una chiusura, ma non può essere dotato di meccanismi più raffinati.",
+      "higher_levels": null
+    },
+    {
+      "name": "Colpo Infuocato",
+      "level": 5,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un pizzico di zolfo",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Una colonna verticale di fuoco splendente si abbatte dall'alto. Ogni creatura all'interno di un cilindro del raggio di 3 metri e dell'altezza di 12 metri centrato in un punto entro gittata effettua un tiro salvezza su Destrezza; se lo fallisce, subisce 5d6 danni da fuoco e 5d6 danni radiosi, mentre se lo supera subisce soltanto la metà di quei danni. Utilizzo di uno slot incantesimo di livello superiore. I danni da fuoco e i danni radiosi aumentano di 1d6 per ogni slot di livello superiore al 5º.",
+      "higher_levels": "I danni da fuoco e i danni radiosi aumentano di 1d6 per ogni slot di livello superiore al 5º."
+    },
+    {
+      "name": "Comunione",
+      "level": 5,
+      "school": "Divinazione",
+      "casting_time": "1 minuto",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "incenso",
+      "duration": "1 minuto",
+      "ritual": true,
+      "concentration": false,
+      "description": "minuto L'incantatore entra in contatto con una divinità o un emissario divino e, prima della fine dell'incantesimo, pone fino a tre domande a cui è possibile rispondere con sì o no. L'incantatore riceve una risposta corretta per ogni domanda. Gli esseri divini non sono necessariamente onniscienti, quindi l'incantatore potrebbe ricevere \"ignoto\" come risposta se una domanda riguarda informazioni che vanno oltre le loro conoscenze. Nel caso in cui una risposta di una parola sola possa rivelarsi fuorviante o contraria agli interessi della divinità, il GM può fornire come risposta una breve frase. Se l'incantatore lancia l'incantesimo più volte prima di completare un riposo lungo, esiste una probabilità cumulativa del 25% di non ottenere risposta per ogni lancio dopo il primo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Conoscenza delle Leggende",
+      "level": 5,
+      "school": "Divinazione",
+      "casting_time": "10 minuti",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "incenso del valore di 250 mo o più, che l'incantesimo consuma, e quattro bastoncini d'avorio del valore di 50 mo o più ciascuno",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore nomina o descrive una persona, un luogo o un oggetto famosi. L'incantesimo riporta alla mente dell'incantatore un breve riassunto delle conoscenze più significative relative a ciò che ha nominato, come descritto dal GM. Queste conoscenze possono includere dettagli importanti, rivelazioni sorprendenti o persino conoscenze segrete che non sono note ai più. Più informazioni l'incantatore conosce già riguardo a ciò che ha nominato, più precise e dettagliate saranno le informazioni che riceverà. Le informazioni che riceve sono accurate, ma potrebbero essere celate da un linguaggio figurativo o sotto forma di poesia, in base alla scelta del GM. Se l'incantatore nomina qualche cosa che in realtà non è famosa, sente il suono delle tristi note di un trombone, e l'incantesimo fallisce.",
+      "higher_levels": null
+    },
+    {
+      "name": "Contagio",
+      "level": 5,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "Contatto",
+      "components": [],
+      "material": null,
+      "duration": "7 giorni 136",
+      "ritual": false,
+      "concentration": false,
+      "description": "giorni 136 System Reference Document 5.2.1 Il tocco dell'incantatore trasmette un contagio magico. Il bersaglio deve superare un tiro salvezza su Costituzione, altrimenti subirà 11d8 danni necrotici e sarà avvelenato. Inoltre, quando l'incantatore lancia l'incantesimo, sceglie una caratteristica. Mentre è avvelenato, il bersaglio subisce svantaggio ai tiri salvezza effettuati con la caratteristica scelta. Il bersaglio deve ripetere il tiro salvezza alla fine di ogni suo turno finché non raggiunge tre tiri superati o falliti. Se il bersaglio supera tre tiri salvezza, si libera dall'effetto dell'incantesimo. Se il bersaglio fallisce tre tiri salvezza, subisce l'incantesimo per 7 giorni. Ogni volta che il bersaglio avvelenato riceve un effetto che porrebbe fine all'avvelenamento, deve riuscire a superare un tiro salvezza su Costituzione, altrimenti l'avvelenamento permane.",
+      "higher_levels": null
+    },
+    {
+      "name": "Costrizione",
+      "level": 5,
+      "school": "Ammaliamento",
+      "casting_time": "1 minuto",
+      "range": "18 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "30 giorni",
+      "ritual": false,
+      "concentration": false,
+      "description": "giorni L'incantatore impartisce un comando verbale a una creatura entro gittata che egli è in grado di vedere, ordinandole di compiere un servizio di qualche tipo o ad astenersi dal compiere un'azione o un'attività, come da lui stabilito. Il bersaglio deve superare un tiro salvezza su Saggezza, altrimenti rimane affascinato per la durata dell'incantesimo. Il bersaglio 138 System Reference Document 5.2.1 supera automaticamente il tiro se non è in grado di comprendere il comando dell'incantatore. Mentre è affascinata, la creatura subisce 5d10 danni psichici se agisce in maniera direttamente contraria al comando dell'incantatore, subendo questi danni non più di una volta al giorno. L'incantatore può impartire al bersaglio un comando a sua scelta, a eccezione di un'attività che ne provocherebbe la morte certa: se impartisce un comando suicida, l'incantesimo termina. Un incantesimo desiderio, rimuovi maledizione o ristorare superiore è in grado di porre fine all'incantesimo. Utilizzo di uno slot incantesimo di livello superiore. Se l'incantatore usa uno slot incantesimo di 7º o 8º livello, la durata diventa 365 giorni. Se ­l'incantatore usa uno slot incantesimo di 9º livello, l'incantesimo dura finché uno degli incantesimi menzionati sopra non vi pone fine.",
+      "higher_levels": "Se l'incantatore usa uno slot incantesimo di 7º o 8º livello, la durata diventa 365 giorni. Se ­l'incantatore usa uno slot incantesimo di 9º livello, l'incantesimo dura finché uno degli incantesimi menzionati sopra non vi pone fine."
+    },
+    {
+      "name": "Cura Ferite di Massa",
+      "level": 5,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Un'ondata di energia curativa si sprigiona da un punto entro gittata che l'incantatore è in grado di vedere. L'incantatore sceglie fino a sei creature in una sfera di 9 metri di raggio centrata su quel punto: ogni bersaglio recupera una quantità di punti ferita pari a 5d8 più il modificatore di caratteristica da incantatore dell'incantatore. Utilizzo di uno slot incantesimo di livello superiore. La guarigione aumenta di 1d8 per ogni slot di livello superiore al 5º.",
+      "higher_levels": "La guarigione aumenta di 1d8 per ogni slot di livello superiore al 5º."
+    },
+    {
+      "name": "Dissolvi il Bene e il Male",
+      "level": 5,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "polvere d'argento e ferro",
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto Per la durata dell'incantesimo, celestiali, elementali, folletti, immondi e non morti subiscono svantaggio ai tiri per colpire effettuati contro l'incantatore. L'incantatore può terminare prematuramente l'incantesimo usando una delle funzioni speciali seguenti. Congedo. Come azione di Magia, l'incantatore bersaglia una creatura che egli è in grado di vedere situata entro 1,5 metri da sé dei tipi sopraindicati. Il bersaglio deve superare un tiro salvezza su Carisma, altrimenti viene cacciata sul suo piano d'origine (se non vi si trova già). Se non si trovano già sul loro piano d'origine, i non morti vengono respinti nella Coltre Oscura e i folletti nella Selva Fatata. Spezzare ammaliamento. Come azione di Magia, l'incantatore tocca una creatura affascinata, spaventata o posseduta da una o più creature dei tipi sopraindicati. Il bersaglio non è più posseduto, affascinato o spaventato da quelle creature.",
+      "higher_levels": null
+    },
+    {
+      "name": "Legame Planare",
+      "level": 5,
+      "school": "Abiurazione",
+      "casting_time": "1 ora",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un gioiello del valore di 1.000 mo o più, che l'incantesimo consuma",
+      "duration": "24 ore",
+      "ritual": false,
+      "concentration": false,
+      "description": "ore L'incantatore tenta di vincolare un celestiale, un elementale, un folletto o un immondo al suo servizio. La creatura deve trovarsi entro gittata per l'intera durata del lancio dell'incantesimo (in genere, la creatura viene prima evocata al centro di una versione invertita dell'incantesimo cerchio magico per tenerla intrappolata mentre questo incantesimo viene lanciato). Completato il lancio dell'incantesimo, il bersaglio deve superare un tiro salvezza su Carisma, altrimenti è obbligato a servire l'incantatore per la durata dell'incantesimo. Se la creatura è stata evocata o creata da un altro incantesimo, la durata di quell'incantesimo viene estesa per corrispondere alla durata di questo. Una creatura vincolata deve eseguire gli ordini al meglio delle sue capacità. L'incantatore potrebbe ordinarle di accompagnarlo in un'avventura, di proteggere un luogo o di consegnare un messaggio. Se la creatura è ostile, cercherà in tutti i modi di distorcere gli ordini dell'incantatore per perseguire i suoi obiettivi personali. Se la creatura porta a termine gli ordini dell'incantatore prima del termine dell'incantesimo, si reca da lui per riferirglielo, ma solo se si trovano sullo stesso piano di esistenza. Se l'incantatore si trova su un piano diverso, la creatura ritorna nel luogo in cui è stata vincolata e vi rimane fino al termine dell'incantesimo. Utilizzo di uno slot incantesimo di livello superiore. La durata aumenta con uno slot incantesimo di 6º livello (10 giorni), di 7º livello (30 giorni), di 8º livello (180 giorni) e di 9º livello (366 giorni).",
+      "higher_levels": "La durata aumenta con uno slot incantesimo di 6º livello (10 giorni), di 7º livello (30 giorni), di 8º livello (180 giorni) e di 9º livello (366 giorni)."
+    },
+    {
+      "name": "Piaga degli Insetti",
+      "level": 5,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "90 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una locusta",
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti Uno sciame di locuste riempie una sfera del raggio di 6 metri centrata su un punto a scelta dell'incantatore situato entro gittata. La sfera permane per la durata dell'incantesimo, la sua area è leggermente oscurata e lo spazio al suo interno è considerato terreno difficile. Quando lo sciame compare, ogni creatura al suo interno effettua un tiro salvezza su Costituzione, subendo 4d10 danni perforanti in caso di fallimento, o la metà dei danni in caso di successo. Inoltre, una creatura effettua questo tiro salvezza anche quando entra nell'area dell'incantesimo per la prima volta in un turno o quando vi termina il suo turno. Una creatura effettua questo tiro salvezza solo una volta per turno. Utilizzo di uno slot incantesimo di livello superiore. I danni aumentano di 1d10 per ogni slot di livello superiore al 5º.",
+      "higher_levels": "I danni aumentano di 1d10 per ogni slot di livello superiore al 5º."
+    },
+    {
+      "name": "Rianimare Morti",
+      "level": 5,
+      "school": "Necromanzia",
+      "casting_time": "1 ora",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un diamante del valore di 500 mo o più, che l'incantesimo consuma",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Con un tocco, l'incantatore riporta in vita una creatura morta, purché non sia deceduta da più di 10 giorni e non fosse un non morto al momento della morte. La creatura torna in vita con 1 punto ferita. Inoltre, questo incantesimo neutralizza qualsiasi veleno che influenzava la creatura al momento della morte. L'incantesimo richiude tutte le ferite mortali, ma non ripristina le parti del corpo mancanti. Se una creatura è priva di organi o parti del corpo essenziali per la sua sopravvivenza, come per esempio la testa, l'incantesimo fallisce automaticamente. Il ritorno dalla morte è un vero e proprio travaglio. Il bersaglio subisce una penalità di −4 alle prove con d20. Ogni volta che completa un riposo lungo, questa penalità viene ridotta di 1 finché non arriva a 0.",
+      "higher_levels": null
+    },
+    {
+      "name": "Ristorare Superiore",
+      "level": 5,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "polvere di diamante del valore di 100 mo o più, che l'incantesimo consuma",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore tocca una creatura e rimuove magicamente da essa uno dei seguenti effetti: • 1 livello di indebolimento • La condizione affascinato o pietrificato • Una maledizione, inclusa la sintonia del bersaglio con un oggetto magico maledetto • Qualsiasi riduzione di un punteggio di caratteristica del bersaglio • Qualsiasi riduzione dei punti ferita massimi del bersaglio",
+      "higher_levels": null
+    },
+    {
+      "name": "Santificare",
+      "level": 5,
+      "school": "Abiurazione",
+      "casting_time": "24 ore",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "incenso del valore di 1.000 mo o più, che l'incantesimo consuma",
+      "duration": "finché non viene dissolto",
+      "ritual": false,
+      "concentration": false,
+      "description": "non viene dissolto L'incantatore tocca un punto e infonde un potere sacro o sacrilego in un'area del raggio massimo di 18 metri intorno a esso. L'incantesimo tuttavia fallisce se il raggio comprende un'area già sotto l'effetto di santificare. L'area influenzata è soggetta ai seguenti effetti: Protezione consacrata. L'incantatore sceglie uno dei seguenti tipi di creature: aberrazione, celestiale, elementale, folletto, immondo o non morto. Le creature del tipo scelto non possono entrare volontariamente nell'area, e qualsiasi creatura affascinata, spaventata o posseduta da tali creature non viene affascinata, spaventata o posseduta fintantoché si trova nell'area. Effetto aggiuntivo. L'incantatore vincola un effetto aggiuntivo all'area, scegliendolo dalla lista sottostante: Coraggio. Le creature di qualsiasi tipo scelto dall'incantatore non possono essere spaventate finché si trovano nell'area. Interferenza extradimensionale. Le creature di qualsiasi tipo scelte dall'incantatore non possono entrare o uscire dall'area utilizzando il teletrasporto o i viaggi interplanari. Linguaggi. Le creature di qualsiasi tipo scelto dall'incantatore possono comunicare con qualsiasi creatura all'interno dell'area, anche se non condividono la stessa lingua. Luce diurna. L'area è pervasa di luce intensa. L'oscurità magica creata dagli incantesimi di livello inferiore rispetto a questo incantesimo non può sopprimere la luce. Oscurità. L'area si riempie di oscurità. La luce normale, nonché la luce magica creata dagli incantesimi di livello inferiore rispetto a questo incantesimo, non possono illuminare l'area. Paura. Le creature di qualsiasi tipo scelto dall'incantatore non possono essere spaventate finché si trovano nell'area. Resistenza. Le creature di qualsiasi tipo scelto dall'incantatore sono resistenti a un tipo di danno scelto dall'incantatore finché si trovano nell'area. Sereno riposo. I cadaveri sepolti nell'area non possono diventare non morti. Silenzio. L'area è insonorizzata, nessun suono può fuoriuscire o penetrare al suo interno. Vulnerabilità. Le creature di qualsiasi tipo scelto dall'incantatore sono vulnerabili a un tipo di danno scelto dall'incantatore finché si trovano nell'area.",
+      "higher_levels": null
+    },
+    {
+      "name": "Scrutare",
+      "level": 5,
+      "school": "Divinazione",
+      "casting_time": "10 minuti",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un focus del valore di 1.000 mo o più, come una sfera di cristallo, uno specchio o una fonte d'acqua",
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti L'incantatore può vedere e udire una creatura a sua scelta situata sul suo stesso piano di esistenza. Il bersaglio effettua un tiro salvezza su Saggezza, modificato (vedi le tabelle di seguito) dalla conoscenza e dal tipo di legame fisico che l'incantatore ha nei confronti della creatura. Il bersaglio non sa contro cosa sta effettuando il tiro salvezza, avverte solo una sensazione di disagio. 186 System Reference Document 5.2.1 L'incantatore conosce il bersaglio in maniera... Modificatore al tiro salvezza Indiretta (ha sentito parlare del bersaglio) +5 Diretta (ha incontrato il bersaglio) +0 Approfondita (conosce bene il bersaglio) −5 L'oggetto del bersaglio che l'incantatore possiede è... Modificatore al tiro salvezza Immagine o altra raffigurazione −2 Abito o altro oggetto personale −4 Parte del corpo, ciocca di capelli o pezzo di unghia −10 In caso di tiro salvezza superato, il bersaglio non viene influenzato dall'incantesimo, che l'incantatore non può lanciare su di esso per 24 ore. In caso di fallimento, l'incantesimo crea un sensore invisibile e intangibile entro 3 metri dal bersaglio, attraverso cui l'incantatore può vedere e sentire come se si trovasse sul posto. Il sensore si muove insieme al bersaglio, rimanendo entro 3 metri da esso per la durata dell'incantesimo. Se qualcosa è in grado di vedere il sensore, esso appare come un globo luminoso grande all'incirca quanto un pugno umano. Invece di bersagliare una creatura, l'incantatore può bersagliare un luogo che ha già visto. Quando lo fa, il sensore appare in quel luogo e non si muove.",
+      "higher_levels": null
+    },
+    {
+      "name": "Alleato Planare",
+      "level": 6,
+      "school": "Evocazione",
+      "casting_time": "10 minuti",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore chiede aiuto a un'entità ultraterrena che deve essergli nota: un dio, un principe dei demoni o qualche altro essere dotato di poteri cosmici. Quell'entità invia in aiuto un celestiale, un elementale o un immondo a lei fedele, che appare in uno spazio libero entro gittata. Se l'incantatore conosce il nome di una creatura specifica, può pronunciarlo quando lancia l'incantesimo per richiedere il suo intervento, ma potrebbe apparire comunque una creatura diversa (a scelta del GM). Quando la creatura appare, non è obbligata a comportarsi in un modo particolare. L'incantatore può chiederle di svolgere per lui un servizio in cambio di pagamento, ma essa non è costretta ad accettare. Il compito richiesto potrebbe essere qualcosa di semplice (\"portaci in volo oltre il baratro\" o \"aiutaci a combattere una battaglia\") o di complesso (\"spia i nostri nemici\" o \"proteggici durante la nostra incursione nel dungeon\"). L'incantatore deve essere in grado di comunicare con la creatura per contrattare per i suoi servigi. Il pagamento può avere varie forme: Un celestiale potrebbe richiedere un'ingente donazione in oro o oggetti magici a un tempio alleato, un immondo esigere una creatura vivente in sacrificio o un tesoro in dono. Alcune creature potrebbero scambiare i propri servigi con una missione che l'incantatore deve svolgere. Un compito che può essere misurato in minuti richiede un pagamento del valore di 100 mo al minuto, un compito misurato in ore richiede 1.000 mo all'ora e un compito misurato in giorni (per un massimo di 10 giorni) richiede 10.000 mo al giorno. Il GM può modificare questi pagamenti in base alle circostanze del lancio. Se il compito è in sintonia con l'etica della creatura, il pagamento potrebbe essere dimezzato o addirittura revocato. I compiti non pericolosi richiedono tipicamente solo la metà del pagamento suggerito, mentre quelli particolarmente rischiosi potrebbero richiedere una ricompensa superiore. È raro che una creatura accetti un compito potenzialmente suicida. Dopo aver portato a termine il compito o quando la durata pattuita termina, la creatura fa ritorno al suo piano d'origine dopo aver fatto rapporto all'incantatore, se possibile. Se l'incantatore e la creatura non riescono ad accordarsi sul prezzo del suo servizio, quest'ultima ritorna immediatamente sul suo piano d'origine.",
+      "higher_levels": null
+    },
+    {
+      "name": "Banchetto degli Eroi",
+      "level": 6,
+      "school": "Evocazione",
+      "casting_time": "10 minuti",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una ciotola tempestata di gemme del valore di 1.000 mo o più, che l'incantesimo consuma",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore evoca accanto a sé un banchetto che appare su una superficie all'interno di un cubo libero con spigolo di 3 metri. Consumare il banchetto richiede 1 ora, solo al termine della quale il convivio scompare e i suoi effetti benefici vengono applicati. Fino a un massimo di dodici creature possono partecipare al banchetto. Una creatura che partecipa al banchetto ottiene numerosi benefici che durano 24 ore. La creatura diventa resistente ai danni da veleno e immune alle condizioni avvelenato e spaventato. Inoltre, i suoi punti ferita massimi aumentano di 2d10 e ottiene lo stesso numero di punti ferita.",
+      "higher_levels": null
+    },
+    {
+      "name": "Barriera di Lame",
+      "level": 6,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "27 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti L'incantatore crea un muro di lame turbinanti composte da energia magica. Il muro compare entro gittata e permane per la durata dell'incantesimo. L'incantatore crea un muro lineare lungo fino a 30 metri, alto 6 metri e spesso 1,5 metri, 128 System Reference Document 5.2.1 oppure un muro circolare del diametro massimo di 18 metri, alto 6 metri e spesso 1,5 metri. Il muro garantisce tre quarti di copertura e il suo spazio è un terreno difficile. Qualsiasi creatura situata nello spazio del muro deve effettuare un tiro salvezza su Destrezza, subendo 6d10 danni forza in caso di fallimento, o la metà dei danni in caso di successo. Una creatura effettua il tiro salvezza anche se entra nello spazio del muro o vi termina il suo turno. Il tiro salvezza può essere effettuato solo una volta per turno.",
+      "higher_levels": null
+    },
+    {
+      "name": "Creare Non Morti",
+      "level": 6,
+      "school": "Necromanzia",
+      "casting_time": "1 minuto",
+      "range": "3 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una pietra onice nera del valore di 150 mo o più per ogni cadavere",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore può lanciare questo incantesimo solo di notte, scegliendo fino a tre cadaveri umanoidi di taglia Media o Piccola entro gittata. Ognuno di loro diventa un ghoul sotto il controllo dell'incantatore (vedi il \"Mostri\" per la scheda delle statistiche). Come azione bonus a ogni suo turno, l'incantatore può comandare mentalmente qualsiasi creatura animata con questo incantesimo, a patto che la creatura si trovi entro 36 metri da lui (se controlla varie creature, l'incantatore può comandarne più di una allo stesso momento, impartendo lo stesso comando a ciascuna di loro). L'incantatore decide quale azione effettuerà la creatura e dove si muoverà nel suo turno successivo, oppure può impartirle un comando generale, come restare a guardia di un determinato luogo. Se invece non impartisce alcun comando, la creatura effettua l'azione Schivata e si sposta solo per evitare di subire danni. Una volta ricevuto un ordine, la creatura continua a seguirlo finché non ha portato a termine il compito. La creatura rimane sotto il controllo dell'incantatore per 24 ore, passate le quali smette di obbedire a qualsiasi comando ulteriore. Per mantenere il controllo sulla creatura per altre 24 ore, l'incantatore deve lanciare questo incantesimo su di essa prima che l'attuale periodo di 24 ore termini. Questo uso dell'incantesimo gli permette di ristabilire il controllo su un massimo di tre creature da lui animate tramite questo incantesimo, anziché animarne di nuove. Utilizzo di uno slot incantesimo di livello superiore. Se l'incantatore usa uno slot incantesimo di 7º livello, può animare o ristabilire il controllo su quattro ghoul. Se l'incantatore usa uno slot incantesimo di 8º livello, può animare o ristabilire il controllo su cinque ghoul, o due ghast o wight. Se l'incantatore usa uno slot incantesimo di 9º livello, può animare o ristabilire il controllo su sei ghoul, tre ghast o wight, o due mummie. Vedi \"Mostri\" per le relative schede delle statistiche.",
+      "higher_levels": "Se l'incantatore usa uno slot incantesimo di 7º livello, può animare o ristabilire il controllo su quattro ghoul. Se l'incantatore usa uno slot incantesimo di 8º livello, può animare o ristabilire il controllo su cinque ghoul, o due ghast o wight. Se l'incantatore usa uno slot incantesimo di 9º livello, può animare o ristabilire il controllo su sei ghoul, tre ghast o wight, o due mummie. Vedi \"Mostri\" per le relative schede delle statistiche."
+    },
+    {
+      "name": "Ferire",
+      "level": 6,
+      "school": "Necromanzia",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore scatena una malattia virulenta su una creatura entro gittata che egli è in grado di vedere. Il bersaglio effettua un tiro salvezza su Costituzione. Se lo fallisce, subisce 14d6 danni necrotici, e i suoi punti ferita massimi vengono ridotti di una quantità pari ai danni necrotici subiti, mentre se lo supera, subisce solo la metà dei danni. Questo incantesimo non può ridurre i punti ferita massimi del bersaglio a meno di 1.",
+      "higher_levels": null
+    },
+    {
+      "name": "Guarigione",
+      "level": 6,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore sceglie una creatura entro gittata che egli è in grado di vedere. Un flusso di energia positiva investe il bersaglio, facendogli recuperare 70 punti ferita. Inoltre, questo incantesimo termina le condizioni accecato, assordato e avvelenato che affliggono il bersaglio. Utilizzo di uno slot incantesimo di livello superiore. La guarigione aumenta di 10 per ogni slot di livello superiore al 6º.",
+      "higher_levels": "La guarigione aumenta di 10 per ogni slot di livello superiore al 6º."
+    },
+    {
+      "name": "Parola del Ritiro",
+      "level": 6,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "1,5 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore e un massimo di cinque creature consenzienti entro 1,5 metri da lui si teletrasportano immediatamente in un santuario indicato in precedenza. L'incantatore e le creature che si teletrasportano con lui appaiono nello spazio libero più vicino al punto indicato dall'incantatore quando ha preparato il suo santuario (vedi di seguito). Se lancia questo incantesimo senza prima preparare un santuario, l'incantesimo non ha effetto. Deve designare un luogo (come un tempio o un santuario) lanciando lì l'incantesimo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Proibizione",
+      "level": 6,
+      "school": "Abiurazione",
+      "casting_time": "10 minuti",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "polvere di rubino del valore di 1.000 mo o più",
+      "duration": "1 giorno",
+      "ritual": true,
+      "concentration": false,
+      "description": "giorno L'incantatore crea una difesa contro i viaggi magici che protegge un'area quadrata di terreno con lato di 60 metri e un'altezza di massimo 9 metri. Per la durata dell'incantesimo, per entrare in tale area le creature non possono utilizzare teletrasporto o portali, come quelli creati dall'incantesimo portale. L'incantesimo protegge l'area dai viaggi planari, impedendo perciò alle creature di accedervi tramite il Piano Astrale, il Piano Etereo, la Selva Fatata, la Coltre Oscura e l'incantesimo spostamento planare. Inoltre, infligge danni a uno o più tipi di creature indicati dall'incantatore al momento del lancio, scelti tra i seguenti: aberrazioni, celestiali, elementali, folletti, immondi e non morti. Quando una creatura del tipo scelto entra nell'area dell'incantesimo per la prima volta in un turno o termina il suo turno qui, subisce 5d10 danni necrotici o radiosi (a scelta dell'incantatore al momento del lancio). Quando lancia l'incantesimo, l'incantatore può indicare una parola d'ordine: una creatura che la pronuncia accedendo all'area non subisce danni. L'area di questo incantesimo non può sovrapporsi all'area di un altro incantesimo proibizione. Se l'incantatore lancia proibizione ogni giorno nello stesso luogo per 30 giorni, l'incantesimo permane finché non viene dissolto e le componenti materiali vengono consumate al momento dell'ultimo lancio.",
+      "higher_levels": null
+    },
+    {
+      "name": "Scopri il Percorso",
+      "level": 6,
+      "school": "Divinazione",
+      "casting_time": "1 minuto",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un set di strumenti di divinazione, come carte o rune, del valore di 100 mo o più",
+      "duration": "concentrazione, fino a 1 giorno 185",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 giorno 185 System Reference Document 5.2.1 L'incantatore percepisce magicamente il percorso fisico più diretto verso una destinazione di cui nomina il nome e che gli sia nota. Se nomina una destinazione su un altro piano di esistenza, una destinazione in movimento (come una fortezza mobile) o una destinazione poco specifica (come \"la tana di un drago verde\"), l'incantesimo non ha effetto. Per la durata dell'incantesimo, finché l'incantatore si trova sullo stesso piano di esistenza della destinazione, sa quanto è lontana e in che direzione si trova. Ogni volta che l'incantatore si trova a scegliere tra più percorsi, sa qual è il più diretto.",
+      "higher_levels": null
+    },
+    {
+      "name": "Visione del Vero",
+      "level": 6,
+      "school": "Divinazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "polvere di funghi del valore di 25 mo o più, che l'incantesimo consuma",
+      "duration": "1 ora",
+      "ritual": false,
+      "concentration": false,
+      "description": "ora Per la durata dell'incantesimo, una creatura consenziente toccata dall'incantatore è dotata di vista pura fino a 36 metri.",
+      "higher_levels": null
+    },
+    {
+      "name": "Evoca Celestiale",
+      "level": 7,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "27 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "concentrazione, fino a 10 minuti",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 10 minuti L'incantatore evoca uno spirito dai Piani Superiori, che si manifesta come un pilastro di luce in un cilindro del raggio di 3 metri e dell'altezza di 12 metri centrato in un punto entro gittata. Per ogni creatura che l'incantatore è in grado di vedere nel cilindro, sceglie quale di queste luci brilla su di essa: Luce curatrice. Il bersaglio recupera una quantità di punti ferita pari a 4d12 più il modificatore di caratteristica da incantatore dell'incantatore. Luce ustionante. Il bersaglio effettua un tiro salvezza su Destrezza, subendo 6d12 danni radiosi in caso di fallimento, o la metà dei danni in caso di successo. Fino al termine dell'incantesimo, una luce intensa riempie il cilindro e, quando l'incantatore si muove nel suo turno, può spostare anche il cilindro fino a 9 metri. Ogni volta che il cilindro si muove nello spazio di una creatura che l'incantatore è in grado di vedere e ogni volta che una creatura che l'incantatore è in grado di vedere entra nel cilindro o vi termina il suo turno, l'incantatore può immergerla in una di queste luci. Una creatura può essere influenzata da questo incantesimo solo una volta per turno. Utilizzo di uno slot incantesimo di livello superiore. I danni e la guarigione aumentano di 1d12 per ogni slot di livello superiore al 7º.",
+      "higher_levels": "I danni e la guarigione aumentano di 1d12 per ogni slot di livello superiore al 7º."
+    },
+    {
+      "name": "Forma Eterea",
+      "level": 7,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "Fino a 8 ore",
+      "ritual": false,
+      "concentration": false,
+      "description": "a 8 ore L'incantatore mette piede nelle regioni di confine in cui il Piano Etereo si sovrappone al suo piano attuale. Rimane nel Confine Etereo per la durata dell'incantesimo. Durante questo periodo, l'incantatore può muoversi in ogni direzione. Muovendosi su o giù, ogni 30 cm di movimento gli costano 30 cm extra. L'incantatore può percepire il piano da cui proviene, che appare in scala di grigi ed è visibile solo fino a una distanza di 18 metri. Mentre si trova sul Piano Etereo, l'incantatore può influenzare ed essere influenzato solo dalle creature, gli oggetti e gli effetti che si trovano su quel piano. Le creature che non sono presenti sul Piano Etereo non possono percepire o interagire con l'incantatore, a meno che un privilegio non dia loro la capacità per farlo. Al termine dell'incantesimo, l'incantatore torna sul piano da cui proviene, sul punto che corrisponde al suo spazio nel Confine Etereo. Se l'incantatore appare in uno spazio occupato, viene sbalzato nello spazio libero più vicino e subisce una quantità di danni da forza pari al doppio del numero di metri di cui si è mosso. Questo incantesimo termina all'istante se l'incantatore lo lancia mentre si trova sul Piano Etereo o su un piano non confinante, come uno dei Piani Esterni. Utilizzo di uno slot incantesimo di livello superiore. L'incantatore può bersagliare fino a un massimo di tre creature consenzienti (incluso se stesso) per ogni slot di livello superiore al 7º. Al momento del lancio dell'incantesimo, le creature non devono trovarsi a più di 3 metri dall'incantatore.",
+      "higher_levels": "L'incantatore può bersagliare fino a un massimo di tre creature consenzienti (incluso se stesso) per ogni slot di livello superiore al 7º. Al momento del lancio dell'incantesimo, le creature non devono trovarsi a più di 3 metri dall'incantatore."
+    },
+    {
+      "name": "Parola Divina",
+      "level": 7,
+      "school": "Evocazione",
+      "casting_time": "1 azione bonus",
+      "range": "9 metri",
+      "components": [
+        "V"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore pronuncia una parola pervasa di potere dei Piani Superiori. Ogni creatura a sua scelta situata entro gittata effettua una tiro salvezza su Carisma. In caso di fallimento, un bersaglio che ha 50 punti ferita o meno subisce un effetto basato sui suoi punti ferita attuali, come indicato nella tabella Effetti della parola divina. Indipendentemente dai suoi punti ferita, un bersaglio celestiale, elementale, folletto o immondo che fallisce il suo tiro salvezza viene respinto sul suo piano d'origine (se non vi si trova già) e non può ritornare sul piano attuale per 24 ore in alcun modo se non tramite un incantesimo desiderio. Effetti della parola divina Punti ferita Effetto 0–20 Il bersaglio muore. 21–30 Il bersaglio è accecato, assordato e stordito per 1 ora. 31–40 Il bersaglio è accecato e assordato per 10 minuti. 41–50 Il bersaglio è assordato per 1 minuto. 173 System Reference Document 5.2.1",
+      "higher_levels": null
+    },
+    {
+      "name": "Resurrezione",
+      "level": 7,
+      "school": "Necromanzia",
+      "casting_time": "1 ora",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un diamante del valore di 1.000 mo o più, che l'incantesimo consuma",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore tocca e resuscita una creatura morta da non più di un secolo, che non sia morta di vecchiaia e che non fosse un non morto al momento della morte. La creatura torna in vita con tutti i suoi punti ferita. Inoltre, questo incantesimo neutralizza qualsiasi veleno che influenzava la creatura al momento della morte, richiude tutte le ferite mortali e ripristina le eventuali parti del corpo mancanti. Il ritorno dalla morte è un vero e proprio travaglio. Il bersaglio subisce una penalità di −4 alle prove con d20. Ogni volta che completa un riposo lungo, questa penalità viene ridotta di 1 finché non arriva a 0. Lanciare questo incantesimo per riportare in vita una creatura morta da 365 giorni o più risulta logorante per l'incantatore. Finché non completa un riposo lungo, non può lanciare di nuovo incantesimi e subisce svantaggio alle prove con d20. 180 System Reference Document 5.2.1",
+      "higher_levels": null
+    },
+    {
+      "name": "Rigenerazione",
+      "level": 7,
+      "school": "Trasmutazione",
+      "casting_time": "1 minuto",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un ruota della preghiera",
+      "duration": "1 ora",
+      "ritual": false,
+      "concentration": false,
+      "description": "ora Una creatura toccata dall'incantatore recupera 4d8 + 15 punti ferita. Per la durata dell'incantesimo, il bersaglio recupera 1 punto ferita all'inizio di ogni suo turno e qualsiasi parte del corpo sia stata recisa, ricresce dopo 2 minuti.",
+      "higher_levels": null
+    },
+    {
+      "name": "Simbolo",
+      "level": 7,
+      "school": "Abiurazione",
+      "casting_time": "1 minuto",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "polvere di diamante del valore di 1.000 mo o più, che l'incantesimo consuma",
+      "duration": "finché non viene dissolto o innescato",
+      "ritual": false,
+      "concentration": false,
+      "description": "non viene dissolto o innescato L'incantatore traccia un glifo nocivo su una superficie (come una sezione di pavimento o una parete) o all'interno di un oggetto che può essere chiuso (come un libro o un forziere). Il glifo può coprire un'area massima del diametro di 3 metri. Se l'incantatore sceglie un oggetto, questo non deve essere spostato; se ciò avviene, una volta che l'oggetto si allontana di più di 3 metri dal luogo in cui è stato lanciato l'incantesimo, il glifo si infrange e l'incantesimo termina senza essere innescato. Il glifo è quasi impercettibile e, per notarlo, è necessario superare una prova di Saggezza (Percezione) contro la CD del tiro salvezza sull'incantesimo. Quando viene tracciato, l'incantatore sceglie l'innesco, oltre all'effetto che scatenerà: morte, discordia, paura, dolore, sonno o stordimento. Ciascuno di essi è spiegato di seguito. Programmare l'innesco. Quando questo incantesimo viene lanciato, l'incantatore decide cosa innesca il glifo. Nel caso di glifi tracciati su una superficie, gli inneschi più comuni includono: toccare o camminare su di essi, rimuovere un altro oggetto che li copre o avvicinarsi a una certa distanza da loro. Nel caso di glifi tracciati all'interno di un oggetto, gli inneschi più comuni includono aprire quell'oggetto o vedere il glifo. L'incantatore può perfezionare l'innesco in modo che venga attivato solo da un certo tipo di creature (ad esempio, il glifo potrebbe essere programmato per influenzare le aberrazioni). Può inoltre impostare delle condizioni per evitare di innescare il glifo, come pronunciare una specifica parola d'ordine. Una volta attivato, il glifo brilla, proiettando luce fioca in una sfera del raggio di 18 metri per 10 minuti, dopodiché l'incantesimo termina. Ogni creatura all'interno della sfera quando il glifo si attiva, oppure che entra nella sfera per la prima volta in un turno o termina il suo turno qui, ne subisce l'effetto. 190 System Reference Document 5.2.1 Una creatura può essere presa di mira una sola volta per turno. Discordia. Ogni bersaglio effettua un tiro salvezza su Saggezza. Se lo fallisce, inizia a litigare con le altre creature per 1 minuto, durante il quale non è in grado di comunicare in modo significativo e subisce svantaggio ai tiri per colpire e alle prove di caratteristica. Dolore. Ogni bersaglio deve superare un tiro salvezza su Costituzione, altrimenti sarà incapacitato per 1 minuto. Morte. Ogni bersaglio effettua un tiro salvezza su Costituzione, subendo 10d10 danni necrotici in caso di fallimento, o la metà dei danni in caso di successo. Paura. Ogni bersaglio deve superare un tiro salvezza su Saggezza, altrimenti sarà spaventato per 1 minuto. Mentre è spaventato, il bersaglio deve allontanarsi di almeno 9 metri dal glifo in ogni suo turno, se ne è in grado. Sonno. Ogni bersaglio deve superare un tiro salvezza su Saggezza, altrimenti cade privo di sensi per 10 minuti. Una creatura si risveglia se subisce danni o se qualcuno usa un'azione per scuoterla. Stordimento. Ogni bersaglio deve superare un tiro salvezza su Saggezza, altrimenti sarà stordito per 1 minuto.",
+      "higher_levels": null
+    },
+    {
+      "name": "Spostamento Planare",
+      "level": 7,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una verga di metallo biforcuta del valore di 250 mo o più e in sintonia con un piano di esistenza",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore e un massimo di otto creature consenzienti, che si tengono per mano formando un cerchio, vengono trasportati su un piano di esistenza diverso. L'incantatore può specificare la destinazione in termini generici, come una città specifica sul Piano Elementale del Fuoco o palazzo sul secondo livello dei Nove Inferi, apparendo in quella destinazione o nelle sue immediate vicinanze, in base alla scelta del GM. In alternativa, se l'incantatore conosce la sequenza di sigilli di un cerchio di teletrasporto su un altro piano di esistenza, questo incantesimo può portarlo fino a quel cerchio. Se il cerchio di teletrasporto è troppo piccolo per contenere tutte le creature trasportate dall'incantatore, esse appariranno negli spazi liberi più vicini.",
+      "higher_levels": null
+    },
+    {
+      "name": "Tempesta di Fuoco",
+      "level": 7,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "45 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Una tempesta di fuoco compare in un luogo entro gittata. L'area della tempesta è composta da dieci cubi con spigolo di 3 metri, che l'incantatore può disporre come desidera. Ogni cubo deve essere contiguo ad almeno un altro cubo. Ogni creatura nell'area effettua un tiro salvezza su Destrezza; se lo fallisce, subisce 7d10 danni da fuoco, mentre se lo supera subisce la metà dei danni. Gli oggetti infiammabili nell'area che non sono indossati o trasportati iniziano a bruciare.",
+      "higher_levels": null
+    },
+    {
+      "name": "Aura Sacra",
+      "level": 8,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un reliquiario del valore di 1.000 mo o più",
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto Per la durata dell'incantesimo, l'incantatore irradia un'aura in un'emanazione di 9 metri. Le creature scelte dell'incantatore che si trovano all'interno dell'aura dispongono di vantaggio a tutti i tiri salvezza, mentre le altre creature subiscono 127 System Reference Document 5.2.1 svantaggio ai tiri per colpire contro le creature scelte. Inoltre, quando un immondo o un non morto colpisce una creatura influenzata con un tiro per colpire in mischia, l'attaccante deve superare un tiro salvezza su Costituzione, altrimenti viene accecato fino al termine del proprio turno successivo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Campo Anti-Magia",
+      "level": 8,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "limatura di ferro",
+      "duration": "concentrazione, fino a 1 ora",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 ora Un'aura di anti-magia circonda l'incantatore in un'emanazione di 3 metri. Nessuno può lanciare incantesimi, compiere azioni di Magia o creare altri effetti magici all'interno dell'aura, e tali azioni non possono colpire o influenzare in alcun modo nulla al suo interno. Le proprietà degli oggetti magici non funzionano all'interno dell'aura o su qualsiasi cosa al suo interno. Le aree di effetto create da incantesimi o da altre magie non possono estendersi all'interno dell'aura e nessuno può teletrasportarsi all'interno o all'esterno di essa o utilizzare il viaggio planare. I portali si chiudono temporaneamente quando si trovano all'interno dell'aura. 130 System Reference Document 5.2.1 Gli incantesimi già in corso, tranne quelli lanciati da manufatti o divinità, sono soppressi all'interno dell'area. Mentre un effetto è soppresso non funziona, ma il tempo che trascorre in questo stato conta ai fini della sua durata. Dissolvi magie non ha alcun effetto sull'aura, e le aure create da più incantesimi campo anti-magia non si annullano a vicenda.",
+      "higher_levels": null
+    },
+    {
+      "name": "Controllare Tempo Atmosferico",
+      "level": 8,
+      "school": "Trasmutazione",
+      "casting_time": "10 minuti",
+      "range": "incantatore",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "incenso bruciato",
+      "duration": "concentrazione, fino a 8 ore",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 8 ore L'incantatore assume il controllo del tempo atmosferico entro 7,5 chilometri per la durata dell'incantesimo, che dev'essere lanciato in un luogo all'aperto. L'incantesimo termina anticipatamente se l'incantatore si sposta in un luogo chiuso. Quando lancia un incantesimo, l'incantatore cambia le condizioni atmosferiche attuali determinate dal GM. L'incantatore può modificare le precipitazioni, la temperatura e il vento. Occorrono 1d4 × 10 minuti perché le nuove condizioni abbiano effetto. Quando questo accade, l'incantatore le può cambiare di nuovo. Al termine dell'incantesimo, il tempo atmosferico torna alla normalità. Quando l'incantatore modifica le condizioni atmosferiche, trova la condizione attuale nelle tabelle seguenti e la modifica di un grado, verso l'alto o verso il basso. Quando l'incantatore cambia il vento, può modificarne anche la direzione. Precipitazioni Grado Condizione 1 Sereno 2 Poco nuvoloso 3 Nuvoloso o nebbia 4 Pioggia, grandine o neve 5 Pioggia torrenziale, grandinata violenta o tormenta Temperatura Grado Condizione 1 Torrido 2 Caldo 3 Temperato 4 Fresco 5 Freddo 6 Gelido Vento Grado Condizione 1 Calmo 2 Vento moderato 3 Vento forte 4 Burrasca 5 Tempesta",
+      "higher_levels": null
+    },
+    {
+      "name": "Terremoto",
+      "level": 8,
+      "school": "Trasmutazione",
+      "casting_time": "1 azione",
+      "range": "150 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "una roccia fratturata",
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore sceglie un punto del terreno entro gittata che egli è in grado di vedere. Per la durata dell'incantesimo, una scossa intensa sconquassa il terreno in un raggio di 30 metri centrato su quel punto, rendendolo terreno difficile. Quando l'incantatore lancia questo incantesimo, e alla fine di ogni suo turno per tutta la durata, ogni creatura sul terreno nell'area effettua un tiro salvezza su Destrezza. In caso di fallimento, la creatura cade prona e la sua concentrazione viene interrotta. L'incantatore può anche causare i seguenti effetti. Crepe. Un totale di 1d6 crepe si apre nell'area dell'incantesimo alla fine del turno in cui viene lanciato. L'incantatore sceglie i punti in cui si aprono le crepe, che non possono trovarsi al di sotto di strutture. Ognuna di esse è profonda 1d10 × 3 metri, ampia 3 metri e si estende da un lato all'altro dell'area dell'incantesimo. Se una creatura si trova nel punto i cui si apre una crepa, deve superare un tiro salvezza su Destrezza o vi cade dentro. Una creatura che supera il tiro salvezza riesce a spostarsi insieme al bordo della crepa mentre si apre. Strutture. La scossa infligge 50 danni contundenti a una qualsiasi struttura a contatto con il terreno nell'area in cui è stato lanciato l'incantesimo e alla fine di ogni turno dell'incantatore fino al termine dell'incantesimo. Se la struttura scende a 0 punti ferita, crolla. Una creatura situata entro una distanza da una struttura in disfacimento pari alla metà dell'altezza della struttura stessa effettua un tiro salvezza su Destrezza. Se fallisce, subisce 12d6 danni contundenti, viene buttata a terra prona e rimane sepolta sotto le macerie; per liberarsi con un'azione deve effettuare una prova di Forza (Atletica) con CD 20. In caso di successo, subisce soltanto la metà di quei danni.",
+      "higher_levels": null
+    },
+    {
+      "name": "Guarigione di Massa",
+      "level": 9,
+      "school": "Abiurazione",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S"
+      ],
+      "material": null,
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "Un'ondata di energia curativa si sprigiona dall'incantatore, investendo le creature intorno a lui. In questo modo, ripristina fino a 700 punti ferita, ripartendoli come desidera tra un qualsiasi numero di creature entro gittata che egli è in grado di vedere. Le creature guarite da questo incantesimo vengono inoltre curate dalle condizioni accecato, assordato e avvelenato.",
+      "higher_levels": null
+    },
+    {
+      "name": "Portale",
+      "level": 9,
+      "school": "Evocazione",
+      "casting_time": "1 azione",
+      "range": "18 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "un diamante del valore di 5.000 mo o più",
+      "duration": "concentrazione, fino a 1 minuto",
+      "ritual": false,
+      "concentration": true,
+      "description": "fino a 1 minuto L'incantatore evoca un portale che collega uno spazio libero entro gittata che egli è in grado di vedere a un luogo preciso su un piano di esistenza differente. Il portale è un'apertura circolare, del diametro variabile tra 1,5 e 6 metri a scelta dell'incantatore e può essere orientato in qualsiasi direzione. Il portale permane per la durata dell'incantesimo e la sua destinazione è visibile attraverso di esso. Il portale ha un lato anteriore e un lato posteriore su ogni piano dove appare e i viaggi sono possibili solo attraversandolo dalla parte anteriore. Tutto ciò che lo attraversa è trasportato immediatamente sull'altro piano, apparendo nello spazio libero più vicino al portale. Divinità e altri sovrani planari possono impedire che i portali creati tramite questo incantesimo si aprano in loro presenza o nei loro domini. Quando lancia questo incantesimo, l'incantatore può pronunciare il nome di una creatura specifica (pseudonimi, titoli o soprannomi non funzionano). Se la creatura nominata si trova su un piano diverso da quello in cui si trova l'incantatore, il portale si apre nelle immediate vicinanze della creatura, trasportandola fino allo spazio libero più vicino sul lato del portale in cui si trova l'incantatore. L'incantatore non ottiene alcun potere speciale sulla creatura, che è libera di agire come il GM ritiene più appropriato: potrebbe andarsene, attaccarlo o aiutarlo.",
+      "higher_levels": null
+    },
+    {
+      "name": "Proiezione Astrale",
+      "level": 9,
+      "school": "Necromanzia",
+      "casting_time": "1 ora",
+      "range": "3 metri",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "per ogni bersaglio dell'incantesimo, l'incantatore deve possedere un giacinto del valore di 1.000 mo o più e un lingotto d'argento del valore di 100 mo o più; l'incantesimo consuma entrambi",
+      "duration": "finché non viene dissolto",
+      "ritual": false,
+      "concentration": false,
+      "description": "non viene dissolto L'incantatore e un massimo di otto creature consenzienti entro gittata proiettano i loro corpi astrali sul Piano Astrale (l'incantesimo termina immediatamente se l'incantatore si trova già su quel piano). Il corpo di ogni bersaglio cade in uno stato di animazione sospesa; ha la condizione privo di sensi, non ha bisogno di cibo o aria e non invecchia. La forma astrale di un bersaglio assomiglia in tutto e per tutto al suo corpo, replicando le sue statistiche di gioco e le sue proprietà. La differenza principale consiste nell'aggiunta di un cordone argentato che si snoda tra le scapole della forma astrale, diventando invisibile dopo 30 cm. Se il cordone viene reciso, cosa che può accadere solo quando un effetto lo specifica chiaramente, il corpo e la forma astrale del bersaglio muoiono entrambi. La forma astrale di un bersaglio può viaggiare sul Piano Astrale. Nel momento in cui una forma astrale lascia questo piano, il corpo e le proprietà del bersaglio vengono trasportati lungo il cordone argentato, permettendogli di rientrare nel suo corpo nel momento in cui accede al nuovo piano. Qualsiasi danno o altro effetto che si applichi a una forma astrale non ha effetto sul corpo del bersaglio e viceversa. Inoltre, l'incantesimo termina se il corpo originale o la forma astrale di un bersaglio scende a 0 punti ferita. L'incantesimo termina per tutti i bersagli se l'incantatore effettua un'azione di Magia per interromperlo. Quando l'incantesimo termina per un bersaglio che non è morto, il bersaglio riappare nel suo corpo ed esce dallo stato di animazione sospesa.",
+      "higher_levels": null
+    },
+    {
+      "name": "Resurrezione Pura",
+      "level": 9,
+      "school": "Necromanzia",
+      "casting_time": "1 ora",
+      "range": "contatto",
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
+      "material": "diamanti del valore di 25.000 mo o più, che vengono consumati dall'incantesimo",
+      "duration": "istantanea",
+      "ritual": false,
+      "concentration": false,
+      "description": "L'incantatore tocca una creatura morta da non più di 200 anni a causa di un qualsiasi motivo fuorché la vecchiaia. Il bersaglio viene rianimato con tutti i propri punti ferita. Questo incantesimo chiude tutte le ferite, neutralizza ogni veleno, cura tutti i contagi magici e annulla ogni maledizione che affiggeva la creatura al momento della morte. Inoltre, ripristina gli eventuali organi e arti danneggiati o mancanti. Se la creatura era un non morto, viene riportata alla forma originaria che aveva in vita. L'incantesimo può fornire al bersaglio un nuovo corpo se l'originale non esiste più, nel qual caso l'incantatore deve pronunciare il nome della creatura, che appare in uno spazio libero a scelta dell'incantatore entro 3 metri da lui.",
+      "higher_levels": null
+    }
+  ]
+}

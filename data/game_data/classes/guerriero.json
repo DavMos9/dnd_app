@@ -2,82 +2,265 @@
   "name": "Guerriero",
   "hit_die": 10,
   "primary_ability": "str",
-  "saving_throws": ["str", "con"],
+  "saving_throws": [
+    "str",
+    "con"
+  ],
   "spellcasting_ability": null,
-  "armor_proficiencies": ["#armature_tutte"],
-  "weapon_proficiencies": ["#armi_semplici", "#armi_da_guerra"],
+  "armor_proficiencies": [
+    "#armature_tutte"
+  ],
+  "weapon_proficiencies": [
+    "#armi_semplici",
+    "#armi_da_guerra"
+  ],
   "tool_proficiencies": [],
   "skill_choices": {
     "count": 2,
-    "options": ["Acrobazia", "Addestrare Animali", "Atletica", "Storia", "Intuizione", "Intimidire", "Percezione", "Sopravvivenza"]
+    "options": [
+      "Acrobazia",
+      "Addestrare Animali",
+      "Atletica",
+      "Storia",
+      "Intuizione",
+      "Intimidire",
+      "Percezione",
+      "Sopravvivenza"
+    ]
   },
   "languages": [],
   "starting_equipment": [
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Cotta di maglia", "item_type": "armor"}],
-        [{"name": "Armatura di cuoio", "item_type": "armor"}, {"name": "Arco lungo", "item_type": "weapon"}, {"name": "Frecce", "item_type": "item", "quantity": 20}]
+        [
+          {
+            "name": "Cotta di maglia",
+            "item_type": "armor"
+          }
+        ],
+        [
+          {
+            "name": "Armatura di cuoio",
+            "item_type": "armor"
+          },
+          {
+            "name": "Arco lungo",
+            "item_type": "weapon"
+          },
+          {
+            "name": "Frecce",
+            "item_type": "item",
+            "quantity": 20
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Qualsiasi arma da guerra", "item_type": "item"}, {"name": "Scudo", "item_type": "armor"}],
-        [{"name": "Qualsiasi arma da guerra", "item_type": "item", "quantity": 2}]
+        [
+          {
+            "name": "Qualsiasi arma da guerra",
+            "item_type": "item"
+          },
+          {
+            "name": "Scudo",
+            "item_type": "armor"
+          }
+        ],
+        [
+          {
+            "name": "Qualsiasi arma da guerra",
+            "item_type": "item",
+            "quantity": 2
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Balestra leggera", "item_type": "weapon"}, {"name": "Dardi", "item_type": "item", "quantity": 20}],
-        [{"name": "Due zagaglie", "item_type": "weapon", "quantity": 2}]
+        [
+          {
+            "name": "Balestra leggera",
+            "item_type": "weapon"
+          },
+          {
+            "name": "Dardi",
+            "item_type": "item",
+            "quantity": 20
+          }
+        ],
+        [
+          {
+            "name": "Due zagaglie",
+            "item_type": "weapon",
+            "quantity": 2
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Zaino da dungeon", "item_type": "item"}],
-        [{"name": "Zaino da esploratore", "item_type": "item"}]
+        [
+          {
+            "name": "Zaino da dungeon",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Zaino da esploratore",
+            "item_type": "item"
+          }
+        ]
       ]
     }
   ],
-  "starting_gold_alternative": {"dice": "5d4", "multiplier": 10},
+  "starting_gold_alternative": {
+    "dice": "5d4",
+    "multiplier": 10
+  },
   "subclass_label": "Archetipo Marziale",
   "subclass_choice_level": 3,
   "subclasses": [
     {
       "name": "Campione",
       "features": [
-        {"level": 3,  "name": "Critico Migliorato", "description": "I tuoi attacchi d'arma segnano un colpo critico con un 19 o un 20."},
-        {"level": 7,  "name": "Atleta Straordinario", "description": "Puoi aggiungere metà del bonus di competenza a qualsiasi prova di Forza, Destrezza o Costituzione."},
-        {"level": 10, "name": "Stile di Combattimento Aggiuntivo", "description": "Scegli uno stile di combattimento aggiuntivo."},
-        {"level": 15, "name": "Critico Superiore", "description": "I tuoi colpi critici avvengono con 18, 19 o 20."},
-        {"level": 18, "name": "Sopravvissuto", "description": "All'inizio del tuo turno, recuperi PF pari a 5 + modificatore di Costituzione se hai ≤ metà dei PF massimi."}
+        {
+          "level": 3,
+          "name": "Critico Migliorato",
+          "description": "I tuoi attacchi d'arma segnano un colpo critico con un 19 o un 20."
+        },
+        {
+          "level": 7,
+          "name": "Atleta Straordinario",
+          "description": "Puoi aggiungere metà del bonus di competenza a qualsiasi prova di Forza, Destrezza o Costituzione."
+        },
+        {
+          "level": 10,
+          "name": "Stile di Combattimento Aggiuntivo",
+          "description": "Scegli uno stile di combattimento aggiuntivo."
+        },
+        {
+          "level": 15,
+          "name": "Critico Superiore",
+          "description": "I tuoi colpi critici avvengono con 18, 19 o 20."
+        },
+        {
+          "level": 18,
+          "name": "Sopravvissuto",
+          "description": "All'inizio del tuo turno, recuperi PF pari a 5 + modificatore di Costituzione se hai ≤ metà dei PF massimi."
+        }
       ]
     },
     {
       "name": "Cavaliere Arcano",
       "spellcasting_ability": "int",
       "features": [
-        {"level": 3,  "name": "Incantesimi", "description": "Apprendi trucchetti e incantesimi di Mago (abiurazione ed evocazione)."},
-        {"level": 3,  "name": "Legame con l'Arma", "description": "Crei un legame con due armi; non puoi essere disarmato involontariamente e puoi evocarle telepaticamente."},
-        {"level": 7,  "name": "Colpo di Incantesimo", "description": "Quando usi l'azione Attacca, puoi sostituire un attacco con la proiezione di un incantesimo di Mago di 1° livello o superiore."},
-        {"level": 10, "name": "Magia Bellica", "description": "Quando usi l'azione Proiettare Incantesimo, puoi effettuare un attacco con un'arma come azione bonus."},
-        {"level": 15, "name": "Colpo di Incantesimo Migliorato", "description": "Puoi usare Colpo di Incantesimo per qualsiasi incantesimo del Guerriero."},
-        {"level": 18, "name": "Magia Bellica Migliorata", "description": "Prima di proiettare l'incantesimo hai vantaggio ai tiri di attacco."}
+        {
+          "level": 3,
+          "name": "Incantesimi",
+          "description": "Apprendi trucchetti e incantesimi di Mago (abiurazione ed evocazione)."
+        },
+        {
+          "level": 3,
+          "name": "Legame con l'Arma",
+          "description": "Crei un legame con due armi; non puoi essere disarmato involontariamente e puoi evocarle telepaticamente."
+        },
+        {
+          "level": 7,
+          "name": "Colpo di Incantesimo",
+          "description": "Quando usi l'azione Attacca, puoi sostituire un attacco con la proiezione di un incantesimo di Mago di 1° livello o superiore."
+        },
+        {
+          "level": 10,
+          "name": "Magia Bellica",
+          "description": "Quando usi l'azione Proiettare Incantesimo, puoi effettuare un attacco con un'arma come azione bonus."
+        },
+        {
+          "level": 15,
+          "name": "Colpo di Incantesimo Migliorato",
+          "description": "Puoi usare Colpo di Incantesimo per qualsiasi incantesimo del Guerriero."
+        },
+        {
+          "level": 18,
+          "name": "Magia Bellica Migliorata",
+          "description": "Prima di proiettare l'incantesimo hai vantaggio ai tiri di attacco."
+        }
       ]
     },
     {
       "name": "Maestro delle Battaglie",
       "features": [
-        {"level": 3,  "name": "Manovre da Combattimento", "description": "Apprendi tre manovre da combattimento e ottieni dadi superiorità (d8)."},
-        {"level": 3,  "name": "Studioso della Guerra", "description": "Ottieni competenza in un tipo di strumento artigianale o storico."},
-        {"level": 7,  "name": "Conoscenza del Terreno", "description": "Vantaggio alle prove di Iniziativa; non puoi essere sorpreso."},
-        {"level": 10, "name": "Manovre Aggiuntive", "description": "Apprendi due manovre aggiuntive; il dado superiorità diventa d10."},
-        {"level": 15, "name": "Implacabile", "description": "Se non hai dadi superiorità all'inizio del tuo turno, recuperi 1 dado."},
-        {"level": 18, "name": "Maestria del Combattimento", "description": "Il dado superiorità diventa d12."}
+        {
+          "level": 3,
+          "name": "Manovre da Combattimento",
+          "description": "Apprendi tre manovre da combattimento e ottieni dadi superiorità (d8)."
+        },
+        {
+          "level": 3,
+          "name": "Studioso della Guerra",
+          "description": "Ottieni competenza in un tipo di strumento artigianale o storico."
+        },
+        {
+          "level": 7,
+          "name": "Conoscenza del Terreno",
+          "description": "Vantaggio alle prove di Iniziativa; non puoi essere sorpreso."
+        },
+        {
+          "level": 10,
+          "name": "Manovre Aggiuntive",
+          "description": "Apprendi due manovre aggiuntive; il dado superiorità diventa d10."
+        },
+        {
+          "level": 15,
+          "name": "Implacabile",
+          "description": "Se non hai dadi superiorità all'inizio del tuo turno, recuperi 1 dado."
+        },
+        {
+          "level": 18,
+          "name": "Maestria del Combattimento",
+          "description": "Il dado superiorità diventa d12."
+        }
       ]
+    }
+  ],
+  "features": [
+    {
+      "level": 1,
+      "name": "Stile di Combattimento",
+      "description": "Adotti un particolare stile di combattimento come tua specialità. Scegli uno: Arciere (+2 ai tiri per colpire con armi a distanza), Combattimento con Arma a Due Mani (ritira 1 o 2 sui dadi danno dell'arma), Difesa (+1 CA con armatura), Duello (+2 danni se hai un'arma da mischia e nessun'altra), Grande Arma (ritira 1 e 2), Protezione (imponi svantaggio agli attacchi contro un alleato adiacente con lo scudo)."
+    },
+    {
+      "level": 1,
+      "name": "Recuperare Energie",
+      "description": "Puoi difenderti con la tua resistenza. Nel tuo turno puoi usare un'azione bonus per recuperare PF pari a 1d10 + il tuo livello da guerriero. Una volta usato, devi completare un riposo breve o lungo prima di poterlo usare di nuovo."
+    },
+    {
+      "level": 2,
+      "name": "Azione Impetuosa",
+      "description": "Puoi sferrare un attacco aggiuntivo oltre al normale, oppure compiere un'azione aggiuntiva nel tuo turno. Questa azione aggiuntiva può essere usata solo per Attacco (un solo colpo), Scatto, Disimpegno, Schivata o Aiuto. Usi: 1 (lv2), 2 (lv17). Recupero: riposo breve o lungo."
+    },
+    {
+      "level": 5,
+      "name": "Attacco Extra",
+      "description": "Puoi attaccare due volte anziché una ogni volta che effettui l'azione di Attacco. Diventa 3 attacchi all'11° livello e 4 attacchi al 20° livello."
+    },
+    {
+      "level": 9,
+      "name": "Indomito",
+      "description": "Puoi ritirare un tiro salvezza fallito. Devi usare il nuovo risultato. Usi: 1 (lv9), 2 (lv13), 3 (lv17). Recupero: riposo lungo."
     }
   ]
 }

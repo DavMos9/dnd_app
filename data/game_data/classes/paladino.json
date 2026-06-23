@@ -2,97 +2,333 @@
   "name": "Paladino",
   "hit_die": 10,
   "primary_ability": "str",
-  "saving_throws": ["wis", "cha"],
+  "saving_throws": [
+    "wis",
+    "cha"
+  ],
   "spellcasting_ability": "cha",
-  "armor_proficiencies": ["#armature_tutte"],
-  "weapon_proficiencies": ["#armi_semplici", "#armi_da_guerra"],
+  "armor_proficiencies": [
+    "#armature_tutte"
+  ],
+  "weapon_proficiencies": [
+    "#armi_semplici",
+    "#armi_da_guerra"
+  ],
   "tool_proficiencies": [],
   "skill_choices": {
     "count": 2,
-    "options": ["Atletica", "Intuizione", "Intimidire", "Medicina", "Persuasione", "Religione"]
+    "options": [
+      "Atletica",
+      "Intuizione",
+      "Intimidire",
+      "Medicina",
+      "Persuasione",
+      "Religione"
+    ]
   },
   "languages": [],
   "starting_equipment": [
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Qualsiasi arma da guerra", "item_type": "item"}, {"name": "Scudo", "item_type": "armor"}],
-        [{"name": "Qualsiasi arma da guerra", "item_type": "item", "quantity": 2}]
+        [
+          {
+            "name": "Qualsiasi arma da guerra",
+            "item_type": "item"
+          },
+          {
+            "name": "Scudo",
+            "item_type": "armor"
+          }
+        ],
+        [
+          {
+            "name": "Qualsiasi arma da guerra",
+            "item_type": "item",
+            "quantity": 2
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Cinque zagaglie", "item_type": "weapon", "quantity": 5}],
-        [{"name": "Qualsiasi arma semplice da mischia", "item_type": "item"}]
+        [
+          {
+            "name": "Cinque zagaglie",
+            "item_type": "weapon",
+            "quantity": 5
+          }
+        ],
+        [
+          {
+            "name": "Qualsiasi arma semplice da mischia",
+            "item_type": "item"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Zaino da sacerdote", "item_type": "item"}],
-        [{"name": "Zaino da esploratore", "item_type": "item"}]
+        [
+          {
+            "name": "Zaino da sacerdote",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Zaino da esploratore",
+            "item_type": "item"
+          }
+        ]
       ]
     },
-    {"type": "fixed", "items": [
-      {"name": "Cotta di maglia", "item_type": "armor"},
-      {"name": "Simbolo sacro", "item_type": "item"}
-    ]}
+    {
+      "type": "fixed",
+      "items": [
+        {
+          "name": "Cotta di maglia",
+          "item_type": "armor"
+        },
+        {
+          "name": "Simbolo sacro",
+          "item_type": "item"
+        }
+      ]
+    }
   ],
-  "starting_gold_alternative": {"dice": "5d4", "multiplier": 10},
+  "starting_gold_alternative": {
+    "dice": "5d4",
+    "multiplier": 10
+  },
   "subclass_label": "Sacro Giuramento",
   "subclass_choice_level": 3,
   "subclasses": [
     {
       "name": "Giuramento di Devozione",
       "bonus_spells": {
-        "3": ["Protezione dal Male e dal Bene", "Santuario"],
-        "5": ["Ristorare Inferiore", "Zona della Verità"],
-        "9": ["Faro di Speranza", "Dissolvere la Magia"],
-        "13": ["Libertà di Movimento", "Guardiano della Fede"],
-        "17": ["Comunione", "Portale del Paradiso"]
+        "3": [
+          "Protezione dal Male e dal Bene",
+          "Santuario"
+        ],
+        "5": [
+          "Ristorare Inferiore",
+          "Zona della Verità"
+        ],
+        "9": [
+          "Faro di Speranza",
+          "Dissolvere la Magia"
+        ],
+        "13": [
+          "Libertà di Movimento",
+          "Guardiano della Fede"
+        ],
+        "17": [
+          "Comunione",
+          "Portale del Paradiso"
+        ]
       },
       "features": [
-        {"level": 3,  "name": "Arma Sacra", "description": "Come azione bonus, incanta un'arma che impugni. Per 1 minuto, aggiungi il modificatore di Carisma ai tiri di attacco con quell'arma. Emette luce brillante per 6 m."},
-        {"level": 3,  "name": "Girare i Non Morti", "description": "Incanalando la tua energia divina, riesci a far scappare i non morti."},
-        {"level": 7,  "name": "Aura della Devozione", "description": "Tu e le creature amiche entro 3 m (10 m al 18° livello) siete immuni all'essere affascinati."},
-        {"level": 15, "name": "Purezza di Spirito", "description": "Sei sempre sotto gli effetti dell'incantesimo Protezione dal Male e dal Bene."},
-        {"level": 20, "name": "Avatar della Santità", "description": "Come azione, irraggi un'aura luminosa. Per 1 minuto, mostri e non morti hanno svantaggio ai tiri di attacco contro di te."}
+        {
+          "level": 3,
+          "name": "Arma Sacra",
+          "description": "Come azione bonus, incanta un'arma che impugni. Per 1 minuto, aggiungi il modificatore di Carisma ai tiri di attacco con quell'arma. Emette luce brillante per 6 m."
+        },
+        {
+          "level": 3,
+          "name": "Girare i Non Morti",
+          "description": "Incanalando la tua energia divina, riesci a far scappare i non morti."
+        },
+        {
+          "level": 7,
+          "name": "Aura della Devozione",
+          "description": "Tu e le creature amiche entro 3 m (10 m al 18° livello) siete immuni all'essere affascinati."
+        },
+        {
+          "level": 15,
+          "name": "Purezza di Spirito",
+          "description": "Sei sempre sotto gli effetti dell'incantesimo Protezione dal Male e dal Bene."
+        },
+        {
+          "level": 20,
+          "name": "Avatar della Santità",
+          "description": "Come azione, irraggi un'aura luminosa. Per 1 minuto, mostri e non morti hanno svantaggio ai tiri di attacco contro di te."
+        }
       ]
     },
     {
       "name": "Giuramento degli Antichi",
       "bonus_spells": {
-        "3": ["Colpo Inebriante", "Parlare con gli Animali"],
-        "5": ["Raggi di Luna", "Passo del Vento"],
-        "9": ["Mandare", "Crescita di Spine"],
-        "13": ["Ghiaccio delle Tempeste", "Guardiano della Natura"],
-        "17": ["Comunione con la Natura", "Invocazione di Elementale"]
+        "3": [
+          "Colpo Inebriante",
+          "Parlare con gli Animali"
+        ],
+        "5": [
+          "Raggi di Luna",
+          "Passo del Vento"
+        ],
+        "9": [
+          "Mandare",
+          "Crescita di Spine"
+        ],
+        "13": [
+          "Ghiaccio delle Tempeste",
+          "Guardiano della Natura"
+        ],
+        "17": [
+          "Comunione con la Natura",
+          "Invocazione di Elementale"
+        ]
       },
       "features": [
-        {"level": 3,  "name": "Sbocciare la Luce", "description": "Come azione bonus, crei luce su una creatura oscurata dalla magia; vantaggio agli attacchi contro di essa."},
-        {"level": 3,  "name": "Circondare i Deviati", "description": "Incanalando la tua energia, riesci a far scappare le Fate e i Fiend."},
-        {"level": 7,  "name": "Aura del Coraggio", "description": "Tu e le creature amiche entro 3 m (10 m al 18° livello) siete immuni allo spavento."},
-        {"level": 15, "name": "Resistenza Antica", "description": "Sai come sopravvivere. Ottieni resistenza ai danni di acido, freddo, fuoco, fulmine e tuono."},
-        {"level": 20, "name": "Campione degli Antichi", "description": "Come azione, irraggi un'aura verde. Per 1 minuto, creature magiche e incantesimi hanno svantaggio a TS contro di te."}
+        {
+          "level": 3,
+          "name": "Sbocciare la Luce",
+          "description": "Come azione bonus, crei luce su una creatura oscurata dalla magia; vantaggio agli attacchi contro di essa."
+        },
+        {
+          "level": 3,
+          "name": "Circondare i Deviati",
+          "description": "Incanalando la tua energia, riesci a far scappare le Fate e i Fiend."
+        },
+        {
+          "level": 7,
+          "name": "Aura del Coraggio",
+          "description": "Tu e le creature amiche entro 3 m (10 m al 18° livello) siete immuni allo spavento."
+        },
+        {
+          "level": 15,
+          "name": "Resistenza Antica",
+          "description": "Sai come sopravvivere. Ottieni resistenza ai danni di acido, freddo, fuoco, fulmine e tuono."
+        },
+        {
+          "level": 20,
+          "name": "Campione degli Antichi",
+          "description": "Come azione, irraggi un'aura verde. Per 1 minuto, creature magiche e incantesimi hanno svantaggio a TS contro di te."
+        }
       ]
     },
     {
       "name": "Giuramento di Vendetta",
       "bonus_spells": {
-        "3": ["Bane", "Affrettarsi"],
-        "5": ["Detenzione", "Passo del Vento"],
-        "9": ["Ammucchiare Tenebre", "Protezione da Energia"],
-        "13": ["Banimento", "Occhio del Male"],
-        "17": ["Mantenere il Male", "Scudo Divino"]
+        "3": [
+          "Bane",
+          "Affrettarsi"
+        ],
+        "5": [
+          "Detenzione",
+          "Passo del Vento"
+        ],
+        "9": [
+          "Ammucchiare Tenebre",
+          "Protezione da Energia"
+        ],
+        "13": [
+          "Banimento",
+          "Occhio del Male"
+        ],
+        "17": [
+          "Mantenere il Male",
+          "Scudo Divino"
+        ]
       },
       "features": [
-        {"level": 3,  "name": "Voto dei Nemici", "description": "Come azione bonus, scegli una creatura entro 3 m. Per 1 minuto, hai vantaggio ai tiri di attacco contro di essa."},
-        {"level": 3,  "name": "Smascherare i Deviati", "description": "Incanalando la tua energia, riveli la corruzione dei deviati."},
-        {"level": 7,  "name": "Implacabile", "description": "Quando una creatura vincola il tuo movimento, puoi effettuare un TS su Saggezza per ignorarne gli effetti."},
-        {"level": 15, "name": "Anima Inviolabile", "description": "Hai vantaggio ai TS su incantesimi e altri effetti magici."},
-        {"level": 20, "name": "Angelo della Vendetta", "description": "Come azione, evochi ali spettrali. Per 1 minuto, hai velocità di volo 18 m e, quando attacchi, aggiungi danni necrotici pari al livello del paladino."}
+        {
+          "level": 3,
+          "name": "Voto dei Nemici",
+          "description": "Come azione bonus, scegli una creatura entro 3 m. Per 1 minuto, hai vantaggio ai tiri di attacco contro di essa."
+        },
+        {
+          "level": 3,
+          "name": "Smascherare i Deviati",
+          "description": "Incanalando la tua energia, riveli la corruzione dei deviati."
+        },
+        {
+          "level": 7,
+          "name": "Implacabile",
+          "description": "Quando una creatura vincola il tuo movimento, puoi effettuare un TS su Saggezza per ignorarne gli effetti."
+        },
+        {
+          "level": 15,
+          "name": "Anima Inviolabile",
+          "description": "Hai vantaggio ai TS su incantesimi e altri effetti magici."
+        },
+        {
+          "level": 20,
+          "name": "Angelo della Vendetta",
+          "description": "Come azione, evochi ali spettrali. Per 1 minuto, hai velocità di volo 18 m e, quando attacchi, aggiungi danni necrotici pari al livello del paladino."
+        }
       ]
+    }
+  ],
+  "features": [
+    {
+      "level": 1,
+      "name": "Percezione del Divino",
+      "description": "Puoi percepire la presenza di bene e male potente. Come azione, puoi aprire la tua consapevolezza alla loro presenza. Fino alla fine del tuo turno successivo, conosci la posizione di qualsiasi celestiale, demone, elementale, non morto o essere fatato entro 18 m che non si trovi dietro una copertura totale. Non conosci l'identità della creatura. Puoi usare questa funzione un numero di volte pari a 1 + modificatore di Carisma (min. 1). Recupero: riposo lungo."
+    },
+    {
+      "level": 1,
+      "name": "Imposizione delle Mani",
+      "description": "La tua mano benedetta può guarire le ferite. Hai una riserva di potere curativo pari a 5 × livello da paladino. Come azione puoi toccare una creatura e attingere alla riserva per ripristinare un numero di PF a tua scelta. In alternativa, puoi spendere 5 PF per curare la creatura da una malattia o neutralizzare un veleno. La riserva si rinnova dopo un riposo lungo."
+    },
+    {
+      "level": 2,
+      "name": "Stile di Combattimento",
+      "description": "Adotti uno stile di combattimento come specialità. Scegli tra: Difesa (+1 CA con armatura), Duello (+2 danni con un'arma a una mano), Grande Arma (ritira 1 e 2 sui dadi danno dell'arma), Protezione (imponi svantaggio agli attacchi contro alleati adiacenti usando lo scudo)."
+    },
+    {
+      "level": 2,
+      "name": "Incantesimi",
+      "description": "Hai imparato a attingere alla magia divina tramite la meditazione e la preghiera. La caratteristica da incantatore è Carisma. Prepari ogni giorno un numero di incantesimi pari al tuo modificatore di Carisma + metà del tuo livello da paladino (arrotondato per difetto, min. 1)."
+    },
+    {
+      "level": 2,
+      "name": "Punizione Divina",
+      "description": "Quando colpisci una creatura con un attacco con un'arma, puoi spendere uno slot incantesimo per infliggere danni radiosi extra al bersaglio in aggiunta ai danni normali. I danni extra sono 2d8 per uno slot di 1° livello, più 1d8 per ogni livello superiore al 1°, fino a un massimo di 5d8. I danni aumentano di 1d8 se il bersaglio è un non morto o un demone."
+    },
+    {
+      "level": 3,
+      "name": "Salute Divina",
+      "description": "La magia divina che scorre attraverso di te ti rende immune alle malattie."
+    },
+    {
+      "level": 5,
+      "name": "Attacco Extra",
+      "description": "Puoi attaccare due volte anziché una ogni volta che effettui l'azione di Attacco nel tuo turno."
+    },
+    {
+      "level": 6,
+      "name": "Aura di Protezione",
+      "description": "Ogniqualvolta tu o una creatura amica entro 3 m da te dovete effettuare un tiro salvezza, la creatura ottiene un bonus pari al modificatore di Carisma (min. +1). Devi essere cosciente per concedere questo bonus. Il raggio aumenta a 9 m al 18° livello."
+    },
+    {
+      "level": 10,
+      "name": "Aura di Coraggio",
+      "description": "Tu e le creature amiche entro 3 m (9 m al 18° livello) non potete essere spaventati mentre sei cosciente."
+    },
+    {
+      "level": 11,
+      "name": "Punizione Divina Migliorata",
+      "description": "Sei talmente pervaso dalla rettitudine che tutti i tuoi colpi con le armi riportano con sé il potere divino. Ogni volta che colpisci una creatura con un'arma, l'arma infligge 1d8 danni radiosi aggiuntivi. Se utilizzi anche Punizione Divina, aggiungi questo danno ai danni extra della Punizione."
+    },
+    {
+      "level": 14,
+      "name": "Tocco Purificatore",
+      "description": "Puoi usare la tua azione per porre fine a un incantesimo su di te o su una creatura amica che tocchi con il tuo consenso. Puoi usare questo privilegio un numero di volte pari al modificatore di Carisma (min. 1). Recupero: riposo lungo."
+    },
+    {
+      "level": 18,
+      "name": "Aure Migliorate",
+      "description": "Il raggio delle tue aure (Aura di Protezione e Aura di Coraggio) aumenta da 3 m a 9 m."
     }
   ]
 }

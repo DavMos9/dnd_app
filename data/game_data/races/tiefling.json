@@ -1,19 +1,44 @@
 {
   "name": "Tiefling",
   "has_subrace": false,
-  "ability_bonuses": {"int": 1, "cha": 2},
+  "ability_bonuses": {
+    "int": 1,
+    "cha": 2
+  },
   "speed": 9,
   "darkvision": 18,
   "size": "Media",
-  "languages": ["Comune", "Infernale"],
+  "languages": [
+    "Comune",
+    "Infernale"
+  ],
   "traits": [
     {
       "name": "Resistenza Infernale",
-      "description": "Hai resistenza ai danni da fuoco."
+      "description": "Hai resistenza ai danni da fuoco.",
+      "resistance": [
+        "fire"
+      ]
     },
     {
       "name": "Eredità Infernale",
-      "description": "Conosci il trucchetto Taumateurgia. Quando raggiungi il 3° livello, puoi lanciare Infuriare una volta per riposo lungo. Al 5° livello, puoi lanciare Oscurità una volta per riposo lungo. Il modificatore per questi incantesimi è Carisma."
+      "description": "Conosci il trucchetto Taumateurgia. Quando raggiungi il 3° livello, puoi lanciare Infuriare una volta per riposo lungo. Al 5° livello, puoi lanciare Oscurità una volta per riposo lungo. Il modificatore per questi incantesimi è Carisma.",
+      "resources": [
+        {
+          "name": "Infuriare (razziale)",
+          "max_value": 1,
+          "reset_on": "long_rest",
+          "display_type": "circles",
+          "min_level": 3
+        },
+        {
+          "name": "Oscurità (razziale)",
+          "max_value": 1,
+          "reset_on": "long_rest",
+          "display_type": "circles",
+          "min_level": 5
+        }
+      ]
     }
   ]
 }

@@ -282,7 +282,14 @@ class DnDApp:
         elif key == "spells":
             return self._placeholder_view("Incantesimi", ft.Icons.AUTO_AWESOME, "In sviluppo...")
         elif key == "diary":
-            return self._placeholder_view("Diario", ft.Icons.MENU_BOOK, "In sviluppo...")
+            from data.repositories import character_repo
+            from ui.views.diary_view import DiaryView
+            if not self.current_character_id:
+                return self._placeholder_view("Diario", ft.Icons.MENU_BOOK, "")
+            char = character_repo.get_by_id(self.current_character_id)
+            if char:
+                return DiaryView(char)
+            return self._placeholder_view("Diario", ft.Icons.MENU_BOOK, "")
         elif key == "maps":
             from data.repositories import character_repo
             from ui.views.maps_view import MapsView

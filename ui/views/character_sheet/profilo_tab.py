@@ -23,7 +23,10 @@ from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
 from ui.theme import section_header
 from data.game_data.wizard_data import BACKGROUNDS
+from data.game_data.game_data_loader import GameDataLoader
 from core.level_manager import get_level_up_steps, estimate_hp_loss, StepType
+
+_loader = GameDataLoader()
 
 logger = logging.getLogger(__name__)
 
@@ -715,6 +718,7 @@ class ProfiloTab(ft.ListView):
         ]
 
         has_asi = False
+        subclass_dd_ref: list[ft.Dropdown] = []  # [0] = dropdown sottoclasse, se presente
         for step in steps:
             if step.step_type == StepType.HP_GAIN:
                 dlg_rows += [
@@ -739,18 +743,47 @@ class ProfiloTab(ft.ListView):
                 ))
 
             elif step.step_type == StepType.SUBCLASS_CHOICE:
-                # Futuro: apre picker sottoclasse. Per ora mostra solo info.
-                dlg_rows.append(ft.Container(
-                    content=ft.Row([
-                        ft.Icon(ft.Icons.STAR, size=14, color=COLOR_ACCENT_AMBER),
-                        ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
-                        ft.Text("(prossimamente)", size=10, color=COLOR_TEXT_MUTED),
-                    ], spacing=6),
-                    bgcolor="#fef9ec",
-                    padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-                    border_radius=4,
-                    border=ft.Border.all(1, COLOR_ACCENT_AMBER),
-                ))
+                # Carica sottoclassi dalla classe del personaggio
+                cls_data = _loader.get_class(c.class_name or "")
+                subclasses = []
+                subclass_label_name = "Sottoclasse"
+                if cls_data:
+                    subclasses = [sc.get("name", "") for sc in cls_data.get("subclasses", [])]
+                    subclass_label_name = cls_data.get("subclass_label", "Sottoclasse")
+
+                if subclasses:
+                    _sc_dd = ft.Dropdown(
+                        label=subclass_label_name,
+                        value=c.subclass if c.subclass in subclasses else subclasses[0],
+                        options=[ft.DropdownOption(key=s, text=s) for s in subclasses],
+                        bgcolor=COLOR_BG_CARD,
+                        color=COLOR_TEXT_PRIMARY,
+                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                        border_color=COLOR_BORDER,
+                        focused_border_color=COLOR_ACCENT_BLUE,
+                        expand=True,
+                    )
+                    subclass_dd_ref.append(_sc_dd)
+                    dlg_rows += [
+                        ft.Divider(color=COLOR_BORDER),
+                        ft.Row([
+                            ft.Icon(ft.Icons.STAR, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
+                                    color=COLOR_ACCENT_BLUE, expand=True),
+                        ], spacing=6),
+                        _sc_dd,
+                    ]
+                else:
+                    dlg_rows.append(ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.STAR, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                        ], spacing=6),
+                        bgcolor="#fef9ec",
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                        border_radius=4,
+                        border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+                    ))
 
             elif step.step_type == StepType.ASI:
                 has_asi = True
@@ -806,6 +839,10 @@ class ProfiloTab(ft.ListView):
                     if stat_dd2.value and stat_dd2.value != stat_dd1.value:
                         setattr(c, f"{stat_dd2.value}_score",
                                 min(20, getattr(c, f"{stat_dd2.value}_score") + 1))
+
+            # Sottoclasse scelta al level-up
+            if subclass_dd_ref and subclass_dd_ref[0].value:
+                c.subclass = subclass_dd_ref[0].value
 
             character_repo.update(c)
             page.pop_dialog()

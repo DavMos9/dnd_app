@@ -1,11 +1,16 @@
 {
   "name": "Halfling",
   "has_subrace": true,
-  "ability_bonuses": {"dex": 2},
+  "ability_bonuses": {
+    "dex": 2
+  },
   "speed": 7,
   "darkvision": 0,
   "size": "Piccola",
-  "languages": ["Comune", "Halfling"],
+  "languages": [
+    "Comune",
+    "Halfling"
+  ],
   "traits": [
     {
       "name": "Fortunato",
@@ -23,7 +28,9 @@
   "subraces": [
     {
       "name": "Halfling Piedelesto",
-      "ability_bonuses": {"dex": 1},
+      "ability_bonuses": {
+        "dex": 1
+      },
       "traits": [
         {
           "name": "Naturalmente Furtivo",
@@ -33,11 +40,19 @@
     },
     {
       "name": "Halfling Stoutfoot",
-      "ability_bonuses": {"con": 1},
+      "ability_bonuses": {
+        "con": 1
+      },
       "traits": [
         {
           "name": "Resistenza degli Stout",
-          "description": "Hai vantaggio ai tiri salvezza contro il veleno e hai resistenza ai danni da veleno."
+          "description": "Hai vantaggio ai tiri salvezza contro il veleno e hai resistenza ai danni da veleno.",
+          "resistance": [
+            "poison"
+          ],
+          "advantage_save": [
+            "poison"
+          ]
         }
       ]
     }

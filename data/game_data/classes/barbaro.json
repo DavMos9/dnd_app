@@ -2,37 +2,96 @@
   "name": "Barbaro",
   "hit_die": 12,
   "primary_ability": "str",
-  "saving_throws": ["str", "con"],
+  "saving_throws": [
+    "str",
+    "con"
+  ],
   "spellcasting_ability": null,
-  "armor_proficiencies": ["#armature_leggere", "#armature_medie", "#scudi"],
-  "weapon_proficiencies": ["#armi_semplici", "#armi_da_guerra"],
+  "armor_proficiencies": [
+    "#armature_leggere",
+    "#armature_medie",
+    "#scudi"
+  ],
+  "weapon_proficiencies": [
+    "#armi_semplici",
+    "#armi_da_guerra"
+  ],
   "tool_proficiencies": [],
   "skill_choices": {
     "count": 2,
-    "options": ["Addestrare Animali", "Atletica", "Intimidire", "Natura", "Percezione", "Sopravvivenza"]
+    "options": [
+      "Addestrare Animali",
+      "Atletica",
+      "Intimidire",
+      "Natura",
+      "Percezione",
+      "Sopravvivenza"
+    ]
   },
   "languages": [],
   "starting_equipment": [
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Ascia bipenne", "item_type": "weapon"}],
-        [{"name": "Ascia da battaglia", "item_type": "weapon"}, {"name": "Qualsiasi arma semplice da mischia", "item_type": "item"}]
+        [
+          {
+            "name": "Ascia bipenne",
+            "item_type": "weapon"
+          }
+        ],
+        [
+          {
+            "name": "Ascia da battaglia",
+            "item_type": "weapon"
+          },
+          {
+            "name": "Qualsiasi arma semplice da mischia",
+            "item_type": "item"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Quattro zagaglie", "item_type": "item", "quantity": 4}],
-        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+        [
+          {
+            "name": "Quattro zagaglie",
+            "item_type": "item",
+            "quantity": 4
+          }
+        ],
+        [
+          {
+            "name": "Qualsiasi arma semplice",
+            "item_type": "item"
+          }
+        ]
       ]
     },
-    {"type": "fixed", "items": [
-      {"name": "Zaino da esploratore", "item_type": "item"},
-      {"name": "Ascia da lancio", "item_type": "weapon", "quantity": 4}
-    ]}
+    {
+      "type": "fixed",
+      "items": [
+        {
+          "name": "Zaino da esploratore",
+          "item_type": "item"
+        },
+        {
+          "name": "Ascia da lancio",
+          "item_type": "weapon",
+          "quantity": 4
+        }
+      ]
+    }
   ],
-  "starting_gold_alternative": {"dice": "2d4", "multiplier": 10},
+  "starting_gold_alternative": {
+    "dice": "2d4",
+    "multiplier": 10
+  },
   "subclass_label": "Totem Primordiale",
   "subclass_choice_level": 3,
   "subclasses": [
@@ -40,22 +99,120 @@
       "name": "Percorso del Berserker",
       "bonus_proficiencies": [],
       "features": [
-        {"level": 3,  "name": "Frenesia", "description": "Puoi entrare in una frenesia durante la tua furia. Puoi effettuare un attacco con un'arma come azione bonus."},
-        {"level": 6,  "name": "Furia Senza Mente", "description": "Non puoi essere affascinato o spaventato mentre sei in furia."},
-        {"level": 10, "name": "Presenza Intimidatoria", "description": "Puoi usare la tua azione per spaventare qualcuno."},
-        {"level": 14, "name": "Ritorsione", "description": "Quando subisci danni da una creatura entro 1,5 m, puoi usare la tua reazione per effettuare un attacco."}
+        {
+          "level": 3,
+          "name": "Frenesia",
+          "description": "Puoi entrare in una frenesia durante la tua furia. Puoi effettuare un attacco con un'arma come azione bonus."
+        },
+        {
+          "level": 6,
+          "name": "Furia Senza Mente",
+          "description": "Non puoi essere affascinato o spaventato mentre sei in furia."
+        },
+        {
+          "level": 10,
+          "name": "Presenza Intimidatoria",
+          "description": "Puoi usare la tua azione per spaventare qualcuno."
+        },
+        {
+          "level": 14,
+          "name": "Ritorsione",
+          "description": "Quando subisci danni da una creatura entro 1,5 m, puoi usare la tua reazione per effettuare un attacco."
+        }
       ]
     },
     {
       "name": "Percorso del Totem Guerriero",
       "bonus_proficiencies": [],
       "features": [
-        {"level": 3,  "name": "Cercatore dello Spirito", "description": "Puoi lanciare Individuazione del Bene e del Male e Parlare con gli Animali come rituali."},
-        {"level": 3,  "name": "Spirito del Totem", "description": "Scegli un totem: Orso, Aquila o Lupo. Ottieni un beneficio durante la furia."},
-        {"level": 6,  "name": "Aspetto del Totem", "description": "Ottieni un beneficio magico basato sul tuo spirito totem."},
-        {"level": 10, "name": "Camminatore Spirituale", "description": "Puoi lanciare Comunione con la Natura come rituale."},
-        {"level": 14, "name": "Simbiosi del Totem", "description": "Ottieni un potente beneficio basato sul tuo spirito totem."}
+        {
+          "level": 3,
+          "name": "Cercatore dello Spirito",
+          "description": "Puoi lanciare Individuazione del Bene e del Male e Parlare con gli Animali come rituali."
+        },
+        {
+          "level": 3,
+          "name": "Spirito del Totem",
+          "description": "Scegli un totem: Orso, Aquila o Lupo. Ottieni un beneficio durante la furia."
+        },
+        {
+          "level": 6,
+          "name": "Aspetto del Totem",
+          "description": "Ottieni un beneficio magico basato sul tuo spirito totem."
+        },
+        {
+          "level": 10,
+          "name": "Camminatore Spirituale",
+          "description": "Puoi lanciare Comunione con la Natura come rituale."
+        },
+        {
+          "level": 14,
+          "name": "Simbiosi del Totem",
+          "description": "Ottieni un potente beneficio basato sul tuo spirito totem."
+        }
       ]
+    }
+  ],
+  "features": [
+    {
+      "level": 1,
+      "name": "Ira",
+      "description": "Nel suo turno puoi entrare in ira come azione bonus. Finché sei in ira (e non indossi armatura pesante): vantaggio alle prove di Forza e ai tiri salvezza su Forza; bonus ai danni con armi da mischia in Forza (da +2 a +4 in base al livello); resistenza ai danni contundenti, perforanti e taglienti. Non puoi lanciare incantesimi mentre sei in ira. La furia dura 1 minuto e termina prima se cadi privo di sensi, non attacchi un nemico né subisci danni. Usi: 2 (lv1), progressivi fino a illimitati al lv20. Recupero: riposo lungo."
+    },
+    {
+      "level": 1,
+      "name": "Difesa Senza Armatura",
+      "description": "Finché non indossi alcuna armatura, la tua CA è pari a 10 + modificatore di Destrezza + modificatore di Costituzione. Puoi usare uno scudo e ottenere comunque questo beneficio."
+    },
+    {
+      "level": 2,
+      "name": "Attacco Irruento",
+      "description": "Quando effettui il tuo primo attacco nel turno, puoi sferrare un attacco irruento: ottieni vantaggio ai tiri per colpire in mischia con Forza in questo turno, ma i tiri per colpire contro di te dispongono di vantaggio fino al tuo turno successivo."
+    },
+    {
+      "level": 2,
+      "name": "Percezione del Pericolo",
+      "description": "Ottieni vantaggio ai tiri salvezza su Destrezza contro gli effetti che puoi vedere (trappole, incantesimi), purché non sia accecato, assordato o incapacitato."
+    },
+    {
+      "level": 5,
+      "name": "Attacco Extra",
+      "description": "Puoi attaccare due volte anziché una ogni volta che effettui l'azione di Attacco nel tuo turno."
+    },
+    {
+      "level": 5,
+      "name": "Movimento Veloce",
+      "description": "La tua velocità aumenta di 3 m, purché non indossi un'armatura pesante."
+    },
+    {
+      "level": 7,
+      "name": "Istinto Ferino",
+      "description": "I tuoi istinti sono talmente affinati da fornirti vantaggio ai tiri per l'iniziativa. Inoltre, se sei sorpreso all'inizio del combattimento e non sei incapacitato, puoi agire normalmente nel tuo primo turno purché entri in ira prima di fare qualsiasi altra cosa."
+    },
+    {
+      "level": 9,
+      "name": "Critico Brutale",
+      "description": "Quando ottieni un colpo critico con un attacco in mischia, tiri un dado dell'arma aggiuntivo per i danni extra. Aumenta a 2 dadi al 13° livello e a 3 dadi al 17° livello."
+    },
+    {
+      "level": 11,
+      "name": "Ira Implacabile",
+      "description": "Se scendi a 0 punti ferita mentre sei in ira e non sei ucciso sul colpo, puoi effettuare un tiro salvezza su Costituzione (CD 10). Se lo superi, rimani invece a 1 punto ferita. La CD aumenta di 5 ogni utilizzo; si ripristina a 10 dopo un riposo breve o lungo."
+    },
+    {
+      "level": 15,
+      "name": "Ira Persistente",
+      "description": "La tua ira è talmente feroce che termina prematuramente solo se cadi privo di sensi o se decidi di porvi termine volontariamente."
+    },
+    {
+      "level": 18,
+      "name": "Potenza Indomabile",
+      "description": "Se il totale di una prova di Forza è inferiore al tuo punteggio di Forza, puoi usare quel punteggio al posto del risultato del dado."
+    },
+    {
+      "level": 20,
+      "name": "Campione Primordiale",
+      "description": "Sei un campione primordiale delle forze selvagge. Il tuo punteggio di Forza e il tuo punteggio di Costituzione aumentano di 4 ciascuno. Il tuo massimo per questi punteggi è ora 24."
     }
   ]
 }

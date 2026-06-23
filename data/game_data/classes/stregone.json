@@ -2,65 +2,199 @@
   "name": "Stregone",
   "hit_die": 6,
   "primary_ability": "cha",
-  "saving_throws": ["con", "cha"],
+  "saving_throws": [
+    "con",
+    "cha"
+  ],
   "spellcasting_ability": "cha",
   "armor_proficiencies": [],
-  "weapon_proficiencies": ["Pugnale", "Dardo", "Fionda", "Bastone", "Balestra leggera"],
+  "weapon_proficiencies": [
+    "Pugnale",
+    "Dardo",
+    "Fionda",
+    "Bastone",
+    "Balestra leggera"
+  ],
   "tool_proficiencies": [],
   "skill_choices": {
     "count": 2,
-    "options": ["Arcano", "Inganno", "Intuizione", "Intimidire", "Persuasione", "Religione"]
+    "options": [
+      "Arcano",
+      "Inganno",
+      "Intuizione",
+      "Intimidire",
+      "Persuasione",
+      "Religione"
+    ]
   },
   "languages": [],
   "starting_equipment": [
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Balestra leggera", "item_type": "weapon"}, {"name": "Dardi", "item_type": "item", "quantity": 20}],
-        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+        [
+          {
+            "name": "Balestra leggera",
+            "item_type": "weapon"
+          },
+          {
+            "name": "Dardi",
+            "item_type": "item",
+            "quantity": 20
+          }
+        ],
+        [
+          {
+            "name": "Qualsiasi arma semplice",
+            "item_type": "item"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Sacca dei Componenti", "item_type": "item"}],
-        [{"name": "Fuoco da Arcano", "item_type": "item"}]
+        [
+          {
+            "name": "Sacca dei Componenti",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Fuoco da Arcano",
+            "item_type": "item"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Zaino da dungeon", "item_type": "item"}],
-        [{"name": "Zaino da esploratore", "item_type": "item"}]
+        [
+          {
+            "name": "Zaino da dungeon",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Zaino da esploratore",
+            "item_type": "item"
+          }
+        ]
       ]
     },
-    {"type": "fixed", "items": [
-      {"name": "Due pugnali", "item_type": "weapon", "quantity": 2}
-    ]}
+    {
+      "type": "fixed",
+      "items": [
+        {
+          "name": "Due pugnali",
+          "item_type": "weapon",
+          "quantity": 2
+        }
+      ]
+    }
   ],
-  "starting_gold_alternative": {"dice": "3d4", "multiplier": 10},
+  "starting_gold_alternative": {
+    "dice": "3d4",
+    "multiplier": 10
+  },
   "subclass_label": "Origine Magica",
   "subclass_choice_level": 1,
   "subclasses": [
     {
       "name": "Discendenza Draconiana",
       "features": [
-        {"level": 1,  "name": "Antenato Draconico", "description": "Scegli un tipo di drago (Bianco, Blu, Verde, Nero, Rosso, Oro, Argento, Rame, Ottone, Bronzo). Ottieni la lingua draconica e resistenza al tipo di danno del drago."},
-        {"level": 1,  "name": "Resilienza Draconiana", "description": "I PF massimi aumentano di 1 per livello. Quando non indossi armatura, la CA = 13 + mod Destrezza."},
-        {"level": 6,  "name": "Affinità Elementale", "description": "Spendi 1 punto stregoneria: aggiungi il modificatore di Carisma ai danni degli incantesimi che usano il tipo di danno del tuo drago."},
-        {"level": 14, "name": "Ali Draconiache", "description": "Spendi 3 punti stregoneria: evochi ali draconiche, ottieni velocità di volo pari alla velocità di terra."},
-        {"level": 18, "name": "Presenza Draconica", "description": "Spendi 5 punti stregoneria: ogni creatura entro 18 m deve superare un TS su Saggezza o essere affascinata/spaventata."}
+        {
+          "level": 1,
+          "name": "Antenato Draconico",
+          "description": "Scegli un tipo di drago (Bianco, Blu, Verde, Nero, Rosso, Oro, Argento, Rame, Ottone, Bronzo). Ottieni la lingua draconica e resistenza al tipo di danno del drago."
+        },
+        {
+          "level": 1,
+          "name": "Resilienza Draconiana",
+          "description": "I PF massimi aumentano di 1 per livello. Quando non indossi armatura, la CA = 13 + mod Destrezza."
+        },
+        {
+          "level": 6,
+          "name": "Affinità Elementale",
+          "description": "Spendi 1 punto stregoneria: aggiungi il modificatore di Carisma ai danni degli incantesimi che usano il tipo di danno del tuo drago."
+        },
+        {
+          "level": 14,
+          "name": "Ali Draconiache",
+          "description": "Spendi 3 punti stregoneria: evochi ali draconiche, ottieni velocità di volo pari alla velocità di terra."
+        },
+        {
+          "level": 18,
+          "name": "Presenza Draconica",
+          "description": "Spendi 5 punti stregoneria: ogni creatura entro 18 m deve superare un TS su Saggezza o essere affascinata/spaventata."
+        }
       ]
     },
     {
       "name": "Anima Selvaggia",
       "features": [
-        {"level": 1,  "name": "Magia Selvaggia", "description": "Quando lanci uno slot incantesimo stregone, il DM può chiederti di tirare su una tabella di effetti casuali."},
-        {"level": 1,  "name": "Onda di Magia", "description": "Puoi usare un'azione bonus per creare un'onda di magia caotica, tirando sulla tabella di Magia Selvaggia."},
-        {"level": 6,  "name": "Piega il Destino", "description": "Quando tu o una creatura visibile tirate un dado, puoi spendere 2 punti stregoneria per far ritirare e usare il nuovo risultato."},
-        {"level": 14, "name": "Esplosione Controllata", "description": "Puoi escludere te stesso ed eventuali creature dalla tabella di Magia Selvaggia."},
-        {"level": 18, "name": "Potenza di Magia Selvaggia", "description": "Spendi 1 punto stregoneria come azione bonus per massimizzare il tiro dei dadi danno del prossimo incantesimo."}
+        {
+          "level": 1,
+          "name": "Magia Selvaggia",
+          "description": "Quando lanci uno slot incantesimo stregone, il DM può chiederti di tirare su una tabella di effetti casuali."
+        },
+        {
+          "level": 1,
+          "name": "Onda di Magia",
+          "description": "Puoi usare un'azione bonus per creare un'onda di magia caotica, tirando sulla tabella di Magia Selvaggia."
+        },
+        {
+          "level": 6,
+          "name": "Piega il Destino",
+          "description": "Quando tu o una creatura visibile tirate un dado, puoi spendere 2 punti stregoneria per far ritirare e usare il nuovo risultato."
+        },
+        {
+          "level": 14,
+          "name": "Esplosione Controllata",
+          "description": "Puoi escludere te stesso ed eventuali creature dalla tabella di Magia Selvaggia."
+        },
+        {
+          "level": 18,
+          "name": "Potenza di Magia Selvaggia",
+          "description": "Spendi 1 punto stregoneria come azione bonus per massimizzare il tiro dei dadi danno del prossimo incantesimo."
+        }
       ]
+    }
+  ],
+  "features": [
+    {
+      "level": 1,
+      "name": "Incantesimi",
+      "description": "Una fonte innata di magia, derivante dal tuo lignaggio, ti permette di lanciare incantesimi. La caratteristica da incantatore è Carisma. Conosci un certo numero di incantesimi fisso (non li prepari giornalmente). Vedi la tabella Stregone per il numero di trucchetti, incantesimi conosciuti e slot incantesimo."
+    },
+    {
+      "level": 1,
+      "name": "Origine Stregonesca",
+      "description": "Scegli un'origine stregonesca che descrive la fonte del tuo potere magico innato: Discendenza Draconica o Magia Selvaggia. La scelta ti concede privilegi al 1°, 6°, 14° e 18° livello."
+    },
+    {
+      "level": 2,
+      "name": "Fonte di Magia",
+      "description": "Trai forza magica profonda da dentro di te. Hai una riserva di punti stregoneria pari al tuo livello da stregone. Spendi punti stregoneria per creare slot incantesimo (es. 2 punti = slot 1°, 3 = slot 2°, 5 = slot 3°, 6 = slot 4°, 7 = slot 5°) o converti slot inutilizzati in punti (1 punto per slot di 1°-5°). Recupero: riposo lungo."
+    },
+    {
+      "level": 3,
+      "name": "Metamagia",
+      "description": "Hai imparato a plasmare la magia. Scegli 2 opzioni di Metamagia (4 al 10°, 5 al 17°). Puoi usarne solo una su un incantesimo salvo indicazione contraria. Opzioni: Incantesimo Attento (1 pt, forzi i nemici), Incantesimo Distante (1 pt, raddoppia gittata), Incantesimo Potenziato (1-3 pt, ritira danni), Incantesimo Esteso (1 pt, raddoppia durata), Incantesimo Intensificato (3 pt, impone svantaggio al bersaglio), Incantesimo Subtile (1 pt, no componenti V/S), Incantesimo Accelerato (2 pt, lancia come azione bonus)."
+    },
+    {
+      "level": 20,
+      "name": "Ripristino Stregonesco",
+      "description": "Recuperi 4 punti stregoneria ogni volta che finisci un riposo breve."
     }
   ]
 }

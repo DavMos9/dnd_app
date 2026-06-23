@@ -112,6 +112,101 @@ def get_level_from_xp(xp: int) -> int:
             level = lvl
     return level
 
+
+def get_class_resource_defaults(
+    class_name: str,
+    level: int,
+    character=None,
+) -> list[dict]:
+    """
+    Restituisce le risorse di classe per la classe e il livello indicati.
+
+    Ogni voce:
+        {
+            "name":         str,
+            "max_value":    int,
+            "current_value":int,       # uguale a max_value alla creazione
+            "reset_on":     "short_rest" | "long_rest",
+            "display_type": "circles"  | "counter",
+        }
+
+    display_type:
+        "circles"  → cerchietti cliccabili (pool piccoli ≤ 6)
+        "counter"  → counter −/+ numerico  (pool grandi o HP)
+    """
+    resources: list[dict] = []
+
+    def _cha_mod() -> int:
+        if character:
+            return max(1, get_modifier(getattr(character, "cha_score", 10)))
+        return 1
+
+    def _r(name: str, max_val: int, reset_on: str,
+           display_type: str | None = None) -> dict:
+        dt = display_type if display_type else ("circles" if max_val <= 6 else "counter")
+        return {
+            "name": name,
+            "max_value": max_val,
+            "current_value": max_val,
+            "reset_on": reset_on,
+            "display_type": dt,
+        }
+
+    if class_name == "Barbaro":
+        rage = 2
+        if level >= 17:   rage = 6
+        elif level >= 12: rage = 5
+        elif level >= 6:  rage = 4
+        elif level >= 3:  rage = 3
+        resources.append(_r("Furia", rage, "long_rest"))
+
+    elif class_name == "Bardo":
+        insp = _cha_mod()
+        reset = "short_rest" if level >= 5 else "long_rest"
+        resources.append(_r("Ispirazione Bardica", insp, reset))
+
+    elif class_name == "Chierico":
+        cd = 1
+        if level >= 18:  cd = 3
+        elif level >= 6: cd = 2
+        resources.append(_r("Incanalare Divinità", cd, "short_rest"))
+
+    elif class_name == "Druido":
+        if level >= 2:
+            resources.append(_r("Forma Selvatica", 2, "short_rest"))
+
+    elif class_name == "Guerriero":
+        resources.append(_r("Ripresa", 1, "short_rest"))
+        ba = 2 if level >= 17 else 1
+        resources.append(_r("Baldanza d'Azione", ba, "short_rest"))
+
+    elif class_name == "Monaco":
+        if level >= 2:
+            resources.append(_r("Punti Ki", level, "short_rest", "counter"))
+
+    elif class_name == "Paladino":
+        if level >= 3:
+            resources.append(_r("Incanalare Divinità", 1, "short_rest"))
+        resources.append(_r("Imposizione delle Mani", level * 5, "long_rest", "counter"))
+
+    elif class_name == "Stregone":
+        if level >= 2:
+            resources.append(_r("Punti Stregoneria", level, "long_rest", "counter"))
+
+    elif class_name == "Warlock":
+        if level >= 17:   n = 4
+        elif level >= 11: n = 3
+        elif level >= 2:  n = 2
+        else:             n = 1
+        resources.append(_r("Slot del Patto", n, "short_rest"))
+
+    elif class_name == "Mago":
+        resources.append(_r("Recupero Arcano", 1, "long_rest"))
+
+    # Ranger e Ladro: nessuna risorsa di classe base
+
+    return resources
+
 # Statistiche base
 ABILITY_SCORES = ["Forza", "Destrezza", "Costituzione", "Intelligenza", "Saggezza", "Carisma"]
 ABILITY_ABBR   = ["FOR",   "DES",       "COS",          "INT",          "SAG",      "CAR"]
@@ -146,7 +241,7 @@ ALIGNMENTS = [
     "Legale Malvagio", "Neutrale Malvagio", "Caotico Malvagio",
 ]
 
-# Razze disponibili
+# Razze disponibili (lista piatta legacy — usata fuori dal wizard)
 RACES = [
     "Elfo (Alto)", "Elfo dei Boschi", "Elfo Oscuro (Drow)",
     "Halfling (Piedelesto)", "Halfling (Tozzo)",
@@ -158,6 +253,69 @@ RACES = [
     "Mezzorco",
     "Tiefling",
 ]
+
+# Razze base (per wizard): race → lista sottorazze
+# Draconide usa DRACONIDE_ANCESTRIES, non subraces.
+RACES_BASE: dict[str, list[str]] = {
+    "Draconide": [],
+    "Elfo":      ["Alto Elfo", "Elfo del Bosco", "Elfo Oscuro (Drow)"],
+    "Gnomo":     ["Gnomo della Foresta", "Gnomo delle Rocce"],
+    "Halfling":  ["Halfling Piedelesto", "Halfling Stoutfoot"],
+    "Mezzelfo":  [],
+    "Mezzorco":  [],
+    "Nano":      ["Nano del Monte", "Nano delle Colline"],
+    "Tiefling":  [],
+    "Umano":     [],
+}
+
+# Discendenze del Draconide (determina tipo soffio e resistenza)
+DRACONIDE_ANCESTRIES = [
+    "Bianco", "Blu", "Verde", "Nero", "Rosso",
+    "Oro", "Argento", "Rame", "Ottone", "Bronzo",
+]
+
+# Lingue D&D 5e (PHB)
+LANGUAGES = [
+    "Comune", "Nanico", "Elfico", "Gigante", "Gnomesco", "Goblin",
+    "Halfling", "Orchesco", "Abissale", "Celeste", "Draconico",
+    "Silvano", "Sottocomune", "Infernale", "Primordiale",
+]
+
+# Strumenti per categoria (mappati dai 'from' dei JSON background)
+ARTISAN_TOOLS = [
+    "Strumenti da Fabbro", "Strumenti da Birraio", "Strumenti da Muratore",
+    "Strumenti da Calligrafo", "Strumenti da Falegname", "Strumenti da Calzolaio",
+    "Strumenti da Cuoco", "Strumenti da Vetraio", "Strumenti da Gioielliere",
+    "Strumenti da Conciatore", "Strumenti da Scalpellino", "Strumenti da Pittore",
+    "Strumenti da Vasaio", "Strumenti da Fabbricante di Archi",
+    "Strumenti da Sarto", "Strumenti da Calderaio", "Strumenti da Tessitore",
+    "Strumenti da Armaolo",
+]
+MUSICAL_INSTRUMENTS = [
+    "Cornamusa", "Batacchio", "Flauto", "Liuto",
+    "Lira", "Corno", "Piffero", "Tamburello", "Tromba", "Viola",
+]
+GAMING_SETS = ["Carte da Gioco", "Dadi", "Scacchi dei Draghi", "Tre Draghi"]
+
+# 'from' key nei JSON background → lista opzioni selezionabili
+TOOL_CATEGORIES: dict[str, list[str]] = {
+    "strumenti_artigiani": ARTISAN_TOOLS,
+    "strumenti_musicali":  MUSICAL_INSTRUMENTS,
+    "gioco_carte":         ["Carte da Gioco"],
+    "gioco_dadi":          ["Dadi"],
+    "scacchi":             ["Scacchi dei Draghi"],
+    "gioco_tre_draghi":    ["Tre Draghi"],
+    "altro_gioco":         GAMING_SETS,
+}
+
+# Label singola per chiave categoria (usata quando 'from' è una lista di chiavi)
+TOOL_CATEGORY_LABEL: dict[str, str] = {
+    "gioco_carte":      "Carte da Gioco",
+    "gioco_dadi":       "Dadi",
+    "scacchi":          "Scacchi dei Draghi",
+    "gioco_tre_draghi": "Tre Draghi",
+    "altro_gioco":      "Altro gioco a scelta",
+}
 
 # Classi disponibili con dado vita e caratteristica da incantatore
 CLASSES = {
@@ -393,3 +551,180 @@ RACE_DATA: dict[str, dict] = {
         ],
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Risorse razziali — tratti con usi limitati e resistenze
+# ---------------------------------------------------------------------------
+
+def get_race_resource_defaults(
+    race_name: str,
+    subrace: str,
+    level: int,
+) -> list[dict]:
+    """
+    Legge il JSON della razza e restituisce le risorse razziali attive
+    al livello indicato (es. Soffio del Draconide, Resistenza Implacabile).
+
+    Ogni voce:
+        {
+            "name":         str,
+            "max_value":    int,
+            "current_value":int,
+            "reset_on":     "short_rest" | "long_rest",
+            "display_type": "circles" | "counter",
+        }
+    """
+    import json as _json
+    import os as _os
+
+    races_dir = _os.path.join(
+        _os.path.dirname(_os.path.dirname(__file__)),
+        "data", "game_data", "races",
+    )
+
+    # Normalizza il nome razza → nome file
+    race_key = race_name.lower().replace(" ", "").replace("'", "")
+    candidate = _os.path.join(races_dir, f"{race_key}.json")
+    if not _os.path.exists(candidate):
+        return []
+
+    try:
+        with open(candidate, encoding="utf-8") as fh:
+            data = _json.load(fh)
+    except Exception:
+        return []
+
+    resources: list[dict] = []
+
+    def _extract_resources(traits: list[dict]) -> None:
+        for trait in traits:
+            # Risorsa singola
+            res = trait.get("resource")
+            if res and level >= res.get("min_level", 1):
+                resources.append({
+                    "name":          res["name"],
+                    "max_value":     res["max_value"],
+                    "current_value": res["max_value"],
+                    "reset_on":      res.get("reset_on", "long_rest"),
+                    "display_type":  res.get("display_type", "circles"),
+                })
+            # Risorse multiple (es. Eredità Infernale, Magia Drow)
+            for res in trait.get("resources", []):
+                if level >= res.get("min_level", 1):
+                    resources.append({
+                        "name":          res["name"],
+                        "max_value":     res["max_value"],
+                        "current_value": res["max_value"],
+                        "reset_on":      res.get("reset_on", "long_rest"),
+                        "display_type":  res.get("display_type", "circles"),
+                    })
+
+    # Tratti base
+    _extract_resources(data.get("traits", []))
+
+    # Tratti della sottorazza selezionata
+    subrace_norm = (subrace or "").lower().strip()
+    if subrace_norm:
+        for sr in data.get("subraces", []):
+            if sr.get("name", "").lower() in subrace_norm or subrace_norm in sr.get("name", "").lower():
+                _extract_resources(sr.get("traits", []))
+                break
+
+    return resources
+
+
+def get_race_display_traits(
+    race_name: str,
+    subrace: str,
+) -> dict:
+    """
+    Restituisce un dizionario con resistenze, vantaggi ai TS e tratti passivi
+    rilevanti per la razza/sottorazza, da mostrare nel tab Combattimento.
+
+    Ritorna:
+        {
+            "resistances":    list[str],   # es. ["Fuoco", "Veleno"]
+            "advantage_saves":list[str],   # es. ["Veleno"]
+            "passive_traits": list[str],   # es. ["Resistenza Implacabile (testo)"]
+        }
+    """
+    import json as _json
+    import os as _os
+
+    races_dir = _os.path.join(
+        _os.path.dirname(_os.path.dirname(__file__)),
+        "data", "game_data", "races",
+    )
+
+    race_key = race_name.lower().replace(" ", "").replace("'", "")
+    candidate = _os.path.join(races_dir, f"{race_key}.json")
+    if not _os.path.exists(candidate):
+        return {"resistances": [], "advantage_saves": [], "passive_traits": []}
+
+    try:
+        with open(candidate, encoding="utf-8") as fh:
+            data = _json.load(fh)
+    except Exception:
+        return {"resistances": [], "advantage_saves": [], "passive_traits": []}
+
+    # Mappa danno (usata per Draconide)
+    DRAGON_DAMAGE: dict[str, str] = {
+        "bianco": "Freddo", "blu": "Fulmine", "ottone": "Fuoco",
+        "bronzo": "Fulmine", "rame": "Acido", "oro": "Fuoco",
+        "argento": "Freddo", "nero": "Acido", "verde": "Veleno",
+        "rosso": "Fuoco",
+    }
+
+    resistances: list[str] = []
+    advantage_saves: list[str] = []
+    passive_traits: list[str] = []
+
+    _DAMAGE_IT = {
+        "fire": "Fuoco", "poison": "Veleno", "cold": "Freddo",
+        "lightning": "Fulmine", "acid": "Acido", "necrotic": "Necrotico",
+        "radiant": "Radiante", "thunder": "Tuono", "psychic": "Psichico",
+        "force": "Forza", "bludgeoning": "Contundente",
+        "piercing": "Perforante", "slashing": "Tagliante",
+    }
+    _SAVE_IT = {"poison": "Veleno", "charm": "Charme", "fear": "Paura"}
+
+    def _scan(traits: list[dict]) -> None:
+        for t in traits:
+            for dmg in t.get("resistance", []):
+                label = _DAMAGE_IT.get(str(dmg), str(dmg).capitalize())
+                if label not in resistances:
+                    resistances.append(label)
+            if t.get("resistance_by_ancestry"):
+                resistances.append("(vedi Discendenza Draconiana)")
+            for sv in t.get("advantage_save", []):
+                label = _SAVE_IT.get(str(sv), str(sv).capitalize())
+                if label not in advantage_saves:
+                    advantage_saves.append(label)
+
+    _scan(data.get("traits", []))
+
+    # Draconide: aggiunge resistenza basata su sottorazza (tipo drago)
+    if data.get("name", "").lower() == "draconide" and subrace:
+        sub_key = subrace.lower().strip()
+        dmg = DRAGON_DAMAGE.get(sub_key)
+        if dmg:
+            # Sostituisce il placeholder generico
+            if "(vedi Discendenza Draconiana)" in resistances:
+                resistances.remove("(vedi Discendenza Draconiana)")
+            if dmg not in resistances:
+                resistances.append(dmg)
+
+    # Sottorazza
+    subrace_norm = (subrace or "").lower().strip()
+    if subrace_norm:
+        for sr in data.get("subraces", []):
+            if sr.get("name", "").lower() in subrace_norm or subrace_norm in sr.get("name", "").lower():
+                _scan(sr.get("traits", []))
+                break
+
+    return {
+        "resistances":    resistances,
+        "advantage_saves": advantage_saves,
+        "passive_traits": passive_traits,
+    }

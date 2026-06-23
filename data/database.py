@@ -56,6 +56,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "inventory_items","effects",          "TEXT DEFAULT ''")
     _add_column(cur, "game_maps",      "image_data",       "TEXT DEFAULT ''")
     _add_column(cur, "game_maps",      "notes",            "TEXT DEFAULT ''")
+    # class_resources: tabella creata da _create_tables, nessuna colonna mancante attesa
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
@@ -299,4 +300,44 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_maps_character
         ON game_maps(character_id)
+    """)
+
+    # ------------------------------------------------------------------
+    # Risorse di classe (Furia, Ki, Incanalare Divinità, ecc.)
+    # ------------------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS class_resources (
+            id            TEXT PRIMARY KEY,
+            character_id  TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+            name          TEXT NOT NULL DEFAULT '',
+            max_value     INTEGER NOT NULL DEFAULT 0,
+            current_value INTEGER NOT NULL DEFAULT 0,
+            reset_on      TEXT NOT NULL DEFAULT 'long_rest',
+            display_type  TEXT NOT NULL DEFAULT 'circles'
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_class_resources_character
+        ON class_resources(character_id)
+    """)
+
+    # ------------------------------------------------------------------
+    # Note di Campagna (PNG, Luoghi, Missioni, Fazioni)
+    # ------------------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS campaign_notes (
+            id           TEXT PRIMARY KEY,
+            character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+            category     TEXT NOT NULL DEFAULT '',
+            name         TEXT NOT NULL DEFAULT '',
+            description  TEXT NOT NULL DEFAULT '',
+            status       TEXT NOT NULL DEFAULT '',
+            tags         TEXT NOT NULL DEFAULT '',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_campaign_notes_character
+        ON campaign_notes(character_id, category)
     """)

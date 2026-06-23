@@ -1,25 +1,28 @@
 """
 Wizard guidato di creazione personaggio.
 
-Flusso in 4 fasi:
+Flusso in 5 fasi:
     1. Domande (una per schermata, progress bar)
     2. Raccomandazione (classe/razza/background suggeriti)
-    3. Revisione e statistiche (modifica suggerimento + assegna stat)
-    4. Nome + salvataggio
+    3. Revisione (identità, stat, sottorazza, sottoclasse lv1, abilità, lingue/strumenti)
+    4. Equipaggiamento (oggetti fissi + scelte A/B)
+    5. Nome + salvataggio
 
 Il wizard è offline: nessuna API, solo albero decisionale + dati PHB.
 """
 
 import flet as ft
+import json
 import logging
-from typing import cast
+from typing import Any, cast
 
 from config.settings import (
     COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_CARD, COLOR_BG_SELECTED,
     COLOR_ACCENT_GOLD, COLOR_ACCENT_RED, COLOR_ACCENT_CRIMSON, COLOR_BORDER,
     COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED, COLOR_TEXT_TITLE,
-    CLASSES, RACES, ALIGNMENTS, ABILITY_SCORES, ABILITY_KEYS, STANDARD_ARRAY,
-    CLASS_SAVING_THROWS,
+    CLASSES, RACES_BASE, DRACONIDE_ANCESTRIES, ALIGNMENTS,
+    ABILITY_SCORES, ABILITY_KEYS, STANDARD_ARRAY, SKILLS,
+    CLASS_SAVING_THROWS, LANGUAGES, TOOL_CATEGORIES, TOOL_CATEGORY_LABEL,
     get_modifier, get_modifier_str,
 )
 from ui.theme import (
@@ -30,10 +33,12 @@ from core.wizard_engine import WizardEngine
 from data.game_data.wizard_data import (
     WIZARD_QUESTIONS, BACKGROUNDS, CLASS_DESCRIPTIONS, CLASS_SUGGESTED_RACES,
 )
+from data.game_data.game_data_loader import GameDataLoader
 from data.repositories import character_repo
 from data.models import CharacterProficiency
 
 logger = logging.getLogger(__name__)
+_loader = GameDataLoader()
 
 # ------------------------------------------------------------------
 # Icone sicure (presenti in Flet 0.85.3)
@@ -98,8 +103,27 @@ class WizardView(ft.Column):
         self.on_cancel = on_cancel
 
         self.engine = WizardEngine()
-        self._current_q_index: int = 0      # indice in WIZARD_QUESTIONS
-        self._phase: str = "questions"       # questions | recommendation | review | confirm
+        self._current_q_index: int = 0
+        # questions | recommendation | review | equipment | confirm
+        self._phase: str = "questions"
+
+        # Stato review (popolato in _goto_review)
+        self._review_class:     str        = ""
+        self._review_race:      str        = ""
+        self._review_subrace:   str        = ""   # sottorazza o discendenza Draconide
+        self._review_subclass:  str        = ""   # sottoclasse (solo se lv1)
+        self._review_bg:        str        = ""
+        self._review_align:     str        = ""
+        self._review_stats:     dict       = {}
+        self._review_skills:    list[str]  = []   # abilità scelte dalla lista di classe
+        self._review_languages: list[str]  = []   # lingue scelte dal background
+        self._review_tools:     list[str]  = []   # strumenti scelti dal background
+
+        # Stato equipment (popolato in _render_equipment)
+        # lista di dict: {name, item_type, quantity, selected}
+        self._equip_fixed:   list[dict[str, Any]] = []
+        # lista di dict: {options: [[item,...]], chosen_idx: int}
+        self._equip_choices: list[dict[str, Any]] = []
 
         # Area di contenuto centrale (sostituita ad ogni step)
         self._content = ft.Container(expand=True, bgcolor=COLOR_BG_PRIMARY)
@@ -194,9 +218,12 @@ class WizardView(ft.Column):
         elif self._phase == "review":
             self._phase = "recommendation"
             self._render_recommendation()
-        elif self._phase == "confirm":
+        elif self._phase == "equipment":
             self._phase = "review"
             self._render_review()
+        elif self._phase == "confirm":
+            self._phase = "equipment"
+            self._render_equipment()
 
     # ------------------------------------------------------------------
     # FASE 1: Domande
@@ -578,13 +605,78 @@ class WizardView(ft.Column):
     # ------------------------------------------------------------------
 
     def _goto_review(self, rec_class, rec_race, rec_bg, rec_align):
-        self._review_class   = rec_class
-        self._review_race    = rec_race
-        self._review_bg      = rec_bg
-        self._review_align   = rec_align
-        self._review_stats   = self.engine.get_suggested_stat_assignment(rec_class)
+        self._review_class    = rec_class
+        self._review_race     = rec_race
+        self._review_subrace  = ""
+        self._review_subclass = ""
+        self._review_bg       = rec_bg
+        self._review_align    = rec_align
+        self._review_stats    = self.engine.get_suggested_stat_assignment(rec_class)
+        self._review_skills   = []
+        self._review_languages = []
+        self._review_tools    = []
         self._phase = "review"
         self._render_review()
+
+    # ------------------------------------------------------------------
+    # Helper: costruisce le sezioni dinamiche della Review
+    # ------------------------------------------------------------------
+
+    def _bg_skill_proficiencies(self) -> list[str]:
+        """Abilità fisse concesse dal background corrente."""
+        bg_data = _loader.get_background(self._review_bg)
+        if bg_data:
+            return bg_data.get("skill_proficiencies", [])
+        return BACKGROUNDS.get(self._review_bg, {}).get("skills", [])
+
+    def _class_skill_options(self) -> tuple[int, list[str]]:
+        """(count, options) per le abilità di classe."""
+        cls_data = _loader.get_class(self._review_class)
+        if not cls_data:
+            return 0, []
+        sc = cls_data.get("skill_choices", {})
+        count = sc.get("count", 0)
+        opts = sc.get("options", [])
+        if opts == "any":
+            opts = list(SKILLS.keys())
+        return count, [o for o in opts if o not in self._bg_skill_proficiencies()]
+
+    def _bg_language_choices(self) -> tuple[int, str]:
+        """(count, from) per le lingue a scelta del background, o (0,'') se nessuna."""
+        bg_data = _loader.get_background(self._review_bg)
+        if not bg_data:
+            return 0, ""
+        for entry in bg_data.get("languages", []):
+            if isinstance(entry, dict) and entry.get("type") == "choice":
+                return entry.get("count", 1), entry.get("from", "any")
+        return 0, ""
+
+    def _bg_tool_choices(self) -> list[tuple[int, list[str]]]:
+        """Lista di (count, opzioni) per gli strumenti a scelta del background."""
+        bg_data = _loader.get_background(self._review_bg)
+        if not bg_data:
+            return []
+        result: list[tuple[int, list[str]]] = []
+        for entry in bg_data.get("tool_proficiencies", []):
+            if isinstance(entry, dict) and entry.get("type") == "choice":
+                frm = entry.get("from", "")
+                count = entry.get("count", 1)
+                if isinstance(frm, list):
+                    seen_labels: set[str] = set()
+                    opts = []
+                    for k in frm:
+                        label = TOOL_CATEGORY_LABEL.get(k) or TOOL_CATEGORIES.get(k, [k])[0]
+                        if label not in seen_labels:
+                            opts.append(label)
+                            seen_labels.add(label)
+                else:
+                    opts = TOOL_CATEGORIES.get(frm, [])
+                result.append((count, opts))
+        return result
+
+    # ------------------------------------------------------------------
+    # FASE 3: Revisione (modifica suggerimento + statistiche + scelte)
+    # ------------------------------------------------------------------
 
     def _render_review(self):
         self._phase = "review"
@@ -604,9 +696,9 @@ class WizardView(ft.Column):
         )
         race_dd = ft.Dropdown(
             label="Razza",
-            value=self._review_race,
-            options=[ft.DropdownOption(key=r, text=str(r)) for r in RACES],
-            on_select=lambda e: setattr(self, "_review_race", e.control.value),
+            value=self._review_race if self._review_race in RACES_BASE else list(RACES_BASE.keys())[0],
+            options=[ft.DropdownOption(key=r, text=str(r)) for r in RACES_BASE.keys()],
+            on_select=lambda e: _on_race_change(e),
             bgcolor=COLOR_BG_CARD,
             color=COLOR_TEXT_PRIMARY,
             label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -618,7 +710,7 @@ class WizardView(ft.Column):
             label="Background",
             value=self._review_bg,
             options=[ft.DropdownOption(key=b, text=str(b)) for b in BACKGROUNDS.keys()],
-            on_select=lambda e: setattr(self, "_review_bg", e.control.value),
+            on_select=lambda e: _on_bg_change(e),
             bgcolor=COLOR_BG_CARD,
             color=COLOR_TEXT_PRIMARY,
             label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -640,17 +732,13 @@ class WizardView(ft.Column):
         )
 
         # ------ Statistiche (Standard Array) ------
-        # I valori disponibili da assegnare
-        available_values = list(STANDARD_ARRAY)  # [15,14,13,12,10,8]
-        # Mappa stat_key → dropdown
+        available_values = list(STANDARD_ARRAY)
         stat_dropdowns: dict[str, ft.Dropdown] = {}
-        stat_section_ref = ft.Ref[ft.Column]()
 
         def _make_stat_row(key: str, label: str) -> ft.Row:
             current_val = self._review_stats.get(key, 10)
             mod = get_modifier(current_val)
             mod_str = get_modifier_str(current_val)
-
             dd = ft.Dropdown(
                 value=str(current_val),
                 options=[ft.DropdownOption(key=str(v), text=str(v)) for v in sorted(available_values, reverse=True)],
@@ -662,32 +750,20 @@ class WizardView(ft.Column):
                 width=90,
             )
             stat_dropdowns[key] = dd
-
             mod_badge = ft.Container(
-                content=ft.Text(
-                    mod_str,
-                    size=12,
-                    weight=ft.FontWeight.BOLD,
-                    color=COLOR_ACCENT_GOLD if mod >= 0 else COLOR_ACCENT_RED,
-                ),
+                content=ft.Text(mod_str, size=12, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_GOLD if mod >= 0 else COLOR_ACCENT_RED),
                 width=42,
                 alignment=ft.Alignment.CENTER,
             )
-
             return ft.Row(
-                [
-                    ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, width=120),
-                    dd,
-                    mod_badge,
-                ],
+                [ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, width=120), dd, mod_badge],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8,
             )
 
         def _on_stat_change(key: str, new_val: int):
             self._review_stats[key] = new_val
-            # Aggiorna i modificatori (solo il testo del badge)
-            # Ri-render minimale: aggiorna solo il badge
             for k, dd_ctrl in stat_dropdowns.items():
                 v = self._review_stats.get(k, 10)
                 ms = get_modifier_str(v)
@@ -700,15 +776,10 @@ class WizardView(ft.Column):
                     badge.update()
 
         stat_rows = ft.Column(
-            [
-                _make_stat_row(key, label)
-                for key, label in zip(ABILITY_KEYS, ABILITY_SCORES)
-            ],
+            [_make_stat_row(key, label) for key, label in zip(ABILITY_KEYS, ABILITY_SCORES)],
             spacing=8,
-            ref=stat_section_ref,
         )
 
-        # Nota sul dado vita
         def _hit_die_note() -> str:
             hd = CLASSES.get(self._review_class, {}).get("hit_die", 8)
             con_mod = get_modifier(self._review_stats.get("con", 10))
@@ -716,86 +787,528 @@ class WizardView(ft.Column):
             sign = "+" if con_mod >= 0 else ""
             return f"HP al Lv.1: d{hd}{sign}{con_mod} = {hp}  (modifica Cos. per cambiare)"
 
-        hp_note_text = ft.Text(
-            _hit_die_note(),
-            size=11,
-            color=COLOR_TEXT_MUTED,
-            italic=True,
-        )
+        hp_note_text = ft.Text(_hit_die_note(), size=11, color=COLOR_TEXT_MUTED, italic=True)
+
+        # ------ Sezione sottorazza / discendenza (dinamica) ------
+        subrace_col = ft.Column([], spacing=8, visible=False)
+
+        def _rebuild_subrace_col():
+            subrace_col.controls.clear()
+            race = self._review_race
+            subraces = RACES_BASE.get(race, [])
+            if race == "Draconide":
+                # Discendenza draconiana
+                anc_dd = ft.Dropdown(
+                    label="Discendenza Draconiana",
+                    value=self._review_subrace or DRACONIDE_ANCESTRIES[0],
+                    options=[ft.DropdownOption(key=a, text=a) for a in DRACONIDE_ANCESTRIES],
+                    on_select=lambda e: setattr(self, "_review_subrace", e.control.value),
+                    bgcolor=COLOR_BG_CARD,
+                    color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_GOLD,
+                    expand=True,
+                )
+                if not self._review_subrace:
+                    self._review_subrace = DRACONIDE_ANCESTRIES[0]
+                subrace_col.controls.append(anc_dd)
+                subrace_col.visible = True
+            elif subraces:
+                val = self._review_subrace if self._review_subrace in subraces else subraces[0]
+                self._review_subrace = val
+                sr_dd = ft.Dropdown(
+                    label="Sottorazza",
+                    value=val,
+                    options=[ft.DropdownOption(key=s, text=s) for s in subraces],
+                    on_select=lambda e: setattr(self, "_review_subrace", e.control.value),
+                    bgcolor=COLOR_BG_CARD,
+                    color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_GOLD,
+                    expand=True,
+                )
+                subrace_col.controls.append(sr_dd)
+                subrace_col.visible = True
+            else:
+                self._review_subrace = ""
+                subrace_col.visible = False
+            try:
+                subrace_col.update()
+            except RuntimeError:
+                pass
+
+        _rebuild_subrace_col()
+
+        # ------ Sezione sottoclasse lv1 (dinamica) ------
+        subclass_col = ft.Column([], spacing=8, visible=False)
+
+        def _rebuild_subclass_col():
+            subclass_col.controls.clear()
+            cls_data = _loader.get_class(self._review_class)
+            if not cls_data or cls_data.get("subclass_choice_level", 99) != 1:
+                self._review_subclass = ""
+                subclass_col.visible = False
+                try:
+                    subclass_col.update()
+                except RuntimeError:
+                    pass
+                return
+            subclasses = [sc.get("name", "") for sc in cls_data.get("subclasses", [])]
+            label_name = cls_data.get("subclass_label", "Sottoclasse")
+            val = self._review_subclass if self._review_subclass in subclasses else (subclasses[0] if subclasses else "")
+            self._review_subclass = val
+            sc_dd = ft.Dropdown(
+                label=label_name,
+                value=val,
+                options=[ft.DropdownOption(key=s, text=s) for s in subclasses],
+                on_select=lambda e: setattr(self, "_review_subclass", e.control.value),
+                bgcolor=COLOR_BG_CARD,
+                color=COLOR_TEXT_PRIMARY,
+                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                border_color=COLOR_BORDER,
+                focused_border_color=COLOR_ACCENT_GOLD,
+                expand=True,
+            )
+            subclass_col.controls.append(sc_dd)
+            subclass_col.visible = bool(subclasses)
+            try:
+                subclass_col.update()
+            except RuntimeError:
+                pass
+
+        _rebuild_subclass_col()
+
+        # ------ Sezione abilità di classe (dinamica) ------
+        skills_col = ft.Column([], spacing=6, visible=False)
+        skill_checks: dict[str, ft.Checkbox] = {}
+
+        def _rebuild_skills_col():
+            skills_col.controls.clear()
+            skill_checks.clear()
+            count, opts = self._class_skill_options()
+            if count == 0 or not opts:
+                skills_col.visible = False
+                try:
+                    skills_col.update()
+                except RuntimeError:
+                    pass
+                return
+            # Mantieni le selezioni valide
+            self._review_skills = [s for s in self._review_skills if s in opts]
+            selected_count_ref = [len(self._review_skills)]
+
+            label_row = ft.Row([
+                ft.Text(f"Scegli {count} abilità dalla lista", size=13,
+                        color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                ft.Container(expand=True),
+                ft.Text(f"({len(self._review_skills)}/{count} selezionate)",
+                        size=11, color=COLOR_TEXT_MUTED),
+            ])
+            skills_col.controls.append(label_row)
+
+            counter_text = cast(ft.Text, label_row.controls[2])
+
+            def _on_skill_toggle(skill: str, val: bool):
+                if val:
+                    if len(self._review_skills) < count:
+                        if skill not in self._review_skills:
+                            self._review_skills.append(skill)
+                    else:
+                        # Già raggiunto il limite — deseleziona
+                        cb = skill_checks.get(skill)
+                        if cb:
+                            cb.value = False
+                            try:
+                                cb.update()
+                            except RuntimeError:
+                                pass
+                        return
+                else:
+                    if skill in self._review_skills:
+                        self._review_skills.remove(skill)
+                counter_text.value = f"({len(self._review_skills)}/{count} selezionate)"
+                try:
+                    counter_text.update()
+                    label_row.update()
+                except RuntimeError:
+                    pass
+
+            # Checkbox in griglia 2 colonne
+            left_col: list[ft.Control] = []
+            right_col: list[ft.Control] = []
+            for i, skill in enumerate(opts):
+                cb = ft.Checkbox(
+                    label=skill,
+                    value=skill in self._review_skills,
+                    fill_color=COLOR_ACCENT_CRIMSON,
+                    check_color="#ffffff",
+                    label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                    on_change=lambda e, s=skill: _on_skill_toggle(s, bool(e.control.value)),
+                )
+                skill_checks[skill] = cb
+                if i % 2 == 0:
+                    left_col.append(cb)
+                else:
+                    right_col.append(cb)
+
+            skills_col.controls.append(ft.Row(
+                [ft.Column(left_col, spacing=4, expand=True),
+                 ft.Column(right_col, spacing=4, expand=True)],
+                spacing=8,
+            ))
+            # Nota abilità da background
+            bg_skills = self._bg_skill_proficiencies()
+            if bg_skills:
+                skills_col.controls.append(
+                    muted_text(f"Background concede già: {', '.join(bg_skills)}", size=11)
+                )
+            skills_col.visible = True
+            try:
+                skills_col.update()
+            except RuntimeError:
+                pass
+
+        _rebuild_skills_col()
+
+        # ------ Sezione lingue + strumenti (dinamica) ------
+        lang_tool_col = ft.Column([], spacing=8, visible=False)
+
+        def _rebuild_lang_tool_col():
+            lang_tool_col.controls.clear()
+            has_content = False
+
+            # Lingue
+            lang_count, lang_from = self._bg_language_choices()
+            if lang_count > 0:
+                has_content = True
+                avail_langs = LANGUAGES
+                # Mantieni selezioni valide
+                self._review_languages = [l for l in self._review_languages if l in avail_langs]
+                lang_label = ft.Row([
+                    ft.Text(f"Scegli {lang_count} lingua{'e' if lang_count > 1 else ''}",
+                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                    ft.Container(expand=True),
+                    ft.Text(f"({len(self._review_languages)}/{lang_count})",
+                            size=11, color=COLOR_TEXT_MUTED),
+                ])
+                lang_tool_col.controls.append(lang_label)
+                lang_counter = cast(ft.Text, lang_label.controls[2])
+
+                lang_checks: dict[str, ft.Checkbox] = {}
+
+                def _on_lang_toggle(lang: str, val: bool):
+                    if val:
+                        if len(self._review_languages) < lang_count:
+                            if lang not in self._review_languages:
+                                self._review_languages.append(lang)
+                        else:
+                            cb = lang_checks.get(lang)
+                            if cb:
+                                cb.value = False
+                                try:
+                                    cb.update()
+                                except RuntimeError:
+                                    pass
+                            return
+                    else:
+                        if lang in self._review_languages:
+                            self._review_languages.remove(lang)
+                    lang_counter.value = f"({len(self._review_languages)}/{lang_count})"
+                    try:
+                        lang_counter.update()
+                    except RuntimeError:
+                        pass
+
+                ll: list[ft.Control] = []
+                rl: list[ft.Control] = []
+                for i, lang in enumerate(avail_langs):
+                    cb = ft.Checkbox(
+                        label=lang,
+                        value=lang in self._review_languages,
+                        fill_color=COLOR_ACCENT_GOLD,
+                        check_color="#ffffff",
+                        label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                        on_change=lambda e, lg=lang: _on_lang_toggle(lg, bool(e.control.value)),
+                    )
+                    lang_checks[lang] = cb
+                    if i % 2 == 0:
+                        ll.append(cb)
+                    else:
+                        rl.append(cb)
+                lang_tool_col.controls.append(ft.Row(
+                    [ft.Column(ll, spacing=4, expand=True),
+                     ft.Column(rl, spacing=4, expand=True)],
+                    spacing=8,
+                ))
+
+            # Strumenti
+            tool_choices = self._bg_tool_choices()
+            for tc_idx, (tc_count, tc_opts) in enumerate(tool_choices):
+                if not tc_opts:
+                    continue
+                has_content = True
+                # Reset selezione se non valida
+                if len(self._review_tools) <= tc_idx:
+                    self._review_tools.append("")
+                curr_tool = self._review_tools[tc_idx] if tc_idx < len(self._review_tools) else ""
+                if curr_tool not in tc_opts:
+                    curr_tool = tc_opts[0]
+                    if tc_idx < len(self._review_tools):
+                        self._review_tools[tc_idx] = curr_tool
+                    else:
+                        self._review_tools.append(curr_tool)
+
+                tool_dd = ft.Dropdown(
+                    label="Strumento a scelta",
+                    value=curr_tool,
+                    options=[ft.DropdownOption(key=t, text=t) for t in tc_opts],
+                    on_select=lambda e, idx=tc_idx: _set_tool(idx, e.control.value or ""),
+                    bgcolor=COLOR_BG_CARD,
+                    color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_GOLD,
+                    expand=True,
+                )
+                lang_tool_col.controls.append(tool_dd)
+
+            lang_tool_col.visible = has_content
+            try:
+                lang_tool_col.update()
+            except RuntimeError:
+                pass
+
+        def _set_tool(idx: int, val: str):
+            while len(self._review_tools) <= idx:
+                self._review_tools.append("")
+            self._review_tools[idx] = val
+
+        _rebuild_lang_tool_col()
+
+        # ------ Handler dropdown principali ------
 
         def _on_class_change(e):
             self._review_class = e.control.value
-            # Ricalcola stat suggerite per la nuova classe
             self._review_stats = self.engine.get_suggested_stat_assignment(self._review_class)
-            # Aggiorna i dropdown
+            self._review_skills = []
+            self._review_subclass = ""
             for key, dd_ctrl in stat_dropdowns.items():
                 dd_ctrl.value = str(self._review_stats.get(key, 10))
                 dd_ctrl.update()
-            _on_stat_change("", 0)  # aggiorna tutti i badge
+            _on_stat_change("", 0)
             hp_note_text.value = _hit_die_note()
             hp_note_text.update()
+            _rebuild_subclass_col()
+            _rebuild_skills_col()
 
-        content = ft.Column(
-            [
-                ft.Text(
-                    "Personalizza il tuo personaggio",
-                    size=22,
-                    weight=ft.FontWeight.BOLD,
-                    color=COLOR_TEXT_TITLE,
-                ),
-                ft.Container(height=4),
-                muted_text("Puoi modificare i suggerimenti del wizard.", size=13),
-                ft.Container(height=20),
+        def _on_race_change(e):
+            self._review_race = e.control.value or ""
+            self._review_subrace = ""
+            _rebuild_subrace_col()
 
-                fantasy_card(ft.Column([
-                    section_header("Identità"),
-                    ft.Row([class_dd, race_dd], spacing=12),
-                    ft.Row([bg_dd, align_dd], spacing=12),
-                ], spacing=12), padding=20),
+        def _on_bg_change(e):
+            self._review_bg = e.control.value or ""
+            self._review_skills = []
+            self._review_languages = []
+            self._review_tools = []
+            _rebuild_skills_col()
+            _rebuild_lang_tool_col()
 
-                ft.Container(height=16),
-
-                fantasy_card(ft.Column([
-                    section_header("Caratteristiche — Standard Array"),
-                    muted_text(
-                        "Assegna i valori [15, 14, 13, 12, 10, 8] alle caratteristiche. "
-                        "I valori ripetuti sono permessi nel wizard (potrai aggiustare nel form).",
-                        size=11,
-                    ),
-                    ft.Container(height=8),
-                    stat_rows,
-                    ft.Container(height=6),
-                    hp_note_text,
-                ], spacing=8), padding=20),
-
-                ft.Container(height=20),
-                ft.Row(
-                    [
-                        ghost_button("Indietro", on_click=self._on_back),
-                        primary_button(
-                            "Continua",
-                            on_click=lambda e: self._goto_confirm(),
-                            icon=ft.Icons.ARROW_FORWARD,
-                        ),
-                    ],
-                    alignment=ft.MainAxisAlignment.END,
-                    spacing=12,
-                ),
-            ],
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
+        # ------ Layout finale ------
+        has_extra = (
+            subrace_col.visible
+            or subclass_col.visible
+            or skills_col.visible
+            or lang_tool_col.visible
         )
 
+        extra_card_content = ft.Column([], spacing=12)
+        if subrace_col.visible or subclass_col.visible:
+            extra_card_content.controls.append(section_header("Razza e Classe"))
+            if subrace_col.visible:
+                extra_card_content.controls.append(subrace_col)
+            if subclass_col.visible:
+                extra_card_content.controls.append(subclass_col)
+        if skills_col.visible:
+            extra_card_content.controls.append(section_header("Abilità di Classe"))
+            extra_card_content.controls.append(skills_col)
+        if lang_tool_col.visible:
+            extra_card_content.controls.append(section_header("Lingue e Strumenti"))
+            extra_card_content.controls.append(lang_tool_col)
+
+        content_sections: list[ft.Control] = [
+            ft.Text("Personalizza il tuo personaggio", size=22,
+                    weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            ft.Container(height=4),
+            muted_text("Puoi modificare i suggerimenti del wizard.", size=13),
+            ft.Container(height=20),
+            fantasy_card(ft.Column([
+                section_header("Identità"),
+                ft.Row([class_dd, race_dd], spacing=12),
+                ft.Row([bg_dd, align_dd], spacing=12),
+            ], spacing=12), padding=20),
+            ft.Container(height=16),
+            fantasy_card(ft.Column([
+                section_header("Caratteristiche — Standard Array"),
+                muted_text(
+                    "Assegna i valori [15, 14, 13, 12, 10, 8] alle caratteristiche. "
+                    "I valori ripetuti sono permessi nel wizard (potrai aggiustare nel form).",
+                    size=11,
+                ),
+                ft.Container(height=8),
+                stat_rows,
+                ft.Container(height=6),
+                hp_note_text,
+            ], spacing=8), padding=20),
+        ]
+
+        if has_extra:
+            content_sections += [
+                ft.Container(height=16),
+                fantasy_card(extra_card_content, padding=20),
+            ]
+
+        content_sections += [
+            ft.Container(height=20),
+            ft.Row(
+                [
+                    ghost_button("Indietro", on_click=self._on_back),
+                    primary_button(
+                        "Continua",
+                        on_click=lambda e: self._goto_equipment(),
+                        icon=ft.Icons.ARROW_FORWARD,
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.END,
+                spacing=12,
+            ),
+        ]
+
+        content = ft.Column(content_sections, scroll=ft.ScrollMode.AUTO, expand=True)
         self._set_content(
-            ft.Container(
-                content=content,
-                expand=True,
-                padding=ft.Padding.symmetric(horizontal=40, vertical=24),
-            )
+            ft.Container(content=content, expand=True,
+                         padding=ft.Padding.symmetric(horizontal=40, vertical=24))
         )
 
     # ------------------------------------------------------------------
-    # FASE 4: Nome + conferma + salvataggio
+    # FASE 4: Equipaggiamento iniziale
+    # ------------------------------------------------------------------
+
+    def _goto_equipment(self):
+        self._phase = "equipment"
+        # Costruisce la lista oggetti dalla classe
+        cls_data = _loader.get_class(self._review_class)
+        self._equip_fixed = []
+        self._equip_choices = []
+        if cls_data:
+            for entry in cls_data.get("starting_equipment", []):
+                if entry.get("type") == "fixed":
+                    for item in entry.get("items", []):
+                        self._equip_fixed.append({**item, "selected": True})
+                elif entry.get("type") == "choice":
+                    self._equip_choices.append({
+                        "options": entry.get("options", []),
+                        "chosen_idx": 0,
+                    })
+        self._render_equipment()
+
+    def _render_equipment(self):
+        self._phase = "equipment"
+
+        rows: list[ft.Control] = [
+            ft.Text("Equipaggiamento iniziale", size=22,
+                    weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            ft.Container(height=4),
+            muted_text("Seleziona l'equipaggiamento di partenza della tua classe.", size=13),
+            ft.Container(height=20),
+        ]
+
+        # --- Oggetti fissi ---
+        if self._equip_fixed:
+            fixed_checks: list[ft.Control] = []
+            for item in self._equip_fixed:
+                qty = item.get("quantity", 1)
+                label = item["name"] + (f" ×{qty}" if qty > 1 else "")
+                cb = ft.Checkbox(
+                    label=label,
+                    value=item["selected"],
+                    fill_color=COLOR_ACCENT_CRIMSON,
+                    check_color="#ffffff",
+                    label_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+                    on_change=lambda e, it=item: it.update({"selected": bool(e.control.value)}),
+                )
+                fixed_checks.append(cb)
+            rows.append(fantasy_card(ft.Column([
+                section_header("Oggetti garantiti"),
+                ft.Column(fixed_checks, spacing=6),
+            ], spacing=12), padding=20))
+            rows.append(ft.Container(height=16))
+
+        # --- Scelte A/B ---
+        for ci, choice in enumerate(self._equip_choices):
+            opts = choice["options"]
+            if not opts:
+                continue
+
+            def _fmt_option(pkg: list[dict]) -> str:
+                parts = []
+                for it in pkg:
+                    qty = it.get("quantity", 1)
+                    parts.append(it["name"] + (f" ×{qty}" if qty > 1 else ""))
+                return "  +  ".join(parts)
+
+            radio_group = ft.RadioGroup(
+                content=ft.Column(
+                    [ft.Radio(value=str(i), label=_fmt_option(opts[i]))
+                     for i in range(len(opts))],
+                    spacing=4,
+                ),
+                value=str(choice["chosen_idx"]),
+                on_change=lambda e, c=choice: c.update({"chosen_idx": int(e.control.value or 0)}),
+            )
+            rows.append(fantasy_card(ft.Column([
+                section_header(f"Scelta {ci + 1}"),
+                radio_group,
+            ], spacing=12), padding=20))
+            rows.append(ft.Container(height=16))
+
+        # --- Equipaggiamento background (testo) ---
+        bg_data = _loader.get_background(self._review_bg)
+        if bg_data:
+            bg_equip = bg_data.get("equipment", [])
+            if bg_equip:
+                bg_items_text = "\n".join(
+                    f"• {it['name']}" if isinstance(it, dict) else f"• {it}"
+                    for it in bg_equip
+                )
+                rows.append(fantasy_card(ft.Column([
+                    section_header("Equipaggiamento background"),
+                    muted_text("Aggiunto automaticamente all'inventario.", size=11),
+                    ft.Container(height=4),
+                    ft.Text(bg_items_text, size=13, color=COLOR_TEXT_PRIMARY),
+                ], spacing=8), padding=20))
+                rows.append(ft.Container(height=16))
+
+        rows.append(ft.Row(
+            [
+                ghost_button("Indietro", on_click=self._on_back),
+                primary_button("Continua", on_click=lambda e: self._goto_confirm(),
+                               icon=ft.Icons.ARROW_FORWARD),
+            ],
+            alignment=ft.MainAxisAlignment.END,
+            spacing=12,
+        ))
+
+        content = ft.Column(rows, scroll=ft.ScrollMode.AUTO, expand=True)
+        self._set_content(
+            ft.Container(content=content, expand=True,
+                         padding=ft.Padding.symmetric(horizontal=40, vertical=24))
+        )
+
+    # ------------------------------------------------------------------
+    # FASE 5: Nome + conferma + salvataggio
     # ------------------------------------------------------------------
 
     def _goto_confirm(self):
@@ -926,6 +1439,12 @@ class WizardView(ft.Column):
                     alignment=self._review_align,
                     stat_assignment=self._review_stats,
                 )
+                # Sottorazza e sottoclasse (se scelte in review)
+                if self._review_subrace:
+                    char.subrace = self._review_subrace
+                if self._review_subclass:
+                    char.subclass = self._review_subclass
+
                 ok = character_repo.create(char)
                 if not ok:
                     raise RuntimeError("Errore nel salvataggio sul database.")
@@ -934,10 +1453,80 @@ class WizardView(ft.Column):
                 for stat_name in CLASS_SAVING_THROWS.get(self._review_class, []):
                     character_repo._save_single_proficiency(char.id, "save", stat_name)
 
-                # Abilità competenti dal background
-                bg_skills = BACKGROUNDS.get(self._review_bg, {}).get("skills", [])
+                # Abilità: background (fisso) + scelte di classe
+                bg_data = _loader.get_background(self._review_bg)
+                bg_skills: list[str] = []
+                if bg_data:
+                    bg_skills = bg_data.get("skill_proficiencies", [])
+                else:
+                    bg_skills = BACKGROUNDS.get(self._review_bg, {}).get("skills", [])
                 for skill in bg_skills:
                     character_repo._save_single_proficiency(char.id, "skill", skill)
+                for skill in self._review_skills:
+                    if skill and skill not in bg_skills:
+                        character_repo._save_single_proficiency(char.id, "skill", skill)
+
+                # Lingue scelte
+                for lang in self._review_languages:
+                    if lang:
+                        character_repo._save_single_proficiency(char.id, "language", lang)
+
+                # Strumenti scelti (+ strumenti fissi del background)
+                tool_seen: set[str] = set()
+                for tool in self._review_tools:
+                    if tool and tool not in tool_seen:
+                        character_repo._save_single_proficiency(char.id, "tool", tool)
+                        tool_seen.add(tool)
+                if bg_data:
+                    for entry in bg_data.get("tool_proficiencies", []):
+                        if isinstance(entry, str) and entry not in tool_seen:
+                            character_repo._save_single_proficiency(char.id, "tool", entry)
+                            tool_seen.add(entry)
+
+                # Equipaggiamento — oggetti fissi selezionati
+                for item in self._equip_fixed:
+                    if item.get("selected", True):
+                        character_repo.create_inventory_item(
+                            character_id=char.id,
+                            name=item["name"],
+                            quantity=item.get("quantity", 1),
+                            weight=0.0,
+                            category="weapon" if item.get("item_type") == "weapon" else
+                                     "armor" if item.get("item_type") == "armor" else "misc",
+                            is_equipped=False,
+                            description="",
+                        )
+
+                # Equipaggiamento — scelte A/B
+                for choice in self._equip_choices:
+                    idx = choice.get("chosen_idx", 0)
+                    opts = choice.get("options", [])
+                    if 0 <= idx < len(opts):
+                        for item in opts[idx]:
+                            character_repo.create_inventory_item(
+                                character_id=char.id,
+                                name=item["name"],
+                                quantity=item.get("quantity", 1),
+                                weight=0.0,
+                                category="weapon" if item.get("item_type") == "weapon" else
+                                         "armor" if item.get("item_type") == "armor" else "misc",
+                                is_equipped=False,
+                                description="",
+                            )
+
+                # Equipaggiamento background
+                if bg_data:
+                    for entry in bg_data.get("equipment", []):
+                        if isinstance(entry, dict):
+                            character_repo.create_inventory_item(
+                                character_id=char.id,
+                                name=entry["name"],
+                                quantity=entry.get("quantity", 1),
+                                weight=0.0,
+                                category="misc",
+                                is_equipped=False,
+                                description="",
+                            )
 
                 logger.info(f"Personaggio wizard creato: {char.name} ({char.id})")
                 self.on_complete(char.id)

@@ -2,74 +2,219 @@
   "name": "Bardo",
   "hit_die": 8,
   "primary_ability": "cha",
-  "saving_throws": ["dex", "cha"],
+  "saving_throws": [
+    "dex",
+    "cha"
+  ],
   "spellcasting_ability": "cha",
-  "armor_proficiencies": ["#armature_leggere"],
+  "armor_proficiencies": [
+    "#armature_leggere"
+  ],
   "weapon_proficiencies": [
-    "Balestra a mano", "Pugnale", "Dardo", "Rapiera",
-    "Spada corta", "Spada lunga", "Arco corto"
+    "Balestra a mano",
+    "Pugnale",
+    "Dardo",
+    "Rapiera",
+    "Spada corta",
+    "Spada lunga",
+    "Arco corto"
   ],
   "tool_proficiencies": [
-    {"type": "choice", "count": 3, "from": "strumenti_musicali"}
+    {
+      "type": "choice",
+      "count": 3,
+      "from": "strumenti_musicali"
+    }
   ],
   "skill_choices": {
     "count": 3,
     "options": "any"
   },
   "languages": [
-    {"type": "choice", "count": 1, "from": "any"}
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "any"
+    }
   ],
   "starting_equipment": [
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Rapiera", "item_type": "weapon"}],
-        [{"name": "Spada lunga", "item_type": "weapon"}],
-        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+        [
+          {
+            "name": "Rapiera",
+            "item_type": "weapon"
+          }
+        ],
+        [
+          {
+            "name": "Spada lunga",
+            "item_type": "weapon"
+          }
+        ],
+        [
+          {
+            "name": "Qualsiasi arma semplice",
+            "item_type": "item"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Zaino da diplomatico", "item_type": "item"}],
-        [{"name": "Zaino da intrattenitore", "item_type": "item"}]
+        [
+          {
+            "name": "Zaino da diplomatico",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Zaino da intrattenitore",
+            "item_type": "item"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Liuto", "item_type": "item"}],
-        [{"name": "Qualsiasi strumento musicale", "item_type": "item"}]
+        [
+          {
+            "name": "Liuto",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Qualsiasi strumento musicale",
+            "item_type": "item"
+          }
+        ]
       ]
     },
-    {"type": "fixed", "items": [
-      {"name": "Armatura di cuoio", "item_type": "armor"},
-      {"name": "Pugnale", "item_type": "weapon"}
-    ]}
+    {
+      "type": "fixed",
+      "items": [
+        {
+          "name": "Armatura di cuoio",
+          "item_type": "armor"
+        },
+        {
+          "name": "Pugnale",
+          "item_type": "weapon"
+        }
+      ]
+    }
   ],
-  "starting_gold_alternative": {"dice": "5d4", "multiplier": 10},
+  "starting_gold_alternative": {
+    "dice": "5d4",
+    "multiplier": 10
+  },
   "subclass_label": "Collegio Bardico",
   "subclass_choice_level": 3,
   "subclasses": [
     {
       "name": "Collegio della Conoscenza",
       "bonus_proficiencies": [
-        {"type": "choice", "count": 3, "from": "any_skill"}
+        {
+          "type": "choice",
+          "count": 3,
+          "from": "any_skill"
+        }
       ],
       "features": [
-        {"level": 3,  "name": "Parole Taglienti", "description": "Puoi usare un dado bardico per ridurre il tiro di un attacco, la prova di caratteristica o il tiro salvezza di una creatura."},
-        {"level": 6,  "name": "Segreti Magici Aggiuntivi", "description": "Apprendi due incantesimi da qualsiasi classe."},
-        {"level": 14, "name": "Capacità Impareggiabile", "description": "Puoi aggiungere un dado bardico a qualsiasi prova di caratteristica o tiro salvezza effettuato con competenza."}
+        {
+          "level": 3,
+          "name": "Parole Taglienti",
+          "description": "Puoi usare un dado bardico per ridurre il tiro di un attacco, la prova di caratteristica o il tiro salvezza di una creatura."
+        },
+        {
+          "level": 6,
+          "name": "Segreti Magici Aggiuntivi",
+          "description": "Apprendi due incantesimi da qualsiasi classe."
+        },
+        {
+          "level": 14,
+          "name": "Capacità Impareggiabile",
+          "description": "Puoi aggiungere un dado bardico a qualsiasi prova di caratteristica o tiro salvezza effettuato con competenza."
+        }
       ]
     },
     {
       "name": "Collegio del Valore",
-      "bonus_proficiencies": ["#armature_medie", "#scudi", "#armi_da_guerra"],
+      "bonus_proficiencies": [
+        "#armature_medie",
+        "#scudi",
+        "#armi_da_guerra"
+      ],
       "features": [
-        {"level": 3,  "name": "Ispirazione di Combattimento", "description": "I tuoi dadi bardici possono essere usati per aumentare il danno o la CA."},
-        {"level": 6,  "name": "Attacco Extra", "description": "Puoi attaccare due volte invece di una quando esegui l'azione Attacca."},
-        {"level": 14, "name": "Magia di Battaglia", "description": "Quando lanci un incantesimo da bardo, puoi effettuare un attacco come azione bonus."}
+        {
+          "level": 3,
+          "name": "Ispirazione di Combattimento",
+          "description": "I tuoi dadi bardici possono essere usati per aumentare il danno o la CA."
+        },
+        {
+          "level": 6,
+          "name": "Attacco Extra",
+          "description": "Puoi attaccare due volte invece di una quando esegui l'azione Attacca."
+        },
+        {
+          "level": 14,
+          "name": "Magia di Battaglia",
+          "description": "Quando lanci un incantesimo da bardo, puoi effettuare un attacco come azione bonus."
+        }
       ]
+    }
+  ],
+  "features": [
+    {
+      "level": 1,
+      "name": "Incantesimi",
+      "description": "Sei un incantatore che attinge alla magia di musica e linguaggio. Usa la tabella Bardo per gli slot incantesimo. La caratteristica da incantatore è Carisma. CD tiro salvezza = 8 + bonus competenza + mod. Carisma. Bonus all'attacco con incantesimi = bonus competenza + mod. Carisma."
+    },
+    {
+      "level": 1,
+      "name": "Ispirazione Bardica",
+      "description": "Come azione bonus puoi infondere ispirazione in una creatura diversa da te entro 18 m che sia in grado di sentirti. La creatura ottiene un dado di Ispirazione Bardica (d6). Entro 10 minuti può tirarlo e aggiungere il risultato a una prova di caratteristica, un tiro per colpire o un tiro salvezza. Il dado diventa d8 al 5° livello, d10 al 10° e d12 al 15°. Usi: modificatore di Carisma per riposo lungo (min. 1). Da lv5: recupero con riposo breve."
+    },
+    {
+      "level": 2,
+      "name": "Factotum",
+      "description": "Puoi aggiungere metà del tuo bonus di competenza (arrotondato per difetto) a ogni prova di caratteristica che non includa già il tuo bonus di competenza."
+    },
+    {
+      "level": 2,
+      "name": "Canto di Riposo",
+      "description": "Puoi usare musica o orazione lenitiva durante un riposo breve. Le creature amiche in grado di sentirti che recuperano PF spendendo Dadi Vita recuperano PF extra: 1d6 (lv2), 1d8 (lv9), 1d10 (lv13), 1d12 (lv17)."
+    },
+    {
+      "level": 5,
+      "name": "Fonte di Ispirazione",
+      "description": "Recuperi tutti gli utilizzi di Ispirazione Bardica dopo un riposo breve o lungo (non solo lungo)."
+    },
+    {
+      "level": 6,
+      "name": "Controfascino",
+      "description": "Con un'azione puoi iniziare un'esibizione che dura fino alla fine del tuo turno successivo. Durante quel periodo, tu e ogni creatura amica entro 9 m disponete di vantaggio ai tiri salvezza per non essere affascinati o spaventati."
+    },
+    {
+      "level": 10,
+      "name": "Segreti Magici",
+      "description": "Hai attinto a conoscenze magiche da discipline diverse. Scegli 2 incantesimi di qualsiasi classe (di livello che tu possa lanciare, o trucchetti): contano come incantesimi da bardo. Apprendi altri 2 al 14° livello e 2 al 18° livello."
+    },
+    {
+      "level": 20,
+      "name": "Ispirazione Superiore",
+      "description": "Quando tiri per l'iniziativa e non ti rimane alcun utilizzo di Ispirazione Bardica, ne recuperi automaticamente uno."
     }
   ]
 }

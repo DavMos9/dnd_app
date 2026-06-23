@@ -1,11 +1,16 @@
 {
   "name": "Elfo",
   "has_subrace": true,
-  "ability_bonuses": {"dex": 2},
+  "ability_bonuses": {
+    "dex": 2
+  },
   "speed": 9,
   "darkvision": 18,
   "size": "Media",
-  "languages": ["Comune", "Elfico"],
+  "languages": [
+    "Comune",
+    "Elfico"
+  ],
   "traits": [
     {
       "name": "Sensi Acuti",
@@ -23,8 +28,16 @@
   "subraces": [
     {
       "name": "Alto Elfo",
-      "ability_bonuses": {"int": 1},
-      "languages": [{"type": "choice", "count": 1, "from": "any"}],
+      "ability_bonuses": {
+        "int": 1
+      },
+      "languages": [
+        {
+          "type": "choice",
+          "count": 1,
+          "from": "any"
+        }
+      ],
       "traits": [
         {
           "name": "Addestramento con le Armi degli Elfi",
@@ -38,7 +51,9 @@
     },
     {
       "name": "Elfo del Bosco",
-      "ability_bonuses": {"wis": 1},
+      "ability_bonuses": {
+        "wis": 1
+      },
       "speed": 10,
       "traits": [
         {
@@ -57,7 +72,9 @@
     },
     {
       "name": "Elfo Oscuro (Drow)",
-      "ability_bonuses": {"cha": 1},
+      "ability_bonuses": {
+        "cha": 1
+      },
       "darkvision": 36,
       "traits": [
         {
@@ -66,7 +83,23 @@
         },
         {
           "name": "Magia Drow",
-          "description": "Conosci il trucchetto Luci Danzanti. Puoi lanciare Luci Fatue e Oscurità una volta per riposo lungo. Il modificatore è Carisma."
+          "description": "Conosci il trucchetto Luci Danzanti. Puoi lanciare Luci Fatue e Oscurità una volta per riposo lungo. Il modificatore è Carisma.",
+          "resources": [
+            {
+              "name": "Fuoco Faerie (drow)",
+              "max_value": 1,
+              "reset_on": "long_rest",
+              "display_type": "circles",
+              "min_level": 3
+            },
+            {
+              "name": "Oscurità (drow)",
+              "max_value": 1,
+              "reset_on": "long_rest",
+              "display_type": "circles",
+              "min_level": 5
+            }
+          ]
         },
         {
           "name": "Addestramento con le Armi dei Drow",

@@ -163,6 +163,22 @@ class Currency:
 
 
 # ---------------------------------------------------------------------------
+# Risorse di classe (Furia, Ki, Incanalare Divinità, Slot del Patto, ecc.)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ClassResource:
+    """Risorsa di classe con pool tracciabile (si azzera su riposo breve o lungo)."""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    character_id: str = ""
+    name: str = ""                 # es. "Furia", "Punti Ki", "Incanalare Divinità"
+    max_value: int = 0             # pool massimo
+    current_value: int = 0         # pool attuale
+    reset_on: str = "long_rest"    # "short_rest" | "long_rest"
+    display_type: str = "circles"  # "circles" (≤6 cerchietti) | "counter" (−/+ numerico)
+
+
+# ---------------------------------------------------------------------------
 # Magia
 # ---------------------------------------------------------------------------
 
@@ -204,6 +220,42 @@ class DiaryEntry:
     title: str = ""
     content: str = ""
     session_date: str = ""        # data della sessione di gioco (stringa libera)
+    created_at: str = ""
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Note di Campagna (PNG, Luoghi, Missioni, Fazioni)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CampaignNote:
+    """
+    Voce generica del diario di campagna.
+
+    category:
+        "npc"        → PNG incontrati
+        "npc_todo"   → PNG da cercare
+        "place"      → luoghi visitati
+        "place_todo" → luoghi da esplorare
+        "quest"      → missioni
+        "faction"    → fazioni
+
+    status: stringa libera dipendente dalla categoria
+        npc        → alleato | neutrale | ostile | sconosciuto
+        npc_todo   → cercato | sentito nominare | leggenda
+        place      → esplorato | parzialmente esplorato
+        place_todo → da esplorare | sentito nominare | leggenda/rumor
+        quest      → attiva | completata | fallita | in pausa
+        faction    → alleata | neutrale | ostile | sconosciuta
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    character_id: str = ""
+    category: str = ""
+    name: str = ""
+    description: str = ""
+    status: str = ""
+    tags: str = ""              # tag liberi separati da virgola
     created_at: str = ""
     updated_at: str = ""
 

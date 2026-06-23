@@ -2,67 +2,253 @@
   "name": "Monaco",
   "hit_die": 8,
   "primary_ability": "dex",
-  "saving_throws": ["str", "dex"],
+  "saving_throws": [
+    "str",
+    "dex"
+  ],
   "spellcasting_ability": null,
   "armor_proficiencies": [],
-  "weapon_proficiencies": ["#armi_semplici", "Spada corta"],
+  "weapon_proficiencies": [
+    "#armi_semplici",
+    "Spada corta"
+  ],
   "tool_proficiencies": [
-    {"type": "choice", "count": 1, "from": "strumenti_artigiani_o_musicali"}
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "strumenti_artigiani_o_musicali"
+    }
   ],
   "skill_choices": {
     "count": 2,
-    "options": ["Acrobazia", "Atletica", "Storia", "Intuizione", "Religione", "Furtività"]
+    "options": [
+      "Acrobazia",
+      "Atletica",
+      "Storia",
+      "Intuizione",
+      "Religione",
+      "Furtività"
+    ]
   },
   "languages": [],
   "starting_equipment": [
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Spada corta", "item_type": "weapon"}],
-        [{"name": "Qualsiasi arma semplice", "item_type": "item"}]
+        [
+          {
+            "name": "Spada corta",
+            "item_type": "weapon"
+          }
+        ],
+        [
+          {
+            "name": "Qualsiasi arma semplice",
+            "item_type": "item"
+          }
+        ]
       ]
     },
     {
-      "type": "choice", "count": 1, "from": "packages",
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
       "options": [
-        [{"name": "Zaino da dungeon", "item_type": "item"}],
-        [{"name": "Zaino da esploratore", "item_type": "item"}]
+        [
+          {
+            "name": "Zaino da dungeon",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Zaino da esploratore",
+            "item_type": "item"
+          }
+        ]
       ]
     },
-    {"type": "fixed", "items": [
-      {"name": "Dardi", "item_type": "weapon", "quantity": 10}
-    ]}
+    {
+      "type": "fixed",
+      "items": [
+        {
+          "name": "Dardi",
+          "item_type": "weapon",
+          "quantity": 10
+        }
+      ]
+    }
   ],
-  "starting_gold_alternative": {"dice": "5d4", "multiplier": 1},
+  "starting_gold_alternative": {
+    "dice": "5d4",
+    "multiplier": 1
+  },
   "subclass_label": "Tradizione Monastica",
   "subclass_choice_level": 3,
   "subclasses": [
     {
       "name": "Via della Mano Aperta",
       "features": [
-        {"level": 3,  "name": "Tecnica della Mano Aperta", "description": "Quando usi Tempesta di Pugni, puoi aggiungere effetti bonus: far cadere il bersaglio, spingerlo via o impedirgli reazioni."},
-        {"level": 6,  "name": "Wholeness of Body", "description": "Curi te stesso di PF pari a 3 × livello monaco (1/riposo lungo)."},
-        {"level": 11, "name": "Tranquillità", "description": "Entrando in meditazione durante un riposo lungo, guadagni l'effetto dell'incantesimo Santuario per la durata del riposo."},
-        {"level": 17, "name": "Palma Vibrante", "description": "Tocchi una creatura causando vibrazioni interne; entro 24 ore puoi infliggere 10d10 danni ai polmoni."}
+        {
+          "level": 3,
+          "name": "Tecnica della Mano Aperta",
+          "description": "Quando usi Tempesta di Pugni, puoi aggiungere effetti bonus: far cadere il bersaglio, spingerlo via o impedirgli reazioni."
+        },
+        {
+          "level": 6,
+          "name": "Wholeness of Body",
+          "description": "Curi te stesso di PF pari a 3 × livello monaco (1/riposo lungo)."
+        },
+        {
+          "level": 11,
+          "name": "Tranquillità",
+          "description": "Entrando in meditazione durante un riposo lungo, guadagni l'effetto dell'incantesimo Santuario per la durata del riposo."
+        },
+        {
+          "level": 17,
+          "name": "Palma Vibrante",
+          "description": "Tocchi una creatura causando vibrazioni interne; entro 24 ore puoi infliggere 10d10 danni ai polmoni."
+        }
       ]
     },
     {
       "name": "Via delle Quattro Elementali",
       "features": [
-        {"level": 3,  "name": "Discepolo degli Elementi", "description": "Apprendi discipline elementali che ti permettono di imitare incantesimi spendendo ki."},
-        {"level": 6,  "name": "Discipline Extra", "description": "Apprendi discipline elementali aggiuntive."},
-        {"level": 11, "name": "Colpo degli Elementi", "description": "I tuoi attacchi inarmi infliggono danni elementali aggiuntivi."},
-        {"level": 17, "name": "Maestria degli Elementi", "description": "Apprendi discipline avanzate e puoi spendere ki extra per potenziare gli incantesimi."}
+        {
+          "level": 3,
+          "name": "Discepolo degli Elementi",
+          "description": "Apprendi discipline elementali che ti permettono di imitare incantesimi spendendo ki."
+        },
+        {
+          "level": 6,
+          "name": "Discipline Extra",
+          "description": "Apprendi discipline elementali aggiuntive."
+        },
+        {
+          "level": 11,
+          "name": "Colpo degli Elementi",
+          "description": "I tuoi attacchi inarmi infliggono danni elementali aggiuntivi."
+        },
+        {
+          "level": 17,
+          "name": "Maestria degli Elementi",
+          "description": "Apprendi discipline avanzate e puoi spendere ki extra per potenziare gli incantesimi."
+        }
       ]
     },
     {
       "name": "Via delle Ombre",
       "features": [
-        {"level": 3,  "name": "Arti delle Ombre", "description": "Puoi spendere ki per lanciare Oscurità, Darkvision, Silenzio e Passo del Vento."},
-        {"level": 6,  "name": "Passo delle Ombre", "description": "In luce fioca o oscurità, puoi usare azione bonus per teletrasportarti a un'altra zona d'ombra entro 18 m."},
-        {"level": 11, "name": "Mantello dell'Ombra", "description": "Puoi diventare invisibile nelle zone d'ombra come azione bonus."},
-        {"level": 17, "name": "Silenzio delle Ombre", "description": "Puoi usare Passo delle Ombre senza azione bonus e senza limiti di distanza."}
+        {
+          "level": 3,
+          "name": "Arti delle Ombre",
+          "description": "Puoi spendere ki per lanciare Oscurità, Darkvision, Silenzio e Passo del Vento."
+        },
+        {
+          "level": 6,
+          "name": "Passo delle Ombre",
+          "description": "In luce fioca o oscurità, puoi usare azione bonus per teletrasportarti a un'altra zona d'ombra entro 18 m."
+        },
+        {
+          "level": 11,
+          "name": "Mantello dell'Ombra",
+          "description": "Puoi diventare invisibile nelle zone d'ombra come azione bonus."
+        },
+        {
+          "level": 17,
+          "name": "Silenzio delle Ombre",
+          "description": "Puoi usare Passo delle Ombre senza azione bonus e senza limiti di distanza."
+        }
       ]
+    }
+  ],
+  "features": [
+    {
+      "level": 1,
+      "name": "Difesa Senza Armatura",
+      "description": "Finché non indossi armature né usi uno scudo, la tua CA è pari a 10 + modificatore di Destrezza + modificatore di Saggezza."
+    },
+    {
+      "level": 1,
+      "name": "Arti Marziali",
+      "description": "La tua pratica delle arti marziali ti conferisce padronanza degli stili da combattimento non armato e delle armi da monaco. Puoi usare Destrezza al posto di Forza per i tiri per colpire e i danni con calci e pugni. Usi il dado Arti Marziali al posto dei danni normali (d4 lv1-4, d6 lv5-10, d8 lv11-16, d10 lv17-20). Quando effettui l'azione di Attacco con un'arma da monaco o un attacco senz'armi, puoi effettuare un attacco senz'armi come azione bonus."
+    },
+    {
+      "level": 2,
+      "name": "Ki",
+      "description": "La tua pratica ti ha permesso di attingere alla riserva di energia mistica chiamata ki. Hai punti Ki pari al tuo livello da monaco. Li spendi per varie abilità e li recuperi dopo un riposo breve o lungo. CD Ki = 8 + bonus competenza + mod. Saggezza. Abilità base: Pioggia di Pugni (azione bonus: 2 attacchi senz'armi), Passo del Vento (azione bonus: Scatto o Disimpegno), Pazienza del Torrente (reazione: Schivata quando sei colpito)."
+    },
+    {
+      "level": 2,
+      "name": "Movimento Senza Armatura",
+      "description": "La tua velocità aumenta di 3 m mentre non indossi armature né usi scudo. Questo bonus aumenta a +4,5 m al 6°, +6 m al 10°, +7,5 m al 14° e +9 m al 18°. Al 9° livello puoi muoverti lungo superfici verticali e sull'acqua durante il tuo turno senza cadere."
+    },
+    {
+      "level": 3,
+      "name": "Deviare Proiettili",
+      "description": "Puoi usare la tua reazione per deviare o catturare il proiettile quando sei colpito da un attacco a distanza con un'arma. I danni subiti si riducono di 1d10 + mod. Destrezza + livello da monaco. Se riduci i danni a 0, puoi spendere 1 punto Ki per ritorcere il proiettile contro il bersaglio (tiro per colpire a distanza, gittata 9/18 m, danni come originale)."
+    },
+    {
+      "level": 4,
+      "name": "Caduta Lenta",
+      "description": "Puoi usare la tua reazione quando stai cadendo per ridurre i danni da caduta di un ammontare pari a cinque volte il tuo livello da monaco."
+    },
+    {
+      "level": 5,
+      "name": "Attacco Extra",
+      "description": "Puoi attaccare due volte anziché una ogni volta che effettui l'azione di Attacco nel tuo turno."
+    },
+    {
+      "level": 5,
+      "name": "Colpo Stordente",
+      "description": "Puoi interferire con il flusso di ki nel corpo di un avversario. Quando colpisci un'altra creatura con un attacco senz'armi, puoi spendere 1 punto Ki e obbligarla a un tiro salvezza su Costituzione (CD ki). Se fallisce, è stordita fino alla fine del tuo turno successivo."
+    },
+    {
+      "level": 6,
+      "name": "Colpi Ki Potenziati",
+      "description": "I tuoi attacchi senz'armi contano come magici allo scopo di superare la resistenza e l'immunità agli attacchi e ai danni non magici."
+    },
+    {
+      "level": 7,
+      "name": "Elusione",
+      "description": "Puoi schivare agilmente certi effetti d'area. Quando sei soggetto a un effetto che richiede un tiro salvezza su Destrezza, subisci nessun danno se superi il tiro e solo metà se lo fallisci."
+    },
+    {
+      "level": 7,
+      "name": "Mente Lucida",
+      "description": "Puoi usare un'azione per porre fine a un effetto di charme o paura su di te."
+    },
+    {
+      "level": 10,
+      "name": "Purezza del Corpo",
+      "description": "La tua padronanza del ki che scorre nel tuo corpo ti rende immune alle malattie e ai veleni."
+    },
+    {
+      "level": 13,
+      "name": "Lingua del Sole e della Luna",
+      "description": "Apprendi a toccare il ki di altri esseri e a capire tutti i linguaggi parlati. Inoltre, qualsiasi creatura che possa capire un linguaggio capisce ciò che dici."
+    },
+    {
+      "level": 14,
+      "name": "Anima Adamantina",
+      "description": "Il tuo padroneggio del ki ti concede immunità agli effetti di charme e paura, e altri effetti non possono metterti in stato di sonno."
+    },
+    {
+      "level": 15,
+      "name": "Corpo Senza Tempo",
+      "description": "Il tuo ki ti sostiene in modo tale che non soffri degli effetti negativi dell'invecchiamento e non puoi essere fatto invecchiare magicamente. Tuttavia, invecchi ancora normalmente e morirai di vecchiaia."
+    },
+    {
+      "level": 18,
+      "name": "Corpo Vuoto",
+      "description": "Puoi usare un'azione e spendere 4 punti Ki per diventare invisibile per 1 minuto. Durante questo periodo, subisci anche resistenza a tutti i danni tranne che a quelli da forza."
+    },
+    {
+      "level": 20,
+      "name": "Perfezione Interiore",
+      "description": "Quando tiri per l'iniziativa e ti mancano punti Ki, recuperi 4 punti Ki."
     }
   ]
 }
