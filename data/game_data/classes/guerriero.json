@@ -66,7 +66,9 @@
         [
           {
             "name": "Qualsiasi arma da guerra",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "guerra",
+            "count": 1
           },
           {
             "name": "Scudo",
@@ -76,8 +78,9 @@
         [
           {
             "name": "Qualsiasi arma da guerra",
-            "item_type": "item",
-            "quantity": 2
+            "item_type": "weapon_choice",
+            "category": "guerra",
+            "count": 2
           }
         ]
       ]
@@ -100,7 +103,7 @@
         ],
         [
           {
-            "name": "Due zagaglie",
+            "name": "Due giavellotti",
             "item_type": "weapon",
             "quantity": 2
           }
@@ -114,13 +117,13 @@
       "options": [
         [
           {
-            "name": "Zaino da dungeon",
+            "name": "Dotazione da Avventuriero",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da esploratore",
+            "name": "Dotazione da Esploratore",
             "item_type": "item"
           }
         ]
@@ -180,18 +183,13 @@
         },
         {
           "level": 7,
-          "name": "Colpo di Incantesimo",
+          "name": "Magia Bellica",
           "description": "Quando usi l'azione Attacca, puoi sostituire un attacco con la proiezione di un incantesimo di Mago di 1° livello o superiore."
         },
         {
           "level": 10,
-          "name": "Magia Bellica",
+          "name": "Colpo di Incantesimo",
           "description": "Quando usi l'azione Proiettare Incantesimo, puoi effettuare un attacco con un'arma come azione bonus."
-        },
-        {
-          "level": 15,
-          "name": "Colpo di Incantesimo Migliorato",
-          "description": "Puoi usare Colpo di Incantesimo per qualsiasi incantesimo del Guerriero."
         },
         {
           "level": 18,

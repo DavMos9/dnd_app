@@ -61,7 +61,7 @@
         ],
         [
           {
-            "name": "Fuoco da Arcano",
+            "name": "Focus arcano",
             "item_type": "item"
           }
         ]
@@ -74,13 +74,13 @@
       "options": [
         [
           {
-            "name": "Zaino da studioso",
+            "name": "Dotazione da Studioso",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da esploratore",
+            "name": "Dotazione da Esploratore",
             "item_type": "item"
           }
         ]
@@ -108,11 +108,6 @@
       "features": [
         {
           "level": 2,
-          "name": "Stregoneria dell'Abiurazione",
-          "description": "Quando lanci un incantesimo di abiurazione, aggiunge 2 + metà livello mago ai PF del tuo Wards Arcano."
-        },
-        {
-          "level": 2,
           "name": "Scudo Arcano",
           "description": "Crei un Wards Arcano con PF pari a 2 × livello mago + mod Intelligenza. Assorbe i danni prima dei tuoi PF."
         },
@@ -138,28 +133,8 @@
       "features": [
         {
           "level": 2,
-          "name": "Ammaliamento Ipnotico",
+          "name": "Sguardo Ipnotico",
           "description": "Quando lanci un incantesimo di ammaliamento e una creatura lo supera, puoi rilanciare il TS un'altra volta (1/riposo breve)."
-        },
-        {
-          "level": 2,
-          "name": "Tocco Mesmerico",
-          "description": "Puoi usare la tua azione per toccare una creatura e ammaliare la per 1 ora."
-        },
-        {
-          "level": 6,
-          "name": "Ammaliamento Intuitivo",
-          "description": "Puoi far diventare immune a un tuo ammaliamento anche le creature immuni."
-        },
-        {
-          "level": 10,
-          "name": "Mente Divisa",
-          "description": "Puoi ammaliare fino a due creature con incantesimi che normalmente ne colpiscono solo una."
-        },
-        {
-          "level": 14,
-          "name": "Ammaliamento dell'Anima",
-          "description": "Incanali un ammaliamento potente che fa diventare la creatura un tuo alleato temporaneo."
         }
       ]
     },
@@ -170,11 +145,6 @@
           "level": 2,
           "name": "Presagio",
           "description": "Dopo un riposo lungo, tira due d20. Puoi sostituire qualsiasi tiro con uno di questi risultati (fino al prossimo riposo lungo)."
-        },
-        {
-          "level": 2,
-          "name": "Stregoneria della Divinazione",
-          "description": "L'oro e il tempo per copiare incantesimi di divinazione si riducono della metà."
         },
         {
           "level": 6,
@@ -196,11 +166,6 @@
     {
       "name": "Scuola di Evocazione",
       "features": [
-        {
-          "level": 2,
-          "name": "Stregoneria dell'Evocazione",
-          "description": "Puoi escludere dall'effetto degli incantesimi di evocazione fino a un numero di creature pari al tuo modificatore di Intelligenza."
-        },
         {
           "level": 2,
           "name": "Scolpire Incantesimi",
@@ -228,11 +193,6 @@
       "features": [
         {
           "level": 2,
-          "name": "Stregoneria dell'Illusione",
-          "description": "Puoi creare un'illusione minore (non udibile) come azione bonus."
-        },
-        {
-          "level": 2,
           "name": "Illusione Migliorata",
           "description": "Le tue illusioni possono essere sia visive sia udibili."
         },
@@ -255,56 +215,15 @@
     },
     {
       "name": "Scuola di Invocazione",
-      "features": [
-        {
-          "level": 2,
-          "name": "Stregoneria dell'Invocazione",
-          "description": "Dimezza il tempo e l'oro necessario per copiare incantesimi di invocazione."
-        },
-        {
-          "level": 2,
-          "name": "Evocazione Focale",
-          "description": "Quando usi un incantesimo di invocazione per evocare una creatura, puoi trasportarla o te stesso a un posto a tua scelta entro gittata."
-        },
-        {
-          "level": 6,
-          "name": "Evocare Benevolenza",
-          "description": "Le creature evocate ottengono bonus ai tiri di attacco e salvezza."
-        },
-        {
-          "level": 10,
-          "name": "Passo dell'Invocazione",
-          "description": "Come azione bonus, ti teletrasporti a 9 m in uno spazio libero (1/riposo breve)."
-        },
-        {
-          "level": 14,
-          "name": "Evoca a Distanza",
-          "description": "Puoi evocare creature in qualsiasi spazio visibile entro 18 m."
-        }
-      ]
+      "features": []
     },
     {
       "name": "Scuola di Necromanzia",
       "features": [
         {
           "level": 2,
-          "name": "Stregoneria della Necromanzia",
-          "description": "Dimezza il tempo e l'oro per copiare incantesimi di necromanzia."
-        },
-        {
-          "level": 2,
           "name": "Mietere la Vita",
           "description": "Quando lanci un incantesimo di necromanzia che uccide una creatura, puoi recuperare PF pari al livello dell'incantesimo + modificatore Intelligenza."
-        },
-        {
-          "level": 6,
-          "name": "Non Morto Non Svigorito",
-          "description": "I non morti da te creati ottengono bonus ai PF e ai tiri di attacco."
-        },
-        {
-          "level": 10,
-          "name": "Arma Inumana",
-          "description": "Puoi creare un'arma non morta da uno scheletro, infliggendo danni aggiuntivi."
         },
         {
           "level": 14,
@@ -318,23 +237,8 @@
       "features": [
         {
           "level": 2,
-          "name": "Stregoneria della Trasmutazione",
-          "description": "Dimezza il tempo e l'oro per copiare incantesimi di trasmutazione."
-        },
-        {
-          "level": 2,
           "name": "Alchimia Minore",
           "description": "Puoi trasformare fisicamente un materiale non magico in un altro (rame, ferro, argento, oro, legno)."
-        },
-        {
-          "level": 6,
-          "name": "Trasmutare",
-          "description": "Crei una pietra della trasmutazione che conferisce un beneficio magico costante al portatore."
-        },
-        {
-          "level": 10,
-          "name": "Immortalità",
-          "description": "Non invecchi; sei immune alle malattie magiche."
         },
         {
           "level": 14,

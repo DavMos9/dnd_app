@@ -1,14 +1,48 @@
 {
   "name": "Nobile",
   "description": "Capisci ricchezza, potere e privilegio. Porti un titolo nobile e la tua famiglia possiede terre, raccoglie tasse e detiene una posizione di potere politico.",
-  "skill_proficiencies": ["Storia", "Persuasione"],
-  "tool_proficiencies": [{"type": "choice", "count": 1, "from": ["gioco_carte", "gioco_dadi", "scacchi", "gioco_tre_draghi"]}],
-  "languages": [{"type": "choice", "count": 1, "from": "any"}],
+  "skill_proficiencies": [
+    "Storia",
+    "Persuasione"
+  ],
+  "tool_proficiencies": [
+    {
+      "type": "choice",
+      "count": 1,
+      "from": [
+        "gioco_carte",
+        "gioco_dadi",
+        "scacchi",
+        "gioco_tre_draghi"
+      ]
+    }
+  ],
+  "languages": [
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "any"
+    }
+  ],
   "equipment": [
-    {"name": "Abiti fini", "item_type": "item"},
-    {"name": "Anello con sigillo", "item_type": "item"},
-    {"name": "Pergamena della propria stirpe", "item_type": "item"},
-    {"name": "Borsa con 25 MO", "item_type": "item"}
+    {
+      "name": "Abiti fini",
+      "item_type": "item"
+    },
+    {
+      "name": "Anello con sigillo",
+      "item_type": "item"
+    },
+    {
+      "name": "Pergamena della propria stirpe",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 25 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 25
+    }
   ],
   "feature": {
     "name": "Posizione di Privilegio",
@@ -25,12 +59,36 @@
     "Non dimentico mai un'offesa e aspetto il momento giusto per vendicarmi."
   ],
   "ideals": [
-    {"name": "Rispetto", "alignment": "Buono", "description": "Il rispetto è dovuto a tutti, indipendentemente dalla nascita."},
-    {"name": "Responsabilità", "alignment": "Legale", "description": "Devo fare quello che devo fare, non quello che voglio."},
-    {"name": "Indipendenza", "alignment": "Caotico", "description": "Devo dimostrare di poter farcela da solo."},
-    {"name": "Potere", "alignment": "Malvagio", "description": "Se posso arrivare in cima, lo farò."},
-    {"name": "Noblesse Oblige", "alignment": "Neutrale", "description": "È mio dovere proteggere coloro che sono al di sotto di me."},
-    {"name": "Famiglia", "alignment": "Qualsiasi", "description": "Il sangue è più denso dell'acqua."}
+    {
+      "name": "Rispetto",
+      "alignment": "Buono",
+      "description": "Il rispetto è dovuto a tutti, indipendentemente dalla nascita."
+    },
+    {
+      "name": "Responsabilità",
+      "alignment": "Legale",
+      "description": "Devo fare quello che devo fare, non quello che voglio."
+    },
+    {
+      "name": "Indipendenza",
+      "alignment": "Caotico",
+      "description": "Devo dimostrare di poter farcela da solo."
+    },
+    {
+      "name": "Potere",
+      "alignment": "Malvagio",
+      "description": "Se posso arrivare in cima, lo farò."
+    },
+    {
+      "name": "Noblesse Oblige",
+      "alignment": "Neutrale",
+      "description": "È mio dovere proteggere coloro che sono al di sotto di me."
+    },
+    {
+      "name": "Famiglia",
+      "alignment": "Qualsiasi",
+      "description": "Il sangue è più denso dell'acqua."
+    }
   ],
   "bonds": [
     "Sono legato alla mia famiglia nobile.",

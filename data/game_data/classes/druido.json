@@ -59,7 +59,9 @@
         [
           {
             "name": "Qualsiasi arma semplice",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice",
+            "count": 1
           }
         ]
       ]
@@ -78,7 +80,9 @@
         [
           {
             "name": "Qualsiasi arma semplice da mischia",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice_mischia",
+            "count": 1
           }
         ]
       ]
@@ -91,11 +95,11 @@
           "item_type": "armor"
         },
         {
-          "name": "Zaino da esploratore",
+          "name": "Dotazione da Esploratore",
           "item_type": "item"
         },
         {
-          "name": "Fuoco della Druidia",
+          "name": "Focus druidico",
           "item_type": "item"
         }
       ]
@@ -128,11 +132,6 @@
           "description": "Muoversi su terreno difficile non magico non ti costa movimento aggiuntivo."
         },
         {
-          "level": 10,
-          "name": "Mente della Natura",
-          "description": "Non puoi essere affascinato o spaventato da elementali o fate."
-        },
-        {
           "level": 14,
           "name": "Santuario della Natura",
           "description": "Le bestie e le piante devono superare un TS su Saggezza per attaccarti."
@@ -146,21 +145,6 @@
           "level": 2,
           "name": "Forma Selvatica da Combattimento",
           "description": "Puoi usare Forma Selvatica come azione bonus. Le tue forme assumono CR più elevate: CR 1 al 2° livello, CR fino a 1/3 livello al 6°."
-        },
-        {
-          "level": 6,
-          "name": "Forme Elementali",
-          "description": "Puoi trasformarti in un elementale (Aria, Terra, Fuoco, Acqua) spendendo 2 usi di Forma Selvatica."
-        },
-        {
-          "level": 10,
-          "name": "Resistenza nella Forma Selvatica",
-          "description": "Nella forma animale, sei immune ai danni contundenti, perforanti e da taglio non magici."
-        },
-        {
-          "level": 14,
-          "name": "Maestro della Luna",
-          "description": "Puoi trasformarti in qualsiasi bestia con CR ≤ livello / 3 (max CR 20)."
         }
       ]
     }

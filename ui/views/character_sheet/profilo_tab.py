@@ -1897,6 +1897,9 @@ class ProfiloTab(ft.ListView):
             c.level = new_level
             c.hp_max += gained
             c.hp_current = min(c.hp_current + gained, c.hp_max)
+            # Dadi vita: +1 per ogni livello acquisito (PHB p.12)
+            c.hit_dice_total += 1
+            c.hit_dice_remaining = min(c.hit_dice_remaining + 1, c.hit_dice_total)
 
             # ASI
             if has_asi:
@@ -2028,6 +2031,8 @@ class ProfiloTab(ft.ListView):
                     _save_known_spell(spell_name, class_name, c)
 
             character_repo.update(c)
+            # Aggiorna slot incantesimo PHB per il nuovo livello
+            character_repo.auto_init_spell_slots(c.id, c.class_name, new_level)
             page.pop_dialog()
             self._refresh()
 

@@ -2,12 +2,15 @@
   "class": "Warlock",
   "spells": [
     {
-      "name": "Esplosione dell'Occulto",
+      "name": "Esplosione Arcana",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "36 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -16,26 +19,15 @@
       "higher_levels": null
     },
     {
-      "name": "Dardo Caotico",
-      "level": 0,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "27 metri",
-      "components": ["V", "S"],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Tiri 2d8. Il tipo di danno è determinato dai dadi risultanti: 1–2 Acido, 3–4 Freddo, 5–6 Fuoco, 7–8 Forza, 9–10 Fulmine, 11–12 Veleno, 13–14 Psichico, 15–16 Radioso, 17–18 Tuono. Effettui un attacco con incantesimo a distanza. Se colpisci, il bersaglio subisce 2d8 danni del tipo tirati.",
-      "higher_levels": null
-    },
-    {
-      "name": "Fiamma del Fuoco",
+      "name": "Saetta di Fuoco",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "3 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -49,7 +41,10 @@
       "school": "Illusione",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["S", "M"],
+      "components": [
+        "S",
+        "M"
+      ],
       "material": "un pezzetto di lana di pecora",
       "duration": "1 minuto",
       "ritual": false,
@@ -58,12 +53,15 @@
       "higher_levels": null
     },
     {
-      "name": "Mano Magica",
+      "name": "Mano del Mago",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "1 minuto",
       "ritual": false,
@@ -72,12 +70,15 @@
       "higher_levels": null
     },
     {
-      "name": "Prestidigitazione",
+      "name": "Gioco di Prestigio",
       "level": 0,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "3 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "fino a 1 ora",
       "ritual": false,
@@ -86,26 +87,14 @@
       "higher_levels": null
     },
     {
-      "name": "Colpo Villano",
-      "level": 0,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": ["V"],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Proferisci parole cariche di scherno contro una creatura che puoi vedere entro gittata. Il bersaglio deve avere successo a un tiro salvezza su Saggezza oppure subire 1d4 danni psichici e avere svantaggio al suo prossimo tiro per colpire. I danni aumentano di 1d4 quando raggiungi il 5° livello (2d4), l'11° (3d4) e il 17° (4d4).",
-      "higher_levels": null
-    },
-    {
-      "name": "Colpo Vero",
+      "name": "Colpo Mirato",
       "level": 0,
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["S"],
+      "components": [
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 round",
       "ritual": false,
@@ -114,12 +103,15 @@
       "higher_levels": null
     },
     {
-      "name": "Fascino delle Persone",
+      "name": "Charme su Persone",
       "level": 1,
       "school": "Ammaliamento",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "1 ora",
       "ritual": false,
@@ -128,26 +120,15 @@
       "higher_levels": "Lanciando con uno slot di livello 2 o superiore, puoi bersagliare una creatura aggiuntiva per ogni livello di slot superiore al 1°."
     },
     {
-      "name": "Armatura del Mago",
-      "level": 1,
-      "school": "Abiurazione",
-      "casting_time": "1 azione",
-      "range": "Contatto",
-      "components": ["V", "S", "M"],
-      "material": "un pezzo di cuoio conciato",
-      "duration": "8 ore",
-      "ritual": false,
-      "concentration": false,
-      "description": "Tocchi una creatura disposta che non indossa armatura e la scudi con una protezione magica. La CA base del bersaglio è 13 + il suo modificatore di Destrezza.",
-      "higher_levels": null
-    },
-    {
-      "name": "Maledizione del Sangue",
+      "name": "Fattura",
       "level": 1,
       "school": "Necromanzia",
       "casting_time": "1 azione bonus",
       "range": "27 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -156,26 +137,16 @@
       "higher_levels": "Lanciando con uno slot di livello 3 o 4, puoi mantenere la concentrazione fino a 8 ore. Con uno slot di livello 5 o superiore, la concentrazione dura fino a 24 ore."
     },
     {
-      "name": "Incantesimo Silenzioso",
-      "level": 2,
-      "school": "Illusione",
-      "casting_time": "1 azione",
-      "range": "Sé stesso",
-      "components": ["V", "S"],
-      "material": null,
-      "duration": "concentrazione, fino a 10 minuti",
-      "ritual": false,
-      "concentration": true,
-      "description": "Sei ammantato in un manto di silenzio che sopprime i tuoni e i rumori forti nel raggio di 9 m attorno a te. Finché l'incantesimo dura, le tue azioni sono silenziosissime, ti si proteggono dai danni da tuono e non puoi essere sentito a distanza.",
-      "higher_levels": null
-    },
-    {
       "name": "Invisibilità",
       "level": 2,
       "school": "Illusione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "una membrana d'occhio avvolta in un po' di gomma arabica",
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -189,7 +160,10 @@
       "school": "Ammaliamento",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "M"],
+      "components": [
+        "V",
+        "M"
+      ],
       "material": "una lingua di serpente e favo di miele o un goccio di olio dolce",
       "duration": "concentrazione, fino a 8 ore",
       "ritual": false,
@@ -203,7 +177,11 @@
       "school": "Illusione",
       "casting_time": "1 azione",
       "range": "Sé stesso (cono di 9 m)",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "una piuma bianca o un osso di pollo",
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -217,7 +195,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "una piuma d'ali di aquila",
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": false,
@@ -231,7 +213,10 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "36 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -245,7 +230,9 @@
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "152 metri",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -254,26 +241,14 @@
       "higher_levels": null
     },
     {
-      "name": "Maschera della Giovinezza",
-      "level": 4,
-      "school": "Necromanzia",
-      "casting_time": "1 azione",
-      "range": "Sé stesso",
-      "components": ["V"],
-      "material": null,
-      "duration": "30 giorni",
-      "ritual": false,
-      "concentration": false,
-      "description": "Ti aggrappi alla vitalità, impedendo che il corpo invecchi normalmente. Per i 30 giorni successivi al lancio di questo incantesimo il tuo corpo non mostra i segni dell'invecchiamento. Quando l'incantesimo termina, recuperi la tua età effettiva.",
-      "higher_levels": null
-    },
-    {
-      "name": "Contatto con il Piano",
+      "name": "Contattare Altri Piani",
       "level": 5,
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "1 minuto",
       "ritual": true,
@@ -282,26 +257,16 @@
       "higher_levels": null
     },
     {
-      "name": "Scacciare",
-      "level": 4,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "9 metri",
-      "components": ["V", "S", "M"],
-      "material": "un oggetto spiacevole al bersaglio",
-      "duration": "concentrazione, fino a 1 minuto",
-      "ritual": false,
-      "concentration": true,
-      "description": "Tenti di inviare una creatura che puoi vedere entro gittata a un altro piano di esistenza. La creatura deve superare un tiro salvezza su Carisma oppure essere mandata a un demiplane inoffensivo. Mentre è lì, la creatura è incapacitata. La creatura rimane lì finché l'incantesimo è attivo. Quando termina, la creatura riappare nello spazio che aveva lasciato o nell'area libera più vicina.",
-      "higher_levels": "Lanciando con uno slot di livello 5 o superiore, puoi bersagliare una creatura aggiuntiva per ogni livello di slot superiore al 4°."
-    },
-    {
       "name": "Cerchio Magico",
       "level": 3,
       "school": "Abiurazione",
       "casting_time": "1 minuto",
       "range": "3 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "acqua santa o polvere di argento e ferro del valore di 100 mo, che l'incantesimo consuma",
       "duration": "1 ora",
       "ritual": false,
@@ -310,12 +275,16 @@
       "higher_levels": "Lanciando con uno slot di livello 4 o superiore, la durata aumenta di 1 ora per ogni livello di slot superiore al 3°."
     },
     {
-      "name": "Imprigionamento",
+      "name": "Prigionia",
       "level": 9,
       "school": "Abiurazione",
       "casting_time": "1 minuto",
       "range": "9 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un componente del valore di almeno 500 mo che varia a seconda della forma di prigionia scelta",
       "duration": "finché non viene dissolto",
       "ritual": false,

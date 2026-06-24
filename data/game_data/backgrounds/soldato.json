@@ -1,15 +1,45 @@
 {
   "name": "Soldato",
   "description": "Hai trascorso anni di addestramento nel servizio militare. Hai combattuto in battaglia, e la guerra ha lasciato il suo segno su di te.",
-  "skill_proficiencies": ["Atletica", "Intimidire"],
-  "tool_proficiencies": [{"type": "choice", "count": 1, "from": ["gioco_dadi", "gioco_carte"]}, "Veicoli terrestri"],
+  "skill_proficiencies": [
+    "Atletica",
+    "Intimidire"
+  ],
+  "tool_proficiencies": [
+    {
+      "type": "choice",
+      "count": 1,
+      "from": [
+        "gioco_dadi",
+        "gioco_carte"
+      ]
+    },
+    "Veicoli terrestri"
+  ],
   "languages": [],
   "equipment": [
-    {"name": "Grado militare (insegna o simbolo)", "item_type": "item"},
-    {"name": "Trofeo di un nemico sconfitto", "item_type": "item"},
-    {"name": "Osso con i dadi", "item_type": "item"},
-    {"name": "Abiti comuni", "item_type": "item"},
-    {"name": "Borsa con 10 MO", "item_type": "item"}
+    {
+      "name": "Grado militare (insegna o simbolo)",
+      "item_type": "item"
+    },
+    {
+      "name": "Trofeo di un nemico sconfitto",
+      "item_type": "item"
+    },
+    {
+      "name": "Osso con i dadi",
+      "item_type": "item"
+    },
+    {
+      "name": "Abiti comuni",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 10 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 10
+    }
   ],
   "feature": {
     "name": "Rango Militare",
@@ -26,12 +56,36 @@
     "Non posso tolerare la codardia."
   ],
   "ideals": [
-    {"name": "Grande Bene", "alignment": "Buono", "description": "La nostra causa giusta richiederà dei sacrifici."},
-    {"name": "Responsabilità", "alignment": "Legale", "description": "Fare la cosa giusta anche quando è difficile."},
-    {"name": "Indipendenza", "alignment": "Caotico", "description": "Quando la gente segue gli ordini ciecamente, abbraccia la tirannia."},
-    {"name": "Potere", "alignment": "Malvagio", "description": "In guerra, il potere è tutto."},
-    {"name": "Nazione", "alignment": "Neutrale", "description": "Il mio paese, i miei ordini, i miei compagni, tutto quello che conta."},
-    {"name": "Vita", "alignment": "Qualsiasi", "description": "Bisogna fare di tutto per proteggere la vita degli innocenti."}
+    {
+      "name": "Grande Bene",
+      "alignment": "Buono",
+      "description": "La nostra causa giusta richiederà dei sacrifici."
+    },
+    {
+      "name": "Responsabilità",
+      "alignment": "Legale",
+      "description": "Fare la cosa giusta anche quando è difficile."
+    },
+    {
+      "name": "Indipendenza",
+      "alignment": "Caotico",
+      "description": "Quando la gente segue gli ordini ciecamente, abbraccia la tirannia."
+    },
+    {
+      "name": "Potere",
+      "alignment": "Malvagio",
+      "description": "In guerra, il potere è tutto."
+    },
+    {
+      "name": "Nazione",
+      "alignment": "Neutrale",
+      "description": "Il mio paese, i miei ordini, i miei compagni, tutto quello che conta."
+    },
+    {
+      "name": "Vita",
+      "alignment": "Qualsiasi",
+      "description": "Bisogna fare di tutto per proteggere la vita degli innocenti."
+    }
   ],
   "bonds": [
     "Devo a tutto quello che so al mio comandante.",

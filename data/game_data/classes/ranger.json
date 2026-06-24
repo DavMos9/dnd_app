@@ -66,8 +66,9 @@
         [
           {
             "name": "Due armi semplici da mischia",
-            "item_type": "item",
-            "quantity": 2
+            "item_type": "weapon_choice",
+            "category": "semplice_mischia",
+            "count": 2
           }
         ]
       ]
@@ -79,13 +80,13 @@
       "options": [
         [
           {
-            "name": "Zaino da dungeon",
+            "name": "Dotazione da Avventuriero",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da esploratore",
+            "name": "Dotazione da Esploratore",
             "item_type": "item"
           }
         ]

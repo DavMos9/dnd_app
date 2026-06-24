@@ -46,7 +46,9 @@
         [
           {
             "name": "Qualsiasi arma semplice",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice",
+            "count": 1
           }
         ]
       ]
@@ -58,13 +60,13 @@
       "options": [
         [
           {
-            "name": "Zaino da dungeon",
+            "name": "Dotazione da Avventuriero",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da esploratore",
+            "name": "Dotazione da Esploratore",
             "item_type": "item"
           }
         ]
@@ -155,11 +157,6 @@
           "level": 11,
           "name": "Mantello dell'Ombra",
           "description": "Puoi diventare invisibile nelle zone d'ombra come azione bonus."
-        },
-        {
-          "level": 17,
-          "name": "Silenzio delle Ombre",
-          "description": "Puoi usare Passo delle Ombre senza azione bonus e senza limiti di distanza."
         }
       ]
     }

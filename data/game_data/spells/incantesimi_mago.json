@@ -2,7 +2,7 @@
   "class": "Mago",
   "spells": [
     {
-      "name": "Acido Aspersione",
+      "name": "Getto Acido",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -19,24 +19,7 @@
       "higher_levels": null
     },
     {
-      "name": "Dardo Incantato",
-      "level": 0,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "36 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Una scintilla luminosa di energia arcana colpisce la creatura che scegli come bersaglio entro gittata. Effettua un tiro per colpire con incantesimo a distanza contro il bersaglio. Se colpisci, il bersaglio subisce 1d10 danni da forza. I danni aumentano di 1d10 quando raggiungi il 5° livello (2d10), l'11° (3d10) e il 17° (4d10).",
-      "higher_levels": null
-    },
-    {
-      "name": "Fiamma del Fuoco",
+      "name": "Saetta di Fuoco",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -87,7 +70,7 @@
       "higher_levels": null
     },
     {
-      "name": "Mano Magica",
+      "name": "Mano del Mago",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -122,7 +105,7 @@
       "higher_levels": null
     },
     {
-      "name": "Prestidigitazione",
+      "name": "Gioco di Prestigio",
       "level": 0,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -156,7 +139,7 @@
       "higher_levels": null
     },
     {
-      "name": "Riparazione",
+      "name": "Riparare",
       "level": 0,
       "school": "Trasmutazione",
       "casting_time": "1 minuto",
@@ -174,7 +157,7 @@
       "higher_levels": null
     },
     {
-      "name": "Scossa",
+      "name": "Stretta Folgorante",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -191,7 +174,7 @@
       "higher_levels": null
     },
     {
-      "name": "Colpo Vero",
+      "name": "Colpo Mirato",
       "level": 0,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -225,25 +208,7 @@
       "higher_levels": null
     },
     {
-      "name": "Bruciatura",
-      "level": 1,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "un'agata di fuoco del valore di almeno 50 mo",
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Effettua un tiro per colpire con incantesimo a distanza contro il bersaglio. Se colpisci, il bersaglio subisce 4d6 danni da fuoco.",
-      "higher_levels": "Lanciando con uno slot di livello 2 o superiore, i danni aumentano di 1d6 per ogni livello di slot superiore al 1°."
-    },
-    {
-      "name": "Comprendere le Lingue",
+      "name": "Comprendere Linguaggi",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -261,7 +226,7 @@
       "higher_levels": null
     },
     {
-      "name": "Dardi Magici",
+      "name": "Dardo Incantato",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -278,7 +243,7 @@
       "higher_levels": "Lanciando con uno slot di livello 2 o superiore, l'incantesimo crea un dardo aggiuntivo per ogni livello di slot superiore al 1°."
     },
     {
-      "name": "Identificazione",
+      "name": "Identificare",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 minuto",
@@ -314,7 +279,7 @@
       "higher_levels": null
     },
     {
-      "name": "Nebbia Colorata",
+      "name": "Spruzzo Colorato",
       "level": 1,
       "school": "Illusione",
       "casting_time": "1 azione",
@@ -439,7 +404,7 @@
       "higher_levels": "Lanciando con uno slot di livello 4 o superiore, puoi bersagliare una creatura aggiuntiva per ogni livello di slot superiore al 3°."
     },
     {
-      "name": "Contro-Incantesimo",
+      "name": "Controincantesimo",
       "level": 3,
       "school": "Abiurazione",
       "casting_time": "1 reazione, effettuata quando vedi una creatura entro 18 m lanciare un incantesimo",
@@ -467,7 +432,7 @@
       "duration": "istantanea",
       "ritual": false,
       "concentration": false,
-      "description": "Ti teletrasporti dalla tua posizione attuale a qualsiasi altro posto entro gittata. Puoi specificare la destinazione usando una direzione cardinale e una distanza (ad esempio, 300 piedi a ovest). Puoi portare con te oggetti fintanto che il loro peso non supera quello che puoi trasportare. Puoi anche portare una creatura disposta di taglia non superiore alla tua, fintanto che il suo peso non superi quello che puoi trasportare.",
+      "description": "Ti teletrasporti dalla tua posizione attuale a qualsiasi altro posto entro gittata. Puoi specificare la destinazione usando una direzione cardinale e una distanza (ad esempio, 90 metri a ovest). Puoi portare con te oggetti fintanto che il loro peso non supera quello che puoi trasportare. Puoi anche portare una creatura disposta di taglia non superiore alla tua, fintanto che il suo peso non superi quello che puoi trasportare.",
       "higher_levels": null
     },
     {
@@ -539,7 +504,7 @@
       "higher_levels": null
     },
     {
-      "name": "Globo Antimagico",
+      "name": "Campo Antimagia",
       "level": 8,
       "school": "Abiurazione",
       "casting_time": "1 azione",

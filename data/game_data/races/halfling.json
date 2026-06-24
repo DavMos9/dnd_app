@@ -29,7 +29,7 @@
     {
       "name": "Halfling Piedelesto",
       "ability_bonuses": {
-        "dex": 1
+        "cha": 1
       },
       "traits": [
         {
@@ -39,13 +39,13 @@
       ]
     },
     {
-      "name": "Halfling Stoutfoot",
+      "name": "Halfling Tozzo",
       "ability_bonuses": {
         "con": 1
       },
       "traits": [
         {
-          "name": "Resistenza degli Stout",
+          "name": "Resistenza dei Robusti",
           "description": "Hai vantaggio ai tiri salvezza contro il veleno e hai resistenza ai danni da veleno.",
           "resistance": [
             "poison"

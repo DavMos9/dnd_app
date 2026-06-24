@@ -1,0 +1,95 @@
+{
+  "name": "Ciarlatano",
+  "description": "Sei sempre stato portato per le interazioni sociali. Sei abile nel capire le persone e, dopo pochi minuti di conversazione, riesci a individuare ciò che il loro cuore desidera. Sai cosa la gente vuole, e glielo offri su un piatto d'argento... o meglio, prometti di offrirglielo.",
+  "skill_proficiencies": [
+    "Inganno",
+    "Rapidità di Mano"
+  ],
+  "tool_proficiencies": [
+    "Arnesi da falsario",
+    "Trucchi per il camuffamento"
+  ],
+  "languages": [],
+  "equipment": [
+    {
+      "name": "Abito pregiato",
+      "item_type": "item"
+    },
+    {
+      "name": "Trucchi per il camuffamento",
+      "item_type": "item"
+    },
+    {
+      "name": "Strumenti da truffatore a scelta (dieci bottiglie sigillate piene di un liquido colorato, una serie di dadi truccati, un mazzo di carte segnate o un anello con sigillo di un duca immaginario)",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 15 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 15
+    }
+  ],
+  "feature": {
+    "name": "Falsa Identità",
+    "description": "Ti sei creato una seconda identità che include documenti, conoscenze stimate e camuffamenti che ti permettono di interpretare un individuo fittizio. Sei inoltre in grado di forgiare documenti, inclusi documenti ufficiali e lettere personali, purché tu abbia visto un esempio del tipo di documento o di scrittura che cerchi di copiare."
+  },
+  "personality_traits": [
+    "Mi innamoro in continuazione e sono sempre alla ricerca di una nuova fiamma.",
+    "Ho una battuta pronta per ogni occasione, specialmente quelle in cui l'umorismo è completamente fuori luogo.",
+    "Le lusinghe sono il sistema che preferisco per ottenere ciò che desidero.",
+    "Sono un giocatore d'azzardo nato e non resisto a correre un rischio se c'è la prospettiva di un guadagno.",
+    "Mento quasi sempre, anche senza una ragione.",
+    "Le mie armi preferite sono il sarcasmo e l'insulto.",
+    "Ho con me diversi simboli sacri e invoco qualunque divinità possa tornarmi utile al momento.",
+    "Mi intasco qualsiasi oggetto che sembri di valore."
+  ],
+  "ideals": [
+    {
+      "name": "Indipendenza",
+      "alignment": "Caotico",
+      "description": "Sono uno spirito libero; nessuno può dirmi cosa devo fare."
+    },
+    {
+      "name": "Giustizia",
+      "alignment": "Legale",
+      "description": "Non prendo mai di mira persone che non possono permettersi di perdere nemmeno pochi spiccioli."
+    },
+    {
+      "name": "Carità",
+      "alignment": "Buono",
+      "description": "Distribuisco i soldi ottenuti tra coloro che ne hanno davvero bisogno."
+    },
+    {
+      "name": "Creatività",
+      "alignment": "Caotico",
+      "description": "Non uso mai due volte la stessa bugia."
+    },
+    {
+      "name": "Amicizia",
+      "alignment": "Buono",
+      "description": "Gli oggetti materiali vanno e vengono. I legami d'amicizia durano per sempre."
+    },
+    {
+      "name": "Ambizione",
+      "alignment": "Qualsiasi",
+      "description": "Sono determinato a diventare qualcuno."
+    }
+  ],
+  "bonds": [
+    "Ho derubato la persona sbagliata e ora devo evitarla in tutti i modi.",
+    "Devo tutto al mio mentore, un essere orribile che probabilmente ora marcisce in qualche prigione.",
+    "Da qualche parte nel mondo ho un figlio che non mi conosce. Cerco di rendergli il mondo migliore.",
+    "Provengo da una famiglia nobile e sogno un giorno di riuscire a strappare le mie terre e il titolo da coloro che me li hanno sottratti.",
+    "Un personaggio potente ha ucciso qualcuno che amavo. Ho giurato che un giorno avrò la mia vendetta.",
+    "Ho truffato e ridotto sul lastrico qualcuno che non lo meritava. Da allora cerco di espiare le mie malefatte ma non potrò mai riuscire a perdonarmi."
+  ],
+  "flaws": [
+    "Non posso assolutamente resistere a un bel viso.",
+    "Sono perennemente indebitato. Spendo il frutto dei miei proventi illeciti in lussi decadenti molto più velocemente di quanto riesca a procurarmeli.",
+    "Sono convinto che nessuno riuscirà mai a imbrogliarmi come io imbroglio gli altri.",
+    "La mia avidità è tale da risultare pericolosa anche per me stesso. Se c'è di mezzo del denaro, devo tentare di impossessarmene, qualunque sia il rischio da correre.",
+    "Non posso fare a meno di tentare di truffare le persone più potenti di me.",
+    "Detesto ammetterlo e mi odio per questo, ma quando le cose si mettono male, me la do a gambe e penso solo a salvarmi la pelle."
+  ]
+}

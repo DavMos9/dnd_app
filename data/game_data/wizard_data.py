@@ -305,7 +305,7 @@ WIZARD_QUESTIONS = [
                 "icon": "GAVEL",
                 "desc": "Ha vissuto nell'ombra, tra truffe e furti",
                 "scores": {"Ladro": 2, "Bardo": 1, "Warlock": 1},
-                "scores_bg": {"Criminale": 10, "Monello di Strada": 5, "Ciarlatano": 4},
+                "scores_bg": {"Criminale": 10, "Monello": 5, "Ciarlatano": 4},
             },
             {
                 "id": "bg_religious",
@@ -329,7 +329,7 @@ WIZARD_QUESTIONS = [
                 "icon": "SCHOOL",
                 "desc": "Ha studiato in una biblioteca o un'università",
                 "scores": {"Mago": 2, "Bardo": 1, "Chierico": 1},
-                "scores_bg": {"Saggio": 10, "Eremita": 3},
+                "scores_bg": {"Sapiente": 10, "Eremita": 3},
             },
             {
                 "id": "bg_noble",
@@ -361,7 +361,7 @@ WIZARD_QUESTIONS = [
                 "icon": "PEOPLE",
                 "desc": "Un normale abitante che ha risposto alla chiamata",
                 "scores": {"Guerriero": 1, "Chierico": 1, "Paladino": 1},
-                "scores_bg": {"Eroe Popolare": 10, "Marinaio": 3, "Monello di Strada": 3},
+                "scores_bg": {"Eroe Popolare": 10, "Marinaio": 3, "Monello": 3},
             },
         ],
     },
@@ -776,9 +776,9 @@ BACKGROUNDS = {
             "Non riesci a resistere al fascino del mare aperto.",
         ],
     },
-    "Monello di Strada": {
+    "Monello": {
         "skills": ["Furtività", "Rapidità di Mano"],
-        "description": "Sei cresciuto solo e povero per le strade della città. Hai imparato molto presto a badare a te stesso.",
+        "description": "Sei cresciuto solo, povero e orfano per le vie della città. Non avevi nessuno che vegliasse su di te, quindi hai imparato molto presto a badare a te stesso.",
         "traits": [
             "Hai sempre un piano nel caso in cui tu debba scappare velocemente.",
             "Sei abituato ai brutti odori e ai luoghi sgradevoli; quasi nulla ti disturba.",

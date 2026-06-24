@@ -1,14 +1,43 @@
 {
   "name": "Artigiano di Gilda",
   "description": "Sei membro di una gilda artigiana, provvisto delle risorse per creare oggetti finemente lavorati. La tua gilda ti ha supportato, ti ha insegnato il tuo mestiere e ha garantito un certo livello di benessere.",
-  "skill_proficiencies": ["Intuizione", "Persuasione"],
-  "tool_proficiencies": [{"type": "choice", "count": 1, "from": "strumenti_artigiani"}],
-  "languages": [{"type": "choice", "count": 1, "from": "any"}],
+  "skill_proficiencies": [
+    "Intuizione",
+    "Persuasione"
+  ],
+  "tool_proficiencies": [
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "strumenti_artigiani"
+    }
+  ],
+  "languages": [
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "any"
+    }
+  ],
   "equipment": [
-    {"name": "Strumenti dell'artigiano (a scelta)", "item_type": "item"},
-    {"name": "Lettera d'introduzione della tua gilda", "item_type": "item"},
-    {"name": "Abiti da viaggio", "item_type": "item"},
-    {"name": "Borsa con 15 MO", "item_type": "item"}
+    {
+      "name": "Strumenti dell'artigiano (a scelta)",
+      "item_type": "item"
+    },
+    {
+      "name": "Lettera d'introduzione della tua gilda",
+      "item_type": "item"
+    },
+    {
+      "name": "Abiti da viaggio",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 15 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 15
+    }
   ],
   "feature": {
     "name": "Membro della Gilda",
@@ -25,12 +54,36 @@
     "Valuto le persone in base a quello che riescono a fare con le mani."
   ],
   "ideals": [
-    {"name": "Comunità", "alignment": "Legale", "description": "Il singolo deve sacrificarsi per il bene della comunità."},
-    {"name": "Generosità", "alignment": "Buono", "description": "Il denaro e il talento devono essere condivisi con tutti."},
-    {"name": "Libertà", "alignment": "Caotico", "description": "Chiunque dovrebbe poter diventare qualcuno attraverso il lavoro duro."},
-    {"name": "Avidità", "alignment": "Malvagio", "description": "Sono in questo per i soldi, nient'altro."},
-    {"name": "Popolo", "alignment": "Neutrale", "description": "Mi preoccupo solo di quelli che amo."},
-    {"name": "Aspirazione", "alignment": "Qualsiasi", "description": "Voglio creare l'opera d'arte più grande mai concepita."}
+    {
+      "name": "Comunità",
+      "alignment": "Legale",
+      "description": "Il singolo deve sacrificarsi per il bene della comunità."
+    },
+    {
+      "name": "Generosità",
+      "alignment": "Buono",
+      "description": "Il denaro e il talento devono essere condivisi con tutti."
+    },
+    {
+      "name": "Libertà",
+      "alignment": "Caotico",
+      "description": "Chiunque dovrebbe poter diventare qualcuno attraverso il lavoro duro."
+    },
+    {
+      "name": "Avidità",
+      "alignment": "Malvagio",
+      "description": "Sono in questo per i soldi, nient'altro."
+    },
+    {
+      "name": "Popolo",
+      "alignment": "Neutrale",
+      "description": "Mi preoccupo solo di quelli che amo."
+    },
+    {
+      "name": "Aspirazione",
+      "alignment": "Qualsiasi",
+      "description": "Voglio creare l'opera d'arte più grande mai concepita."
+    }
   ],
   "bonds": [
     "La gilda è la mia famiglia.",

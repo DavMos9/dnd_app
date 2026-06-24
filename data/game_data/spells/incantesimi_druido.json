@@ -2,7 +2,7 @@
   "class": "Druido",
   "spells": [
     {
-      "name": "Druidismo",
+      "name": "Arte Druidica",
       "level": 0,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -19,7 +19,7 @@
       "higher_levels": null
     },
     {
-      "name": "Fiamma Sacra",
+      "name": "Fiamma Consacrata",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -70,7 +70,7 @@
       "higher_levels": null
     },
     {
-      "name": "Mano Magica",
+      "name": "Mano del Mago",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -87,7 +87,7 @@
       "higher_levels": null
     },
     {
-      "name": "Veleno Aspersione",
+      "name": "Spruzzo Velenoso",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -122,7 +122,7 @@
       "higher_levels": null
     },
     {
-      "name": "Scossa",
+      "name": "Stretta Folgorante",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -139,7 +139,7 @@
       "higher_levels": null
     },
     {
-      "name": "Bacche Buone",
+      "name": "Bacche Benefiche",
       "level": 1,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -192,7 +192,7 @@
       "higher_levels": "Lanciando con uno slot di livello 2 o superiore, la quantità di guarigione aumenta di 1d8 per ogni livello di slot superiore al 1°."
     },
     {
-      "name": "Individuazione della Magia",
+      "name": "Individuazione del Magico",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -209,7 +209,7 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione di Veleni e Malattie",
+      "name": "Individuazione Malattie e Veleni",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -227,7 +227,7 @@
       "higher_levels": null
     },
     {
-      "name": "Nebbia",
+      "name": "Nube di Foschia",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -261,7 +261,7 @@
       "higher_levels": null
     },
     {
-      "name": "Intrecci",
+      "name": "Intralciare",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -313,7 +313,7 @@
       "higher_levels": null
     },
     {
-      "name": "Scorza",
+      "name": "Pelle di Quercia",
       "level": 2,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -331,7 +331,7 @@
       "higher_levels": null
     },
     {
-      "name": "Restaurazione Inferiore",
+      "name": "Ripristino Inferiore",
       "level": 2,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -348,25 +348,7 @@
       "higher_levels": null
     },
     {
-      "name": "Forma Ferrigna",
-      "level": 3,
-      "school": "Trasmutazione",
-      "casting_time": "1 azione",
-      "range": "Contatto",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "un pizzico di polvere di ferro",
-      "duration": "concentrazione, fino a 1 ora",
-      "ritual": false,
-      "concentration": true,
-      "description": "Il corpo di una creatura disposta che tocchi si trasforma in ferro vivo. Finché l'incantesimo dura, quella creatura è immune ai danni da veleno e psichici, è immune alla condizione di avvelenamento, non ha bisogno di respirare, non deve mangiare, bere o dormire. Peso della creatura aumenta di dieci volte, e la creatura non ha bisogno di dormire.",
-      "higher_levels": null
-    },
-    {
-      "name": "Evocare Animali",
+      "name": "Convocare Animali",
       "level": 3,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -396,7 +378,7 @@
       "duration": "istantanea",
       "ritual": false,
       "concentration": false,
-      "description": "Se lanci con un'azione, tutta la vegetazione entro 9 metri da un punto scelto si infittisce diventando terreno difficile. Una creatura spende 4 piedi di movimento per ogni piede percorso. In alternativa, puoi lanciare in 8 ore per nutrire il terreno entro 8 km, rendendolo fertile per 1 anno.",
+      "description": "Se lanci con un'azione, tutta la vegetazione entro 9 metri da un punto scelto si infittisce diventando terreno difficile. Una creatura spende 4 metri di movimento per ogni metro percorso nell'area. In alternativa, puoi lanciare in 8 ore per nutrire il terreno entro 8 km, rendendolo fertile per 1 anno.",
       "higher_levels": null
     },
     {
@@ -434,24 +416,7 @@
       "higher_levels": null
     },
     {
-      "name": "Forma Selvatica Aggiuntiva",
-      "level": 4,
-      "school": "Trasmutazione",
-      "casting_time": "1 azione bonus",
-      "range": "Sé stesso",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "concentrazione, fino a 1 ora",
-      "ritual": false,
-      "concentration": false,
-      "description": "Tramuti magicamente il corpo di un animale entro il tuo modo di assumere forme animali. Quando assumi una forma selvatica puoi conferirle temporaneamente 1d8 punti ferita aggiuntivi.",
-      "higher_levels": null
-    },
-    {
-      "name": "Dominio delle Bestie",
+      "name": "Dominare Animale",
       "level": 4,
       "school": "Ammaliamento",
       "casting_time": "1 azione",
@@ -521,7 +486,7 @@
       "higher_levels": null
     },
     {
-      "name": "Evocare Elementale",
+      "name": "Convocare Elementale",
       "level": 5,
       "school": "Evocazione",
       "casting_time": "1 minuto",
@@ -539,7 +504,7 @@
       "higher_levels": "Lanciando con uno slot di livello 6 o superiore, l'elementale ha CR aggiuntivo di 1 per ogni livello di slot superiore al 5°."
     },
     {
-      "name": "Cura Ferite di Massa",
+      "name": "Curare Ferite di Massa",
       "level": 5,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -574,7 +539,7 @@
       "higher_levels": "Lanciando con uno slot di livello 7 o superiore, i danni aumentano di 1d8 per ogni livello di slot superiore al 6°."
     },
     {
-      "name": "Restaurazione Superiore",
+      "name": "Ripristino Superiore",
       "level": 5,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -610,7 +575,7 @@
       "higher_levels": null
     },
     {
-      "name": "Cambia Forma",
+      "name": "Mutaforma",
       "level": 9,
       "school": "Trasmutazione",
       "casting_time": "1 azione",

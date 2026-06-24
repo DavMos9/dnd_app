@@ -2,41 +2,7 @@
   "class": "Stregone",
   "spells": [
     {
-      "name": "Dardo Incantato",
-      "level": 0,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "36 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Una scintilla luminosa di energia arcana colpisce la creatura che scegli come bersaglio entro gittata. Effettua un tiro per colpire con incantesimo a distanza contro il bersaglio. Se colpisci, il bersaglio subisce 1d10 danni da forza. I danni aumentano di 1d10 quando raggiungi il 5° livello (2d10), l'11° (3d10) e il 17° (4d10).",
-      "higher_levels": null
-    },
-    {
-      "name": "Dardo Caotico",
-      "level": 0,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "27 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Tiri 2d8. Il tipo di danno è determinato dai dadi risultanti: 1–2 Acido, 3–4 Freddo, 5–6 Fuoco, 7–8 Forza, 9–10 Fulmine, 11–12 Veleno, 13–14 Psichico, 15–16 Radioso, 17–18 Tuono. Effettui un attacco con incantesimo a distanza contro una creatura entro gittata. Se colpisci, subisce 2d8 danni del tipo tirati. I danni aumentano di 1d8 quando raggiungi il 5° livello (3d8), l'11° (4d8) e il 17° (5d8).",
-      "higher_levels": null
-    },
-    {
-      "name": "Fiamma del Fuoco",
+      "name": "Saetta di Fuoco",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -87,7 +53,7 @@
       "higher_levels": null
     },
     {
-      "name": "Mano Magica",
+      "name": "Mano del Mago",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -104,7 +70,7 @@
       "higher_levels": null
     },
     {
-      "name": "Prestidigitazione",
+      "name": "Gioco di Prestigio",
       "level": 0,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -138,7 +104,7 @@
       "higher_levels": null
     },
     {
-      "name": "Scossa",
+      "name": "Stretta Folgorante",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -152,22 +118,6 @@
       "ritual": false,
       "concentration": false,
       "description": "Estendi la mano e tocchi una creatura. Effettua un attacco con incantesimo da mischia. Se colpisci, il bersaglio subisce 1d8 danni da fulmine e non può effettuare reazioni fino all'inizio del suo prossimo turno. I danni aumentano di 1d8 quando raggiungi il 5° livello (2d8), l'11° (3d8) e il 17° (4d8).",
-      "higher_levels": null
-    },
-    {
-      "name": "Colpo Villano",
-      "level": 0,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Proferisci parole cariche di scherno contro una creatura che puoi vedere entro gittata. Il bersaglio deve avere successo a un tiro salvezza su Saggezza oppure subire 1d4 danni psichici e avere svantaggio al suo prossimo tiro per colpire prima della fine del suo prossimo turno. I danni aumentano di 1d4 quando raggiungi il 5° livello (2d4), l'11° (3d4) e il 17° (4d4).",
       "higher_levels": null
     },
     {
@@ -189,7 +139,7 @@
       "higher_levels": null
     },
     {
-      "name": "Dardi Magici",
+      "name": "Dardo Incantato",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -206,7 +156,7 @@
       "higher_levels": "Lanciando con uno slot di livello 2 o superiore, l'incantesimo crea un dardo aggiuntivo per ogni livello di slot superiore al 1°."
     },
     {
-      "name": "Fascino delle Persone",
+      "name": "Charme su Persone",
       "level": 1,
       "school": "Ammaliamento",
       "casting_time": "1 azione",
@@ -241,7 +191,7 @@
       "higher_levels": "Lanciando con uno slot di livello 2 o superiore, tira 2d8 aggiuntivi per ogni livello di slot superiore al 1°."
     },
     {
-      "name": "Onda Tonante",
+      "name": "Onda di Tuono",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",

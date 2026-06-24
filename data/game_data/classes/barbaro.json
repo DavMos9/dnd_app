@@ -48,7 +48,9 @@
           },
           {
             "name": "Qualsiasi arma semplice da mischia",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice_mischia",
+            "count": 1
           }
         ]
       ]
@@ -60,7 +62,7 @@
       "options": [
         [
           {
-            "name": "Quattro zagaglie",
+            "name": "Quattro giavellotti",
             "item_type": "item",
             "quantity": 4
           }
@@ -68,7 +70,9 @@
         [
           {
             "name": "Qualsiasi arma semplice",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice",
+            "count": 1
           }
         ]
       ]
@@ -77,7 +81,7 @@
       "type": "fixed",
       "items": [
         {
-          "name": "Zaino da esploratore",
+          "name": "Dotazione da Esploratore",
           "item_type": "item"
         },
         {

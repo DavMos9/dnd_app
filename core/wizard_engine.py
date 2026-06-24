@@ -181,6 +181,7 @@ class WizardEngine:
         background: str,
         alignment: str,
         stat_assignment: dict[str, int],
+        subrace: str = "",
     ) -> Character:
         """
         Costruisce un Character di livello 1 a partire dai dati del wizard.
@@ -188,12 +189,13 @@ class WizardEngine:
         HP max = max del dado vita della classe + modificatore Costituzione (PHB p.12).
         CA base = 10 + modificatore Destrezza (senza armatura).
         Velocità base: 9 metri (30 ft, standard per la maggior parte delle razze).
+        subrace: nome della sottorazza PHB (es. "Elfo Alto") — lookup prioritario su RACE_DATA.
         """
         hit_die = CLASSES.get(class_name, {}).get("hit_die", 8)
         spellcasting = CLASSES.get(class_name, {}).get("spellcasting_ability")
 
-        # Applica bonus razziali alle caratteristiche base
-        race_info = RACE_DATA.get(race, {})
+        # Lookup: sottorazza prima (ha bonuses specifici), poi razza base
+        race_info = (RACE_DATA.get(subrace) or RACE_DATA.get(race)) or {}
         racial_bonuses = race_info.get("ability_bonuses", {})
         race_speed = race_info.get("speed", 9)
 

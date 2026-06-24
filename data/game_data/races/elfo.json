@@ -27,7 +27,7 @@
   ],
   "subraces": [
     {
-      "name": "Alto Elfo",
+      "name": "Elfo Alto",
       "ability_bonuses": {
         "int": 1
       },
@@ -50,7 +50,7 @@
       ]
     },
     {
-      "name": "Elfo del Bosco",
+      "name": "Elfo dei Boschi",
       "ability_bonuses": {
         "wis": 1
       },
@@ -83,10 +83,10 @@
         },
         {
           "name": "Magia Drow",
-          "description": "Conosci il trucchetto Luci Danzanti. Puoi lanciare Luci Fatue e Oscurità una volta per riposo lungo. Il modificatore è Carisma.",
+          "description": "Conosci il trucchetto Luci Danzanti. Puoi lanciare Fuoco delle Fate e Oscurità una volta per riposo lungo. Il modificatore è Carisma.",
           "resources": [
             {
-              "name": "Fuoco Faerie (drow)",
+              "name": "Fuoco delle Fate (drow)",
               "max_value": 1,
               "reset_on": "long_rest",
               "display_type": "circles",

@@ -11,6 +11,7 @@ Flusso in 5 fasi:
 Il wizard è offline: nessuna API, solo albero decisionale + dati PHB.
 """
 
+import copy
 import flet as ft
 import json
 import logging
@@ -18,12 +19,12 @@ from typing import Any, cast
 
 from config.settings import (
     COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_CARD, COLOR_BG_SELECTED,
-    COLOR_ACCENT_GOLD, COLOR_ACCENT_RED, COLOR_ACCENT_CRIMSON, COLOR_BORDER,
+    COLOR_ACCENT_GOLD,COLOR_ACCENT_BLUE, COLOR_ACCENT_RED, COLOR_ACCENT_CRIMSON, COLOR_BORDER,
     COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED, COLOR_TEXT_TITLE,
     CLASSES, RACES_BASE, DRACONIDE_ANCESTRIES, ALIGNMENTS,
     ABILITY_SCORES, ABILITY_KEYS, STANDARD_ARRAY, SKILLS,
     CLASS_SAVING_THROWS, LANGUAGES, TOOL_CATEGORIES, TOOL_CATEGORY_LABEL,
-    FIGHTING_STYLES, MAGO_CANTRIPS,
+    FIGHTING_STYLES, MAGO_CANTRIPS, WEAPONS_BY_CATEGORY,
     get_modifier, get_modifier_str,
 )
 from ui.theme import (
@@ -111,7 +112,7 @@ class WizardView(ft.Column):
         # Stato review (popolato in _goto_review)
         self._review_class:     str        = ""
         self._review_race:      str        = ""
-        self._review_subrace:   str        = ""   # sottorazza o discendenza Draconide
+        self._review_subrace:   str        = ""   # sottorazza o discendenza Dragonide
         self._review_subclass:  str        = ""   # sottoclasse (solo se lv1)
         self._review_bg:        str        = ""
         self._review_align:     str        = ""
@@ -812,7 +813,7 @@ class WizardView(ft.Column):
             subrace_col.controls.clear()
             race = self._review_race
             subraces = RACES_BASE.get(race, [])
-            if race == "Draconide":
+            if race == "Dragonide":
                 # Discendenza draconiana
                 anc_dd = ft.Dropdown(
                     label="Discendenza Draconiana",
@@ -1074,12 +1075,12 @@ class WizardView(ft.Column):
                 ))
 
             # --- Alto Elfo: trucchetto del Mago ---
-            if race == "Elfo" and subrace == "Alto Elfo":
+            if race == "Elfo" and subrace == "Elfo Alto":
                 has_content = True
                 if not self._review_elf_cantrip or self._review_elf_cantrip not in MAGO_CANTRIPS:
                     self._review_elf_cantrip = MAGO_CANTRIPS[0]
                 race_extras_col.controls.append(ft.Dropdown(
-                    label="Trucchetto del Mago (tratto Alto Elfo)",
+                    label="Trucchetto del Mago (tratto Elfo Alto)",
                     value=self._review_elf_cantrip,
                     options=[ft.DropdownOption(key=c, text=c) for c in MAGO_CANTRIPS],
                     on_select=lambda e: setattr(self, "_review_elf_cantrip", e.control.value or ""),
@@ -1581,9 +1582,22 @@ class WizardView(ft.Column):
     # FASE 4: Equipaggiamento iniziale
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _init_weapon_choice(item: dict) -> dict:
+        """Inizializza chosen_weapon su un item weapon_choice."""
+        if item.get("item_type") == "weapon_choice":
+            cat = item.get("category", "semplice")
+            weapons = WEAPONS_BY_CATEGORY.get(cat, [])
+            count = item.get("count", 1)
+            if count > 1:
+                item["chosen_weapons"] = [weapons[0]] * count if weapons else []
+            else:
+                item["chosen_weapon"] = weapons[0] if weapons else ""
+        return item
+
     def _goto_equipment(self):
         self._phase = "equipment"
-        # Costruisce la lista oggetti dalla classe
+        # Costruisce la lista oggetti dalla classe (deep copy per non mutare la cache)
         cls_data = _loader.get_class(self._review_class)
         self._equip_fixed = []
         self._equip_choices = []
@@ -1591,10 +1605,16 @@ class WizardView(ft.Column):
             for entry in cls_data.get("starting_equipment", []):
                 if entry.get("type") == "fixed":
                     for item in entry.get("items", []):
-                        self._equip_fixed.append({**item, "selected": True})
+                        new_item = {**item, "selected": True}
+                        self._init_weapon_choice(new_item)
+                        self._equip_fixed.append(new_item)
                 elif entry.get("type") == "choice":
+                    opts = copy.deepcopy(entry.get("options", []))
+                    for opt_list in opts:
+                        for item in opt_list:
+                            self._init_weapon_choice(item)
                     self._equip_choices.append({
-                        "options": entry.get("options", []),
+                        "options": opts,
                         "chosen_idx": 0,
                     })
         self._render_equipment()
@@ -1614,17 +1634,49 @@ class WizardView(ft.Column):
         if self._equip_fixed:
             fixed_checks: list[ft.Control] = []
             for item in self._equip_fixed:
-                qty = item.get("quantity", 1)
-                label = item["name"] + (f" ×{qty}" if qty > 1 else "")
-                cb = ft.Checkbox(
-                    label=label,
-                    value=item["selected"],
-                    fill_color=COLOR_ACCENT_CRIMSON,
-                    check_color="#ffffff",
-                    label_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-                    on_change=lambda e, it=item: it.update({"selected": bool(e.control.value)}),
-                )
-                fixed_checks.append(cb)
+                if item.get("item_type") == "weapon_choice":
+                    # Weapon picker: Dropdown al posto del checkbox
+                    cat = item.get("category", "semplice")
+                    weapons = WEAPONS_BY_CATEGORY.get(cat, [])
+                    count = item.get("count", 1)
+                    if count > 1:
+                        # "Due armi semplici da mischia" → N dropdown
+                        chosen = item.setdefault("chosen_weapons", [weapons[0]] * count if weapons else [])
+                        fixed_checks.append(label_text(f"Scegli {count} armi ({cat.replace('_', ' ')}):", size=12))
+                        for wi in range(count):
+                            def _on_wsel(e: Any, it=item, idx=wi) -> None:
+                                it["chosen_weapons"][idx] = e.control.value or ""
+                            fixed_checks.append(ft.Dropdown(
+                                value=chosen[wi] if wi < len(chosen) else (weapons[0] if weapons else ""),
+                                options=[ft.DropdownOption(key=w, text=w) for w in weapons],
+                                width=220,
+                                text_size=13,
+                                on_select=_on_wsel,
+                            ))
+                    else:
+                        chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
+                        fixed_checks.append(ft.Row([
+                            label_text(f"Arma ({cat.replace('_', ' ')}):", size=12),
+                            ft.Dropdown(
+                                value=chosen_w,
+                                options=[ft.DropdownOption(key=w, text=w) for w in weapons],
+                                width=220,
+                                text_size=13,
+                                on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
+                            ),
+                        ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                else:
+                    qty = item.get("quantity", 1)
+                    label = item["name"] + (f" ×{qty}" if qty > 1 else "")
+                    cb = ft.Checkbox(
+                        label=label,
+                        value=item["selected"],
+                        fill_color=COLOR_ACCENT_CRIMSON,
+                        check_color="#ffffff",
+                        label_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+                        on_change=lambda e, it=item: it.update({"selected": bool(e.control.value)}),
+                    )
+                    fixed_checks.append(cb)
             rows.append(fantasy_card(ft.Column([
                 section_header("Oggetti garantiti"),
                 ft.Column(fixed_checks, spacing=6),
@@ -1640,9 +1692,20 @@ class WizardView(ft.Column):
             def _fmt_option(pkg: list[dict]) -> str:
                 parts = []
                 for it in pkg:
-                    qty = it.get("quantity", 1)
-                    parts.append(it["name"] + (f" ×{qty}" if qty > 1 else ""))
+                    if it.get("item_type") == "weapon_choice":
+                        cat = it.get("category", "semplice").replace("_", " ")
+                        cnt = it.get("count", 1)
+                        parts.append(f"Qualsiasi arma {cat}" + (f" ×{cnt}" if cnt > 1 else ""))
+                    else:
+                        qty = it.get("quantity", 1)
+                        parts.append(it["name"] + (f" ×{qty}" if qty > 1 else ""))
                 return "  +  ".join(parts)
+
+            def _make_radio_change(c: dict) -> Any:
+                def _on_change(e: Any) -> None:
+                    c["chosen_idx"] = int(e.control.value or 0)
+                    self._render_equipment()
+                return _on_change
 
             radio_group = ft.RadioGroup(
                 content=ft.Column(
@@ -1651,12 +1714,49 @@ class WizardView(ft.Column):
                     spacing=4,
                 ),
                 value=str(choice["chosen_idx"]),
-                on_change=lambda e, c=choice: c.update({"chosen_idx": int(e.control.value or 0)}),
+                on_change=_make_radio_change(choice),
             )
-            rows.append(fantasy_card(ft.Column([
+
+            # Dropdown arma per weapon_choice nell'opzione attualmente selezionata
+            chosen_opt = opts[choice["chosen_idx"]] if 0 <= choice["chosen_idx"] < len(opts) else []
+            weapon_pickers: list[ft.Control] = []
+            for item in chosen_opt:
+                if item.get("item_type") == "weapon_choice":
+                    cat = item.get("category", "semplice")
+                    weapons = WEAPONS_BY_CATEGORY.get(cat, [])
+                    count = item.get("count", 1)
+                    if count > 1:
+                        chosen_ws = item.setdefault("chosen_weapons", [weapons[0]] * count if weapons else [])
+                        weapon_pickers.append(label_text(f"Scegli {count} armi ({cat.replace('_', ' ')}):", size=12))
+                        for wi in range(count):
+                            def _on_wc(e: Any, it=item, idx=wi) -> None:
+                                it["chosen_weapons"][idx] = e.control.value or ""
+                            weapon_pickers.append(ft.Dropdown(
+                                value=chosen_ws[wi] if wi < len(chosen_ws) else (weapons[0] if weapons else ""),
+                                options=[ft.DropdownOption(key=w, text=w) for w in weapons],
+                                width=220, text_size=13, on_select=_on_wc,
+                            ))
+                    else:
+                        chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
+                        weapon_pickers.append(ft.Row([
+                            label_text(f"Arma ({cat.replace('_', ' ')}):", size=12),
+                            ft.Dropdown(
+                                value=chosen_w,
+                                options=[ft.DropdownOption(key=w, text=w) for w in weapons],
+                                width=220, text_size=13,
+                                on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
+                            ),
+                        ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+
+            card_children: list[ft.Control] = [
                 section_header(f"Scelta {ci + 1}"),
                 radio_group,
-            ], spacing=12), padding=20))
+            ]
+            if weapon_pickers:
+                card_children.append(ft.Container(height=8))
+                card_children.extend(weapon_pickers)
+
+            rows.append(fantasy_card(ft.Column(card_children, spacing=8), padding=20))
             rows.append(ft.Container(height=16))
 
         # --- Equipaggiamento background (testo) ---
@@ -1823,6 +1923,7 @@ class WizardView(ft.Column):
                     background=self._review_bg,
                     alignment=self._review_align,
                     stat_assignment=self._review_stats,
+                    subrace=self._review_subrace,
                 )
                 # Sottorazza e sottoclasse (se scelte in review)
                 if self._review_subrace:
@@ -1896,7 +1997,7 @@ class WizardView(ft.Column):
                         spell_range="",
                         components="",
                         duration="",
-                        description="Trucchetto del Mago (tratto Alto Elfo — INT)",
+                        description="Trucchetto del Mago (tratto Elfo Alto — INT)",
                         higher_levels="",
                         class_list="Mago",
                     )
@@ -1922,19 +2023,57 @@ class WizardView(ft.Column):
                             character_repo._save_single_proficiency(char.id, "tool", entry)
                             tool_seen.add(entry)
 
+                def _save_item(character_id: str, item: dict) -> None:
+                    """Salva un item di equipaggiamento: weapon_choice → inventario con nome scelto,
+                    regular item → inventario, currency → update_currencies."""
+                    itype = item.get("item_type", "item")
+                    if itype == "weapon_choice":
+                        count = item.get("count", 1)
+                        if count > 1:
+                            for wname in item.get("chosen_weapons", []):
+                                if wname:
+                                    character_repo.create_inventory_item(
+                                        character_id=character_id, name=wname,
+                                        quantity=1, weight=0.0, category="weapon",
+                                        is_equipped=False, description="",
+                                    )
+                        else:
+                            wname = item.get("chosen_weapon", "")
+                            if wname:
+                                character_repo.create_inventory_item(
+                                    character_id=character_id, name=wname,
+                                    quantity=1, weight=0.0, category="weapon",
+                                    is_equipped=False, description="",
+                                )
+                    elif itype == "currency":
+                        cur = character_repo.get_currencies(character_id)
+                        if cur:
+                            ctype = item.get("currency_type", "gold")
+                            qty = item.get("quantity", 0)
+                            delta = {ctype: qty}
+                            character_repo.update_currencies(
+                                character_id=character_id,
+                                copper=cur.copper + delta.get("copper", 0),
+                                silver=cur.silver + delta.get("silver", 0),
+                                electrum=cur.electrum + delta.get("electrum", 0),
+                                gold=cur.gold + delta.get("gold", 0),
+                                platinum=cur.platinum + delta.get("platinum", 0),
+                            )
+                    else:
+                        cat = "weapon" if itype == "weapon" else \
+                              "armor" if itype == "armor" else "misc"
+                        character_repo.create_inventory_item(
+                            character_id=character_id,
+                            name=item["name"],
+                            quantity=item.get("quantity", 1),
+                            weight=0.0, category=cat,
+                            is_equipped=False, description="",
+                        )
+
                 # Equipaggiamento — oggetti fissi selezionati
                 for item in self._equip_fixed:
                     if item.get("selected", True):
-                        character_repo.create_inventory_item(
-                            character_id=char.id,
-                            name=item["name"],
-                            quantity=item.get("quantity", 1),
-                            weight=0.0,
-                            category="weapon" if item.get("item_type") == "weapon" else
-                                     "armor" if item.get("item_type") == "armor" else "misc",
-                            is_equipped=False,
-                            description="",
-                        )
+                        _save_item(char.id, item)
 
                 # Equipaggiamento — scelte A/B
                 for choice in self._equip_choices:
@@ -1942,30 +2081,13 @@ class WizardView(ft.Column):
                     opts = choice.get("options", [])
                     if 0 <= idx < len(opts):
                         for item in opts[idx]:
-                            character_repo.create_inventory_item(
-                                character_id=char.id,
-                                name=item["name"],
-                                quantity=item.get("quantity", 1),
-                                weight=0.0,
-                                category="weapon" if item.get("item_type") == "weapon" else
-                                         "armor" if item.get("item_type") == "armor" else "misc",
-                                is_equipped=False,
-                                description="",
-                            )
+                            _save_item(char.id, item)
 
-                # Equipaggiamento background
+                # Equipaggiamento background (currency → update_currencies, item → inventario)
                 if bg_data:
                     for entry in bg_data.get("equipment", []):
                         if isinstance(entry, dict):
-                            character_repo.create_inventory_item(
-                                character_id=char.id,
-                                name=entry["name"],
-                                quantity=entry.get("quantity", 1),
-                                weight=0.0,
-                                category="misc",
-                                is_equipped=False,
-                                description="",
-                            )
+                            _save_item(char.id, entry)
 
                 logger.info(f"Personaggio wizard creato: {char.name} ({char.id})")
                 self.on_complete(char.id)

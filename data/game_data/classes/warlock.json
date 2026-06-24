@@ -47,7 +47,9 @@
         [
           {
             "name": "Qualsiasi arma semplice",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice",
+            "count": 1
           }
         ]
       ]
@@ -80,7 +82,9 @@
         },
         {
           "name": "Qualsiasi arma semplice",
-          "item_type": "item"
+          "item_type": "weapon_choice",
+          "category": "semplice",
+          "count": 1
         },
         {
           "name": "Due pugnali",
@@ -88,7 +92,7 @@
           "quantity": 2
         },
         {
-          "name": "Zaino da dungeon",
+          "name": "Dotazione da Avventuriero",
           "item_type": "item"
         }
       ]
@@ -106,24 +110,24 @@
       "name": "L'Archefey",
       "expanded_spells": {
         "1": [
-          "Fascino sulla Persona",
+          "Charme su Persone",
           "Sonno"
         ],
         "2": [
-          "Calma delle Emozioni",
-          "Fermare la Persona"
+          "Calmare Emozioni",
+          "Blocca Persona"
         ],
         "3": [
-          "Ammicco",
+          "Intermittenza",
           "Crescita delle Piante"
         ],
         "4": [
           "Dominare le Bestie",
-          "Grande Invisibilità"
+          "Invisibilità Superiore"
         ],
         "5": [
           "Dominare Persone",
-          "Sembrare"
+          "Apparire"
         ]
       },
       "features": [
@@ -138,11 +142,6 @@
           "description": "Quando subisci danni, puoi usare la tua reazione per diventare invisibile e teletrasportarti fino a 18 m in uno spazio non occupato che puoi vedere. Rimani invisibile fino all'inizio del tuo prossimo turno o finché non effettui un attacco o lanci un incantesimo."
         },
         {
-          "level": 10,
-          "name": "Incanto Dilagante",
-          "description": "Sei immune all'essere affascinato. Quando una creatura tenta di affascinaRTI, puoi usare la tua reazione per ritorcere il fascino su di essa: deve superare un tiro salvezza su Saggezza (CD incantesimi) o essere affascinata da te per 1 minuto o finché non subisce danni."
-        },
-        {
           "level": 14,
           "name": "Follia dell'Oscurità",
           "description": "Come azione, scegli una creatura visibile entro 18 m. Deve superare un tiro salvezza su Saggezza (CD incantesimi) o essere affascinata o spaventata (a tua scelta) per 1 minuto o finché la tua concentrazione non si spezza. L'effetto termina se la creatura subisce danni. La creatura pensa di essere persa in un reame nebuloso. Una volta usata, non puoi usarla di nuovo fino a un riposo breve o lungo."
@@ -153,24 +152,24 @@
       "name": "Il Signore degli Inferi",
       "expanded_spells": {
         "1": [
-          "Mani Ustionanti",
+          "Mani Brucianti",
           "Comando"
         ],
         "2": [
           "Cecità/Sordità",
-          "Raggio Bruciante"
+          "Raggio Rovente"
         ],
         "3": [
           "Palla di Fuoco",
-          "Affrettarsi"
+          "Velocità"
         ],
         "4": [
-          "Scudo Bruciante",
+          "Scudo di Fuoco",
           "Muro di Fuoco"
         ],
         "5": [
-          "Colpo Fiammante",
-          "Scorgere"
+          "Colpo di Fiamme",
+          "Consacrare"
         ]
       },
       "features": [
@@ -201,23 +200,23 @@
       "expanded_spells": {
         "1": [
           "Sussurri Dissonanti",
-          "Risata Esilarante di Tasha"
+          "Risata Rivoltante di Tasha"
         ],
         "2": [
-          "Rilevare i Pensieri",
+          "Individuazione dei Pensieri",
           "Immagine Speculare"
         ],
         "3": [
           "Volare",
-          "Mandare"
+          "Inviare"
         ],
         "4": [
-          "Dominare le Bestie",
-          "Fermare il Mostro"
+          "Dominare Animale",
+          "Blocca Mostro"
         ],
         "5": [
           "Dominare Persone",
-          "Contatto con l'Altro Piano"
+          "Contattare Altri Piani"
         ]
       },
       "features": [

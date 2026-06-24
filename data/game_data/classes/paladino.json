@@ -36,7 +36,9 @@
         [
           {
             "name": "Qualsiasi arma da guerra",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "guerra",
+            "count": 1
           },
           {
             "name": "Scudo",
@@ -46,8 +48,9 @@
         [
           {
             "name": "Qualsiasi arma da guerra",
-            "item_type": "item",
-            "quantity": 2
+            "item_type": "weapon_choice",
+            "category": "guerra",
+            "count": 2
           }
         ]
       ]
@@ -59,7 +62,7 @@
       "options": [
         [
           {
-            "name": "Cinque zagaglie",
+            "name": "Cinque giavellotti",
             "item_type": "weapon",
             "quantity": 5
           }
@@ -67,7 +70,9 @@
         [
           {
             "name": "Qualsiasi arma semplice da mischia",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice_mischia",
+            "count": 1
           }
         ]
       ]
@@ -79,13 +84,13 @@
       "options": [
         [
           {
-            "name": "Zaino da sacerdote",
+            "name": "Dotazione da Sacerdote",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da esploratore",
+            "name": "Dotazione da Esploratore",
             "item_type": "item"
           }
         ]
@@ -156,11 +161,6 @@
           "level": 15,
           "name": "Purezza di Spirito",
           "description": "Sei sempre sotto gli effetti dell'incantesimo Protezione dal Male e dal Bene."
-        },
-        {
-          "level": 20,
-          "name": "Avatar della Santità",
-          "description": "Come azione, irraggi un'aura luminosa. Per 1 minuto, mostri e non morti hanno svantaggio ai tiri di attacco contro di te."
         }
       ]
     },
@@ -189,26 +189,6 @@
         ]
       },
       "features": [
-        {
-          "level": 3,
-          "name": "Sbocciare la Luce",
-          "description": "Come azione bonus, crei luce su una creatura oscurata dalla magia; vantaggio agli attacchi contro di essa."
-        },
-        {
-          "level": 3,
-          "name": "Circondare i Deviati",
-          "description": "Incanalando la tua energia, riesci a far scappare le Fate e i Fiend."
-        },
-        {
-          "level": 7,
-          "name": "Aura del Coraggio",
-          "description": "Tu e le creature amiche entro 3 m (10 m al 18° livello) siete immuni allo spavento."
-        },
-        {
-          "level": 15,
-          "name": "Resistenza Antica",
-          "description": "Sai come sopravvivere. Ottieni resistenza ai danni di acido, freddo, fuoco, fulmine e tuono."
-        },
         {
           "level": 20,
           "name": "Campione degli Antichi",
@@ -241,26 +221,6 @@
         ]
       },
       "features": [
-        {
-          "level": 3,
-          "name": "Voto dei Nemici",
-          "description": "Come azione bonus, scegli una creatura entro 3 m. Per 1 minuto, hai vantaggio ai tiri di attacco contro di essa."
-        },
-        {
-          "level": 3,
-          "name": "Smascherare i Deviati",
-          "description": "Incanalando la tua energia, riveli la corruzione dei deviati."
-        },
-        {
-          "level": 7,
-          "name": "Implacabile",
-          "description": "Quando una creatura vincola il tuo movimento, puoi effettuare un TS su Saggezza per ignorarne gli effetti."
-        },
-        {
-          "level": 15,
-          "name": "Anima Inviolabile",
-          "description": "Hai vantaggio ai TS su incantesimi e altri effetti magici."
-        },
         {
           "level": 20,
           "name": "Angelo della Vendetta",

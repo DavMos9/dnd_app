@@ -92,19 +92,19 @@
       "options": [
         [
           {
-            "name": "Zaino da scassinatore",
+            "name": "Dotazione da Scassinatore",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da dungeon",
+            "name": "Dotazione da Avventuriero",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da esploratore",
+            "name": "Dotazione da Esploratore",
             "item_type": "item"
           }
         ]
@@ -148,21 +148,6 @@
           "level": 3,
           "name": "Scalatore Urbano",
           "description": "Vantaggio alle prove di Atletica per arrampicarti; non costa movimento extra spostarsi in verticale."
-        },
-        {
-          "level": 9,
-          "name": "Curvatura Suprema",
-          "description": "Puoi scalare superfici verticali e a testa in giù senza prove."
-        },
-        {
-          "level": 13,
-          "name": "Riflessi di Curvatura",
-          "description": "Puoi reagire a incantesimi che ti colpiscono."
-        },
-        {
-          "level": 17,
-          "name": "Maestro Ladro",
-          "description": "Puoi compiere tre azioni bonus in un round."
         }
       ]
     },
@@ -208,21 +193,6 @@
           "level": 3,
           "name": "Mano del Mago",
           "description": "Impari il trucchetto Mano del Mago se non lo conosci già."
-        },
-        {
-          "level": 3,
-          "name": "Sguardo Furtivo",
-          "description": "Puoi sferrare un Attacco Furtivo con la tua Mano del Mago."
-        },
-        {
-          "level": 9,
-          "name": "Passo Magico",
-          "description": "Puoi usare Passo del Vento senza slot."
-        },
-        {
-          "level": 13,
-          "name": "Pensiero Cerebrale",
-          "description": "Puoi proiettare Suggestione senza consumare slot (1/riposo lungo)."
         },
         {
           "level": 17,

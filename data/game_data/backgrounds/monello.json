@@ -1,0 +1,103 @@
+{
+  "name": "Monello",
+  "description": "Sei cresciuto solo, povero e orfano per le vie della città. Non avevi nessuno che vegliasse su di te o si prendesse cura di te, quindi hai imparato molto presto a badare a te stesso.",
+  "skill_proficiencies": [
+    "Furtività",
+    "Rapidità di Mano"
+  ],
+  "tool_proficiencies": [
+    "Arnesi da scasso",
+    "Trucchi per il camuffamento"
+  ],
+  "languages": [],
+  "equipment": [
+    {
+      "name": "Coltellino",
+      "item_type": "item"
+    },
+    {
+      "name": "Mappa della città di appartenenza",
+      "item_type": "item"
+    },
+    {
+      "name": "Topolino addomesticato",
+      "item_type": "item"
+    },
+    {
+      "name": "Ciondolo in ricordo dei genitori",
+      "item_type": "item"
+    },
+    {
+      "name": "Abito comune",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 10 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 10
+    }
+  ],
+  "feature": {
+    "name": "Segreti Cittadini",
+    "description": "Conosci i ritmi e le vie segrete della città ed sei in grado di sfruttare dei passaggi all'interno della struttura urbana che altri non noterebbero mai. Quando non sei in combattimento, puoi spostarti (assieme ai compagni da te guidati) da un luogo all'altro della città al doppio di quanto la tua velocità normale ti consentirebbe."
+  },
+  "personality_traits": [
+    "Nascondo nelle tasche pezzi di cibo e oggetti insoliti.",
+    "Non la smetto mai di fare domande.",
+    "Mi piace nascondermi nei pertugi più angusti dove nessuno può raggiungermi.",
+    "Dormo sempre con le spalle contro un muro o un albero, con tutti i miei averi chiusi in un sacco e stretti tra le braccia.",
+    "Mi abbuffo come un maiale e dimostro pessime maniere.",
+    "Sospetto che chiunque mi si mostri gentile in realtà abbia intenzioni malvagie nei miei confronti.",
+    "Non amo molto lavarmi.",
+    "Dico brutalmente ciò che gli altri tacciono o al più si limitano ad alludere."
+  ],
+  "ideals": [
+    {
+      "name": "Rispetto",
+      "alignment": "Buono",
+      "description": "Ogni persona, ricca o povera che sia, merita rispetto."
+    },
+    {
+      "name": "Comunità",
+      "alignment": "Legale",
+      "description": "Dobbiamo prenderci cura gli uni degli altri, perché nessun altro lo farà."
+    },
+    {
+      "name": "Cambiamento",
+      "alignment": "Caotico",
+      "description": "I piccoli vengono innalzati e i grandi e potenti vengono abbattuti. Il mutamento è insito in ogni cosa."
+    },
+    {
+      "name": "Rivalsa",
+      "alignment": "Malvagio",
+      "description": "Qualcuno dovrebbe mostrare ai ricchi com'è la vita nei bassifondi."
+    },
+    {
+      "name": "Persone",
+      "alignment": "Neutrale",
+      "description": "Bisogna aiutare coloro che ci aiutano, è così che si sopravvive."
+    },
+    {
+      "name": "Ambizione",
+      "alignment": "Qualsiasi",
+      "description": "Voglio dimostrare di essere degno di una vita migliore."
+    }
+  ],
+  "bonds": [
+    "La città o il paese in cui sono cresciuto sono la mia casa, e la difenderò.",
+    "Finanzierei un orfanotrofio affinché nessuno debba passare quello che ho passato io.",
+    "Sono sopravvissuto grazie a un altro monello che mi ha insegnato a vivere per la strada.",
+    "Ho un debito che non potrò mai ripagare nei confronti della persona che ebbe pietà di me.",
+    "Sono sfuggito alla mia vita di miseria derubando una persona importante e sono ancora ricercato per quel furto.",
+    "Credo che nessuno dovrebbe mai subire le traversie che ho subito io."
+  ],
+  "flaws": [
+    "Se mi trovo in minoranza, abbandono il combattimento.",
+    "L'oro è una tentazione irresistibile per me, e sono disposto a tutto pur di averne sempre di più.",
+    "Non riuscirò mai a fidarmi di nessuno al di fuori di me stesso.",
+    "Preferisco uccidere nel sonno piuttosto che combattere onorevolmente.",
+    "Sottrarre qualcosa a chi ne ha meno bisogno non è veramente rubare.",
+    "Chi non è capace di badare a se stesso merita di finire male."
+  ]
+}

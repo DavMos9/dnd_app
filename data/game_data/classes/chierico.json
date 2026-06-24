@@ -91,7 +91,9 @@
         [
           {
             "name": "Qualsiasi arma semplice",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice",
+            "count": 1
           }
         ]
       ]
@@ -103,13 +105,13 @@
       "options": [
         [
           {
-            "name": "Zaino da sacerdote",
+            "name": "Dotazione da Sacerdote",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da esploratore",
+            "name": "Dotazione da Esploratore",
             "item_type": "item"
           }
         ]
@@ -143,24 +145,24 @@
       ],
       "bonus_spells": {
         "1": [
-          "Benedici",
+          "Benedizione",
           "Cura Ferite"
         ],
         "3": [
-          "Ristorare",
-          "Zona della Verità"
+          "Ripristino Inferiore",
+          "Arma Spirituale"
         ],
         "5": [
-          "Revivify",
-          "Luce del Giorno"
+          "Ravvivare",
+          "Faro della Speranza"
         ],
         "7": [
-          "Guardiano della Fede",
-          "Libertà di Movimento"
+          "Interdizione alla Morte",
+          "Custode della Fede"
         ],
         "9": [
-          "Masse Curate",
-          "Resurrezione"
+          "Curare Ferite di Massa",
+          "Rianimare Morti"
         ]
       },
       "features": [
@@ -195,19 +197,19 @@
       "name": "Dominio della Luce",
       "bonus_proficiencies": [],
       "bonus_cantrips": [
-        "Fuoco Fatuo"
+        "Luce"
       ],
       "bonus_spells": {
         "1": [
           "Mani Brucianti",
-          "Luce Faerie"
+          "Fuoco delle Fate"
         ],
         "3": [
-          "Palla di Fiamme",
-          "Raggi di Luna"
+          "Sfera Fiammeggiante",
+          "Raggio Rovente"
         ],
         "5": [
-          "Luce del Giorno",
+          "Luce Diurna",
           "Palla di Fuoco"
         ],
         "7": [
@@ -215,14 +217,14 @@
           "Muro di Fuoco"
         ],
         "9": [
-          "Fiamma Sacra",
-          "Visione delle Fiamme"
+          "Colpo di Fiamme",
+          "Scrutare"
         ]
       },
       "features": [
         {
           "level": 1,
-          "name": "Proiezione di Luce Abbagliante",
+          "name": "Lampo di Guardia",
           "description": "Quando una creatura ti attacca, puoi usare la tua reazione per imporre svantaggio."
         },
         {
@@ -237,8 +239,8 @@
         },
         {
           "level": 8,
-          "name": "Colpo Divino",
-          "description": "Aggiungi 1d8 danni radianti a un colpo d'arma per turno."
+          "name": "Incantesimi Potenziati",
+          "description": "Aggiungi il tuo modificatore di Saggezza ai danni di un trucchetto contro una creatura."
         },
         {
           "level": 17,
@@ -254,9 +256,16 @@
       ],
       "bonus_cantrips_choice": 1,
       "bonus_cantrips_options": [
-        "Infestazione",
-        "Mold Earth",
-        "Forma di Animale"
+        "Arte Druidica",
+        "Guida",
+        "Luce",
+        "Riparare",
+        "Spruzzo Velenoso",
+        "Produrre Fiamma",
+        "Resistenza",
+        "Fiamma Consacrata",
+        "Randello",
+        "Flagello Spinoso"
       ],
       "bonus_spells": {
         "1": [
@@ -264,32 +273,27 @@
           "Parlare con gli Animali"
         ],
         "3": [
-          "Crescita di Spine",
-          "Pelle di Quercia"
+          "Pelle di Quercia",
+          "Crescita di Spine"
         ],
         "5": [
-          "Muro di Vento",
-          "Controllo del Vento"
+          "Crescita di Piante",
+          "Muro di Vento"
         ],
         "7": [
-          "Forma di Pietra",
-          "Vortice"
+          "Dominare Animale",
+          "Viticcio Ghermente"
         ],
         "9": [
-          "Comunione con la Natura",
-          "Muro di Pietra"
+          "Piaga degli Insetti",
+          "Passo Arboreo"
         ]
       },
       "features": [
         {
-          "level": 1,
-          "name": "Ammansire gli Animali e le Piante",
-          "description": "Puoi usare Incanalare Divinità per affascinare animali e piante entità."
-        },
-        {
           "level": 6,
-          "name": "Assorbi Elementi",
-          "description": "Quando subisci danni da acido, freddo, fuoco, fulmine o tuono, usa la reazione per ridurli e aggiungerne al tuo prossimo attacco."
+          "name": "Smorzare gli Elementi",
+          "description": "Quando una creatura subisce danni da acido, freddo, fuoco, fulmine o tuono entro 9 m da te, usa la reazione per dimezzare i danni."
         },
         {
           "level": 8,
@@ -311,24 +315,24 @@
       ],
       "bonus_spells": {
         "1": [
-          "Nebbia",
-          "Tuono d'Onda"
+          "Nube di Foschia",
+          "Onda di Tuono"
         ],
         "3": [
-          "Passo del Vento",
-          "Sfera di Fulmine"
+          "Folata di Vento",
+          "Frantumare"
         ],
         "5": [
           "Chiamata del Fulmine",
-          "Tempesta di Fulmini"
+          "Tempesta di Nevischio"
         ],
         "7": [
           "Controllo dell'Acqua",
-          "Controllo del Vento"
+          "Tempesta di Ghiaccio"
         ],
         "9": [
-          "Vortice di Distruzione",
-          "Colonna del Tuono"
+          "Onda Distruttiva",
+          "Piaga degli Insetti"
         ]
       },
       "features": [
@@ -339,7 +343,7 @@
         },
         {
           "level": 2,
-          "name": "Incanalare Divinità: Destro della Tempesta",
+          "name": "Incanalare Divinità: Ira Distruttiva",
           "description": "Affascini o spaventi creature entro 9 m che falliscono un TS su Saggezza."
         },
         {
@@ -351,11 +355,6 @@
           "level": 8,
           "name": "Colpo Divino",
           "description": "Aggiungi 1d8 danni da fulmine a un colpo d'arma per turno."
-        },
-        {
-          "level": 17,
-          "name": "Occhio della Tempesta",
-          "description": "Sei immune ai danni da fulmine e tuono; le creature entro 9 m subiscono svantaggio ai TS contro i tuoi incantesimi."
         }
       ]
     },
@@ -365,19 +364,19 @@
       "bonus_spells": {
         "1": [
           "Charme su Persone",
-          "Mascherare"
+          "Camuffarsi"
         ],
         "3": [
           "Immagine Speculare",
-          "Passo Nebbioso"
+          "Passare Senza Tracce"
         ],
         "5": [
-          "Amuleto contro il Rilevamento",
-          "Travestimento Non Magico"
+          "Intermittenza",
+          "Dissolvi Magie"
         ],
         "7": [
-          "Localizzare Creatura",
-          "Polimorfismo"
+          "Porta Dimensionale",
+          "Metamorfosi"
         ],
         "9": [
           "Dominare Persone",
@@ -397,7 +396,7 @@
         },
         {
           "level": 6,
-          "name": "Canale di Divinità: Mantello di Ombre",
+          "name": "Incanalare Divinità: Mantello di Ombre",
           "description": "Diventi invisibile fino alla fine del turno successivo."
         },
         {
@@ -420,7 +419,7 @@
       ],
       "bonus_spells": {
         "1": [
-          "Benedici",
+          "Favore Divino",
           "Scudo della Fede"
         ],
         "3": [
@@ -428,16 +427,16 @@
           "Arma Spirituale"
         ],
         "5": [
-          "Spirito del Crocifissore",
-          "Aura del Crociato"
+          "Mantello del Crociato",
+          "Spiriti Guardiani"
         ],
         "7": [
           "Libertà di Movimento",
-          "Guardiano della Fede"
+          "Custode della Fede"
         ],
         "9": [
-          "Falce Fiammeggiante",
-          "Portale"
+          "Colpo di Fiamme",
+          "Blocca Mostro"
         ]
       },
       "features": [
@@ -460,11 +459,6 @@
           "level": 8,
           "name": "Colpo Divino",
           "description": "Aggiungi 1d8 danni dello stesso tipo dell'arma a un colpo per turno."
-        },
-        {
-          "level": 17,
-          "name": "Campione Divino",
-          "description": "Quando usi Sacerdote della Guerra, puoi effettuare due attacchi extra invece di uno."
         }
       ]
     },
@@ -486,22 +480,22 @@
       "bonus_spells": {
         "1": [
           "Comando",
-          "Identificazione"
+          "Identificare"
         ],
         "3": [
-          "Incremento dell'Abilità",
+          "Augurio",
           "Suggestione"
         ],
         "5": [
-          "Chiaroveggenza",
+          "Anti-Individuazione",
           "Parlare con i Morti"
         ],
         "7": [
-          "Arcana Occhio",
+          "Occhio Arcano",
           "Confusione"
         ],
         "9": [
-          "Leggere Legende",
+          "Leggere le Leggende",
           "Scrutare"
         ]
       },
@@ -523,8 +517,8 @@
         },
         {
           "level": 8,
-          "name": "Colpo Potenziato",
-          "description": "Aggiungi 1d8 danni psichici a un colpo per turno."
+          "name": "Incantesimi Potenziati",
+          "description": "Aggiungi il tuo modificatore di Saggezza ai danni di un trucchetto contro una creatura."
         },
         {
           "level": 17,

@@ -1,0 +1,106 @@
+{
+  "name": "Sapiente",
+  "description": "Hai trascorso anni e anni a studiare i segreti del multiverso. Hai setacciato manoscritti, studiato pergamene e consultato i più grandi esperti nelle materie di tuo interesse. Grazie ai tuoi sforzi sei diventato un maestro nel tuo campo di studio.",
+  "skill_proficiencies": [
+    "Arcano",
+    "Storia"
+  ],
+  "tool_proficiencies": [],
+  "languages": [
+    {
+      "type": "choice",
+      "count": 2,
+      "from": "any"
+    }
+  ],
+  "equipment": [
+    {
+      "name": "Calamaio di inchiostro nero",
+      "item_type": "item"
+    },
+    {
+      "name": "Pennino",
+      "item_type": "item"
+    },
+    {
+      "name": "Coltellino",
+      "item_type": "item"
+    },
+    {
+      "name": "Lettera di un collega defunto che pone una domanda a cui non hai ancora trovato risposta",
+      "item_type": "item"
+    },
+    {
+      "name": "Abito comune",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 10 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 10
+    }
+  ],
+  "feature": {
+    "name": "Ricercatore",
+    "description": "Quando tenti di apprendere o di ricordare qualche informazione rilevante, se non conosci quelle informazioni personalmente, spesso sai dove e da chi ottenerle. In genere queste informazioni sono custodite in una biblioteca, uno scriptorium o un'università, oppure sono in possesso di un altro sapiente o di un'altra persona o creatura istruita. Il DM potrebbe decidere che le informazioni desiderate siano rinchiuse in un luogo pressoché inaccessibile, o semplicemente che non sia possibile recuperarle."
+  },
+  "personality_traits": [
+    "Uso parole altisonanti per dare l'impressione di essere altamente istruito.",
+    "Ho letto tutti i libri custoditi nelle più importanti biblioteche del mondo, o quanto meno mi vanto di averlo fatto.",
+    "Sono disposto ad aiutare quelli meno intelligenti di me e spiego agli altri ogni cosa con infinita pazienza.",
+    "Per me non c'è niente di meglio di un mistero su cui fare luce.",
+    "Ho bisogno di valutare ogni aspetto di una disputa prima di esprimere il mio giudizio.",
+    "Parlo... lentamente... quando mi rivolgo... a degli idioti, vale a dire... a tutti gli altri... dal... mio... punto di vista.",
+    "Mi sento terribilmente a disagio quando mi trovo in società.",
+    "Sono convinto che gli altri cerchino sempre di carpire i miei segreti."
+  ],
+  "ideals": [
+    {
+      "name": "Conoscenza",
+      "alignment": "Neutrale",
+      "description": "La via per il potere e la perfezione passa attraverso la conoscenza."
+    },
+    {
+      "name": "Bellezza",
+      "alignment": "Buono",
+      "description": "Ciò che è bello indica una verità che trascende tutti noi."
+    },
+    {
+      "name": "Logica",
+      "alignment": "Legale",
+      "description": "Le emozioni non devono annebbiare il pensiero logico."
+    },
+    {
+      "name": "Nessun limite",
+      "alignment": "Caotico",
+      "description": "Niente può incatenare le infinite possibilità insite in ogni esistenza."
+    },
+    {
+      "name": "Potere",
+      "alignment": "Malvagio",
+      "description": "La sapienza è la via per il potere e il predominio."
+    },
+    {
+      "name": "Miglioramento",
+      "alignment": "Qualsiasi",
+      "description": "L'obiettivo di una vita di studio è il perfezionamento personale."
+    }
+  ],
+  "bonds": [
+    "Ritengo che sia mio dovere difendere i miei studenti.",
+    "Sono in possesso di un antico testo i cui terribili segreti non devono cadere nelle mani sbagliate.",
+    "Mi adopero per proteggere una biblioteca, un'università, uno scriptorium o un monastero.",
+    "Ho dedicato tutta la mia vita al completamento di una serie di volumi relativi a un campo specifico del sapere.",
+    "Cercherò per tutta la vita la risposta a una domanda ben precisa.",
+    "Ho venduto la mia anima in cambio della conoscenza. Adesso spero di riuscire a compiere una grande impresa per riconquistarla."
+  ],
+  "flaws": [
+    "Sono facilmente distratto dalla promessa di informazioni.",
+    "La maggior parte delle persone urla e fugge quando vede un demone. Io invece mi fermo e prendo appunti sulla sua anatomia.",
+    "Ritengo che portare alla luce un antico mistero valga il prezzo di un'intera civiltà.",
+    "Spesso non noto le soluzioni più ovvie e penso a quelle più complesse.",
+    "Parlo senza riflettere troppo sulle parole che uso, con il rischio di offendere gli altri.",
+    "Non riesco a mantenere un segreto, anche se divulgandolo metterei a rischio la vita."
+  ]
+}

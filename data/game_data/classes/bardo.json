@@ -11,13 +11,11 @@
     "#armature_leggere"
   ],
   "weapon_proficiencies": [
+    "#armi_semplici",
     "Balestra a mano",
-    "Pugnale",
-    "Dardo",
     "Rapiera",
     "Spada corta",
-    "Spada lunga",
-    "Arco corto"
+    "Spada lunga"
   ],
   "tool_proficiencies": [
     {
@@ -58,7 +56,9 @@
         [
           {
             "name": "Qualsiasi arma semplice",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice",
+            "count": 1
           }
         ]
       ]
@@ -70,13 +70,13 @@
       "options": [
         [
           {
-            "name": "Zaino da diplomatico",
+            "name": "Dotazione da Diplomatico",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da intrattenitore",
+            "name": "Dotazione da Intrattenitore",
             "item_type": "item"
           }
         ]

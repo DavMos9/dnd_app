@@ -1,14 +1,34 @@
 {
   "name": "Marinaio",
   "description": "Hai trascorso anni su navi mercantili o militari. Il mare e le tempeste non ti spaventano, e sai come navigare e sopravvivere in alto mare.",
-  "skill_proficiencies": ["Atletica", "Percezione"],
-  "tool_proficiencies": ["Strumenti del navigatore", "Veicoli acquatici"],
+  "skill_proficiencies": [
+    "Atletica",
+    "Percezione"
+  ],
+  "tool_proficiencies": [
+    "Strumenti del navigatore",
+    "Veicoli acquatici"
+  ],
   "languages": [],
   "equipment": [
-    {"name": "Fune 15 m", "item_type": "item"},
-    {"name": "Amuleto della fortuna", "item_type": "item"},
-    {"name": "Abiti comuni", "item_type": "item"},
-    {"name": "Borsa con 10 MO", "item_type": "item"}
+    {
+      "name": "Fune 15 m",
+      "item_type": "item"
+    },
+    {
+      "name": "Amuleto della fortuna",
+      "item_type": "item"
+    },
+    {
+      "name": "Abiti comuni",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 10 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 10
+    }
   ],
   "feature": {
     "name": "Passaggio in Nave",
@@ -25,12 +45,36 @@
     "Sono di poche parole, ma sono un buon ascoltatore."
   ],
   "ideals": [
-    {"name": "Rispetto", "alignment": "Buono", "description": "La cosa più importante è il rispetto reciproco tra l'equipaggio."},
-    {"name": "Libertà", "alignment": "Caotico", "description": "Il mare è libero e anch'io devo esserlo."},
-    {"name": "Tradizione", "alignment": "Legale", "description": "Ogni marinaro conosce le leggi del mare."},
-    {"name": "Potere", "alignment": "Malvagio", "description": "Chi comanda una nave, comanda tutto."},
-    {"name": "Nazione", "alignment": "Neutrale", "description": "Navigo per il mio paese."},
-    {"name": "Aspirazione", "alignment": "Qualsiasi", "description": "Voglio possedere la mia nave un giorno."}
+    {
+      "name": "Rispetto",
+      "alignment": "Buono",
+      "description": "La cosa più importante è il rispetto reciproco tra l'equipaggio."
+    },
+    {
+      "name": "Libertà",
+      "alignment": "Caotico",
+      "description": "Il mare è libero e anch'io devo esserlo."
+    },
+    {
+      "name": "Tradizione",
+      "alignment": "Legale",
+      "description": "Ogni marinaro conosce le leggi del mare."
+    },
+    {
+      "name": "Potere",
+      "alignment": "Malvagio",
+      "description": "Chi comanda una nave, comanda tutto."
+    },
+    {
+      "name": "Nazione",
+      "alignment": "Neutrale",
+      "description": "Navigo per il mio paese."
+    },
+    {
+      "name": "Aspirazione",
+      "alignment": "Qualsiasi",
+      "description": "Voglio possedere la mia nave un giorno."
+    }
   ],
   "bonds": [
     "Voglio vendicarmi del capitano che mi ha trattato male.",

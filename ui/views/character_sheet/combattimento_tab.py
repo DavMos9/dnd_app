@@ -1789,10 +1789,29 @@ class CombattimentoTab(ft.ListView):
             c.hit_dice_remaining = max(0, remaining - n)
             character_repo.update_hp(c.id, c.hp_current)
             character_repo.update_hit_dice(c.id, c.hit_dice_remaining)
-            # Riposo breve: ripristina risorse short_rest
+            # Riposto breve: risorse short_rest + slot Warlock (PHB p.107)
             character_repo.reset_class_resources(c.id, "short_rest")
+            if c.class_name.strip().lower() == "warlock":
+                character_repo.reset_all_spell_slots(c.id)
             page.pop_dialog()
             self._refresh()
+
+        # Note classe-specifiche per il riposo breve
+        class_key = c.class_name.strip().lower()
+        extra_notes: list[ft.Control] = []
+        if class_key == "warlock":
+            extra_notes.append(ft.Text(
+                "✦ Warlock: tutti gli slot del Patto della Magia vengono ripristinati.",
+                size=11, color=COLOR_ACCENT_BLUE, italic=True,
+            ))
+        if class_key == "mago" and c.level >= 1:
+            max_rec = (c.level + 1) // 2  # metà livello arrotondata per eccesso
+            extra_notes.append(ft.Text(
+                f"✦ Mago: puoi usare Recupero Arcano (1/riposo lungo) per recuperare "
+                f"slot incantesimo per un totale di {max_rec} livelli (max Lv5 ciascuno). "
+                f"Aggiorna manualmente gli slot nella scheda degli incantesimi.",
+                size=11, color=COLOR_ACCENT_BLUE, italic=True,
+            ))
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Riposo Breve", size=14, weight=ft.FontWeight.BOLD,
@@ -1806,6 +1825,7 @@ class CombattimentoTab(ft.ListView):
                     ft.Container(height=4),
                     f_dice,
                     f_roll,
+                    *extra_notes,
                 ],
                 spacing=8, width=320,
             ),
@@ -1850,10 +1870,8 @@ class CombattimentoTab(ft.ListView):
             c.previous_turn_state = ""
             c.death_saves_success = 0
             c.death_saves_failure = 0
-            # Ripristina tutti gli slot
-            for slot in self._slots:
-                if slot.total > 0:
-                    character_repo.update_spell_slot(c.id, slot.slot_level, 0)
+            # Ripristina tutti gli slot incantesimo (usato=0)
+            character_repo.reset_all_spell_slots(c.id)
             # Ripristina tutte le risorse di classe (short_rest e long_rest)
             character_repo.reset_class_resources(c.id, "short_rest")
             character_repo.reset_class_resources(c.id, "long_rest")

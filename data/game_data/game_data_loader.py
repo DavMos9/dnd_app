@@ -196,7 +196,11 @@ class GameDataLoader:
             return
         for path in sorted(bg_dir.glob("*.json")):
             try:
-                self._backgrounds[path.stem] = _load_json(path)
+                data = _load_json(path)
+                if data.get("_deprecated"):
+                    logger.debug("Background '%s' deprecato, ignorato", path.stem)
+                    continue
+                self._backgrounds[path.stem] = data
                 logger.debug("Background caricato: %s", path.stem)
             except Exception as exc:
                 logger.error("Errore caricamento background '%s': %s", path.name, exc)

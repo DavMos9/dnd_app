@@ -1,15 +1,43 @@
 {
   "name": "Eremita",
   "description": "Hai vissuto in isolamento per un periodo della tua vita, in riflessione o ricerca spirituale. Durante quel tempo, hai guadagnato intuizioni sulla vita che pochi altri hanno.",
-  "skill_proficiencies": ["Medicina", "Religione"],
-  "tool_proficiencies": ["Forniture erboristiche"],
-  "languages": [{"type": "choice", "count": 1, "from": "any"}],
+  "skill_proficiencies": [
+    "Medicina",
+    "Religione"
+  ],
+  "tool_proficiencies": [
+    "Forniture erboristiche"
+  ],
+  "languages": [
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "any"
+    }
+  ],
   "equipment": [
-    {"name": "Contenitore per erbe", "item_type": "item"},
-    {"name": "Coperta invernale", "item_type": "item"},
-    {"name": "Abiti comuni", "item_type": "item"},
-    {"name": "Libro delle note", "item_type": "item"},
-    {"name": "Borsa con 5 MO", "item_type": "item"}
+    {
+      "name": "Contenitore per erbe",
+      "item_type": "item"
+    },
+    {
+      "name": "Coperta invernale",
+      "item_type": "item"
+    },
+    {
+      "name": "Abiti comuni",
+      "item_type": "item"
+    },
+    {
+      "name": "Libro delle note",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 5 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 5
+    }
   ],
   "feature": {
     "name": "Scoperta",
@@ -26,12 +54,36 @@
     "Non mi interessa la ricchezza o la fama."
   ],
   "ideals": [
-    {"name": "Grande Bene", "alignment": "Buono", "description": "Il mio dono va a tutti quelli che possono trarne vantaggio."},
-    {"name": "Logica", "alignment": "Legale", "description": "La logica e la ragione devono guidare tutte le nostre scelte."},
-    {"name": "Libertà", "alignment": "Caotico", "description": "Non ho bisogno di catene o obblighi verso nessuno."},
-    {"name": "Potere", "alignment": "Malvagio", "description": "La mia comprensione del mondo mi dà potere sugli altri."},
-    {"name": "Vita", "alignment": "Neutrale", "description": "Tutte le vite hanno uguale valore."},
-    {"name": "Illuminazione", "alignment": "Qualsiasi", "description": "Sto cercando di capire il significato ultimo dell'esistenza."}
+    {
+      "name": "Grande Bene",
+      "alignment": "Buono",
+      "description": "Il mio dono va a tutti quelli che possono trarne vantaggio."
+    },
+    {
+      "name": "Logica",
+      "alignment": "Legale",
+      "description": "La logica e la ragione devono guidare tutte le nostre scelte."
+    },
+    {
+      "name": "Libertà",
+      "alignment": "Caotico",
+      "description": "Non ho bisogno di catene o obblighi verso nessuno."
+    },
+    {
+      "name": "Potere",
+      "alignment": "Malvagio",
+      "description": "La mia comprensione del mondo mi dà potere sugli altri."
+    },
+    {
+      "name": "Vita",
+      "alignment": "Neutrale",
+      "description": "Tutte le vite hanno uguale valore."
+    },
+    {
+      "name": "Illuminazione",
+      "alignment": "Qualsiasi",
+      "description": "Sto cercando di capire il significato ultimo dell'esistenza."
+    }
   ],
   "bonds": [
     "Niente è più importante della mia ricerca spirituale.",

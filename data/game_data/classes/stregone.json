@@ -48,7 +48,9 @@
         [
           {
             "name": "Qualsiasi arma semplice",
-            "item_type": "item"
+            "item_type": "weapon_choice",
+            "category": "semplice",
+            "count": 1
           }
         ]
       ]
@@ -66,7 +68,7 @@
         ],
         [
           {
-            "name": "Fuoco da Arcano",
+            "name": "Focus arcano",
             "item_type": "item"
           }
         ]
@@ -79,13 +81,13 @@
       "options": [
         [
           {
-            "name": "Zaino da dungeon",
+            "name": "Dotazione da Avventuriero",
             "item_type": "item"
           }
         ],
         [
           {
-            "name": "Zaino da esploratore",
+            "name": "Dotazione da Esploratore",
             "item_type": "item"
           }
         ]
@@ -146,26 +148,6 @@
           "level": 1,
           "name": "Magia Selvaggia",
           "description": "Quando lanci uno slot incantesimo stregone, il DM può chiederti di tirare su una tabella di effetti casuali."
-        },
-        {
-          "level": 1,
-          "name": "Onda di Magia",
-          "description": "Puoi usare un'azione bonus per creare un'onda di magia caotica, tirando sulla tabella di Magia Selvaggia."
-        },
-        {
-          "level": 6,
-          "name": "Piega il Destino",
-          "description": "Quando tu o una creatura visibile tirate un dado, puoi spendere 2 punti stregoneria per far ritirare e usare il nuovo risultato."
-        },
-        {
-          "level": 14,
-          "name": "Esplosione Controllata",
-          "description": "Puoi escludere te stesso ed eventuali creature dalla tabella di Magia Selvaggia."
-        },
-        {
-          "level": 18,
-          "name": "Potenza di Magia Selvaggia",
-          "description": "Spendi 1 punto stregoneria come azione bonus per massimizzare il tiro dei dadi danno del prossimo incantesimo."
         }
       ]
     }

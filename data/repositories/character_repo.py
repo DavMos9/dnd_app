@@ -674,6 +674,25 @@ def get_spell_slots(character_id: str) -> list[SpellSlot]:
         return []
 
 
+def reset_all_spell_slots(character_id: str) -> bool:
+    """
+    Ripristina tutti gli slot incantesimo (used=0).
+    Usato dal riposo lungo (tutte le classi) e dal riposo breve (Warlock — Patto della Magia PHB p.107).
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE spell_slots SET used=0 WHERE character_id=?",
+            (character_id,)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore reset slot per {character_id}: {e}")
+        return False
+
+
 def update_spell_slot(character_id: str, slot_level: int, used: int) -> bool:
     """Aggiorna il contatore 'used' di uno slot incantesimo."""
     try:
@@ -712,21 +731,50 @@ _HALF_CASTER_SLOTS = [
     [4,3,3,2,0,0,0,0,0], [4,3,3,3,1,0,0,0,0], [4,3,3,3,1,0,0,0,0],
     [4,3,3,3,2,0,0,0,0], [4,3,3,3,2,0,0,0,0],
 ]
-_FULL_CASTERS  = {"bardo","chierico","druido","mago","stregone"}
-_HALF_CASTERS  = {"paladino","ranger"}
+# Warlock — Magia del Patto (PHB p.107): tutti gli slot allo stesso livello,
+# ripristinati a riposo breve O lungo. Formato: [Lv1, Lv2, Lv3, Lv4, Lv5, 0,0,0,0]
+# (gli altri livelli sono sempre 0 per il warlock)
+_WARLOCK_SLOTS = [
+    [1,0,0,0,0,0,0,0,0],  # Lv 1:  1 slot Lv1
+    [2,0,0,0,0,0,0,0,0],  # Lv 2:  2 slot Lv1
+    [0,2,0,0,0,0,0,0,0],  # Lv 3:  2 slot Lv2
+    [0,2,0,0,0,0,0,0,0],  # Lv 4:  2 slot Lv2
+    [0,0,2,0,0,0,0,0,0],  # Lv 5:  2 slot Lv3
+    [0,0,2,0,0,0,0,0,0],  # Lv 6:  2 slot Lv3
+    [0,0,0,2,0,0,0,0,0],  # Lv 7:  2 slot Lv4
+    [0,0,0,2,0,0,0,0,0],  # Lv 8:  2 slot Lv4
+    [0,0,0,0,2,0,0,0,0],  # Lv 9:  2 slot Lv5
+    [0,0,0,0,2,0,0,0,0],  # Lv10:  2 slot Lv5
+    [0,0,0,0,3,0,0,0,0],  # Lv11:  3 slot Lv5
+    [0,0,0,0,3,0,0,0,0],  # Lv12:  3 slot Lv5
+    [0,0,0,0,3,0,0,0,0],  # Lv13:  3 slot Lv5
+    [0,0,0,0,3,0,0,0,0],  # Lv14:  3 slot Lv5
+    [0,0,0,0,3,0,0,0,0],  # Lv15:  3 slot Lv5
+    [0,0,0,0,3,0,0,0,0],  # Lv16:  3 slot Lv5
+    [0,0,0,0,4,0,0,0,0],  # Lv17:  4 slot Lv5
+    [0,0,0,0,4,0,0,0,0],  # Lv18:  4 slot Lv5
+    [0,0,0,0,4,0,0,0,0],  # Lv19:  4 slot Lv5
+    [0,0,0,0,4,0,0,0,0],  # Lv20:  4 slot Lv5
+]
+_FULL_CASTERS   = {"bardo","chierico","druido","mago","stregone"}
+_HALF_CASTERS   = {"paladino","ranger"}
+_PACT_CASTERS   = {"warlock"}
 
 
 def auto_init_spell_slots(character_id: str, class_name: str, level: int) -> bool:
     """
-    Imposta i totali slot in base a classe e livello PHB.
-    Da chiamare una volta sola: solo se tutti i totali sono ancora 0.
-    Non azzera gli slot già usati in questo modo il giocatore non perde progressi.
+    Aggiorna i totali slot incantesimo in base a classe e livello PHB.
+    Sicuro da chiamare ad ogni level-up: aggiorna total e clamppa used al nuovo total.
+    Per il Warlock (Patto della Magia) azzera i livelli non più attivi quando il
+    livello degli slot aumenta (es. da Lv2 a Lv3: slot Lv1→0, slot Lv2→2).
     """
     key = class_name.strip().lower()
     if key in _FULL_CASTERS:
         table = _FULL_CASTER_SLOTS
     elif key in _HALF_CASTERS:
         table = _HALF_CASTER_SLOTS
+    elif key in _PACT_CASTERS:
+        table = _WARLOCK_SLOTS
     else:
         return False  # Classe non incantatore o non gestita
 

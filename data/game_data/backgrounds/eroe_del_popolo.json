@@ -1,55 +1,103 @@
 {
-  "name": "Eroe del Popolo",
-  "description": "Vieni da umili origini, ma sei destinato a qualcosa di più grande. La gente del tuo villaggio ti considera uno di loro, anche se il tuo destino ti ha portato altrove.",
-  "skill_proficiencies": ["Addestrare Animali", "Sopravvivenza"],
+  "name": "Eroe Popolare",
+  "description": "Provieni dai ceti sociali più bassi, ma sei destinato a qualcosa di grandioso. Gli abitanti del tuo villaggio natio ti considerano già il loro campione, e presto il destino ti chiamerà a fronteggiare i tiranni e i mostri che minacciano la gente comune di ogni terra.",
+  "skill_proficiencies": [
+    "Addestrare Animali",
+    "Sopravvivenza"
+  ],
   "tool_proficiencies": [
-    {"type": "choice", "count": 1, "from": "strumenti_artigiani"},
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "strumenti_artigiani"
+    },
     "Veicoli terrestri"
   ],
   "languages": [],
   "equipment": [
-    {"name": "Attrezzi dell'artigiano (a scelta)", "item_type": "item"},
-    {"name": "Pala", "item_type": "item"},
-    {"name": "Pentola di ferro", "item_type": "item"},
-    {"name": "Abiti comuni", "item_type": "item"},
-    {"name": "Borsa con 10 MO", "item_type": "item"}
+    {
+      "name": "Strumenti da artigiano (a scelta)",
+      "item_type": "item"
+    },
+    {
+      "name": "Pala",
+      "item_type": "item"
+    },
+    {
+      "name": "Pentola di ferro",
+      "item_type": "item"
+    },
+    {
+      "name": "Abito comune",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 10 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 10
+    }
   ],
   "feature": {
-    "name": "Ospitalità della Gente Comune",
-    "description": "Puoi trovare un posto dove nasconderti, riposare o recuperare tra la gente comune, a meno che tu non abbia dimostrato di essere un pericolo per loro. Sanno come proteggere i propri segreti dalla legge e non li riveleranno a nessuno senza motivo."
+    "name": "Ospitalità Rurale",
+    "description": "Dal momento che provieni dai ranghi della gente comune, ti trovi perfettamente a tuo agio in mezzo ai popolani. Puoi trovare un posto dove nasconderti, riposare o recuperare le forze presso gli altri popolani, purché la tua presenza non costituisca un pericolo noto alla loro incolumità. I popolani ti nasconderanno agli occhi della legge o di chiunque ti stia cercando, ma non rischieranno la vita per te."
   },
   "personality_traits": [
-    "Giudico le persone in base alle loro azioni, non alle loro parole.",
-    "Se qualcuno è in difficoltà, non posso fare a meno di aiutarlo.",
-    "Quando risolvo un problema, voglio farlo nel modo più diretto possibile.",
-    "Ho fiducia nell'ordine morale del mondo.",
-    "Non ho nessuna voglia di vivere in città. Odio la folla.",
-    "Sono brutalmente onesto. Dire bugie è per vigliacchi.",
-    "Cambio umore spesso.",
-    "Non mi fido delle persone potenti."
+    "Giudico gli altri dalle loro azioni, non dalle loro parole.",
+    "Se qualcuno è nei guai, sono sempre pronto a prestare aiuto.",
+    "Quando mi pongo un obiettivo, lo perseguo a prescindere dalle difficoltà da superare.",
+    "Do grande valore alla correttezza e cerco sempre di trovare la soluzione più equa in un conflitto.",
+    "Sono molto sicuro delle mie abilità e faccio tutto il possibile per ispirare sicurezza negli altri.",
+    "Il pensiero è per gli altri. Io preferisco l'azione.",
+    "Uso parole altisonanti, nel tentativo di apparire più intelligente di quanto non sia in realtà.",
+    "Mi annoio facilmente. Sento che ciò a cui sono destinato sta accadendo da qualche altra parte."
   ],
   "ideals": [
-    {"name": "Rispetto", "alignment": "Buono", "description": "La gente merita di essere trattata con dignità e rispetto."},
-    {"name": "Libertà", "alignment": "Caotico", "description": "I tiranni non devono opprimere la gente comune."},
-    {"name": "Potere", "alignment": "Malvagio", "description": "Voglio diventare abbastanza potente da ottenere quello che voglio."},
-    {"name": "Onestà", "alignment": "Legale", "description": "Nessuno dovrebbe ottenere un vantaggio ingannando gli altri."},
-    {"name": "Destino", "alignment": "Neutrale", "description": "Nessuno può sfuggire al proprio destino."},
-    {"name": "Sincerità", "alignment": "Qualsiasi", "description": "Non c'è spazio per le bugie nella mia vita."}
+    {
+      "name": "Rispetto",
+      "alignment": "Buono",
+      "description": "La gente ha il diritto di essere trattata con dignità e rispetto."
+    },
+    {
+      "name": "Giustizia",
+      "alignment": "Legale",
+      "description": "Nessuno dovrebbe ricevere un trattamento di favore dalla legge e nessuno è al di sopra di essa."
+    },
+    {
+      "name": "Libertà",
+      "alignment": "Caotico",
+      "description": "Ai tiranni non deve essere permesso di opprimere il popolo."
+    },
+    {
+      "name": "Potenza",
+      "alignment": "Malvagio",
+      "description": "Chi è forte può prendersi ciò che vuole, vale a dire ciò che merita."
+    },
+    {
+      "name": "Sincerità",
+      "alignment": "Neutrale",
+      "description": "Non c'è niente di buono nel fingere di essere ciò che non si è."
+    },
+    {
+      "name": "Destino",
+      "alignment": "Qualsiasi",
+      "description": "Niente e nessuno possono distogliermi dalla mia missione."
+    }
   ],
   "bonds": [
-    "Ho una famiglia che dipende da me.",
-    "Il mio villaggio è sotto minaccia e devo proteggerlo.",
-    "Sono stato adottato da una coppia anziana che ora dipende da me.",
-    "Voglio vendicarmi del signorotto locale che ha oppresso la mia famiglia.",
-    "Devo ricostruire la mia comunità che è stata distrutta da una calamità.",
-    "Devo il mio successo agli insegnamenti del mio mentore."
+    "Ho una famiglia, ma non ho idea di dove sia. Spero un giorno di ritrovarla.",
+    "Ho lavorato nella mia regione, amo la mia regione e la proteggerò.",
+    "Una volta un nobile permaloso ha fatto malmenare brutalmente me, e ora reclamo vendetta su tutti i prepotenti che incrocio nel mio cammino.",
+    "Gli strumenti di lavoro sono per me un simbolo della mia vita passata: li porto sempre con me per non dimenticare mai le mie radici.",
+    "Proteggo chi non è in grado di farlo da solo.",
+    "Vorrei che la mia fidanzata di gioventù mi avesse accompagnato per condividere il mio destino."
   ],
   "flaws": [
-    "Sono troppo ostinato per ammettere i miei errori.",
-    "Sono pieno di orgoglio e difficilmente accetto gli aiuti degli altri.",
-    "Sono impulsivo e agisco senza pensare.",
-    "Sono sospettoso di quelli con potere.",
-    "Non riesco a smettere di imborghesirmi, il che imbarazza la mia famiglia.",
-    "Quando c'è un problema, do la colpa agli altri."
+    "Il tiranno che domina la regione da cui provengo farà tutto ciò che è in suo potere per vedermi morto.",
+    "Sono talmente convinto di essere destinato a qualcosa di grandioso da ignorare completamente i miei limiti e il rischio del fallimento.",
+    "Chi mi ha conosciuto da giovane conosce il mio imbarazzante segreto, di conseguenza non oso più tornare a casa mia.",
+    "Non so resistere ai vizi offerti dalla vita di città, specialmente se si tratta di bevande alcoliche.",
+    "Non lo dico apertamente, ma dentro di me credo che le cose andrebbero meglio se fossi io il tiranno dotato del dominio assoluto sulla regione.",
+    "Ho un problema a fidarmi degli alleati."
   ]
 }

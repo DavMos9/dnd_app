@@ -4,10 +4,14 @@
     {
       "name": "Benedizione",
       "level": 1,
-      "school": "Incantamento",
+      "school": "Ammaliamento",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un po' di acqua santa",
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -18,10 +22,12 @@
     {
       "name": "Comando",
       "level": 1,
-      "school": "Incantamento",
+      "school": "Ammaliamento",
       "casting_time": "1 azione",
       "range": "18 metri",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "1 round",
       "ritual": false,
@@ -30,12 +36,15 @@
       "higher_levels": "Quando l'incantatore usa uno slot incantesimo di 2° livello o superiore, può bersagliare una creatura aggiuntiva per ogni livello superiore al 1°. Le creature bersaglio devono essere entro 9 metri l'una dall'altra quando vengono bersagliate."
     },
     {
-      "name": "Cura delle Ferite",
+      "name": "Cura Ferite",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -44,12 +53,15 @@
       "higher_levels": "Quando l'incantatore usa uno slot incantesimo di 2° livello o superiore, il recupero aumenta di 1d8 per ogni livello superiore al 1°."
     },
     {
-      "name": "Individuazione del Male e del Bene",
+      "name": "Individuazione del Bene e del Male",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": false,
@@ -58,12 +70,15 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione della Magia",
+      "name": "Individuazione del Magico",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": true,
@@ -72,12 +87,16 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione del Veleno e della Malattia",
+      "name": "Individuazione Malattie e Veleni",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "foglia di glechoma",
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": true,
@@ -91,7 +110,10 @@
       "school": "Evocazione",
       "casting_time": "1 azione bonus",
       "range": "Sé stesso",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -102,10 +124,13 @@
     {
       "name": "Eroismo",
       "level": 1,
-      "school": "Incantamento",
+      "school": "Ammaliamento",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -114,12 +139,16 @@
       "higher_levels": "Quando l'incantatore usa uno slot incantesimo di 2° livello o superiore, può bersagliare una creatura aggiuntiva per ogni livello superiore al 1°."
     },
     {
-      "name": "Protezione dal Male e dal Bene",
+      "name": "Protezione dal Bene e dal Male",
       "level": 1,
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "acqua santa o polvere d'argento e ferro, che l'incantesimo consuma",
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": false,
@@ -128,12 +157,15 @@
       "higher_levels": null
     },
     {
-      "name": "Purificazione del Cibo e dell'Acqua",
+      "name": "Purificare Cibo e Acqua",
       "level": 1,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "3 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": true,
@@ -142,12 +174,14 @@
       "higher_levels": null
     },
     {
-      "name": "Folgore Bruciante",
+      "name": "Punizione Incandescente",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione bonus",
       "range": "Sé stesso",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -161,7 +195,11 @@
       "school": "Abiurazione",
       "casting_time": "1 azione bonus",
       "range": "18 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un piccolo pezzetto di pergamena con un frammento di sacro testo scritto su di esso",
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": false,
@@ -170,12 +208,14 @@
       "higher_levels": null
     },
     {
-      "name": "Folgore Tonante",
+      "name": "Punizione Tonante",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione bonus",
       "range": "Sé stesso",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -184,12 +224,14 @@
       "higher_levels": null
     },
     {
-      "name": "Folgore dell'Ira",
+      "name": "Punizione Furente",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione bonus",
       "range": "Sé stesso",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -198,12 +240,16 @@
       "higher_levels": null
     },
     {
-      "name": "Aiuto",
+      "name": "Soccorso",
       "level": 2,
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un piccolo striscia di tessuto bianco",
       "duration": "8 ore",
       "ritual": false,
@@ -212,12 +258,14 @@
       "higher_levels": "Quando l'incantatore usa uno slot incantesimo di 3° livello o superiore, i punti ferita di ogni bersaglio aumentano di altri 5 per ogni livello superiore al 2°."
     },
     {
-      "name": "Folgore del Marchio",
+      "name": "Punizione Marchiante",
       "level": 2,
       "school": "Evocazione",
       "casting_time": "1 azione bonus",
       "range": "Sé stesso",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -231,7 +279,10 @@
       "school": "Evocazione",
       "casting_time": "10 minuti",
       "range": "9 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -240,12 +291,15 @@
       "higher_levels": null
     },
     {
-      "name": "Restaurazione Minore",
+      "name": "Ripristino Inferiore",
       "level": 2,
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -254,12 +308,16 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione dell'Oggetto",
+      "name": "Localizzare Oggetto",
       "level": 2,
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "una forcina da capelli biforcuta",
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": false,
@@ -273,7 +331,10 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione bonus",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -287,7 +348,10 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "1 ora",
       "ritual": false,
@@ -296,12 +360,15 @@
       "higher_levels": null
     },
     {
-      "name": "Zona della Verità",
+      "name": "Zona di Verità",
       "level": 2,
-      "school": "Incantamento",
+      "school": "Ammaliamento",
       "casting_time": "1 azione",
       "range": "18 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "10 minuti",
       "ritual": false,
@@ -315,7 +382,9 @@
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "Sé stesso (9 metri di raggio)",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -324,12 +393,14 @@
       "higher_levels": null
     },
     {
-      "name": "Folgore Accecante",
+      "name": "Punizione Accecante",
       "level": 3,
       "school": "Evocazione",
       "casting_time": "1 azione bonus",
       "range": "Sé stesso",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -338,12 +409,15 @@
       "higher_levels": null
     },
     {
-      "name": "Crea Cibo e Acqua",
+      "name": "Creare Cibo e Acqua",
       "level": 3,
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -352,12 +426,15 @@
       "higher_levels": null
     },
     {
-      "name": "Luce del Giorno",
+      "name": "Luce Diurna",
       "level": 3,
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "18 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "1 ora",
       "ritual": false,
@@ -371,7 +448,10 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "36 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -385,7 +465,10 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -399,7 +482,11 @@
       "school": "Abiurazione",
       "casting_time": "1 minuto",
       "range": "3 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "acqua santa o polvere d'argento e ferro del valore di 100 mo, che l'incantesimo consuma",
       "duration": "1 ora",
       "ritual": false,
@@ -408,12 +495,15 @@
       "higher_levels": "Quando l'incantatore usa uno slot incantesimo di 4° livello o superiore, la durata aumenta di 1 ora per ogni livello superiore al 3°."
     },
     {
-      "name": "Rimuovi Maledizione",
+      "name": "Rimuovere Maledizione",
       "level": 3,
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -422,12 +512,16 @@
       "higher_levels": null
     },
     {
-      "name": "Rivitalizza",
+      "name": "Ravvivare",
       "level": 3,
-      "school": "Necromancia",
+      "school": "Necromanzia",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "diamanti del valore di 300 mo, che l'incantesimo consuma",
       "duration": "istantanea",
       "ritual": false,
@@ -436,12 +530,16 @@
       "higher_levels": null
     },
     {
-      "name": "Bando",
+      "name": "Esilio",
       "level": 4,
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "18 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un oggetto che il bersaglio trova abominevole",
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -450,12 +548,15 @@
       "higher_levels": "Quando l'incantatore usa uno slot incantesimo di 5° livello o superiore, può bersagliare una creatura aggiuntiva per ogni livello superiore al 4°."
     },
     {
-      "name": "Protezione dalla Morte",
+      "name": "Interdizione alla Morte",
       "level": 4,
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "8 ore",
       "ritual": false,
@@ -464,12 +565,16 @@
       "higher_levels": null
     },
     {
-      "name": "Individua Creatura",
+      "name": "Localizzare Creatura",
       "level": 4,
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un pelo dalla creatura che si vuole trovare",
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -478,12 +583,14 @@
       "higher_levels": null
     },
     {
-      "name": "Folgore Stordente",
+      "name": "Punizione Perturbante",
       "level": 4,
       "school": "Evocazione",
       "casting_time": "1 azione bonus",
       "range": "Sé stesso",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -492,12 +599,14 @@
       "higher_levels": null
     },
     {
-      "name": "Folgore del Bando",
+      "name": "Punizione Esiliante",
       "level": 5,
       "school": "Abiurazione",
       "casting_time": "1 azione bonus",
       "range": "Sé stesso",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -511,7 +620,9 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Sé stesso (9 metri di raggio)",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": false,
@@ -525,7 +636,9 @@
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "Sé stesso (9 metri di raggio)",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -534,12 +647,16 @@
       "higher_levels": null
     },
     {
-      "name": "Dissolvi Male e Bene",
+      "name": "Dissolvere il Bene e il Male",
       "level": 5,
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "acqua santa e polvere d'argento",
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -548,12 +665,14 @@
       "higher_levels": null
     },
     {
-      "name": "Geas",
+      "name": "Restrizione",
       "level": 5,
-      "school": "Incantamento",
+      "school": "Ammaliamento",
       "casting_time": "1 minuto",
       "range": "18 metri",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "30 giorni",
       "ritual": false,
@@ -562,12 +681,16 @@
       "higher_levels": "Quando l'incantatore usa uno slot incantesimo di 7° o 8° livello, la durata è di 1 anno. Con uno slot di 9° livello, l'incantesimo dura finché non viene dissolto."
     },
     {
-      "name": "Risveglia i Morti",
+      "name": "Rianimare Morti",
       "level": 5,
-      "school": "Necromancia",
+      "school": "Necromanzia",
       "casting_time": "1 ora",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un diamante del valore di 500 mo, che l'incantesimo consuma",
       "duration": "istantanea",
       "ritual": false,

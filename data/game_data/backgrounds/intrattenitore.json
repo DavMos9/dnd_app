@@ -1,17 +1,38 @@
 {
   "name": "Intrattenitore",
   "description": "Sei cresciuto davanti a un pubblico. Hai imparato a recitare, suonare, cantare o praticare acrobazie, e usi queste abilità per guadagnarti da vivere.",
-  "skill_proficiencies": ["Acrobazia", "Intrattenimento"],
+  "skill_proficiencies": [
+    "Acrobazia",
+    "Intrattenimento"
+  ],
   "tool_proficiencies": [
-    {"type": "choice", "count": 1, "from": "strumenti_musicali"},
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "strumenti_musicali"
+    },
     "Kit del travestimento"
   ],
   "languages": [],
   "equipment": [
-    {"name": "Strumento musicale a scelta", "item_type": "item"},
-    {"name": "Favore di un ammiratore (ciuffo di capelli, lettera d'amore, ecc.)", "item_type": "item"},
-    {"name": "Costume", "item_type": "item"},
-    {"name": "Borsa con 15 MO", "item_type": "item"}
+    {
+      "name": "Strumento musicale a scelta",
+      "item_type": "item"
+    },
+    {
+      "name": "Favore di un ammiratore (ciuffo di capelli, lettera d'amore, ecc.)",
+      "item_type": "item"
+    },
+    {
+      "name": "Costume",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 15 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 15
+    }
   ],
   "feature": {
     "name": "Per Amore del Palcoscenico",
@@ -28,12 +49,36 @@
     "Adoro le feste e le celebrazioni."
   ],
   "ideals": [
-    {"name": "Bellezza", "alignment": "Buono", "description": "Quando eseguo la mia arte, devo farlo con bellezza e grazia."},
-    {"name": "Tradizione", "alignment": "Legale", "description": "Le storie e le canzoni del passato devono essere preservate."},
-    {"name": "Creatività", "alignment": "Caotico", "description": "Il mondo deve cambiare e io voglio contribuire a quel cambiamento."},
-    {"name": "Avidità", "alignment": "Malvagio", "description": "Ho un talento speciale e voglio essere pagato bene per esso."},
-    {"name": "Popolo", "alignment": "Neutrale", "description": "Mi importa solo di quelli che mi ascoltano e mi amano."},
-    {"name": "Onestà", "alignment": "Qualsiasi", "description": "L'arte è la verità più pura."}
+    {
+      "name": "Bellezza",
+      "alignment": "Buono",
+      "description": "Quando eseguo la mia arte, devo farlo con bellezza e grazia."
+    },
+    {
+      "name": "Tradizione",
+      "alignment": "Legale",
+      "description": "Le storie e le canzoni del passato devono essere preservate."
+    },
+    {
+      "name": "Creatività",
+      "alignment": "Caotico",
+      "description": "Il mondo deve cambiare e io voglio contribuire a quel cambiamento."
+    },
+    {
+      "name": "Avidità",
+      "alignment": "Malvagio",
+      "description": "Ho un talento speciale e voglio essere pagato bene per esso."
+    },
+    {
+      "name": "Popolo",
+      "alignment": "Neutrale",
+      "description": "Mi importa solo di quelli che mi ascoltano e mi amano."
+    },
+    {
+      "name": "Onestà",
+      "alignment": "Qualsiasi",
+      "description": "L'arte è la verità più pura."
+    }
   ],
   "bonds": [
     "Voglio diventare famoso.",

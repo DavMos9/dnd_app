@@ -19,23 +19,6 @@
       "higher_levels": null
     },
     {
-      "name": "Dardo Caotico",
-      "level": 0,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "27 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Tiri 2d8. Il tipo di danno di questo incantesimo è determinato dai dadi risultanti: 1–2 Acido, 3–4 Freddo, 5–6 Fuoco, 7–8 Forza, 9–10 Fulmine, 11–12 Veleno, 13–14 Psichico, 15–16 Radioso, 17–18 Tuono. Effettui un attacco con incantesimo a distanza contro una creatura entro gittata. Se colpisci, il bersaglio subisce 2d8 danni del tipo tirati. Se tiri lo stesso numero su entrambi i d8, puoi anche scegliere un secondo bersaglio entro 9 metri dal primo. Effettua un tiro per colpire anche contro quel bersaglio; se colpisci, anch'esso subisce i danni.",
-      "higher_levels": "I danni aumentano di 1d8 quando l'incantatore raggiunge il 5° livello (3d8), l'11° livello (4d8) e il 17° livello (5d8)."
-    },
-    {
       "name": "Illusione Minore",
       "level": 0,
       "school": "Illusione",
@@ -70,7 +53,7 @@
       "higher_levels": null
     },
     {
-      "name": "Mano Magica",
+      "name": "Mano del Mago",
       "level": 0,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -105,23 +88,7 @@
       "higher_levels": null
     },
     {
-      "name": "Percussione",
-      "level": 0,
-      "school": "Trasmutazione",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Crei un suono di percussione proveniente da un punto che riesci a vedere entro gittata, come un tamburo battuto, il rumore di una porta o il boato di un colpo di pistola. Le creature entro 1,5 metri dal punto devono superare un tiro salvezza su Costituzione oppure subire 1d6 danni da tuono. Un oggetto di taglia Piccola o inferiore a portata viene spinto fino a 3 metri se non è indossato o trasportato. I danni aumentano di 1d6 quando l'incantatore raggiunge il 5° livello (2d6), l'11° livello (3d6) e il 17° livello (4d6).",
-      "higher_levels": null
-    },
-    {
-      "name": "Prestidigitazione",
+      "name": "Gioco di Prestigio",
       "level": 0,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -138,7 +105,7 @@
       "higher_levels": null
     },
     {
-      "name": "Riparazione",
+      "name": "Riparare",
       "level": 0,
       "school": "Trasmutazione",
       "casting_time": "1 minuto",
@@ -156,24 +123,7 @@
       "higher_levels": null
     },
     {
-      "name": "Suono Finto",
-      "level": 0,
-      "school": "Illusione",
-      "casting_time": "1 azione",
-      "range": "9 metri",
-      "components": [
-        "S",
-        "M"
-      ],
-      "material": "un pizzico di lana",
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Crei una tasca di silenzio assoluto attorno a te fino alla fine del prossimo turno. Durante questo periodo, qualsiasi creatura entro 1,5 m da te è impedita dall'emettere suono.",
-      "higher_levels": null
-    },
-    {
-      "name": "Colpo Villano",
+      "name": "Scherno Crudele",
       "level": 0,
       "school": "Ammaliamento",
       "casting_time": "1 azione",
@@ -189,7 +139,7 @@
       "higher_levels": null
     },
     {
-      "name": "Colpo Vero",
+      "name": "Colpo Mirato",
       "level": 0,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -205,7 +155,7 @@
       "higher_levels": null
     },
     {
-      "name": "Fascino sulla Persona",
+      "name": "Charme su Persone",
       "level": 1,
       "school": "Ammaliamento",
       "casting_time": "1 azione",
@@ -274,7 +224,7 @@
       "higher_levels": null
     },
     {
-      "name": "Onda Tonante",
+      "name": "Onda di Tuono",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -325,7 +275,7 @@
       "higher_levels": "Lanciando con uno slot di livello 2 o superiore, la quantità di guarigione aumenta di 1d4 per ogni livello di slot superiore al 1°."
     },
     {
-      "name": "Risata Esilarante di Tasha",
+      "name": "Risata Rivoltante di Tasha",
       "level": 1,
       "school": "Ammaliamento",
       "casting_time": "1 azione",
@@ -343,7 +293,7 @@
       "higher_levels": null
     },
     {
-      "name": "Identificazione",
+      "name": "Identificare",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 minuto",
@@ -361,7 +311,7 @@
       "higher_levels": null
     },
     {
-      "name": "Comprendere le Lingue",
+      "name": "Comprendere Linguaggi",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -379,25 +329,7 @@
       "higher_levels": null
     },
     {
-      "name": "Nebbia Colorata",
-      "level": 1,
-      "school": "Illusione",
-      "casting_time": "1 azione",
-      "range": "27 metri",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "sabbia o polvere colorata",
-      "duration": "1 round",
-      "ritual": false,
-      "concentration": false,
-      "description": "Un lampo di luce colorata scintillante illumina l'area. Tira 6d10; il risultato è il numero di punti ferita di creature che questa magia può influenzare. Le creature entro 4,5 m di un punto a tua scelta entro gittata sono influenzate in ordine crescente dei loro PF attuali. Le creature che falliscono sono accecate fino alla fine del tuo prossimo turno.",
-      "higher_levels": "Lanciando con uno slot di livello 2 o superiore, tira 2d10 aggiuntivi per ogni livello superiore al 1°."
-    },
-    {
-      "name": "Caduta di Piume",
+      "name": "Caduta della Piuma",
       "level": 1,
       "school": "Trasmutazione",
       "casting_time": "1 reazione, da eseguire quando tu o una creatura entro 18 m cadete",
@@ -412,23 +344,6 @@
       "concentration": false,
       "description": "Scegli fino a cinque creature che cadono entro gittata. La velocità di caduta di una creatura bersaglio scende a 18 m per round fino al termine dell'incantesimo. Se la creatura atterra prima che l'incantesimo termini, non subisce danni da caduta e atterra in piedi e l'incantesimo termina per quella creatura.",
       "higher_levels": null
-    },
-    {
-      "name": "Coltello di Ghiaccio",
-      "level": 1,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "S",
-        "M"
-      ],
-      "material": "una goccia d'acqua o un frammento di ghiaccio",
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Crei uno scheggia di ghiaccio e la scagli verso una creatura entro gittata. Effettua un attacco con incantesimo a distanza contro il bersaglio. Se colpisci, il bersaglio subisce 1d10 danni perforanti. Colpisca o manchi, il coltello esplode poi in un getto di ghiaccio cristallizzato. Il bersaglio e ogni creatura entro 1,5 m dal punto colpito devono superare un tiro salvezza su Costituzione oppure subire 2d6 danni da freddo.",
-      "higher_levels": "Lanciando con uno slot di livello 2 o superiore, i danni da freddo aumentano di 1d6 per ogni livello di slot superiore al 1°."
     },
     {
       "name": "Dissolvi Magie",
@@ -446,22 +361,6 @@
       "concentration": false,
       "description": "Scegli qualsiasi creatura, oggetto o effetto magico entro gittata. Qualsiasi incantesimo di 3° livello o inferiore sul bersaglio termina. Per ogni incantesimo di livello 4 o superiore sul bersaglio, effettua una prova di caratteristica usando il tuo modificatore da incantatore. La CD è pari a 10 + il livello dell'incantesimo. In caso di successo, l'incantesimo termina.",
       "higher_levels": "Lanciando con uno slot di livello 4 o superiore, termina automaticamente gli effetti degli incantesimi sul bersaglio il cui livello è uguale o inferiore al livello dello slot incantesimo usato."
-    },
-    {
-      "name": "Inspirazione del Bardo",
-      "level": 1,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione bonus",
-      "range": "18 metri",
-      "components": [
-        "V"
-      ],
-      "material": null,
-      "duration": "10 minuti",
-      "ritual": false,
-      "concentration": false,
-      "description": "Scegli una creatura diversa da te entro gittata che riesci a vedere. Quella creatura ottiene un dado di Ispirazione Bardica (d6). Una volta entro i prossimi 10 minuti, la creatura può tirare quel dado e aggiungere il risultato a una prova di caratteristica, un tiro per colpire o un tiro salvezza che effettua. La creatura può attendere la risoluzione del suo tiro prima di decidere se usare il dado, ma deve farlo prima che il DM dica se il tiro ha avuto successo o meno. Non puoi concedere a una creatura un secondo dado di Ispirazione Bardica finché non finisci un riposo breve o lungo.",
-      "higher_levels": null
     },
     {
       "name": "Suggestione",
@@ -499,7 +398,7 @@
       "higher_levels": "Lanciando con uno slot di livello 3 o superiore, puoi bersagliare una creatura aggiuntiva per ogni livello di slot superiore al 2°."
     },
     {
-      "name": "Fermare la Persona",
+      "name": "Blocca Persona",
       "level": 2,
       "school": "Ammaliamento",
       "casting_time": "1 azione",
@@ -517,41 +416,7 @@
       "higher_levels": "Lanciando con uno slot di livello 3 o superiore, puoi bersagliare un umanoide aggiuntivo per ogni livello di slot superiore al 2°."
     },
     {
-      "name": "Visione del Ladro",
-      "level": 2,
-      "school": "Trasmutazione",
-      "casting_time": "1 azione",
-      "range": "Contatto",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "1 ora",
-      "ritual": false,
-      "concentration": false,
-      "description": "Tocchi una creatura disposta. Per la durata dell'incantesimo, quella creatura vede attraverso lo strato più vicino di normale buio come se fosse in luce tenue. La creatura ha comunque la scurovisione normale, ma la magia estende quella scurovisione a luci magiche.",
-      "higher_levels": null
-    },
-    {
-      "name": "Frenesia Eroica",
-      "level": 2,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione bonus",
-      "range": "18 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "concentrazione, fino a 1 minuto",
-      "ritual": false,
-      "concentration": true,
-      "description": "Indichi una creatura di tua scelta entro gittata che riesci a vedere e le concedi il potere che non sapeva di avere. Fino al termine dell'incantesimo, ogni volta che la creatura bersaglio effettua un tiro per colpire, una prova di caratteristica o un tiro salvezza può tirare 1d4 e aggiungere il risultato. La creatura ottiene anche 2d6 PF temporanei all'inizio di ogni turno. Quando l'incantesimo termina, la creatura perde tutti i PF temporanei rimanenti concessi dall'incantesimo.",
-      "higher_levels": "Lanciando con uno slot di livello 3 o superiore, i PF temporanei aumentano di 1d6 per ogni livello di slot superiore al 2°."
-    },
-    {
-      "name": "Cura Ferite di Massa",
+      "name": "Curare Ferite di Massa",
       "level": 5,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -566,23 +431,6 @@
       "concentration": false,
       "description": "Un'ondata di energia curativa scorre da te verso le creature ferite intorno a te. Scegli fino a sei creature entro gittata. Ognuna di esse recupera punti ferita pari a 3d8 + il tuo modificatore di caratteristica da incantatore. Questo incantesimo non ha effetto sui nonmorti o sui costrutti.",
       "higher_levels": "Lanciando con uno slot di livello 6 o superiore, la guarigione aumenta di 1d8 per ogni livello di slot superiore al 5°."
-    },
-    {
-      "name": "Risata di Gufone",
-      "level": 3,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "36 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "concentrazione, fino a 1 minuto",
-      "ritual": false,
-      "concentration": true,
-      "description": "Evochi in una creatura la sensazione di sentirsi assediata da tutto. Ogni creatura a tua scelta entro un cubo di 18 m deve effettuare un tiro salvezza su Saggezza. In caso di fallimento, una creatura vede mostri terribili ovunque e subisce 4d10 danni psichici; in caso di successo, la metà. In caso di fallimento, è anche spaventata di tutte le creature fino alla fine del suo prossimo turno.",
-      "higher_levels": "Lanciando con uno slot di livello 4 o superiore, i danni aumentano di 1d10 per ogni livello di slot superiore al 3°."
     },
     {
       "name": "Risveglio",

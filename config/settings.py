@@ -243,9 +243,9 @@ ALIGNMENTS = [
 
 # Razze disponibili (lista piatta legacy — usata fuori dal wizard)
 RACES = [
-    "Elfo (Alto)", "Elfo dei Boschi", "Elfo Oscuro (Drow)",
-    "Halfling (Piedelesto)", "Halfling (Tozzo)",
-    "Nano delle Colline", "Nano delle Montagne",
+    "Elfo Alto", "Elfo dei Boschi", "Elfo Oscuro (Drow)",
+    "Halfling Piedelesto", "Halfling Tozzo",
+    "Nano delle Colline", "Nano della Montagna",
     "Umano",
     "Dragonide",
     "Gnomo delle Rocce", "Gnomo delle Foreste",
@@ -255,20 +255,20 @@ RACES = [
 ]
 
 # Razze base (per wizard): race → lista sottorazze
-# Draconide usa DRACONIDE_ANCESTRIES, non subraces.
+# Dragonide usa DRACONIDE_ANCESTRIES, non subraces.
 RACES_BASE: dict[str, list[str]] = {
-    "Draconide": [],
-    "Elfo":      ["Alto Elfo", "Elfo del Bosco", "Elfo Oscuro (Drow)"],
-    "Gnomo":     ["Gnomo della Foresta", "Gnomo delle Rocce"],
-    "Halfling":  ["Halfling Piedelesto", "Halfling Stoutfoot"],
+    "Dragonide": [],
+    "Elfo":      ["Elfo Alto", "Elfo dei Boschi", "Elfo Oscuro (Drow)"],
+    "Gnomo":     ["Gnomo delle Foreste", "Gnomo delle Rocce"],
+    "Halfling":  ["Halfling Piedelesto", "Halfling Tozzo"],
     "Mezzelfo":  [],
     "Mezzorco":  [],
-    "Nano":      ["Nano del Monte", "Nano delle Colline"],
+    "Nano":      ["Nano della Montagna", "Nano delle Colline"],
     "Tiefling":  [],
     "Umano":     [],
 }
 
-# Discendenze del Draconide (determina tipo soffio e resistenza)
+# Discendenze del Dragonide (determina tipo soffio e resistenza)
 # Riutilizzato anche per la Discendenza Draconiana dello Stregone
 DRACONIDE_ANCESTRIES = [
     "Bianco", "Blu", "Verde", "Nero", "Rosso",
@@ -307,7 +307,7 @@ LAND_TERRAINS = [
     "Montagna", "Piana", "Palude", "Sottosuolo",
 ]
 
-# Trucchetti del Mago disponibili per l'Alto Elfo (PHB — lista completa)
+# Trucchetti del Mago disponibili per l'Elfo Alto (PHB — lista completa)
 MAGO_CANTRIPS = [
     "Amici", "Danno Acido", "Danza Delle Spade", "Fulmine Guida",
     "Getto di Veleno", "Illusione Minore", "Luce", "Mano del Mago",
@@ -360,13 +360,14 @@ GAMING_SETS = ["Carte da Gioco", "Dadi", "Scacchi dei Draghi", "Tre Draghi"]
 
 # 'from' key nei JSON background → lista opzioni selezionabili
 TOOL_CATEGORIES: dict[str, list[str]] = {
-    "strumenti_artigiani": ARTISAN_TOOLS,
-    "strumenti_musicali":  MUSICAL_INSTRUMENTS,
-    "gioco_carte":         ["Carte da Gioco"],
-    "gioco_dadi":          ["Dadi"],
-    "scacchi":             ["Scacchi dei Draghi"],
-    "gioco_tre_draghi":    ["Tre Draghi"],
-    "altro_gioco":         GAMING_SETS,
+    "strumenti_artigiani":           ARTISAN_TOOLS,
+    "strumenti_musicali":            MUSICAL_INSTRUMENTS,
+    "strumenti_artigiani_o_musicali": ARTISAN_TOOLS + MUSICAL_INSTRUMENTS,  # Monaco PHB
+    "gioco_carte":                   ["Carte da Gioco"],
+    "gioco_dadi":                    ["Dadi"],
+    "scacchi":                       ["Scacchi dei Draghi"],
+    "gioco_tre_draghi":              ["Tre Draghi"],
+    "altro_gioco":                   GAMING_SETS,
 }
 
 # Label singola per chiave categoria (usata quando 'from' è una lista di chiavi)
@@ -376,6 +377,37 @@ TOOL_CATEGORY_LABEL: dict[str, str] = {
     "scacchi":          "Scacchi dei Draghi",
     "gioco_tre_draghi": "Tre Draghi",
     "altro_gioco":      "Altro gioco a scelta",
+}
+
+# ---------------------------------------------------------------------------
+# Lista armi PHB 5e italiano (tabella p.149)
+# ---------------------------------------------------------------------------
+WEAPONS_SEMPLICI_MISCHIA = [
+    "Ascia", "Bastone Ferrato", "Falcetto", "Giavellotto",
+    "Lancia", "Martello Leggero", "Mazza", "Pugnale",
+    "Randello", "Randello Pesante",
+]
+WEAPONS_SEMPLICI_DISTANZA = [
+    "Arco Corto", "Balestra Leggera", "Dardo", "Fionda",
+]
+WEAPONS_GUERRA_MISCHIA = [
+    "Alabarda", "Ascia Bipenne", "Ascia da Battaglia",
+    "Falcione", "Frusta", "Lancia da Cavaliere", "Maglio",
+    "Martello da Guerra", "Mazzafrusto", "Morning Star", "Picca",
+    "Piccone da Guerra", "Scimitarra", "Spada Corta", "Spada Lunga",
+    "Spadone", "Stocco", "Tridente",
+]
+WEAPONS_GUERRA_DISTANZA = [
+    "Arco Lungo", "Balestra a Mano", "Balestra Pesante",
+    "Cerbottana", "Rete",
+]
+
+# Categorie usate nel weapon picker (equipment JSON: "category")
+WEAPONS_BY_CATEGORY: dict[str, list[str]] = {
+    "semplice":         sorted(WEAPONS_SEMPLICI_MISCHIA + WEAPONS_SEMPLICI_DISTANZA),
+    "semplice_mischia": sorted(WEAPONS_SEMPLICI_MISCHIA),
+    "guerra":           sorted(WEAPONS_GUERRA_MISCHIA + WEAPONS_GUERRA_DISTANZA),
+    "guerra_mischia":   sorted(WEAPONS_GUERRA_MISCHIA),
 }
 
 # Classi disponibili con dado vita e caratteristica da incantatore
@@ -457,7 +489,7 @@ RACE_DATA: dict[str, dict] = {
             "Tenacia dei Colli — punti ferita massimi aumentano di 1 per ogni livello",
         ],
     },
-    "Nano delle Montagne": {
+    "Nano della Montagna": {
         "ability_bonuses": {"con": 2, "str": 2},
         "ability_bonuses_flex": 0,
         "speed": 7.5,
@@ -469,7 +501,7 @@ RACE_DATA: dict[str, dict] = {
             "Scaltrezza della pietra — vantaggio alle prove di Storia su architettura e pietra",
         ],
     },
-    "Elfo (Alto)": {
+    "Elfo Alto": {
         "ability_bonuses": {"dex": 2, "int": 1},
         "ability_bonuses_flex": 0,
         "speed": 9,
@@ -510,7 +542,7 @@ RACE_DATA: dict[str, dict] = {
             "Magia Drow — Luce danzante (trucco), Fata Fuoco 1/riposo lungo (SAG), Oscurità 1/riposo lungo (SAG)",
         ],
     },
-    "Halfling (Piedelesto)": {
+    "Halfling Piedelesto": {
         "ability_bonuses": {"dex": 2, "cha": 1},
         "ability_bonuses_flex": 0,
         "speed": 7.5,
@@ -522,7 +554,7 @@ RACE_DATA: dict[str, dict] = {
             "Nascondersi agevolmente — puoi tentare di nasconderti dietro creature di taglia Media o più grande",
         ],
     },
-    "Halfling (Tozzo)": {
+    "Halfling Tozzo": {
         "ability_bonuses": {"dex": 2, "con": 1},
         "ability_bonuses_flex": 0,
         "speed": 7.5,
@@ -625,7 +657,7 @@ def get_race_resource_defaults(
 ) -> list[dict]:
     """
     Legge il JSON della razza e restituisce le risorse razziali attive
-    al livello indicato (es. Soffio del Draconide, Resistenza Implacabile).
+    al livello indicato (es. Soffio del Dragonide, Resistenza Implacabile).
 
     Ogni voce:
         {
@@ -729,7 +761,7 @@ def get_race_display_traits(
     except Exception:
         return {"resistances": [], "advantage_saves": [], "passive_traits": []}
 
-    # Mappa danno (usata per Draconide)
+    # Mappa danno (usata per Dragonide)
     DRAGON_DAMAGE: dict[str, str] = {
         "bianco": "Freddo", "blu": "Fulmine", "ottone": "Fuoco",
         "bronzo": "Fulmine", "rame": "Acido", "oro": "Fuoco",
@@ -765,8 +797,8 @@ def get_race_display_traits(
 
     _scan(data.get("traits", []))
 
-    # Draconide: aggiunge resistenza basata su sottorazza (tipo drago)
-    if data.get("name", "").lower() == "draconide" and subrace:
+    # Dragonide: aggiunge resistenza basata su sottorazza (tipo drago)
+    if data.get("name", "").lower() == "dragonide" and subrace:
         sub_key = subrace.lower().strip()
         dmg = DRAGON_DAMAGE.get(sub_key)
         if dmg:

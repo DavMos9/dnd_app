@@ -55,7 +55,7 @@
       "higher_levels": "Lanciando con uno slot di livello 2 o superiore, la quantità di guarigione aumenta di 1d8 per ogni livello di slot superiore al 1°."
     },
     {
-      "name": "Individuazione della Magia",
+      "name": "Individuazione del Magico",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -72,7 +72,7 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione di Veleni e Malattie",
+      "name": "Individuazione Malattie e Veleni",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -90,7 +90,7 @@
       "higher_levels": null
     },
     {
-      "name": "Nebbia",
+      "name": "Nube di Foschia",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -107,7 +107,7 @@
       "higher_levels": "Lanciando con uno slot di livello 2 o superiore, il raggio della nebbia aumenta di 6 metri per ogni livello di slot superiore al 1°."
     },
     {
-      "name": "Bacche Buone",
+      "name": "Bacche Benefiche",
       "level": 1,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -141,7 +141,7 @@
       "higher_levels": "Lanciando con uno slot di livello 3 o 4, puoi mantenere la concentrazione fino a 8 ore. Con uno slot di livello 5 o superiore, la concentrazione dura fino a 24 ore."
     },
     {
-      "name": "Balzo",
+      "name": "Saltare",
       "level": 1,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -159,7 +159,7 @@
       "higher_levels": null
     },
     {
-      "name": "Passo Felpato",
+      "name": "Grampasso",
       "level": 1,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -212,7 +212,7 @@
       "higher_levels": "Lanciando con uno slot di livello 3 o superiore, la durata dell'incantesimo aumenta di 48 ore per ogni livello di slot superiore al 2°."
     },
     {
-      "name": "Scorza",
+      "name": "Pelle di Quercia",
       "level": 2,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -248,7 +248,7 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione delle Trappole",
+      "name": "Scoprire Trappole",
       "level": 2,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -265,7 +265,7 @@
       "higher_levels": null
     },
     {
-      "name": "Restaurazione Inferiore",
+      "name": "Ripristino Inferiore",
       "level": 2,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -282,7 +282,7 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione di Animali o Piante",
+      "name": "Localizzare Animali o Piante",
       "level": 2,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -300,7 +300,7 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione degli Oggetti",
+      "name": "Localizzare Oggetto",
       "level": 2,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -388,7 +388,7 @@
       "higher_levels": null
     },
     {
-      "name": "Evocare Animali",
+      "name": "Convocare Animali",
       "level": 3,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -405,7 +405,7 @@
       "higher_levels": "Lanciando con uno slot di livello 4 o superiore, puoi convocare il doppio delle creature rispetto all'opzione scelta per ogni livello di slot superiore al 3°."
     },
     {
-      "name": "Luce del Giorno",
+      "name": "Luce Diurna",
       "level": 3,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -422,7 +422,7 @@
       "higher_levels": null
     },
     {
-      "name": "Non Rilevamento",
+      "name": "Anti-Individuazione",
       "level": 3,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -453,7 +453,7 @@
       "duration": "istantanea",
       "ritual": false,
       "concentration": false,
-      "description": "Questo incantesimo infonde la vitalità nella vegetazione di un'area. Se lanci questo incantesimo con un'azione, tutta la vegetazione normale entro 9 metri da un punto scelto entro gittata si infittisce di rami, cespugli e fogliame. L'area è considerata terreno difficile. Una creatura può spendere 4 piedi di movimento per ogni piede che percorre nell'area per tagliarsi un percorso. In alternativa, puoi lanciare l'incantesimo in 8 ore per nutrire il terreno entro 8 km dal punto scelto, rendendolo fertile per 1 anno.",
+      "description": "Questo incantesimo infonde la vitalità nella vegetazione di un'area. Se lanci questo incantesimo con un'azione, tutta la vegetazione normale entro 9 metri da un punto scelto entro gittata si infittisce di rami, cespugli e fogliame. L'area è considerata terreno difficile. Una creatura può spendere 4 metri di movimento per ogni metro che percorre nell'area per tagliarsi un percorso. In alternativa, puoi lanciare l'incantesimo in 8 ore per nutrire il terreno entro 8 km dal punto scelto, rendendolo fertile per 1 anno.",
       "higher_levels": null
     },
     {
@@ -491,7 +491,7 @@
       "higher_levels": null
     },
     {
-      "name": "Respirare sott'Acqua",
+      "name": "Respirare Acqua",
       "level": 3,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -506,24 +506,6 @@
       "ritual": true,
       "concentration": false,
       "description": "Concedi fino a dieci creature disposte entro gittata la capacità di respirare sott'acqua finché l'incantesimo è attivo. Le creature affette mantengono anche la loro normale modalità di respirazione.",
-      "higher_levels": null
-    },
-    {
-      "name": "Camminare sull'Acqua",
-      "level": 3,
-      "school": "Trasmutazione",
-      "casting_time": "1 azione",
-      "range": "9 metri",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "un pezzo di sughero",
-      "duration": "1 ora",
-      "ritual": true,
-      "concentration": false,
-      "description": "Questo incantesimo concede la capacità di spostarsi su qualsiasi superficie liquida — come acqua, acido, fango, neve, sabbie mobili o lava — come se fosse terreno solido (le creature che attraversano la lava possono comunque subire danni da calore). Fino a dieci creature disposte entro gittata ottengono questa capacità per la durata dell'incantesimo.",
       "higher_levels": null
     },
     {
@@ -545,7 +527,7 @@
       "higher_levels": null
     },
     {
-      "name": "Evocare Esseri del Bosco",
+      "name": "Convocare Creature dei Boschi",
       "level": 4,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -581,7 +563,7 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione delle Creature",
+      "name": "Localizzare Creatura",
       "level": 4,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -634,7 +616,7 @@
       "higher_levels": null
     },
     {
-      "name": "Freccia Rapida",
+      "name": "Faretra Rapida",
       "level": 5,
       "school": "Trasmutazione",
       "casting_time": "1 azione bonus",
@@ -652,7 +634,7 @@
       "higher_levels": null
     },
     {
-      "name": "Percorso degli Alberi",
+      "name": "Passo Arboreo",
       "level": 5,
       "school": "Evocazione",
       "casting_time": "1 azione",

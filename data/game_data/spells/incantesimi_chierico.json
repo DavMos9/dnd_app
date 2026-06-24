@@ -82,7 +82,7 @@
       "higher_levels": null
     },
     {
-      "name": "Salvare i Morenti",
+      "name": "Risparmiare i Morenti",
       "level": 0,
       "school": "Necromanzia",
       "casting_time": "1 azione",
@@ -202,7 +202,7 @@
       "higher_levels": "La guarigione aumenta di 2d8 per ogni slot di livello superiore al 1º."
     },
     {
-      "name": "Dardo Tracciante",
+      "name": "Saetta Guida",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -253,7 +253,7 @@
       "higher_levels": null
     },
     {
-      "name": "Individuazione delle Malattie e dei Veleni",
+      "name": "Individuazione Malattie e Veleni",
       "level": 1,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -322,7 +322,7 @@
       "higher_levels": null
     },
     {
-      "name": "Purificare Cibo e Bevande",
+      "name": "Purificare Cibo e Acqua",
       "level": 1,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -375,7 +375,7 @@
       "higher_levels": null
     },
     {
-      "name": "Aiuto",
+      "name": "Soccorso",
       "level": 2,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -410,7 +410,7 @@
       "higher_levels": "I danni aumentano di 1d8 per ogni slot di livello superiore al 2º."
     },
     {
-      "name": "Blocca Persone",
+      "name": "Blocca Persona",
       "level": 2,
       "school": "Ammaliamento",
       "casting_time": "1 azione",
@@ -445,7 +445,7 @@
       "higher_levels": null
     },
     {
-      "name": "Caratteristica Potenziata",
+      "name": "Potenziare Abilità",
       "level": 2,
       "school": "Trasmutazione",
       "casting_time": "1 azione",
@@ -479,7 +479,7 @@
       "higher_levels": "Quando l'incantatore lancia questo incantesimo usando uno slot incantesimo di 3° livello o superiore, può bersagliare una creatura aggiuntiva per ogni slot di livello superiore al 2°."
     },
     {
-      "name": "Fiamma Perenne",
+      "name": "Fiamma Perpetua",
       "level": 2,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -531,7 +531,7 @@
       "higher_levels": "La guarigione aumenta di 1d8 per ogni slot di livello superiore al 2º."
     },
     {
-      "name": "Presagio",
+      "name": "Augurio",
       "level": 2,
       "school": "Divinazione",
       "casting_time": "1 minuto",
@@ -566,7 +566,7 @@
       "higher_levels": null
     },
     {
-      "name": "Riposo Inviolato",
+      "name": "Dolce Riposo",
       "level": 2,
       "school": "Necromanzia",
       "casting_time": "1 azione",
@@ -584,7 +584,7 @@
       "higher_levels": null
     },
     {
-      "name": "Ristorare Inferiore",
+      "name": "Ripristino Inferiore",
       "level": 2,
       "school": "Abiurazione",
       "casting_time": "1 azione bonus",
@@ -601,7 +601,7 @@
       "higher_levels": null
     },
     {
-      "name": "Scopri Trappole",
+      "name": "Scoprire Trappole",
       "level": 2,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -635,7 +635,7 @@
       "higher_levels": null
     },
     {
-      "name": "Vincolo di Interdizione",
+      "name": "Legame di Interdizione",
       "level": 2,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -828,7 +828,7 @@
       "higher_levels": "I danni di una runa esplosiva aumentano di 1d8 per ogni slot di livello superiore al 3º. Se l'incantatore crea un glifo magico, può custodirvi qualsiasi incantesimo di livello pari o inferiore a quello dello slot incantesimo usato per il glifo di interdizione."
     },
     {
-      "name": "Guardiani Spirituali",
+      "name": "Spiriti Guardiani",
       "level": 3,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -864,7 +864,7 @@
       "higher_levels": null
     },
     {
-      "name": "Linguaggi",
+      "name": "Lingue",
       "level": 3,
       "school": "Divinazione",
       "casting_time": "1 azione",
@@ -898,7 +898,7 @@
       "higher_levels": null
     },
     {
-      "name": "Morte Apparente",
+      "name": "Fingere Morte",
       "level": 3,
       "school": "Necromanzia",
       "casting_time": "1 azione",
@@ -984,7 +984,7 @@
       "higher_levels": null
     },
     {
-      "name": "Rinascita",
+      "name": "Ravvivare",
       "level": 3,
       "school": "Necromanzia",
       "casting_time": "1 azione",
@@ -1160,7 +1160,7 @@
       "higher_levels": null
     },
     {
-      "name": "Colpo Infuocato",
+      "name": "Colpo di Fiamme",
       "level": 5,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -1244,7 +1244,7 @@
       "higher_levels": "Se l'incantatore usa uno slot incantesimo di 7º o 8º livello, la durata diventa 365 giorni. Se ­l'incantatore usa uno slot incantesimo di 9º livello, l'incantesimo dura finché uno degli incantesimi menzionati sopra non vi pone fine."
     },
     {
-      "name": "Cura Ferite di Massa",
+      "name": "Curare Ferite di Massa",
       "level": 5,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -1333,7 +1333,7 @@
       "higher_levels": null
     },
     {
-      "name": "Ristorare Superiore",
+      "name": "Ripristino Superiore",
       "level": 5,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -1457,7 +1457,7 @@
       "higher_levels": "Se l'incantatore usa uno slot incantesimo di 7º livello, può animare o ristabilire il controllo su quattro ghoul. Se l'incantatore usa uno slot incantesimo di 8º livello, può animare o ristabilire il controllo su cinque ghoul, o due ghast o wight. Se l'incantatore usa uno slot incantesimo di 9º livello, può animare o ristabilire il controllo su sei ghoul, tre ghast o wight, o due mummie. Vedi \"Mostri\" per le relative schede delle statistiche."
     },
     {
-      "name": "Ferire",
+      "name": "Nuocere",
       "level": 6,
       "school": "Necromanzia",
       "casting_time": "1 azione",
@@ -1474,7 +1474,7 @@
       "higher_levels": null
     },
     {
-      "name": "Guarigione",
+      "name": "Guarire",
       "level": 6,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -1491,7 +1491,7 @@
       "higher_levels": "La guarigione aumenta di 10 per ogni slot di livello superiore al 6º."
     },
     {
-      "name": "Parola del Ritiro",
+      "name": "Parola di Richiamo",
       "level": 6,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -1525,7 +1525,7 @@
       "higher_levels": null
     },
     {
-      "name": "Scopri il Percorso",
+      "name": "Trovare la Via",
       "level": 6,
       "school": "Divinazione",
       "casting_time": "1 minuto",
@@ -1561,7 +1561,7 @@
       "higher_levels": null
     },
     {
-      "name": "Evoca Celestiale",
+      "name": "Convocare Celestiale",
       "level": 7,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -1578,7 +1578,7 @@
       "higher_levels": "I danni e la guarigione aumentano di 1d12 per ogni slot di livello superiore al 7º."
     },
     {
-      "name": "Forma Eterea",
+      "name": "Eterealità",
       "level": 7,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -1629,7 +1629,7 @@
       "higher_levels": null
     },
     {
-      "name": "Rigenerazione",
+      "name": "Rigenerare",
       "level": 7,
       "school": "Trasmutazione",
       "casting_time": "1 minuto",
@@ -1718,7 +1718,7 @@
       "higher_levels": null
     },
     {
-      "name": "Campo Anti-Magia",
+      "name": "Campo Antimagia",
       "level": 8,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -1736,7 +1736,7 @@
       "higher_levels": null
     },
     {
-      "name": "Controllare Tempo Atmosferico",
+      "name": "Controllare il Tempo Atmosferico",
       "level": 8,
       "school": "Trasmutazione",
       "casting_time": "10 minuti",
@@ -1772,7 +1772,7 @@
       "higher_levels": null
     },
     {
-      "name": "Guarigione di Massa",
+      "name": "Guarire di Massa",
       "level": 9,
       "school": "Abiurazione",
       "casting_time": "1 azione",
@@ -1825,7 +1825,7 @@
       "higher_levels": null
     },
     {
-      "name": "Resurrezione Pura",
+      "name": "Resurrezione Autentica",
       "level": 9,
       "school": "Necromanzia",
       "casting_time": "1 ora",

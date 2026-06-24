@@ -1,0 +1,108 @@
+{
+  "name": "Forestiero",
+  "description": "Sei cresciuto nelle terre selvagge, lontano dal mondo civilizzato e dalle comodità dei centri abitati. Hai assistito alla migrazione di branchi più grandi delle foreste e sei sopravvissuto a intemperie estreme.",
+  "skill_proficiencies": [
+    "Atletica",
+    "Sopravvivenza"
+  ],
+  "tool_proficiencies": [
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "strumenti_musicali"
+    }
+  ],
+  "languages": [
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "any"
+    }
+  ],
+  "equipment": [
+    {
+      "name": "Bastone",
+      "item_type": "item"
+    },
+    {
+      "name": "Tagliola",
+      "item_type": "item"
+    },
+    {
+      "name": "Trofeo di un animale ucciso",
+      "item_type": "item"
+    },
+    {
+      "name": "Abito da viaggiatore",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 10 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 10
+    }
+  ],
+  "feature": {
+    "name": "Viandante",
+    "description": "Hai un'ottima memoria geografica e uno spiccato senso dell'orientamento: riesci sempre a ricordare la disposizione generale del territorio, degli insediamenti e degli altri punti di riferimento attorno a te. Inoltre sei in grado di trovare cibo e acqua fresca per te stesso e per un massimo di altre cinque persone ogni giorno, purché il territorio offra bacche, selvaggina, acqua e così via."
+  },
+  "personality_traits": [
+    "Sono animato da un insaziabile desiderio di viaggiare, che mi ha condotto lontano dalla mia casa.",
+    "Veglio sui miei amici come se fossero dei cuccioli indifesi.",
+    "Una volta ho corso per quaranta chilometri ininterrottamente per avvertire il mio clan dell'arrivo di un'orda di orchi. E lo rifarei se se ne presentasse la necessità.",
+    "Imparo una lezione da ogni situazione che osservo nel mondo naturale.",
+    "Non tengo in alcun conto le persone ricche o dai modi raffinati. I soldi e le buone maniere non salvano nessuno da un orsogufo inferocito.",
+    "Afferro tutti gli oggetti che mi capitano sotto mano e ci giocherello, a volte rompendoli senza volerlo.",
+    "Mi trovo molto più a mio agio in compagnia degli animali che delle persone.",
+    "Sono stato allevato dai lupi."
+  ],
+  "ideals": [
+    {
+      "name": "Cambiamento",
+      "alignment": "Caotico",
+      "description": "La vita è come le stagioni: in costante mutamento, e noi dobbiamo mutare di conseguenza."
+    },
+    {
+      "name": "Bene superiore",
+      "alignment": "Buono",
+      "description": "Ognuno ha il dovere di contribuire alla felicità massima di tutta la tribù."
+    },
+    {
+      "name": "Onore",
+      "alignment": "Legale",
+      "description": "Chi disonora se stesso disonora l'intero clan."
+    },
+    {
+      "name": "Potere",
+      "alignment": "Malvagio",
+      "description": "Il più forte ha il diritto di governare."
+    },
+    {
+      "name": "Natura",
+      "alignment": "Neutrale",
+      "description": "Il mondo naturale è più importante di tutti gli artifici della civiltà."
+    },
+    {
+      "name": "Gloria",
+      "alignment": "Qualsiasi",
+      "description": "È doveroso coprirsi di gloria in battaglia, per se stessi e il proprio clan."
+    }
+  ],
+  "bonds": [
+    "La mia famiglia, il mio clan o la mia tribù sono la cosa più importante della mia vita, anche quando sono lontani da me.",
+    "Una ferita alla natura selvaggia e incontaminata della mia regione è una ferita inferta a me.",
+    "Ho giurato di reclamare tremenda vendetta sui malvagi che hanno distrutto la mia terra.",
+    "Sono l'ultimo della mia tribù e devo fare in modo che il nome di quella tribù entri nella leggenda.",
+    "Ho avuto la terribile visione di un disastro incombente e farò tutto il possibile per scongiurarlo.",
+    "Mi sento in dovere di avere figli per garantire la sopravvivenza della mia tribù."
+  ],
+  "flaws": [
+    "Amo troppo la birra, il vino e gli altri alcolici.",
+    "Vivo una vita senza compromessi e non uso mai alcuna cautela.",
+    "Ricordo anche il minimo insulto ricevuto e covo un cieco risentimento nei confronti di tutti quelli che mi hanno offeso.",
+    "Ho difficoltà a fidarmi dei membri delle altre razze, tribù o società.",
+    "Rispondo con la violenza a pressoché qualsiasi sfida mi si pari davanti.",
+    "Non salverò mai chi non è in grado di salvarsi da solo. In natura, il forte sopravvive e il debole perisce."
+  ]
+}

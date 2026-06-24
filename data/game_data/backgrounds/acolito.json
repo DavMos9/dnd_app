@@ -1,15 +1,41 @@
 {
   "name": "Acolito",
   "description": "Hai trascorso la tua vita al servizio in un tempio di un dio specifico o in un pantheon di dei. Agisci come intermediario tra il regno del sacro e il mondo mortale.",
-  "skill_proficiencies": ["Intuizione", "Religione"],
+  "skill_proficiencies": [
+    "Intuizione",
+    "Religione"
+  ],
   "tool_proficiencies": [],
-  "languages": [{"type": "choice", "count": 2, "from": "any"}],
+  "languages": [
+    {
+      "type": "choice",
+      "count": 2,
+      "from": "any"
+    }
+  ],
   "equipment": [
-    {"name": "Simbolo sacro (regalo di qualcuno di importante per te)", "item_type": "item"},
-    {"name": "Libro di preghiere o ruota di preghiere", "item_type": "item"},
-    {"name": "5 bastoncini di incenso", "item_type": "item"},
-    {"name": "Abito", "item_type": "item"},
-    {"name": "Borsa con 15 MO", "item_type": "item"}
+    {
+      "name": "Simbolo sacro (regalo di qualcuno di importante per te)",
+      "item_type": "item"
+    },
+    {
+      "name": "Libro di preghiere o ruota di preghiere",
+      "item_type": "item"
+    },
+    {
+      "name": "5 bastoncini di incenso",
+      "item_type": "item"
+    },
+    {
+      "name": "Abito",
+      "item_type": "item"
+    },
+    {
+      "name": "Borsa con 15 MO",
+      "item_type": "currency",
+      "currency_type": "gold",
+      "quantity": 15
+    }
   ],
   "feature": {
     "name": "Rifugio dei Fedeli",
@@ -26,12 +52,36 @@
     "Ho trascorso così tanto tempo in meditazione che ho difficoltà a concentrarmi su più di una cosa alla volta."
   ],
   "ideals": [
-    {"name": "Tradizione", "alignment": "Legale", "description": "L'ordine antico e la dottrina del mio tempio devono essere preservati e rispettati."},
-    {"name": "Carità", "alignment": "Buono", "description": "Cerco sempre di aiutare chi ne ha bisogno, qualunque cosa costi."},
-    {"name": "Cambiamento", "alignment": "Caotico", "description": "Dobbiamo portare avanti il cambiamento. I nostri dei ci stanno guidando verso qualcosa di migliore."},
-    {"name": "Potere", "alignment": "Malvagio", "description": "Spero di salire alle alte sfere della gerarchia del mio tempio."},
-    {"name": "Fede", "alignment": "Neutrale", "description": "Confido che il mio dio mi guiderà nelle mie azioni."},
-    {"name": "Aspirazione", "alignment": "Qualsiasi", "description": "Spero di dimostrare la mia devozione ai miei dei attraverso le mie azioni."}
+    {
+      "name": "Tradizione",
+      "alignment": "Legale",
+      "description": "L'ordine antico e la dottrina del mio tempio devono essere preservati e rispettati."
+    },
+    {
+      "name": "Carità",
+      "alignment": "Buono",
+      "description": "Cerco sempre di aiutare chi ne ha bisogno, qualunque cosa costi."
+    },
+    {
+      "name": "Cambiamento",
+      "alignment": "Caotico",
+      "description": "Dobbiamo portare avanti il cambiamento. I nostri dei ci stanno guidando verso qualcosa di migliore."
+    },
+    {
+      "name": "Potere",
+      "alignment": "Malvagio",
+      "description": "Spero di salire alle alte sfere della gerarchia del mio tempio."
+    },
+    {
+      "name": "Fede",
+      "alignment": "Neutrale",
+      "description": "Confido che il mio dio mi guiderà nelle mie azioni."
+    },
+    {
+      "name": "Aspirazione",
+      "alignment": "Qualsiasi",
+      "description": "Spero di dimostrare la mia devozione ai miei dei attraverso le mie azioni."
+    }
   ],
   "bonds": [
     "Sono disposto a dare la vita per le Scritture Sacre del mio tempio.",
