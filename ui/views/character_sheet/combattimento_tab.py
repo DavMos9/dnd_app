@@ -411,7 +411,7 @@ class CombattimentoTab(ft.ListView):
     # ------------------------------------------------------------------
 
     def _section_stats(self, c: Character) -> ft.Container:
-        initiative = get_modifier(c.dex_score)
+        initiative = get_modifier(c.dex_score) + (c.initiative_bonus or 0)
         init_str = f"+{initiative}" if initiative >= 0 else str(initiative)
 
         def _stat_box(label: str, value: str, accent: str = COLOR_TEXT_PRIMARY) -> ft.Container:

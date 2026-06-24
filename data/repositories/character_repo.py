@@ -68,6 +68,7 @@ def _row_to_character(row) -> Character:
         totem_animal=d.get("totem_animal", "") or "",
         land_terrain=d.get("land_terrain", "") or "",
         pact_boon=d.get("pact_boon", "") or "",
+        initiative_bonus=d.get("initiative_bonus", 0) or 0,
         age=d["age"],
         height=d["height"],
         weight=d["weight"],
@@ -283,6 +284,7 @@ def update(character: Character) -> bool:
                 totem_animal=:totem_animal,
                 land_terrain=:land_terrain,
                 pact_boon=:pact_boon,
+                initiative_bonus=:initiative_bonus,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -344,6 +346,7 @@ def update(character: Character) -> bool:
             "totem_animal": _s(character.totem_animal),
             "land_terrain": _s(character.land_terrain),
             "pact_boon": _s(character.pact_boon),
+            "initiative_bonus": character.initiative_bonus,
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -376,22 +379,172 @@ def _save_single_proficiency(
     proficiency_type: str,
     name: str,
     is_expert: bool = False,
+    bonus_data: str | None = None,
+    level_obtained: int = 0,
 ) -> bool:
-    """Inserisce una singola competenza (usata dal wizard)."""
+    """Inserisce una singola competenza (usata dal wizard e dal level-up).
+
+    bonus_data     — JSON opzionale con i bonus applicati, es.:
+                     '{"ability": {"cha": 1}, "other": {"initiative": 5}}'
+    level_obtained — livello al quale la competenza/talento è stato acquisito.
+                     0 = sconosciuto (wizard, house rules). Usato da undo_level.
+    """
     import uuid
     try:
         conn = get_connection()
         conn.execute(
             """INSERT OR IGNORE INTO character_proficiencies
-               (id, character_id, proficiency_type, name, is_expert)
-               VALUES (?, ?, ?, ?, ?)""",
-            (str(uuid.uuid4()), character_id, proficiency_type, name, int(is_expert)),
+               (id, character_id, proficiency_type, name, is_expert, bonus_data, level_obtained)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (str(uuid.uuid4()), character_id, proficiency_type, name,
+             int(is_expert), bonus_data, level_obtained),
         )
         conn.commit()
         conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore salvataggio competenza '{name}': {e}")
+        return False
+
+
+def undo_level(character_id: str, level_removed: int) -> bool:
+    """
+    Inverte tutti i bonus (feat e ASI) acquisiti al livello `level_removed`.
+
+    Legge le righe con level_obtained == level_removed e proficiency_type in
+    ('feat', 'asi_record'), quindi:
+    - per ogni riga con bonus_data: applica l'inverso su characters
+    - elimina le righe
+
+    Usato da _on_level_down_click PRIMA di decrementare c.level.
+    """
+    try:
+        conn = get_connection()
+
+        rows = conn.execute(
+            """SELECT proficiency_type, name, bonus_data
+               FROM character_proficiencies
+               WHERE character_id=? AND level_obtained=?
+                 AND proficiency_type IN ('feat', 'asi_record')""",
+            (character_id, level_removed),
+        ).fetchall()
+
+        set_parts: list[str] = []
+        params: list = []
+
+        _other_col_map = {"initiative": "initiative_bonus", "speed": "speed"}
+
+        for row in rows:
+            if not row["bonus_data"]:
+                continue
+            try:
+                stored = json.loads(row["bonus_data"])
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            for stat, val in stored.get("ability", {}).items():
+                set_parts.append(f"{stat}_score = MAX(1, {stat}_score - ?)")
+                params.append(val)
+
+            for key, val in stored.get("other", {}).items():
+                col = _other_col_map.get(key)
+                if col:
+                    floor = 1 if col == "speed" else 0
+                    set_parts.append(f"{col} = MAX({floor}, {col} - ?)")
+                    params.append(val)
+
+        if set_parts:
+            params.append(character_id)
+            conn.execute(
+                f"UPDATE characters SET {', '.join(set_parts)} WHERE id=?",
+                params,
+            )
+
+        # Rimuove feat e asi_record del livello
+        conn.execute(
+            """DELETE FROM character_proficiencies
+               WHERE character_id=? AND level_obtained=?
+                 AND proficiency_type IN ('feat', 'asi_record')""",
+            (character_id, level_removed),
+        )
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore undo_level({level_removed}) per {character_id}: {e}")
+        return False
+
+
+def remove_feat_with_bonuses(character_id: str, feat_name: str) -> bool:
+    """
+    Rimuove un talento da character_proficiencies e inverte tutti i bonus
+    registrati in bonus_data al momento del salvataggio.
+
+    Struttura bonus_data attesa:
+        {"ability": {"str": 1, "cha": 1}, "other": {"initiative": 5, "speed": 3}}
+
+    Chiavi 'other' supportate:
+        "initiative" → characters.initiative_bonus
+        "speed"      → characters.speed
+    """
+    try:
+        conn = get_connection()
+
+        # Legge la ricevuta del talento
+        row = conn.execute(
+            "SELECT bonus_data FROM character_proficiencies "
+            "WHERE character_id=? AND proficiency_type='feat' AND name=?",
+            (character_id, feat_name),
+        ).fetchone()
+
+        if row and row["bonus_data"]:
+            try:
+                stored = json.loads(row["bonus_data"])
+            except (json.JSONDecodeError, TypeError):
+                stored = {}
+
+            ability_changes: dict = stored.get("ability", {})
+            other_changes: dict  = stored.get("other", {})
+
+            if ability_changes or other_changes:
+                # Costruisce le colonne da aggiornare
+                set_parts = []
+                params: list = []
+
+                for stat, val in ability_changes.items():
+                    col = f"{stat}_score"
+                    set_parts.append(f"{col} = MAX(1, {col} - ?)")
+                    params.append(val)
+
+                _other_col_map = {"initiative": "initiative_bonus", "speed": "speed"}
+                for key, val in other_changes.items():
+                    col = _other_col_map.get(key)
+                    if col:
+                        if col == "speed":
+                            set_parts.append(f"{col} = MAX(1, {col} - ?)")
+                        else:
+                            set_parts.append(f"{col} = MAX(0, {col} - ?)")
+                        params.append(val)
+
+                if set_parts:
+                    params.append(character_id)
+                    conn.execute(
+                        f"UPDATE characters SET {', '.join(set_parts)} WHERE id=?",
+                        params,
+                    )
+
+        # Elimina il talento
+        conn.execute(
+            "DELETE FROM character_proficiencies "
+            "WHERE character_id=? AND proficiency_type='feat' AND name=?",
+            (character_id, feat_name),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore rimozione talento '{feat_name}': {e}")
         return False
 
 

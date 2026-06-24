@@ -4,14 +4,16 @@
     "name": "string — nome italiano del talento",
     "prerequisite": "string — prerequisito testuale, es. 'FOR 13' oppure null se nessuno",
     "description": "string — descrizione meccanica completa dal PHB",
-    "ability_bonus": "object — es. {'str': 1} oppure {'choose_one': true} se la scelta è del giocatore"
+    "ability_bonus": "object — es. {'str': 1} oppure {'choose_one': true, 'options': [...]} se la scelta è del giocatore",
+    "other_bonuses": "object — bonus non-stat, es. {'initiative': 5} oppure {'speed': 3}. Chiavi supportate: initiative (INTEGER), speed (INTEGER in metri)"
   },
   "feats": [
     {
       "name": "Allerta",
       "prerequisite": null,
       "description": "Sei sempre all'erta e tendi a cogliere di sorpresa i tuoi nemici. Ottieni i seguenti benefici: +5 al tuo bonus di iniziativa. Non puoi essere colto di sorpresa mentre sei cosciente. Le altre creature non ottengono vantaggio ai tiri per colpire contro di te per essere nascosti a te.",
-      "ability_bonus": null
+      "ability_bonus": null,
+      "other_bonuses": {"initiative": 5}
     },
     {
       "name": "Atletico",
@@ -155,7 +157,8 @@
       "name": "Mobile",
       "prerequisite": null,
       "description": "Sei eccezionalmente veloce e agile. Ottieni i seguenti benefici: La tua velocità aumenta di 10 piedi. Quando usi la mossa Scatto, passare attraverso terreno difficile non ti costa movimento extra per quel turno. Quando effettui un attacco da mischia contro una creatura, non provochi attacchi d'opportunità da quella creatura per il resto di quel turno, che tu colpisca o meno.",
-      "ability_bonus": null
+      "ability_bonus": null,
+      "other_bonuses": {"speed": 3}
     },
     {
       "name": "Addestrato alle Armature Medie",

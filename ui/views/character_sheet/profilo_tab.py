@@ -656,13 +656,16 @@ class ProfiloTab(ft.ListView):
                 feat_cbs.append(cb)
 
             def _save_feats(ev_inner: Any) -> None:
-                selected = [
+                selected = {
                     str(cb.label) for cb in feat_cbs
                     if cb.value and cb.label
-                ]
-                character_repo.replace_proficiencies_by_types(
-                    c.id, "feat", [(n, False) for n in selected]
-                )
+                }
+                # Rimuove i talenti deselezionati (invertendo i bonus registrati)
+                for name in owned_names - selected:
+                    character_repo.remove_feat_with_bonuses(c.id, name)
+                # Aggiunge i talenti appena spuntati (senza bonus: house rules, no UI choose_one)
+                for name in selected - owned_names:
+                    character_repo._save_single_proficiency(c.id, "feat", name)
                 page.pop_dialog()
                 self._refresh()
 
@@ -1900,31 +1903,78 @@ class ProfiloTab(ft.ListView):
                 if asi_type.value == "two_one" and stat_dd1.value:
                     k = stat_dd1.value
                     setattr(c, f"{k}_score", min(20, getattr(c, f"{k}_score") + 2))
+                    # Traccia l'ASI per il level-down
+                    import json as _json2
+                    character_repo._save_single_proficiency(
+                        c.id, "asi_record", f"+2 {k}",
+                        bonus_data=_json2.dumps({"ability": {k: 2}}),
+                        level_obtained=new_level,
+                    )
                 elif asi_type.value == "one_one":
+                    _asi_applied: dict[str, int] = {}
                     if stat_dd1.value:
                         setattr(c, f"{stat_dd1.value}_score",
                                 min(20, getattr(c, f"{stat_dd1.value}_score") + 1))
+                        _asi_applied[stat_dd1.value] = 1
                     if stat_dd2.value and stat_dd2.value != stat_dd1.value:
                         setattr(c, f"{stat_dd2.value}_score",
                                 min(20, getattr(c, f"{stat_dd2.value}_score") + 1))
+                        _asi_applied[stat_dd2.value] = 1
+                    if _asi_applied:
+                        import json as _json2
+                        character_repo._save_single_proficiency(
+                            c.id, "asi_record",
+                            "+1 " + "+1 ".join(_asi_applied.keys()),
+                            bonus_data=_json2.dumps({"ability": _asi_applied}),
+                            level_obtained=new_level,
+                        )
                 elif asi_type.value == "feat" and feat_dd.value and feat_dd.value != "__none__":
-                    # Salva il talento come competenza di tipo "feat"
-                    character_repo._save_single_proficiency(c.id, "feat", feat_dd.value)
-                    # Applica ability_bonus dal JSON del talento
                     _fd = _loader.get_feat(feat_dd.value)
-                    _ab = _fd.get("ability_bonus") if _fd else None
+                    _ab = (_fd.get("ability_bonus") if _fd else None) or {}
+                    _ob = (_fd.get("other_bonuses") if _fd else None) or {}
+
+                    # Calcola i bonus effettivi applicati (per bonus_data)
+                    applied_ability: dict[str, int] = {}
+                    applied_other:   dict[str, int] = {}
+
+                    # ability_bonus: fisso o choose_one
                     if _ab:
                         if _ab.get("choose_one"):
-                            # La stat è stata scelta dal giocatore nella dropdown
                             if feat_bonus_dd.value:
-                                _cur = getattr(c, f"{feat_bonus_dd.value}_score", 10)
-                                setattr(c, f"{feat_bonus_dd.value}_score", min(20, _cur + 1))
+                                stat = feat_bonus_dd.value
+                                _cur = getattr(c, f"{stat}_score", 10)
+                                setattr(c, f"{stat}_score", min(20, _cur + 1))
+                                applied_ability[stat] = 1
                         else:
-                            # Bonus fisso: applica ogni coppia {stat: valore}
                             for _stat, _val in _ab.items():
                                 if _stat in ABILITY_KEYS and isinstance(_val, int):
                                     _cur = getattr(c, f"{_stat}_score", 10)
                                     setattr(c, f"{_stat}_score", min(20, _cur + _val))
+                                    applied_ability[_stat] = _val
+
+                    # other_bonuses: initiative, speed, ecc.
+                    if _ob:
+                        if "initiative" in _ob:
+                            c.initiative_bonus = (c.initiative_bonus or 0) + _ob["initiative"]
+                            applied_other["initiative"] = _ob["initiative"]
+                        if "speed" in _ob:
+                            c.speed = (c.speed or 9) + _ob["speed"]
+                            applied_other["speed"] = _ob["speed"]
+
+                    # Costruisce la ricevuta da salvare
+                    _bonus_data: dict = {}
+                    if applied_ability:
+                        _bonus_data["ability"] = applied_ability
+                    if applied_other:
+                        _bonus_data["other"] = applied_other
+
+                    # Salva talento con ricevuta e livello di acquisizione
+                    import json as _json
+                    character_repo._save_single_proficiency(
+                        c.id, "feat", feat_dd.value,
+                        bonus_data=_json.dumps(_bonus_data) if _bonus_data else None,
+                        level_obtained=new_level,
+                    )
 
             # Sottoclasse scelta al level-up
             if subclass_dd_ref and subclass_dd_ref[0].value:
@@ -2017,10 +2067,17 @@ class ProfiloTab(ft.ListView):
         def do_level_down(ev):
             if page is None:
                 return
-            c.level = new_level
-            c.hp_max = max(1, c.hp_max - hp_loss)
-            c.hp_current = min(c.hp_current, c.hp_max)
-            character_repo.update(c)
+            # Inverte ASI e talenti acquisiti al livello che si sta rimuovendo
+            character_repo.undo_level(c.id, c.level)
+            # Ricarica dal DB per avere i valori aggiornati (stat invertite da undo_level)
+            refreshed = character_repo.get_by_id(c.id)
+            if refreshed:
+                self.character = refreshed
+            # Applica la riduzione di livello su self.character (aggiornato o originale)
+            self.character.level = new_level
+            self.character.hp_max = max(1, self.character.hp_max - hp_loss)
+            self.character.hp_current = min(self.character.hp_current, self.character.hp_max)
+            character_repo.update(self.character)
             page.pop_dialog()
             self._refresh()
 
@@ -2039,8 +2096,10 @@ class ProfiloTab(ft.ListView):
                 ft.Container(height=4),
                 ft.Container(
                     content=ft.Text(
-                        "⚠ Feature di classe e ASI ottenuti a quel livello non vengono "
-                        "ripristinati automaticamente. Correggili manualmente se necessario.",
+                        "✓ Talenti e ASI acquisiti a Lv."
+                        f"{c.level} verranno invertiti automaticamente.\n"
+                        "⚠ Le feature di classe ottenute a quel livello "
+                        "non vengono ripristinate automaticamente.",
                         size=11, color=COLOR_ACCENT_AMBER,
                     ),
                     bgcolor="#fef9ec", padding=8, border_radius=4,
