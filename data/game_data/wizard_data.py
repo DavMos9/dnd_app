@@ -66,7 +66,7 @@ WIZARD_QUESTIONS = [
         "options": [
             {
                 "id": "melee_heavy",
-                "text": "Entro in mischia e mengo forte",
+                "text": "Entro in mischia e meno forte",
                 "icon": "FITNESS_CENTER",
                 "desc": "Armatura pesante, arma in mano, niente sottigliezze",
                 "scores": {"Guerriero": 3, "Barbaro": 3, "Paladino": 2, "Monaco": 1},

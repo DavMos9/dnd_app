@@ -7,7 +7,11 @@
       "school": "Abiurazione",
       "casting_time": "1 minuto",
       "range": "9 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un campanellino e del filo d'argento",
       "duration": "8 ore",
       "ritual": true,
@@ -21,7 +25,11 @@
       "school": "Ammaliamento",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un po' di cibo",
       "duration": "24 ore",
       "ritual": false,
@@ -30,12 +38,15 @@
       "higher_levels": "Lanciando con uno slot di livello 2 o superiore, puoi bersagliare una bestia aggiuntiva per ogni livello di slot superiore al 1°."
     },
     {
-      "name": "Cura le Ferite",
+      "name": "Cura Ferite",
       "level": 1,
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -49,7 +60,10 @@
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": true,
@@ -63,7 +77,11 @@
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "foglie di tasso",
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": true,
@@ -77,7 +95,10 @@
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "18 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -91,7 +112,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un ramoscello di vischio",
       "duration": "istantanea",
       "ritual": false,
@@ -105,7 +130,9 @@
       "school": "Divinazione",
       "casting_time": "1 azione bonus",
       "range": "27 metri",
-      "components": ["V"],
+      "components": [
+        "V"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -119,7 +146,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "una zampa di cavalletta",
       "duration": "1 minuto",
       "ritual": false,
@@ -133,7 +164,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "alcuni peli di gatto",
       "duration": "1 ora",
       "ritual": false,
@@ -147,7 +182,10 @@
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "10 minuti",
       "ritual": true,
@@ -161,7 +199,11 @@
       "school": "Ammaliamento",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un pezzetto di cibo",
       "duration": "24 ore",
       "ritual": true,
@@ -175,7 +217,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un pezzo di corteccia di quercia",
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -189,7 +235,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un pizzico di carota secca o un'agata",
       "duration": "8 ore",
       "ritual": false,
@@ -203,7 +253,10 @@
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "27 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -217,7 +270,10 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -231,7 +287,11 @@
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "una piuma da un uccello rapace",
       "duration": "istantanea",
       "ritual": true,
@@ -245,7 +305,11 @@
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un ramoscello biforcuto",
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": false,
@@ -259,7 +323,11 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "cenere da un ramo di frassino bruciato e qualche ago di pino schiacciato",
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -273,7 +341,10 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "1 ora",
       "ritual": false,
@@ -287,7 +358,10 @@
       "school": "Illusione",
       "casting_time": "1 azione",
       "range": "54 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": true,
@@ -301,7 +375,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "45 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "sette spine o sette rami acuminati",
       "duration": "concentrazione, fino a 10 minuti",
       "ritual": false,
@@ -310,12 +388,15 @@
       "higher_levels": null
     },
     {
-      "name": "Convocare Animali",
+      "name": "Evocare Animali",
       "level": 3,
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "18 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -329,7 +410,10 @@
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "18 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "1 ora",
       "ritual": false,
@@ -343,7 +427,11 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un pizzico di diamante in polvere del valore di 25 mo asperse sull'obiettivo, che l'incantesimo consuma",
       "duration": "8 ore",
       "ritual": false,
@@ -357,7 +445,10 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione o 8 ore",
       "range": "45 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": false,
@@ -371,7 +462,10 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -385,7 +479,10 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "Sé stesso (raggio di 9 metri)",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "10 minuti",
       "ritual": false,
@@ -399,7 +496,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un corto cannuccia",
       "duration": "24 ore",
       "ritual": true,
@@ -413,7 +514,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione",
       "range": "9 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un pezzo di sughero",
       "duration": "1 ora",
       "ritual": true,
@@ -427,7 +532,11 @@
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "36 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un piccolo ventaglio e una piuma esotica",
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -436,12 +545,16 @@
       "higher_levels": null
     },
     {
-      "name": "Convocare Esseri del Bosco",
+      "name": "Evocare Esseri del Bosco",
       "level": 4,
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "18 metri",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "una ghianda dorata del valore di almeno 1 mo",
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -455,7 +568,11 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "una stringa di cuoio avvolta attorno al braccio",
       "duration": "1 ora",
       "ritual": false,
@@ -469,7 +586,11 @@
       "school": "Divinazione",
       "casting_time": "1 azione",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "un pelo di bestia o una piuma d'uccello",
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -483,7 +604,11 @@
       "school": "Abiurazione",
       "casting_time": "1 azione",
       "range": "Contatto",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "diamante in polvere del valore di 100 mo, che l'incantesimo consuma",
       "duration": "concentrazione, fino a 1 ora",
       "ritual": false,
@@ -497,7 +622,10 @@
       "school": "Divinazione",
       "casting_time": "1 minuto",
       "range": "Sé stesso",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "istantanea",
       "ritual": true,
@@ -511,7 +639,11 @@
       "school": "Trasmutazione",
       "casting_time": "1 azione bonus",
       "range": "Sé stesso",
-      "components": ["V", "S", "M"],
+      "components": [
+        "V",
+        "S",
+        "M"
+      ],
       "material": "una farfara e uno spago lungo 30 cm",
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,
@@ -525,7 +657,10 @@
       "school": "Evocazione",
       "casting_time": "1 azione",
       "range": "1,5 metri",
-      "components": ["V", "S"],
+      "components": [
+        "V",
+        "S"
+      ],
       "material": null,
       "duration": "concentrazione, fino a 1 minuto",
       "ritual": false,

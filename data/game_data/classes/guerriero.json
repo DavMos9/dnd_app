@@ -244,12 +244,12 @@
     },
     {
       "level": 1,
-      "name": "Recuperare Energie",
+      "name": "Secondo Fiato",
       "description": "Puoi difenderti con la tua resistenza. Nel tuo turno puoi usare un'azione bonus per recuperare PF pari a 1d10 + il tuo livello da guerriero. Una volta usato, devi completare un riposo breve o lungo prima di poterlo usare di nuovo."
     },
     {
       "level": 2,
-      "name": "Azione Impetuosa",
+      "name": "Impeto d'Azione",
       "description": "Puoi sferrare un attacco aggiuntivo oltre al normale, oppure compiere un'azione aggiuntiva nel tuo turno. Questa azione aggiuntiva può essere usata solo per Attacco (un solo colpo), Scatto, Disimpegno, Schivata o Aiuto. Usi: 1 (lv2), 2 (lv17). Recupero: riposo breve o lungo."
     },
     {

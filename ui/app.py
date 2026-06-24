@@ -39,8 +39,8 @@ SECTIONS: list[dict[str, Any]] = [
     {"key": "spells",    "label": "Incantesimi", "icon_off": ft.Icons.AUTO_AWESOME_OUTLINED,  "icon_on": ft.Icons.AUTO_AWESOME},
     {"key": "diary",     "label": "Diario",      "icon_off": ft.Icons.MENU_BOOK_OUTLINED,     "icon_on": ft.Icons.MENU_BOOK},
     {"key": "maps",      "label": "Mappe",       "icon_off": ft.Icons.MAP_OUTLINED,           "icon_on": ft.Icons.MAP},
-    {"key": "dice",      "label": "Dadi",        "icon_off": ft.Icons.CASINO_OUTLINED,        "icon_on": ft.Icons.CASINO},
     {"key": "feats",     "label": "Talenti",     "icon_off": ft.Icons.MILITARY_TECH_OUTLINED, "icon_on": ft.Icons.MILITARY_TECH},
+    {"key": "dice",      "label": "Dadi",        "icon_off": ft.Icons.CASINO_OUTLINED,        "icon_on": ft.Icons.CASINO},
 ]
 
 

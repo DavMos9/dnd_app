@@ -126,6 +126,7 @@ class WizardView(ft.Column):
         self._review_mezzelf_skills:  list[str] = []   # 2 abilità Mezzelf (Versatilità)
         self._review_elf_cantrip:     str       = ""   # trucchetto Alto Elfo
         self._review_umano_language:  str       = ""   # lingua aggiuntiva Umano
+        self._review_expertise:       list[str] = []   # 2 abilità Perizia Ladro Lv1
 
         # Stato equipment (popolato in _render_equipment)
         # lista di dict: {name, item_type, quantity, selected}
@@ -337,13 +338,13 @@ class WizardView(ft.Column):
         def _refresh_option_styles():
             for oid, card in option_refs.items():
                 if oid in selected:
-                    card.bgcolor = "#2a1f08"
-                    card.border = ft.Border.all(2, COLOR_ACCENT_GOLD)
+                    card.bgcolor = COLOR_BG_SELECTED
+                    card.border = ft.Border.all(2, COLOR_ACCENT_BLUE)
                     # Aggiorna colore icona
                     row = cast(ft.Row, card.content)
                     row.controls[0] = _icon(
                         next(o["icon"] for o in q["options"] if o["id"] == oid),
-                        COLOR_ACCENT_GOLD, 28,
+                        COLOR_ACCENT_BLUE, 28,
                     )
                 else:
                     card.bgcolor = COLOR_BG_CARD
@@ -629,6 +630,7 @@ class WizardView(ft.Column):
         self._review_mezzelf_skills  = []
         self._review_elf_cantrip     = ""
         self._review_umano_language  = ""
+        self._review_expertise       = []
         self._phase = "review"
         self._render_review()
 
@@ -1121,6 +1123,100 @@ class WizardView(ft.Column):
 
         _rebuild_race_extras_col()
 
+        # ------ Perizia Ladro Lv1 (dinamica) ------
+        expertise_col = ft.Column([], spacing=6, visible=False)
+        expertise_checks: dict[str, ft.Checkbox] = {}
+
+        def _rebuild_expertise_col():
+            expertise_col.controls.clear()
+            expertise_checks.clear()
+            if self._review_class.lower() != "ladro":
+                self._review_expertise = []
+                expertise_col.visible = False
+                try:
+                    expertise_col.update()
+                except RuntimeError:
+                    pass
+                return
+            # Pool = background skills + abilità di classe già scelte
+            bg_skills = self._bg_skill_proficiencies()
+            pool = list(dict.fromkeys(bg_skills + self._review_skills))  # dedup, preserva ordine
+            if not pool:
+                expertise_col.visible = False
+                try:
+                    expertise_col.update()
+                except RuntimeError:
+                    pass
+                return
+            # Filtra selezioni non più valide
+            self._review_expertise = [s for s in self._review_expertise if s in pool]
+
+            exp_label_row = ft.Row([
+                ft.Text("Scegli 2 abilità per la Perizia (Lv.1)",
+                        size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                ft.Container(expand=True),
+                ft.Text(f"({len(self._review_expertise)}/2 selezionate)",
+                        size=11, color=COLOR_TEXT_MUTED),
+            ])
+            expertise_col.controls.append(exp_label_row)
+            exp_counter = cast(ft.Text, exp_label_row.controls[2])
+
+            def _on_expertise_toggle(skill: str, val: bool):
+                if val:
+                    if len(self._review_expertise) < 2:
+                        if skill not in self._review_expertise:
+                            self._review_expertise.append(skill)
+                    else:
+                        cb = expertise_checks.get(skill)
+                        if cb:
+                            cb.value = False
+                            try:
+                                cb.update()
+                            except RuntimeError:
+                                pass
+                        return
+                else:
+                    if skill in self._review_expertise:
+                        self._review_expertise.remove(skill)
+                exp_counter.value = f"({len(self._review_expertise)}/2 selezionate)"
+                try:
+                    exp_counter.update()
+                except RuntimeError:
+                    pass
+
+            left_exp: list[ft.Control] = []
+            right_exp: list[ft.Control] = []
+            for i, skill in enumerate(pool):
+                cb = ft.Checkbox(
+                    label=skill,
+                    value=skill in self._review_expertise,
+                    fill_color=COLOR_ACCENT_BLUE,
+                    check_color="#ffffff",
+                    label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                    on_change=lambda e, s=skill: _on_expertise_toggle(s, bool(e.control.value)),
+                )
+                expertise_checks[skill] = cb
+                if i % 2 == 0:
+                    left_exp.append(cb)
+                else:
+                    right_exp.append(cb)
+
+            expertise_col.controls.append(ft.Row(
+                [ft.Column(left_exp, spacing=4, expand=True),
+                 ft.Column(right_exp, spacing=4, expand=True)],
+                spacing=8,
+            ))
+            expertise_col.controls.append(
+                muted_text("La Perizia raddoppia il bonus di competenza per le abilità scelte.", size=11)
+            )
+            expertise_col.visible = True
+            try:
+                expertise_col.update()
+            except RuntimeError:
+                pass
+
+        _rebuild_expertise_col()
+
         # ------ Sezione abilità di classe (dinamica) ------
         skills_col = ft.Column([], spacing=6, visible=False)
         skill_checks: dict[str, ft.Checkbox] = {}
@@ -1175,6 +1271,8 @@ class WizardView(ft.Column):
                     label_row.update()
                 except RuntimeError:
                     pass
+                # Aggiorna il pool di Perizia se siamo Ladro
+                _rebuild_expertise_col()
 
             # Checkbox in griglia 2 colonne
             left_col: list[ft.Control] = []
@@ -1337,6 +1435,7 @@ class WizardView(ft.Column):
             self._review_subclass = ""
             self._review_dragon_ancestry = ""
             self._review_fighting_style = ""
+            self._review_expertise = []
             for key, dd_ctrl in stat_dropdowns.items():
                 dd_ctrl.value = str(self._review_stats.get(key, 10))
                 dd_ctrl.update()
@@ -1347,6 +1446,7 @@ class WizardView(ft.Column):
             _rebuild_dragon_col()
             _rebuild_fighting_style_col()
             _rebuild_skills_col()
+            _rebuild_expertise_col()
             _update_extra_card()
 
         def _on_race_change(e):
@@ -1365,7 +1465,9 @@ class WizardView(ft.Column):
             self._review_skills = []
             self._review_languages = []
             self._review_tools = []
+            self._review_expertise = []
             _rebuild_skills_col()
+            _rebuild_expertise_col()
             _rebuild_lang_tool_col()
             _update_extra_card()
 
@@ -1375,6 +1477,7 @@ class WizardView(ft.Column):
         sec_razza_classe  = ft.Container(content=section_header("Razza e Classe"),  visible=False)
         sec_extra_razziali = ft.Container(content=section_header("Extra Razziali"),  visible=False)
         sec_abilita       = ft.Container(content=section_header("Abilità di Classe"), visible=False)
+        sec_perizia       = ft.Container(content=section_header("Perizia (Ladro Lv.1)"), visible=False)
         sec_lang_tool     = ft.Container(content=section_header("Lingue e Strumenti"), visible=False)
 
         extra_card_content = ft.Column([
@@ -1387,6 +1490,8 @@ class WizardView(ft.Column):
             race_extras_col,
             sec_abilita,
             skills_col,
+            sec_perizia,
+            expertise_col,
             sec_lang_tool,
             lang_tool_col,
         ], spacing=12)
@@ -1405,8 +1510,12 @@ class WizardView(ft.Column):
             sec_razza_classe.visible   = has_rc
             sec_extra_razziali.visible = race_extras_col.visible
             sec_abilita.visible        = skills_col.visible
+            sec_perizia.visible        = expertise_col.visible
             sec_lang_tool.visible      = lang_tool_col.visible
-            extra_card.visible = has_rc or race_extras_col.visible or skills_col.visible or lang_tool_col.visible
+            extra_card.visible = (
+                has_rc or race_extras_col.visible or skills_col.visible
+                or expertise_col.visible or lang_tool_col.visible
+            )
             try:
                 extra_card.update()
             except RuntimeError:
@@ -1738,6 +1847,13 @@ class WizardView(ft.Column):
                         if attr:
                             setattr(char, attr, min(20, getattr(char, attr) + 1))
 
+                # Validazione Perizia Ladro
+                if self._review_class.lower() == "ladro" and len(self._review_expertise) != 2:
+                    error_text.value = "Ladro: seleziona 2 abilità per la Perizia (sezione Perizia nella fase Revisione)."
+                    error_text.visible = True
+                    error_text.update()
+                    return
+
                 ok = character_repo.create(char)
                 if not ok:
                     raise RuntimeError("Errore nel salvataggio sul database.")
@@ -1763,6 +1879,10 @@ class WizardView(ft.Column):
                 for skill in self._review_mezzelf_skills:
                     if skill:
                         character_repo._save_single_proficiency(char.id, "skill", skill)
+
+                # Perizia Ladro Lv1: raddoppia il bonus competenza per 2 abilità scelte
+                if self._review_class.lower() == "ladro" and self._review_expertise:
+                    character_repo.set_expertise(char.id, self._review_expertise)
 
                 # Trucchetto Alto Elfo → known_spell level 0
                 if self._review_elf_cantrip:

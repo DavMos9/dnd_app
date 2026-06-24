@@ -65,7 +65,7 @@
         ],
         [
           {
-            "name": "Fuoco Arcano",
+            "name": "Focus Arcano",
             "item_type": "item"
           }
         ]
@@ -103,49 +103,49 @@
   "subclass_choice_level": 1,
   "subclasses": [
     {
-      "name": "L'Antico",
+      "name": "L'Archefey",
       "expanded_spells": {
         "1": [
-          "Colpo Inebriante",
-          "Parlare con gli Animali"
+          "Fascino sulla Persona",
+          "Sonno"
         ],
         "2": [
-          "Raggi di Luna",
-          "Passo del Vento"
+          "Calma delle Emozioni",
+          "Fermare la Persona"
         ],
         "3": [
-          "Crescita di Spine",
-          "Mandare"
+          "Ammicco",
+          "Crescita delle Piante"
         ],
         "4": [
-          "Libertà di Movimento",
-          "Guardiano della Natura"
+          "Dominare le Bestie",
+          "Grande Invisibilità"
         ],
         "5": [
-          "Comunione con la Natura",
-          "Invocazione di Elementale"
+          "Dominare Persone",
+          "Sembrare"
         ]
       },
       "features": [
         {
           "level": 1,
-          "name": "Senso di Guarigione",
-          "description": "Come azione, tocchi una creatura e ripristini PF pari a 1d8 + modificatore di Carisma (usi = Carisma / riposo lungo). Non funziona sui non morti o i costrutti."
+          "name": "Presenza del Fey",
+          "description": "Come azione, ogni creatura entro 3 m da te deve superare un tiro salvezza su Saggezza (CD incantesimi) o essere affascinata o spaventata (a tua scelta) fino alla fine del tuo turno successivo. Una volta usata questa capacità, non puoi usarla di nuovo fino al completamento di un riposo breve o lungo."
         },
         {
           "level": 6,
-          "name": "Legame con il Tuo Signore delle Ombre",
-          "description": "Puoi aggiungere il tuo modificatore di Carisma alle prove di Arcano relative alla natura."
+          "name": "Fuga oltre il Velo",
+          "description": "Quando subisci danni, puoi usare la tua reazione per diventare invisibile e teletrasportarti fino a 18 m in uno spazio non occupato che puoi vedere. Rimani invisibile fino all'inizio del tuo prossimo turno o finché non effettui un attacco o lanci un incantesimo."
         },
         {
           "level": 10,
-          "name": "Cuore di Tenebra",
-          "description": "Il tuo signore cede una protezione: sei immune alle malattie e ai veleni; ottieni resistenza ai danni da freddo."
+          "name": "Incanto Dilagante",
+          "description": "Sei immune all'essere affascinato. Quando una creatura tenta di affascinaRTI, puoi usare la tua reazione per ritorcere il fascino su di essa: deve superare un tiro salvezza su Saggezza (CD incantesimi) o essere affascinata da te per 1 minuto o finché non subisce danni."
         },
         {
           "level": 14,
-          "name": "Creare Vita dal Buio",
-          "description": "Come azione, evochi un servitore non morto (CR ≤ livello/2) legato a te."
+          "name": "Follia dell'Oscurità",
+          "description": "Come azione, scegli una creatura visibile entro 18 m. Deve superare un tiro salvezza su Saggezza (CD incantesimi) o essere affascinata o spaventata (a tua scelta) per 1 minuto o finché la tua concentrazione non si spezza. L'effetto termina se la creatura subisce danni. La creatura pensa di essere persa in un reame nebuloso. Una volta usata, non puoi usarla di nuovo fino a un riposo breve o lungo."
         }
       ]
     },
@@ -153,8 +153,8 @@
       "name": "Il Signore degli Inferi",
       "expanded_spells": {
         "1": [
-          "Sferzata degli Inferi",
-          "Scudo Bruciante"
+          "Mani Ustionanti",
+          "Comando"
         ],
         "2": [
           "Cecità/Sordità",
@@ -165,34 +165,34 @@
           "Affrettarsi"
         ],
         "4": [
-          "Muro di Fuoco",
-          "Scudo del Fuoco"
+          "Scudo Bruciante",
+          "Muro di Fuoco"
         ],
         "5": [
-          "Sfera di Fuoco",
-          "Porta delle Fiamme"
+          "Colpo Fiammante",
+          "Scorgere"
         ]
       },
       "features": [
         {
           "level": 1,
-          "name": "Benedizione degli Inferi",
-          "description": "Come azione bonus, quando uccidi una creatura con un incantesimo, ottieni PF temporanei pari al livello di Warlock + modificatore di Carisma."
+          "name": "Benedizione dell'Oscurità",
+          "description": "Quando riduci una creatura ostile a 0 PF, ottieni PF temporanei pari al modificatore di Carisma + livello da Warlock (minimo 1)."
         },
         {
           "level": 6,
-          "name": "Il Tuo Beneficio Diabolico",
-          "description": "Puoi lanciare Alter Self una volta per riposo breve senza usare slot incantesimo."
+          "name": "Fortuna dell'Oscurità",
+          "description": "Puoi invocare il tuo patrono per alterare il destino a tuo favore. Quando effettui una prova di caratteristica o un tiro salvezza, puoi aggiungere 1d10 al risultato (dopo il tiro iniziale, ma prima degli effetti). Una volta usata, non puoi usarla di nuovo fino a un riposo breve o lungo."
         },
         {
           "level": 10,
-          "name": "Fortunato Demone",
-          "description": "Quando fai un tiro di attacco, prova abilità o TS, puoi aggiungere 1d10 (pari a Carisma / riposo lungo)."
+          "name": "Resilienza Fiendica",
+          "description": "Scegli un tipo di danno al termine di un riposo breve o lungo. Ottieni resistenza a quel tipo di danno finché non ne scegli un altro. Armi magiche o d'argento ignorano questa resistenza."
         },
         {
           "level": 14,
-          "name": "Portale delle Fiamme",
-          "description": "Come azione bonus (spendendo slot), teletrasporti te e creature adiacenti in un luogo entro 9 m, infliggendo danni da fuoco."
+          "name": "Scagliare attraverso l'Inferno",
+          "description": "Quando colpisci una creatura con un attacco, puoi teletrasportarla istantaneamente nei piani inferiori. Scompare fino alla fine del tuo prossimo turno, poi torna nello spazio precedente. Se non è un diavolo, subisce 10d10 danni psichici. Recupero: riposo lungo."
         }
       ]
     },
@@ -200,46 +200,46 @@
       "name": "Il Grande Antico",
       "expanded_spells": {
         "1": [
-          "Lettera di Dissolvimento",
-          "Onda Psichica"
+          "Sussurri Dissonanti",
+          "Risata Esilarante di Tasha"
         ],
         "2": [
           "Rilevare i Pensieri",
           "Immagine Speculare"
         ],
         "3": [
-          "Telecinesi Minore",
-          "Inviare Messaggi"
+          "Volare",
+          "Mandare"
         ],
         "4": [
           "Dominare le Bestie",
-          "Separare la Mente"
+          "Fermare il Mostro"
         ],
         "5": [
           "Dominare Persone",
-          "Legame Telepatico"
+          "Contatto con l'Altro Piano"
         ]
       },
       "features": [
         {
           "level": 1,
-          "name": "Telepatia Potenziata",
-          "description": "Puoi comunicare telepaticamente con qualsiasi creatura che capisca una lingua entro 18 m."
+          "name": "Mente Svegliata",
+          "description": "Puoi comunicare telepaticamente con qualsiasi creatura che capisca almeno una lingua entro 18 m. Non hai bisogno di condividere una lingua."
         },
         {
           "level": 6,
-          "name": "Senso dell'Aldilà",
-          "description": "I tuoi trucchetti che infliggono danni ottengono un tipo di danno aggiuntivo: psichico."
+          "name": "Difese Entropiche",
+          "description": "Quando una creatura ti colpisce con un tiro per colpire, puoi usare la tua reazione per imporre svantaggio a quel tiro. Se manca, ottieni vantaggio al prossimo tiro contro di essa entro il tuo prossimo turno. Una volta usata, devi finire un riposo breve o lungo."
         },
         {
           "level": 10,
-          "name": "Portale della Mente",
-          "description": "Puoi lanciare Telecinesi senza usare slot una volta per riposo lungo."
+          "name": "Scudo dei Pensieri",
+          "description": "Sei immune alla lettura della mente. Ottieni resistenza ai danni psichici. Quando una creatura ti infligge danni psichici, subisce la stessa quantità di danni psichici."
         },
         {
           "level": 14,
-          "name": "Creare uno Scudo di Vortice",
-          "description": "Come reazione, quando subisci danni, puoi usare 4 punti di stregoneria per ridurre i danni subiti della metà."
+          "name": "Creare un Servo",
+          "description": "Puoi toccare un umanoide incapace di agire. Quel creature è affascinato da te fino a quando non viene rimosso dall'incantesimo tramite un incantesimo Rimuovi Maledizione o simile. Hai un collegamento telepatico con l'umanoide affascinato fin quando si trova nello stesso piano."
         }
       ]
     }
