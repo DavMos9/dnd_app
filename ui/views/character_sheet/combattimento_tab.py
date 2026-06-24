@@ -20,7 +20,7 @@ Nota movimento: stored come int (metri interi). Il passo 1.5m usa delta=2.
 import flet as ft
 import json
 import logging
-from typing import cast
+from typing import Callable, cast
 from config.settings import *
 from config.settings import get_race_display_traits
 from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource
@@ -42,9 +42,10 @@ class CombattimentoTab(ft.ListView):
     Eredita da ft.ListView per scroll corretto in Flet 0.85.3.
     """
 
-    def __init__(self, character: Character):
+    def __init__(self, character: Character, on_refresh: Callable[[], None] | None = None):
         super().__init__(expand=True, spacing=12, padding=16)
         self.character = character
+        self._on_refresh = on_refresh
         self._page: ft.Page | None = None
         self._slots: list[SpellSlot] = character_repo.get_spell_slots(character.id)
         # Auto-init slot PHB se il personaggio è un incantatore e non ha ancora slot configurati
@@ -1933,3 +1934,5 @@ class CombattimentoTab(ft.ListView):
             self.update()
         except RuntimeError:
             pass
+        if self._on_refresh:
+            self._on_refresh()

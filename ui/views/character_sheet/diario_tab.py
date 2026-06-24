@@ -9,7 +9,7 @@ Struttura (ListView scrollabile):
 
 import flet as ft
 import logging
-from typing import cast
+from typing import Callable, cast
 from config.settings import *
 from data.models import Character, DiaryEntry
 import data.repositories.character_repo as character_repo
@@ -24,9 +24,10 @@ class DiarioTab(ft.ListView):
     Eredita da ft.ListView per scroll corretto in Flet 0.85.3.
     """
 
-    def __init__(self, character: Character):
+    def __init__(self, character: Character, on_refresh: Callable[[], None] | None = None):
         super().__init__(expand=True, spacing=10, padding=16)
         self.character = character
+        self._on_refresh = on_refresh
         self._page: ft.Page | None = None
         self._entries: list[DiaryEntry] = character_repo.get_diary_entries(character.id)
         self._build()
@@ -337,3 +338,5 @@ class DiarioTab(ft.ListView):
             self.update()
         except RuntimeError:
             pass
+        if self._on_refresh:
+            self._on_refresh()

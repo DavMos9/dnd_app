@@ -11,7 +11,7 @@ Struttura (ListView scrollabile):
 import flet as ft
 import json
 import logging
-from typing import Any, cast
+from typing import Any, Callable, cast
 from config.settings import *
 from data.models import Character, Currency, InventoryItem, Weapon
 import data.repositories.character_repo as character_repo
@@ -56,9 +56,10 @@ class InventarioTab(ft.ListView):
     Tab inventario: monete, peso, armi (CRUD), oggetti (CRUD).
     """
 
-    def __init__(self, character: Character):
+    def __init__(self, character: Character, on_refresh: Callable[[], None] | None = None):
         super().__init__(expand=True, spacing=12, padding=16)
         self.character = character
+        self._on_refresh = on_refresh
         self._page: ft.Page | None = None
         self._currencies: Currency | None = character_repo.get_currencies(character.id)
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id, equipped_only=False)
@@ -1053,3 +1054,5 @@ class InventarioTab(ft.ListView):
                 self.update()
         except RuntimeError:
             pass
+        if self._on_refresh:
+            self._on_refresh()

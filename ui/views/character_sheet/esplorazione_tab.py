@@ -13,7 +13,7 @@ Struttura (ListView scrollabile):
 
 import flet as ft
 import logging
-from typing import Any, cast
+from typing import Any, Callable, cast
 from config.settings import *
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
@@ -39,9 +39,10 @@ class EsplorazioneTab(ft.ListView):
     Eredita da ft.ListView per scroll corretto in Flet 0.85.3.
     """
 
-    def __init__(self, character: Character):
+    def __init__(self, character: Character, on_refresh: Callable[[], None] | None = None):
         super().__init__(expand=True, spacing=12, padding=16)
         self.character = character
+        self._on_refresh = on_refresh
         self._page: ft.Page | None = None
         self._profs: list[CharacterProficiency] = character_repo.get_proficiencies(character.id)
         self._build()
@@ -689,3 +690,5 @@ class EsplorazioneTab(ft.ListView):
             self.update()
         except RuntimeError:
             pass
+        if self._on_refresh:
+            self._on_refresh()

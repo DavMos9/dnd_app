@@ -15,7 +15,7 @@ Usa ft.ListView (non Column scroll=AUTO) per evitare bug height in Flet 0.85.3.
 
 import base64
 import threading
-from typing import cast
+from typing import Any, Callable, cast
 import flet as ft
 import logging
 from config.settings import *
@@ -73,10 +73,16 @@ class ProfiloTab(ft.ListView):
     Eredita da ft.ListView per garantire scroll corretto in Flet 0.85.3.
     """
 
-    def __init__(self, character: Character, proficiencies: list[CharacterProficiency]):
+    def __init__(
+        self,
+        character: Character,
+        proficiencies: list[CharacterProficiency],
+        on_refresh: "Callable[[], None] | None" = None,
+    ):
         super().__init__(expand=True, spacing=12, padding=16)
         self.character = character
         self.proficiencies = proficiencies
+        self._on_refresh = on_refresh
         self._page: ft.Page | None = None
 
         self._xp_field: ft.TextField | None = None
@@ -631,6 +637,75 @@ class ProfiloTab(ft.ListView):
 
         rows: list[ft.Control] = []
 
+        # --- Bottone modifica talenti posseduti ---
+        def _open_feat_edit(ev: Any) -> None:
+            page = self._page
+            if page is None:
+                return
+            all_feats = _loader.get_feats()
+            owned_names = {p.name for p in feats}
+            feat_cbs: list[ft.Checkbox] = []
+
+            for fd in sorted(all_feats, key=lambda f: f.get("name", "")):
+                fn = fd.get("name", "")
+                cb = ft.Checkbox(
+                    label=fn,
+                    value=(fn in owned_names),
+                    active_color=COLOR_ACCENT_AMBER,
+                )
+                feat_cbs.append(cb)
+
+            def _save_feats(ev_inner: Any) -> None:
+                selected = [
+                    str(cb.label) for cb in feat_cbs
+                    if cb.value and cb.label
+                ]
+                character_repo.replace_proficiencies_by_types(
+                    c.id, "feat", [(n, False) for n in selected]
+                )
+                page.pop_dialog()
+                self._refresh()
+
+            page.show_dialog(ft.AlertDialog(
+                title=ft.Row([
+                    ft.Icon(ft.Icons.MILITARY_TECH, color=COLOR_ACCENT_AMBER, size=16),
+                    ft.Container(width=6),
+                    ft.Text("Modifica Talenti", size=13, weight=ft.FontWeight.BOLD,
+                            color=COLOR_TEXT_TITLE),
+                ]),
+                content=ft.Column(
+                    cast(list[ft.Control], feat_cbs),
+                    scroll=ft.ScrollMode.AUTO,
+                    spacing=2,
+                    height=320,
+                    width=300,
+                ),
+                actions=[
+                    ft.TextButton(
+                        "Annulla",
+                        on_click=lambda ev_inner: page.pop_dialog(),
+                    ),
+                    ft.ElevatedButton(
+                        "Salva",
+                        on_click=_save_feats,
+                        style=ft.ButtonStyle(
+                            bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                            shape=ft.RoundedRectangleBorder(radius=4),
+                        ),
+                    ),
+                ],
+                bgcolor=COLOR_BG_CARD,
+            ))
+
+        rows.append(ft.Row(
+            [ft.TextButton(
+                "✎ Modifica talenti",
+                on_click=_open_feat_edit,
+                style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+            )],
+            alignment=ft.MainAxisAlignment.END,
+        ))
+
         # --- Talenti ---
         if feats:
             for prof in feats:
@@ -852,15 +927,63 @@ class ProfiloTab(ft.ListView):
             focused_border_color=COLOR_ACCENT_BLUE,
         )
 
+        # Dropdown bonus stat per talenti con choose_one — appare dinamicamente
+        feat_bonus_dd = ft.Dropdown(
+            label="Scegli la caratteristica da aumentare (+1)",
+            options=[],
+            width=280,
+            visible=False,
+            bgcolor=COLOR_BG_CARD,
+            color=COLOR_TEXT_PRIMARY,
+            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_BLUE,
+        )
+
+        _stat_name_map = dict(zip(ABILITY_KEYS, ABILITY_SCORES))  # es. "str" → "Forza"
+
+        def on_feat_select(ev: Any) -> None:
+            """Mostra feat_bonus_dd se il talento ha choose_one, altrimenti la nasconde."""
+            name = feat_dd.value
+            if not name or name == "__none__":
+                feat_bonus_dd.visible = False
+                try:
+                    feat_bonus_dd.update()
+                except RuntimeError:
+                    pass
+                return
+            fd = _loader.get_feat(name)
+            ab = fd.get("ability_bonus") if fd else None
+            if ab and ab.get("choose_one"):
+                opts = ab.get("options", [])
+                feat_bonus_dd.options = [
+                    ft.DropdownOption(key=k, text=_stat_name_map.get(k, k))
+                    for k in opts
+                ]
+                feat_bonus_dd.value = None
+                feat_bonus_dd.visible = True
+            else:
+                feat_bonus_dd.visible = False
+            try:
+                feat_bonus_dd.update()
+            except RuntimeError:
+                pass
+
+        feat_dd.on_select = on_feat_select
+
         def on_asi_type_change(ev):
             val = ev.control.value
             stat_dd1.visible = val in ("two_one", "one_one")
             stat_dd2.visible = val == "one_one"
             feat_dd.visible  = val == "feat"
+            # nasconde anche la bonus_dd se si cambia modalità
+            if val != "feat":
+                feat_bonus_dd.visible = False
             try:
                 stat_dd1.update()
                 stat_dd2.update()
                 feat_dd.update()
+                feat_bonus_dd.update()
             except RuntimeError:
                 pass
 
@@ -893,6 +1016,12 @@ class ProfiloTab(ft.ListView):
 
         # Patto del Warlock
         pact_rg_ref: list[ft.RadioGroup] = []
+
+        # Incantesimi conosciuti (classi "know"): [(step_data, [dd, ...]), ...]
+        spell_learn_refs: list[tuple[dict, list[ft.Dropdown]]] = []
+
+        # Segreti Magici (qualsiasi classe): [(step_data, [(spell_name, class_name), ...]), ...]
+        magical_secrets_refs: list[tuple[dict, list[tuple[str, str]]]] = []
 
         has_asi = False
         subclass_dd_ref: list[ft.Dropdown] = []  # [0] = dropdown sottoclasse, se presente
@@ -974,6 +1103,7 @@ class ProfiloTab(ft.ListView):
                     stat_dd1,
                     stat_dd2,
                     feat_dd,
+                    feat_bonus_dd,
                 ]
 
             elif step.step_type == StepType.PACT_CHOICE:
@@ -1049,7 +1179,7 @@ class ProfiloTab(ft.ListView):
                         muted_text(
                             f"Già note: {', '.join(known_mm) or 'nessuna'}." if known_mm
                             else "Prima scelta di Metamagia.", size=11),
-                        ft.Column(mm_cb_widgets, spacing=2),
+                        ft.Column(cast(list[ft.Control], mm_cb_widgets), spacing=2),
                     ]
                 else:
                     dlg_rows.append(ft.Container(
@@ -1114,7 +1244,7 @@ class ProfiloTab(ft.ListView):
                                 f"Totale invocazioni a Lv.{new_level}: {total_inv} "
                                 f"(già note: {len(known_inv)}).",
                                 size=11),
-                            ft.Column(inv_cb_widgets, spacing=2),
+                            ft.Column(cast(list[ft.Control], inv_cb_widgets), spacing=2),
                         ]
                     else:
                         # JSON ancora vuoto — info generica
@@ -1182,7 +1312,7 @@ class ProfiloTab(ft.ListView):
                                     color=COLOR_ACCENT_AMBER),
                         ], spacing=6),
                         muted_text("Raddoppia il bonus competenza su queste abilità.", size=11),
-                        ft.Column(cb_widgets, spacing=2),
+                        ft.Column(cast(list[ft.Control], cb_widgets), spacing=2),
                     ]
                 else:
                     # Nessuna competenza senza maestria — mostro solo info
@@ -1196,6 +1326,350 @@ class ProfiloTab(ft.ListView):
                         border_radius=4,
                         border=ft.Border.all(1, COLOR_BORDER),
                     ))
+
+            elif step.step_type == StepType.SPELL_LEARN:
+                any_class = step.data.get("any_class", False)
+                count     = step.data.get("count", 1)
+                max_lv    = step.data.get("max_level", 9)
+
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_BLUE, expand=True),
+                    ], spacing=6),
+                ]
+
+                if any_class:
+                    # Segreti Magici: dialog interattivo con chip-classi + lista
+                    _known_ms: set[str] = {
+                        ks.name for ks in character_repo.get_known_spells(c.id)
+                    }
+                    _ms_choices: list[tuple[str, str]] = []  # [(spell_name, class_name)]
+                    _ALL_SPELL_CLASSES = [
+                        "Bardo","Chierico","Druido","Mago",
+                        "Paladino","Ranger","Stregone","Warlock",
+                    ]
+
+                    status_text = ft.Text(
+                        f"0/{count} incantesimi scelti",
+                        size=12, color=COLOR_TEXT_MUTED, italic=True,
+                    )
+                    badges_row = ft.Row([], spacing=6, wrap=True)
+
+                    def _open_ms_picker(
+                        ev,
+                        _cnt: int = count,
+                        _ml: int = max_lv,
+                        _lbl: str = step.label,
+                        _kn: set = _known_ms,
+                        _choices: list = _ms_choices,
+                        _st: ft.Text = status_text,
+                        _br: ft.Row = badges_row,
+                    ) -> None:
+                        if not self._page:
+                            return
+                        _pg = self._page
+                        _active_cls: list[str] = [_ALL_SPELL_CLASSES[0]]
+                        _chosen: list[tuple[str, str]] = list(_choices)
+
+                        counter_txt = ft.Text(
+                            f"{len(_chosen)}/{_cnt}",
+                            size=13, weight=ft.FontWeight.BOLD,
+                            color=COLOR_ACCENT_BLUE if len(_chosen) == _cnt
+                            else COLOR_TEXT_MUTED,
+                        )
+                        confirm_btn_ref: list[ft.ElevatedButton] = []
+                        chip_refs: dict[str, ft.Container] = {}
+                        spell_col = ft.Column(
+                            [], spacing=0, scroll=ft.ScrollMode.AUTO,
+                        )
+                        spell_area = ft.Container(
+                            content=spell_col, height=220,
+                        )
+
+                        def _rebuild_spell_list() -> None:
+                            cls = _active_cls[0]
+                            chosen_names = {n for n, _ in _chosen}
+                            spells_for_cls = sorted(
+                                [s for s in _loader.get_spells(cls)
+                                 if 0 < s.get("level", 0) <= _ml
+                                 and s.get("name") not in _kn],
+                                key=lambda s: (s.get("level", 0), s.get("name", "")),
+                            )
+                            rows: list[ft.Control] = []
+                            cur_lv = -1
+                            for sp in spells_for_cls:
+                                lv = sp.get("level", 0)
+                                nm = sp.get("name", "")
+                                is_chosen = nm in chosen_names
+                                at_limit = (len(_chosen) >= _cnt) and not is_chosen
+
+                                if lv != cur_lv:
+                                    cur_lv = lv
+                                    rows.append(ft.Container(
+                                        content=ft.Text(
+                                            f"Livello {lv}",
+                                            size=10, color=COLOR_TEXT_MUTED,
+                                            weight=ft.FontWeight.BOLD,
+                                        ),
+                                        padding=ft.Padding.only(
+                                            top=8, bottom=2, left=4
+                                        ),
+                                    ))
+
+                                def _toggle(ev, spell=sp, cls_nm=cls):
+                                    sn = spell["name"]
+                                    idx = next(
+                                        (i for i, (n, _) in enumerate(_chosen) if n == sn),
+                                        None,
+                                    )
+                                    if idx is not None:
+                                        _chosen.pop(idx)
+                                    elif len(_chosen) < _cnt:
+                                        _chosen.append((sn, cls_nm))
+                                    _refresh_picker()
+
+                                rows.append(ft.Container(
+                                    content=ft.Row([
+                                        ft.Text(
+                                            "●" if is_chosen else ("—" if at_limit else "○"),
+                                            size=20,
+                                            color=(
+                                                COLOR_ACCENT_CRIMSON if is_chosen
+                                                else (COLOR_BORDER if at_limit
+                                                      else COLOR_TEXT_MUTED)
+                                            ),
+                                        ),
+                                        ft.Container(width=6),
+                                        ft.Column([
+                                            ft.Text(
+                                                nm, size=13, expand=True,
+                                                color=(COLOR_TEXT_MUTED if at_limit
+                                                       else COLOR_TEXT_PRIMARY),
+                                                weight=(ft.FontWeight.W_600 if is_chosen
+                                                        else ft.FontWeight.NORMAL),
+                                            ),
+                                            ft.Text(
+                                                f"Lv{lv}  ·  {sp.get('school', '')}",
+                                                size=10, color=COLOR_TEXT_MUTED,
+                                            ),
+                                        ], spacing=1, expand=True),
+                                    ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                                    on_click=None if at_limit else _toggle,
+                                    ink=not at_limit,
+                                    border=ft.Border(
+                                        bottom=ft.BorderSide(1, COLOR_BORDER)
+                                    ),
+                                    padding=ft.Padding.symmetric(
+                                        vertical=6, horizontal=4
+                                    ),
+                                ))
+
+                            if not rows:
+                                rows.append(ft.Container(
+                                    content=ft.Text(
+                                        "Nessun incantesimo disponibile.",
+                                        size=12, color=COLOR_TEXT_MUTED, italic=True,
+                                    ),
+                                    padding=20,
+                                ))
+
+                            spell_col.controls.clear()
+                            for r in rows:
+                                spell_col.controls.append(r)
+                            try:
+                                spell_area.update()
+                            except RuntimeError:
+                                pass
+
+                        def _refresh_picker() -> None:
+                            n = len(_chosen)
+                            counter_txt.value = f"{n}/{_cnt}"
+                            counter_txt.color = (
+                                COLOR_ACCENT_BLUE if n == _cnt else COLOR_TEXT_MUTED
+                            )
+                            if confirm_btn_ref:
+                                confirm_btn_ref[0].disabled = (n != _cnt)
+                            # Chip: evidenzia attivo + badge verde se ha scelte
+                            cls_counts: dict[str, int] = {}
+                            for _, cn in _chosen:
+                                cls_counts[cn] = cls_counts.get(cn, 0) + 1
+                            for cls_name, chip in chip_refs.items():
+                                is_active = cls_name == _active_cls[0]
+                                has_picks = cls_counts.get(cls_name, 0) > 0
+                                chip.bgcolor = (
+                                    COLOR_ACCENT_BLUE if is_active
+                                    else ("#d4edda" if has_picks else COLOR_BG_SECONDARY)
+                                )
+                                chip.border = ft.Border.all(
+                                    2 if has_picks else 1,
+                                    COLOR_ACCENT_BLUE if is_active
+                                    else ("#2e7d32" if has_picks else COLOR_BORDER),
+                                )
+                            _rebuild_spell_list()
+                            try:
+                                counter_txt.update()
+                                if confirm_btn_ref:
+                                    confirm_btn_ref[0].update()
+                                for chip in chip_refs.values():
+                                    chip.update()
+                            except RuntimeError:
+                                pass
+
+                        def _on_chip_click(ev, cls: str) -> None:
+                            _active_cls[0] = cls
+                            _refresh_picker()
+
+                        # Build class chips
+                        chip_controls: list[ft.Control] = []
+                        for cls_n in _ALL_SPELL_CLASSES:
+                            is_active = cls_n == _active_cls[0]
+                            chip = ft.Container(
+                                content=ft.Text(
+                                    cls_n, size=11,
+                                    color="#ffffff" if is_active else COLOR_TEXT_SECONDARY,
+                                    weight=ft.FontWeight.BOLD,
+                                    text_align=ft.TextAlign.CENTER,
+                                ),
+                                bgcolor=COLOR_ACCENT_BLUE if is_active else COLOR_BG_SECONDARY,
+                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+                                border_radius=14,
+                                border=ft.Border.all(
+                                    1, COLOR_ACCENT_BLUE if is_active else COLOR_BORDER
+                                ),
+                                on_click=lambda ev, c=cls_n: _on_chip_click(ev, c),
+                                ink=True,
+                            )
+                            chip_refs[cls_n] = chip
+                            chip_controls.append(chip)
+
+                        _rebuild_spell_list()
+
+                        def _confirm(ev):
+                            _choices.clear()
+                            _choices.extend(_chosen)
+                            n = len(_chosen)
+                            _st.value = f"{n}/{_cnt} incantesimi scelti"
+                            _st.color = (
+                                COLOR_ACCENT_BLUE if n == _cnt else COLOR_TEXT_MUTED
+                            )
+                            _br.controls.clear()
+                            for sn, cn in _chosen:
+                                _br.controls.append(ft.Container(
+                                    content=ft.Row([
+                                        ft.Text(sn, size=11, color="#ffffff", expand=True),
+                                        ft.Text(f"({cn[:4]})", size=10, color="#aaccff"),
+                                    ], spacing=4),
+                                    bgcolor=COLOR_ACCENT_BLUE,
+                                    padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+                                    border_radius=12,
+                                ))
+                            try:
+                                _st.update()
+                                _br.update()
+                            except RuntimeError:
+                                pass
+                            _pg.pop_dialog()
+
+                        confirm_btn = ft.ElevatedButton(
+                            "Conferma",
+                            disabled=len(_chosen) != _cnt,
+                            on_click=_confirm,
+                            style=ft.ButtonStyle(
+                                bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                                shape=ft.RoundedRectangleBorder(radius=4),
+                            ),
+                        )
+                        confirm_btn_ref.append(confirm_btn)
+
+                        _pg.show_dialog(ft.AlertDialog(
+                            title=ft.Row([
+                                ft.Icon(ft.Icons.AUTO_AWESOME, color=COLOR_ACCENT_BLUE, size=16),
+                                ft.Container(width=6),
+                                ft.Text(
+                                    _lbl, size=13, weight=ft.FontWeight.BOLD,
+                                    color=COLOR_TEXT_TITLE, expand=True,
+                                ),
+                            ]),
+                            content=ft.Column([
+                                ft.Text(
+                                    f"Scegli {_cnt} incantesimi  ·  max livello {_ml}°",
+                                    size=11, color=COLOR_TEXT_MUTED, italic=True,
+                                ),
+                                ft.Container(height=4),
+                                ft.Row(chip_controls, wrap=True, spacing=6, run_spacing=6),
+                                ft.Divider(color=COLOR_BORDER),
+                                spell_area,
+                                ft.Divider(color=COLOR_BORDER),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE,
+                                            size=14, color=COLOR_TEXT_MUTED),
+                                    ft.Container(width=4),
+                                    counter_txt,
+                                ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                            ], spacing=6, width=340),
+                            actions=[
+                                ft.TextButton(
+                                    "Annulla",
+                                    on_click=lambda ev: _pg.pop_dialog() if _pg else None,
+                                ),
+                                confirm_btn,
+                            ],
+                            bgcolor=COLOR_BG_CARD,
+                        ))
+
+                    dlg_rows += [
+                        ft.OutlinedButton(
+                            f"✨  Scegli {count} incantesimi — qualsiasi lista",
+                            on_click=_open_ms_picker,
+                            style=ft.ButtonStyle(
+                                color=COLOR_ACCENT_BLUE,
+                                side=ft.BorderSide(1, COLOR_ACCENT_BLUE),
+                                shape=ft.RoundedRectangleBorder(radius=6),
+                            ),
+                        ),
+                        status_text,
+                        badges_row,
+                    ]
+                    magical_secrets_refs.append((step.data, _ms_choices))
+
+                else:
+                    # Classe "know" normale: scegli dalla lista della classe
+                    _known_set: set[str] = {
+                        ks.name for ks in character_repo.get_known_spells(c.id)
+                    }
+                    eligible_spells = [
+                        s for s in _loader.get_spells(c.class_name or "")
+                        if 0 < s.get("level", 0) <= max_lv
+                        and s.get("name") not in _known_set
+                    ]
+                    eligible_spells.sort(
+                        key=lambda s: (s.get("level", 0), s.get("name", ""))
+                    )
+                    spell_opts = [
+                        ft.DropdownOption(
+                            key=s["name"],
+                            text=f"[Lv{s['level']}] {s['name']}",
+                        )
+                        for s in eligible_spells
+                    ]
+                    dds: list[ft.Dropdown] = []
+                    for i in range(count):
+                        dd = ft.Dropdown(
+                            label=f"Incantesimo {i + 1}/{count}",
+                            hint_text="Scegli dalla lista...",
+                            options=spell_opts,
+                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                            border_color=COLOR_BORDER,
+                            focused_border_color=COLOR_ACCENT_BLUE,
+                            expand=True,
+                        )
+                        dds.append(dd)
+                        dlg_rows.append(dd)
+                    spell_learn_refs.append((step.data, dds))
 
             elif step.step_type == StepType.PROFICIENCY_BONUS_UP:
                 dlg_rows.append(ft.Container(
@@ -1276,9 +1750,133 @@ class ProfiloTab(ft.ListView):
                 lt_dd,
             ]
 
+        def _save_known_spell(
+            spell_name: str, class_name: str, char: Character
+        ) -> None:
+            """Recupera i dettagli dello spell dal JSON e lo salva come conosciuto."""
+            all_spells = _loader.get_spells(class_name)
+            spell = next((s for s in all_spells if s.get("name") == spell_name), None)
+            if spell is None:
+                logger.warning("Spell '%s' non trovato per classe '%s'", spell_name, class_name)
+                return
+            comps = spell.get("components", [])
+            comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
+            if spell.get("material"):
+                comp_str += f" ({spell['material']})"
+            character_repo.upsert_known_spell(
+                character_id=char.id,
+                name=spell_name,
+                level=spell.get("level", 0),
+                is_prepared=True,
+                school=spell.get("school", ""),
+                casting_time=spell.get("casting_time", ""),
+                spell_range=spell.get("range", ""),
+                components=comp_str,
+                duration=spell.get("duration", ""),
+                description=spell.get("description", ""),
+                higher_levels=spell.get("higher_levels", "") or "",
+                class_list=class_name,
+            )
+
         def do_level_up(ev):
             if page is None:
                 return
+
+            # ----------------------------------------------------------------
+            # Validazione — blocca il salvataggio se campi obbligatori mancanti
+            # ----------------------------------------------------------------
+            _errors: list[str] = []
+
+            # HP manuale: valore deve essere un intero nel range del dado
+            if hp_choice.value == "manual":
+                try:
+                    _roll = int((manual_roll.value or "").strip())
+                    if _roll < 1 or _roll > hit_die:
+                        _errors.append(f"Risultato dado non valido (deve essere 1–{hit_die})")
+                except ValueError:
+                    _errors.append(f"Inserisci il risultato del dado d{hit_die} (1–{hit_die})")
+
+            # ASI: selezione obbligatoria di caratteristica o talento
+            if has_asi:
+                if asi_type.value == "two_one" and not stat_dd1.value:
+                    _errors.append("Scegli la caratteristica da aumentare (+2)")
+                elif asi_type.value == "one_one":
+                    if not stat_dd1.value:
+                        _errors.append("Scegli la prima caratteristica (+1)")
+                    if not stat_dd2.value:
+                        _errors.append("Scegli la seconda caratteristica (+1)")
+                    elif stat_dd2.value == stat_dd1.value:
+                        _errors.append("Le due caratteristiche devono essere diverse")
+                elif asi_type.value == "feat":
+                    if not feat_dd.value or feat_dd.value == "__none__":
+                        _errors.append("Scegli un talento per l'ASI")
+                    else:
+                        _fd = _loader.get_feat(feat_dd.value)
+                        _ab = _fd.get("ability_bonus") if _fd else None
+                        if _ab and _ab.get("choose_one") and not feat_bonus_dd.value:
+                            _errors.append("Scegli la caratteristica da aumentare con il talento")
+
+            # Incantesimi conosciuti (classi "know"): tutti i dropdown devono avere un valore
+            for _sd, _dds in spell_learn_refs:
+                for _i, _dd in enumerate(_dds):
+                    if not _dd.value:
+                        _errors.append(f"Scegli l'incantesimo {_i + 1}/{len(_dds)}")
+
+            # Segreti Magici: deve aver aperto il picker e scelto tutti gli incantesimi
+            for _sd, _choices in magical_secrets_refs:
+                _needed = _sd.get("count", 2)
+                if len(_choices) < _needed:
+                    _errors.append(
+                        f"Segreti Magici: scegli {_needed} incantesimi "
+                        f"({len(_choices)}/{_needed} scelti)"
+                    )
+
+            # Metamagia: deve scegliere esattamente il numero richiesto
+            for _mm_count, _mm_cbs in metamagic_cb_groups:
+                if _mm_cbs:  # solo se i checkbox sono stati mostrati
+                    _sel_mm = sum(1 for cb in _mm_cbs if cb.value)
+                    if _sel_mm < _mm_count:
+                        _errors.append(
+                            f"Scegli {_mm_count} opzion"
+                            f"{'e' if _mm_count == 1 else 'i'} di Metamagia "
+                            f"({_sel_mm}/{_mm_count})"
+                        )
+
+            # Invocazioni Occulte: deve scegliere esattamente il numero richiesto
+            # (solo se i checkbox sono stati mostrati, cioè invocations.json non è vuoto)
+            for _inv_count, _inv_cbs in invocation_cb_groups:
+                if _inv_cbs:
+                    _sel_inv = sum(1 for cb in _inv_cbs if cb.value)
+                    if _sel_inv < _inv_count:
+                        _errors.append(
+                            f"Scegli {_inv_count} invocazion"
+                            f"{'e' if _inv_count == 1 else 'i'} occulte "
+                            f"({_sel_inv}/{_inv_count})"
+                        )
+
+            if _errors:
+                def _close_err_dlg(ev_inner: Any) -> None:
+                    page.pop_dialog()  # type: ignore[union-attr]
+
+                err_dlg = ft.AlertDialog(
+                    title=ft.Row([
+                        ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED,
+                                color=COLOR_ACCENT_AMBER, size=18),
+                        ft.Container(width=6),
+                        ft.Text("Completa tutte le scelte", size=13,
+                                weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                    ]),
+                    content=ft.Column(
+                        [ft.Text(f"• {err}", size=12, color=COLOR_TEXT_PRIMARY)
+                         for err in _errors],
+                        spacing=6, width=300,
+                    ),
+                    actions=[ft.TextButton("OK", on_click=_close_err_dlg)],
+                    bgcolor=COLOR_BG_CARD,
+                )
+                page.show_dialog(err_dlg)  # type: ignore[union-attr]
+                return
+
             # HP
             choice = hp_choice.value
             if choice == "max":
@@ -1312,6 +1910,21 @@ class ProfiloTab(ft.ListView):
                 elif asi_type.value == "feat" and feat_dd.value and feat_dd.value != "__none__":
                     # Salva il talento come competenza di tipo "feat"
                     character_repo._save_single_proficiency(c.id, "feat", feat_dd.value)
+                    # Applica ability_bonus dal JSON del talento
+                    _fd = _loader.get_feat(feat_dd.value)
+                    _ab = _fd.get("ability_bonus") if _fd else None
+                    if _ab:
+                        if _ab.get("choose_one"):
+                            # La stat è stata scelta dal giocatore nella dropdown
+                            if feat_bonus_dd.value:
+                                _cur = getattr(c, f"{feat_bonus_dd.value}_score", 10)
+                                setattr(c, f"{feat_bonus_dd.value}_score", min(20, _cur + 1))
+                        else:
+                            # Bonus fisso: applica ogni coppia {stat: valore}
+                            for _stat, _val in _ab.items():
+                                if _stat in ABILITY_KEYS and isinstance(_val, int):
+                                    _cur = getattr(c, f"{_stat}_score", 10)
+                                    setattr(c, f"{_stat}_score", min(20, _cur + _val))
 
             # Sottoclasse scelta al level-up
             if subclass_dd_ref and subclass_dd_ref[0].value:
@@ -1352,6 +1965,17 @@ class ProfiloTab(ft.ListView):
                 c.totem_animal = totem_animal_dd_ref[0].value
             if land_terrain_dd_ref and land_terrain_dd_ref[0].value:
                 c.land_terrain = land_terrain_dd_ref[0].value
+
+            # Incantesimi conosciuti (classi "know")
+            for _step_data, dds in spell_learn_refs:
+                for dd in dds:
+                    if dd.value:
+                        _save_known_spell(dd.value, c.class_name or "", c)
+
+            # Segreti Magici (qualsiasi classe)
+            for _step_data, choices in magical_secrets_refs:
+                for spell_name, class_name in choices:
+                    _save_known_spell(spell_name, class_name, c)
 
             character_repo.update(c)
             page.pop_dialog()
@@ -1770,3 +2394,5 @@ class ProfiloTab(ft.ListView):
             self.update()
         except RuntimeError:
             pass
+        if self._on_refresh:
+            self._on_refresh()

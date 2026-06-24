@@ -383,23 +383,37 @@ class SheetView(ft.Column):
     # Refresh globale (dopo modifica caratteristiche o bonus competenza)
     # ------------------------------------------------------------------
 
-    def _refresh_all(self):
+    def _refresh_bar_and_header(self):
         """
-        Ricarica il personaggio dal DB, aggiorna la stat bar, l'header
-        e ricostruisce il tab corrente (che mostra valori derivati).
+        Ricarica il personaggio dal DB e aggiorna SOLO stat bar e header.
+        Chiamato dai tab dopo il loro self-refresh, per tenere la top bar
+        sincronizzata senza ricostruire il contenuto del tab.
         """
         updated = character_repo.get_by_id(self.character.id)
         if updated:
             self.character = updated
         self.proficiencies = character_repo.get_proficiencies(self.character.id)
 
-        # Ricostruisce stat bar e header in-place
         new_bar = self._build_stat_bar()
         new_hdr = self._build_header_and_tabs()
         self.controls[0] = new_bar
         self.controls[1] = new_hdr
         self._stat_bar_container = new_bar
         self._header_container = new_hdr
+
+        try:
+            self.update()
+        except RuntimeError:
+            pass
+
+    def _refresh_all(self):
+        """
+        Ricarica il personaggio dal DB, aggiorna la stat bar, l'header
+        e ricostruisce il tab corrente (che mostra valori derivati).
+        Usato dai dialog interni a SheetView (modifica caratteristiche,
+        bonus competenza).
+        """
+        self._refresh_bar_and_header()
 
         # Ricostruisce il tab corrente
         self.content_container.content = self._get_tab_content(self.active_tab)
@@ -437,21 +451,22 @@ class SheetView(ft.Column):
     # ------------------------------------------------------------------
 
     def _get_tab_content(self, key: str) -> ft.Control:
+        cb = self._refresh_bar_and_header
         if key == "profilo":
             from ui.views.character_sheet.profilo_tab import ProfiloTab
-            return ProfiloTab(self.character, self.proficiencies)
+            return ProfiloTab(self.character, self.proficiencies, on_refresh=cb)
         if key == "combattimento":
             from ui.views.character_sheet.combattimento_tab import CombattimentoTab
-            return CombattimentoTab(self.character)
+            return CombattimentoTab(self.character, on_refresh=cb)
         if key == "esplorazione":
             from ui.views.character_sheet.esplorazione_tab import EsplorazioneTab
-            return EsplorazioneTab(self.character)
+            return EsplorazioneTab(self.character, on_refresh=cb)
         if key == "inventario":
             from ui.views.character_sheet.inventario_tab import InventarioTab
-            return InventarioTab(self.character)
+            return InventarioTab(self.character, on_refresh=cb)
         if key == "diario":
             from ui.views.character_sheet.diario_tab import DiarioTab
-            return DiarioTab(self.character)
+            return DiarioTab(self.character, on_refresh=cb)
         return self._placeholder_tab(key)
 
     def _placeholder_tab(self, key: str) -> ft.Container:

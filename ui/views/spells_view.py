@@ -366,6 +366,31 @@ class SpellsView(ft.ListView):
                     self._section_spell_list(by_level[lv]),
                 ]
 
+        # Incantesimi "extra" — conosciuti dal DB ma non nella lista JSON della classe
+        # (Segreti Magici, Mistificatore, Eldritch Knight, etc.)
+        class_spell_names: set[str] = {s.get("name", "") for s in self._class_spells}
+        extra_known: list[KnownSpell] = [
+            ks for ks in self._known.values()
+            if ks.name not in class_spell_names and ks.is_prepared
+        ]
+        if extra_known:
+            extra_by_level: dict[int, list[KnownSpell]] = {}
+            for ks in extra_known:
+                extra_by_level.setdefault(ks.spell_level, []).append(ks)
+
+            section_label = (
+                "Segreti Magici"
+                if (c.class_name or "").lower() == "bardo"
+                else "Incantesimi Extra"
+            )
+            controls.append(section_header(section_label))
+            for lv in sorted(extra_by_level.keys()):
+                lv_label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
+                controls += [
+                    section_header(lv_label),
+                    self._section_extra_spell_list(extra_by_level[lv]),
+                ]
+
         self.controls.clear()
         for ctrl in controls:
             self.controls.append(ctrl)
@@ -497,18 +522,18 @@ class SpellsView(ft.ListView):
                 )
                 for i in range(slot.total)
             ]
-            rows.append(ft.Row([
+            rows.append(ft.Row(cast(list[ft.Control], [
                 ft.Container(
                     content=ft.Text(_SLOT_NAMES[slot.slot_level - 1], size=12,
                                     color=COLOR_TEXT_SECONDARY,
                                     weight=ft.FontWeight.W_600),
                     width=28,
                 ),
-                ft.Row(circles, spacing=2),
+                ft.Row(cast(list[ft.Control], circles), spacing=2),
                 ft.Container(expand=True),
                 ft.Text(f"{avail}/{slot.total}", size=11,
                         color=COLOR_TEXT_MUTED, font_family=FONT_MONO),
-            ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=4))
+            ]), vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=4))
         rows.append(ft.Text(
             "Usa / recupera slot nel tab Combattimento.",
             size=10, color=COLOR_TEXT_MUTED, italic=True,
@@ -607,6 +632,123 @@ class SpellsView(ft.ListView):
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
             border=ft.Border(
                 top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _section_extra_spell_list(self, spells: list[KnownSpell]) -> ft.Container:
+        """
+        Lista di incantesimi "extra" (Segreti Magici, Mistificatore, etc.)
+        letti dal DB — mostra dettagli già salvati, permette apertura dialog.
+        Non ha toggle preparazione: sono sempre "conosciuti".
+        """
+        rows: list[ft.Control] = []
+        sorted_spells = sorted(spells, key=lambda s: s.name)
+        for i, ks in enumerate(sorted_spells):
+            origin_badge = ft.Container(
+                content=ft.Text(
+                    (ks.class_list or "?")[:4], size=9,
+                    color="#ffffff", weight=ft.FontWeight.BOLD,
+                ),
+                bgcolor=COLOR_ACCENT_AMBER,
+                padding=ft.Padding.symmetric(horizontal=5, vertical=2),
+                border_radius=4,
+                tooltip=f"Da: {ks.class_list or '—'}",
+            )
+
+            def _open(e, _ks: KnownSpell = ks) -> None:
+                if not self._page:
+                    return
+                page = self._page
+                rows_d: list[ft.Control] = [
+                    ft.Text(
+                        f"Lv{_ks.spell_level}  ·  {_ks.school or '—'}",
+                        size=11, color=COLOR_TEXT_MUTED, italic=True,
+                    ),
+                    ft.Container(height=4),
+                ]
+                for label, val in [
+                    ("Tempo:", _ks.casting_time),
+                    ("Gittata:", _ks.spell_range),
+                    ("Durata:", _ks.duration),
+                    ("Componenti:", _ks.components),
+                ]:
+                    if val:
+                        rows_d.append(ft.Row([
+                            ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                                    weight=ft.FontWeight.BOLD, width=100),
+                            ft.Text(val, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                        ], spacing=4))
+                rows_d += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Text(
+                        _ks.description or "Nessuna descrizione.",
+                        size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+                    ),
+                ]
+                if _ks.higher_levels:
+                    rows_d += [
+                        ft.Container(height=6),
+                        ft.Text("Ai livelli superiori:", size=11,
+                                color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+                        ft.Text(_ks.higher_levels, size=12, color=COLOR_TEXT_SECONDARY),
+                    ]
+                page.show_dialog(ft.AlertDialog(
+                    title=ft.Row([
+                        origin_badge,
+                        ft.Container(width=8),
+                        ft.Text(_ks.name, size=14, weight=ft.FontWeight.BOLD,
+                                color=COLOR_TEXT_TITLE, expand=True),
+                    ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    content=ft.Column(
+                        rows_d, spacing=6, width=340, scroll=ft.ScrollMode.AUTO
+                    ),
+                    actions=[
+                        ft.TextButton(
+                            "Chiudi",
+                            on_click=lambda e: page.pop_dialog() if page else None,
+                        )
+                    ],
+                    bgcolor=COLOR_BG_CARD,
+                ))
+
+            rows.append(ft.Container(
+                content=ft.Row([
+                    ft.Text("★", size=18, color=COLOR_ACCENT_AMBER),
+                    ft.Container(width=6),
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Text(
+                                ks.name, size=13, expand=True,
+                                color=COLOR_TEXT_PRIMARY,
+                                weight=ft.FontWeight.W_600,
+                            ),
+                            origin_badge,
+                            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14,
+                                    color=COLOR_TEXT_MUTED),
+                        ], spacing=6,
+                           vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        on_click=_open,
+                        expand=True, ink=True, border_radius=4,
+                        padding=ft.Padding.symmetric(vertical=6, horizontal=4),
+                    ),
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
+                border=ft.Border(
+                    bottom=ft.BorderSide(1, COLOR_BORDER)
+                    if i < len(sorted_spells) - 1
+                    else ft.BorderSide(0, "transparent"),
+                ),
+            ))
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=0),
+            bgcolor=COLOR_BG_CARD,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=8),
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_AMBER),
                 left=ft.BorderSide(1, COLOR_BORDER),
                 right=ft.BorderSide(1, COLOR_BORDER),
                 bottom=ft.BorderSide(1, COLOR_BORDER),

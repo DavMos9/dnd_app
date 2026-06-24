@@ -35,11 +35,12 @@ def _data_uri(b64: str) -> str:
 
 
 SECTIONS: list[dict[str, Any]] = [
-    {"key": "sheet",     "label": "Scheda",      "icon_off": ft.Icons.PERSON_OUTLINE,       "icon_on": ft.Icons.PERSON},
-    {"key": "spells",    "label": "Incantesimi", "icon_off": ft.Icons.AUTO_AWESOME_OUTLINED, "icon_on": ft.Icons.AUTO_AWESOME},
-    {"key": "diary",     "label": "Diario",      "icon_off": ft.Icons.MENU_BOOK_OUTLINED,    "icon_on": ft.Icons.MENU_BOOK},
-    {"key": "maps",      "label": "Mappe",       "icon_off": ft.Icons.MAP_OUTLINED,          "icon_on": ft.Icons.MAP},
-    {"key": "dice",      "label": "Dadi",        "icon_off": ft.Icons.CASINO_OUTLINED,       "icon_on": ft.Icons.CASINO},
+    {"key": "sheet",     "label": "Scheda",      "icon_off": ft.Icons.PERSON_OUTLINE,        "icon_on": ft.Icons.PERSON},
+    {"key": "spells",    "label": "Incantesimi", "icon_off": ft.Icons.AUTO_AWESOME_OUTLINED,  "icon_on": ft.Icons.AUTO_AWESOME},
+    {"key": "diary",     "label": "Diario",      "icon_off": ft.Icons.MENU_BOOK_OUTLINED,     "icon_on": ft.Icons.MENU_BOOK},
+    {"key": "maps",      "label": "Mappe",       "icon_off": ft.Icons.MAP_OUTLINED,           "icon_on": ft.Icons.MAP},
+    {"key": "dice",      "label": "Dadi",        "icon_off": ft.Icons.CASINO_OUTLINED,        "icon_on": ft.Icons.CASINO},
+    {"key": "feats",     "label": "Talenti",     "icon_off": ft.Icons.MILITARY_TECH_OUTLINED, "icon_on": ft.Icons.MILITARY_TECH},
 ]
 
 
@@ -309,6 +310,9 @@ class DnDApp:
         elif key == "dice":
             from ui.views.dice_view import DiceView
             return DiceView()
+        elif key == "feats":
+            from ui.views.feats_view import FeatsView
+            return FeatsView()
         return ft.Container()
 
     def _placeholder_view(self, title: str, icon, subtitle: str) -> ft.Container:

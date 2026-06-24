@@ -5,16 +5,18 @@ Responsabilità:
   - Descrivere i LevelStep (cosa cambia a ogni livello)
   - Separare le modifiche automatiche dalle scelte del giocatore
 
-Scelte IMPLEMENTATE ora:
+Scelte IMPLEMENTATE:
   HP_GAIN            — scelta giocatore (max / media / dado)
   ASI                — scelta giocatore (+2 a uno / +1 a due)
   PROFICIENCY_BONUS_UP — automatico, nessuna scelta
+  SPELL_LEARN        — scelta nuovi incantesimi (Bardo/Stregone/Warlock/Ranger + Segreti Magici)
+  EXPERTISE          — scelta maestria abilità Ladro/Bardo
+  INVOCATION         — scelta invocazioni occulte Warlock
+  METAMAGIC          — scelta metamagia Stregone
+  PACT_CHOICE        — scelta dono del patto Warlock
+  SUBCLASS_CHOICE    — scelta sottoclasse
 
-Scelte PREDISPOSTE (richiedono UI future):
-  FEATURE_AUTO       — feature automatica (mostrata solo come info)
-  SUBCLASS_CHOICE    — scelta sottoclasse (futura: picker)
-  SPELL_LEARN        — scelta nuovi incantesimi (futura: picker)
-  EXPERTISE          — scelta maestria abilità Ladro/Bardo (futura)
+  FEATURE_AUTO       — feature automatica — solo info
 
 Flusso atteso:
   profilo_tab._on_level_up_click
@@ -346,6 +348,44 @@ _CLASS_FEATURES: dict[str, dict[int, list[str]]] = {
 
 
 # ---------------------------------------------------------------------------
+# Progressione incantesimi per classi "know" (PHB 5e)
+# ---------------------------------------------------------------------------
+
+# Numero di nuovi incantesimi (non-cantrip) appresi a ogni livello.
+# Solo i livelli dove il delta > 0 sono elencati.
+_SPELL_LEARN_DELTA: dict[str, dict[int, int]] = {
+    "Bardo":    {2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,13:1,14:1,15:1,17:1,19:1},
+    "Stregone": {2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,13:1,14:1,15:1},
+    "Warlock":  {2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,11:1,13:1,15:1,17:1,19:1},
+    "Ranger":   {2:2,3:1,5:1,7:1,9:1,11:1,13:1,15:1,17:1,19:1},
+}
+
+
+def _max_spell_level_for(class_name: str, level: int) -> int:
+    """Massimo livello di slot incantesimo accessibile per classe e livello (PHB)."""
+    cls = class_name.lower()
+    if cls in ("bardo", "stregone"):
+        # Full caster: slot fino a 9° livello
+        for threshold, slot_lv in [(17,9),(15,8),(13,7),(11,6),(9,5),(7,4),(5,3),(3,2)]:
+            if level >= threshold:
+                return slot_lv
+        return 1
+    if cls == "warlock":
+        # Pact slots: max 5° livello
+        for threshold, slot_lv in [(9,5),(7,4),(5,3),(3,2)]:
+            if level >= threshold:
+                return slot_lv
+        return 1
+    if cls == "ranger":
+        # Half caster
+        for threshold, slot_lv in [(17,5),(13,4),(9,3),(5,2)]:
+            if level >= threshold:
+                return slot_lv
+        return 1
+    return 9  # fallback per sottoclassi incantatrici
+
+
+# ---------------------------------------------------------------------------
 # API pubblica
 # ---------------------------------------------------------------------------
 
@@ -368,6 +408,22 @@ def get_level_up_steps(
         label="Punti Ferita",
         requires_player_choice=True,
     ))
+
+    # 1b. SPELL_LEARN per classi "know": emesso subito dopo HP
+    spell_delta = _SPELL_LEARN_DELTA.get(class_name, {}).get(new_level, 0)
+    if spell_delta > 0:
+        max_lv = _max_spell_level_for(class_name, new_level)
+        label = (
+            f"Incantesimi conosciuti (+{spell_delta})"
+            if spell_delta > 1
+            else "Incantesimo conosciuto (+1)"
+        )
+        steps.append(LevelStep(
+            step_type=StepType.SPELL_LEARN,
+            label=label,
+            requires_player_choice=True,
+            data={"count": spell_delta, "max_level": max_lv, "any_class": False},
+        ))
 
     # 2. Feature di classe per questo livello
     features = _CLASS_FEATURES.get(class_name, {}).get(new_level, [])
@@ -397,6 +453,20 @@ def get_level_up_steps(
                 label=feat,
                 requires_player_choice=True,
                 data={"total": total},
+            ))
+        elif "segreti magici" in feat_lower:
+            # Bardo Lv10/14/18: scelta di 2 incantesimi da qualsiasi lista
+            m = re.search(r"\((\d+)", feat)
+            count = int(m.group(1)) if m else 2
+            steps.append(LevelStep(
+                step_type=StepType.SPELL_LEARN,
+                label=feat,
+                requires_player_choice=True,
+                data={
+                    "count": count,
+                    "max_level": _max_spell_level_for(class_name, new_level),
+                    "any_class": True,
+                },
             ))
         elif "perizia" in feat_lower:
             # Expertise: scelta di 2 abilità da rendere maestria
