@@ -77,18 +77,21 @@ jobs:
       - name: Build macOS
         run: echo "y" | flet build macos --no-rich-output
 
+      - name: Ad-hoc sign the app
+        run: |
+          APP=$(find build/macos -name "*.app" -maxdepth 5 | head -1)
+          echo "Firmo: $APP"
+          # Firma ad-hoc (gratuita) — necessaria su macOS Sonoma/Sequoia
+          codesign --force --deep --sign - "$APP"
+
       - name: Package artifact
         run: |
           APP=$(find build/macos -name "*.app" -maxdepth 5 | head -1)
           echo "App trovata: $APP"
-          echo "Dimensione prima dello strip: $(du -sh "$APP" | cut -f1)"
-          # Rimuove debug symbols per ridurre la dimensione
-          find "$APP" -name "*.dylib" -exec strip -x {} \; 2>/dev/null || true
-          find "$APP" -type f -perm +0111 -exec strip -x {} \; 2>/dev/null || true
-          echo "Dimensione dopo lo strip: $(du -sh "$APP" | cut -f1)"
-          # tar.gz comprime molto meglio di zip per i binari
-          tar -czf dnd-companion-macos.tar.gz -C "$(dirname "$APP")" "$(basename "$APP")"
-          echo "Dimensione archivio: $(du -sh dnd-companion-macos.tar.gz | cut -f1)"
+          echo "Dimensione: $(du -sh "$APP" | cut -f1)"
+          # ditto preserva symlink e metadata macOS (fondamentale per .app)
+          ditto -c -k --keepParent "$APP" dnd-companion-macos.zip
+          echo "Dimensione archivio: $(du -sh dnd-companion-macos.zip | cut -f1)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -208,6 +211,6 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/windows/dnd-companion-windows.zip
-            artifacts/macos/dnd-companion-macos.tar.gz
+            artifacts/macos/dnd-companion-macos.zip
             artifacts/linux/dnd-companion-linux.tar.gz
             artifacts/android/dnd-companion-android.apk
