@@ -2603,8 +2603,11 @@ class CombattimentoTab(ft.ListView):
 
     def _open_creature_search(self, entry_type: str) -> None:
         """
-        Apre un dialog di ricerca nel bestiary del Manuale dei Mostri.
-        entry_type = "forma" → filtra solo Bestie
+        Dialog di ricerca nel bestiary con filtri tipo/GS e vista dettaglio inline.
+        Due stati nella stessa AlertDialog (no dialog annidati):
+          - LIST  : filtri + lista scrollabile; click riga → DETAIL
+          - DETAIL: scheda completa; ← torna lista; bottone evoca/aggiungi
+        entry_type = "forma"      → filtra solo Bestie
                    = "evocazione" → tutte le creature
         """
         if not self._page:
@@ -2613,80 +2616,346 @@ class CombattimentoTab(ft.ListView):
         import json as _json
         from pathlib import Path
 
-        # Carica monsters.json
-        monsters_path = Path(__file__).parent.parent.parent.parent / "data" / "game_data" / "monsters.json"
+        # ── Carica monsters.json ──────────────────────────────────────────
+        monsters_path = (
+            Path(__file__).parent.parent.parent.parent / "data" / "game_data" / "monsters.json"
+        )
         try:
             all_monsters: list[dict] = _json.loads(monsters_path.read_text(encoding="utf-8"))
         except Exception:
             all_monsters = []
 
-        # Filtra: forme solo Bestie; evocazioni tutto
+        # Forma Selvatica → solo Bestie; Evocazione → tutto
         if entry_type == "forma":
-            pool = [m for m in all_monsters if m.get("creature_type") == "Bestia"]
+            pool = [m for m in all_monsters if m.get("type") == "Bestia"]
         else:
             pool = all_monsters
 
         title_label = "Aggiungi Forma Selvatica" if entry_type == "forma" else "Evoca Creatura"
-        results_col = ft.Column([], spacing=4, scroll=ft.ScrollMode.AUTO, height=300)
+        existing_names = {
+            e.name.upper()
+            for e in (self._forme if entry_type == "forma" else self._evocazioni)
+        }
 
-        # Nomi già nel bestiary (per prevenire duplicati inutili)
-        existing_names = {e.name.upper() for e in (self._forme if entry_type == "forma" else self._evocazioni)}
+        # ── Helper CR ────────────────────────────────────────────────────
+        def cr_to_float(cr: Any) -> float:
+            if not cr or cr in ("—", ""):
+                return 9999.0
+            s = str(cr)
+            if "/" in s:
+                try:
+                    a, b = s.split("/")
+                    return int(a) / int(b)
+                except Exception:
+                    return 9999.0
+            try:
+                return float(s)
+            except Exception:
+                return 9999.0
 
+        # ── Opzioni filtri ───────────────────────────────────────────────
+        all_types = sorted({m.get("type", "") for m in pool if m.get("type")})
+        cr_vals_raw = sorted(
+            {m.get("cr", "") for m in pool if m.get("cr")},
+            key=cr_to_float,
+        )
+
+        # ── Stato mutabile condiviso tra chiusure ────────────────────────
+        state: dict[str, Any] = {
+            "mode": "list",     # "list" | "detail"
+            "type_filter": "",
+            "cr_max": "",
+            "query": "",
+        }
+        # Placeholder per il dialog (assegnato più avanti)
+        dlg: Any = None
+
+        # ── Widget lista persistenti tra ri-render ────────────────────────
+        type_dd = ft.Dropdown(
+            label="Tipo",
+            options=[
+                ft.DropdownOption(key="", text="Tutti"),
+            ] + [ft.DropdownOption(key=t, text=t) for t in all_types],
+            value="",
+            width=148,
+            dense=True,
+            text_size=12,
+            border_radius=6,
+        )
+        cr_dd = ft.Dropdown(
+            label="GS max",
+            options=[
+                ft.DropdownOption(key="", text="Tutti"),
+            ] + [ft.DropdownOption(key=str(v), text=f"GS {v}") for v in cr_vals_raw],
+            value="",
+            width=112,
+            dense=True,
+            text_size=12,
+            border_radius=6,
+        )
         search_tf = ft.TextField(
             label="Cerca per nome...",
             prefix_icon=ft.Icons.SEARCH,
             autofocus=True,
             border_radius=8,
+            dense=True,
+            text_size=13,
         )
+        results_col = ft.Column([], spacing=3, scroll=ft.ScrollMode.AUTO, height=270)
 
-        def _populate(query: str) -> None:
-            q = query.strip().upper()
-            filtered = [m for m in pool if q in m["name"].upper()] if q else pool[:30]
+        # ── Filtra pool ──────────────────────────────────────────────────
+        def _filtered_pool() -> list[dict]:
+            q = state["query"].strip().upper()
+            tf = state["type_filter"]
+            cm = state["cr_max"]
+            cr_limit = cr_to_float(cm) if cm else 9999.0
+            out: list[dict] = []
+            for m in pool:
+                if tf and m.get("type", "") != tf:
+                    continue
+                if cr_to_float(m.get("cr", "")) > cr_limit + 1e-9:
+                    continue
+                if q and q not in m["name"].upper():
+                    continue
+                out.append(m)
+            return out[:60]
+
+        # ── Popola lista ─────────────────────────────────────────────────
+        def _populate_list() -> None:
+            filtered = _filtered_pool()
             results_col.controls.clear()
-            for m in filtered[:40]:
-                already = m["name"] in existing_names
+            for m in filtered:
+                already = m["name"].upper() in existing_names
                 cr_str = f"GS {m['cr']}" if m.get("cr") else "GS —"
-                type_str = m.get("creature_type", "")
+                type_str = m.get("type", "")
 
-                def _add(monster=m) -> None:
-                    _save_creature(monster)
+                def _go_detail(_e: Any, mon: dict = m) -> None:
+                    _show_detail(mon)
 
                 results_col.controls.append(ft.Container(
                     content=ft.Row([
                         ft.Column([
-                            ft.Text(monster_display_name(m["name"]), size=13,
-                                    weight=ft.FontWeight.W_600, color=COLOR_TEXT_PRIMARY),
-                            ft.Text(f"{type_str} · {cr_str} · {m.get('hp_max', '?')} PF",
-                                    size=11, color=COLOR_TEXT_MUTED),
-                        ], spacing=1, expand=True),
-                        ft.TextButton(
-                            "✓ Già presente" if already else ("Aggiungi" if entry_type == "forma" else "Evoca"),
-                            on_click=lambda _e, fn=_add: fn(),
-                            disabled=already,
-                            style=ft.ButtonStyle(
-                                color=COLOR_TEXT_MUTED if already else
-                                      (COLOR_ACCENT_CRIMSON if entry_type == "forma" else COLOR_ACCENT_BLUE),
+                            ft.Text(
+                                monster_display_name(m["name"]),
+                                size=13,
+                                weight=ft.FontWeight.W_600,
+                                color=COLOR_TEXT_PRIMARY,
                             ),
-                        ),
+                            ft.Text(
+                                f"{type_str} · {cr_str} · {m.get('hp_max', '?')} PF",
+                                size=11,
+                                color=COLOR_TEXT_MUTED,
+                            ),
+                        ], spacing=1, expand=True),
+                        ft.Icon(ft.Icons.CHEVRON_RIGHT, color=COLOR_TEXT_MUTED, size=18),
                     ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                    padding=ft.Padding.symmetric(vertical=5, horizontal=4),
+                    padding=ft.Padding.symmetric(vertical=6, horizontal=4),
                     border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),
+                    on_click=_go_detail,
+                    ink=True,
                 ))
             try:
                 results_col.update()
             except RuntimeError:
                 pass
 
-        def _on_search_change(_e: Any) -> None:
-            _populate(search_tf.value or "")
+        # ── Costruisce contenuto stato LISTA ─────────────────────────────
+        def _list_content() -> ft.Column:
+            return ft.Column(
+                cast(list[ft.Control], [
+                    ft.Row([type_dd, cr_dd], spacing=8),
+                    ft.Container(height=4),
+                    search_tf,
+                    ft.Container(height=6),
+                    results_col,
+                    ft.Container(height=4),
+                    ft.TextButton(
+                        "Inserimento manuale (creatura non trovata)",
+                        icon=ft.Icons.EDIT,
+                        on_click=_manual_entry,
+                        style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                    ),
+                ]),
+                spacing=4,
+                tight=True,
+                width=380,
+            )
 
+        # ── Costruisce contenuto stato DETTAGLIO (da dict JSON) ───────────
+        def _detail_content(m: dict) -> ft.Column:
+            def stat_col_d(abbr: str, score: int) -> ft.Column:
+                mod = (score - 10) // 2
+                sign = "+" if mod >= 0 else ""
+                return ft.Column([
+                    ft.Text(abbr, size=10, color=COLOR_TEXT_MUTED,
+                            weight=ft.FontWeight.W_600,
+                            text_align=ft.TextAlign.CENTER),
+                    ft.Text(str(score), size=16, weight=ft.FontWeight.BOLD,
+                            color=COLOR_TEXT_PRIMARY,
+                            text_align=ft.TextAlign.CENTER),
+                    ft.Text(f"{sign}{mod}", size=11, color=COLOR_TEXT_MUTED,
+                            text_align=ft.TextAlign.CENTER),
+                ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+            def feat_tile(name: str, text: str) -> ft.Container:
+                return ft.Container(
+                    content=ft.Column([
+                        ft.Text(name, size=12, weight=ft.FontWeight.BOLD,
+                                color=COLOR_TEXT_PRIMARY, italic=True),
+                        ft.Text(text, size=11, color=COLOR_TEXT_SECONDARY),
+                    ], spacing=2),
+                    padding=ft.Padding.only(bottom=6),
+                )
+
+            def info_r(label: str, value: str) -> ft.Row | None:
+                if not value:
+                    return None
+                return ft.Row([
+                    ft.Text(label + ":", size=11, color=COLOR_TEXT_MUTED,
+                            weight=ft.FontWeight.W_600),
+                    ft.Container(width=4),
+                    ft.Text(value, size=11, color=COLOR_TEXT_PRIMARY, expand=True),
+                ])
+
+            stats_row = ft.Row([
+                stat_col_d("FOR", int(m.get("str_score", 10))),
+                stat_col_d("DES", int(m.get("dex_score", 10))),
+                stat_col_d("COS", int(m.get("con_score", 10))),
+                stat_col_d("INT", int(m.get("int_score", 10))),
+                stat_col_d("SAG", int(m.get("wis_score", 10))),
+                stat_col_d("CAR", int(m.get("cha_score", 10))),
+            ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
+
+            info_items: list[ft.Control] = []
+            ac_note = m.get("ac_note", "")
+            for lbl, val in [
+                ("CA",     f"{m.get('ac', 10)}{' (' + ac_note + ')' if ac_note else ''}"),
+                ("PF",     str(m.get("hp_max", "—"))),
+                ("Velocità", str(m.get("speed", ""))),
+                ("GS",     str(m.get("cr", "—"))),
+                ("Allineamento", m.get("alignment", "")),
+                ("Sensi",  m.get("senses", "")),
+                ("Linguaggi", m.get("languages", "")),
+                ("Resistenze", m.get("damage_resistances", "")),
+                ("Immunità danni", m.get("damage_immunities", "")),
+                ("Immunità condizioni", m.get("condition_immunities", "")),
+            ]:
+                r = info_r(lbl, val)
+                if r:
+                    info_items.append(r)
+
+            def _parse_list(field: str) -> list[dict]:
+                raw = m.get(field, [])
+                if isinstance(raw, str):
+                    try:
+                        return _json.loads(raw)
+                    except Exception:
+                        return []
+                return raw if isinstance(raw, list) else []
+
+            traits_l  = _parse_list("traits")
+            actions_l = _parse_list("actions")
+            leg_l     = _parse_list("legendary_actions")
+
+            features: list[ft.Control] = []
+            if traits_l:
+                features.append(ft.Text("Tratti", size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_CRIMSON))
+                for t in traits_l:
+                    features.append(feat_tile(t.get("name", ""), t.get("text", "")))
+            if actions_l:
+                features.append(ft.Text("Azioni", size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_CRIMSON))
+                for a in actions_l:
+                    features.append(feat_tile(a.get("name", ""), a.get("text", "")))
+            if leg_l:
+                features.append(ft.Text("Azioni Leggendarie", size=12,
+                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
+                for la in leg_l:
+                    features.append(feat_tile(la.get("name", ""), la.get("text", "")))
+
+            items: list[ft.Control] = cast(list[ft.Control], [
+                ft.Text(
+                    f"{m.get('type', '?')} · {m.get('alignment', '—')}",
+                    size=11, color=COLOR_TEXT_MUTED, italic=True,
+                ),
+                ft.Divider(height=10, color=COLOR_BORDER),
+                stats_row,
+                ft.Divider(height=10, color=COLOR_BORDER),
+                *info_items,
+            ])
+            if features:
+                items.append(ft.Divider(height=10, color=COLOR_BORDER))
+                items.extend(features)
+
+            return ft.Column(items, spacing=6, scroll=ft.ScrollMode.AUTO, width=380)
+
+        # ── Transizione a DETTAGLIO ──────────────────────────────────────
+        def _show_detail(m: dict) -> None:
+            already = m["name"].upper() in existing_names
+            btn_label = (
+                "✓ Già presente" if already
+                else ("✔ Aggiungi al Bestiary" if entry_type == "forma" else "✔ Evoca")
+            )
+            btn_color = COLOR_ACCENT_CRIMSON if entry_type == "forma" else COLOR_ACCENT_BLUE
+
+            def _do_add(_e: Any) -> None:
+                _save_creature(m)
+
+            def _go_back(_e: Any) -> None:
+                state["mode"] = "list"
+                dlg.content = ft.Container(content=_list_content(), height=480)
+                dlg.title = ft.Text(title_label)
+                dlg.actions = cast(list[ft.Control], [
+                    ft.TextButton("Chiudi", on_click=lambda _: page.pop_dialog()),
+                ])
+                try:
+                    page.update()
+                except RuntimeError:
+                    pass
+
+            add_btn = ft.ElevatedButton(
+                btn_label,
+                icon=ft.Icons.CHECK if already else ft.Icons.ADD,
+                disabled=already,
+                on_click=_do_add,
+                style=ft.ButtonStyle(
+                    bgcolor=btn_color if not already else None,
+                    color="#ffffff" if not already else COLOR_TEXT_MUTED,
+                ),
+            )
+
+            dlg.content = ft.Container(content=_detail_content(m), height=480)
+            dlg.title = ft.Row([
+                ft.IconButton(
+                    ft.Icons.ARROW_BACK,
+                    on_click=_go_back,
+                    tooltip="Torna alla lista",
+                    icon_color=COLOR_TEXT_SECONDARY,
+                ),
+                ft.Text(
+                    monster_display_name(m["name"]),
+                    size=15,
+                    weight=ft.FontWeight.BOLD,
+                    expand=True,
+                ),
+            ])
+            dlg.actions = cast(list[ft.Control], [
+                add_btn,
+                ft.TextButton("Chiudi", on_click=lambda _: page.pop_dialog()),
+            ])
+            try:
+                page.update()
+            except RuntimeError:
+                pass
+
+        # ── Salva nel DB e chiude ────────────────────────────────────────
         def _save_creature(m: dict) -> None:
-            """Salva la creatura nel DB e chiude il dialog."""
             entry = character_repo.create_creature_entry(
                 character_id=self.character.id,
                 entry_type=entry_type,
                 name=m["name"],
-                creature_type=m.get("creature_type", ""),
+                creature_type=m.get("type", ""),
                 alignment=m.get("alignment", ""),
                 cr=str(m.get("cr", "")),
                 ac=int(m.get("ac", 10)),
@@ -2714,35 +2983,38 @@ class CombattimentoTab(ft.ListView):
                 source_page=int(m.get("source_page", 0)),
             )
             if entry:
-                # Se evocazione: attivala subito (è già evocata)
                 if entry_type == "evocazione":
                     character_repo.set_creature_active(entry.id, True)
-                if self._page:
-                    page.pop_dialog()
+                page.pop_dialog()
                 self._refresh()
 
+        # ── Apertura dialog manuale ──────────────────────────────────────
         def _manual_entry(_e: Any) -> None:
-            if self._page:
-                page.pop_dialog()
+            page.pop_dialog()
             self._open_manual_creature_dialog(entry_type)
 
+        # ── Handler filtri ───────────────────────────────────────────────
+        def _on_type_select(_e: Any) -> None:
+            state["type_filter"] = type_dd.value or ""
+            _populate_list()
+
+        def _on_cr_select(_e: Any) -> None:
+            state["cr_max"] = cr_dd.value or ""
+            _populate_list()
+
+        def _on_search_change(_e: Any) -> None:
+            state["query"] = search_tf.value or ""
+            _populate_list()
+
+        cast(Any, type_dd).on_select = _on_type_select
+        cast(Any, cr_dd).on_select = _on_cr_select
         cast(Any, search_tf).on_change = _on_search_change
-        _populate("")
+
+        _populate_list()
 
         dlg = ft.AlertDialog(
             title=ft.Text(title_label),
-            content=ft.Column([
-                search_tf,
-                ft.Container(height=6),
-                results_col,
-                ft.Container(height=4),
-                ft.TextButton(
-                    "Inserimento manuale (creatura non trovata)",
-                    icon=ft.Icons.EDIT,
-                    on_click=_manual_entry,
-                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
-                ),
-            ], spacing=4, tight=True, width=380),
+            content=ft.Container(content=_list_content(), height=480),
             actions=cast(list[ft.Control], [
                 ft.TextButton("Chiudi", on_click=lambda _: page.pop_dialog()),
             ]),
