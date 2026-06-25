@@ -123,8 +123,15 @@ jobs:
 
       - name: Package artifact
         run: |
-          BUNDLE=$(find build/linux -name "bundle" -type d | head -1)
-          tar -czf dnd-companion-linux.tar.gz -C "$(dirname $BUNDLE)" bundle
+          echo "=== struttura build ==="
+          find build/ -type d | head -40 || true
+          BUNDLE=$(find build/ -name "bundle" -type d | head -1)
+          if [ -z "$BUNDLE" ]; then
+            echo "ERROR: bundle directory non trovata"
+            exit 1
+          fi
+          echo "Bundle trovato in: $BUNDLE"
+          tar -czf dnd-companion-linux.tar.gz -C "$(dirname "$BUNDLE")" bundle
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
