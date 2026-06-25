@@ -81,23 +81,25 @@ jobs:
         run: |
           APP=$(find build/macos -name "*.app" -maxdepth 5 | head -1)
           echo "Firmo: $APP"
-          # Firma ad-hoc (gratuita) — necessaria su macOS Sonoma/Sequoia
           codesign --force --deep --sign - "$APP"
 
       - name: Package artifact
         run: |
           APP=$(find build/macos -name "*.app" -maxdepth 5 | head -1)
-          echo "App trovata: $APP"
-          echo "Dimensione: $(du -sh "$APP" | cut -f1)"
-          # ditto preserva symlink e metadata macOS (fondamentale per .app)
+          echo "Dimensione originale: $(du -sh "$APP" | cut -f1)"
+          # Rimuove debug symbols (.dSYM) — non servono per distribuzione, pesano centinaia di MB
+          find build/macos -name "*.dSYM" -type d -exec rm -rf {} + 2>/dev/null || true
+          find "$APP" -name "*.dSYM" -type d -exec rm -rf {} + 2>/dev/null || true
+          echo "Dimensione dopo rimozione dSYM: $(du -sh "$APP" | cut -f1)"
+          # ditto preserva symlink e metadata macOS
           ditto -c -k --keepParent "$APP" dnd-companion-macos.zip
-          echo "Dimensione archivio: $(du -sh dnd-companion-macos.zip | cut -f1)"
+          echo "Dimensione archivio finale: $(du -sh dnd-companion-macos.zip | cut -f1)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: dnd-companion-macos.tar.gz
+          path: dnd-companion-macos.zip
 
   # ─────────────────────────────────────────────────────────────
   # Linux (binary)
