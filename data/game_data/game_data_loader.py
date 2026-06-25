@@ -254,6 +254,32 @@ class GameDataLoader:
         """
         return [s for s in self.get_spells(class_name) if s.get("level") == level]
 
+    def get_spell_by_name(
+        self, name: str, class_name: str | None = None
+    ) -> dict[str, Any] | None:
+        """
+        Cerca un incantesimo per nome (confronto case-insensitive).
+        Se class_name è specificato, cerca prima in quella classe per efficienza.
+        Poi cerca in tutte le classi incantatrici PHB.
+        Restituisce il primo match o None se non trovato.
+        """
+        _ALL_SPELL_CLASSES = [
+            "chierico", "bardo", "druido", "mago",
+            "paladino", "ranger", "stregone", "warlock",
+        ]
+        name_lower = name.lower()
+        classes_to_search: list[str] = []
+        if class_name:
+            classes_to_search.append(class_name.lower())
+        for cls in _ALL_SPELL_CLASSES:
+            if cls not in classes_to_search:
+                classes_to_search.append(cls)
+        for cls in classes_to_search:
+            for spell in self.get_spells(cls):
+                if spell.get("name", "").lower() == name_lower:
+                    return spell
+        return None
+
     # ------------------------------------------------------------------
     # Talenti (Feats)
     # ------------------------------------------------------------------

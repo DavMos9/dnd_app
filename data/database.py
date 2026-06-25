@@ -331,6 +331,53 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # ------------------------------------------------------------------
+    # Creature (Forme Selvatiche e Evocazioni)
+    # ------------------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS creature_entries (
+            id                    TEXT PRIMARY KEY,
+            character_id          TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+            entry_type            TEXT NOT NULL DEFAULT 'evocazione',
+            name                  TEXT NOT NULL DEFAULT '',
+            creature_type         TEXT NOT NULL DEFAULT '',
+            alignment             TEXT NOT NULL DEFAULT '',
+            cr                    TEXT NOT NULL DEFAULT '',
+            ac                    INTEGER NOT NULL DEFAULT 10,
+            ac_note               TEXT NOT NULL DEFAULT '',
+            hp_max                INTEGER NOT NULL DEFAULT 1,
+            hp_formula            TEXT NOT NULL DEFAULT '',
+            hp_current            INTEGER NOT NULL DEFAULT 1,
+            speed                 TEXT NOT NULL DEFAULT '',
+            str_score             INTEGER NOT NULL DEFAULT 10,
+            dex_score             INTEGER NOT NULL DEFAULT 10,
+            con_score             INTEGER NOT NULL DEFAULT 10,
+            int_score             INTEGER NOT NULL DEFAULT 10,
+            wis_score             INTEGER NOT NULL DEFAULT 10,
+            cha_score             INTEGER NOT NULL DEFAULT 10,
+            saving_throws         TEXT NOT NULL DEFAULT '{}',
+            skills                TEXT NOT NULL DEFAULT '{}',
+            damage_vulnerabilities TEXT NOT NULL DEFAULT '',
+            damage_resistances    TEXT NOT NULL DEFAULT '',
+            damage_immunities     TEXT NOT NULL DEFAULT '',
+            condition_immunities  TEXT NOT NULL DEFAULT '',
+            senses                TEXT NOT NULL DEFAULT '',
+            languages             TEXT NOT NULL DEFAULT '',
+            traits                TEXT NOT NULL DEFAULT '[]',
+            actions               TEXT NOT NULL DEFAULT '[]',
+            legendary_actions     TEXT NOT NULL DEFAULT '[]',
+            is_active             INTEGER NOT NULL DEFAULT 0,
+            notes                 TEXT NOT NULL DEFAULT '',
+            source_page           INTEGER NOT NULL DEFAULT 0,
+            created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_creature_entries_character
+        ON creature_entries(character_id, entry_type)
+    """)
+
+    # ------------------------------------------------------------------
     # Note di Campagna (PNG, Luoghi, Missioni, Fazioni)
     # ------------------------------------------------------------------
     cur.execute("""

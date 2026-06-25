@@ -20,10 +20,10 @@ Nota movimento: stored come int (metri interi). Il passo 1.5m usa delta=2.
 import flet as ft
 import json
 import logging
-from typing import Callable, cast
+from typing import Any, Callable, cast
 from config.settings import *
 from config.settings import get_race_display_traits
-from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource
+from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource, CreatureEntry
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header
@@ -34,6 +34,11 @@ logger = logging.getLogger(__name__)
 
 # Nomi ordinali per i livelli slot
 _SLOT_NAMES = ["1°", "2°", "3°", "4°", "5°", "6°", "7°", "8°", "9°"]
+
+
+def monster_display_name(raw_name: str) -> str:
+    """Converte il nome in MAIUSCOLO del bestiary in title case leggibile."""
+    return raw_name.title()
 
 
 class CombattimentoTab(ft.ListView):
@@ -67,6 +72,13 @@ class CombattimentoTab(ft.ListView):
         self._features: list[dict] = self._load_class_features(character)
         self._race_traits: dict = get_race_display_traits(
             character.race or "", character.subrace or ""
+        )
+        # Forme selvatiche e evocazioni
+        self._forme: list[CreatureEntry] = character_repo.get_creature_entries(
+            character.id, entry_type="forma"
+        )
+        self._evocazioni: list[CreatureEntry] = character_repo.get_creature_entries(
+            character.id, entry_type="evocazione"
         )
         self._build()
 
@@ -108,6 +120,17 @@ class CombattimentoTab(ft.ListView):
                 section_header("Tratti di Razza"),
                 self._section_racial_traits(),
             ]
+        # Forme selvatiche — solo Druido
+        if (c.class_name or "").lower() == "druido":
+            controls += [
+                section_header("Forme Selvatiche"),
+                self._section_forme(),
+            ]
+        # Evocazioni — tutti i personaggi
+        controls += [
+            section_header("Evocazioni"),
+            self._section_evocazioni(),
+        ]
         controls += [
             section_header("Dadi Vita"),
             self._section_hit_dice(c),
@@ -282,6 +305,7 @@ class CombattimentoTab(ft.ListView):
     def _on_damage_click(self, e):
         if not self._page:
             return
+            return
         page = self._page
         field = ft.TextField(
             label="Quantità danno", keyboard_type=ft.KeyboardType.NUMBER,
@@ -324,6 +348,7 @@ class CombattimentoTab(ft.ListView):
 
     def _on_heal_click(self, e):
         if not self._page:
+            return
             return
         page = self._page
         field = ft.TextField(
@@ -1199,21 +1224,42 @@ class CombattimentoTab(ft.ListView):
                 ft.Text("INCANTESIMI PREPARATI", size=9, color=COLOR_TEXT_MUTED,
                         weight=ft.FontWeight.BOLD, style=ft.TextStyle(letter_spacing=0.8))
             )
+            sections.append(
+                ft.Text("Clicca un incantesimo per la descrizione completa.",
+                        size=10, color=COLOR_TEXT_MUTED, italic=True)
+            )
             # Raggruppa per livello
             by_level: dict[int, list[KnownSpell]] = {}
             for sp in self._prepared:
                 by_level.setdefault(sp.spell_level, []).append(sp)
 
+            def _make_spell_btn(sp: KnownSpell) -> ft.TextButton:
+                return ft.TextButton(
+                    sp.name,
+                    on_click=lambda e, s=sp: self._open_spell_dialog(s.name, s.spell_level),
+                    style=ft.ButtonStyle(
+                        color=COLOR_TEXT_PRIMARY,
+                        padding=ft.Padding.symmetric(horizontal=2, vertical=0),
+                        overlay_color=ft.Colors.with_opacity(0.08, COLOR_ACCENT_BLUE),
+                    ),
+                )
+
             for lv in sorted(by_level.keys()):
                 level_label = "Trucchetti" if lv == 0 else f"{_SLOT_NAMES[lv - 1]} livello"
-                spell_names = "  ·  ".join(sp.name for sp in by_level[lv])
+                spell_controls: list[ft.Control] = []
+                for i, sp in enumerate(by_level[lv]):
+                    spell_controls.append(_make_spell_btn(sp))
+                    if i < len(by_level[lv]) - 1:
+                        spell_controls.append(
+                            ft.Text("·", size=12, color=COLOR_TEXT_MUTED)
+                        )
                 sections.append(ft.Row([
                     ft.Container(
                         content=ft.Text(level_label, size=10, color=COLOR_ACCENT_BLUE,
                                         weight=ft.FontWeight.BOLD),
                         width=80,
                     ),
-                    ft.Text(spell_names, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                    ft.Row(spell_controls, spacing=0, wrap=True, expand=True),
                 ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.START))
 
         return ft.Container(
@@ -1228,6 +1274,112 @@ class CombattimentoTab(ft.ListView):
             ),
             border_radius=6,
         )
+
+    def _open_spell_dialog(self, spell_name: str, spell_level: int) -> None:
+        """Apre un AlertDialog con la descrizione completa dell'incantesimo."""
+        page = self._page
+        if not page:
+            return
+
+        spell = _loader.get_spell_by_name(spell_name, self.character.class_name)
+
+        if not spell:
+            page.show_dialog(ft.AlertDialog(
+                title=ft.Text(spell_name, size=14, weight=ft.FontWeight.BOLD,
+                              color=COLOR_TEXT_TITLE),
+                content=ft.Text(
+                    "Trucchetto" if spell_level == 0 else f"{spell_level}° livello",
+                    size=12, color=COLOR_TEXT_MUTED,
+                ),
+                actions=[
+                    ft.TextButton("Chiudi",
+                                  on_click=lambda ev: page.pop_dialog() if page else None),
+                ],
+                bgcolor=COLOR_BG_CARD,
+            ))
+            return
+
+        level_str = "Trucchetto" if spell_level == 0 else f"{spell_level}° livello"
+        school    = spell.get("school", "")
+        header    = f"{level_str}  ·  {school}" if school else level_str
+
+        def _info_row(label: str, value: str) -> ft.Row:
+            return ft.Row([
+                ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                        weight=ft.FontWeight.W_600, width=110),
+                ft.Text(value, size=11, color=COLOR_TEXT_PRIMARY, expand=True),
+            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.START)
+
+        info_rows: list[ft.Control] = []
+        for label, key in [
+            ("Tempo di lancio", "casting_time"),
+            ("Gittata",         "range"),
+            ("Componenti",      "components"),
+            ("Durata",          "duration"),
+        ]:
+            val = spell.get(key, "")
+            if val:
+                info_rows.append(_info_row(label, str(val)))
+
+        tags: list[ft.Control] = []
+        if spell.get("ritual"):
+            tags.append(ft.Container(
+                content=ft.Text("Rituale", size=10, color=COLOR_ACCENT_BLUE),
+                border=ft.Border.all(1, COLOR_ACCENT_BLUE),
+                border_radius=10,
+                padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+            ))
+        if spell.get("concentration"):
+            tags.append(ft.Container(
+                content=ft.Text("Concentrazione", size=10, color=COLOR_ACCENT_AMBER),
+                border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+                border_radius=10,
+                padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+            ))
+
+        desc   = spell.get("description", "")
+        higher = spell.get("higher_levels", "")
+
+        content_items: list[ft.Control] = [
+            ft.Text(header, size=11, color=COLOR_TEXT_MUTED, italic=True),
+            ft.Container(height=4),
+        ]
+        if info_rows:
+            content_items.extend(info_rows)
+            content_items.append(ft.Container(height=4))
+        if tags:
+            content_items.append(ft.Row(tags, spacing=6, wrap=True))
+            content_items.append(ft.Container(height=4))
+        if desc:
+            content_items.append(ft.Divider(color=COLOR_BORDER))
+            content_items.append(
+                ft.Text(desc, size=13, color=COLOR_TEXT_PRIMARY, selectable=True)
+            )
+        if higher:
+            content_items.append(ft.Container(height=6))
+            content_items.append(
+                ft.Text("A livelli superiori:", size=11,
+                        color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD)
+            )
+            content_items.append(
+                ft.Text(higher, size=12, color=COLOR_TEXT_SECONDARY, italic=True)
+            )
+
+        page.show_dialog(ft.AlertDialog(
+            title=ft.Text(spell_name, size=15, weight=ft.FontWeight.BOLD,
+                          color=COLOR_TEXT_TITLE),
+            content=ft.Column(
+                content_items,
+                spacing=6,
+                width=340,
+                scroll=ft.ScrollMode.AUTO,
+            ),
+            actions=[
+                ft.TextButton("Chiudi",
+                              on_click=lambda ev: page.pop_dialog() if page else None),
+            ],
+            bgcolor=COLOR_BG_CARD,
+        ))
 
     def _toggle_slot(self, slot_level: int, use: bool):
         for slot in self._slots:
@@ -1573,6 +1725,7 @@ class CombattimentoTab(ft.ListView):
         def _open_feature_dialog(feat: dict, e=None):
             # Usa self._page direttamente: la closure viene invocata DOPO did_mount()
             if not self._page:
+                return
                 return
             page = self._page
             source_label = (
@@ -1930,6 +2083,887 @@ class CombattimentoTab(ft.ListView):
         )
 
     # ------------------------------------------------------------------
+    # Sezione Forme Selvatiche (solo Druido)
+    # ------------------------------------------------------------------
+
+    def _section_forme(self) -> ft.Container:
+        """
+        Bestiary personale delle forme selvatiche del Druido.
+        - Banner "In forma" se una forma è attiva (hp tracker + Esci).
+        - Lista forme conosciute con tasto Trasformati.
+        - Tasto "+ Aggiungi Forma" (ricerca nel bestiary Bestia).
+        - Spillover HP: quando la forma scende a 0 hp chiede il danno totale
+          e lo trasferisce al Druido.
+        """
+        rows: list[ft.Control] = []
+
+        # ── Forma attiva ────────────────────────────────────────────────
+        active = next((f for f in self._forme if f.is_active), None)
+        if active:
+            rows.append(self._active_forma_banner(active))
+            rows.append(ft.Divider(height=8, color="transparent"))
+
+        # ── Forme conosciute ────────────────────────────────────────────
+        if not self._forme:
+            rows.append(ft.Text(
+                "Nessuna forma conosciuta.\nAggiungi le bestie in cui puoi trasformarti.",
+                size=12, color=COLOR_TEXT_MUTED, text_align=ft.TextAlign.CENTER,
+            ))
+        else:
+            for forma in self._forme:
+                rows.append(self._forma_row(forma, active))
+
+        rows.append(ft.Container(height=6))
+        rows.append(ft.TextButton(
+            "+ Aggiungi Forma",
+            icon=ft.Icons.ADD,
+            on_click=lambda _: self._open_creature_search("forma"),
+        ))
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=8),
+            bgcolor=COLOR_BG_CARD,
+            padding=14,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _active_forma_banner(self, forma: CreatureEntry) -> ft.Container:
+        """Banner grande per la forma selvatica attiva con tracker HP."""
+        ratio = (forma.hp_current / forma.hp_max) if forma.hp_max > 0 else 0.0
+        ratio = max(0.0, min(1.0, ratio))
+        hp_color = COLOR_HP_FULL if ratio > 0.5 else (COLOR_HP_MID if ratio > 0.25 else COLOR_HP_LOW)
+
+        def apply_damage(_e: ft.ControlEvent) -> None:
+            if not self._page:
+                return
+            page = self._page
+            tf = ft.TextField(label="Danno", keyboard_type=ft.KeyboardType.NUMBER, width=120)
+
+            def confirm(_ev: Any) -> None:
+                try:
+                    dmg = int(tf.value or "0")
+                except ValueError:
+                    return
+                new_hp = forma.hp_current - dmg
+                if new_hp <= 0:
+                    # Spillover: danno eccede i PF della forma
+                    spillover = abs(new_hp)
+                    character_repo.update_creature_hp(forma.id, 0)
+                    character_repo.set_creature_active(forma.id, False)
+                    page.pop_dialog()
+                    self._spillover_dialog(spillover)
+                else:
+                    character_repo.update_creature_hp(forma.id, new_hp)
+                    page.pop_dialog()
+                    self._refresh()
+
+            dlg = ft.AlertDialog(
+                title=ft.Text(f"Danno a {forma.name}"),
+                content=tf,
+                actions=cast(list[ft.Control], [
+                    ft.TextButton("Applica", on_click=confirm),
+                    ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
+                ]),
+            )
+            page.show_dialog(dlg)
+
+        def apply_heal(_e: Any) -> None:
+            if not self._page:
+                return
+            page = self._page
+            tf = ft.TextField(label="Cura", keyboard_type=ft.KeyboardType.NUMBER, width=120)
+
+            def confirm(_ev: Any) -> None:
+                try:
+                    heal = int(tf.value or "0")
+                except ValueError:
+                    return
+                new_hp = min(forma.hp_max, forma.hp_current + heal)
+                character_repo.update_creature_hp(forma.id, new_hp)
+                page.pop_dialog()
+                self._refresh()
+
+            dlg = ft.AlertDialog(
+                title=ft.Text(f"Cura {forma.name}"),
+                content=tf,
+                actions=cast(list[ft.Control], [
+                    ft.TextButton("Applica", on_click=confirm),
+                    ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
+                ]),
+            )
+            page.show_dialog(dlg)
+
+        def exit_form(_e: Any) -> None:
+            character_repo.set_creature_active(forma.id, False, reset_hp=True)
+            self._refresh()
+
+        def _on_apply_damage(_e: Any) -> None: apply_damage(_e)  # type: ignore[arg-type]
+        def _on_apply_heal(_e: Any) -> None: apply_heal(_e)  # type: ignore[arg-type]
+
+        return ft.Container(
+            content=ft.Column(cast(list[ft.Control], [
+                ft.Row(cast(list[ft.Control], [
+                    ft.Text("🐺 IN FORMA:", size=10, color=COLOR_TEXT_MUTED,
+                            weight=ft.FontWeight.W_600),
+                    ft.Text(forma.name.title(), size=14, color=COLOR_TEXT_PRIMARY,
+                            weight=ft.FontWeight.BOLD, expand=True),
+                    ft.TextButton("Esci dalla Forma", on_click=exit_form,
+                                  style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON)),
+                ]), vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Row(cast(list[ft.Control], [
+                    ft.Text(str(forma.hp_current), size=30, weight=ft.FontWeight.BOLD,
+                            color=hp_color, font_family=FONT_MONO),
+                    ft.Text(f" / {forma.hp_max} PF", size=14, color=COLOR_TEXT_MUTED,
+                            font_family=FONT_MONO),
+                    ft.Container(expand=True),
+                    ft.IconButton(ft.Icons.REMOVE, on_click=_on_apply_damage,
+                                  icon_color=COLOR_ACCENT_CRIMSON,
+                                  tooltip="Applica danno"),
+                    ft.IconButton(ft.Icons.ADD, on_click=_on_apply_heal,
+                                  icon_color=COLOR_HP_FULL,
+                                  tooltip="Cura"),
+                ]), vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Row([
+                    ft.ProgressBar(
+                        value=ratio, height=6,
+                        color=hp_color, bgcolor=COLOR_BG_SECONDARY,
+                        expand=True,
+                    )
+                ]),
+                ft.Text(f"CA {forma.ac}{' (' + forma.ac_note + ')' if forma.ac_note else ''} · {forma.speed}",
+                        size=11, color=COLOR_TEXT_MUTED),
+            ]), spacing=4),
+            bgcolor=COLOR_BG_SECONDARY,
+            padding=12,
+            border_radius=8,
+            border=ft.Border.all(1, COLOR_ACCENT_CRIMSON),
+        )
+
+    def _forma_row(self, forma: CreatureEntry, active: "CreatureEntry | None") -> ft.Container:
+        """Riga compatta per una forma selvatica nel bestiary."""
+        is_active = forma.is_active
+
+        def trasformati(_e: Any) -> None:
+            # Disattiva eventuale forma precedente (non si può stare in due forme)
+            for f in self._forme:
+                if f.is_active:
+                    character_repo.set_creature_active(f.id, False, reset_hp=True)
+            character_repo.set_creature_active(forma.id, True)
+            self._refresh()
+
+        def show_sheet(_e: Any) -> None:
+            self._show_creature_sheet(forma)
+
+        def remove(_e: Any) -> None:
+            if not self._page:
+                return
+            page = self._page
+            def confirm(_ev: Any) -> None:
+                character_repo.delete_creature_entry(forma.id)
+                page.pop_dialog()
+                self._refresh()
+            dlg = ft.AlertDialog(
+                title=ft.Text("Rimuovi forma?"),
+                content=ft.Text(f"Rimuovere {forma.name.title()} dal bestiary?"),
+                actions=cast(list[ft.Control], [
+                    ft.TextButton("Rimuovi", on_click=confirm,
+                                  style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON)),
+                    ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
+                ]),
+            )
+            page.show_dialog(dlg)
+
+        cr_text = f"GS {forma.cr}" if forma.cr else "GS —"
+        hp_text = f"{forma.hp_max} PF ({forma.hp_formula})" if forma.hp_formula else f"{forma.hp_max} PF"
+
+        return ft.Container(
+            content=ft.Row([
+                ft.GestureDetector(
+                    content=ft.Column([
+                        ft.Text(forma.name.title(), size=13, weight=ft.FontWeight.W_600,
+                                color=COLOR_TEXT_PRIMARY),
+                        ft.Text(f"{cr_text} · {hp_text} · CA {forma.ac}",
+                                size=11, color=COLOR_TEXT_MUTED),
+                    ], spacing=2),
+                    on_tap=show_sheet,
+                    expand=True,
+                ),
+                ft.Container(width=8),
+                ft.ElevatedButton(
+                    "Trasformati",
+                    on_click=trasformati,
+                    disabled=is_active or (active is not None and not is_active),
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_CRIMSON if not (active and not is_active) else COLOR_BG_SECONDARY,
+                        color="#ffffff" if not (active and not is_active) else COLOR_TEXT_MUTED,
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                    ),
+                ),
+                ft.IconButton(
+                    ft.Icons.DELETE_OUTLINE,
+                    icon_color=COLOR_TEXT_MUTED,
+                    on_click=remove,
+                    tooltip="Rimuovi dal bestiary",
+                    icon_size=18,
+                ),
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            padding=ft.Padding.symmetric(vertical=6, horizontal=2),
+            border=ft.Border(
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+        )
+
+    def _spillover_dialog(self, spillover: int) -> None:
+        """Dialog che informa del danno spillover al personaggio dopo la forma a 0 HP."""
+        if not self._page:
+            return
+        page = self._page
+        c = self.character
+        new_hp = max(0, c.hp_current - spillover)
+
+        def apply(_e: Any) -> None:
+            character_repo.update_hp(c.id, new_hp)
+            page.pop_dialog()
+            self._refresh()
+
+        def dismiss(_e: Any) -> None:
+            page.pop_dialog()
+            self._refresh()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("⚠️ Forma a 0 PF!"),
+            content=ft.Column([
+                ft.Text("La forma selvatica ha esaurito i suoi Punti Ferita.", size=13),
+                ft.Container(height=4),
+                ft.Text(f"Danno spillover: {spillover} PF", size=13,
+                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON),
+                ft.Text(f"PF {c.name}: {c.hp_current} → {new_hp}", size=13),
+                ft.Container(height=4),
+                ft.Text("Se il danno spillover supera i tuoi PF massimi, cadi immediatamente privo di sensi.",
+                        size=11, color=COLOR_TEXT_MUTED),
+            ], spacing=2, tight=True),
+            actions=cast(list[ft.Control], [
+                ft.TextButton("Applica danno al personaggio", on_click=apply,
+                              style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON)),
+                ft.TextButton("Ignora (gestione manuale)", on_click=dismiss),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
+    # Sezione Evocazioni (tutti i personaggi)
+    # ------------------------------------------------------------------
+
+    def _section_evocazioni(self) -> ft.Container:
+        """
+        Bestiary delle evocazioni del personaggio.
+        - Evocazioni attive: HP tracker + tasto Elimina (rimuove dall'attivo).
+        - Bestiary: lista con tasto Evoca + tasto rimuovi.
+        - Tasto "+ Evoca" per aggiungere dal bestiary mostri.
+        """
+        rows: list[ft.Control] = []
+
+        # ── Evocazioni attive ───────────────────────────────────────────
+        active_evocs = [e for e in self._evocazioni if e.is_active]
+        if active_evocs:
+            rows.append(ft.Text("In campo", size=11, color=COLOR_TEXT_MUTED,
+                                weight=ft.FontWeight.W_600))
+            for evoc in active_evocs:
+                rows.append(self._active_evocazione_card(evoc))
+            rows.append(ft.Divider(height=8, color=COLOR_BORDER))
+
+        # ── Bestiary evocazioni ────────────────────────────────────────
+        inactive = [e for e in self._evocazioni if not e.is_active]
+        if not self._evocazioni:
+            rows.append(ft.Text(
+                "Nessuna evocazione salvata.\nEvoca creature tramite incantesimi e aggiungile qui.",
+                size=12, color=COLOR_TEXT_MUTED, text_align=ft.TextAlign.CENTER,
+            ))
+        elif inactive:
+            rows.append(ft.Text("Bestiary evocazioni", size=11, color=COLOR_TEXT_MUTED,
+                                weight=ft.FontWeight.W_600))
+            for evoc in inactive:
+                rows.append(self._evocazione_row(evoc))
+
+        rows.append(ft.Container(height=6))
+        rows.append(ft.TextButton(
+            "+ Evoca",
+            icon=ft.Icons.ADD,
+            on_click=lambda _: self._open_creature_search("evocazione"),
+        ))
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=8),
+            bgcolor=COLOR_BG_CARD,
+            padding=14,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_BLUE),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _active_evocazione_card(self, evoc: CreatureEntry) -> ft.Container:
+        """Card con HP tracker per un'evocazione attiva in campo."""
+        ratio = (evoc.hp_current / evoc.hp_max) if evoc.hp_max > 0 else 0.0
+        ratio = max(0.0, min(1.0, ratio))
+        hp_color = COLOR_HP_FULL if ratio > 0.5 else (COLOR_HP_MID if ratio > 0.25 else COLOR_HP_LOW)
+
+        def apply_damage(_e: Any) -> None:
+            if not self._page:
+                return
+            page = self._page
+            tf = ft.TextField(label="Danno", keyboard_type=ft.KeyboardType.NUMBER, width=120)
+
+            def confirm(_ev: Any) -> None:
+                try:
+                    dmg = int(tf.value or "0")
+                except ValueError:
+                    return
+                new_hp = evoc.hp_current - dmg
+                if new_hp <= 0:
+                    # Evocazione a 0 HP: rimuove dall'attivo ma non dal bestiary
+                    character_repo.update_creature_hp(evoc.id, 0)
+                    character_repo.set_creature_active(evoc.id, False, reset_hp=False)
+                    page.pop_dialog()
+                    # Mostra avviso
+                    page.show_dialog(ft.AlertDialog(
+                        title=ft.Text("Evocazione eliminata"),
+                        content=ft.Text(
+                            f"{evoc.name.title()} ha raggiunto 0 PF ed è stata rimossa dal campo.\n"
+                            "La voce rimane nel tuo bestiary per future evocazioni."
+                        ),
+                        actions=[ft.TextButton("OK", on_click=lambda _:
+                            (page.pop_dialog(), self._refresh()) if self._page else None)],
+                    ))
+                else:
+                    character_repo.update_creature_hp(evoc.id, new_hp)
+                    page.pop_dialog()
+                    self._refresh()
+
+            dlg = ft.AlertDialog(
+                title=ft.Text(f"Danno a {evoc.name.title()}"),
+                content=tf,
+                actions=cast(list[ft.Control], [
+                    ft.TextButton("Applica", on_click=confirm),
+                    ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
+                ]),
+            )
+            page.show_dialog(dlg)
+
+        def apply_heal(_e: Any) -> None:
+            if not self._page:
+                return
+            page = self._page
+            tf = ft.TextField(label="Cura", keyboard_type=ft.KeyboardType.NUMBER, width=120)
+
+            def confirm(_ev: Any) -> None:
+                try:
+                    heal = int(tf.value or "0")
+                except ValueError:
+                    return
+                new_hp = min(evoc.hp_max, evoc.hp_current + heal)
+                character_repo.update_creature_hp(evoc.id, new_hp)
+                page.pop_dialog()
+                self._refresh()
+
+            dlg = ft.AlertDialog(
+                title=ft.Text(f"Cura {evoc.name.title()}"),
+                content=tf,
+                actions=cast(list[ft.Control], [
+                    ft.TextButton("Applica", on_click=confirm),
+                    ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
+                ]),
+            )
+            page.show_dialog(dlg)
+
+        def dismiss_evocation(_e: Any) -> None:
+            """Libera l'evocazione (torna al bestiary con HP resettati)."""
+            character_repo.set_creature_active(evoc.id, False, reset_hp=True)
+            self._refresh()
+
+        def show_sheet(_e: Any) -> None:
+            self._show_creature_sheet(evoc)
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.GestureDetector(
+                        content=ft.Text(evoc.name.title(), size=13, weight=ft.FontWeight.W_600,
+                                        color=COLOR_TEXT_PRIMARY),
+                        on_tap=show_sheet,
+                    ),
+                    ft.Text(f" — GS {evoc.cr}" if evoc.cr else "", size=11, color=COLOR_TEXT_MUTED),
+                    ft.Container(expand=True),
+                    ft.IconButton(ft.Icons.REMOVE, on_click=apply_damage,
+                                  icon_color=COLOR_ACCENT_CRIMSON, icon_size=18,
+                                  tooltip="Applica danno"),
+                    ft.IconButton(ft.Icons.ADD, on_click=apply_heal,
+                                  icon_color=COLOR_HP_FULL, icon_size=18,
+                                  tooltip="Cura"),
+                    ft.IconButton(ft.Icons.CLOSE, on_click=dismiss_evocation,
+                                  icon_color=COLOR_TEXT_MUTED, icon_size=18,
+                                  tooltip="Libera (fine combattimento)"),
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                ft.Row([
+                    ft.Text(str(evoc.hp_current), size=22, weight=ft.FontWeight.BOLD,
+                            color=hp_color, font_family=FONT_MONO),
+                    ft.Text(f" / {evoc.hp_max} PF", size=12, color=COLOR_TEXT_MUTED,
+                            font_family=FONT_MONO),
+                    ft.Container(expand=True),
+                    ft.Text(f"CA {evoc.ac}", size=12, color=COLOR_TEXT_MUTED),
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Row([
+                    ft.ProgressBar(value=ratio, height=5, color=hp_color,
+                                   bgcolor=COLOR_BG_SECONDARY, expand=True)
+                ]),
+            ], spacing=4),
+            bgcolor=COLOR_BG_SECONDARY,
+            padding=10,
+            border_radius=6,
+            border=ft.Border.all(1, COLOR_ACCENT_BLUE),
+        )
+
+    def _evocazione_row(self, evoc: CreatureEntry) -> ft.Container:
+        """Riga compatta per un'evocazione nel bestiary (non attiva)."""
+
+        def evoca(_e: Any) -> None:
+            character_repo.set_creature_active(evoc.id, True, reset_hp=True)
+            self._refresh()
+
+        def show_sheet(_e: Any) -> None:
+            self._show_creature_sheet(evoc)
+
+        def remove(_e: Any) -> None:
+            if not self._page:
+                return
+            page = self._page
+            def confirm(_ev: Any) -> None:
+                character_repo.delete_creature_entry(evoc.id)
+                page.pop_dialog()
+                self._refresh()
+            dlg = ft.AlertDialog(
+                title=ft.Text("Rimuovi evocazione?"),
+                content=ft.Text(f"Rimuovere {evoc.name.title()} dal bestiary?"),
+                actions=cast(list[ft.Control], [
+                    ft.TextButton("Rimuovi", on_click=confirm,
+                                  style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON)),
+                    ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
+                ]),
+            )
+            page.show_dialog(dlg)
+
+        cr_text = f"GS {evoc.cr}" if evoc.cr else "GS —"
+        hp_text = f"{evoc.hp_max} PF"
+
+        return ft.Container(
+            content=ft.Row([
+                ft.GestureDetector(
+                    content=ft.Column([
+                        ft.Text(evoc.name.title(), size=13, weight=ft.FontWeight.W_600,
+                                color=COLOR_TEXT_PRIMARY),
+                        ft.Text(f"{cr_text} · {hp_text} · CA {evoc.ac}",
+                                size=11, color=COLOR_TEXT_MUTED),
+                    ], spacing=2),
+                    on_tap=show_sheet,
+                    expand=True,
+                ),
+                ft.ElevatedButton(
+                    "Evoca",
+                    on_click=evoca,
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_BLUE,
+                        color="#ffffff",
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                    ),
+                ),
+                ft.IconButton(
+                    ft.Icons.DELETE_OUTLINE,
+                    icon_color=COLOR_TEXT_MUTED,
+                    on_click=remove,
+                    tooltip="Rimuovi dal bestiary",
+                    icon_size=18,
+                ),
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            padding=ft.Padding.symmetric(vertical=6, horizontal=2),
+            border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),
+        )
+
+    # ------------------------------------------------------------------
+    # Dialog ricerca creatura (condiviso tra Forme e Evocazioni) — Task #3/4
+    # ------------------------------------------------------------------
+
+    def _open_creature_search(self, entry_type: str) -> None:
+        """
+        Apre un dialog di ricerca nel bestiary del Manuale dei Mostri.
+        entry_type = "forma" → filtra solo Bestie
+                   = "evocazione" → tutte le creature
+        """
+        if not self._page:
+            return
+        page = self._page
+        import json as _json
+        from pathlib import Path
+
+        # Carica monsters.json
+        monsters_path = Path(__file__).parent.parent.parent.parent / "data" / "game_data" / "monsters.json"
+        try:
+            all_monsters: list[dict] = _json.loads(monsters_path.read_text(encoding="utf-8"))
+        except Exception:
+            all_monsters = []
+
+        # Filtra: forme solo Bestie; evocazioni tutto
+        if entry_type == "forma":
+            pool = [m for m in all_monsters if m.get("creature_type") == "Bestia"]
+        else:
+            pool = all_monsters
+
+        title_label = "Aggiungi Forma Selvatica" if entry_type == "forma" else "Evoca Creatura"
+        results_col = ft.Column([], spacing=4, scroll=ft.ScrollMode.AUTO, height=300)
+
+        # Nomi già nel bestiary (per prevenire duplicati inutili)
+        existing_names = {e.name.upper() for e in (self._forme if entry_type == "forma" else self._evocazioni)}
+
+        search_tf = ft.TextField(
+            label="Cerca per nome...",
+            prefix_icon=ft.Icons.SEARCH,
+            autofocus=True,
+            border_radius=8,
+        )
+
+        def _populate(query: str) -> None:
+            q = query.strip().upper()
+            filtered = [m for m in pool if q in m["name"].upper()] if q else pool[:30]
+            results_col.controls.clear()
+            for m in filtered[:40]:
+                already = m["name"] in existing_names
+                cr_str = f"GS {m['cr']}" if m.get("cr") else "GS —"
+                type_str = m.get("creature_type", "")
+
+                def _add(monster=m) -> None:
+                    _save_creature(monster)
+
+                results_col.controls.append(ft.Container(
+                    content=ft.Row([
+                        ft.Column([
+                            ft.Text(monster_display_name(m["name"]), size=13,
+                                    weight=ft.FontWeight.W_600, color=COLOR_TEXT_PRIMARY),
+                            ft.Text(f"{type_str} · {cr_str} · {m.get('hp_max', '?')} PF",
+                                    size=11, color=COLOR_TEXT_MUTED),
+                        ], spacing=1, expand=True),
+                        ft.TextButton(
+                            "✓ Già presente" if already else ("Aggiungi" if entry_type == "forma" else "Evoca"),
+                            on_click=lambda _e, fn=_add: fn(),
+                            disabled=already,
+                            style=ft.ButtonStyle(
+                                color=COLOR_TEXT_MUTED if already else
+                                      (COLOR_ACCENT_CRIMSON if entry_type == "forma" else COLOR_ACCENT_BLUE),
+                            ),
+                        ),
+                    ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    padding=ft.Padding.symmetric(vertical=5, horizontal=4),
+                    border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),
+                ))
+            try:
+                results_col.update()
+            except RuntimeError:
+                pass
+
+        def _on_search_change(_e: Any) -> None:
+            _populate(search_tf.value or "")
+
+        def _save_creature(m: dict) -> None:
+            """Salva la creatura nel DB e chiude il dialog."""
+            entry = character_repo.create_creature_entry(
+                character_id=self.character.id,
+                entry_type=entry_type,
+                name=m["name"],
+                creature_type=m.get("creature_type", ""),
+                alignment=m.get("alignment", ""),
+                cr=str(m.get("cr", "")),
+                ac=int(m.get("ac", 10)),
+                ac_note=m.get("ac_note", ""),
+                hp_max=int(m.get("hp_max", 1)),
+                hp_formula=m.get("hp_formula", ""),
+                speed=m.get("speed", ""),
+                str_score=int(m.get("str_score", 10)),
+                dex_score=int(m.get("dex_score", 10)),
+                con_score=int(m.get("con_score", 10)),
+                int_score=int(m.get("int_score", 10)),
+                wis_score=int(m.get("wis_score", 10)),
+                cha_score=int(m.get("cha_score", 10)),
+                saving_throws=_json.dumps(m.get("saving_throws", {})),
+                skills=_json.dumps(m.get("skills", {})),
+                damage_vulnerabilities=m.get("damage_vulnerabilities", ""),
+                damage_resistances=m.get("damage_resistances", ""),
+                damage_immunities=m.get("damage_immunities", ""),
+                condition_immunities=m.get("condition_immunities", ""),
+                senses=m.get("senses", ""),
+                languages=m.get("languages", ""),
+                traits=_json.dumps(m.get("traits", [])),
+                actions=_json.dumps(m.get("actions", [])),
+                legendary_actions=_json.dumps(m.get("legendary_actions", [])),
+                source_page=int(m.get("source_page", 0)),
+            )
+            if entry:
+                # Se evocazione: attivala subito (è già evocata)
+                if entry_type == "evocazione":
+                    character_repo.set_creature_active(entry.id, True)
+                if self._page:
+                    page.pop_dialog()
+                self._refresh()
+
+        def _manual_entry(_e: Any) -> None:
+            if self._page:
+                page.pop_dialog()
+            self._open_manual_creature_dialog(entry_type)
+
+        cast(Any, search_tf).on_change = _on_search_change
+        _populate("")
+
+        dlg = ft.AlertDialog(
+            title=ft.Text(title_label),
+            content=ft.Column([
+                search_tf,
+                ft.Container(height=6),
+                results_col,
+                ft.Container(height=4),
+                ft.TextButton(
+                    "Inserimento manuale (creatura non trovata)",
+                    icon=ft.Icons.EDIT,
+                    on_click=_manual_entry,
+                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                ),
+            ], spacing=4, tight=True, width=380),
+            actions=cast(list[ft.Control], [
+                ft.TextButton("Chiudi", on_click=lambda _: page.pop_dialog()),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _open_manual_creature_dialog(self, entry_type: str) -> None:
+        """Dialog per inserire manualmente una creatura non presente nel bestiary."""
+        if not self._page:
+            return
+        page = self._page
+
+        f_name = ft.TextField(label="Nome*", autofocus=True)
+        f_type = ft.TextField(label="Tipo (es. Bestia, Elementale)")
+        f_cr   = ft.TextField(label="Grado Sfida (es. 1/4, 5)")
+        f_ac   = ft.TextField(label="CA", value="10", keyboard_type=ft.KeyboardType.NUMBER, width=90)
+        f_hp   = ft.TextField(label="PF massimi*", keyboard_type=ft.KeyboardType.NUMBER, width=120)
+        f_speed= ft.TextField(label="Velocità (es. 9 m)")
+
+        def save(_e: Any) -> None:
+            if not f_name.value or not f_hp.value:
+                return
+            try:
+                hp_max = int(f_hp.value)
+                ac = int(f_ac.value or "10")
+            except ValueError:
+                return
+            entry = character_repo.create_creature_entry(
+                character_id=self.character.id,
+                entry_type=entry_type,
+                name=f_name.value.upper(),
+                creature_type=f_type.value or "",
+                cr=f_cr.value or "",
+                ac=ac,
+                hp_max=hp_max,
+                speed=f_speed.value or "",
+            )
+            if entry and entry_type == "evocazione":
+                character_repo.set_creature_active(entry.id, True)
+            if self._page:
+                page.pop_dialog()
+            self._refresh()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Inserimento manuale"),
+            content=ft.Column([
+                f_name,
+                ft.Row([f_type, ft.Container(width=8), f_cr], spacing=0),
+                ft.Row([f_ac, ft.Container(width=8), f_hp], spacing=0),
+                f_speed,
+            ], spacing=10, tight=True, width=360),
+            actions=cast(list[ft.Control], [
+                ft.TextButton("Salva", on_click=save),
+                ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
+    # Dialog scheda creatura completa (condiviso) — Task #5
+    # ------------------------------------------------------------------
+
+    def _show_creature_sheet(self, c: CreatureEntry) -> None:
+        """
+        AlertDialog con scheda completa della creatura:
+        CA, HP, velocità, 6 stat, TS, skill, resistenze, sensi, lingue, CR,
+        tratti e azioni (scrollabile).
+        """
+        if not self._page:
+            return
+        page = self._page
+        import json as _json
+
+        def stat_col(abbr: str, score: int) -> ft.Column:
+            mod = (score - 10) // 2
+            sign = "+" if mod >= 0 else ""
+            return ft.Column([
+                ft.Text(abbr, size=10, color=COLOR_TEXT_MUTED,
+                        weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER),
+                ft.Text(str(score), size=16, weight=ft.FontWeight.BOLD,
+                        color=COLOR_TEXT_PRIMARY, text_align=ft.TextAlign.CENTER),
+                ft.Text(f"{sign}{mod}", size=11, color=COLOR_TEXT_MUTED,
+                        text_align=ft.TextAlign.CENTER),
+            ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+        def feature_tile(name: str, text: str) -> ft.Container:
+            return ft.Container(
+                content=ft.Column([
+                    ft.Text(name, size=12, weight=ft.FontWeight.BOLD,
+                            color=COLOR_TEXT_PRIMARY, italic=True),
+                    ft.Text(text, size=11, color=COLOR_TEXT_SECONDARY),
+                ], spacing=2),
+                padding=ft.Padding.only(bottom=8),
+            )
+
+        def info_row(label: str, value: str) -> ft.Row | None:
+            if not value:
+                return None
+            return ft.Row([
+                ft.Text(label + ":", size=11, color=COLOR_TEXT_MUTED,
+                        weight=ft.FontWeight.W_600),
+                ft.Container(width=4),
+                ft.Text(value, size=11, color=COLOR_TEXT_PRIMARY, expand=True),
+            ])
+
+        # Stat block
+        stats_row = ft.Row([
+            stat_col("FOR", c.str_score),
+            stat_col("DES", c.dex_score),
+            stat_col("COS", c.con_score),
+            stat_col("INT", c.int_score),
+            stat_col("SAG", c.wis_score),
+            stat_col("CAR", c.cha_score),
+        ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
+
+        # Info block
+        info_items: list[ft.Control] = []
+        for lbl, val in [
+            ("CA", f"{c.ac}{' (' + c.ac_note + ')' if c.ac_note else ''}"),
+            ("PF", f"{c.hp_max}" + (f" ({c.hp_formula})" if c.hp_formula else "")),
+            ("Velocità", c.speed),
+            ("GS", c.cr or "—"),
+            ("Allineamento", c.alignment),
+        ]:
+            row = info_row(lbl, val)
+            if row:
+                info_items.append(row)
+
+        # TS e skill
+        try:
+            ts_dict: dict = _json.loads(c.saving_throws)
+        except Exception:
+            ts_dict = {}
+        try:
+            sk_dict: dict = _json.loads(c.skills)
+        except Exception:
+            sk_dict = {}
+
+        if ts_dict:
+            ts_str = ", ".join(f"{k} {v}" for k, v in ts_dict.items())
+            r = info_row("Tiri Salvezza", ts_str)
+            if r:
+                info_items.append(r)
+        if sk_dict:
+            sk_str = ", ".join(f"{k} {v}" for k, v in sk_dict.items())
+            r = info_row("Abilità", sk_str)
+            if r:
+                info_items.append(r)
+
+        for lbl, val in [
+            ("Vulnerabilità", c.damage_vulnerabilities),
+            ("Resistenze",    c.damage_resistances),
+            ("Immunità danni", c.damage_immunities),
+            ("Immunità condizioni", c.condition_immunities),
+            ("Sensi", c.senses),
+            ("Linguaggi", c.languages),
+        ]:
+            r = info_row(lbl, val)
+            if r:
+                info_items.append(r)
+
+        # Tratti e azioni
+        try:
+            traits: list[dict] = _json.loads(c.traits) if isinstance(c.traits, str) else c.traits
+        except Exception:
+            traits = []
+        try:
+            actions: list[dict] = _json.loads(c.actions) if isinstance(c.actions, str) else c.actions
+        except Exception:
+            actions = []
+        try:
+            leg_actions: list[dict] = _json.loads(c.legendary_actions) if isinstance(c.legendary_actions, str) else c.legendary_actions
+        except Exception:
+            leg_actions = []
+
+        features_col: list[ft.Control] = []
+        if traits:
+            features_col.append(ft.Text("Tratti", size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_CRIMSON))
+            for t in traits:
+                features_col.append(feature_tile(t.get("name", ""), t.get("text", "")))
+        if actions:
+            features_col.append(ft.Text("Azioni", size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_CRIMSON))
+            for a in actions:
+                features_col.append(feature_tile(a.get("name", ""), a.get("text", "")))
+        if leg_actions:
+            features_col.append(ft.Text("Azioni Leggendarie", size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_CRIMSON))
+            for la in leg_actions:
+                features_col.append(feature_tile(la.get("name", ""), la.get("text", "")))
+
+        content = ft.Column(
+            [
+                # Tipo e taglia
+                ft.Text(
+                    f"{c.creature_type or '?'} · {c.alignment or '—'}",
+                    size=11, color=COLOR_TEXT_MUTED, italic=True,
+                ),
+                ft.Divider(height=10, color=COLOR_BORDER),
+                stats_row,
+                ft.Divider(height=10, color=COLOR_BORDER),
+                *info_items,
+            ] + ([ft.Divider(height=10, color=COLOR_BORDER)] if features_col else [])
+              + features_col,
+            spacing=6,
+            scroll=ft.ScrollMode.AUTO,
+            width=340,
+        )
+
+        dlg = ft.AlertDialog(
+            title=ft.Text(monster_display_name(c.name), size=16,
+                          weight=ft.FontWeight.BOLD),
+            content=ft.Container(content=content, height=480),
+            actions=cast(list[ft.Control], [
+                ft.TextButton("Chiudi", on_click=lambda _: page.pop_dialog()),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
     # Refresh
     # ------------------------------------------------------------------
 
@@ -1946,6 +2980,8 @@ class CombattimentoTab(ft.ListView):
         self._race_traits  = get_race_display_traits(
             self.character.race or "", self.character.subrace or ""
         )
+        self._forme = character_repo.get_creature_entries(self.character.id, entry_type="forma")
+        self._evocazioni = character_repo.get_creature_entries(self.character.id, entry_type="evocazione")
         self.controls.clear()
         self._build()
         try:

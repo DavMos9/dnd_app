@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from data.database import get_connection
-from data.models import Character, CharacterProficiency, Currency, SpellSlot, ClassResource
+from data.models import Character, CharacterProficiency, Currency, SpellSlot, ClassResource, CreatureEntry
 
 logger = logging.getLogger(__name__)
 
@@ -1625,6 +1625,253 @@ def init_class_resources(
         logger.error(f"Errore init_class_resources ({class_name} lv{level}): {e}")
         return False
 
+
+# ---------------------------------------------------------------------------
+# Creature Entries (Forme Selvatiche e Evocazioni)
+# ---------------------------------------------------------------------------
+
+def _row_to_creature(row) -> CreatureEntry:
+    """Converte una riga SQLite in CreatureEntry."""
+    from data.models import CreatureEntry
+    d = dict(row)
+    return CreatureEntry(
+        id=d["id"],
+        character_id=d["character_id"],
+        entry_type=d["entry_type"],
+        name=d["name"],
+        creature_type=d.get("creature_type", ""),
+        alignment=d.get("alignment", ""),
+        cr=d.get("cr", ""),
+        ac=d.get("ac", 10),
+        ac_note=d.get("ac_note", ""),
+        hp_max=d.get("hp_max", 1),
+        hp_formula=d.get("hp_formula", ""),
+        hp_current=d.get("hp_current", 1),
+        speed=d.get("speed", ""),
+        str_score=d.get("str_score", 10),
+        dex_score=d.get("dex_score", 10),
+        con_score=d.get("con_score", 10),
+        int_score=d.get("int_score", 10),
+        wis_score=d.get("wis_score", 10),
+        cha_score=d.get("cha_score", 10),
+        saving_throws=d.get("saving_throws", "{}"),
+        skills=d.get("skills", "{}"),
+        damage_vulnerabilities=d.get("damage_vulnerabilities", ""),
+        damage_resistances=d.get("damage_resistances", ""),
+        damage_immunities=d.get("damage_immunities", ""),
+        condition_immunities=d.get("condition_immunities", ""),
+        senses=d.get("senses", ""),
+        languages=d.get("languages", ""),
+        traits=d.get("traits", "[]"),
+        actions=d.get("actions", "[]"),
+        legendary_actions=d.get("legendary_actions", "[]"),
+        is_active=bool(d.get("is_active", 0)),
+        notes=d.get("notes", ""),
+        source_page=d.get("source_page", 0),
+        created_at=d.get("created_at", ""),
+        updated_at=d.get("updated_at", ""),
+    )
+
+
+def get_creature_entries(
+    character_id: str,
+    entry_type: str | None = None,
+    active_only: bool = False,
+) -> list[CreatureEntry]:
+    """
+    Restituisce le creature del personaggio.
+    entry_type = "forma" | "evocazione" | None (tutte).
+    active_only = True → solo quelle is_active=1.
+    """
+    try:
+        conn = get_connection()
+        clauses = ["character_id=?"]
+        params: list = [character_id]
+        if entry_type:
+            clauses.append("entry_type=?")
+            params.append(entry_type)
+        if active_only:
+            clauses.append("is_active=1")
+        rows = conn.execute(
+            f"SELECT * FROM creature_entries WHERE {' AND '.join(clauses)} ORDER BY name",
+            params,
+        ).fetchall()
+        conn.close()
+        return [_row_to_creature(r) for r in rows]
+    except Exception as e:
+        logger.error(f"Errore get_creature_entries: {e}")
+        return []
+
+
+def create_creature_entry(
+    character_id: str,
+    entry_type: str,
+    name: str,
+    creature_type: str = "",
+    alignment: str = "",
+    cr: str = "",
+    ac: int = 10,
+    ac_note: str = "",
+    hp_max: int = 1,
+    hp_formula: str = "",
+    speed: str = "",
+    str_score: int = 10,
+    dex_score: int = 10,
+    con_score: int = 10,
+    int_score: int = 10,
+    wis_score: int = 10,
+    cha_score: int = 10,
+    saving_throws: str = "{}",
+    skills: str = "{}",
+    damage_vulnerabilities: str = "",
+    damage_resistances: str = "",
+    damage_immunities: str = "",
+    condition_immunities: str = "",
+    senses: str = "",
+    languages: str = "",
+    traits: str = "[]",
+    actions: str = "[]",
+    legendary_actions: str = "[]",
+    notes: str = "",
+    source_page: int = 0,
+) -> CreatureEntry | None:
+    """
+    Crea una nuova voce bestiary per il personaggio.
+    Ritorna la `CreatureEntry` creata, o None in caso di errore.
+    """
+    import uuid as _uuid
+    entry_id = str(_uuid.uuid4())
+    now = datetime.now().isoformat()
+    try:
+        conn = get_connection()
+        conn.execute("""
+            INSERT INTO creature_entries (
+                id, character_id, entry_type, name, creature_type, alignment, cr,
+                ac, ac_note, hp_max, hp_formula, hp_current, speed,
+                str_score, dex_score, con_score, int_score, wis_score, cha_score,
+                saving_throws, skills,
+                damage_vulnerabilities, damage_resistances, damage_immunities, condition_immunities,
+                senses, languages, traits, actions, legendary_actions,
+                is_active, notes, source_page, created_at, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            entry_id, character_id, entry_type, name, creature_type, alignment, cr,
+            ac, ac_note, hp_max, hp_formula, hp_max,  # hp_current = hp_max inizialmente
+            speed, str_score, dex_score, con_score, int_score, wis_score, cha_score,
+            saving_throws, skills,
+            damage_vulnerabilities, damage_resistances, damage_immunities, condition_immunities,
+            senses, languages, traits, actions, legendary_actions,
+            0, notes, source_page, now, now,
+        ))
+        conn.commit()
+        row = conn.execute("SELECT * FROM creature_entries WHERE id=?", (entry_id,)).fetchone()
+        conn.close()
+        return _row_to_creature(row) if row else None
+    except Exception as e:
+        logger.error(f"Errore create_creature_entry: {e}")
+        return None
+
+
+def update_creature_hp(creature_id: str, hp_current: int) -> bool:
+    """Aggiorna hp_current di una creatura durante il combattimento."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE creature_entries SET hp_current=?, updated_at=? WHERE id=?",
+            (max(0, hp_current), datetime.now().isoformat(), creature_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore update_creature_hp: {e}")
+        return False
+
+
+def set_creature_active(creature_id: str, is_active: bool, reset_hp: bool = False) -> bool:
+    """
+    Segna la creatura come attiva (in-campo) o inattiva.
+    reset_hp=True → ripristina hp_current = hp_max (utile a fine combattimento).
+    """
+    try:
+        conn = get_connection()
+        if reset_hp:
+            conn.execute(
+                """UPDATE creature_entries
+                   SET is_active=?, hp_current=hp_max, updated_at=?
+                   WHERE id=?""",
+                (int(is_active), datetime.now().isoformat(), creature_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE creature_entries SET is_active=?, updated_at=? WHERE id=?",
+                (int(is_active), datetime.now().isoformat(), creature_id),
+            )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore set_creature_active: {e}")
+        return False
+
+
+def deactivate_all_creatures(character_id: str, entry_type: str | None = None) -> bool:
+    """
+    Disattiva tutte le creature del personaggio (fine combattimento / fine turno).
+    entry_type = "forma" | "evocazione" | None (tutte).
+    """
+    try:
+        conn = get_connection()
+        if entry_type:
+            conn.execute(
+                """UPDATE creature_entries SET is_active=0, hp_current=hp_max, updated_at=?
+                   WHERE character_id=? AND entry_type=?""",
+                (datetime.now().isoformat(), character_id, entry_type),
+            )
+        else:
+            conn.execute(
+                """UPDATE creature_entries SET is_active=0, hp_current=hp_max, updated_at=?
+                   WHERE character_id=?""",
+                (datetime.now().isoformat(), character_id),
+            )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore deactivate_all_creatures: {e}")
+        return False
+
+
+def update_creature_notes(creature_id: str, notes: str) -> bool:
+    """Aggiorna le note libere di una voce bestiary."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE creature_entries SET notes=?, updated_at=? WHERE id=?",
+            (notes, datetime.now().isoformat(), creature_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore update_creature_notes: {e}")
+        return False
+
+
+def delete_creature_entry(creature_id: str) -> bool:
+    """Elimina definitivamente una voce dal bestiary personale."""
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM creature_entries WHERE id=?", (creature_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore delete_creature_entry: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
 
 def update_turn_state(character_id: str, action: bool, bonus: bool,
                       reaction: bool, movement: int, prev_state: str) -> bool:

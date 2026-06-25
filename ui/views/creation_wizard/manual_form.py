@@ -1154,6 +1154,9 @@ class ManualCreationForm(ft.Column):
 
     def _goto_equipment(self) -> None:
         self._phase = "equipment"
+        # Reset stato monete iniziali
+        self._gold_mode   = False
+        self._gold_amount = ""
         cls_data          = _loader.get_class(self._review_class)
         self._equip_fixed   = []
         self._equip_choices = []
@@ -1319,6 +1322,57 @@ class ManualCreationForm(ft.Column):
                     muted_text("Aggiunto automaticamente all'inventario.", size=11),
                     ft.Container(height=4),
                     ft.Text(bg_text, size=13, color=COLOR_TEXT_PRIMARY),
+                ], spacing=8), padding=20))
+                rows.append(ft.Container(height=16))
+
+        # --- Sezione Monete iniziali (alternativa all'equipaggiamento di classe) ---
+        cls_data_gold = _loader.get_class(self._review_class)
+        if cls_data_gold:
+            gold_alt = cls_data_gold.get("starting_gold_alternative", {})
+            dice_str = gold_alt.get("dice", "")
+            mult     = gold_alt.get("multiplier", 1)
+            if dice_str:
+                formula = f"{dice_str} × {mult} mo" if mult > 1 else f"{dice_str} mo"
+
+                def _on_mode_change(ev: Any) -> None:
+                    self._gold_mode = (getattr(ev.control, "value", "") == "gold")
+                    self._render_equipment()
+
+                gold_field = ft.TextField(
+                    label=f"Somma ottenuta ({formula})",
+                    value=self._gold_amount,
+                    visible=self._gold_mode,
+                    keyboard_type=ft.KeyboardType.NUMBER,
+                    hint_text="Inserisci il risultato del tiro",
+                    on_change=lambda ev: setattr(
+                        self, "_gold_amount",
+                        ev.control.value if ev.control.value else ""
+                    ),
+                    text_style=ft.TextStyle(size=14, color=COLOR_TEXT_PRIMARY),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=COLOR_BG_CARD,
+                )
+
+                rg_gold = ft.RadioGroup(
+                    value="gold" if self._gold_mode else "equip",
+                    content=ft.Column([
+                        ft.Radio(value="equip", label="Equipaggiamento standard"),
+                        ft.Radio(value="gold",  label=f"Oro iniziale — tira {formula}"),
+                    ], spacing=4),
+                    on_change=_on_mode_change,
+                )
+
+                rows.append(fantasy_card(ft.Column([
+                    section_header("Monete iniziali"),
+                    muted_text(
+                        "In alternativa all'equipaggiamento, puoi iniziare con "
+                        "dell'oro e acquistare ciò che vuoi.",
+                        size=11,
+                    ),
+                    ft.Container(height=4),
+                    rg_gold,
+                    gold_field,
                 ], spacing=8), padding=20))
                 rows.append(ft.Container(height=16))
 
@@ -1560,20 +1614,36 @@ class ManualCreationForm(ft.Column):
                             is_equipped=False, description="",
                         )
 
-                # ---- Equipaggiamento: oggetti fissi ----
-                for item in self._equip_fixed:
-                    if item.get("selected", True):
-                        _save_item(char.id, item)
-
-                # Equipaggiamento: scelte A/B
-                for choice in self._equip_choices:
-                    idx  = choice.get("chosen_idx", 0)
-                    opts = choice.get("options", [])
-                    if 0 <= idx < len(opts):
-                        for item in opts[idx]:
+                if self._gold_mode:
+                    # Modalità oro: salva monete invece degli oggetti di classe
+                    try:
+                        gold_val = max(0, int(self._gold_amount or 0))
+                    except ValueError:
+                        gold_val = 0
+                    if gold_val > 0:
+                        cur = character_repo.get_currencies(char.id)
+                        if cur:
+                            character_repo.update_currencies(
+                                character_id=char.id,
+                                copper=cur.copper, silver=cur.silver,
+                                electrum=cur.electrum,
+                                gold=cur.gold + gold_val,
+                                platinum=cur.platinum,
+                            )
+                else:
+                    # Modalità equipaggiamento standard
+                    for item in self._equip_fixed:
+                        if item.get("selected", True):
                             _save_item(char.id, item)
+                    for choice in self._equip_choices:
+                        idx  = choice.get("chosen_idx", 0)
+                        opts = choice.get("options", [])
+                        if 0 <= idx < len(opts):
+                            for item in opts[idx]:
+                                _save_item(char.id, item)
 
                 # Equipaggiamento background (currency → valute, item → inventario)
+                # sempre salvato indipendentemente dalla scelta equipaggiamento/oro
                 if bg_data:
                     for entry in bg_data.get("equipment", []):
                         if isinstance(entry, dict):

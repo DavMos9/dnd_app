@@ -274,6 +274,81 @@ class CampaignNote:
 
 
 # ---------------------------------------------------------------------------
+# Creature (Forme Selvatiche e Evocazioni)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CreatureEntry:
+    """
+    Forma selvatica o evocazione legata a un personaggio.
+    entry_type = "forma" (solo Druido) | "evocazione" (tutti)
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    character_id: str = ""
+
+    # Tipo: "forma" = forma selvatica, "evocazione" = creatura evocata
+    entry_type: str = "evocazione"
+
+    # Identità della creatura (dal bestiary o inserita manualmente)
+    name: str = ""
+    creature_type: str = ""          # es. "Bestia", "Elementale", "Immondo"
+    alignment: str = ""
+    cr: str = ""                     # es. "1/4", "5", "—"
+
+    # Difesa
+    ac: int = 10
+    ac_note: str = ""                # es. "armatura naturale"
+
+    # Punti ferita
+    hp_max: int = 1
+    hp_formula: str = ""             # es. "3d8 + 6"
+    hp_current: int = 1              # tracciato durante il combattimento
+
+    # Movimento
+    speed: str = ""                  # es. "9 m, nuotare 9 m"
+
+    # Caratteristiche (punteggi grezzi)
+    str_score: int = 10
+    dex_score: int = 10
+    con_score: int = 10
+    int_score: int = 10
+    wis_score: int = 10
+    cha_score: int = 10
+
+    # Bonus e competenze
+    saving_throws: str = "{}"        # JSON: {"str": "+4", "dex": "+2"}
+    skills: str = "{}"               # JSON: {"Percezione": "+3"}
+
+    # Immunità e resistenze
+    damage_vulnerabilities: str = ""
+    damage_resistances: str = ""
+    damage_immunities: str = ""
+    condition_immunities: str = ""
+
+    # Sensi e linguaggi
+    senses: str = ""
+    languages: str = ""
+
+    # Feature narrative
+    traits: str = "[]"              # JSON: [{"name":"...", "text":"..."}]
+    actions: str = "[]"             # JSON: [{"name":"...", "text":"..."}]
+    legendary_actions: str = "[]"   # JSON: [{"name":"...", "text":"..."}]
+
+    # Stato in-session
+    is_active: bool = False          # True = attualmente in forma / evocata in campo
+
+    # Note libere del giocatore
+    notes: str = ""
+
+    # Pagina di riferimento nel manuale (0 = non specificata)
+    source_page: int = 0
+
+    # Timestamp
+    created_at: str = ""
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
 # Mappe
 # ---------------------------------------------------------------------------
 
