@@ -1,13 +1,16 @@
 """
 Entry point dell'applicazione D&D Companion.
+
+NOTA: ft.run() deve stare a livello di modulo (non dentro if __name__ == "__main__")
+perché flet build importa main.py come modulo, non lo esegue come script.
 """
 
 import sys
 import logging
 import flet as ft
-
-# Aggiungi la root del progetto al path
 from pathlib import Path
+
+# Aggiungi la root del progetto al path (necessario anche in app packaged)
 sys.path.insert(0, str(Path(__file__).parent))
 
 from data.database import init_db
@@ -19,18 +22,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+logger.info("Avvio D&D Companion...")
+try:
+    init_db()
+    logger.info("Database pronto.")
+except Exception as e:
+    logger.error(f"Impossibile inizializzare il database: {e}")
+    # Non sys.exit() in app packaged — Flet gestisce il ciclo di vita
 
-def main():
-    logger.info("Avvio D&D Companion...")
-    try:
-        init_db()
-        logger.info("Database pronto.")
-    except Exception as e:
-        logger.error(f"Impossibile inizializzare il database: {e}")
-        sys.exit(1)
-
-    ft.run(run_app)
-
-
-if __name__ == "__main__":
-    main()
+ft.run(run_app)
