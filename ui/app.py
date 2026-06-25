@@ -11,6 +11,8 @@ Flusso:
 
 import flet as ft
 import logging
+import threading
+import webbrowser
 from typing import Any
 from config.settings import *
 from ui.theme import get_theme, title_text, muted_text
@@ -54,6 +56,7 @@ class DnDApp:
 
         self._setup_page()
         self._show_home()
+        self._start_update_check()
 
     # ------------------------------------------------------------------
     # Setup pagina
@@ -314,6 +317,46 @@ class DnDApp:
             from ui.views.feats_view import FeatsView
             return FeatsView()
         return ft.Container()
+
+    # ------------------------------------------------------------------
+    # Update checker
+    # ------------------------------------------------------------------
+
+    def _start_update_check(self):
+        """Avvia il check aggiornamenti in background (non blocca la UI)."""
+        def _check():
+            try:
+                from core.update_checker import check_for_updates
+                has_update, version, url = check_for_updates()
+                if has_update:
+                    self._show_update_banner(version, url)
+            except Exception as e:
+                logger.debug(f"Update check fallito: {e}")
+
+        t = threading.Thread(target=_check, daemon=True, name="update-check")
+        t.start()
+
+    def _show_update_banner(self, version: str, url: str):
+        """Mostra SnackBar non bloccante con link al rilascio."""
+        def _open(e):
+            webbrowser.open(url)
+
+        snack = ft.SnackBar(
+            content=ft.Text(
+                f"🎲 Versione {version} disponibile!",
+                color="#ffffff",
+                size=14,
+            ),
+            action="Scarica",
+            action_color="#ffdd55",
+            on_action=_open,
+            duration=20000,  # 20 secondi
+            bgcolor=COLOR_ACCENT_BLUE,
+        )
+        try:
+            self.page.show_dialog(snack)
+        except Exception as e:
+            logger.debug(f"Impossibile mostrare banner aggiornamento: {e}")
 
     def _placeholder_view(self, title: str, icon, subtitle: str) -> ft.Container:
         return ft.Container(

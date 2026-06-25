@@ -1,0 +1,191 @@
+name: Build & Release
+
+# Trigger: push di un tag versione (es. git tag v0.2.0 && git push --tags)
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write   # necessario per creare il GitHub Release
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Windows (.exe)
+  # ─────────────────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Install Python dependencies
+        run: pip install flet==0.85.3 "Pillow>=10.0.0"
+
+      - name: Build Windows
+        run: flet build windows --no-rich-output
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          $release_dir = Get-ChildItem -Recurse -Path build\windows -Filter "*.exe" | Select-Object -First 1 -ExpandProperty DirectoryName
+          Compress-Archive -Path "$release_dir\*" -DestinationPath dnd-companion-windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dnd-companion-windows.zip
+
+  # ─────────────────────────────────────────────────────────────
+  # macOS (.app)
+  # ─────────────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Install Python dependencies
+        run: pip install flet==0.85.3 "Pillow>=10.0.0"
+
+      - name: Build macOS
+        run: flet build macos --no-rich-output
+
+      - name: Package artifact
+        run: |
+          APP=$(find build/macos -name "*.app" -maxdepth 5 | head -1)
+          zip -r dnd-companion-macos.zip "$APP"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dnd-companion-macos.zip
+
+  # ─────────────────────────────────────────────────────────────
+  # Linux (binary)
+  # ─────────────────────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build libgtk-3-dev libglib2.0-dev \
+            libglu1-mesa libasound2-dev
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Install Python dependencies
+        run: pip install flet==0.85.3 "Pillow>=10.0.0"
+
+      - name: Build Linux
+        run: flet build linux --no-rich-output
+
+      - name: Package artifact
+        run: |
+          BUNDLE=$(find build/linux -name "bundle" -type d | head -1)
+          tar -czf dnd-companion-linux.tar.gz -C "$(dirname $BUNDLE)" bundle
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dnd-companion-linux.tar.gz
+
+  # ─────────────────────────────────────────────────────────────
+  # Android (.apk)
+  # ─────────────────────────────────────────────────────────────
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Install Python dependencies
+        run: pip install flet==0.85.3 "Pillow>=10.0.0"
+
+      - name: Build Android APK
+        run: flet build apk --no-rich-output
+
+      - name: Find and rename APK
+        run: |
+          APK=$(find build -name "app-release.apk" | head -1)
+          cp "$APK" dnd-companion-android.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dnd-companion-android.apk
+
+  # ─────────────────────────────────────────────────────────────
+  # Crea GitHub Release e allega tutti gli artefatti
+  # ─────────────────────────────────────────────────────────────
+  release:
+    needs: [build-windows, build-macos, build-linux, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download tutti gli artefatti
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Crea Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/windows/dnd-companion-windows.zip
+            artifacts/macos/dnd-companion-macos.zip
+            artifacts/linux/dnd-companion-linux.tar.gz
+            artifacts/android/dnd-companion-android.apk

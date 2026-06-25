@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Flet build output
+build/
+
+# Database locale (ogni giocatore ha il suo)
+*.db
+*.db-wal
+*.db-shm
+
+# macOS
+.DS_Store
+*.DS_Store
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Log
+*.log
+
+# Distribuzione Python
+dist/
+*.egg-info/

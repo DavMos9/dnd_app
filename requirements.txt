@@ -1,2 +1,3 @@
-flet>=0.21.0
+# Versioni pinnate per riproducibilità — aggiornare con attenzione
+flet==0.85.3
 Pillow>=10.0.0
