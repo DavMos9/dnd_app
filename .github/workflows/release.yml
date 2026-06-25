@@ -80,13 +80,21 @@ jobs:
       - name: Package artifact
         run: |
           APP=$(find build/macos -name "*.app" -maxdepth 5 | head -1)
-          zip -r dnd-companion-macos.zip "$APP"
+          echo "App trovata: $APP"
+          echo "Dimensione prima dello strip: $(du -sh "$APP" | cut -f1)"
+          # Rimuove debug symbols per ridurre la dimensione
+          find "$APP" -name "*.dylib" -exec strip -x {} \; 2>/dev/null || true
+          find "$APP" -type f -perm +0111 -exec strip -x {} \; 2>/dev/null || true
+          echo "Dimensione dopo lo strip: $(du -sh "$APP" | cut -f1)"
+          # tar.gz comprime molto meglio di zip per i binari
+          tar -czf dnd-companion-macos.tar.gz -C "$(dirname "$APP")" "$(basename "$APP")"
+          echo "Dimensione archivio: $(du -sh dnd-companion-macos.tar.gz | cut -f1)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: dnd-companion-macos.zip
+          path: dnd-companion-macos.tar.gz
 
   # ─────────────────────────────────────────────────────────────
   # Linux (binary)
@@ -200,6 +208,6 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/windows/dnd-companion-windows.zip
-            artifacts/macos/dnd-companion-macos.zip
+            artifacts/macos/dnd-companion-macos.tar.gz
             artifacts/linux/dnd-companion-linux.tar.gz
             artifacts/android/dnd-companion-android.apk
