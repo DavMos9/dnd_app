@@ -12,9 +12,19 @@ logger = logging.getLogger(__name__)
 
 
 def get_db_path() -> str:
-    """Restituisce il percorso del database nella cartella utente."""
-    app_dir = Path.home() / ".dnd_companion"
-    app_dir.mkdir(exist_ok=True)
+    """Restituisce il percorso del database.
+
+    Su Android/iOS Flet imposta FLET_APP_STORAGE_DATA con il percorso
+    scrivibile dell'app (es. /data/user/0/com.davmos9.dndcompanion/files/).
+    Su desktop usa ~/.dnd_companion/ come prima.
+    """
+    import os
+    storage = os.environ.get("FLET_APP_STORAGE_DATA")
+    if storage:
+        app_dir = Path(storage)
+    else:
+        app_dir = Path.home() / ".dnd_companion"
+    app_dir.mkdir(parents=True, exist_ok=True)
     return str(app_dir / "dnd_companion.db")
 
 
