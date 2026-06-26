@@ -263,7 +263,6 @@ class DiarioTab(ft.ListView):
                 [f_title, f_date, f_content],
                 spacing=10,
                 scroll=ft.ScrollMode.AUTO,
-                width=380,
             ),
             actions=[
                 ft.TextButton(

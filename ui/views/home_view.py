@@ -65,24 +65,22 @@ class HomeView(ft.Column):
         )
 
         header = ft.Container(
-            content=ft.Row(
+            content=ft.Column(
                 [
-                    logo_widget,
-                    ft.Container(width=16),
-                    ft.Column(
+                    ft.Row(
                         [
-                            title_text("D&D Companion", size=28),
-                            muted_text("Seleziona un personaggio o creane uno nuovo", size=13),
+                            logo_widget,
+                            ft.Container(expand=True),
+                            self._new_character_button(),
                         ],
-                        spacing=4,
-                        expand=True,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    self._new_character_button(),
+                    muted_text("Seleziona un personaggio o creane uno nuovo", size=13),
                 ],
-                alignment=ft.MainAxisAlignment.START,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=6,
+                tight=True,
             ),
-            padding=ft.Padding.symmetric(horizontal=32, vertical=20),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=16),
             bgcolor=COLOR_BG_SECONDARY,
             border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
         )

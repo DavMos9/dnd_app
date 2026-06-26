@@ -13,6 +13,9 @@ from data.models import Character, CharacterProficiency, Currency, SpellSlot, Cl
 
 logger = logging.getLogger(__name__)
 
+# Ultimo errore di create() — letto dalla UI per mostrare il dettaglio all'utente
+_last_create_error: str = ""
+
 
 def _s(value) -> str:
     """Converte None in stringa vuota per i campi TEXT NOT NULL."""
@@ -240,6 +243,8 @@ def create(character: Character) -> bool:
         return True
 
     except Exception as e:
+        global _last_create_error
+        _last_create_error = f"{type(e).__name__}: {e}"
         logger.error(f"Errore nella creazione del personaggio: {e}")
         return False
 

@@ -141,7 +141,7 @@ class FeatsView(ft.ListView):
                         padding=ft.Padding.only(bottom=6),
                     ),
                     ft.Text(_desc, size=12, color=COLOR_TEXT_PRIMARY),
-                ], scroll=ft.ScrollMode.AUTO, width=340, spacing=2),
+                ], scroll=ft.ScrollMode.AUTO, spacing=2),
                 actions=[
                     ft.TextButton(
                         "Chiudi",

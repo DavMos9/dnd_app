@@ -375,7 +375,6 @@ class ProfiloTab(ft.ListView):
                 ],
                 spacing=6,
                 scroll=ft.ScrollMode.AUTO,
-                width=360,
                 height=480,
             ),
             actions=[
@@ -681,7 +680,6 @@ class ProfiloTab(ft.ListView):
                     scroll=ft.ScrollMode.AUTO,
                     spacing=2,
                     height=320,
-                    width=300,
                 ),
                 actions=[
                     ft.TextButton(
@@ -1612,7 +1610,7 @@ class ProfiloTab(ft.ListView):
                                     ft.Container(width=4),
                                     counter_txt,
                                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                            ], spacing=6, width=340),
+                            ], spacing=6),
                             actions=[
                                 ft.TextButton(
                                     "Annulla",
@@ -1872,7 +1870,7 @@ class ProfiloTab(ft.ListView):
                     content=ft.Column(
                         [ft.Text(f"• {err}", size=12, color=COLOR_TEXT_PRIMARY)
                          for err in _errors],
-                        spacing=6, width=300,
+                        spacing=6,
                     ),
                     actions=[ft.TextButton("OK", on_click=_close_err_dlg)],
                     bgcolor=COLOR_BG_CARD,
@@ -2040,7 +2038,7 @@ class ProfiloTab(ft.ListView):
         if page is None:
             return
         dlg = ft.AlertDialog(
-            content=ft.Column(dlg_rows, spacing=8, scroll=ft.ScrollMode.AUTO, width=340),
+            content=ft.Column(dlg_rows, spacing=8, scroll=ft.ScrollMode.AUTO),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
@@ -2110,7 +2108,7 @@ class ProfiloTab(ft.ListView):
                     bgcolor="#fef9ec", padding=8, border_radius=4,
                     border=ft.Border.all(1, COLOR_ACCENT_AMBER),
                 ),
-            ], spacing=4, width=320),
+            ], spacing=4),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
@@ -2228,7 +2226,6 @@ class ProfiloTab(ft.ListView):
                 list(fields.values()),  # mix di TextField e Dropdown — entrambi hanno .value
                 spacing=10,
                 scroll=ft.ScrollMode.AUTO,
-                width=360,
             ),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),

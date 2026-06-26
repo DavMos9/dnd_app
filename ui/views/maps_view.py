@@ -1194,7 +1194,7 @@ class MapsView(ft.Column):
                     ),
                     error_text,
                 ],
-                spacing=10, scroll=ft.ScrollMode.AUTO, width=380,
+                spacing=10, scroll=ft.ScrollMode.AUTO,
             ),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
@@ -1306,7 +1306,7 @@ class MapsView(ft.Column):
                     ),
                     error_text,
                 ],
-                spacing=10, scroll=ft.ScrollMode.AUTO, width=380,
+                spacing=10, scroll=ft.ScrollMode.AUTO,
             ),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),

@@ -226,7 +226,7 @@ class SpellsView(ft.ListView):
                     "Imposta 0 per tornare al calcolo automatico PHB.",
                     size=11, color=COLOR_TEXT_MUTED,
                 ),
-            ], spacing=8, width=300),
+            ], spacing=8),
             actions=[
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
@@ -310,7 +310,7 @@ class SpellsView(ft.ListView):
                 ft.Text(name, size=14, weight=ft.FontWeight.BOLD,
                         color=COLOR_TEXT_TITLE, expand=True),
             ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            content=ft.Column(rows, spacing=6, width=340, scroll=ft.ScrollMode.AUTO),
+            content=ft.Column(rows, spacing=6, scroll=ft.ScrollMode.AUTO),
             actions=[
                 ft.TextButton("Chiudi",
                               on_click=lambda e: page.pop_dialog() if page else None),
@@ -704,7 +704,7 @@ class SpellsView(ft.ListView):
                                 color=COLOR_TEXT_TITLE, expand=True),
                     ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     content=ft.Column(
-                        rows_d, spacing=6, width=340, scroll=ft.ScrollMode.AUTO
+                        rows_d, spacing=6, scroll=ft.ScrollMode.AUTO
                     ),
                     actions=[
                         ft.TextButton(

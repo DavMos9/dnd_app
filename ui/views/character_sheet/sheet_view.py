@@ -222,7 +222,7 @@ class SheetView(ft.Column):
                 focused_border_color=COLOR_ACCENT_BLUE,
                 bgcolor=COLOR_BG_CARD,
                 label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
-                width=160,
+                expand=True,
             )
 
         error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
@@ -261,13 +261,11 @@ class SheetView(ft.Column):
                         size=11, color=COLOR_TEXT_MUTED,
                     ),
                     ft.Container(height=4),
-                    ft.Row([fields["str"], fields["dex"]], spacing=10),
-                    ft.Row([fields["con"], fields["int"]], spacing=10),
-                    ft.Row([fields["wis"], fields["cha"]], spacing=10),
+                    ft.Row([fields["str"], fields["dex"], fields["con"]], spacing=10),
+                    ft.Row([fields["int"], fields["wis"], fields["cha"]], spacing=10),
                     error_text,
                 ],
                 spacing=10,
-                width=360,
             ),
             actions=[
                 ft.TextButton("Annulla",
@@ -351,7 +349,6 @@ class SheetView(ft.Column):
                     error_text,
                 ],
                 spacing=8,
-                width=320,
             ),
             actions=[
                 ft.TextButton("Annulla",

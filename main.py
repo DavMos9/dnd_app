@@ -6,28 +6,120 @@ perché flet build importa main.py come modulo, non lo esegue come script.
 """
 
 import sys
-import logging
-import flet as ft
+import os
+import traceback
 from pathlib import Path
 
-# Aggiungi la root del progetto al path (necessario anche in app packaged)
+# ---------------------------------------------------------------------------
+# File-based debug logger — stdout/stderr non arrivano su iOS device
+# Output: <App sandbox>/Documents/dnd_debug.log
+# Lettura: Xcode → Window → Devices and Simulators → device
+#          → app dnd-companion → Download Container
+#          → AppData/Documents/dnd_debug.log
+# ---------------------------------------------------------------------------
+_LOG_PATH = None
+
+
+def _w(msg: str) -> None:
+    """Scrive una riga di debug su file (failsafe, mai eccezioni)."""
+    global _LOG_PATH
+    try:
+        if _LOG_PATH is None:
+            home = os.environ.get("HOME", "/tmp")
+            log_dir = Path(home) / "Documents"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            _LOG_PATH = log_dir / "dnd_debug.log"
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(msg + "\n")
+            f.flush()
+    except Exception:
+        pass  # se anche il file non funziona, non c'è nulla che possiamo fare
+
+
+_w("=" * 60)
+_w(f"[1] main.py started — python {sys.version}")
+_w(f"    __file__ = {__file__}")
+_w(f"    cwd      = {os.getcwd()}")
+print(">>> [1] main.py started", flush=True)
+
+# ---------------------------------------------------------------------------
+# import flet
+# ---------------------------------------------------------------------------
+try:
+    import flet as ft
+    _w("[2] flet imported OK")
+    print(">>> [2] flet imported OK", flush=True)
+except Exception as e:
+    _w(f"[2] flet import FAILED: {e}")
+    _w(traceback.format_exc())
+    print(f">>> [2] flet import FAILED: {e}", flush=True)
+    raise
+
+# ---------------------------------------------------------------------------
+# sys.path + lista file bundle (debug)
+# ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).parent))
+_w(f"[3] sys.path[0] = {Path(__file__).parent}")
+print(f">>> [3] sys.path root: {Path(__file__).parent}", flush=True)
 
-from data.database import init_db
-from ui.app import run_app
+try:
+    root_files = sorted(os.listdir(Path(__file__).parent))
+    _w(f"[3b] root files: {root_files}")
+except Exception as e:
+    _w(f"[3b] cannot list root files: {e}")
 
+# ---------------------------------------------------------------------------
+# import data.database
+# ---------------------------------------------------------------------------
+try:
+    from data.database import init_db
+    _w("[4] data.database imported OK")
+    print(">>> [4] data.database imported OK", flush=True)
+except Exception as e:
+    _w(f"[4] data.database import FAILED: {e}")
+    _w(traceback.format_exc())
+    print(f">>> [4] data.database import FAILED: {e}", flush=True)
+    raise
+
+# ---------------------------------------------------------------------------
+# import ui.app
+# ---------------------------------------------------------------------------
+try:
+    from ui.app import run_app
+    _w("[5] ui.app imported OK")
+    print(">>> [5] ui.app imported OK", flush=True)
+except Exception as e:
+    _w(f"[5] ui.app import FAILED: {e}")
+    _w(traceback.format_exc())
+    print(f">>> [5] ui.app import FAILED: {e}", flush=True)
+    raise
+
+# ---------------------------------------------------------------------------
+# logging standard
+# ---------------------------------------------------------------------------
+import logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger(__name__)
 
-logger.info("Avvio D&D Companion...")
+# ---------------------------------------------------------------------------
+# init_db
+# ---------------------------------------------------------------------------
+_w("[6] calling init_db()")
+print(">>> [6] calling init_db()", flush=True)
 try:
     init_db()
-    logger.info("Database pronto.")
+    _w("[7] init_db OK")
+    print(">>> [7] init_db OK", flush=True)
 except Exception as e:
-    logger.error(f"Impossibile inizializzare il database: {e}")
-    # Non sys.exit() in app packaged — Flet gestisce il ciclo di vita
+    _w(f"[7] init_db FAILED: {e}")
+    _w(traceback.format_exc())
+    print(f">>> [7] init_db FAILED: {e}", flush=True)
 
+# ---------------------------------------------------------------------------
+# ft.run
+# ---------------------------------------------------------------------------
+_w("[8] calling ft.run()")
+print(">>> [8] calling ft.run()", flush=True)
 ft.run(run_app)

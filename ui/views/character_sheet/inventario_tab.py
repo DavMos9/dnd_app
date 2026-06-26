@@ -532,7 +532,7 @@ class InventarioTab(ft.ListView):
                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 ft.Container(height=4),
                 muted_text("inserisci la quantità e premi + o −", 11),
-            ], width=300, spacing=4,
+            ], spacing=4,
                horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             actions=[
                 ft.TextButton("Chiudi",
@@ -759,7 +759,7 @@ class InventarioTab(ft.ListView):
             content=ft.Column(
                 [f_name, f_dice, dtype_dd, f_atk, f_dbonus,
                  props_section, f_rng, f_rngmax, f_magic, magic_section, equip_cb],
-                spacing=8, scroll=ft.ScrollMode.AUTO, width=380,
+                spacing=8, scroll=ft.ScrollMode.AUTO,
             ),
             actions=[
                 ft.TextButton("Annulla",
@@ -954,7 +954,7 @@ class InventarioTab(ft.ListView):
             content=ft.Column(
                 [f_name, f_qty, f_wt, cat_dd, armor_fields,
                  equip_cb, f_desc, f_effects],
-                spacing=8, scroll=ft.ScrollMode.AUTO, width=360,
+                spacing=8, scroll=ft.ScrollMode.AUTO,
             ),
             actions=[
                 ft.TextButton("Annulla",

@@ -421,7 +421,7 @@ class CombattimentoTab(ft.ListView):
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Modifica HP", size=14, weight=ft.FontWeight.BOLD,
                           color=COLOR_TEXT_TITLE),
-            content=ft.Column([f_max, f_curr, f_temp], spacing=10, width=300),
+            content=ft.Column([f_max, f_curr, f_temp], spacing=10),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
@@ -651,7 +651,7 @@ class CombattimentoTab(ft.ListView):
                     "Resetta a 0 a fine round o quando l'effetto termina.",
                     size=11, color=COLOR_TEXT_MUTED,
                 ),
-            ], spacing=8, width=300),
+            ], spacing=8),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.TextButton("Reset a 0", on_click=reset,
@@ -1371,7 +1371,6 @@ class CombattimentoTab(ft.ListView):
             content=ft.Column(
                 content_items,
                 spacing=6,
-                width=340,
                 scroll=ft.ScrollMode.AUTO,
             ),
             actions=[
@@ -1446,7 +1445,6 @@ class CombattimentoTab(ft.ListView):
                     ft.Container(height=6),
                     grid,
                 ],
-                width=380,
                 scroll=ft.ScrollMode.AUTO,
             ),
             actions=[
@@ -1759,7 +1757,7 @@ class CombattimentoTab(ft.ListView):
                         f"{self.character.class_name}{source_label}",
                         size=11, color=COLOR_TEXT_MUTED, italic=True,
                     ) if source_label else ft.Container(height=0),
-                ], spacing=10, width=340, scroll=ft.ScrollMode.AUTO),
+                ], spacing=10, scroll=ft.ScrollMode.AUTO),
                 actions=[
                     ft.TextButton("Chiudi",
                                   on_click=lambda ev: page.pop_dialog() if page else None),
@@ -1918,7 +1916,7 @@ class CombattimentoTab(ft.ListView):
             keyboard_type=ft.KeyboardType.NUMBER,
             text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
             border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_AMBER,
-            bgcolor=COLOR_BG_CARD, width=300,
+            bgcolor=COLOR_BG_CARD,
         )
         f_roll = ft.TextField(
             label=f"Totale dadi tirati (escluso CON)",
@@ -1926,7 +1924,7 @@ class CombattimentoTab(ft.ListView):
             keyboard_type=ft.KeyboardType.NUMBER,
             text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
             border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_AMBER,
-            bgcolor=COLOR_BG_CARD, width=300,
+            bgcolor=COLOR_BG_CARD,
         )
 
         def apply(ev):
@@ -1980,7 +1978,7 @@ class CombattimentoTab(ft.ListView):
                     f_roll,
                     *extra_notes,
                 ],
-                spacing=8, width=320,
+                spacing=8,
             ),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
@@ -2778,7 +2776,6 @@ class CombattimentoTab(ft.ListView):
                 ]),
                 spacing=4,
                 tight=True,
-                width=380,
             )
 
         # ── Costruisce contenuto stato DETTAGLIO (da dict JSON) ───────────
@@ -2888,7 +2885,7 @@ class CombattimentoTab(ft.ListView):
                 items.append(ft.Divider(height=10, color=COLOR_BORDER))
                 items.extend(features)
 
-            return ft.Column(items, spacing=6, scroll=ft.ScrollMode.AUTO, width=380)
+            return ft.Column(items, spacing=6, scroll=ft.ScrollMode.AUTO)
 
         # ── Transizione a DETTAGLIO ──────────────────────────────────────
         def _show_detail(m: dict) -> None:
@@ -3065,7 +3062,7 @@ class CombattimentoTab(ft.ListView):
                 ft.Row([f_type, ft.Container(width=8), f_cr], spacing=0),
                 ft.Row([f_ac, ft.Container(width=8), f_hp], spacing=0),
                 f_speed,
-            ], spacing=10, tight=True, width=360),
+            ], spacing=10, tight=True),
             actions=cast(list[ft.Control], [
                 ft.TextButton("Salva", on_click=save),
                 ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
@@ -3222,7 +3219,6 @@ class CombattimentoTab(ft.ListView):
               + features_col,
             spacing=6,
             scroll=ft.ScrollMode.AUTO,
-            width=340,
         )
 
         dlg = ft.AlertDialog(

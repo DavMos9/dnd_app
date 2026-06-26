@@ -418,7 +418,7 @@ class WizardView(ft.Column):
             ft.Container(
                 content=content,
                 expand=True,
-                padding=ft.Padding.symmetric(horizontal=40, vertical=24),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=20),
             )
         )
 
@@ -606,7 +606,7 @@ class WizardView(ft.Column):
             ft.Container(
                 content=content,
                 expand=True,
-                padding=ft.Padding.symmetric(horizontal=40, vertical=24),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=20),
             )
         )
 
@@ -764,17 +764,17 @@ class WizardView(ft.Column):
                 color=COLOR_TEXT_PRIMARY,
                 border_color=COLOR_BORDER,
                 focused_border_color=COLOR_ACCENT_GOLD,
-                width=90,
+                width=110,
             )
             stat_dropdowns[key] = dd
             mod_badge = ft.Container(
-                content=ft.Text(mod_str, size=12, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_GOLD if mod >= 0 else COLOR_ACCENT_RED),
-                width=42,
+                content=ft.Text(mod_str, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_BLUE if mod >= 0 else COLOR_ACCENT_RED),
+                width=40,
                 alignment=ft.Alignment.CENTER,
             )
             return ft.Row(
-                [ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, width=120), dd, mod_badge],
+                [ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, expand=True), dd, mod_badge],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8,
             )
@@ -1532,9 +1532,11 @@ class WizardView(ft.Column):
             ft.Container(height=20),
             fantasy_card(ft.Column([
                 section_header("Identità"),
-                ft.Row([class_dd, race_dd], spacing=12),
-                ft.Row([bg_dd, align_dd], spacing=12),
-            ], spacing=12), padding=20),
+                class_dd,
+                race_dd,
+                bg_dd,
+                align_dd,
+            ], spacing=12), padding=16),
             ft.Container(height=16),
             fantasy_card(ft.Column([
                 section_header("Caratteristiche — Standard Array"),
@@ -1575,7 +1577,7 @@ class WizardView(ft.Column):
         content = ft.Column(content_sections, scroll=ft.ScrollMode.AUTO, expand=True)
         self._set_content(
             ft.Container(content=content, expand=True,
-                         padding=ft.Padding.symmetric(horizontal=40, vertical=24))
+                         padding=ft.Padding.symmetric(horizontal=16, vertical=20))
         )
 
     # ------------------------------------------------------------------
@@ -1843,7 +1845,7 @@ class WizardView(ft.Column):
         content = ft.Column(rows, scroll=ft.ScrollMode.AUTO, expand=True)
         self._set_content(
             ft.Container(content=content, expand=True,
-                         padding=ft.Padding.symmetric(horizontal=40, vertical=24))
+                         padding=ft.Padding.symmetric(horizontal=16, vertical=20))
         )
 
     # ------------------------------------------------------------------
@@ -2011,7 +2013,8 @@ class WizardView(ft.Column):
 
                 ok = character_repo.create(char)
                 if not ok:
-                    raise RuntimeError("Errore nel salvataggio sul database.")
+                    detail = getattr(character_repo, "_last_create_error", "")
+                    raise RuntimeError(f"Errore DB: {detail}" if detail else "Errore nel salvataggio sul database.")
 
                 # Tiri salvezza competenti dalla classe (PHB)
                 for stat_name in CLASS_SAVING_THROWS.get(self._review_class, []):
@@ -2213,6 +2216,6 @@ class WizardView(ft.Column):
             ft.Container(
                 content=content,
                 expand=True,
-                padding=ft.Padding.symmetric(horizontal=40, vertical=24),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=20),
             )
         )
