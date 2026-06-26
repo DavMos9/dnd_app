@@ -342,29 +342,37 @@ class DnDApp:
         t.start()
 
     def _show_update_banner(self, version: str, url: str):
-        """Mostra SnackBar con link al rilascio."""
+        """Mostra dialog di aggiornamento disponibile."""
         def _open(e):
             webbrowser.open(url)
+            self.page.pop_dialog()
 
         try:
-            snack = ft.SnackBar(
+            dlg = ft.AlertDialog(
+                title=ft.Row([
+                    ft.Icon(ft.Icons.SYSTEM_UPDATE, color=COLOR_ACCENT_BLUE, size=20),
+                    ft.Container(width=8),
+                    ft.Text("Aggiornamento disponibile", size=15,
+                            weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                ]),
                 content=ft.Text(
-                    f"🎲 Versione {version} disponibile!",
-                    color="#ffffff",
-                    size=14,
+                    f"È disponibile la versione {version}.\nVuoi scaricarla?",
+                    size=13, color=COLOR_TEXT_PRIMARY,
                 ),
-                action="Scarica",
-                action_color="#ffdd55",
-                on_action=_open,
-                duration=20000,  # 20 secondi
-                bgcolor=COLOR_ACCENT_BLUE,
-                open=True,
+                actions=[
+                    ft.TextButton("Più tardi", on_click=lambda e: self.page.pop_dialog()),
+                    ft.ElevatedButton(
+                        "Scarica", icon=ft.Icons.DOWNLOAD,
+                        on_click=_open,
+                        bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                    ),
+                ],
+                bgcolor=COLOR_BG_CARD,
             )
-            self.page.snack_bar = snack
-            self.page.update()
-            logger.info(f"Banner aggiornamento mostrato per versione {version}")
+            self.page.show_dialog(dlg)
+            logger.info(f"Dialog aggiornamento mostrato per versione {version}")
         except Exception as e:
-            logger.warning(f"Impossibile mostrare banner aggiornamento: {e}")
+            logger.warning(f"Impossibile mostrare dialog aggiornamento: {e}")
 
     def _placeholder_view(self, title: str, icon, subtitle: str) -> ft.Container:
         return ft.Container(
