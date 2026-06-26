@@ -324,12 +324,17 @@ class DnDApp:
 
     def _start_update_check(self):
         """Avvia il check aggiornamenti in background (non blocca la UI)."""
+        import time
+
         def _check():
+            time.sleep(3)  # attende che la pagina sia completamente montata
             try:
                 from core.update_checker import check_for_updates
                 has_update, version, url = check_for_updates()
                 if has_update:
                     self._show_update_banner(version, url)
+                else:
+                    logger.info("Nessun aggiornamento disponibile.")
             except Exception as e:
                 logger.debug(f"Update check fallito: {e}")
 
@@ -337,26 +342,29 @@ class DnDApp:
         t.start()
 
     def _show_update_banner(self, version: str, url: str):
-        """Mostra SnackBar non bloccante con link al rilascio."""
+        """Mostra SnackBar con link al rilascio."""
         def _open(e):
             webbrowser.open(url)
 
-        snack = ft.SnackBar(
-            content=ft.Text(
-                f"🎲 Versione {version} disponibile!",
-                color="#ffffff",
-                size=14,
-            ),
-            action="Scarica",
-            action_color="#ffdd55",
-            on_action=_open,
-            duration=20000,  # 20 secondi
-            bgcolor=COLOR_ACCENT_BLUE,
-        )
         try:
-            self.page.show_dialog(snack)
+            snack = ft.SnackBar(
+                content=ft.Text(
+                    f"🎲 Versione {version} disponibile!",
+                    color="#ffffff",
+                    size=14,
+                ),
+                action="Scarica",
+                action_color="#ffdd55",
+                on_action=_open,
+                duration=20000,  # 20 secondi
+                bgcolor=COLOR_ACCENT_BLUE,
+                open=True,
+            )
+            self.page.snack_bar = snack
+            self.page.update()
+            logger.info(f"Banner aggiornamento mostrato per versione {version}")
         except Exception as e:
-            logger.debug(f"Impossibile mostrare banner aggiornamento: {e}")
+            logger.warning(f"Impossibile mostrare banner aggiornamento: {e}")
 
     def _placeholder_view(self, title: str, icon, subtitle: str) -> ft.Container:
         return ft.Container(

@@ -97,6 +97,8 @@ class ManualCreationForm(ft.Column):
         # ---- State fase 4 ----
         self._equip_fixed:   list[dict[str, Any]] = []
         self._equip_choices: list[dict[str, Any]] = []
+        self._gold_mode:   bool = False
+        self._gold_amount: str  = ""
 
         # ---- Shell UI ----
         self._phase        = "identity"
