@@ -2260,7 +2260,7 @@ class ProfiloTab(ft.ListView):
         if self._page is None:
             return
         platform = self._page.platform
-        if platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+        if self._page.web or platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
             self._pick_photo_mobile()
         else:
             import platform as sys_platform

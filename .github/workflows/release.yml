@@ -21,6 +21,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inject version from git tag
+        shell: python
+        run: |
+          import re, os
+          ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
+          for path, pattern, repl in [
+              ('dnd_app/version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
+              ('dnd_app/pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
+              ('dnd_app/pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
+          ]:
+              content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
+              open(path, 'w').write(content)
+          print(f'Version set to: {ver}')
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -58,6 +72,20 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Inject version from git tag
+        shell: python
+        run: |
+          import re, os
+          ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
+          for path, pattern, repl in [
+              ('dnd_app/version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
+              ('dnd_app/pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
+              ('dnd_app/pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
+          ]:
+              content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
+              open(path, 'w').write(content)
+          print(f'Version set to: {ver}')
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -108,6 +136,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Inject version from git tag
+        shell: python
+        run: |
+          import re, os
+          ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
+          for path, pattern, repl in [
+              ('dnd_app/version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
+              ('dnd_app/pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
+              ('dnd_app/pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
+          ]:
+              content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
+              open(path, 'w').write(content)
+          print(f'Version set to: {ver}')
 
       - name: System dependencies
         run: |

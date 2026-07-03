@@ -49,14 +49,20 @@ SECTIONS: list[dict[str, Any]] = [
 class DnDApp:
     """Controller principale: gestisce routing tra Home, form e scheda."""
 
+    _MOBILE_BP = 600   # px sotto cui si usa la bottom navigation
+
     def __init__(self, page: ft.Page):
         self.page = page
         self.current_character_id: str | None = None
         self.active_section: str = "sheet"
+        self._mobile: bool = False
 
         self._setup_page()
         self._show_home()
         self._start_update_check()
+
+    def _is_mobile(self) -> bool:
+        return (self.page.width or 0) < self._MOBILE_BP
 
     # ------------------------------------------------------------------
     # Setup pagina
@@ -73,21 +79,31 @@ class DnDApp:
     # Routing di primo livello
     # ------------------------------------------------------------------
 
+    def _stop_home_polling(self):
+        """Ferma il polling della HomeView se attivo."""
+        hv = getattr(self, "_home_view", None)
+        if hv is not None:
+            hv.stop_polling()
+            self._home_view = None
+
     def _show_home(self):
         """Mostra la schermata di selezione/creazione personaggi."""
         from ui.views.home_view import HomeView
+        self._stop_home_polling()
         self.page.controls.clear()
         home = HomeView(
             on_select=self._on_character_selected,
             on_create_wizard=self._show_wizard,
             on_create_manual=self._show_manual_form,
         )
+        self._home_view = home
         self.page.add(home)
         self.page.update()
 
     def _show_manual_form(self):
         """Mostra il form di creazione manuale."""
         from ui.views.creation_wizard.manual_form import ManualCreationForm
+        self._stop_home_polling()
         self.page.controls.clear()
         form = ManualCreationForm(
             on_complete=self._on_character_selected,
@@ -99,6 +115,7 @@ class DnDApp:
     def _show_wizard(self):
         """Avvia il wizard guidato."""
         from ui.views.creation_wizard.wizard_view import WizardView
+        self._stop_home_polling()
         self.page.controls.clear()
         wizard = WizardView(
             on_complete=self._on_character_selected,
@@ -109,6 +126,7 @@ class DnDApp:
 
     def _on_character_selected(self, character_id: str):
         """Carica la scheda del personaggio selezionato."""
+        self._stop_home_polling()
         self.current_character_id = character_id
         self._show_main_layout()
 
@@ -117,29 +135,48 @@ class DnDApp:
     # ------------------------------------------------------------------
 
     def _show_main_layout(self):
-        """Mostra il layout con navbar laterale e area contenuto."""
+        """Mostra il layout con navbar laterale (desktop) o bottom nav (mobile)."""
         self.page.controls.clear()
+        self._mobile = self._is_mobile()
 
-        self.nav_rail = self._build_nav_rail()
         self.content_area = ft.Container(
             expand=True,
             bgcolor=COLOR_BG_PRIMARY,
             content=self._get_section_view(self.active_section),
         )
 
-        self.page.add(
-            ft.Row(
-                controls=[
-                    self.nav_rail,
-                    ft.VerticalDivider(width=1, color=COLOR_BORDER),
-                    self.content_area,
-                ],
-                expand=True,
-                spacing=0,
-                vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+        if self._mobile:
+            self.bottom_nav = self._build_bottom_nav()
+            self.page.add(
+                ft.Column(
+                    [self.content_area, self.bottom_nav],
+                    expand=True,
+                    spacing=0,
+                )
             )
-        )
+        else:
+            self.nav_rail = self._build_nav_rail()
+            self.page.add(
+                ft.Row(
+                    controls=[
+                        self.nav_rail,
+                        ft.VerticalDivider(width=1, color=COLOR_BORDER),
+                        self.content_area,
+                    ],
+                    expand=True,
+                    spacing=0,
+                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                )
+            )
+
+        self.page.on_resize = self._on_page_resize
         self.page.update()
+
+    def _on_page_resize(self, e: Any):
+        """Ricostruisce il layout se si supera il breakpoint mobile/desktop."""
+        now_mobile = self._is_mobile()
+        if now_mobile != self._mobile:
+            self._show_main_layout()
 
     def _build_char_avatar(self) -> ft.Control:
         """Icona del personaggio corrente per la sidebar."""
@@ -259,12 +296,65 @@ class DnDApp:
             width=82,
         )
 
+    def _build_bottom_nav(self) -> ft.Container:
+        """Bottom navigation bar per schermi mobili (<600px)."""
+        switch = {
+            "key": "__home__",
+            "label": "Cambia",
+            "icon_off": ft.Icons.SWAP_HORIZ,
+            "icon_on": ft.Icons.SWAP_HORIZ,
+        }
+        items = []
+        for s in SECTIONS + [switch]:
+            is_sel = s["key"] == self.active_section
+
+            def _tap(e: Any, k: str = s["key"]):
+                if k == "__home__":
+                    self._show_home()
+                else:
+                    self._on_nav_click(k)
+
+            items.append(
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Icon(
+                                s["icon_on"] if is_sel else s["icon_off"],
+                                color=COLOR_ACCENT_CRIMSON if is_sel else "#9a8888",
+                                size=22,
+                            ),
+                            ft.Text(
+                                s["label"], size=9,
+                                color=COLOR_ACCENT_CRIMSON if is_sel else "#9a8888",
+                                text_align=ft.TextAlign.CENTER,
+                                weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=2,
+                    ),
+                    padding=ft.Padding.symmetric(horizontal=4, vertical=8),
+                    on_click=_tap,
+                    ink=True,
+                    expand=True,
+                )
+            )
+
+        return ft.Container(
+            content=ft.Row(items, spacing=0),
+            bgcolor=COLOR_NAV_BG,
+            height=64,
+            border=ft.Border.only(top=ft.BorderSide(1, "#3a2828")),
+        )
+
     def _on_nav_click(self, key: str):
         if key == self.active_section:
             return
         self.active_section = key
-        # Ricostruisce il contenuto della sidebar per aggiornare lo stile selezionato
-        self.nav_rail.content = self._build_nav_rail().content
+        if self._mobile:
+            self.bottom_nav.content = self._build_bottom_nav().content
+        else:
+            self.nav_rail.content = self._build_nav_rail().content
         self.content_area.content = self._get_section_view(key)
         self.page.update()
 
@@ -323,7 +413,10 @@ class DnDApp:
     # ------------------------------------------------------------------
 
     def _start_update_check(self):
-        """Avvia il check aggiornamenti in background (non blocca la UI)."""
+        """Avvia il check aggiornamenti in background (non blocca la UI).
+        Disabilitato in modalità web: il deploy è gestito dal server."""
+        if self.page.web:
+            return
         import time
 
         def _check():

@@ -1940,6 +1940,7 @@ class WizardView(ft.Column):
                         ),
                     ],
                     spacing=24,
+                    wrap=True,
                 ),
                 ft.Container(height=12),
                 ft.Row(
@@ -2185,8 +2186,9 @@ class WizardView(ft.Column):
                 muted_text("Quasi fatto! Assegna un nome e salva il tuo personaggio.", size=13),
                 ft.Container(height=20),
                 fantasy_card(ft.Column([
-                    ft.Row([name_field, player_field], spacing=12),
-                ], spacing=0), padding=20),
+                    name_field,
+                    player_field,
+                ], spacing=12), padding=20),
                 ft.Container(height=16),
                 fantasy_card(ft.Column([
                     section_header("Riepilogo"),

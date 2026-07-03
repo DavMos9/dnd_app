@@ -1,6 +1,6 @@
 [project]
 name = "dnd-companion"
-version = "0.1.0"
+version = "0.1.15"
 description = "D&D 5e Companion App — Compagno digitale per giocatori"
 requires-python = ">=3.9"
 dependencies = [
@@ -12,7 +12,7 @@ dependencies = [
 app.module_name = "main"
 app.name = "D&D Companion"
 app.bundle_id = "com.davmos9.dndcompanion"
-app.version = "0.1.0"
+app.version = "0.1.15"
 app.build_number = 1
 
 # Icona app (stessa per tutte le piattaforme; flet build la ridimensiona automaticamente)

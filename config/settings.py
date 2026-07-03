@@ -80,6 +80,18 @@ LEVEL_PROGRESSION = {
     20: (355000,  6),
 }
 
+# Livelli di Indebolimento (Exhaustion) — PHB IT, condizione cumulativa.
+# {livello: descrizione effetto}. Ogni livello include gli effetti di tutti
+# i livelli precedenti (cumulativi). Il livello 6 è letale.
+EXHAUSTION_LEVELS: dict[int, str] = {
+    1: "Svantaggio alle prove di caratteristica",
+    2: "Velocità dimezzata",
+    3: "Svantaggio ai tiri per colpire e ai tiri salvezza",
+    4: "Massimo dei punti ferita dimezzato",
+    5: "Velocità ridotta a 0",
+    6: "Morte",
+}
+
 # Modificatore da punteggio: (punteggio - 10) // 2
 def get_modifier(score: int) -> int:
     return (score - 10) // 2

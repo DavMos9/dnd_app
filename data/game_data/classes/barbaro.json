@@ -43,13 +43,9 @@
         ],
         [
           {
-            "name": "Ascia da battaglia",
-            "item_type": "weapon"
-          },
-          {
-            "name": "Qualsiasi arma semplice da mischia",
+            "name": "Qualsiasi arma da guerra da mischia",
             "item_type": "weapon_choice",
-            "category": "semplice_mischia",
+            "category": "armi_da_guerra_mischia",
             "count": 1
           }
         ]
@@ -62,9 +58,9 @@
       "options": [
         [
           {
-            "name": "Quattro giavellotti",
-            "item_type": "item",
-            "quantity": 4
+            "name": "Ascia",
+            "item_type": "weapon",
+            "quantity": 2
           }
         ],
         [
@@ -85,7 +81,7 @@
           "item_type": "item"
         },
         {
-          "name": "Ascia da lancio",
+          "name": "Giavellotto",
           "item_type": "weapon",
           "quantity": 4
         }
@@ -96,63 +92,63 @@
     "dice": "2d4",
     "multiplier": 10
   },
-  "subclass_label": "Totem Primordiale",
+  "subclass_label": "Cammino Primordiale",
   "subclass_choice_level": 3,
   "subclasses": [
     {
-      "name": "Percorso del Berserker",
+      "name": "Cammino del Berserker",
       "bonus_proficiencies": [],
       "features": [
         {
           "level": 3,
           "name": "Frenesia",
-          "description": "Puoi entrare in una frenesia durante la tua furia. Puoi effettuare un attacco con un'arma come azione bonus."
+          "description": "Il barbaro può entrare in frenesia quando entra in ira. Se lo fa, per la durata della sua ira può effettuare un singolo attacco con un'arma da mischia come azione bonus in ognuno dei suoi turni successivi dopo di questo. Quando la sua ira termina, il barbaro subisce un livello di indebolimento."
         },
         {
           "level": 6,
-          "name": "Furia Senza Mente",
-          "description": "Non puoi essere affascinato o spaventato mentre sei in furia."
+          "name": "Ira Incontenibile",
+          "description": "Il barbaro non può essere affascinato o spaventato mentre è in ira. Se è affascinato o spaventato quando entra in ira, quell'effetto è sospeso per tutta la durata dell'ira."
         },
         {
           "level": 10,
           "name": "Presenza Intimidatoria",
-          "description": "Puoi usare la tua azione per spaventare qualcuno."
+          "description": "Il barbaro può usare la sua azione per spaventare qualcuno. Quando lo fa, sceglie una creatura che egli sia in grado di vedere entro 9 metri. Se la creatura è in grado di vedere o sentire il barbaro, deve superare un tiro salvezza su Saggezza altrimenti sarà spaventata dal barbaro fino alla fine del turno successivo di quest'ultimo. Nei turni successivi, il barbaro può usare la sua azione per estendere la durata di questo effetto sulla creatura spaventata fino alla fine del proprio turno successivo. Questo effetto si esaurisce se la creatura termina il suo turno fuori dalla linea di vista o oltre 18 metri di distanza dal barbaro. Se la creatura supera il suo tiro salvezza, il barbaro non può più utilizzare questo privilegio su quella creatura per 24 ore."
         },
         {
           "level": 14,
           "name": "Ritorsione",
-          "description": "Quando subisci danni da una creatura entro 1,5 m, puoi usare la tua reazione per effettuare un attacco."
+          "description": "Quando subisci danni da una creatura entro 1,5 m, puoi usare la tua reazione per effettuare un attacco con un'arma da mischia contro quella creatura."
         }
       ]
     },
     {
-      "name": "Percorso del Totem Guerriero",
+      "name": "Combattente Totemico",
       "bonus_proficiencies": [],
       "features": [
         {
           "level": 3,
-          "name": "Cercatore dello Spirito",
-          "description": "Puoi lanciare Individuazione del Bene e del Male e Parlare con gli Animali come rituali."
+          "name": "Cercatore di Spiriti",
+          "description": "Ottiene la capacità di lanciare gli incantesimi Percezione delle Bestie e Parlare con gli Animali, ma solo come rituali."
         },
         {
           "level": 3,
-          "name": "Spirito del Totem",
-          "description": "Scegli un totem: Orso, Aquila o Lupo. Ottieni un beneficio durante la furia."
+          "name": "Spirito Totemico",
+          "description": "Scegli un totem: Orso, Aquila o Lupo. Deve fabbricare o acquisire un oggetto fisico che funga per lui da totem, come un amuleto, che includa pelliccia, piume, artigli, denti o ossa di un animale totemico. A sua opzione, potrebbe sviluppare anche degli attributi fisici minori che richiamino il suo spirito totemico. Aquila: finché il barbaro è in ira e non indossa un'armatura pesante, le altre creature dispongono di svantaggio ai tiri degli attacchi di opportunità contro di lui, e il barbaro può usare l'azione di Scatto come azione bonus nel suo turno. Lupo: finché il barbaro è in ira, i suoi amici dispongono di vantaggio ai tiri per colpire in mischia contro ogni creatura che si trovi entro 1,5 metri da lui e che gli sia ostile. Orso: quando il barbaro è in ira, ottiene resistenza a tutti i danni tranne che a quelli psichici."
         },
         {
           "level": 6,
-          "name": "Aspetto del Totem",
-          "description": "Ottieni un beneficio magico basato sul tuo spirito totem."
+          "name": "Aspetto della Bestia",
+          "description": "Può scegliere lo stesso animale che ha scelto al 3° livello o un animale diverso. Aquila: il barbaro ottiene la vista di un'aquila. Può vedere fino a 1,5 km di distanza senza difficoltà e discernere i dettagli come se osservasse qualcosa entro 30 metri da lui. Inoltre, la luce fioca non impone svantaggio alle sue prove di Saggezza (Percezione). Lupo: il barbaro ottiene gli istinti cacciatori di un lupo. Può seguire le tracce delle altre creature mentre viaggia a passo veloce e può muoversi furtivamente mentre viaggia a passo normale. Orso: il barbaro ottiene la potenza di un orso. La sua capacità di trasporto (incluso il carico massimo e il sollevamento massimo) raddoppia e il barbaro dispone di vantaggio alle prove di Forza effettuate per spingere, trascinare, sollevare o spezzare oggetti."
         },
         {
           "level": 10,
-          "name": "Camminatore Spirituale",
-          "description": "Puoi lanciare Comunione con la Natura come rituale."
+          "name": "Viandante Spirituale",
+          "description": "Può lanciare l'incantesimo Comunione con la Natura, ma solo come rituale. Quando lo fa, una versione spirituale di uno degli animali che ha scelto come Spirito Totemico o Aspetto della Bestia gli appare per fornirgli le informazioni che desidera."
         },
         {
           "level": 14,
-          "name": "Simbiosi del Totem",
-          "description": "Ottieni un potente beneficio basato sul tuo spirito totem."
+          "name": "Sintonia Totemica",
+          "description": "Può scegliere lo stesso animale che ha scelto in precedenza o un animale diverso. Aquila: finché il barbaro è in ira, ha una velocità di volare pari alla sua attuale velocità base sul terreno. Questo beneficio funziona soltanto per brevi tratti; se il barbaro termina il suo turno in aria e non c'è nulla a sorreggerlo, cade a terra. Lupo: finché il barbaro è in ira, può usare un'azione bonus nel suo turno per buttare a terra prona una creatura di taglia Grande o inferiore quando la colpisce con un attacco con un'arma da mischia. Orso: finché il barbaro è in ira, ogni creatura entro 1,5 metri da lui e che gli sia ostile dispone di svantaggio ai tiri per colpire contro i bersagli diversi da lui o da un altro personaggio dotato di questo privilegio. Un nemico è immune a questo effetto se non è in grado di vedere o sentire il barbaro o se non può essere spaventato."
         }
       ]
     }
@@ -161,7 +157,7 @@
     {
       "level": 1,
       "name": "Ira",
-      "description": "Nel suo turno puoi entrare in ira come azione bonus. Finché sei in ira (e non indossi armatura pesante): vantaggio alle prove di Forza e ai tiri salvezza su Forza; bonus ai danni con armi da mischia in Forza (da +2 a +4 in base al livello); resistenza ai danni contundenti, perforanti e taglienti. Non puoi lanciare incantesimi mentre sei in ira. La furia dura 1 minuto e termina prima se cadi privo di sensi, non attacchi un nemico né subisci danni. Usi: 2 (lv1), progressivi fino a illimitati al lv20. Recupero: riposo lungo."
+      "description": "Nel suo turno puoi entrare in ira come azione bonus. Finché sei in ira (e non indossi armatura pesante): vantaggio alle prove di Forza e ai tiri salvezza su Forza; bonus ai danni con armi da mischia in Forza (da +2 a +4 in base al livello); resistenza ai danni contundenti, perforanti e taglienti. Non puoi lanciare incantesimi mentre sei in ira. Puoi terminare la tua ira nel tuo turno come azione bonus. La furia termina anche prima se cadi privo di sensi, non attacchi un nemico né subisci danni dall'ultimo tuo turno, e dura comunque al massimo 1 minuto. Usi: 2 (lv1), progressivi fino a illimitati al lv20. Recupero: riposo lungo."
     },
     {
       "level": 1,

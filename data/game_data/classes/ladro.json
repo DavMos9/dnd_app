@@ -14,7 +14,7 @@
     "#armi_semplici",
     "Balestra a mano",
     "Spada lunga",
-    "Rapiera",
+    "Stocco",
     "Spada corta"
   ],
   "tool_proficiencies": [
@@ -50,7 +50,7 @@
       "options": [
         [
           {
-            "name": "Rapiera",
+            "name": "Stocco",
             "item_type": "weapon"
           }
         ],

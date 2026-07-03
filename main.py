@@ -118,8 +118,17 @@ except Exception as e:
     print(f">>> [7] init_db FAILED: {e}", flush=True)
 
 # ---------------------------------------------------------------------------
-# ft.run
+# ft.run — modalità web (Docker) o desktop/mobile
+# FLET_WEB=true  → web server su 0.0.0.0:FLET_PORT (default 8000)
 # ---------------------------------------------------------------------------
 _w("[8] calling ft.run()")
 print(">>> [8] calling ft.run()", flush=True)
-ft.run(run_app)
+
+_web  = os.environ.get("FLET_WEB", "").lower() in ("1", "true", "yes")
+_port = int(os.environ.get("FLET_PORT", "8000"))
+
+if _web:
+    _w(f"[8] WEB mode — host=0.0.0.0 port={_port}")
+    ft.run(run_app, view=ft.AppView.WEB_BROWSER, port=_port, host="0.0.0.0")
+else:
+    ft.run(run_app)

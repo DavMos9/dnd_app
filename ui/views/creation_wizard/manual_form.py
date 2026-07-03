@@ -1228,13 +1228,10 @@ class ManualCreationForm(ft.Column):
                 else:
                     qty   = item.get("quantity", 1)
                     label = item["name"] + (f" ×{qty}" if qty > 1 else "")
-                    cb    = ft.Checkbox(
-                        label=label, value=item["selected"],
-                        fill_color=COLOR_ACCENT_CRIMSON, check_color="#ffffff",
-                        label_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-                        on_change=lambda e, it=item: it.update({"selected": bool(e.control.value)}),
-                    )
-                    fixed_checks.append(cb)
+                    fixed_checks.append(ft.Row([
+                        ft.Icon(ft.Icons.CHECK_BOX, color=COLOR_ACCENT_CRIMSON, size=20),
+                        ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY),
+                    ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
             rows.append(fantasy_card(ft.Column([
                 section_header("Oggetti garantiti"),
                 ft.Column(fixed_checks, spacing=6),

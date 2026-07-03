@@ -1141,7 +1141,7 @@ class MapsView(ft.Column):
         error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
 
         def pick_image(ev: Any):
-            if page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+            if page.web or page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
                 _pick_mobile(page, img_data, img_label, img_preview)
             else:
                 import platform as _sys
@@ -1252,7 +1252,7 @@ class MapsView(ft.Column):
         error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
 
         def pick_image(ev: Any):
-            if page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+            if page.web or page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
                 _pick_mobile(page, img_data, img_label, img_preview)
             else:
                 import platform as _sys

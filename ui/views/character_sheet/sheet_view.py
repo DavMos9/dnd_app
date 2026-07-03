@@ -186,18 +186,21 @@ class SheetView(ft.Column):
         return ft.Container(
             content=ft.Text(
                 label,
-                size=12,
+                size=11,
                 color=COLOR_ACCENT_CRIMSON if is_active else COLOR_TEXT_SECONDARY,
                 weight=ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL,
                 text_align=ft.TextAlign.CENTER,
+                no_wrap=True,
             ),
-            padding=ft.Padding.symmetric(horizontal=14, vertical=9),
+            padding=ft.Padding.symmetric(horizontal=6, vertical=9),
             bgcolor=COLOR_BG_TAB_ACTIVE if is_active else COLOR_BG_TAB_INACTIVE,
             border=ft.Border.only(
                 bottom=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if is_active else "transparent")
             ),
             on_click=lambda e, k=key: self._switch_tab(k),
             ink=True,
+            expand=True,
+            alignment=ft.Alignment.CENTER,
         )
 
     # ------------------------------------------------------------------

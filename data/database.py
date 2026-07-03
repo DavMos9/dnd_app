@@ -11,21 +11,70 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def _writable(p: Path) -> bool:
+    """Verifica che il path esista e sia scrivibile senza creare directory parent."""
+    try:
+        p.mkdir(exist_ok=True)          # crea solo la dir finale, NON i parent
+        t = p / ".write_test"
+        t.touch(); t.unlink()
+        return True
+    except Exception:
+        return False
+
+
 def get_db_path() -> str:
     """Restituisce il percorso del database.
 
-    Su Android/iOS Flet imposta FLET_APP_STORAGE_DATA con il percorso
-    scrivibile dell'app (es. /data/user/0/com.davmos9.dndcompanion/files/).
-    Su desktop usa ~/.dnd_companion/ come prima.
+    Android: tre strategie in ordine di affidabilità:
+      1. TMPDIR  → Android lo punta alla cache dell'app, saliamo di un livello per files/
+      2. Percorsi interni noti (senza mkdir parents — le dir parent esistono già)
+      3. CWD come ultima spiaggia
+    Desktop (Mac/Win/Linux): ~/.dnd_companion/ come sempre.
     """
-    import os
-    storage = os.environ.get("FLET_APP_STORAGE_DATA")
-    if storage:
-        app_dir = Path(storage)
+    _BUNDLE = "com.davmos9.dndcompanion"
+
+    # ANDROID_DATA è sempre impostata su Android (= /data); assente su desktop
+    is_android = bool(os.environ.get("ANDROID_DATA"))
+
+    if is_android:
+        # Logga le env var utili per il debug
+        for var in ("TMPDIR", "TMP", "TEMP", "HOME", "ANDROID_DATA", "EXTERNAL_STORAGE"):
+            logger.debug("ENV %s=%s", var, os.environ.get(var, "<non impostata>"))
+
+        # ── Strategia 1: TMPDIR ──────────────────────────────────────────────
+        # Android imposta TMPDIR sulla cache privata dell'app:
+        #   /data/user/0/{bundle}/cache  →  saliamo di un livello → .../files/
+        tmpdir = os.environ.get("TMPDIR") or os.environ.get("TMP") or ""
+        if tmpdir:
+            candidate = Path(tmpdir).parent / "files"
+            if _writable(candidate):
+                logger.info("DB path Android (TMPDIR): %s", candidate)
+                return str(candidate / "dnd_companion.db")
+
+        # ── Strategia 2: percorsi interni noti ───────────────────────────────
+        # Le directory già esistono dopo l'installazione; NON usiamo parents=True
+        for p in [
+            Path(f"/data/user/0/{_BUNDLE}/files"),
+            Path(f"/data/data/{_BUNDLE}/files"),
+        ]:
+            if _writable(p):
+                logger.info("DB path Android (hardcoded): %s", p)
+                return str(p / "dnd_companion.db")
+
+        # ── Strategia 3: CWD ─────────────────────────────────────────────────
+        cwd = Path.cwd()
+        if _writable(cwd):
+            logger.warning("DB path Android (CWD): %s", cwd)
+            return str(cwd / "dnd_companion.db")
+
+        logger.error("Nessun path Android scrivibile trovato — il DB non verrà salvato")
+        return "dnd_companion.db"
+
     else:
+        # Desktop: comportamento originale invariato
         app_dir = Path.home() / ".dnd_companion"
-    app_dir.mkdir(parents=True, exist_ok=True)
-    return str(app_dir / "dnd_companion.db")
+        app_dir.mkdir(parents=True, exist_ok=True)
+        return str(app_dir / "dnd_companion.db")
 
 
 def get_connection() -> sqlite3.Connection:

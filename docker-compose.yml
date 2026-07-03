@@ -1,0 +1,14 @@
+services:
+  dnd-companion:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - dnd_data:/root/.dnd_companion
+    environment:
+      - FLET_WEB=true
+      - FLET_PORT=8000
+
+volumes:
+  dnd_data:

@@ -4,6 +4,7 @@ Schermata Home: selezione, creazione ed eliminazione dei personaggi.
 """
 
 import flet as ft
+import threading
 from typing import cast
 from config.settings import *
 from data.models import Character
@@ -48,8 +49,27 @@ class HomeView(ft.Column):
         self.on_create_manual = on_create_manual
 
         self._char_list_column = ft.Column(spacing=12, scroll=ft.ScrollMode.AUTO)
+        self._stop_event = threading.Event()
         self._build()
         self.refresh()
+        # Polling per sincronizzare più sessioni web sullo stesso DB
+        t = threading.Thread(target=self._poll_loop, daemon=True)
+        t.start()
+
+    def stop_polling(self):
+        """Ferma il polling di sincronizzazione (chiamare prima di navigare via)."""
+        self._stop_event.set()
+
+    def _poll_loop(self):
+        """Aggiorna la lista personaggi ogni 5 s per sincronizzare sessioni web diverse."""
+        while not self._stop_event.wait(5):
+            try:
+                if self.page is None:
+                    break
+                self.refresh()
+                self.page.update()
+            except Exception:
+                break
 
     # ------------------------------------------------------------------
     # Build layout
@@ -262,7 +282,7 @@ class HomeView(ft.Column):
                         size=14,
                     ),
                     ft.Container(height=24),
-                    ft.Row(
+                    ft.Column(
                         controls=cast(list[ft.Control], [
                             primary_button(
                                 "Wizard guidato",
@@ -274,8 +294,8 @@ class HomeView(ft.Column):
                                 on_click=lambda e: self.on_create_manual(),
                             ),
                         ]),
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=12,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=10,
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,

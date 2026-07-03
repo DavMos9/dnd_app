@@ -38,7 +38,7 @@
       },
       {
         "name": "Pugno",
-        "description": "Attacco con Arma da Mischia: +3 al tiro per colpire, portata l ,5 m, un bersaglio. Colpito: 3 (ld4 + l) danni contundenti."
+        "description": "Attacco con Arma da Mischia: +3 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 3 (ld4 + l) danni contundenti."
       },
       {
         "name": "Ciavellotto",
@@ -969,7 +969,7 @@
     "actions": [
       {
         "name": "Morso",
-        "description": "Attacco con Arma da Mischia: +l al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 1 (1d4 -1) danni perforanti."
+        "description": "Attacco con Arma da Mischia: +1 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 1 (1d4 -1) danni perforanti."
       }
     ],
     "reactions": [],
@@ -15104,7 +15104,7 @@
       },
       {
         "name": "Raggi Oculari",
-        "description": "Il tiranno della morte scaglia tre dei seguenti raggi oculari magici casuali (in caso di duplicati, si ripete il tiro), scegliendo da uno a tre bersagli situati entro 36 metri da lui e che esso sia in grado di vedere: 1. Raggio di Charme. La creatura bersagliata deve superare un tiro salvezza su Saggezza con CD 17, altrimenti è affascinata dal tiranno per l ora o finché il tiranno non infligge danni alla creatura. 2. Raggio Paralizzante. La creatura bersagliata deve superare un tiro salvezza su Costituzione con CD 17, altrimenti è paralizzata per l minuto. li bersaglio può ripetere il tiro salvezza alla fine di ogni suo turno e, se lo supera, l'effetto per lui termina. 3. Raggio di Paura. La creatura bersagliata deve superare un tiro salvezza su Saggezza con CD 17, altrimenti è spaventata per l minuto. Il bersaglio può ripetere il tiro salvezza alla fine di ogni suo turno e, se lo supera, l'effetto per lui termina. 4. Raggio Rallentante. La creatura bersagliata deve superare un tiro salvezza su Destrezza con CD 17. Se lo fallisce, la sua velocità e dimezzata per 1 minuto. Inoltre, la creatura non può effettuare r====::= �==== ===== �"
+        "description": "Il tiranno della morte scaglia tre dei seguenti raggi oculari magici casuali (in caso di duplicati, si ripete il tiro), scegliendo da uno a tre bersagli situati entro 36 metri da lui e che esso sia in grado di vedere: 1. Raggio di Charme. La creatura bersagliata deve superare un tiro salvezza su Saggezza con CD 17, altrimenti è affascinata dal tiranno per 1 ora o finché il tiranno non infligge danni alla creatura. 2. Raggio Paralizzante. La creatura bersagliata deve superare un tiro salvezza su Costituzione con CD 17, altrimenti è paralizzata per 1 minuto. li bersaglio può ripetere il tiro salvezza alla fine di ogni suo turno e, se lo supera, l'effetto per lui termina. 3. Raggio di Paura. La creatura bersagliata deve superare un tiro salvezza su Saggezza con CD 17, altrimenti è spaventata per 1 minuto. Il bersaglio può ripetere il tiro salvezza alla fine di ogni suo turno e, se lo supera, l'effetto per lui termina. 4. Raggio Rallentante. La creatura bersagliata deve superare un tiro salvezza su Destrezza con CD 17. Se lo fallisce, la sua velocità e dimezzata per 1 minuto. Inoltre, la creatura non può effettuare r====::= �==== ===== �"
       }
     ],
     "reactions": [],
@@ -15119,7 +15119,7 @@
     "ac": 13,
     "ac_note": "armatura naturale",
     "hp_max": 136,
-    "hp_formula": "l3dl2 + 52",
+    "hp_formula": "13d12 + 52",
     "speed": "15 m",
     "str_score": 25,
     "dex_score": 10,
@@ -15210,14 +15210,17 @@
     "hp_max": 7,
     "hp_formula": "2d6",
     "speed": "9 m",
-    "str_score": 7,
-    "dex_score": 2,
-    "con_score": 15,
-    "int_score": 2,
-    "wis_score": 11,
-    "cha_score": 2,
+    "str_score": 10,
+    "dex_score": 15,
+    "con_score": 12,
+    "int_score": 11,
+    "wis_score": 10,
+    "cha_score": 8,
     "saving_throws": {},
-    "skills": {},
+    "skills": {
+      "furtività": "+4",
+      "percezione": "+2"
+    },
     "damage_vulnerabilities": "",
     "damage_resistances": "",
     "damage_immunities": "",
@@ -15238,7 +15241,7 @@
     "name": "TOPO GIGANTE",
     "creature_type": "Bestia",
     "size": "Piccolo",
-    "alignment": "senza allineamento",
+    "alignment": "legale malvagio",
     "type": "Gigante"
   },
   {
@@ -15269,7 +15272,11 @@
     "traits": [
       {
         "name": "Mutaforma",
-        "description": "Il topo mannaro può usare la sua azione per trasformarsi in un ibrido umanoide-topo o in un topo gigante, o per tornare alla sua forma naturale, che è umanoide. Le -;ue statistiche. ad eccezione della taglia, restano le stesse c: n ==· og = n =i=� o ==r m == a .=O g ==n= i = o=g = ge = t = t = o = c =h= e = in = d = o = s = sa = = o = t = ra =sp = = or =t= a = n = o = n ====== =="
+        "description": "Il topo mannaro può usare la sua azione per trasformarsi in un ibrido umanoide-topo o in un topo gigante, o per tornare alla sua forma naturale, che è umanoide. Le sue statistiche, ad eccezione della taglia, restano le stesse in ogni forma. Ogni oggetto che indossa o trasporta non viene trasformato. Se muore, il topo mannaro torna alla sua forma naturale."
+      },
+      {
+        "name": "Olfatto Acuto",
+        "description": "Il topo mannaro dispone di vantaggio alle prove di Saggezza (Percezione) basate sull'olfatto."
       }
     ],
     "actions": [
@@ -15279,15 +15286,15 @@
       },
       {
         "name": "Morso (Solo in Forma di Topo o Ibrida)",
-        "text": "Attacco con Arma da Mischia: +4 al tiro per colpire, portata l, 5 m, un bersaglio. C lpit : 4 (d4 + 2) danni perforanti. Se il bersaglio è un o o l umanoide, deve superare un tiro salvezza su Costituzione con CD 11, altrimenti è maledetto dalla licantropia del topo mannaro."
+        "text": "Attacco con Arma da Mischia: +4 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 4 (1d4 + 2) danni perforanti. Se il bersaglio è un umanoide, deve superare un tiro salvezza su Costituzione con CD 11, altrimenti è maledetto dalla licantropia del topo mannaro."
       },
       {
         "name": "Spada Corta (Solo in Forma Umanoide o Ibrida)",
-        "text": "Attacco con Arma da Mischia: +4 al tiro per colpie, portata 1,5 m, un bersaglio. Colpito: 5 (l d6 + 2) danni perfroranti."
+        "text": "Attacco con Arma da Mischia: +4 al tiro per colpie, portata 1,5 m, un bersaglio. Colpito: 5 (1d6 + 2) danni perfroranti."
       },
       {
         "name": "Balestra a Mano (Solo in Forma Umanoide o Ibrida)",
-        "text": "Attacco con Arma a Distanza: +4 al tiro per colp.re, gittata 9/36 m, un � besaglio d6 +2)dannipe oranti == = =r==== =.C o ==�=;t o ==:S=(= l == == = ==== =r�= = = = =. == = = == ============�"
+        "text": "Attacco con Arma a Distanza: +4 al tiro per colpire, gittata 9/36 m, un besaglio. Colpito: 5 (1d6 +2) danni perforanti."
       }
     ],
     "reactions": [],
@@ -15517,7 +15524,7 @@
     "ac": 18,
     "ac_note": "armatura naturale",
     "hp_max": 93,
-    "hp_formula": "lldlO + 33",
+    "hp_formula": "11d1O + 33",
     "speed": "9 m, scavare 6 m",
     "str_score": 20,
     "dex_score": 5,
@@ -15538,13 +15545,17 @@
     "traits": [
       {
         "name": "Sguardo Confondente",
-        "description": "Quando una creatura inizia il suo turno entro 9 metri dall'umber hulk ed è in grado di guardare l'umber hulk negli occhi, l'umber hulk può obbligarla magicamente a effettuare un tiro salvezza su Carisma con CD 15, purché non sia incapacitato. Se la creatura fallisce il tiro salvezza, non può effettuare reazioni fino all'inizio del proprio turno successivo e tira un d8 per determinare cosa fa in quel turno. Con un risultato da l a 4, la creatura non fa niente. Con un risultato di 5 o 6, la UMBER HULK"
+        "description": "Quando una creatura inizia il suo turno entro 9 metri dall'umber hulk ed è in grado di guardare l'umber hulk negli occhi, l'umber hulk può obbligarla magicamente a effettuare un tiro salvezza su Carisma con CD 15, purché non sia incapacitato. Se la creatura fallisce il tiro salvezza, non può effettuare reazioni fino all'inizio del proprio turno successivo e tira un 1d8 per determinare cosa fa in quel turno. Con un risultato da 1 a 4, la creatura non fa niente. Con un risultato di 5 o 6, la creatura non effettua alcuna azione, ma usa tutto il suo movimento per muoversi in una direzione casuale. Con un risultato di 7 o 8, la creatura effettua un attacco in mischia contro una creatura casuale oppure non fa nulla se non c'è alcuna creatura entro portata.Se una creatura non è sorpresa, può distogliere lo sguardo allo scopo di evitare il tiro salvezza all'inizio del proprio turno. Se lo fa, non può vedere l'umber hulk fino all'inizio del proprio turno successivo, quando potrà distogliere lo sguardo di nuovo. Se nel frattempo guarda l'umber hulk, deve immediatamente effettuare il tiro salvezza."
+      },
+      {
+        "name": "Scavatore di Tunnel",
+        "description": "L'umber hulk può scavare attraverso la roccia solida a metà della sua velocità di scavare, lasciando dietro di sé un tunnel largo 1,5 metri e alto 2,4 metri."
       }
     ],
     "actions": [
       {
         "name": "Multiattacco",
-        "text": "L'umber hulk effettua tre attacchi: due con gli artigli e uno con le mascelle."
+        "text": "L'umber hulk effettua tre attacchi: due con gli artigli e uno con le mandibole."
       },
       {
         "name": "Artiglio",
@@ -15784,7 +15795,15 @@
       },
       {
         "name": "Speroni",
-        "text": "Attacco con Arma da Mischia: +6 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 14 (2dl0 + 3) danni taglienti. Spore (Ricarica 6). Il vrock diffonde una nube di spore tossiche entro un raggio di 4, 5 metri. Le spore si diffondono oltre gli angoli. Ogni creatura in quell'area deve superare un tiro salvezza su Costituzione con CD 14, altrimenti è avvelenata. Finché è avvelenato in questo modo, un bersaglio subisce S (ldlO) danni da veleno all'inizio di ogni suo turno, ma può ripetere il tiro salvezza alla fine di ogni suo turno e, se lo supera, l'effetto per lui termina. Anche svuotando una fiala d'acqua santa sul bersaglio si pone termine all'effetto su di lui. Stridio Stordente (1/Ciorno). Il vrock emette un orrendo str dio. Ogni creatura situata entro 6 metri da esso che sia in grado di udirlo e che non sia un demone deve superare un tiro salvezza su Costituzione con CD 14, altrimenti è stordita fino alla fine ::==: === d = e � l � t � u = rn = o = s = u � c � ce = ss =i= vo = = d = el = v = r = oc = k = . ========�::=.;::: :.:;:: :::::: :=:::::;: :=:::::i"
+        "text": "Attacco con Arma da Mischia: +6 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 14 (2d10 + 3) danni taglienti."
+      },
+      {
+        "name": "Spore (Ricarica 6)",
+        "text": "Il vrock diffonde una nube di spore tossiche entro un raggio di 4,5 metri. Le spore si diffondono oltre gli angoli. Ogni creatura in quell'area deve superare un tiro salvezza su Costituzione con CD 14, altrimenti è avvelenata. Finché è avvelenato in questo modo, un bersaglio subisce 5 (1d1O) danni da veleno all'inizio di ogni suo turno, ma può ripetere il tiro salvezza alla fine di ogni suo turno e, se lo supera, l'effetto per lui termina. Anche svuotando una fiala d'acqua santa sul bersaglio si pone termine all'effetto su di lui."
+      },
+      {
+        "name": "Stridio Stordente (1/Giorno)",
+        "text": "Il vrock emette un orrendo stridio. Ogni creatura situata entro 6 metri da esso che sia in grado di udirlo e che non sia un demone deve superare un tiro salvezza su Costituzione con CD 14, altrimenti è stordita fino alla fine del turno successivo del vrock."
       }
     ],
     "reactions": [],
@@ -16435,7 +16454,7 @@
     "traits": [
       {
         "name": "Tempra dei Non Morti",
-        "description": "Se i danni riducono lo zombi a O punti ferita, esso deve effettuare un tiro salvezza su Costituzione con una CD pari a S + i danni subiti, a meno che non si tratti di danni radiosi o di un colpo critico. Se ha successo, lo zombi scende invece a l punto ferita."
+        "description": "Se i danni riducono lo zombi a O punti ferita, esso deve effettuare un tiro salvezza su Costituzione con una CD pari a S + i danni subiti, a meno che non si tratti di danni radiosi o di un colpo critico. Se ha successo, lo zombi scende invece a 1 punto ferita."
       }
     ],
     "actions": [

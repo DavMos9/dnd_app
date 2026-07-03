@@ -13,9 +13,9 @@
   "weapon_proficiencies": [
     "#armi_semplici",
     "Balestra a mano",
-    "Rapiera",
     "Spada corta",
-    "Spada lunga"
+    "Spada lunga",
+    "Stocco"
   ],
   "tool_proficiencies": [
     {
@@ -43,7 +43,7 @@
       "options": [
         [
           {
-            "name": "Rapiera",
+            "name": "Stocco",
             "item_type": "weapon"
           }
         ],
@@ -135,17 +135,17 @@
         {
           "level": 3,
           "name": "Parole Taglienti",
-          "description": "Puoi usare un dado bardico per ridurre il tiro di un attacco, la prova di caratteristica o il tiro salvezza di una creatura."
+          "description": "Quando una creatura situata entro 18 metri e che il bardo sia in grado di vedere effettua un tiro per colpire, una prova di caratteristica o un tiro per i danni, il bardo può usare la sua reazione per spendere uno dei suoi utilizzi di Ispirazione Bardica, tirare un dado di Ispirazione Bardica e sottrarre il numero ottenuto dal tiro della creatura. Può scegliere di utilizzare questo privilegio dopo che la creatura ha effettuato il suo tiro, ma prima che il DM dichiari se il tiro per colpire o la prova di caratteristica abbia avuto successo o meno, o prima che la creatura infligga i danni. La creatura è immune se non è in grado di sentire il bardo o se non può essere affascinata."
         },
         {
           "level": 6,
           "name": "Segreti Magici Aggiuntivi",
-          "description": "Apprendi due incantesimi da qualsiasi classe."
+          "description": "Apprendi due incantesimi da qualsiasi classe. Ogni incantesimo scelto deve essere di un livello che il bardo sia in grado di lanciare oppure deve essere un trucchetto."
         },
         {
           "level": 14,
-          "name": "Capacità Impareggiabile",
-          "description": "Puoi aggiungere un dado bardico a qualsiasi prova di caratteristica o tiro salvezza effettuato con competenza."
+          "name": "Abilità Impareggiabile",
+          "description": "Quando un bardo effettua una prova di caratteristica, può spendere un utilizzo di Ispirazione Bardica. Se lo fa, tira un dado di Ispirazione Bardica e aggiunge il risultato ottenuto alla sua prova di caratteristica. Può scegliere di farlo dopo avere tirato il dado per la prova di caratteristica, ma prima che il DM dichiari se la prova abbia avuto successo o meno."
         }
       ]
     },
@@ -160,7 +160,7 @@
         {
           "level": 3,
           "name": "Ispirazione di Combattimento",
-          "description": "I tuoi dadi bardici possono essere usati per aumentare il danno o la CA."
+          "description": "Una creatura a cui il bardo abbia fornito un dado di Ispirazione Bardica può tirare quel dado e aggiungere il risultato ottenuto al tiro appena effettuato per i danni dell'arma, oppure quando qualcuno effettua un tiro per colpire contro la creatura, essa può usare la sua reazione per tirare il dado di Ispirazione Bardica e aggiungere il risultato ottenuto alla sua CA contro quell'attacco, dopo avere visto il tiro, ma prima di sapere se la colpirà o meno."
         },
         {
           "level": 6,
@@ -184,7 +184,7 @@
     {
       "level": 1,
       "name": "Ispirazione Bardica",
-      "description": "Come azione bonus puoi infondere ispirazione in una creatura diversa da te entro 18 m che sia in grado di sentirti. La creatura ottiene un dado di Ispirazione Bardica (d6). Entro 10 minuti può tirarlo e aggiungere il risultato a una prova di caratteristica, un tiro per colpire o un tiro salvezza. Il dado diventa d8 al 5° livello, d10 al 10° e d12 al 15°. Usi: modificatore di Carisma per riposo lungo (min. 1). Da lv5: recupero con riposo breve."
+      "description": "Come azione bonus puoi infondere ispirazione in una creatura diversa da te entro 18 m che sia in grado di sentirti. La creatura ottiene un dado di Ispirazione Bardica (d6). Entro 10 minuti può tirarlo e aggiungere il risultato a una prova di caratteristica, un tiro per colpire o un tiro salvezza. Una creatura può possedere un solo dado di Ispirazione Bardica alla volta. Il dado diventa d8 al 5° livello, d10 al 10° e d12 al 15°. Usi: modificatore di Carisma per riposo lungo (min. 1). Da lv5: recupero con riposo breve."
     },
     {
       "level": 2,
@@ -197,6 +197,11 @@
       "description": "Puoi usare musica o orazione lenitiva durante un riposo breve. Le creature amiche in grado di sentirti che recuperano PF spendendo Dadi Vita recuperano PF extra: 1d6 (lv2), 1d8 (lv9), 1d10 (lv13), 1d12 (lv17)."
     },
     {
+      "level": 3,
+      "name": "Maestria",
+      "description": "Al 3° livello, un bardo sceglie due tra le sue competenze nelle abilità. Il suo bonus di competenza raddoppia in ogni prova di caratteristica effettuata usando una delle competenze scelte. Al 10° livello, un bardo può scegliere altre due competenze nelle abilità per ottenere questo beneficio."
+    },
+    {
       "level": 5,
       "name": "Fonte di Ispirazione",
       "description": "Recuperi tutti gli utilizzi di Ispirazione Bardica dopo un riposo breve o lungo (non solo lungo)."
@@ -204,7 +209,7 @@
     {
       "level": 6,
       "name": "Controfascino",
-      "description": "Con un'azione puoi iniziare un'esibizione che dura fino alla fine del tuo turno successivo. Durante quel periodo, tu e ogni creatura amica entro 9 m disponete di vantaggio ai tiri salvezza per non essere affascinati o spaventati."
+      "description": "Con un'azione puoi iniziare un'esibizione che dura fino alla fine del tuo turno successivo. Durante quel periodo, tu e ogni creatura amica entro 9 m disponete di vantaggio ai tiri salvezza per non essere affascinati o spaventati. L'esibizione termina prematuramente se il bardo diventa incapacitato o è ridotto al silenzio, o se vi pone fine volontariamente (non è richiesta un'azione per farlo)."
     },
     {
       "level": 10,
