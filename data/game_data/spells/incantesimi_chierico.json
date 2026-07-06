@@ -531,7 +531,7 @@
       "higher_levels": "La guarigione aumenta di 1d8 per ogni slot di livello superiore al 2º."
     },
     {
-      "name": "Augurio",
+      "name": "Presagio",
       "level": 2,
       "school": "Divinazione",
       "casting_time": "1 minuto",
@@ -828,7 +828,7 @@
       "higher_levels": "I danni di una runa esplosiva aumentano di 1d8 per ogni slot di livello superiore al 3º. Se l'incantatore crea un glifo magico, può custodirvi qualsiasi incantesimo di livello pari o inferiore a quello dello slot incantesimo usato per il glifo di interdizione."
     },
     {
-      "name": "Spiriti Guardiani",
+      "name": "Guardiani Spirituali",
       "level": 3,
       "school": "Evocazione",
       "casting_time": "1 azione",
@@ -1160,7 +1160,7 @@
       "higher_levels": null
     },
     {
-      "name": "Colpo di Fiamme",
+      "name": "Colpo Infuocato",
       "level": 5,
       "school": "Evocazione",
       "casting_time": "1 azione",

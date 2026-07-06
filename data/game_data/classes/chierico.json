@@ -42,7 +42,8 @@
         [
           {
             "name": "Martello da guerra",
-            "item_type": "weapon"
+            "item_type": "weapon",
+            "note": "Richiede competenza con le armi da guerra (es. da Dominio della Guerra o razza)"
           }
         ]
       ]
@@ -67,7 +68,8 @@
         [
           {
             "name": "Cotta di maglia",
-            "item_type": "armor"
+            "item_type": "armor",
+            "note": "Richiede competenza con le armature pesanti (es. da Dominio della Vita/Natura/Tempesta/Guerra o razza)"
           }
         ]
       ]
@@ -149,16 +151,16 @@
           "Cura Ferite"
         ],
         "3": [
-          "Ripristino Inferiore",
+          "Ristorare Inferiore",
           "Arma Spirituale"
         ],
         "5": [
-          "Ravvivare",
-          "Faro della Speranza"
+          "Rinascita",
+          "Faro di Speranza"
         ],
         "7": [
           "Interdizione alla Morte",
-          "Custode della Fede"
+          "Guardiano della Fede"
         ],
         "9": [
           "Curare Ferite di Massa",
@@ -169,27 +171,27 @@
         {
           "level": 1,
           "name": "Discepolo della Vita",
-          "description": "Ogni volta che lanci un incantesimo di 1° livello o superiore che ripristina PF, la creatura recupera ulteriori PF pari a 2 + livello dell'incantesimo."
+          "description": "Ogni volta che il chierico usa un incantesimo di 1° livello o di livello superiore per ripristinare i punti ferita di una creatura, quella creatura recupera un ammontare di punti ferita aggiuntivi pari a 2 + il livello dell'incantesimo."
         },
         {
           "level": 2,
-          "name": "Incanalare Divinità: Preservare la Vita",
-          "description": "Ripristini fino a 5 × livello del chierico PF tra le creature adiacenti."
+          "name": "Incanalare Divinità: Preservare Vita",
+          "description": "Il chierico può utilizzare Incanalare Divinità per curare chi è stato gravemente ferito. Con un'azione, il chierico brandisce il suo simbolo sacro ed evoca un flusso di energia curativa che può ripristinare un numero di punti ferita pari a cinque volte il suo livello da chierico. Sceglie le creature desiderate purché siano situate entro 9 metri da lui e suddivide questo ammontare di punti ferita tra di esse. Questo privilegio può ripristinare in una creatura un ammontare di punti ferita che la riporti a non più della metà del suo massimo dei punti ferita. Il chierico non può utilizzare questo privilegio su un costrutto o su un non morto."
         },
         {
           "level": 6,
           "name": "Guaritore Benedetto",
-          "description": "Gli incantesimi di cura che lanci sugli altri ti curano di 2 + livello dell'incantesimo."
+          "description": "Gli incantesimi curativi che il chierico lancia sugli altri guariscono anche lui. Quando il chierico lancia un incantesimo di 1° livello o di livello superiore che ripristina punti ferita in una creatura diversa da lui, egli recupera un ammontare di punti ferita pari a 2 + il livello dell'incantesimo."
         },
         {
           "level": 8,
           "name": "Colpo Divino",
-          "description": "Una volta per turno puoi aggiungere 1d8 danni radianti a un colpo d'arma (2d8 dal 14° livello)."
+          "description": "Una volta per ogni suo turno, quando colpisce una creatura con un attacco con un'arma, il chierico può fare in modo che l'attacco infligga 1d8 danni radiosi extra al bersaglio. Quando il chierico arriva al 14° livello, i danni extra aumentano a 2d8."
         },
         {
           "level": 17,
           "name": "Guarigione Suprema",
-          "description": "Invece di tirare i dadi per gli incantesimi di cura, usa sempre il valore massimo."
+          "description": "Quando il chierico normalmente tirerebbe uno o più dadi per ripristinare punti ferita tramite un incantesimo, egli usa invece il numero più alto possibile per ogni dado. Per esempio, anziché ripristinare 2d6 punti ferita a una creatura, ne ripristina direttamente 12."
         }
       ]
     },
@@ -202,10 +204,10 @@
       "bonus_spells": {
         "1": [
           "Mani Brucianti",
-          "Fuoco delle Fate"
+          "Luminescenza"
         ],
         "3": [
-          "Sfera Fiammeggiante",
+          "Sfera Infuocata",
           "Raggio Rovente"
         ],
         "5": [
@@ -213,59 +215,67 @@
           "Palla di Fuoco"
         ],
         "7": [
-          "Custode della Fede",
+          "Guardiano della Fede",
           "Muro di Fuoco"
         ],
         "9": [
-          "Colpo di Fiamme",
+          "Colpo Infuocato",
           "Scrutare"
         ]
       },
       "features": [
         {
           "level": 1,
-          "name": "Lampo di Guardia",
-          "description": "Quando una creatura ti attacca, puoi usare la tua reazione per imporre svantaggio."
+          "name": "Lampo di Interdizione",
+          "description": "Quando il chierico è attaccato da una creatura situata entro 9 metri da lui e che egli sia in grado di vedere, può usare la sua reazione per infliggere svantaggio al tiro per colpire, facendo in modo che un lampo di luce confonda l'attaccante prima che il suo colpo vada a segno o manchi. Un attaccante che non può essere accecato è immune a questo privilegio. Il chierico può utilizzare questo privilegio un numero di volte pari al suo modificatore di Saggezza (fino a un minimo di una volta). Recupera tutti gli utilizzi spesi quando completa un riposo lungo."
         },
         {
           "level": 2,
-          "name": "Incanalare Divinità: Bagliore dell'Alba",
-          "description": "Presenti il tuo simbolo sacro ed evochi un bagliore che fa 2d10 + livello chierico danni radianti alle creature non acecate."
+          "name": "Incanalare Divinità: Fulgore dell'Alba",
+          "description": "Il chierico può utilizzare Incanalare Divinità: con un'azione, brandisce il simbolo sacro e ogni forma di oscurità magica entro 9 metri da lui è dissolta. Inoltre, ogni creatura ostile situata entro 9 metri da lui deve effettuare un tiro salvezza su Costituzione. Se lo fallisce, subisce 2d10 + il livello da chierico danni radiosi, mentre se lo supera subisce soltanto la metà di quei danni. Una creatura che beneficia di copertura totale nei confronti del chierico non è influenzata da questo privilegio."
         },
         {
           "level": 6,
-          "name": "Bagliore Migliorato",
-          "description": "Aggiungi il modificatore di Saggezza ai danni degli incantesimi del dominio."
+          "name": "Lampo Migliorato",
+          "description": "Può utilizzare il suo Lampo di Interdizione quando una creatura situata entro 9 metri da lui e che egli sia in grado di vedere attacca una creatura diversa da lui."
         },
         {
           "level": 8,
-          "name": "Incantesimi Potenziati",
-          "description": "Aggiungi il tuo modificatore di Saggezza ai danni di un trucchetto contro una creatura."
+          "name": "Incantesimi Potenti",
+          "description": "Il chierico aggiunge il suo modificatore di Saggezza ai danni che infligge con qualsiasi trucchetto da chierico."
         },
         {
           "level": 17,
           "name": "Corona di Luce",
-          "description": "Azione bonus: emana una sfera di luce solare per 1 minuto."
+          "description": "Il chierico può usare la sua azione per attivare un'aura di luce solare che dura 1 minuto o finché il chierico non la congeda usando un'altra azione. Il chierico emette luce intensa entro un raggio di 18 metri e luce fioca per ulteriori 9 metri. I nemici che si trovano entro il raggio di luce intensa subiscono svantaggio ai tiri salvezza contro qualsiasi incantesimo che infligga danni da fuoco o radiosi."
         }
       ]
     },
     {
       "name": "Dominio della Natura",
       "bonus_proficiencies": [
-        "#armature_pesanti"
+        "#armature_pesanti",
+        {
+          "type": "choice",
+          "count": 1,
+          "from": [
+            "Addestrare Animali",
+            "Natura",
+            "Sopravvivenza"
+          ]
+        }
       ],
       "bonus_cantrips_choice": 1,
       "bonus_cantrips_options": [
-        "Arte Druidica",
+        "Artificio Druidico",
         "Guida",
         "Luce",
         "Riparare",
         "Spruzzo Velenoso",
         "Produrre Fiamma",
         "Resistenza",
-        "Fiamma Consacrata",
-        "Randello",
-        "Flagello Spinoso"
+        "Randello Incantato",
+        "Frusta di Spine"
       ],
       "bonus_spells": {
         "1": [
@@ -273,37 +283,42 @@
           "Parlare con gli Animali"
         ],
         "3": [
-          "Pelle di Quercia",
+          "Pelle Coriacea",
           "Crescita di Spine"
         ],
         "5": [
-          "Crescita di Piante",
+          "Crescita Vegetale",
           "Muro di Vento"
         ],
         "7": [
-          "Dominare Animale",
-          "Viticcio Ghermente"
+          "Dominare Bestie",
+          "Rampicante Afferrante"
         ],
         "9": [
           "Piaga degli Insetti",
-          "Passo Arboreo"
+          "Traslazione Arborea"
         ]
       },
       "features": [
         {
+          "level": 2,
+          "name": "Incanalare Divinità: Charme su Animali e Vegetali",
+          "description": "Il chierico può utilizzare Incanalare Divinità per affascinare animali e vegetali. Con un'azione, il chierico brandisce il suo simbolo sacro e invoca il nome della sua divinità. Ogni bestia o creatura vegetale in grado di vedere il chierico e situata entro 9 metri da lui deve effettuare un tiro salvezza su Saggezza. Se lo fallisce, è affascinata dal chierico per 1 minuto o finché non subisce danni. Finché è affascinata, la creatura è considerata amichevole nei confronti del chierico e delle altre creature da lui designate."
+        },
+        {
           "level": 6,
-          "name": "Smorzare gli Elementi",
-          "description": "Quando una creatura subisce danni da acido, freddo, fuoco, fulmine o tuono entro 9 m da te, usa la reazione per dimezzare i danni."
+          "name": "Mitigare Elementi",
+          "description": "Quando il chierico o una creatura entro 9 metri da lui subisce danni da acido, freddo, fulmine, fuoco o tuono, egli può usare la sua reazione per conferire a se stesso o a quella creatura resistenza a quel tipo di danni."
         },
         {
           "level": 8,
           "name": "Colpo Divino",
-          "description": "Aggiungi 1d8 danni del tipo dell'elemento che hai assorbito."
+          "description": "Una volta per ogni suo turno, quando colpisce una creatura con un attacco con un'arma, il chierico può fare in modo che l'attacco infligga 1d8 danni extra da freddo, fulmine o fuoco (a sua scelta) al bersaglio. Quando il chierico arriva al 14° livello, i danni extra aumentano a 2d8."
         },
         {
           "level": 17,
-          "name": "Padrone della Natura",
-          "description": "Puoi comandare agli animali e alle piante affascinati di compiere azioni."
+          "name": "Maestro della Natura",
+          "description": "Il chierico ottiene la capacità di comandare gli animali e le creature vegetali. Quando le creature sono affascinate dal chierico tramite il suo privilegio Charme su Animali e Vegetali, il chierico può effettuare un'azione bonus nel suo turno per comandare verbalmente ognuna di quelle creature, decidendo ciò che faranno nel loro turno successivo."
         }
       ]
     },
@@ -315,19 +330,19 @@
       ],
       "bonus_spells": {
         "1": [
-          "Nube di Foschia",
-          "Onda di Tuono"
+          "Nube di Nebbia",
+          "Onda Tonante"
         ],
         "3": [
           "Folata di Vento",
           "Frantumare"
         ],
         "5": [
-          "Chiamata del Fulmine",
+          "Invocare il Fulmine",
           "Tempesta di Nevischio"
         ],
         "7": [
-          "Controllo dell'Acqua",
+          "Controllare Acqua",
           "Tempesta di Ghiaccio"
         ],
         "9": [
@@ -338,23 +353,28 @@
       "features": [
         {
           "level": 1,
-          "name": "Furia della Tempesta",
-          "description": "Quando vieni colpito da un attacco, puoi reagire infliggendo 2d8 danni da fulmine o tuono all'attaccante."
+          "name": "Collera della Tempesta",
+          "description": "Quando il chierico è colpito dall'attacco di una creatura situata entro 1,5 metri da lui e che egli sia in grado di vedere, può usare la sua reazione per obbligare la creatura a effettuare un tiro salvezza su Destrezza. Se lo fallisce, subisce 2d8 danni da fulmine o da tuono (a scelta del chierico), mentre se lo supera subisce soltanto la metà di quei danni. Il chierico può utilizzare questo privilegio un numero di volte pari al suo modificatore di Saggezza (fino a un minimo di una volta). Recupera tutti gli utilizzi spesi quando completa un riposo lungo."
         },
         {
           "level": 2,
-          "name": "Incanalare Divinità: Ira Distruttiva",
-          "description": "Affascini o spaventi creature entro 9 m che falliscono un TS su Saggezza."
+          "name": "Incanalare Divinità: Collera Distruttiva",
+          "description": "Il chierico può utilizzare Incanalare Divinità per esercitare il potere della tempesta con ferocia incontrollata. Quando il chierico tira per infliggere danni da fulmine o da tuono, può utilizzare Incanalare Divinità per infliggere il massimo dei danni anziché tirarli."
         },
         {
           "level": 6,
-          "name": "Distruzione Tuonante",
-          "description": "Quando colpisci con un attacco, puoi fare un tiro su Forza all'avversario o respingerlo di 3 m."
+          "name": "Colpo del Tuono e del Fulmine",
+          "description": "Quando il chierico infligge danni da fulmine a una creatura di taglia Grande o inferiore, può anche spingere quella creatura fino a 3 metri, allontanandola da sé."
         },
         {
           "level": 8,
           "name": "Colpo Divino",
-          "description": "Aggiungi 1d8 danni da fulmine a un colpo d'arma per turno."
+          "description": "Una volta per ogni suo turno, quando colpisce una creatura con un attacco con un'arma, il chierico può fare in modo che l'attacco infligga 1d8 danni da tuono extra al bersaglio. Quando il chierico arriva al 14° livello, i danni extra aumentano a 2d8."
+        },
+        {
+          "level": 17,
+          "name": "Nato dalla Tempesta",
+          "description": "Il chierico ottiene una velocità di volare pari alla sua attuale velocità base sul terreno ogni volta che non si trova sottoterra o al chiuso."
         }
       ]
     },
@@ -386,28 +406,28 @@
       "features": [
         {
           "level": 1,
-          "name": "Benedizione dell'Imbroglione",
-          "description": "Puoi usare la tua azione bonus per conferire vantaggio al prossimo tiro di attacco contro un nemico entro 9 m."
+          "name": "Benedizione dell'Ingannatore",
+          "description": "Può usare la sua azione per toccare una creatura consenziente diversa da sé e conferirle vantaggio alle prove di Destrezza (Furtività). Questa benedizione dura 1 ora o finché il chierico non utilizza di nuovo questo privilegio."
         },
         {
           "level": 2,
-          "name": "Incanalare Divinità: Invocazione di Duplicato",
-          "description": "Crei un duplicato illusorio di te stesso a 9 m."
+          "name": "Incanalare Divinità: Invocare Duplicato",
+          "description": "Può utilizzare Incanalare Divinità per creare un duplicato illusorio di se stesso. Con un'azione, il chierico crea una perfetta illusione di se stesso che dura 1 minuto o finché il chierico non perde la concentrazione (come se si stesse concentrando su un incantesimo). L'illusione appare in uno spazio libero situato entro 9 metri dal chierico e che egli sia in grado di vedere. Come azione bonus, nel suo turno, il chierico può muovere l'illusione di un massimo di 9 metri fino a uno spazio che egli sia in grado di vedere, ma l'illusione deve rimanere entro 36 metri da lui. Per tutta la durata, il chierico può lanciare incantesimi come se si trovasse nello spazio dell'illusione, ma deve usare i propri sensi. Inoltre, quando sia il chierico che la sua illusione si trovano entro 1,5 metri da una creatura che sia in grado di vedere l'illusione, il chierico dispone di vantaggio ai tiri per colpire contro quella creatura, in quanto l'illusione distrae il bersaglio."
         },
         {
           "level": 6,
           "name": "Incanalare Divinità: Mantello di Ombre",
-          "description": "Diventi invisibile fino alla fine del turno successivo."
+          "description": "Può utilizzare Incanalare Divinità per svanire. Con un'azione, il chierico diventa invisibile fino alla fine del suo turno successivo. Torna a essere visibile se attacca o se lancia un incantesimo."
         },
         {
           "level": 8,
           "name": "Colpo Divino",
-          "description": "Aggiungi 1d8 danni da veleno a un colpo d'arma per turno."
+          "description": "Una volta per ogni suo turno, quando colpisce una creatura con un attacco con un'arma, il chierico può fare in modo che l'attacco infligga 1d8 danni da veleno extra. Quando arriva al 14° livello, i danni extra aumentano a 2d8."
         },
         {
           "level": 17,
           "name": "Duplicato Migliorato",
-          "description": "Il tuo duplicato può usare incantesimi."
+          "description": "Può creare fino a quattro duplicati di se stesso anziché uno quando utilizza Invocare Duplicato. Come azione bonus nel suo turno, il chierico può muovere un qualsiasi numero di quei duplicati fino a un massimo di 9 metri ed entro una gittata massima di 36 metri."
         }
       ]
     },
@@ -427,15 +447,15 @@
           "Arma Spirituale"
         ],
         "5": [
-          "Mantello del Crociato",
-          "Spiriti Guardiani"
+          "Manto del Crociato",
+          "Guardiani Spirituali"
         ],
         "7": [
           "Libertà di Movimento",
-          "Custode della Fede"
+          "Pelle di Pietra"
         ],
         "9": [
-          "Colpo di Fiamme",
+          "Colpo Infuocato",
           "Blocca Mostro"
         ]
       },
@@ -448,17 +468,22 @@
         {
           "level": 2,
           "name": "Incanalare Divinità: Colpo Guidato",
-          "description": "Quando effettui un tiro di attacco, puoi aggiungere +10 al tiro."
+          "description": "Quando effettua un tiro per colpire, può utilizzare Incanalare Divinità per ottenere un bonus di +10 al tiro. Il chierico effettua questa scelta dopo avere visto il tiro, ma prima che il DM dichiari se l'attacco colpisce o manca."
         },
         {
           "level": 6,
-          "name": "Benedizione del Dio della Guerra",
-          "description": "Quando una creatura entro 9 m effettua un tiro di attacco, puoi aggiungere +10 con la tua reazione."
+          "name": "Incanalare Divinità: Benedizione del Dio della Guerra",
+          "description": "Quando una creatura entro 9 m effettua un tiro di attacco, puoi aggiungere +10 con la tua reazione, utilizzando Incanalare Divinità. Il chierico fa questa scelta dopo avere visto il tiro, ma prima che il DM dichiari se l'attacco colpisce o manca."
         },
         {
           "level": 8,
           "name": "Colpo Divino",
-          "description": "Aggiungi 1d8 danni dello stesso tipo dell'arma a un colpo per turno."
+          "description": "Una volta per ogni suo turno, quando colpisce una creatura con un attacco con un'arma, il chierico può fare in modo che l'attacco infligga 1d8 danni extra dello stesso tipo di danni inferti dall'arma al bersaglio. Quando il chierico arriva al 14° livello, i danni extra aumentano a 2d8."
+        },
+        {
+          "level": 17,
+          "name": "Avatar della Battaglia",
+          "description": "Il chierico ottiene resistenza ai danni contundenti, perforanti e taglienti delle armi non magiche."
         }
       ]
     },
@@ -483,7 +508,7 @@
           "Identificare"
         ],
         "3": [
-          "Augurio",
+          "Presagio",
           "Suggestione"
         ],
         "5": [
@@ -495,7 +520,7 @@
           "Confusione"
         ],
         "9": [
-          "Leggere le Leggende",
+          "Conoscenza delle Leggende",
           "Scrutare"
         ]
       },
@@ -503,27 +528,27 @@
         {
           "level": 1,
           "name": "Benedizioni della Conoscenza",
-          "description": "Ottieni competenza in due abilità dalla lista del dominio."
+          "description": "Apprende due linguaggi a sua scelta. Ottiene competenza in due abilità a scelta, tra Arcano, Natura, Religione o Storia. Il suo bonus di competenza raddoppia in ogni prova di caratteristica da lui effettuata usando una di queste abilità."
         },
         {
           "level": 2,
-          "name": "Incanalare Divinità: Conoscenza del Passato",
-          "description": "Scegli una competenza in abilità o strumento; hai vantaggio alle prove per 10 minuti."
+          "name": "Incanalare Divinità: Conoscenza Secolari",
+          "description": "Può utilizzare Incanalare Divinità per attingere a un pozzo divino di conoscenza. Con un'azione, può scegliere un'abilità o uno strumento. Per 10 minuti ottiene competenza nell'abilità o nello strumento scelto."
         },
         {
           "level": 6,
-          "name": "Incanalare Divinità: Leggere i Pensieri",
-          "description": "Leggi i pensieri superficiali di una creatura per 1 minuto."
+          "name": "Incanalare Divinità: Lettura del Pensiero",
+          "description": "Può utilizzare Incanalare Divinità per leggere i pensieri di una creatura e, potenzialmente, assumerne il comando. Con un'azione, il chierico sceglie una creatura situata entro 18 metri da lui e che egli sia in grado di vedere. Quella creatura deve effettuare un tiro salvezza su Saggezza. Se lo supera, il chierico non può utilizzare questo privilegio su di essa finché egli non completa un riposo lungo. Se la creatura fallisce il suo tiro salvezza, il chierico può leggere i suoi pensieri superficiali (quelli che tengono occupata la sua mente al momento, che riflettono le sue emozioni attuali e a cui la creatura sta pensando attivamente) quando essa si trova entro 18 metri da lui. Questo effetto dura 1 minuto. Durante quel periodo, il chierico può usare la sua azione per porre fine a questo effetto e lanciare l'incantesimo Suggestione sulla creatura senza spendere uno slot incantesimo. Il bersaglio fallisce automaticamente il suo tiro salvezza contro l'incantesimo."
         },
         {
           "level": 8,
-          "name": "Incantesimi Potenziati",
+          "name": "Incantesimi Potenti",
           "description": "Aggiungi il tuo modificatore di Saggezza ai danni di un trucchetto contro una creatura."
         },
         {
           "level": 17,
           "name": "Visioni del Passato",
-          "description": "Puoi vedere visioni del passato recente di oggetti o luoghi toccati."
+          "description": "Il chierico può evocare una visione del passato collegata a un oggetto che impugna o che si trova nelle sue immediate vicinanze. Per farlo deve spendere almeno 1 minuto in meditazione o in preghiera, poi riceverà una visione fugace, indistinta e sognante degli eventi recenti. Il chierico può meditare in questo modo per un numero di minuti pari al suo punteggio di Saggezza e deve mantenere la concentrazione durante quel periodo, come se stesse lanciando un incantesimo. Una volta utilizzato questo privilegio, il chierico non può più utilizzarlo finché non completa un riposo breve o lungo. Lettura degli oggetti: il chierico medita mentre impugna un oggetto e riceve una visione del suo precedente proprietario. Dopo avere meditato per 1 minuto, apprende in che modo il proprietario ne è entrato in possesso e come lo ha perduto, nonché l'evento recente più significativo che ha coinvolto l'oggetto e quel proprietario. Se l'oggetto è stato posseduto da un'altra creatura nei tempi recenti (entro un numero di giorni pari al punteggio di Saggezza del chierico), il chierico può dedicare 1 minuto aggiuntivo per ogni proprietario per apprendere le stesse informazioni relative a quella creatura. Lettura dell'area: il chierico medita e riceve una visione degli eventi recenti nelle sue immediate vicinanze (una camera, una strada, un tunnel, una radura e così via, entro un cubo con spigolo di 15 metri), risalendo nel passato fino a un numero di giorni pari al suo punteggio di Saggezza. Per ogni minuto in cui medita apprende un evento significativo, a partire dal più recente. Per eventi significativi solitamente si intendono quelli segnati da emozioni potenti, come battaglie, tradimenti, matrimoni, omicidi, nascite e funerali. Tuttavia questo potrebbe anche includere eventi più comuni che risultino però importanti per il chierico nella sua situazione attuale."
         }
       ]
     }
@@ -542,17 +567,17 @@
     {
       "level": 2,
       "name": "Incanalare Divinità",
-      "description": "Puoi canalizzare l'energia divina direttamente attraverso la tua divinità per alimentare effetti magici. Ogni utilizzo ti consente di usare l'effetto 'Allontanare Non Morti' o un effetto del tuo dominio. Usi: 1/riposo breve al lv2, 2/riposo al lv6, 3/riposo al lv18."
+      "description": "Puoi canalizzare l'energia divina direttamente attraverso la tua divinità per alimentare effetti magici. Ogni utilizzo ti consente di usare l'effetto 'Scacciare Non Morti' o un effetto del tuo dominio. Usi: 1/riposo breve al lv2, 2/riposo al lv6, 3/riposo al lv18."
     },
     {
       "level": 2,
-      "name": "Allontanare Non Morti",
-      "description": "Come azione, mostri il tuo simbolo sacro e reciti una preghiera contro i non morti. Ogni non morto che ti veda o senta entro 9 m deve effettuare un tiro salvezza su Saggezza (CD = CD incantesimi). Se fallisce, è allontanato per 1 minuto o finché non subisce danni."
+      "name": "Scacciare Non Morti",
+      "description": "Come azione, mostri il tuo simbolo sacro e reciti una preghiera contro i non morti. Ogni non morto che ti veda o senta entro 9 m deve effettuare un tiro salvezza su Saggezza (CD = CD incantesimi). Se fallisce, è allontanato per 1 minuto o finché non subisce danni. Una creatura scacciata deve spendere i suoi turni tentando di allontanarsi il più possibile dal chierico e non può volontariamente muoversi in uno spazio entro 9 metri dal chierico. Inoltre, non può effettuare reazioni. Come sua azione può usare solo l'azione di Scatto o tentare di fuggire da un effetto che gli impedisce di muoversi. Se non può muoversi in alcun luogo, la creatura può usare l'azione di Schivata."
     },
     {
       "level": 5,
       "name": "Distruggere Non Morti",
-      "description": "Quando un non morto fallisce il tiro salvezza contro il tuo Allontanare Non Morti, se il suo GS è pari o inferiore alla soglia, viene immediatamente distrutto. Soglia: GS 1/2 (lv5), GS 1 (lv8), GS 2 (lv11), GS 3 (lv14), GS 4 (lv17)."
+      "description": "Quando un non morto fallisce il tiro salvezza contro il tuo Scacciare Non Morti, se il suo GS è pari o inferiore alla soglia, viene immediatamente distrutto. Soglia: GS 1/2 (lv5), GS 1 (lv8), GS 2 (lv11), GS 3 (lv14), GS 4 (lv17)."
     },
     {
       "level": 10,
