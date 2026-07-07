@@ -290,22 +290,22 @@ DRACONIDE_ANCESTRIES = [
 # Stili di combattimento PHB per classe (PHB p.72, p.84, p.91)
 FIGHTING_STYLES: dict[str, list[str]] = {
     "guerriero": [
-        "Arciere",
-        "Combattimento con due armi",
+        "Tiro",
+        "Combattere con Due Armi",
         "Difesa",
-        "Duello",
-        "Grande arma",
+        "Duellare",
+        "Combattere con Armi Possenti",
         "Protezione",
     ],
     "paladino": [
         "Difesa",
-        "Duello",
-        "Grande arma",
+        "Duellare",
+        "Combattere con Armi Possenti",
         "Protezione",
     ],
     "ranger": [
-        "Arciere",
-        "Combattimento con due armi",
+        "Tiro",
+        "Combattere con Due Armi",
         "Difesa",
     ],
 }

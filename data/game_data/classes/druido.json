@@ -14,19 +14,19 @@
   ],
   "armor_notes": "I druidi non indossano armature di metallo",
   "weapon_proficiencies": [
-    "Clava",
-    "Pugnale",
+    "Bastone Ferrato",
     "Dardo",
-    "Giavellotto",
-    "Mazza",
-    "Bastone",
-    "Scimitarra",
-    "Falce",
+    "Falcetto",
     "Fionda",
-    "Lancia"
+    "Giavellotto",
+    "Lancia",
+    "Mazza",
+    "Pugnale",
+    "Randello",
+    "Scimitarra"
   ],
   "tool_proficiencies": [
-    "Forniture erboristiche"
+    "Borsa da Erborista"
   ],
   "skill_choices": {
     "count": 2,
@@ -109,42 +109,132 @@
     "dice": "2d4",
     "multiplier": 10
   },
-  "subclass_label": "Cerchio Druidico",
+  "subclass_label": "Circolo Druidico",
   "subclass_choice_level": 2,
   "subclasses": [
     {
-      "name": "Cerchio della Terra",
-      "bonus_cantrip": "Trucco (trucchetto aggiuntivo)",
+      "name": "Circolo della Terra",
+      "bonus_cantrips_choice": 1,
+      "bonus_cantrips_options": [
+        "Artificio Druidico",
+        "Frusta di Spine",
+        "Guida",
+        "Produrre Fiamma",
+        "Randello Incantato",
+        "Resistenza",
+        "Riparare",
+        "Spruzzo Velenoso"
+      ],
+      "circle_spells": {
+        "Artico": {
+          "3": ["Blocca Persone", "Crescita di Spine"],
+          "5": ["Lentezza", "Tempesta di Nevischio"],
+          "7": ["Libertà di Movimento", "Tempesta di Ghiaccio"],
+          "9": ["Comunione con la Natura", "Cono di Freddo"]
+        },
+        "Costa": {
+          "3": ["Immagine Speculare", "Passo Velato"],
+          "5": ["Camminare sull'Acqua", "Respirare Sott'Acqua"],
+          "7": ["Controllare Acqua", "Libertà di Movimento"],
+          "9": ["Evoca Elementale", "Scrutare"]
+        },
+        "Deserto": {
+          "3": ["Sfocatura", "Silenzio"],
+          "5": ["Creare Cibo e Acqua", "Protezione dall'Energia"],
+          "7": ["Inaridire", "Terreno Illusorio"],
+          "9": ["Muro di Pietra", "Piaga degli Insetti"]
+        },
+        "Foresta": {
+          "3": ["Movimenti del Ragno", "Pelle Coriacea"],
+          "5": ["Crescita Vegetale", "Invocare il Fulmine"],
+          "7": ["Divinazione", "Libertà di Movimento"],
+          "9": ["Comunione con la Natura", "Traslazione Arborea"]
+        },
+        "Montagna": {
+          "3": ["Crescita di Spine", "Movimenti del Ragno"],
+          "5": ["Fondersi nella Pietra", "Fulmine"],
+          "7": ["Pelle di Pietra", "Scolpire Pietra"],
+          "9": ["Muro di Pietra", "Passapareti"]
+        },
+        "Palude": {
+          "3": ["Freccia Acida di Melf", "Oscurità"],
+          "5": ["Camminare sull'Acqua", "Nube Maleodorante"],
+          "7": ["Libertà di Movimento", "Localizza Creatura"],
+          "9": ["Piaga degli Insetti", "Sogno"]
+        },
+        "Prateria": {
+          "3": ["Invisibilità", "Passare Senza Tracce"],
+          "5": ["Luce Diurna", "Velocità"],
+          "7": ["Divinazione", "Libertà di Movimento"],
+          "9": ["Piaga degli Insetti", "Sogno"]
+        },
+        "Underdark": {
+          "3": ["Movimenti del Ragno", "Ragnatela"],
+          "5": ["Forma Gassosa", "Nube Maleodorante"],
+          "7": ["Invisibilità Superiore", "Scolpire Pietra"],
+          "9": ["Nube Mortale", "Piaga degli Insetti"]
+        }
+      },
       "features": [
         {
           "level": 2,
-          "name": "Recupero Naturale",
-          "description": "Dopo un riposo breve, recuperi slot incantesimo il cui totale livelli non supera la metà del livello druido (min 1°)."
+          "name": "Trucchetto Bonus",
+          "description": "Apprende un trucchetto da druido aggiuntivo a sua scelta (Artificio Druidico, Frusta di Spine, Guida, Produrre Fiamma, Randello Incantato, Resistenza, Riparare, Spruzzo Velenoso)."
         },
         {
           "level": 2,
-          "name": "Incantesimi del Cerchio",
-          "description": "Ottieni incantesimi bonus basati sul terreno scelto (Artico, Costa, Deserto, Foresta, Piana, Montagna, Palude, Sottosuolo)."
+          "name": "Recupero Naturale",
+          "description": "Durante un riposo breve il druido sceglie quali slot incantesimo spesi desidera recuperare. Questi slot incantesimo possono avere un livello totale pari o inferiore alla metà del livello da druido (arrotondato per eccesso) e nessuno slot può essere di livello pari o superiore al 6°. Il druido non può più utilizzare questo privilegio finché non completa un riposo lungo."
+        },
+        {
+          "level": 2,
+          "name": "Incantesimi del Circolo",
+          "description": "Grazie al suo legame mistico con la terra, il druido è in grado di lanciare alcuni particolari incantesimi. Al 3°, 5°, 7° e 9° livello il druido può accedere agli incantesimi del circolo collegati alla terra in cui egli è diventato un druido. Il giocatore sceglie quel tipo di territorio (Artico, Costa, Deserto, Foresta, Montagna, Palude, Prateria o Underdark) e consulta la lista di incantesimi a essa associata. Una volta ottenuto l'accesso a un incantesimo del circolo, quell'incantesimo è sempre considerato preparato e non conta al fine di determinare il numero di incantesimi che il druido può preparare ogni giorno. Se il druido ottiene accesso a un incantesimo che non compare sulla lista degli incantesimi da druido, quell'incantesimo è comunque considerato un incantesimo da druido per lui."
         },
         {
           "level": 6,
-          "name": "Passo della Terra",
-          "description": "Muoversi su terreno difficile non magico non ti costa movimento aggiuntivo."
+          "name": "Andatura sul Territorio",
+          "description": "Muoversi attraverso il terreno difficile non magico non richiede più un costo in movimento extra al druido. Inoltre, il druido può passare attraverso vegetali non magici senza esserne rallentato e senza subire danni se tali vegetali presentano spine, aculei o altri pericoli simili. Infine, il druido dispone di vantaggio ai tiri salvezza contro i vegetali creati magicamente o manipolati per ostacolare il movimento, come quelli creati dall'incantesimo Intralciare."
+        },
+        {
+          "level": 10,
+          "name": "Interdizione della Natura",
+          "description": "Il druido non può essere affascinato o spaventato dagli elementali o dai folletti ed è immune ai veleni e alle malattie."
         },
         {
           "level": 14,
-          "name": "Santuario della Natura",
-          "description": "Le bestie e le piante devono superare un TS su Saggezza per attaccarti."
+          "name": "Rifugio della Natura",
+          "description": "Quando una bestia o una creatura vegetale attacca il druido, quella creatura deve effettuare un tiro salvezza su Saggezza contro la CD degli incantesimi del druido. Se lo fallisce, deve scegliere un bersaglio diverso, altrimenti l'attacco manca automaticamente. Se invece lo supera, la creatura è immune a questo effetto per 24 ore. La creatura è consapevole di questo effetto prima di effettuare il suo attacco contro il druido."
         }
       ]
     },
     {
-      "name": "Cerchio della Luna",
+      "name": "Circolo della Luna",
       "features": [
         {
           "level": 2,
           "name": "Forma Selvatica da Combattimento",
-          "description": "Puoi usare Forma Selvatica come azione bonus. Le tue forme assumono CR più elevate: CR 1 al 2° livello, CR fino a 1/3 livello al 6°."
+          "description": "Ottiene la capacità di utilizzare Forma Selvatica nel proprio turno come azione bonus anziché con un'azione. Inoltre, finché mantiene la sua Forma Selvatica, può usare un'azione bonus per spendere uno slot incantesimo e recuperare un ammontare di punti ferita pari a 1d8 per ogni livello dello slot incantesimo speso."
+        },
+        {
+          "level": 2,
+          "name": "Forme del Circolo",
+          "description": "I riti del circolo conferiscono al druido la capacità di assumere forme bestiali più pericolose. A partire dal 2° livello, il druido può utilizzare Forma Selvatica per trasformarsi in una bestia con un grado di sfida massimo pari a 1 (deve ignorare la colonna \"GS Max\" nella tabella \"Forme Bestiali\" ma deve rispettare le altre limitazioni riportate in quella tabella). A partire dal 6° livello, può trasformarsi in una bestia con un grado di sfida pari al proprio livello da druido diviso 3, arrotondato per difetto."
+        },
+        {
+          "level": 6,
+          "name": "Colpo Primordiale",
+          "description": "Gli attacchi del druido in forma bestiale sono considerati magici al fine di oltrepassare la resistenza e l'immunità agli attacchi e ai danni non magici."
+        },
+        {
+          "level": 10,
+          "name": "Forma Selvatica Elementale",
+          "description": "Il druido può spendere due utilizzi di Forma Selvatica simultaneamente per trasformarsi in un elementale dell'acqua, un elementale dell'aria, un elementale del fuoco o un elementale della terra."
+        },
+        {
+          "level": 14,
+          "name": "Mille Forme",
+          "description": "Il druido ha imparato a usare la magia per alterare la sua forma fisica in modo più sottile e può lanciare l'incantesimo Alterare Se Stesso a volontà."
         }
       ]
     }
@@ -157,33 +247,50 @@
     },
     {
       "level": 1,
+      "name": "Trucchetti",
+      "description": "Al 1° livello, un druido conosce due trucchetti a sua scelta tratti dalla lista degli incantesimi da druido (Artificio Druidico, Frusta di Spine, Guida, Produrre Fiamma, Randello Incantato, Resistenza, Riparare, Spruzzo Velenoso). Apprende ulteriori trucchetti da druido a sua scelta ai livelli successivi, come indicato dalla colonna \"Trucchetti Conosciuti\" nella tabella \"Druido\"."
+    },
+    {
+      "level": 1,
       "name": "Incantesimi",
       "description": "Attingi al potere divino della natura. La caratteristica da incantatore è Saggezza. Prepari ogni giorno un numero di incantesimi pari al modificatore di Saggezza + livello da druido (min. 1). Non puoi lanciare incantesimi mentre indossi armatura o usi scudo di metallo."
     },
     {
       "level": 2,
       "name": "Forma Selvatica",
-      "description": "Puoi trasformarti in una bestia che hai visto almeno una volta usando la tua azione. Mantieni la tua Intelligenza, Saggezza e Carisma; usi le statistiche della bestia per il resto. Durata: ore pari a metà del livello da druido. Usi: 2 per riposo breve o lungo. Limite GS: 1/4 (lv2, no nuoto/volo), 1/2 (lv4, no volo), 1 (lv8, con volo)."
-    },
-    {
-      "level": 4,
-      "name": "Forma Selvatica Migliorata",
-      "description": "Puoi usare Forma Selvatica per assumere la forma di una bestia con GS fino a 1/2 (senza volo). Si migliora ancora all'8° livello: GS fino a 1 (con volo)."
+      "description": "Un druido può usare la sua azione per assumere magicamente la forma di una bestia che ha già visto in precedenza. Può utilizzare questo privilegio due volte e recupera gli utilizzi spesi quando completa un riposo breve o lungo. Il livello da druido determina le bestie in cui egli può trasformarsi, come indicato nella tabella \"Forme Bestiali\". Un druido può rimanere in forma bestiale per un numero di ore pari alla metà del suo livello da druido (arrotondato per difetto), poi torna alla sua forma normale, a meno che non spenda un altro utilizzo di questo privilegio. Può tornare alla sua forma normale anticipatamente usando un'azione bonus nel suo turno. Torna automaticamente alla sua forma normale se cade privo di sensi, scende a 0 punti ferita o muore. Finché il druido è trasformato, si applicano le regole seguenti: le statistiche di gioco del druido vengono sostituite dalle statistiche della bestia, ma il druido conserva il proprio allineamento, personalità e punteggi di Intelligenza, Saggezza e Carisma; conserva inoltre tutte le sue abilità e competenze nei tiri salvezza, oltre a ottenere quelle della creatura (se la creatura possiede una competenza che anche il druido possiede e il bonus nella sua scheda delle statistiche è superiore a quello del druido, egli usa il bonus della creatura anziché il proprio); se la creatura possiede delle azioni leggendarie o di tana, il druido non può usarle. Quando si trasforma, il druido assume i punti ferita e i Dadi Vita della bestia; quando torna alla sua forma normale, torna al numero di punti ferita che possedeva prima della trasformazione, tuttavia se torna alla sua forma normale per essere sceso a 0 punti ferita, gli eventuali danni in eccesso si trasmettono alla sua forma normale. Il druido non può lanciare incantesimi e la sua capacità di parlare o di intraprendere qualsiasi azione che richieda le mani è limitata alle capacità della sua forma bestiale; la trasformazione non interrompe la concentrazione del druido su un incantesimo che egli ha già lanciato e non gli impedisce di effettuare azioni che fanno parte di un incantesimo già lanciato, come per esempio Invocare il Fulmine. Un druido mantiene i benefici di tutti i privilegi forniti dalla sua classe, dalla sua razza e da qualsiasi altra fonte e può usarli se nella nuova forma è fisicamente in grado di farlo; tuttavia, non può usare nessuno dei suoi sensi speciali, come per esempio la scurovisione, a meno che non li possieda anche nella sua nuova forma. Un druido può scegliere se lasciare cadere il suo equipaggiamento nel suo spazio, se tale equipaggiamento si fonde nella sua nuova forma o se indossarlo; l'equipaggiamento indossato funziona normalmente, ma spetta al DM decidere se è pratico o meno che la nuova forma indossi ogni determinato oggetto di equipaggiamento, in base alla forma e alla taglia della creatura. L'equipaggiamento del druido non cambia taglia o forma per adattarsi alla nuova forma, e ogni oggetto di equipaggiamento che la nuova forma non può indossare deve cadere a terra o fondersi nella nuova forma del druido; l'equipaggiamento fuso alla nuova forma non ha alcun effetto finché il druido non abbandona quella forma."
     },
     {
       "level": 18,
       "name": "Corpo Senza Tempo",
-      "description": "La magia primordiale che hai incanalato ti ha dato straordinaria vitalità. Per ogni 10 anni che passano, il tuo corpo invecchia solo di 1 anno. Sei immune agli effetti magici dell'invecchiamento."
+      "description": "La magia primordiale che hai incanalato ti ha dato straordinaria vitalità. Per ogni 10 anni che passano, il tuo corpo invecchia solo di 1 anno."
     },
     {
       "level": 18,
       "name": "Incantesimi Bestiali",
-      "description": "Puoi lanciare molti incantesimi da druido nella tua forma selvatica: puoi eseguire le componenti somatiche e verbali di un incantesimo da druido anche nella forma di una bestia."
+      "description": "Un druido può lanciare molti dei suoi incantesimi da druido in qualsiasi forma assunta utilizzando Forma Selvatica. Può fornire le componenti somatiche e verbali di un incantesimo da druido anche quando è in forma bestiale, ma non è in grado di fornire componenti materiali."
     },
     {
       "level": 20,
       "name": "Arcidruido",
-      "description": "Puoi usare Forma Selvatica un numero illimitato di volte. Inoltre, puoi ignorare le componenti verbali e somatiche degli incantesimi da druido e i requisiti dei materiali privi di costo o senza valore specificato. Queste ultime proprietà si applicano solo a te."
+      "description": "Un druido può utilizzare Forma Selvatica un numero illimitato di volte. Può inoltre ignorare le componenti verbali e somatiche dei suoi incantesimi da druido, nonché le eventuali componenti materiali prive di un costo e quelle che non sono consumate da un incantesimo. Un druido ottiene questo beneficio sia nella sua forma normale che nella forma bestiale assunta grazie a Forma Selvatica."
+    }
+  ],
+  "wild_shape_forms": [
+    {
+      "level": 2,
+      "cr_max": "1/4",
+      "limitation": "nessuna velocità di nuotare o volare"
+    },
+    {
+      "level": 4,
+      "cr_max": "1/2",
+      "limitation": "nessuna velocità di volare"
+    },
+    {
+      "level": 8,
+      "cr_max": "1",
+      "limitation": "nessuna"
     }
   ]
 }
