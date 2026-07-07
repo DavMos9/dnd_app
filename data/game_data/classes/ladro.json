@@ -18,7 +18,7 @@
     "Spada corta"
   ],
   "tool_proficiencies": [
-    "Strumenti da ladro"
+    "Arnesi da Scasso"
   ],
   "skill_choices": {
     "count": 4,
@@ -36,10 +36,6 @@
       "Intrattenimento",
       "Storia"
     ]
-  },
-  "expertise": {
-    "count": 2,
-    "note": "Scegli 2 competenze già acquisite per ottenere Competenza Doppia"
   },
   "languages": [],
   "starting_equipment": [
@@ -123,7 +119,7 @@
           "quantity": 2
         },
         {
-          "name": "Strumenti da ladro",
+          "name": "Arnesi da Scasso",
           "item_type": "item"
         }
       ]
@@ -133,29 +129,44 @@
     "dice": "4d4",
     "multiplier": 10
   },
-  "subclass_label": "Archetipo Furfantesco",
+  "subclass_label": "Archetipo Ladresco",
   "subclass_choice_level": 3,
   "subclasses": [
     {
-      "name": "Ladro",
+      "name": "Furfante",
       "features": [
         {
           "level": 3,
           "name": "Mani Veloci",
-          "description": "Puoi usare la tua azione bonus per effettuare una prova di Rapidità di Mano, usare gli Strumenti da Ladro o Disimpegnarsi/Nascondersi."
+          "description": "Un ladro può usare l'azione bonus conferitagli da Azione Scaltra per effettuare una prova di Destrezza (Rapidità di Mano), usare i propri arnesi da scasso per disattivare una trappola o scassinare una serratura, o effettuare un'azione di Usare un Oggetto."
         },
         {
           "level": 3,
-          "name": "Scalatore Urbano",
-          "description": "Vantaggio alle prove di Atletica per arrampicarti; non costa movimento extra spostarsi in verticale."
+          "name": "Lavoro al Secondo Piano",
+          "description": "Diventa in grado di scalare più velocemente rispetto al normale; scalare non gli richiede più un movimento extra. Inoltre, quando il ladro effettua un salto in lungo con rincorsa, la distanza che copre aumenta di 30 cm per ogni punto del suo modificatore di Destrezza."
+        },
+        {
+          "level": 9,
+          "name": "Furtività Suprema",
+          "description": "Un ladro dispone di vantaggio a una prova di Destrezza (Furtività) se si muove di non più della metà della sua velocità in quello stesso turno."
+        },
+        {
+          "level": 13,
+          "name": "Usare Oggetto Magico",
+          "description": "Un ladro ha imparato come funziona la magia quanto basta da improvvisare un utilizzo di quegli oggetti che non sono destinati a lui. Il ladro ignora tutti i requisiti di classe, razza e livello quando usa gli oggetti magici."
+        },
+        {
+          "level": 17,
+          "name": "Riflessi da Furfante",
+          "description": "Un ladro diventa particolarmente abile nel tendere imboscate e nello sfuggire rapidamente ai pericoli. Il ladro può effettuare due turni durante il primo round di ogni combattimento. Effettua il suo primo turno alla sua normale iniziativa e il secondo turno alla sua iniziativa meno 10. Non può utilizzare questo privilegio se è sorpreso."
         }
       ]
     },
     {
       "name": "Assassino",
       "bonus_proficiencies": [
-        "Kit del Travestimento",
-        "Strumenti da Avvelenatore"
+        "Trucchi per il Camuffamento",
+        "Sostanze da Avvelenatore"
       ],
       "features": [
         {
@@ -165,39 +176,87 @@
         },
         {
           "level": 9,
-          "name": "Capacità Infiltrazione",
-          "description": "Puoi creare identità false; impieghi 7 giorni e 25 MO per preparare la documentazione."
+          "name": "Maestro Infiltrato",
+          "description": "Il ladro può creare infallibilmente delle identità fittizie per se stesso. Deve utilizzare sette giorni e 25 mo per stabilire la storia, la professione e le affiliazioni dell'identità in questione. Non può stabilire un'identità che appartiene a qualcun altro. Potrebbe per esempio procurarsi degli abiti adeguati, una lettera di presentazione e un certificato apparentemente legittimo per spacciarsi per un membro di un casato mercantile di una remota città, in modo da potersi insinuare nella cerchia delle frequentazioni di altri ricchi mercanti. Da allora in poi, quando il ladro adotta la nuova identità come travestimento, le altre creature lo riterranno quella persona finché il ladro non offrirà loro dei motivi validi per dubitare di lui."
         },
         {
           "level": 13,
           "name": "Impostore",
-          "description": "Puoi imitare perfettamente voce e comportamento di una persona studiata per 3 ore."
+          "description": "Un ladro ottiene la capacità di imitare infallibilmente la parlata, la calligrafia e il modo di fare di un'altra persona. Il ladro deve trascorrere almeno tre ore a studiare queste tre componenti comportamentali del soggetto, ascoltandolo parlare, studiando la sua calligrafia e osservandone i modi di fare. L'inganno del ladro è impossibile da discernere per un osservatore casuale. Se una creatura sospettosa ha ragione di credere che ci sia qualcosa che non va, il ladro dispone di vantaggio a qualsiasi prova di Carisma (Inganno) da lui effettuata per evitare di essere scoperto."
         },
         {
           "level": 17,
-          "name": "Colpi della Morte",
-          "description": "Se colpisci una creatura sorpresa, subisce i danni due volte (se non è immune o resistente al danno dell'arma)."
+          "name": "Colpo Mortale",
+          "description": "Quando attacca e colpisce una creatura sorpresa, quella creatura deve effettuare un tiro salvezza su Costituzione (CD 8 + il modificatore di Destrezza del ladro + il bonus di competenza del ladro). Se lo fallisce, il ladro raddoppia i danni del suo attacco contro di essa."
         }
       ]
     },
     {
-      "name": "Canaglia Arcana",
+      "name": "Mistificatore Arcano",
       "spellcasting_ability": "int",
+      "cantrip_options": [
+        "Amicizia",
+        "Colpo Accurato",
+        "Dardo di Fuoco",
+        "Fiotto Acido",
+        "Illusione Minore",
+        "Interdizione alle Lame",
+        "Luce",
+        "Luci Danzanti",
+        "Mano Magica",
+        "Messaggio",
+        "Prestidigitazione",
+        "Raggio di Gelo",
+        "Riparare",
+        "Spruzzo Velenoso",
+        "Stretta Folgorante",
+        "Tocco Gelido"
+      ],
+      "spell_progression": [
+        { "level": 3,  "cantrips_known": 3, "spells_known": 3,  "slots": { "1": 2, "2": 0, "3": 0, "4": 0 } },
+        { "level": 4,  "cantrips_known": 3, "spells_known": 4,  "slots": { "1": 3, "2": 0, "3": 0, "4": 0 } },
+        { "level": 5,  "cantrips_known": 3, "spells_known": 4,  "slots": { "1": 3, "2": 0, "3": 0, "4": 0 } },
+        { "level": 6,  "cantrips_known": 3, "spells_known": 4,  "slots": { "1": 3, "2": 0, "3": 0, "4": 0 } },
+        { "level": 7,  "cantrips_known": 3, "spells_known": 5,  "slots": { "1": 4, "2": 2, "3": 0, "4": 0 } },
+        { "level": 8,  "cantrips_known": 3, "spells_known": 6,  "slots": { "1": 4, "2": 2, "3": 0, "4": 0 } },
+        { "level": 9,  "cantrips_known": 3, "spells_known": 6,  "slots": { "1": 4, "2": 2, "3": 0, "4": 0 } },
+        { "level": 10, "cantrips_known": 4, "spells_known": 7,  "slots": { "1": 4, "2": 3, "3": 0, "4": 0 } },
+        { "level": 11, "cantrips_known": 4, "spells_known": 8,  "slots": { "1": 4, "2": 3, "3": 0, "4": 0 } },
+        { "level": 12, "cantrips_known": 4, "spells_known": 8,  "slots": { "1": 4, "2": 3, "3": 0, "4": 0 } },
+        { "level": 13, "cantrips_known": 4, "spells_known": 9,  "slots": { "1": 4, "2": 3, "3": 2, "4": 0 } },
+        { "level": 14, "cantrips_known": 4, "spells_known": 10, "slots": { "1": 4, "2": 3, "3": 2, "4": 0 } },
+        { "level": 15, "cantrips_known": 4, "spells_known": 10, "slots": { "1": 4, "2": 3, "3": 2, "4": 0 } },
+        { "level": 16, "cantrips_known": 4, "spells_known": 11, "slots": { "1": 4, "2": 3, "3": 3, "4": 0 } },
+        { "level": 17, "cantrips_known": 4, "spells_known": 11, "slots": { "1": 4, "2": 3, "3": 3, "4": 0 } },
+        { "level": 18, "cantrips_known": 4, "spells_known": 11, "slots": { "1": 4, "2": 3, "3": 3, "4": 0 } },
+        { "level": 19, "cantrips_known": 4, "spells_known": 12, "slots": { "1": 4, "2": 3, "3": 3, "4": 1 } },
+        { "level": 20, "cantrips_known": 4, "spells_known": 13, "slots": { "1": 4, "2": 3, "3": 3, "4": 1 } }
+      ],
       "features": [
         {
           "level": 3,
           "name": "Incantesimi",
-          "description": "Apprendi trucchetti e incantesimi di Mago (illusione e ammaliamento). Puoi usare la magia per migliorare le tue abilità."
+          "description": "Trucchetti: un ladro apprende tre trucchetti: Mano Magica e altri due trucchetti a sua scelta tratti dalla lista degli incantesimi da mago. Apprende un trucchetto da mago aggiuntivo a sua scelta al 10° livello. Slot Incantesimo: la tabella \"Incantesimi del Mistificatore Arcano\" indica quanti slot incantesimo possiede un ladro per lanciare i suoi incantesimi di 1° livello e di livello superiore. Per lanciare uno di questi incantesimi, il ladro deve spendere uno slot incantesimo di livello pari o superiore al livello dell'incantesimo. Il ladro recupera tutti gli slot incantesimo spesi quando completa un riposo lungo. Incantesimi Conosciuti di 1° Livello e di Livello Superiore: un ladro conosce tre incantesimi da mago di 1° livello a sua scelta, due dei quali devono essere scelti tra gli incantesimi di ammaliamento e illusione sulla lista degli incantesimi da mago. La colonna \"Incantesimi Conosciuti\" nella tabella \"Incantesimi del Mistificatore Arcano\" indica quando un ladro impara altri incantesimi da mago di 1° livello o di livello superiore. Ognuno di questi incantesimi deve essere un incantesimo di ammaliamento o di illusione a scelta del ladro e deve appartenere a un livello di cui il ladro possiede degli slot incantesimo. Gli incantesimi che apprende all'8°, 14° o 20° livello possono appartenere a qualsiasi scuola di magia. Ogni volta che il ladro acquisisce un livello, può sostituire uno degli incantesimi da mago che conosce con un altro incantesimo a sua scelta della lista degli incantesimi da mago. Il nuovo incantesimo deve essere di un livello di cui il ladro possiede almeno uno slot incantesimo e deve essere un incantesimo di ammaliamento o di illusione, a meno che non stia sostituendo l'incantesimo ottenuto all'8°, 14° o 20° livello di una qualsiasi scuola di magia. Caratteristica da Incantatore: Intelligenza è la caratteristica da incantatore per gli incantesimi da mago del ladro. CD del tiro salvezza dell'incantesimo = 8 + il bonus di competenza del ladro + il modificatore di Intelligenza del ladro. Modificatore di attacco dell'incantesimo = il bonus di competenza del ladro + il modificatore di Intelligenza del ladro."
         },
         {
           "level": 3,
-          "name": "Mano del Mago",
-          "description": "Impari il trucchetto Mano del Mago se non lo conosci già."
+          "name": "Gioco di Prestigio della Mano Magica",
+          "description": "Quando il ladro lancia Mano Magica, può rendere la mano spettrale invisibile e può farle svolgere i seguenti compiti aggiuntivi: riporre un oggetto impugnato dalla mano in un contenitore indossato o trasportato da un'altra creatura; recuperare un oggetto in un contenitore indossato o trasportato da un'altra creatura; usare gli arnesi da scasso del ladro per scassinare serrature e disattivare trappole a distanza. Il ladro può svolgere uno di questi compiti senza essere notato da una creatura se effettua con successo una prova di Destrezza (Rapidità di Mano) contrapposta a una prova di Saggezza (Percezione) della creatura. Il ladro può inoltre usare l'azione bonus conferitagli da Azione Scaltra per controllare la mano."
+        },
+        {
+          "level": 9,
+          "name": "Imboscata Magica",
+          "description": "Se il ladro è nascosto da una creatura quando lancia un incantesimo su di essa, quella creatura subisce svantaggio a ogni tiro salvezza che effettua contro quell'incantesimo in quel turno."
+        },
+        {
+          "level": 13,
+          "name": "Ingannatore Versatile",
+          "description": "Il ladro sviluppa la capacità di distrarre i bersagli grazie alla sua mano magica. Come azione bonus nel suo turno, può designare una creatura entro 1,5 metri dalla mano spettrale creata dall'incantesimo. Così facendo dispone di vantaggio ai tiri per colpire contro quella creatura fino alla fine del turno."
         },
         {
           "level": 17,
-          "name": "Furto di Incantesimo",
-          "description": "Puoi rubare l'incantesimo a una creatura che lancia e rilanciarlo tu."
+          "name": "Ladro di Incantesimi",
+          "description": "Il ladro ottiene la capacità di rubare magicamente a un altro incantatore le conoscenze richieste per lanciare un incantesimo. Immediatamente dopo che una creatura ha lanciato un incantesimo che bersaglia il ladro o lo include nella sua area di effetto, il ladro può usare la sua reazione per obbligare la creatura a effettuare un tiro salvezza con il modificatore della caratteristica da incantatore della creatura. La CD è pari alla CD del tiro salvezza degli incantesimi del ladro. Se lo fallisce, il ladro nega l'effetto dell'incantesimo contro di lui e ruba la conoscenza dell'incantesimo, se il livello di quell'incantesimo è pari almeno al 1° ed è un livello che il ladro sia in grado di lanciare (non è necessario che si tratti di un incantesimo da mago). Per le 8 ore successive, il ladro conosce l'incantesimo e può lanciarlo usando i propri slot incantesimo. La creatura non può lanciare quell'incantesimo finché le 8 ore non sono trascorse. Una volta utilizzato questo privilegio, il ladro non può più utilizzarlo finché non completa un riposo lungo."
         }
       ]
     }
@@ -206,12 +265,12 @@
     {
       "level": 1,
       "name": "Maestria",
-      "description": "Scegli due delle tue competenze in abilità o due delle tue competenze con gli strumenti da ladro. Il tuo bonus di competenza raddoppia per quelle prove. Al 6° livello puoi scegliere altre due competenze da potenziare."
+      "description": "Un ladro sceglie due tra le sue competenze nelle abilità, oppure una sua competenza in un'abilità e la competenza negli arnesi da scasso. Il suo bonus di competenza raddoppia per ogni prova di caratteristica effettuata usando una delle competenze scelte. Al 6° livello, il ladro sceglie altre due tra le sue competenze (nelle abilità o negli arnesi da scasso) che ottengono questo beneficio."
     },
     {
       "level": 1,
       "name": "Attacco Furtivo",
-      "description": "Sai sfruttare le distrazioni in combattimento. Una volta per turno puoi infliggere danni extra a una creatura che colpisci con un attacco se hai vantaggio al tiro per colpire, oppure se un alleato è entro 1,5 m dal bersaglio e non sei in svantaggio. Danni extra: 1d6 (lv1), scalano fino a 10d6 al lv20."
+      "description": "Una volta per turno, il ladro può infliggere 1d6 danni extra a una creatura che colpisce con un attacco, se dispone di vantaggio al tiro per colpire. L'attacco deve utilizzare un'arma accurata o un'arma a distanza. Il ladro non necessita di vantaggio al tiro per colpire se un altro nemico del bersaglio si trova entro 1,5 metri da esso (purché tale nemico non sia incapacitato) e se il tiro per colpire del ladro non subisce svantaggio. L'ammontare di danni extra aumenta man mano che il ladro acquisisce livelli, come indicato nella colonna \"Attacco Furtivo\" nella tabella \"Ladro\" (fino a 10d6 al 20° livello)."
     },
     {
       "level": 1,
@@ -231,7 +290,7 @@
     {
       "level": 7,
       "name": "Elusione",
-      "description": "Puoi schivare agilmente certi effetti, come la soffio di un drago o un incantesimo gelo. Quando sei soggetto a un effetto che richiede un tiro salvezza su Destrezza per subire solo metà dei danni, subisci invece nessun danno se superi il tiro salvezza e solo metà se lo fallisci."
+      "description": "Puoi schivare agilmente certi effetti ad area, come il soffio di un drago o un incantesimo gelo. Quando sei soggetto a un effetto che richiede un tiro salvezza su Destrezza per subire solo metà dei danni, subisci invece nessun danno se superi il tiro salvezza e solo metà se lo fallisci."
     },
     {
       "level": 11,
@@ -251,12 +310,12 @@
     {
       "level": 18,
       "name": "Inafferrabile",
-      "description": "Sei talmente difficile da sconfiggere che raramente rimani ferito. Nessun attacco di colpisce mai automaticamente (anche senza tirare i dadi); ogni attacco contro di te richiede un tiro per colpire."
+      "description": "Nessun tiro per colpire effettuato contro il ladro dispone di vantaggio, a meno che il ladro non sia incapacitato."
     },
     {
       "level": 20,
       "name": "Colpo di Fortuna",
-      "description": "Hai un talento soprannaturale per riuscire a colpire anche quando dovresti mancare. Se il tuo attacco manca una creatura entro il tuo raggio, puoi trasformare la mancanza in un colpo. Una volta usato, devi finire un riposo breve o lungo prima di poterlo usare di nuovo."
+      "description": "Se il suo attacco manca un bersaglio entro gittata, il ladro può trasformare l'attacco fallito in un attacco con successo. In alternativa, se fallisce una prova di caratteristica, può considerare il risultato del tiro del d20 come un 20. Una volta utilizzato questo privilegio, il ladro non può più utilizzarlo finché non completa un riposo breve o lungo."
     }
   ]
 }

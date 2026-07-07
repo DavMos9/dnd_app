@@ -96,47 +96,142 @@
         {
           "level": 3,
           "name": "Tecnica della Mano Aperta",
-          "description": "Quando usi Tempesta di Pugni, puoi aggiungere effetti bonus: far cadere il bersaglio, spingerlo via o impedirgli reazioni."
+          "description": "Ogni volta che il monaco colpisce una creatura con un attacco concessogli dalla sua Raffica di Colpi, può imporre a quel bersaglio uno degli effetti seguenti: deve superare un tiro salvezza su Destrezza, altrimenti cade a terra prono; oppure deve superare un tiro salvezza su Forza, e se lo fallisce il monaco può spingerlo di 4,5 metri allontanandolo da sé; oppure non può effettuare reazioni fino alla fine del turno successivo del monaco."
         },
         {
           "level": 6,
           "name": "Integrità del Corpo",
-          "description": "Curi te stesso di PF pari a 3 × livello monaco (1/riposo lungo)."
+          "description": "Usi un'azione e curi te stesso di PF pari a 3 × livello monaco (1/riposo lungo)."
         },
         {
           "level": 11,
           "name": "Tranquillità",
-          "description": "Entrando in meditazione durante un riposo lungo, guadagni l'effetto dell'incantesimo Santuario per la durata del riposo."
+          "description": "Alla fine di un riposo lungo ottiene l'effetto di un incantesimo Santuario che dura fino all'inizio del suo riposo lungo successivo (l'incantesimo può terminare anticipatamente come di consueto). La CD del tiro salvezza dell'incantesimo è pari a 8 + il modificatore di Saggezza del monaco + il bonus di competenza del monaco."
         },
         {
           "level": 17,
-          "name": "Palma Vibrante",
-          "description": "Tocchi una creatura causando vibrazioni interne; entro 24 ore puoi infliggere 10d10 danni ai polmoni."
+          "name": "Palmo Tremante",
+          "description": "Il monaco ottiene la capacità di scatenare vibrazioni letali nel corpo di un altro. Quando il monaco colpisce una creatura con un colpo senz'armi, può spendere 3 punti ki per dare il via a queste vibrazioni impercettibili, che durano un numero di giorni pari al suo livello da monaco. Le vibrazioni sono innocue, a meno che il monaco non usi la sua azione per interromperle. Per farlo, il monaco e il bersaglio devono trovarsi sullo stesso piano di esistenza. Quando il monaco usa questa azione, la creatura deve effettuare un tiro salvezza su Costituzione. Se lo fallisce, scende a 0 punti ferita, mentre se lo supera, subisce 10d10 danni necrotici. Il monaco può tenere soltanto una creatura alla volta sotto l'effetto di questo privilegio. Può scegliere di porre fine alle vibrazioni in modo innocuo senza usare un'azione."
         }
       ]
     },
     {
-      "name": "Via delle Quattro Elementali",
+      "name": "Via dei Quattro Elementi",
+      "max_ki_per_spell_by_level": [
+        { "levels": "5-8",   "max_ki": 3 },
+        { "levels": "9-12",  "max_ki": 4 },
+        { "levels": "13-16", "max_ki": 5 },
+        { "levels": "17-20", "max_ki": 6 }
+      ],
+      "disciplines": [
+        {
+          "name": "Sintonia Elementale",
+          "level": null,
+          "ki_cost": 0,
+          "description": "Il monaco può usare la sua azione per controllare brevemente le forze elementali vicine, provocando un effetto a sua scelta tra i seguenti: creare un effetto sensoriale innocuo e istantaneo correlato all'acqua, all'aria, al fuoco o alla terra (come uno spruzzo d'acqua, uno sbuffo di vento, una pioggia di scintille o un leggero tremolio di alcune pietre); accendere o estinguere istantaneamente una torcia, una candela o un piccolo fuoco da campo; raffreddare o riscaldare fino a 0,5 kg di materiale non vivente per un massimo di 1 ora; generare terra, fuoco, acqua o foschia delle dimensioni massime di un cubo con spigolo di 30 cm e che assuma una rozza forma a sua scelta per un massimo di 1 minuto."
+        },
+        {
+          "name": "Pugno dell'Aria Inviolabile",
+          "level": null,
+          "ki_cost": 2,
+          "description": "Il monaco può generare una scarica di aria compressa che colpisce con la forza di un pugno. Con un'azione, il monaco può spendere 2 punti ki e scegliere una creatura entro 9 metri da lui. Quella creatura deve effettuare un tiro salvezza su Forza. Se lo fallisce, la creatura subisce 3d10 danni contundenti, più 1d10 danni contundenti extra per ogni punto ki aggiuntivo speso dal monaco; inoltre il monaco può spingere la creatura fino a un massimo di 6 metri, allontanandola da sé e buttandola a terra prona. Se lo supera, la creatura subisce la metà dei danni, ma non viene spostata e non cade a terra prona."
+        },
+        {
+          "name": "Zanne del Serpente di Fuoco",
+          "level": null,
+          "ki_cost": 1,
+          "description": "Quando il monaco usa l'azione di Attacco nel suo turno, può spendere 1 punto ki per generare dei tentacoli di fiamme dai suoi pugni e dai suoi piedi. La portata dei suoi colpi senz'armi aumenta di 3 metri per quell'azione, nonché per il resto del turno. Quando un tale attacco colpisce, infligge danni da fuoco anziché danni contundenti, e se il monaco spende 1 punto ki quando l'attacco colpisce, esso infligge anche 1d10 danni da fuoco extra."
+        },
+        {
+          "name": "Colpo della Cenere Turbinante",
+          "level": null,
+          "ki_cost": 2,
+          "description": "Il monaco può spendere 2 punti ki per lanciare Mani Brucianti."
+        },
+        {
+          "name": "Frusta d'Acqua",
+          "level": null,
+          "ki_cost": 2,
+          "description": "Con un'azione, il monaco può spendere 2 punti ki per creare una frusta d'acqua che spinge e tira una creatura per farle perdere l'equilibrio. Una creatura che il monaco sia in grado di vedere e che si trova entro 9 metri da lui deve effettuare un tiro salvezza su Destrezza. Se lo fallisce, subisce 3d10 danni contundenti, più 1d10 danni contundenti extra per ogni punto ki aggiuntivo speso dal monaco, e il monaco può farla cadere a terra prona o tirarla fino a 7,5 metri avvicinandola a sé. Se invece lo supera, la creatura subisce metà danni, ma non viene tirata e non cade a terra prona."
+        },
+        {
+          "name": "Forma del Fiume Fluente",
+          "level": null,
+          "ki_cost": 1,
+          "description": "Con un'azione, il monaco può spendere 1 punto ki per scegliere un'area di ghiaccio o di acqua le cui dimensioni non superino i 9 metri per lato e situata entro 36 metri da lui. Il monaco può trasformare l'acqua in ghiaccio e viceversa all'interno di quell'area, e può modellare il ghiaccio nella forma che preferisce. Può aumentare o ridurre l'elevazione del ghiaccio, scavare o riempire un canale, erigere o abbattere un muro o formare una colonna. L'estensione di tali cambiamenti non può superare la metà della dimensione più grande dell'area. Non può modellare il ghiaccio per intrappolare o infliggere danni a una creatura all'interno dell'area."
+        },
+        {
+          "name": "Spiriti della Burrasca Impetuosa",
+          "level": null,
+          "ki_cost": 2,
+          "description": "Il monaco può spendere 2 punti ki per lanciare Folata di Vento."
+        },
+        {
+          "name": "Pugno dei Quattro Tuoni",
+          "level": null,
+          "ki_cost": 2,
+          "description": "Il monaco può spendere 2 punti ki per lanciare Onda Tonante."
+        },
+        {
+          "name": "Gong della Sommità",
+          "level": 6,
+          "ki_cost": 3,
+          "description": "Il monaco può spendere 3 punti ki per lanciare Frantumare."
+        },
+        {
+          "name": "Morsa del Vento del Nord",
+          "level": 6,
+          "ki_cost": 3,
+          "description": "Il monaco può spendere 3 punti ki per lanciare Blocca Persone."
+        },
+        {
+          "name": "Cavalcare il Vento",
+          "level": 11,
+          "ki_cost": 4,
+          "description": "Il monaco può spendere 4 punti ki per lanciare Volare, bersagliando se stesso."
+        },
+        {
+          "name": "Fiamme della Fenice",
+          "level": 11,
+          "ki_cost": 4,
+          "description": "Il monaco può spendere 4 punti ki per lanciare Palla di Fuoco."
+        },
+        {
+          "name": "Postura della Nebbia",
+          "level": 11,
+          "ki_cost": 4,
+          "description": "Il monaco può spendere 4 punti ki per lanciare Forma Gassosa."
+        },
+        {
+          "name": "Difesa della Montagna Eterna",
+          "level": 17,
+          "ki_cost": 5,
+          "description": "Il monaco può spendere 5 punti ki per lanciare Pelle di Pietra, bersagliando se stesso."
+        },
+        {
+          "name": "Fiume della Fiamma Famelica",
+          "level": 17,
+          "ki_cost": 5,
+          "description": "Il monaco può spendere 5 punti ki per lanciare Muro di Fuoco."
+        },
+        {
+          "name": "Onda della Terra Tumultuosa",
+          "level": 17,
+          "ki_cost": 6,
+          "description": "Il monaco può spendere 6 punti ki per lanciare Muro di Pietra."
+        },
+        {
+          "name": "Soffio dell'Inverno",
+          "level": 17,
+          "ki_cost": 6,
+          "description": "Il monaco può spendere 6 punti ki per lanciare Cono di Freddo."
+        }
+      ],
       "features": [
         {
           "level": 3,
           "name": "Discepolo degli Elementi",
-          "description": "Apprendi discipline elementali che ti permettono di imitare incantesimi spendendo ki."
-        },
-        {
-          "level": 6,
-          "name": "Discipline Extra",
-          "description": "Apprendi discipline elementali aggiuntive."
-        },
-        {
-          "level": 11,
-          "name": "Colpo degli Elementi",
-          "description": "I tuoi attacchi inarmi infliggono danni elementali aggiuntivi."
-        },
-        {
-          "level": 17,
-          "name": "Maestria degli Elementi",
-          "description": "Apprendi discipline avanzate e puoi spendere ki extra per potenziare gli incantesimi."
+          "description": "Ogni disciplina elementale richiede un costo in punti ki ogni volta che il monaco la usa. Il monaco conosce la disciplina Sintonia Elementale e un'altra disciplina elementale a sua scelta. Ogni volta che il monaco apprende una nuova disciplina elementale, può sostituire una disciplina che già conosce con una disciplina diversa. Lanciare Incantesimi Elementali: alcune discipline elementali consentono al monaco di lanciare incantesimi. Per lanciare uno di questi incantesimi, il monaco usa il tempo di lancio e le altre regole relative all'incantesimo in questione, ma non è obbligato a fornire le componenti materiali che esso richiede. Una volta arrivato al 5° livello, il monaco può spendere ulteriori punti ki per aumentare il livello di una disciplina elementale da lui lanciata, purché l'incantesimo possieda un effetto potenziato a un livello superiore. Il livello dell'incantesimo aumenta di 1 per ogni punto ki aggiuntivo speso dal monaco. Il numero massimo di punti ki che il monaco può spendere per lanciare un incantesimo in questo modo (incluso il suo costo base in punti ki e gli eventuali punti ki aggiuntivi che spende per aumentarne il livello) è determinato dal suo livello da monaco (vedi tabella \"Incantesimi e Punti Ki\")."
         }
       ]
     },
@@ -145,18 +240,23 @@
       "features": [
         {
           "level": 3,
-          "name": "Arti delle Ombre",
-          "description": "Puoi spendere ki per lanciare Oscurità, Darkvision, Silenzio e Passo del Vento."
+          "name": "Arti dell'Ombra",
+          "description": "Con un'azione può spendere 2 punti ki per lanciare Oscurità, Passare Senza Tracce, Scurovisione o Silenzio senza fornire componenti materiali. Inoltre ottiene il trucchetto Illusione Minore, se già non lo conosceva."
         },
         {
           "level": 6,
-          "name": "Passo delle Ombre",
-          "description": "In luce fioca o oscurità, puoi usare azione bonus per teletrasportarti a un'altra zona d'ombra entro 18 m."
+          "name": "Passo dell'Ombra",
+          "description": "Quando si trova in condizioni di luce fioca o di oscurità, con un'azione bonus può teletrasportarsi di un massimo di 18 metri fino a uno spazio libero che egli sia in grado di vedere e che si trovi a sua volta in condizioni di luce fioca o di oscurità. Dispone poi di vantaggio al primo attacco in mischia che effettua prima della fine del turno."
         },
         {
           "level": 11,
-          "name": "Mantello dell'Ombra",
-          "description": "Puoi diventare invisibile nelle zone d'ombra come azione bonus."
+          "name": "Manto di Ombre",
+          "description": "Quando si trova in un'area di luce fioca o di oscurità, può usare la sua azione per diventare invisibile. Rimane invisibile finché non effettua un attacco, non lancia un incantesimo o non si trova in un'area di luce intensa."
+        },
+        {
+          "level": 17,
+          "name": "Opportunista",
+          "description": "Ogni volta che una creatura entro 1,5 metri dal monaco è colpita da un attacco effettuato da una creatura diversa dal monaco, quest'ultimo può usare la sua reazione per effettuare un attacco in mischia contro quella creatura."
         }
       ]
     }
@@ -170,12 +270,27 @@
     {
       "level": 1,
       "name": "Arti Marziali",
-      "description": "La tua pratica delle arti marziali ti conferisce padronanza degli stili da combattimento non armato e delle armi da monaco. Puoi usare Destrezza al posto di Forza per i tiri per colpire e i danni con calci e pugni. Usi il dado Arti Marziali al posto dei danni normali (d4 lv1-4, d6 lv5-10, d8 lv11-16, d10 lv17-20). Quando effettui l'azione di Attacco con un'arma da monaco o un attacco senz'armi, puoi effettuare un attacco senz'armi come azione bonus."
+      "description": "Un monaco ottiene i benefici seguenti finché è senz'armi o impugna soltanto armi da monaco (spade corte o armi da mischia semplici che non posseggono la proprietà a due mani o pesante) e finché non indossa alcuna armatura e non impugna uno scudo: può usare Destrezza anziché Forza per i tiri per colpire e i tiri per i danni dei suoi colpi senz'armi e delle sue armi da monaco; può tirare un d4 al posto dei normali danni del suo colpo senz'armi o della sua arma da monaco (questo dado cambia man mano che il personaggio acquisisce altri livelli da monaco, come indicato nella colonna \"Arti Marziali\" nella tabella \"Monaco\": d4 lv1-4, d6 lv5-10, d8 lv11-16, d10 lv17-20); quando un monaco usa l'azione di Attacco con un colpo senz'armi o un'arma da monaco nel suo turno, può effettuare un colpo senz'armi come azione bonus (per esempio, se il monaco effettua l'azione di Attacco con un bastone ferrato, può anche effettuare un colpo senz'armi come azione bonus, presumendo che non abbia già effettuato un'azione bonus in quel turno)."
     },
     {
       "level": 2,
       "name": "Ki",
-      "description": "La tua pratica ti ha permesso di attingere alla riserva di energia mistica chiamata ki. Hai punti Ki pari al tuo livello da monaco. Li spendi per varie abilità e li recuperi dopo un riposo breve o lungo. CD Ki = 8 + bonus competenza + mod. Saggezza. Abilità base: Pioggia di Pugni (azione bonus: 2 attacchi senz'armi), Passo del Vento (azione bonus: Scatto o Disimpegno), Pazienza del Torrente (reazione: Schivata quando sei colpito)."
+      "description": "Il numero di punti ki del monaco è determinato dal suo livello da monaco, come indicato nella colonna \"Punti Ki\" nella tabella \"Monaco\" (pari al livello da monaco). Inizialmente il monaco conosce tre privilegi che ne fanno uso: Difesa Paziente, Passo del Vento e Raffica di Colpi. Quando il monaco spende un punto ki, quel punto non è più disponibile finché il monaco non completa un riposo breve o lungo, alla fine del quale il monaco riassorbe in sé tutto il ki che aveva speso (deve trascorrere almeno 30 minuti in meditazione durante il riposo per recuperare i suoi punti ki). CD del tiro salvezza del Ki = 8 + il bonus di competenza del monaco + il modificatore di Saggezza del monaco."
+    },
+    {
+      "level": 2,
+      "name": "Difesa Paziente",
+      "description": "Un monaco può spendere 1 punto ki per effettuare l'azione di Schivata come azione bonus nel suo turno."
+    },
+    {
+      "level": 2,
+      "name": "Passo del Vento",
+      "description": "Un monaco può spendere 1 punto ki per effettuare l'azione di Disimpegno o Scatto come azione bonus nel suo turno; inoltre, la sua distanza di salto raddoppia per quel turno."
+    },
+    {
+      "level": 2,
+      "name": "Raffica di Colpi",
+      "description": "Subito dopo avere effettuato l'azione di Attacco nel suo turno, il monaco può spendere 1 punto ki per sferrare due colpi senz'armi come azione bonus."
     },
     {
       "level": 2,
@@ -185,7 +300,7 @@
     {
       "level": 3,
       "name": "Deviare Proiettili",
-      "description": "Puoi usare la tua reazione per deviare o catturare il proiettile quando sei colpito da un attacco a distanza con un'arma. I danni subiti si riducono di 1d10 + mod. Destrezza + livello da monaco. Se riduci i danni a 0, puoi spendere 1 punto Ki per ritorcere il proiettile contro il bersaglio (tiro per colpire a distanza, gittata 9/18 m, danni come originale)."
+      "description": "Un monaco può usare la sua reazione per deviare o afferrare un proiettile quando viene colpito dall'attacco con un'arma a distanza. Quando lo fa, il danno che subisce dall'attacco è ridotto di 1d10 + il suo modificatore di Destrezza + il suo livello da monaco. Se il monaco riduce i danni a 0, può afferrare il proiettile, se quest'ultimo è abbastanza piccolo da essere tenuto in mano e se il monaco ha almeno una mano libera. Se il monaco afferra un proiettile in questo modo, può spendere 1 punto ki per effettuare un attacco a distanza con l'arma o con la munizione che ha appena afferrato, come parte della stessa reazione. Il monaco effettua questo attacco con competenza, a prescindere dalle sue competenze nelle armi, e il proiettile è considerato un'arma da monaco ai fini di questo attacco, con una gittata normale di 6 metri e una gittata lunga di 18 metri."
     },
     {
       "level": 4,
@@ -210,7 +325,7 @@
     {
       "level": 7,
       "name": "Elusione",
-      "description": "Puoi schivare agilmente certi effetti d'area. Quando sei soggetto a un effetto che richiede un tiro salvezza su Destrezza, subisci nessun danno se superi il tiro e solo metà se lo fallisci."
+      "description": "Puoi schivare certi effetti ad area, come il soffio di fulmine di un drago blu o un incantesimo Palla di Fuoco. Quando il monaco è soggetto a un effetto che gli consente di effettuare un tiro salvezza su Destrezza per dimezzare i danni, non subisce alcun danno se supera il tiro salvezza, e soltanto la metà dei danni se lo fallisce."
     },
     {
       "level": 7,
@@ -225,17 +340,17 @@
     {
       "level": 13,
       "name": "Lingua del Sole e della Luna",
-      "description": "Apprendi a toccare il ki di altri esseri e a capire tutti i linguaggi parlati. Inoltre, qualsiasi creatura che possa capire un linguaggio capisce ciò che dici."
+      "description": "Un monaco impara a sfiorare il ki delle altre menti ed è in grado di comprendere tutti i linguaggi parlati. Inoltre, qualsiasi creatura che sia in grado di capire un linguaggio può anche capire ciò che il monaco dice."
     },
     {
       "level": 14,
       "name": "Anima Adamantina",
-      "description": "Il tuo padroneggio del ki ti concede immunità agli effetti di charme e paura, e altri effetti non possono metterti in stato di sonno."
+      "description": "Il monaco ha una tale padronanza del ki da ottenere competenza in tutti i tiri salvezza. Inoltre, ogni volta che effettua un tiro salvezza e fallisce, può spendere 1 punto ki per ripetere il tiro. Deve usare il nuovo risultato."
     },
     {
       "level": 15,
       "name": "Corpo Senza Tempo",
-      "description": "Il tuo ki ti sostiene in modo tale che non soffri degli effetti negativi dell'invecchiamento e non puoi essere fatto invecchiare magicamente. Tuttavia, invecchi ancora normalmente e morirai di vecchiaia."
+      "description": "Il tuo ki ti sostiene in modo tale che non soffri degli effetti negativi dell'invecchiamento e non puoi essere fatto invecchiare magicamente. Tuttavia, invecchi ancora normalmente e puoi morire di vecchiaia. Inoltre, non hai più bisogno di bere o di mangiare."
     },
     {
       "level": 18,
@@ -245,7 +360,7 @@
     {
       "level": 20,
       "name": "Perfezione Interiore",
-      "description": "Quando tiri per l'iniziativa e ti mancano punti Ki, recuperi 4 punti Ki."
+      "description": "Quando tiri per l'iniziativa e non hai punti Ki, recuperi 4 punti Ki."
     }
   ]
 }

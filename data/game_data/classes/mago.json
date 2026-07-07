@@ -12,7 +12,7 @@
     "Pugnale",
     "Dardo",
     "Fionda",
-    "Bastone",
+    "Bastone Ferrato",
     "Balestra leggera"
   ],
   "tool_proficiencies": [],
@@ -36,7 +36,7 @@
       "options": [
         [
           {
-            "name": "Bastone",
+            "name": "Bastone Ferrato",
             "item_type": "weapon"
           }
         ],
@@ -55,7 +55,7 @@
       "options": [
         [
           {
-            "name": "Sacca dei Componenti",
+            "name": "Borsa per Componenti",
             "item_type": "item"
           }
         ],
@@ -108,23 +108,28 @@
       "features": [
         {
           "level": 2,
-          "name": "Scudo Arcano",
-          "description": "Crei un Wards Arcano con PF pari a 2 × livello mago + mod Intelligenza. Assorbe i danni prima dei tuoi PF."
+          "name": "Abiuratore Sapiente",
+          "description": "Il tempo e il denaro che il mago deve spendere per copiare un incantesimo di abiurazione nel suo libro degli incantesimi sono dimezzati."
+        },
+        {
+          "level": 2,
+          "name": "Interdizione Arcana",
+          "description": "Quando lancia un incantesimo di abiurazione di livello pari o superiore al 1°, il mago può creare un'interdizione magica che dura finché il mago non completa un riposo lungo. L'interdizione possiede un numero di punti ferita pari al doppio del livello da mago + il modificatore di Intelligenza del mago. Ogni volta che il mago subisce danni, è invece l'interdizione a subire quei danni. Se questi danni riducono l'interdizione a 0 punti ferita, il mago subisce gli eventuali danni rimanenti. Quando l'interdizione ha 0 punti ferita, non può più assorbire danni, ma la sua magia permane. Ogni volta che il mago lancia un incantesimo di abiurazione di livello pari o superiore al 1°, l'interdizione riacquista un numero di punti ferita pari al doppio del livello dell'incantesimo. Una volta creata l'interdizione, il mago non può crearne un'altra finché non completa un riposo lungo."
         },
         {
           "level": 6,
-          "name": "Abiurazione Proiettata",
-          "description": "Quando lanci un'abiurazione che protegge un'altra creatura, anche tu ricevi protezione."
+          "name": "Interdizione Proiettata",
+          "description": "Quando una creatura situata entro 9 metri dal mago e che egli sia in grado di vedere subisce danni, il mago può usare la sua reazione per fare in modo che la sua Interdizione Arcana assorba quei danni. Se questi danni riducono l'interdizione a 0 punti ferita, la creatura protetta subisce gli eventuali danni rimanenti."
         },
         {
           "level": 10,
-          "name": "Resistenza Migliorata",
-          "description": "Puoi scegliere due tipi di danno ogni volta che usi Resistenza Arcana."
+          "name": "Abiurazione Migliorata",
+          "description": "Quando lancia un incantesimo di abiurazione che richiede una prova di caratteristica come parte del lancio dell'incantesimo stesso (come nel caso di Controincantesimo o Dissolvi Magie), il mago può aggiungere il suo bonus di competenza a quella prova di caratteristica."
         },
         {
           "level": 14,
-          "name": "Negazione degli Incantesimi",
-          "description": "Puoi usare la tua reazione per tentare di dissolvere gli incantesimi avversari."
+          "name": "Resistenza agli Incantesimi",
+          "description": "Il mago dispone di vantaggio ai tiri salvezza contro incantesimi. Dispone inoltre di resistenza ai danni degli incantesimi."
         }
       ]
     },
@@ -133,8 +138,28 @@
       "features": [
         {
           "level": 2,
+          "name": "Ammaliatore Sapiente",
+          "description": "Il tempo e il denaro che il mago deve spendere per copiare un incantesimo di ammaliamento nel suo libro degli incantesimi sono dimezzati."
+        },
+        {
+          "level": 2,
           "name": "Sguardo Ipnotico",
-          "description": "Quando lanci un incantesimo di ammaliamento e una creatura lo supera, puoi rilanciare il TS un'altra volta (1/riposo breve)."
+          "description": "Con un'azione, il mago sceglie una creatura situata entro 1,5 metri e che egli sia in grado di vedere. Se il bersaglio è in grado di vedere e sentire il mago, deve superare un tiro salvezza su Saggezza contro la CD degli incantesimi del mago, altrimenti sarà affascinata dal mago fino alla fine del turno successivo di quest'ultimo. La velocità della creatura affascinata scende a 0 e la creatura è incapacitata e visibilmente frastornata. Nei turni successivi il mago può usare la sua azione per mantenere questo effetto, estendendone la durata fino alla fine del suo turno successivo. Tuttavia, l'effetto termina se il mago si allontana a più di 1,5 metri dalla creatura, se la creatura non è più in grado di vederlo o di sentirlo o se la creatura subisce danni. Una volta terminato l'effetto, o se la creatura ha superato il suo tiro salvezza iniziale contro questo effetto, il mago non può più utilizzare questo privilegio su quella stessa creatura finché non completa un riposo lungo."
+        },
+        {
+          "level": 6,
+          "name": "Fascino Istintivo",
+          "description": "Quando una creatura situata entro 9 metri dal mago e che egli sia in grado di vedere effettua un tiro per colpire contro di lui, il mago può usare la sua reazione per deviare l'attacco, purché un'altra creatura si trovi entro la gittata dell'attacco. L'attaccante deve effettuare un tiro salvezza su Saggezza contro la CD degli incantesimi del mago. Se lo fallisce, l'attaccante deve bersagliare la creatura a esso più vicina (escludendo il mago e se stesso). Se più creature sono egualmente distanti, l'attaccante sceglie quale bersagliare. Se la creatura supera il tiro salvezza, il mago non può più utilizzare questo privilegio contro l'attaccante finché non completa un riposo lungo. Il mago deve scegliere se utilizzare questo privilegio prima di sapere se l'attacco colpirà o mancherà. Le creature che non possono essere affascinate sono immuni a questo effetto."
+        },
+        {
+          "level": 10,
+          "name": "Ammaliamento Condiviso",
+          "description": "Quando il mago lancia un incantesimo di ammaliamento di livello pari o superiore al 1° che bersagli una sola creatura, può fare in modo che bersagli anche una seconda creatura."
+        },
+        {
+          "level": 14,
+          "name": "Alterare Ricordi",
+          "description": "Il mago ottiene la capacità di far dimenticare a una creatura di avere subito la sua influenza magica. Quando il mago lancia un incantesimo di ammaliamento per affascinare una o più creature, può alterare la percezione di una creatura in modo che resti inconsapevole di essere stata affascinata. Inoltre, prima che l'incantesimo termini, il mago può usare una volta la sua azione per tentare di far dimenticare alla creatura parte del tempo in cui è rimasta affascinata. La creatura deve superare un tiro salvezza su Intelligenza contro la CD degli incantesimi del mago, altrimenti perderà un ammontare di ore di ricordi pari a 1 + il modificatore di Carisma del mago (fino a un minimo di 1). Il mago può far dimenticare alla creatura un ammontare di tempo inferiore, e l'ammontare in questione non può superare la durata dell'incantesimo di ammaliamento."
         }
       ]
     },
@@ -143,23 +168,28 @@
       "features": [
         {
           "level": 2,
-          "name": "Presagio",
-          "description": "Dopo un riposo lungo, tira due d20. Puoi sostituire qualsiasi tiro con uno di questi risultati (fino al prossimo riposo lungo)."
+          "name": "Divinatore Sapiente",
+          "description": "Il tempo e il denaro che il mago deve spendere per copiare un incantesimo di divinazione nel suo libro degli incantesimi sono dimezzati."
+        },
+        {
+          "level": 2,
+          "name": "Portento",
+          "description": "Dopo avere completato un riposo lungo, il mago tira due d20 e annota i risultati ottenuti. Potrà sostituire un qualsiasi tiro per colpire, tiro salvezza o prova di caratteristica da lui effettuata con uno di quei risultati di preveggenza. Deve scegliere di farlo prima di effettuare il tiro e può sostituire un tiro in questo modo soltanto una volta per turno. Ogni tiro di preveggenza può essere usato una volta sola. Quando il mago completa un riposo lungo, perde ogni eventuale tiro di preveggenza inutilizzato."
         },
         {
           "level": 6,
-          "name": "Oracolo Esperto",
-          "description": "Inizi ogni combattimento con iniziativa più alta; non puoi essere sorpreso se sei vigile."
+          "name": "Divinazione Esperta",
+          "description": "Quando il mago lancia un incantesimo di divinazione di livello pari o superiore al 2°, recupera uno slot incantesimo già speso. Lo slot recuperato deve essere di livello inferiore a quello dell'incantesimo lanciato e non può essere di livello superiore al 5°."
         },
         {
           "level": 10,
-          "name": "La Terza Vista",
-          "description": "Puoi attivare la Visione del Passato (1/riposo breve)."
+          "name": "Terzo Occhio",
+          "description": "Il mago può usare la sua azione per amplificare i suoi poteri di percezione. Quando lo fa, deve scegliere uno dei benefici seguenti, che permane finché il mago non diventa incapacitato o finché non completa un riposo breve o lungo. Il mago non può più utilizzare questo privilegio finché non completa un riposo: 1. Comprensione Superiore — il mago è in grado di leggere qualsiasi linguaggio. 2. Scurovisione — il mago ottiene scurovisione entro 18 metri. 3. Vedere Invisibilità — il mago è in grado di vedere le creature e gli oggetti invisibili entro 3 metri da lui e situati entro linea di vista. 4. Vista Eterea — il mago può vedere sul Piano Etereo entro 18 metri."
         },
         {
           "level": 14,
-          "name": "Presagio Maggiore",
-          "description": "Tiri tre d20 invece di due per Presagio."
+          "name": "Portento Superiore",
+          "description": "Quando il mago utilizza il privilegio Portento, tira tre d20 anziché due."
         }
       ]
     },
@@ -168,23 +198,28 @@
       "features": [
         {
           "level": 2,
-          "name": "Scolpire Incantesimi",
-          "description": "Scegli automaticamente le creature esentate da un incantesimo di evocazione con area."
+          "name": "Evocatore Sapiente",
+          "description": "Il tempo e il denaro che il mago deve spendere per copiare un incantesimo di evocazione nel suo libro degli incantesimi sono dimezzati."
+        },
+        {
+          "level": 2,
+          "name": "Evocazione Minore",
+          "description": "Il mago può usare la sua azione per evocare un oggetto inanimato che compare nelle sue mani o a terra, in uno spazio libero situato entro 3 metri da lui e che egli sia in grado di vedere. Questo oggetto non deve essere più lungo di 90 cm, non deve pesare più di 5 kg e deve avere la forma di un oggetto non magico che il mago abbia già visto. L'oggetto è palesemente magico ed emana luce fioca entro 1,5 metri di distanza. L'oggetto scompare dopo 1 ora, quando il mago utilizza di nuovo questo privilegio o se l'oggetto stesso subisce qualsiasi danno."
         },
         {
           "level": 6,
-          "name": "Potenza dei Trucchetti",
-          "description": "I trucchetti di evocazione infliggono danni minimi pari al modificatore di Intelligenza."
+          "name": "Trasposizione Benevola",
+          "description": "Il mago può usare la sua azione per teletrasportarsi fino a 9 metri di distanza in uno spazio libero che egli sia in grado di vedere. In alternativa può scegliere uno spazio entro gittata che sia occupato da una creatura Piccola o Media. Se quella creatura è consenziente, sia il mago che la creatura si teletrasportano, scambiandosi di posto. Una volta utilizzato questo privilegio, il mago non può più utilizzarlo finché non completa un riposo lungo o finché non lancia un incantesimo di evocazione di livello pari o superiore al 1°."
         },
         {
           "level": 10,
-          "name": "Evocazione Potenziata",
-          "description": "Aggiungi il modificatore di Intelligenza ai danni degli incantesimi di evocazione del Mago."
+          "name": "Evocazione Focalizzata",
+          "description": "Quando il mago si concentra su un incantesimo di evocazione, la sua concentrazione non può più essere interrotta dai danni che subisce."
         },
         {
           "level": 14,
-          "name": "Sovraccarico di Incantesimo",
-          "description": "Puoi usare slot di livello superiore per massimizzare i dadi del danno di un incantesimo."
+          "name": "Evocazioni Perduranti",
+          "description": "Le creature evocate o create dal mago con un incantesimo di evocazione possiedono 30 punti ferita temporanei."
         }
       ]
     },
@@ -193,42 +228,88 @@
       "features": [
         {
           "level": 2,
-          "name": "Illusione Migliorata",
-          "description": "Le tue illusioni possono essere sia visive sia udibili."
+          "name": "Illusionista Sapiente",
+          "description": "Il tempo e il denaro che il mago deve spendere per copiare un incantesimo di illusione nel suo libro degli incantesimi sono dimezzati."
+        },
+        {
+          "level": 2,
+          "name": "Illusione Minore Migliorata",
+          "description": "Il mago apprende il trucchetto Illusione Minore. Se già conosceva questo trucchetto, apprende un diverso trucchetto da mago a sua scelta. Il trucchetto non conta al fine di determinare il numero di trucchetti conosciuti dal mago. Quando il mago lancia Illusione Minore, può creare sia un suono che un'immagine con un singolo lancio dell'incantesimo."
         },
         {
           "level": 6,
-          "name": "Realtà Malleabile",
-          "description": "Puoi muovere un'illusione come azione bonus."
+          "name": "Illusioni Duttili",
+          "description": "Quando lancia un incantesimo con una durata pari o superiore a 1 minuto, il mago può usare la propria azione per cambiare la natura dell'illusione creata (rispettando i limiti dei normali parametri dell'incantesimo), purché sia in grado di vedere l'illusione."
         },
         {
           "level": 10,
           "name": "Sosia Illusorio",
-          "description": "Puoi creare un'illusione di te stesso che intercetta gli attacchi."
+          "description": "Il mago può creare un duplicato illusorio di se stesso come reazione istantanea e quasi istintiva al pericolo. Quando una creatura effettua un attacco contro di lui, il mago può usare la sua reazione per frapporre il sosia illusorio tra sé e l'attaccante. L'attacco manca il mago automaticamente e l'illusione svanisce. Una volta utilizzato questo privilegio, il mago non può più utilizzarlo finché non completa un riposo breve o lungo."
         },
         {
           "level": 14,
           "name": "Realtà Illusoria",
-          "description": "Puoi rendere un componente non-creatura della tua illusione reale per 1 minuto."
+          "description": "Quando lancia un incantesimo di illusione di livello pari o superiore al 1°, può scegliere un oggetto inanimato non magico che sia parte dell'illusione e rendere quell'oggetto reale. Può farlo nel suo turno con un'azione bonus finché l'incantesimo è attivo. L'oggetto resta reale per 1 minuto. Per esempio, il mago può creare l'illusione di un ponte che attraversa un baratro e renderla reale quanto basta da consentire ai suoi alleati di attraversarlo. L'oggetto non può infliggere danni o ferire in modo diretto."
         }
       ]
     },
     {
       "name": "Scuola di Invocazione",
-      "features": []
+      "features": [
+        {
+          "level": 2,
+          "name": "Invocatore Sapiente",
+          "description": "Il tempo e il denaro che il mago deve spendere per copiare un incantesimo di invocazione nel suo libro degli incantesimi sono dimezzati."
+        },
+        {
+          "level": 2,
+          "name": "Plasmare Incantesimi",
+          "description": "Quando il mago lancia un incantesimo di invocazione che influenza le altre creature che è in grado di vedere, può scegliere un numero di quelle creature pari a 1 + il livello dell'incantesimo. Le creature scelte superano automaticamente i loro tiri salvezza contro l'incantesimo e non subiscono alcun danno se normalmente subirebbero la metà dei danni in caso di tiro salvezza superato."
+        },
+        {
+          "level": 6,
+          "name": "Trucchetto Potente",
+          "description": "Quando una creatura supera un tiro salvezza contro un trucchetto del mago, quella creatura subisce la metà dei danni del trucchetto (se previsti), ma non subisce alcun effetto aggiuntivo da quel trucchetto."
+        },
+        {
+          "level": 10,
+          "name": "Invocazione Potente",
+          "description": "Il mago può aggiungere il suo modificatore di Intelligenza a un tiro per i danni di un qualsiasi incantesimo di invocazione da mago da lui lanciato."
+        },
+        {
+          "level": 14,
+          "name": "Saturazione Magica",
+          "description": "Quando lancia un incantesimo da mago compreso tra il 1° e il 5° livello e che infligga danni, può infliggere il massimo dei danni con quell'incantesimo. La prima volta che il mago lo fa, non subisce alcun effetto avverso. Se però utilizza questo privilegio di nuovo prima di avere completato un riposo lungo, subisce 2d12 danni necrotici per ogni livello dell'incantesimo in questione, subito dopo averlo lanciato. Ogni volta che utilizza di nuovo questo privilegio prima di avere completato un riposo lungo, i danni necrotici per livello dell'incantesimo aumentano di 1d12. Questi danni ignorano le varie forme di resistenza e immunità."
+        }
+      ]
     },
     {
       "name": "Scuola di Necromanzia",
       "features": [
         {
           "level": 2,
-          "name": "Mietere la Vita",
-          "description": "Quando lanci un incantesimo di necromanzia che uccide una creatura, puoi recuperare PF pari al livello dell'incantesimo + modificatore Intelligenza."
+          "name": "Necromante Sapiente",
+          "description": "Il tempo e il denaro che il mago deve spendere per copiare un incantesimo di necromanzia nel suo libro degli incantesimi sono dimezzati."
+        },
+        {
+          "level": 2,
+          "name": "Raccolto Macabro",
+          "description": "Una volta per turno, quando uccide una o più creature con un incantesimo di livello pari o superiore al 1°, il mago recupera un ammontare di punti ferita pari al doppio del livello dell'incantesimo, o al triplo del livello se l'incantesimo appartiene alla Scuola di Necromanzia. Non ottiene questo beneficio se uccide dei costrutti o dei non morti."
+        },
+        {
+          "level": 6,
+          "name": "Servitori Non Morti",
+          "description": "Il mago aggiunge l'incantesimo Animare Morti al suo libro degli incantesimi, se non lo possedeva già. Quando lancia Animare Morti, può bersagliare un cadavere o un cumulo di ossa aggiuntivo per creare un altro scheletro o zombi, come appropriato. Ogni volta che il mago crea un non morto usando un incantesimo di necromanzia, quella creatura ottiene i benefici seguenti: il massimo dei punti ferita della creatura aumenta di un ammontare pari al livello del mago; la creatura aggiunge il bonus di competenza del mago ai suoi tiri per i danni con le armi."
+        },
+        {
+          "level": 10,
+          "name": "Impervio alla Non Morte",
+          "description": "Il mago dispone di resistenza ai danni necrotici e il suo massimo dei punti ferita non può essere ridotto. Il mago ha trascorso tanto tempo a occuparsi dei non morti e delle forze che li animano che è diventato impervio ad alcuni dei loro effetti peggiori."
         },
         {
           "level": 14,
-          "name": "Comandante dei Non Morti",
-          "description": "I non morti non magici nelle vicinanze devono superare un TS su Saggezza per resistere ai tuoi comandi."
+          "name": "Comandare Non Morti",
+          "description": "Il mago può usare la magia per condurre sotto il suo controllo anche i non morti creati da altri maghi. Con un'azione può scegliere un non morto situato entro 18 metri da lui e che egli sia in grado di vedere. Quella creatura deve superare un tiro salvezza su Carisma contro la CD degli incantesimi del mago. Se lo supera, il mago non può più utilizzare questo privilegio contro di lei. Se lo fallisce, la creatura diventa amichevole nei confronti del mago e obbedisce ai suoi comandi finché il mago non utilizza di nuovo questo privilegio. I non morti intelligenti sono più difficili da controllare in questo modo. Se il bersaglio possiede un'Intelligenza pari o superiore a 8, dispone di vantaggio al tiro salvezza. Se fallisce il tiro salvezza e possiede un'Intelligenza pari o superiore a 12, può ripetere il tiro salvezza alla fine di ogni ora, finché non lo supera e si libera."
         }
       ]
     },
@@ -237,13 +318,28 @@
       "features": [
         {
           "level": 2,
+          "name": "Trasmutatore Sapiente",
+          "description": "Il tempo e il denaro che il mago deve spendere per copiare un incantesimo di trasmutazione nel suo libro degli incantesimi sono dimezzati."
+        },
+        {
+          "level": 2,
           "name": "Alchimia Minore",
-          "description": "Puoi trasformare fisicamente un materiale non magico in un altro (rame, ferro, argento, oro, legno)."
+          "description": "Il mago può alterare temporaneamente le proprietà fisiche di un oggetto non magico, trasformandolo da una sostanza all'altra. Il mago applica una procedura alchemica speciale a un oggetto composto interamente di legno, pietra (ma non gemme), ferro, rame o argento, trasformandolo in un oggetto diverso fatto di quei materiali. Ogni 10 minuti trascorsi ad applicare la procedura gli consentono di trasformare materiale pari a un cubo con spigolo di 30 cm. Dopo 1 ora, o finché il mago non perde la concentrazione (come se si stesse concentrando su un incantesimo), il materiale si ritrasforma nella sua sostanza originale."
+        },
+        {
+          "level": 6,
+          "name": "Pietra del Trasmutatore",
+          "description": "Il mago può trascorrere 8 ore a creare una pietra del trasmutatore che accumuli la magia di trasmutazione. Il mago può beneficiare della pietra personalmente o cederla a un'altra creatura. Una creatura ottiene un beneficio a scelta del mago fintanto che la pietra resta in suo possesso. Quando il mago crea la pietra, sceglie il beneficio tra le opzioni seguenti: scurovisione entro 18 metri; un aumento della velocità di 3 metri fintanto che la creatura è priva di ingombro; competenza nei tiri salvezza su Costituzione; resistenza ai danni da acido, freddo, fulmine, fuoco o tuono (a scelta del mago al momento di determinare questo beneficio). Ogni volta che il mago lancia un incantesimo di trasmutazione di livello pari o superiore al 1°, può cambiare l'effetto della pietra, se la pietra si trova sulla sua persona. Se il mago crea una nuova pietra del trasmutatore, quella precedente cessa di funzionare."
+        },
+        {
+          "level": 10,
+          "name": "Mutaforma",
+          "description": "Il mago aggiunge l'incantesimo Metamorfosi al suo libro degli incantesimi, se non lo possedeva già. Può lanciare Metamorfosi senza spendere uno slot incantesimo. Quando lo fa, può bersagliare solo se stesso e trasformarsi in una bestia il cui grado di sfida sia pari o inferiore a 1. Una volta lanciato Metamorfosi in questo modo, il mago non può più farlo di nuovo finché non completa un riposo breve o lungo, ma può comunque lanciarlo normalmente usando uno slot incantesimo disponibile."
         },
         {
           "level": 14,
-          "name": "Padronanza della Trasmutazione",
-          "description": "Puoi trasformare una creatura in un'altra (usando uno slot di 7° livello)."
+          "name": "Maestro Trasmutatore",
+          "description": "Il mago può usare la sua azione per consumare la riserva di magia di trasmutazione accumulata all'interno della sua pietra del trasmutatore in un'unica soluzione. Quando lo fa, sceglie uno degli effetti seguenti. La sua pietra del trasmutatore si distrugge e non può essere ricreata finché il mago non completa un riposo lungo. 1. Panacea — il mago rimuove tutte le maledizioni, malattie e veleni che influenzano una creatura da lui toccata con la pietra del trasmutatore; la creatura recupera anche tutti i suoi punti ferita. 2. Ripristinare Giovinezza — il mago tocca una creatura consenziente con la pietra del trasmutatore e l'età apparente di quella creatura è ridotta di 3d10 anni, fino a un minimo di 13 anni; questo effetto non prolunga l'arco vitale della creatura. 3. Ripristinare Vita — il mago lancia l'incantesimo Rianimare Morti su una creatura da lui toccata con la pietra del trasmutatore, senza spendere uno slot incantesimo e senza che debba possedere l'incantesimo nel suo libro degli incantesimi. 4. Trasformazione Maggiore — il mago può trasmutare un oggetto non magico (che non sia più grande di un cubo con spigolo di 1,5 metri) in un altro oggetto non magico di taglia e massa analoga e di valore pari o inferiore; deve trascorrere 10 minuti a maneggiare l'oggetto che intende trasformare."
         }
       ]
     }
@@ -252,7 +348,12 @@
     {
       "level": 1,
       "name": "Incantesimi",
-      "description": "Hai imparato a scrivere i tuoi incantesimi in un libro degli incantesimi. La caratteristica da incantatore è Intelligenza. Prepari ogni giorno un numero di incantesimi dal tuo libro pari al modificatore di Intelligenza + livello da mago (min. 1). Il tuo libro inizia con 6 incantesimi di 1° livello. Aggiungi 2 nuovi incantesimi a ogni nuovo livello."
+      "description": "Hai imparato a scrivere i tuoi incantesimi in un libro degli incantesimi. La caratteristica da incantatore è Intelligenza. Prepari ogni giorno un numero di incantesimi dal tuo libro pari al modificatore di Intelligenza + livello da mago (min. 1). Il tuo libro inizia con 6 incantesimi di 1° livello. Aggiungi 2 nuovi incantesimi a ogni nuovo livello. Il Libro degli Incantesimi del Mago — Copiare un incantesimo nel libro: quando il mago entra in possesso di un incantesimo da mago di livello pari o superiore al 1°, può aggiungerlo al suo libro, se si tratta di un incantesimo di un livello che egli può preparare e se dispone del tempo per decifrarlo e copiarlo; per ogni livello dell'incantesimo, il processo di trascrizione richiede 2 ore e costa 50 mo. Sostituire il libro: un mago può copiare un incantesimo dal suo libro degli incantesimi a un altro, spendendo solo 1 ora e 10 mo per ogni livello dell'incantesimo copiato; se il mago perde il suo libro degli incantesimi, può usare la stessa procedura per trascrivere gli incantesimi che ha preparato in un nuovo libro degli incantesimi, ma per completare il resto del suo libro dovrà trovarne di nuovi come di consueto — è per questo motivo che molti maghi custodiscono delle copie di riserva dei loro libri degli incantesimi in luoghi sicuri."
+    },
+    {
+      "level": 1,
+      "name": "Celebrare Rituale",
+      "description": "Un mago può lanciare un incantesimo da mago come rituale se quell'incantesimo possiede il descrittore rituale. Non è necessario che abbia preparato quell'incantesimo."
     },
     {
       "level": 1,
@@ -267,7 +368,7 @@
     {
       "level": 20,
       "name": "Incantesimi Personali",
-      "description": "Puoi attingere alla tua magia per creare effetti con determinati incantesimi che normalmente richiedono slot. Scegli 3 trucchetti da mago dal tuo libro degli incantesimi. Puoi lanciarli come incantesimi di 1° livello senza usare slot incantesimo; ogni volta che finisci un riposo lungo, puoi scambiare uno o più di questi trucchetti scelti con altri trucchetti del libro."
+      "description": "Il mago sceglie due incantesimi da mago di 3° livello contenuti nel suo libro degli incantesimi come suoi incantesimi personali. Il mago considera questi incantesimi sempre preparati, non li conta ai fini di determinare il numero di incantesimi preparati e può lanciare ognuno di quegli incantesimi una volta al 3° livello senza spendere uno slot incantesimo. Quando lo fa, non può farlo di nuovo finché non completa un riposo breve o lungo. Se desidera lanciare uno di quegli incantesimi a un livello superiore, deve spendere uno slot incantesimo come di consueto."
     }
   ]
 }
