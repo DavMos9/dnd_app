@@ -307,6 +307,7 @@ FIGHTING_STYLES: dict[str, list[str]] = {
         "Tiro",
         "Combattere con Due Armi",
         "Difesa",
+        "Duellare",
     ],
 }
 

@@ -39,7 +39,7 @@
       "options": [
         [
           {
-            "name": "Cotta di maglia",
+            "name": "Corazza a scaglie",
             "item_type": "armor"
           }
         ],
@@ -119,47 +119,99 @@
         {
           "level": 3,
           "name": "Preda del Cacciatore",
-          "description": "Scegli: Sterminatore di Colossi (bonus ai danni contro creature di taglia Grande o più grande), Sterminatore di Orde (attacchi extra contro creature adiacenti) o Difesa da Duellante (reazione per imporre svantaggio agli attacchi)."
+          "description": "Il ranger ottiene uno dei seguenti privilegi a sua scelta:",
+          "options": [
+            {
+              "name": "Devastatore dell'Orda",
+              "description": "Una volta per ogni suo turno, quando effettua un attacco con un'arma, il ranger può effettuare un altro attacco con la stessa arma contro una creatura diversa situata entro 1,5 metri dal bersaglio originale ed entro la gittata della sua arma."
+            },
+            {
+              "name": "Sterminatore di Colossi",
+              "description": "La tenacia del ranger può logorare anche il più potente degli avversari. Quando il ranger colpisce una creatura con un attacco con un'arma, quella creatura subisce 1d8 danni extra se è al di sotto del suo massimo dei punti ferita. Può infliggere questi danni extra solo una volta per turno."
+            },
+            {
+              "name": "Uccisore di Giganti",
+              "description": "Quando una creatura di taglia Grande o superiore entro 1,5 metri dal ranger colpisce o manca il ranger con un attacco, quest'ultimo può usare la sua reazione per attaccare la creatura immediatamente dopo il suo attacco, purché sia in grado di vederla."
+            }
+          ]
         },
         {
           "level": 7,
           "name": "Tattiche Difensive",
-          "description": "Scegli: Scatto Evasivo (vantaggio alle prove di Destrezza contro effetti che richiedono TS), Difesa Multiattacco (resistenza a eventuali attacchi extra) o Difendersi in Turba (CA +4 quando sei circondato)."
+          "description": "Il ranger ottiene uno dei seguenti privilegi a sua scelta:",
+          "options": [
+            {
+              "name": "Difesa dal Multiattacco",
+              "description": "Quando una creatura colpisce il ranger con un attacco, il ranger ottiene un bonus di +4 alla CA contro tutti gli attacchi successivi effettuati da quella creatura per il resto del turno."
+            },
+            {
+              "name": "Sfuggire all'Orda",
+              "description": "Gli attacchi di opportunità contro il ranger subiscono svantaggio."
+            },
+            {
+              "name": "Volontà d'Acciaio",
+              "description": "Il ranger dispone di vantaggio ai tiri salvezza contro l'essere spaventato."
+            }
+          ]
         },
         {
           "level": 11,
-          "name": "Attacco Multiplo",
-          "description": "Scegli: Scarica (due frecce su creature diverse) o Raffica di Tagli (colpisci tutti nella portata dell'arma)."
+          "name": "Multiattacco",
+          "description": "Il ranger ottiene uno dei seguenti privilegi a sua scelta:",
+          "options": [
+            {
+              "name": "Attacco Turbinante",
+              "description": "Il ranger può usare la sua azione per effettuare un attacco in mischia contro un qualsiasi numero di creature entro 1,5 metri da sé, effettuando un tiro per colpire separato per ogni bersaglio."
+            },
+            {
+              "name": "Raffica",
+              "description": "Il ranger può usare la sua azione per effettuare un attacco a distanza contro un qualsiasi numero di creature entro 3 metri da un punto che egli sia in grado di vedere e che si trovi entro la gittata della sua arma. Il ranger deve avere munizioni sufficienti per ogni bersaglio, come di consueto, ed effettua un tiro per colpire separato per ogni bersaglio."
+            }
+          ]
         },
         {
           "level": 15,
-          "name": "Sensi del Cacciatore Superiore",
-          "description": "Scegli: Occhio d'Aquila (vantaggio alle percezioni passive) o Sgambetto Istintivo (reazione agli attacchi di opportunità altrui)."
+          "name": "Difesa del Cacciatore Superiore",
+          "description": "Il ranger ottiene uno dei seguenti privilegi a sua scelta:",
+          "options": [
+            {
+              "name": "Elusione",
+              "description": "Quando il ranger è soggetto a un effetto che gli consente di effettuare un tiro salvezza su Destrezza per dimezzare i danni, come il soffio di fuoco di un drago rosso o un incantesimo fulmine, non subisce alcun danno se supera il tiro salvezza, e soltanto la metà dei danni se lo fallisce."
+            },
+            {
+              "name": "Opporsi alla Marea",
+              "description": "Quando una creatura ostile manca il ranger con un attacco in mischia, il ranger può usare la sua reazione per obbligare quella creatura a ripetere lo stesso attacco contro un'altra creatura (che non sia essa stessa) a scelta del ranger."
+            },
+            {
+              "name": "Schivata Prodigiosa",
+              "description": "Quando un attaccante che il ranger è in grado di vedere colpisce il ranger con un attacco, quest'ultimo può usare la sua reazione per dimezzare i danni che subirebbe dall'attacco."
+            }
+          ]
         }
       ]
     },
     {
-      "name": "Maestro delle Bestie",
+      "name": "Signore delle Bestie",
       "features": [
         {
           "level": 3,
-          "name": "Compagno di Caccia",
-          "description": "Ottieni un compagno animale che agisce in modo indipendente. Usi Addestramento al Combattimento per comandarlo."
+          "name": "Compagno del Ranger",
+          "description": "Il ranger ottiene una bestia compagna che lo accompagna nelle sue avventure ed è addestrata a combattere accanto a lui. Il ranger sceglie una bestia di taglia Media o inferiore con un grado di sfida pari o inferiore a 1/4. Si aggiunge il bonus di competenza del ranger alla CA, ai tiri per colpire e ai tiri per i danni della bestia, nonché agli eventuali tiri salvezza e abilità in cui essa possiede competenza. Il suo massimo dei punti ferita è pari a quello indicato nella sua scheda delle statistiche o al quadruplo del livello da ranger, scegliendo il valore maggiore. Come ogni creatura, la bestia compagna può spendere Dadi Vita durante un riposo breve per recuperare punti ferita. La bestia obbedisce ai comandi del ranger al meglio delle sue possibilità. Svolge il suo turno all'iniziativa del ranger, ma non effettua un'azione a meno che il ranger non glielo ordini. Nel proprio turno, il ranger può ordinare verbalmente alla bestia dove muoversi (nessuna azione richiesta). Il ranger può anche usare la sua azione per ordinare verbalmente alla bestia di effettuare l'azione di Aiuto, Attacco, Disimpegno, Scatto o Schivata. Una volta ottenuto il privilegio di Attacco Extra, il ranger può effettuare un attacco con un'arma mentre ordina alla bestia di effettuare l'azione di Attacco. Se il ranger è incapacitato o assente, la bestia agisce da sola, concentrandosi sulla protezione del ranger e di se stessa. La bestia non necessita del comando del ranger per usare la sua reazione, per esempio per effettuare un attacco di opportunità. Quando il ranger viaggia attraverso una regione del suo terreno prescelto in compagnia solamente della sua bestia, si muove furtivamente a passo normale. Se la bestia muore, il ranger può ottenere un nuovo compagno trascorrendo 8 ore a instaurare un legame magico con una bestia che non gli sia ostile e che soddisfi i requisiti."
         },
         {
           "level": 7,
-          "name": "Compagno Eccezionale",
-          "description": "Il compagno può attaccare due volte se tu non dai comandi, e ottieni bonus ai tiri di attacco quando combattete insieme."
+          "name": "Addestramento Straordinario",
+          "description": "In un qualsiasi suo turno in cui la sua bestia compagna non attacca, il ranger può usare un'azione bonus per ordinare alla bestia di effettuare l'azione di Aiuto, Disimpegno, Scatto o Schivata nel proprio turno."
         },
         {
           "level": 11,
-          "name": "Tattica della Bestia",
-          "description": "Quando il compagno attacca, tu puoi anche effettuare un attacco con un'arma come azione bonus."
+          "name": "Furia Bestiale",
+          "description": "Quando il ranger ordina alla sua bestia compagna di effettuare l'azione di Attacco, la bestia può effettuare due attacchi, oppure effettuare l'azione di Multiattacco se la possiede."
         },
         {
           "level": 15,
           "name": "Condivisione degli Incantesimi",
-          "description": "Il tuo compagno beneficia degli incantesimi che lanci su te stesso."
+          "description": "Quando il ranger lancia un incantesimo che bersaglia se stesso, può influenzare con quell'incantesimo anche la sua bestia compagna, purché essa si trovi entro 9 metri da lui."
         }
       ]
     }
@@ -168,57 +220,57 @@
     {
       "level": 1,
       "name": "Nemico Prescelto",
-      "description": "Hai esperienza significativa nello studiare, rintracciare, cacciare e persino parlare con un certo tipo di nemico. Scegli un tipo di nemico prescelto: aberrazioni, bestie, celesti, costrutti, draghi, elementali, fate, demoni, giganti, mostruosità, melme, piante o non morti. Ottieni vantaggio alle prove di Saggezza (Sopravvivenza) per inseguire i tuoi nemici prescelti e alle prove di Intelligenza per ricordare informazioni su di essi. Al 6° e 14° livello scegli un tipo aggiuntivo."
+      "description": "Un ranger dimostra una notevole esperienza nello studiare, seguire le tracce, dare la caccia e perfino parlare con un certo tipo di nemico. Il giocatore sceglie un tipo di nemico prescelto: aberrazioni, bestie, celestiali, costrutti, draghi, elementali, folletti, giganti, immondi, melme, mostruosità, non morti o vegetali. In alternativa, può scegliere due razze di umanoidi (per esempio gnoll e orchi) come nemici prescelti. Il ranger dispone di vantaggio alle prove di Saggezza (Sopravvivenza) effettuate per seguire le tracce dei suoi nemici prescelti, nonché alle prove di Intelligenza per ricordare le informazioni a essi relative. Quando ottiene questo privilegio, il ranger apprende anche un linguaggio a sua scelta tra quelli parlati dal suo nemico prescelto (ammesso che ne parli uno). Il ranger sceglie un nemico prescelto aggiuntivo (e un linguaggio a esso associato) al 6° e al 14° livello. Man mano che acquisisce livelli, le sue scelte dovrebbero riflettere i tipi di mostri che ha incontrato nel corso delle sue avventure."
     },
     {
       "level": 1,
       "name": "Esploratore Nato",
-      "description": "Sei particolarmente a tuo agio in un certo tipo di ambiente naturale. Scegli un tipo di terreno preferito: Artico, Costiero, Deserto, Foresta, Prateria, Montagna o Palude. Mentre viaggi per un'ora o più nel tuo terreno preferito, ottieni vari benefici: difficoltà nel seguire le tue tracce, mai perso, velocità normale anche furtivo, ecc. Al 6° e 10° livello scegli altri tipi di terreno."
+      "description": "Il ranger conosce molto bene un tipo di ambiente naturale ed è particolarmente abile nel viaggiare e sopravvivere in quelle regioni. Il giocatore sceglie un tipo di terreno prescelto: artico, costa, deserto, foresta, montagna, palude, prateria o Underdark. Quando il ranger effettua una prova di Intelligenza o di Saggezza relativa al suo terreno prescelto, raddoppia il suo bonus di competenza se usa un'abilità in cui possiede competenza. Quando viaggia per un'ora o più in una regione del suo terreno prescelto, il ranger ottiene i benefici seguenti: il terreno difficile non rallenta il viaggio del suo gruppo; il suo gruppo non può smarrirsi, se non per cause magiche; anche se il ranger è impegnato in un'altra attività mentre viaggia (per esempio foraggiare, orientarsi o seguire tracce), rimane allerta nei confronti dei potenziali pericoli; se il ranger viaggia da solo, può muoversi furtivamente a passo normale; quando foraggia, il ranger trova il doppio del cibo che troverebbe normalmente. Quando segue le tracce di altre creature, apprende anche il loro numero esatto, le loro taglie e da quanto tempo sono passate nell'area. Il ranger sceglie altri tipi di terreno prescelto al 6° e al 10° livello."
     },
     {
       "level": 2,
       "name": "Stile di Combattimento",
-      "description": "Adotti uno stile come specialità. Scegli tra: Arciere (+2 tiri per colpire con armi a distanza), Difesa (+1 CA con armatura), Duello (+2 danni con arma a una mano), Combattimento con Due Armi (aggiungi il modificatore ai danni del secondo attacco)."
+      "description": "Al 2° livello, un ranger adotta uno stile di combattimento come specialità, scegliendo tra: Combattere con Due Armi, Difesa, Duellare o Tiro (vedi \"fighting_style_details\" in guerriero.json per il testo completo di ciascuno stile — meccanica identica e condivisa tra le classi)."
     },
     {
       "level": 2,
       "name": "Incantesimi",
-      "description": "Hai imparato a usare la magia del mondo naturale. La caratteristica da incantatore è Saggezza. Hai accesso alla lista degli incantesimi da ranger; il numero di incantesimi conosciuti e di slot incantesimo disponibili si trovano nella tabella Ranger."
+      "description": "Quando arriva al 2° livello, un ranger impara a usare l'essenza magica della natura per lanciare incantesimi in modo molto simile a un druido. Un ranger conosce due incantesimi di 1° livello a sua scelta dalla lista degli incantesimi da ranger. La colonna \"Incantesimi Conosciuti\" nella tabella \"Ranger\" indica quando un ranger impara altri incantesimi da ranger a sua scelta. Ognuno di questi incantesimi deve appartenere a un livello di cui il ranger possiede degli slot incantesimo, come indicato nella tabella. Per esempio, quando un ranger arriva al 5° livello, può imparare un nuovo incantesimo di 1° o di 2° livello. Inoltre, quando un ranger acquisisce un livello, può scegliere un incantesimo da ranger che conosce e sostituirlo con un altro incantesimo della lista degli incantesimi da ranger; anche il nuovo incantesimo deve essere di un livello di cui il ranger possiede degli slot incantesimo. CD del tiro salvezza dell'incantesimo = 8 + il bonus di competenza del ranger + il modificatore di Saggezza del ranger. Modificatore di attacco dell'incantesimo = il bonus di competenza del ranger + il modificatore di Saggezza del ranger."
     },
     {
       "level": 3,
       "name": "Consapevolezza Primordiale",
-      "description": "Puoi usare la tua azione e spendere uno slot incantesimo da ranger per concentrarti sul tuo ambiente percependo quelle forze. Per 1 minuto per livello dello slot speso, puoi percepire se i seguenti tipi di creature sono presenti entro 1,5 km (6 km in pianura aperta): aberrazioni, celesti, draghi, elementali, fate, demoni e non morti."
+      "description": "Un ranger può usare la sua azione e spendere uno slot incantesimo da ranger per concentrare la sua percezione sull'area attorno a lui. Per 1 minuto per ogni livello dello slot incantesimo speso, il ranger può percepire se le seguenti creature sono presenti entro 1,5 km da lui (o entro 9 km se si trova nel suo terreno prescelto): aberrazioni, celestiali, draghi, elementali, folletti, immondi e non morti. Questo privilegio non rivela l'ubicazione esatta o il numero delle creature."
     },
     {
       "level": 5,
       "name": "Attacco Extra",
-      "description": "Puoi attaccare due volte anziché una ogni volta che effettui l'azione di Attacco nel tuo turno."
+      "description": "Un ranger può attaccare due volte anziché una, ogni volta che effettua l'azione di Attacco nel proprio turno."
     },
     {
       "level": 8,
       "name": "Andatura sul Territorio",
-      "description": "Muoversi su un terreno difficile non ti costa movimento aggiuntivo purché ti trovi nel tuo terreno preferito. Puoi anche passare attraverso piante non magiche senza essere rallentato e senza subire danni, se tali piante solitamente causano rallentamento o danni."
+      "description": "Muoversi attraverso il terreno difficile non magico non richiede più un costo in movimento extra al ranger. Inoltre il ranger può passare attraverso i vegetali non magici senza esserne rallentato e senza subire danni se tali vegetali presentano spine, aculei o altri pericoli simili. Inoltre, il ranger dispone di vantaggio ai tiri salvezza contro i vegetali creati magicamente o manipolati per ostacolare il movimento, come quelli creati dall'incantesimo intralciare."
     },
     {
       "level": 10,
       "name": "Nascondersi in Piena Vista",
-      "description": "Puoi spendere 1 minuto a creare un mimetismo. Puoi nasconderti mentre stai in un'area all'aperto o quando vieni osservato da creature entro 30 m. Devi avere accesso a fango, terra, piante, fuliggine e altri materiali naturali. Smetti di essere nascosto se ti muovi o compi un'azione o una reazione."
+      "description": "Un ranger può impiegare 1 minuto per mimetizzarsi con l'ambiente. Deve essere in grado di accedere a fango fresco, terriccio, vegetali, fuliggine e altro materiale naturale adatto con cui mimetizzarsi. Una volta mimetizzatosi in questo modo, può tentare di nascondersi appiattendosi contro una superficie solida, come un albero o una parete, che sia alta e larga almeno quanto lui. Il ranger ottiene un bonus di +10 alle prove di Destrezza (Furtività) fintanto che rimane dove si trova senza muoversi e senza effettuare azioni. Se si muove o effettua un'azione o una reazione, dovrà mimetizzarsi di nuovo per ottenere questo beneficio."
     },
     {
       "level": 14,
       "name": "Svanire",
-      "description": "Puoi usare l'azione Nascondersi come azione bonus nel tuo turno. Inoltre, non puoi essere rintracciato tramite mezzi magici, a meno che tu non scelga di permetterlo."
+      "description": "Un ranger può usare l'azione di Nascondersi come azione bonus nel suo turno. Oltre a questo, non è possibile seguire le sue tracce tramite mezzi non magici, a meno che il ranger non decida di lasciare una pista."
     },
     {
       "level": 18,
       "name": "Sensi Ferini",
-      "description": "Ottieni sensi soprannaturali che ti aiutano a combattere le creature che non riesci a vedere. Quando attacchi una creatura che non riesci a vedere, la tua incapacità di vederla non impone svantaggio ai tuoi tiri per colpire contro di essa. Sei comunque consapevole della posizione della creatura."
+      "description": "Un ranger sviluppa un senso soprannaturale che gli permette di combattere anche con le creature che non è in grado di vedere. Quando un ranger attacca una creatura che non è in grado di vedere, la sua incapacità nel localizzarla non impone svantaggio ai suoi tiri per colpire contro di essa. Il ranger è inoltre consapevole dell'ubicazione di qualsiasi creatura invisibile entro 9 metri da lui, purché quella creatura non sia nascosta a lui e il ranger non sia accecato o assordato."
     },
     {
       "level": 20,
       "name": "Sterminatore di Nemici",
-      "description": "Diventi un cacciatore senza pari. Una volta per turno, puoi aggiungere il tuo modificatore di Saggezza al tiro per colpire o ai danni contro uno dei tuoi nemici prescelti (non entrambi)."
+      "description": "Un ranger diventa un cacciatore implacabile dei suoi nemici. Una volta per ogni suo turno, può aggiungere il suo modificatore di Saggezza al tiro per colpire o al tiro per i danni di un attacco da lui effettuato contro uno dei suoi nemici prescelti. Può scegliere di utilizzare questo privilegio prima o dopo il tiro, ma prima che qualsiasi effetto del tiro sia applicato."
     }
   ]
 }

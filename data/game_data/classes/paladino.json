@@ -125,7 +125,7 @@
           "Santuario"
         ],
         "5": [
-          "Ripristino Inferiore",
+          "Ristorare Inferiore",
           "Zona di Verità"
         ],
         "9": [
@@ -145,12 +145,12 @@
         {
           "level": 3,
           "name": "Incanalare Divinità: Arma Consacrata",
-          "description": "Con un'azione, il paladino può utilizzare Incanalare Divinità per infondere un flusso di energia positiva in un'arma da lui impugnata. Per 1 minuto il paladino aggiunge il suo modificatore di Carisma ai tiri per colpire effettuati con quell'arma (fino a un bonus minimo di +1). L'arma emette inoltre luce intensa entro un raggio di 6 metri e luce fioca per ulteriori 6 metri. Se l'arma non è già magica, diventa magica per questa durata. Il paladino può porre termine a questo effetto nel suo turno come parte di qualsiasi altra azione. Se non impugna più questa arma, o se cade privo di sensi, questo effetto termina."
+          "description": "Con un'azione, il paladino può utilizzare Incanalare Divinità per infondere un flusso di energia positiva in un'arma da lui impugnata. Per 1 minuto il paladino aggiunge il suo modificatore di Carisma ai tiri per colpire effettuati con quell'arma (fino a un bonus minimo di +1). L'arma emette inoltre luce intensa entro un raggio di 6 metri e luce fioca per ulteriori 6 metri. Se l'arma non è già magica, diventa magica per questa durata. Il paladino può porre termine a questo effetto nel suo turno come parte di qualsiasi altra azione. Se non impugna o non trasporta più questa arma, o se cade privo di sensi, questo effetto termina."
         },
         {
           "level": 3,
           "name": "Incanalare Divinità: Scacciare i Sacrileghi",
-          "description": "Con un'azione, il paladino può utilizzare Incanalare Divinità, brandire il suo simbolo sacro e pronunciare una preghiera di condanna nei confronti degli immondi e dei non morti. Ogni immondo o non morto che sia in grado di vedere o sentire il paladino e che si trovi entro 9 metri da lui deve effettuare un tiro salvezza su Saggezza. Se lo fallisce, la creatura è scacciata per 1 minuto o finché non subisce danni. Una creatura scacciata deve spendere i suoi turni tentando di allontanarsi il più possibile dal paladino e non può volontariamente muoversi in uno spazio entro 9 metri dal paladino. Inoltre, non può effettuare reazioni. Come sua azione può usare solo l'azione di Scatto o tentare di fuggire da un effetto che gli impedisce di muoversi. Se non può muoversi in alcun luogo, la creatura può usare l'azione di Schivata."
+          "description": "Con un'azione, il paladino può utilizzare Incanalare Divinità. Ogni immondo o non morto che sia in grado di vedere o sentire il paladino e che si trovi entro 9 metri da lui deve effettuare un tiro salvezza su Saggezza. Se lo fallisce, la creatura è scacciata per 1 minuto o finché non subisce danni. Una creatura scacciata deve spendere i suoi turni tentando di allontanarsi il più possibile dal paladino e non può volontariamente muoversi in uno spazio entro 9 metri dal paladino. Inoltre, non può effettuare reazioni. Come sua azione può usare solo l'azione di Scatto o tentare di fuggire da un effetto che gli impedisce di muoversi. Se non può muoversi in alcun luogo, la creatura può usare l'azione di Schivata."
         },
         {
           "level": 7,
@@ -159,8 +159,8 @@
         },
         {
           "level": 15,
-          "name": "Purità di Spirito",
-          "description": "A partire dal 15° livello, il paladino è sempre sotto l'effetto dell'incantesimo protezione dal bene e dal male."
+          "name": "Purezza di Spirito",
+          "description": "A partire dal 15° livello, il paladino è sempre sotto l'effetto di un incantesimo protezione dal bene e dal male."
         },
         {
           "level": 20,
@@ -197,27 +197,27 @@
         {
           "level": 3,
           "name": "Incanalare Divinità: Collera della Natura",
-          "description": "Con un'azione, il paladino fa spuntare dal terreno dei rampicanti spettrali che afferrano una creatura entro 3 metri che egli sia in grado di vedere. La creatura deve superare un TS su Forza o Destrezza (a sua scelta), altrimenti sarà trattenuta. Finché è trattenuta, ripete il TS alla fine di ogni suo turno. Se lo supera, si libera e i rampicanti svaniscono."
+          "description": "Il paladino può utilizzare Incanalare Divinità e, con un'azione, fare spuntare dal terreno dei rampicanti spettrali che si protendono e afferrano una creatura situata entro 3 metri dal paladino e che egli sia in grado di vedere. La creatura deve superare un tiro salvezza su Forza o Destrezza (a sua scelta), altrimenti sarà trattenuta. Finché è trattenuta dai rampicanti, la creatura continua a ripetere il tiro salvezza alla fine di ogni suo turno. Se lo supera, riesce a liberarsi e i rampicanti svaniscono."
         },
         {
           "level": 3,
-          "name": "Incanalare Divinità: Scacciare Ali Infedeli",
-          "description": "Con un'azione, il paladino brandisce il simbolo sacro e ogni folletto o immondo entro 9 metri che possa sentirlo effettua un TS su Saggezza. Se lo fallisce, è scacciato per 1 minuto o finché non subisce danni. Una creatura scacciata spende i suoi turni allontanandosi dal paladino e non può avvicinarsi a meno di 9 metri. Non può effettuare reazioni; come azione può usare solo Scatto o tentare di fuggire da effetti che ne impediscono il movimento. Se la vera forma della creatura è celata da un'illusione o forma mutata, viene rivelata quando viene scacciata."
+          "name": "Incanalare Divinità: Scacciare gli Infedeli",
+          "description": "Il paladino può utilizzare Incanalare Divinità e, con un'azione, brandire il suo simbolo sacro: ogni folletto o immondo situato entro 9 metri da lui e in grado di sentirlo deve effettuare un tiro salvezza su Saggezza. Se lo fallisce, la creatura è scacciata per 1 minuto o finché non subisce danni. Una creatura scacciata deve spendere i suoi turni tentando di allontanarsi il più possibile dal paladino e non può volontariamente muoversi in uno spazio entro 9 metri dal paladino. Inoltre, non può effettuare reazioni. Come sua azione può usare solo l'azione di Scatto o tentare di fuggire da un effetto che gli impedisce di muoversi. Se non può muoversi in alcun luogo, la creatura può usare l'azione di Schivata. Se la vera forma della creatura è celata da un'illusione, una forma mutata o altri effetti analoghi, quella forma è rivelata quando la creatura viene scacciata."
         },
         {
           "level": 7,
           "name": "Aura di Interdizione",
-          "description": "La magia antica scorre con tale potenza nel paladino da formare un'interdizione soprannaturale. Il paladino e le creature amiche situate entro 3 metri da lui ottengono resistenza ai danni degli incantesimi. Al 18° livello, la gittata di questa aura aumenta a 9 metri."
+          "description": "Il paladino e le creature amiche situate entro 3 metri da lui ottengono resistenza ai danni degli incantesimi. Al 18° livello, la gittata di questa aura aumenta a 9 metri."
         },
         {
           "level": 15,
           "name": "Sentinella Imperitura",
-          "description": "Quando il paladino scende a 0 punti ferita ma non viene ucciso sul colpo, può decidere di rimanere a 1 punto ferita. Non può usare nuovamente questa capacità finché non completa un riposo lungo. Non subisce inoltre alcuno svantaggio dovuto alla vecchiaia e non può invecchiare magicamente."
+          "description": "Quando il paladino scende a 0 punti ferita ma non viene ucciso sul colpo, può decidere di rimanere a 1 punto ferita. Il paladino non può usare nuovamente questa capacità finché non completa un riposo lungo. Non subisce inoltre alcuno svantaggio dovuto alla vecchiaia e non può invecchiare magicamente."
         },
         {
           "level": 20,
           "name": "Campione degli Antichi",
-          "description": "Usando la sua azione, il paladino si sottopone a una trasformazione assumendo un aspetto della natura (pelle verde o ruvida come corteccia, capelli come fogliame o muschio, corna di cervo, ecc.). Per 1 minuto ottiene i benefici seguenti:\n• All'inizio di ogni suo turno recupera 10 punti ferita.\n• Ogni volta che lancia un incantesimo da paladino con tempo di lancio di 1 azione, può lanciarlo usando invece 1 azione bonus.\n• Le creature nemiche entro 3 metri da lui subiscono svantaggio ai TS contro i suoi incantesimi da paladino e le sue opzioni di Incanalare Divinità.\nUna volta utilizzato, non può farlo di nuovo finché non completa un riposo lungo."
+          "description": "Il paladino può assumere la forma di un'antica forza della natura, assumendo un aspetto a sua scelta. Per esempio, la sua pelle potrebbe diventare verde o ruvida e resistente come la corteccia, i suoi capelli potrebbero trasformarsi in fogliame o muschio, oppure dalla sua testa potrebbero spuntare le corna di un cervo o la criniera di un leone. Usando la sua azione, il paladino si sottopone a una trasformazione. Per 1 minuto ottiene i benefici seguenti:\n• All'inizio di ogni suo turno recupera 10 punti ferita.\n• Ogni volta che lancia un incantesimo da paladino con un tempo di lancio di 1 azione, può lanciarlo usando invece 1 azione bonus.\n• Le creature nemiche situate entro 3 metri da lui subiscono svantaggio ai tiri salvezza contro i suoi incantesimi da paladino e le sue opzioni di Incanalare Divinità.\nUna volta utilizzato questo privilegio, il paladino non può più utilizzarlo finché non completa un riposo lungo."
         }
       ]
     },
@@ -249,7 +249,7 @@
         {
           "level": 3,
           "name": "Incanalare Divinità: Abiurare Nemico",
-          "description": "Con un'azione, il paladino brandisce il suo simbolo sacro e proclama una preghiera di denuncia utilizzando Incanalare Divinità. Il paladino sceglie una creatura situata entro 18 metri da lui e che egli sia in grado di vedere. Quella creatura deve effettuare un tiro salvezza su Saggezza, a meno che non sia immune all'essere spaventata. Gli immondi e i non morti subiscono svantaggio a questo tiro salvezza. Se fallisce il tiro salvezza, la creatura è spaventata per 1 minuto o finché non subisce danni. Finché è spaventata, la creatura ha velocità 0 e non può trarre beneficio da alcun bonus alla sua velocità. Se supera il tiro salvezza, la creatura dimezza la sua velocità per 1 minuto o finché non subisce danni."
+          "description": "Con un'azione, utilizzando Incanalare Divinità, il paladino sceglie una creatura situata entro 18 metri da lui e che egli sia in grado di vedere. Quella creatura deve effettuare un tiro salvezza su Saggezza, a meno che non sia immune all'essere spaventata. Gli immondi e i non morti subiscono svantaggio a questo tiro salvezza. Se fallisce il tiro salvezza, la creatura è spaventata per 1 minuto o finché non subisce danni. Finché è spaventata, la creatura ha velocità 0 e non può trarre beneficio da alcun bonus alla sua velocità. Se supera il tiro salvezza, la creatura dimezza la sua velocità per 1 minuto o finché non subisce danni."
         },
         {
           "level": 3,
@@ -259,12 +259,12 @@
         {
           "level": 7,
           "name": "Vendicatore Implacabile",
-          "description": "Al 7° livello, grazie alla sua concentrazione soprannaturale, il paladino è in grado di bloccare la ritirata dei suoi nemici. Quando colpisce una creatura con un attacco di opportunità, può muoversi fino a metà della sua velocità immediatamente dopo l'attacco e come parte della stessa reazione. Questo movimento non provoca attacchi di opportunità."
+          "description": "Quando colpisce una creatura con un attacco di opportunità, il paladino può muoversi fino a metà della sua velocità immediatamente dopo l'attacco e come parte della stessa reazione. Questo movimento non provoca attacchi di opportunità."
         },
         {
           "level": 15,
           "name": "Anima di Vendetta",
-          "description": "A partire dal 15° livello, l'autorità al cui cospetto il paladino ha formulato il suo Giuramento di Inimicizia gli conferisce un potere superiore sul suo avversario. Quando una creatura sotto l'effetto del Giuramento di Inimicizia del paladino effettua un attacco, il paladino può usare la sua reazione per effettuare un attacco con un'arma da mischia contro quella creatura, se essa si trova entro portata."
+          "description": "Quando una creatura sotto l'effetto del Giuramento di Inimicizia del paladino effettua un attacco, il paladino può usare la sua reazione per effettuare un attacco con un'arma da mischia contro quella creatura, se essa si trova entro portata."
         },
         {
           "level": 20,
@@ -278,17 +278,17 @@
     {
       "level": 1,
       "name": "Percezione del Divino",
-      "description": "Puoi percepire la presenza di bene e male potente. Come azione, puoi aprire la tua consapevolezza alla loro presenza. Fino alla fine del tuo turno successivo, conosci la posizione di qualsiasi celestiale, demone, elementale, non morto o essere fatato entro 18 m che non si trovi dietro una copertura totale. Non conosci l'identità della creatura. Puoi usare questa funzione un numero di volte pari a 1 + modificatore di Carisma (min. 1). Recupero: riposo lungo."
+      "description": "Un paladino percepisce una presenza del male particolarmente forte come se un fetore assalisse le sue narici, mentre una forte presenza del bene equivale per lui a una musica celestiale che risuona nelle sue orecchie. Con un'azione, un paladino può proiettare le sue percezioni attorno a sé per avvertire la presenza di queste forze. Fino alla fine del suo turno successivo, il paladino conosce l'ubicazione di ogni celestiale, immondo o non morto entro 18 metri da lui e che non si trovi sotto copertura totale. Il paladino riconosce il tipo (celestiale, immondo o non morto) di qualsiasi creatura di cui riesca a percepire la presenza, ma non la sua identità. Entro lo stesso raggio, il paladino individua anche la presenza di qualsiasi luogo sacro o sacrilego, con gli stessi effetti dell'incantesimo santificare. Il paladino può utilizzare questo privilegio un numero di volte pari a 1 + il suo modificatore di Carisma. Quando completa un riposo lungo, recupera tutti gli utilizzi spesi."
     },
     {
       "level": 1,
       "name": "Imposizione delle Mani",
-      "description": "La tua mano benedetta può guarire le ferite. Hai una riserva di potere curativo pari a 5 × livello da paladino. Come azione puoi toccare una creatura e attingere alla riserva per ripristinare un numero di PF a tua scelta. In alternativa, puoi spendere 5 PF per curare la creatura da una malattia o neutralizzare un veleno. La riserva si rinnova dopo un riposo lungo."
+      "description": "Il tocco benedetto di un paladino è in grado di curare le ferite. Un paladino possiede una riserva di poteri curativi che si ricostituisce quando il paladino completa un riposo lungo. Grazie a quella riserva, il paladino può ripristinare un numero totale di punti ferita pari a cinque volte il proprio livello da paladino. Con un'azione, il paladino può toccare una creatura e attingere al potere della sua riserva per ripristinare un certo numero di punti ferita in quella creatura, fino all'ammontare massimo rimasto nella sua riserva. In alternativa, il paladino può spendere 5 punti ferita dalla sua riserva di guarigione per curare il bersaglio da una malattia o neutralizzare un veleno a cui è soggetto. Il paladino può curare più malattie e neutralizzare più veleni con un singolo utilizzo di Imposizione delle Mani, spendendo separatamente i punti ferita per ogni caso. Questo privilegio non ha effetto sui costrutti e sui non morti."
     },
     {
       "level": 2,
       "name": "Stile di Combattimento",
-      "description": "Adotti uno stile di combattimento come specialità. Scegli tra: Difesa (+1 CA con armatura), Duello (+2 danni con un'arma a una mano), Grande Arma (ritira 1 e 2 sui dadi danno dell'arma), Protezione (imponi svantaggio agli attacchi contro alleati adiacenti usando lo scudo)."
+      "description": "Al 2° livello, un paladino adotta uno stile di combattimento come specialità, scegliendo tra: Combattere con Armi Possenti, Difesa, Duellare o Protezione (vedi \"fighting_style_details\" in guerriero.json per il testo completo di ciascuno stile — meccanica identica e condivisa tra le classi)."
     },
     {
       "level": 2,
@@ -298,7 +298,12 @@
     {
       "level": 2,
       "name": "Punizione Divina",
-      "description": "Quando colpisci una creatura con un attacco con un'arma, puoi spendere uno slot incantesimo per infliggere danni radiosi extra al bersaglio in aggiunta ai danni normali. I danni extra sono 2d8 per uno slot di 1° livello, più 1d8 per ogni livello superiore al 1°, fino a un massimo di 5d8. I danni aumentano di 1d8 se il bersaglio è un non morto o un demone."
+      "description": "Quando il paladino colpisce una creatura con un attacco con un'arma da mischia, può spendere uno slot incantesimo per infliggere danni radiosi al bersaglio, in aggiunta ai danni dell'arma. I danni extra sono 2d8 per uno slot incantesimo di 1° livello, più 1d8 per ogni livello di incantesimo superiore al 1°, fino a un massimo di 5d8. I danni aumentano di 1d8 se il bersaglio è un non morto o un immondo."
+    },
+    {
+      "level": 3,
+      "name": "Incanalare Divinità",
+      "description": "Grazie al suo giuramento, un paladino può incanalare l'energia divina per alimentare alcuni effetti magici. Ogni opzione di Incanalare Divinità fornitagli dal suo giuramento include la spiegazione del suo utilizzo. Quando un paladino utilizza Incanalare Divinità, può scegliere quale opzione usare. Deve poi completare un riposo breve o lungo per utilizzare di nuovo Incanalare Divinità. Alcuni effetti di Incanalare Divinità richiedono dei tiri salvezza. Quando un paladino utilizza un tale effetto, la CD è pari alla CD del tiro salvezza dei suoi incantesimi da paladino."
     },
     {
       "level": 3,
@@ -308,32 +313,22 @@
     {
       "level": 5,
       "name": "Attacco Extra",
-      "description": "Puoi attaccare due volte anziché una ogni volta che effettui l'azione di Attacco nel tuo turno."
+      "description": "Un paladino può attaccare due volte anziché una, ogni volta che effettua l'azione di Attacco nel proprio turno."
     },
     {
       "level": 6,
       "name": "Aura di Protezione",
-      "description": "Ogniqualvolta tu o una creatura amica entro 3 m da te dovete effettuare un tiro salvezza, la creatura ottiene un bonus pari al modificatore di Carisma (min. +1). Devi essere cosciente per concedere questo bonus. Il raggio aumenta a 9 m al 18° livello."
+      "description": "Ogni volta che il paladino o una creatura amica entro 3 metri da lui deve effettuare un tiro salvezza, il paladino o la creatura in questione ottiene un bonus al tiro salvezza pari al modificatore di Carisma del paladino (fino a un bonus minimo di +1). Il paladino deve essere cosciente per conferire questo bonus. Al 18° livello, la gittata di questa aura aumenta a 9 metri."
     },
     {
       "level": 10,
       "name": "Aura di Coraggio",
-      "description": "Tu e le creature amiche entro 3 m (9 m al 18° livello) non potete essere spaventati mentre sei cosciente."
-    },
-    {
-      "level": 11,
-      "name": "Punizione Divina Migliorata",
-      "description": "Sei talmente pervaso dalla rettitudine che tutti i tuoi colpi con le armi riportano con sé il potere divino. Ogni volta che colpisci una creatura con un'arma, l'arma infligge 1d8 danni radiosi aggiuntivi. Se utilizzi anche Punizione Divina, aggiungi questo danno ai danni extra della Punizione."
+      "description": "Il paladino e le creature amiche entro 3 metri da lui non possono essere spaventate finché il paladino è cosciente. Al 18° livello, la gittata di questa aura aumenta a 9 metri."
     },
     {
       "level": 14,
       "name": "Tocco Purificatore",
-      "description": "Puoi usare la tua azione per porre fine a un incantesimo su di te o su una creatura amica che tocchi con il tuo consenso. Puoi usare questo privilegio un numero di volte pari al modificatore di Carisma (min. 1). Recupero: riposo lungo."
-    },
-    {
-      "level": 18,
-      "name": "Aure Migliorate",
-      "description": "Il raggio delle tue aure (Aura di Protezione e Aura di Coraggio) aumenta da 3 m a 9 m."
+      "description": "Il paladino può usare la sua azione per terminare un incantesimo su se stesso o su una creatura consenziente che sta toccando. Il paladino può utilizzare questo privilegio un numero di volte pari al suo modificatore di Carisma (fino a un minimo di una volta). Recupera gli utilizzi spesi quando completa un riposo lungo."
     }
   ]
 }
