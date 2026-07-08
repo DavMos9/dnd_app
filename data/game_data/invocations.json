@@ -1,5 +1,5 @@
 {
-  "_note": "Invocazioni Occulte (Eldritch Invocations) PHB 5e 2014 italiano. 32 invocazioni complete.",
+  "_note": "Suppliche Occulte (Eldritch Invocations) PHB 5e 2014 italiano. 32 suppliche — nomi/contenuto NON ancora riverificati singolarmente contro il manuale (da fare quando arriviamo alla revisione di questo file nella checklist).",
   "_schema": {
     "name": "string — nome italiano",
     "prerequisite_level": "int — livello Warlock minimo (0 = nessuno)",

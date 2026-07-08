@@ -11,7 +11,7 @@ Scelte IMPLEMENTATE:
   PROFICIENCY_BONUS_UP — automatico, nessuna scelta
   SPELL_LEARN        — scelta nuovi incantesimi (Bardo/Stregone/Warlock/Ranger + Segreti Magici)
   EXPERTISE          — scelta maestria abilità Ladro/Bardo
-  INVOCATION         — scelta invocazioni occulte Warlock
+  INVOCATION         — scelta suppliche occulte Warlock
   METAMAGIC          — scelta metamagia Stregone
   PACT_CHOICE        — scelta dono del patto Warlock
   SUBCLASS_CHOICE    — scelta sottoclasse
@@ -46,7 +46,7 @@ class StepType(Enum):
     SUBCLASS_CHOICE      = auto()  # scelta sottoclasse
     SPELL_LEARN          = auto()  # scelta nuovi incantesimi — futuro picker
     EXPERTISE            = auto()  # scelta maestria abilità (Ladro/Bardo)
-    INVOCATION           = auto()  # scelta invocazioni occulte (Warlock)
+    INVOCATION           = auto()  # scelta suppliche occulte (Warlock)
     METAMAGIC            = auto()  # scelta metamagia (Stregone)
     PACT_CHOICE          = auto()  # scelta dono del patto (Warlock Lv3)
 
@@ -301,12 +301,12 @@ _CLASS_FEATURES: dict[str, dict[int, list[str]]] = {
         20: ["Sterminatore di Nemici (mod. Saggezza a tiro per colpire o danni vs nemico prescelto)"],
     },
     "Stregone": {
-        1:  ["Magia Istintiva (Origine Stregonica)"],
-        2:  ["Punti Stregoneria (= livello)", "Metamagia (2 opzioni)"],
-        3:  [],
+        1:  ["Incantesimi", "Origine Stregonesca — scegli la sottoclasse"],
+        2:  ["Fonte di Stregoneria (punti = livello)", "Incantesimi Flessibili"],
+        3:  ["Metamagia (2 opzioni)"],
         4:  [],
         5:  [],
-        6:  ["Capacità dell'Origine Stregonica"],
+        6:  ["Capacità dell'Origine Stregonesca"],
         7:  [],
         8:  [],
         9:  [],
@@ -314,35 +314,35 @@ _CLASS_FEATURES: dict[str, dict[int, list[str]]] = {
         11: [],
         12: [],
         13: [],
-        14: ["Capacità dell'Origine Stregonica"],
+        14: ["Capacità dell'Origine Stregonesca"],
         15: [],
         16: [],
         17: ["Metamagia (opzione aggiuntiva)"],
-        18: ["Capacità dell'Origine Stregonica"],
+        18: ["Capacità dell'Origine Stregonesca"],
         19: [],
-        20: ["Restaurazione Stregonica (4 punti a inizio turno, 1v)"],
+        20: ["Ripristino Stregonesco (4 punti stregoneria/riposo breve)"],
     },
     "Warlock": {
         1:  ["Patrono Ultraterreno — scegli la sottoclasse"],
-        2:  ["Invocazioni Eldritch (2)"],
+        2:  ["Suppliche Occulte (2)"],
         3:  ["Dono del Patto"],
         4:  [],
-        5:  ["Invocazioni Eldritch (3)", "Slot incantesimo → 3° livello"],
+        5:  ["Suppliche Occulte (3)", "Slot incantesimo → 3° livello"],
         6:  ["Capacità del Patrono"],
-        7:  ["Invocazioni Eldritch (4)"],
+        7:  ["Suppliche Occulte (4)"],
         8:  [],
-        9:  ["Invocazioni Eldritch (5)", "Slot incantesimo → 5° livello"],
+        9:  ["Suppliche Occulte (5)", "Slot incantesimo → 5° livello"],
         10: ["Capacità del Patrono"],
-        11: ["Incantesimo Mistico (6°, 1 uso)"],
-        12: ["Invocazioni Eldritch (6)"],
-        13: ["Incantesimo Mistico (7°)"],
+        11: ["Arcanum Mistico (6°, 1 uso)"],
+        12: ["Suppliche Occulte (6)"],
+        13: ["Arcanum Mistico (7°)"],
         14: ["Capacità del Patrono"],
-        15: ["Incantesimo Mistico (8°)", "Invocazioni Eldritch (7)"],
+        15: ["Arcanum Mistico (8°)", "Suppliche Occulte (7)"],
         16: [],
-        17: ["Invocazioni Eldritch (8)"],
-        18: ["Incantesimo Mistico (9°)"],
+        17: ["Suppliche Occulte (8)"],
+        18: ["Arcanum Mistico (9°)"],
         19: [],
-        20: ["Arcanum Ultraterreno"],
+        20: ["Maestro dell'Occulto"],
     },
 }
 
@@ -444,8 +444,8 @@ def get_level_up_steps(
                 requires_player_choice=True,
                 data={"count": count},
             ))
-        elif "invocazioni" in feat_lower:
-            # Invocazioni Occulte: il numero tra parentesi è il totale cumulativo
+        elif "supplic" in feat_lower:
+            # Suppliche Occulte: il numero tra parentesi è il totale cumulativo
             m = re.search(r"\((\d+)\)", feat)
             total = int(m.group(1)) if m else 0
             steps.append(LevelStep(

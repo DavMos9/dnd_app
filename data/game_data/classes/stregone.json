@@ -12,7 +12,7 @@
     "Pugnale",
     "Dardo",
     "Fionda",
-    "Bastone",
+    "Bastone Ferrato",
     "Balestra leggera"
   ],
   "tool_proficiencies": [],
@@ -62,7 +62,7 @@
       "options": [
         [
           {
-            "name": "Sacca dei Componenti",
+            "name": "Borsa per Componenti",
             "item_type": "item"
           }
         ],
@@ -108,46 +108,137 @@
     "dice": "3d4",
     "multiplier": 10
   },
+  "spell_slot_creation_cost": [
+    { "slot_level": 1, "sorcery_points": 2 },
+    { "slot_level": 2, "sorcery_points": 3 },
+    { "slot_level": 3, "sorcery_points": 5 },
+    { "slot_level": 4, "sorcery_points": 6 },
+    { "slot_level": 5, "sorcery_points": 7 }
+  ],
   "subclass_label": "Origine Magica",
   "subclass_choice_level": 1,
   "subclasses": [
     {
       "name": "Discendenza Draconiana",
+      "dragon_damage_types": [
+        { "dragon": "Argento", "damage_type": "Freddo" },
+        { "dragon": "Bianco", "damage_type": "Freddo" },
+        { "dragon": "Blu", "damage_type": "Fulmine" },
+        { "dragon": "Bronzo", "damage_type": "Fulmine" },
+        { "dragon": "Nero", "damage_type": "Acido" },
+        { "dragon": "Oro", "damage_type": "Fuoco" },
+        { "dragon": "Ottone", "damage_type": "Fuoco" },
+        { "dragon": "Rame", "damage_type": "Acido" },
+        { "dragon": "Rosso", "damage_type": "Fuoco" },
+        { "dragon": "Verde", "damage_type": "Veleno" }
+      ],
       "features": [
         {
           "level": 1,
           "name": "Antenato Draconico",
-          "description": "Scegli un tipo di drago (Bianco, Blu, Verde, Nero, Rosso, Oro, Argento, Rame, Ottone, Bronzo). Ottieni la lingua draconica e resistenza al tipo di danno del drago."
+          "description": "Lo stregone sceglie un tipo di drago come suo antenato. Il tipo di danno associato a ogni drago sarà utilizzato dai privilegi che lo stregone otterrà in seguito. Lo stregone è in grado di parlare, leggere e scrivere in Draconico. Inoltre, ogni volta che effettua una prova di Carisma per interagire con i draghi, il suo bonus di competenza raddoppia se è applicabile alla prova."
         },
         {
           "level": 1,
-          "name": "Resilienza Draconiana",
-          "description": "I PF massimi aumentano di 1 per livello. Quando non indossi armatura, la CA = 13 + mod Destrezza."
+          "name": "Resilienza Draconica",
+          "description": "Il massimo dei punti ferita dello stregone aumenta di 1 e aumenta di nuovo di 1 ogni volta che il personaggio acquisisce un livello in questa classe. Inoltre, alcune parti della sua pelle si ricoprono di un sottile strato di scaglie simili a quelle di un drago. Quando lo stregone non indossa armature, la sua CA è pari a 13 + il suo modificatore di Destrezza."
         },
         {
           "level": 6,
           "name": "Affinità Elementale",
-          "description": "Spendi 1 punto stregoneria: aggiungi il modificatore di Carisma ai danni degli incantesimi che usano il tipo di danno del tuo drago."
+          "description": "Quando lo stregone lancia un incantesimo che infligge danni del tipo associato al suo antenato draconico, può aggiungere il suo modificatore di Carisma a un tiro per i danni di quell'incantesimo. Allo stesso tempo, lo stregone può spendere 1 punto stregoneria per ottenere resistenza a quel tipo di danno per 1 ora."
         },
         {
           "level": 14,
-          "name": "Ali Draconiache",
-          "description": "Spendi 3 punti stregoneria: evochi ali draconiche, ottieni velocità di volo pari alla velocità di terra."
+          "name": "Ali di Drago",
+          "description": "Lo stregone sviluppa la capacità di generare un paio di ali di drago dalla sua schiena, ottenendo una velocità di volare pari alla sua velocità attuale. Lo stregone può generare queste ali come azione bonus nel suo turno. Le ali durano finché lo stregone non le congeda con un'azione bonus durante il proprio turno. Lo stregone non può manifestare le sue ali mentre indossa un'armatura, a meno che l'armatura non sia concepita per accoglierle; i vestiti che non sono stati concepiti per accogliere le ali potrebbero essere distrutti quando lo stregone le manifesta."
         },
         {
           "level": 18,
           "name": "Presenza Draconica",
-          "description": "Spendi 5 punti stregoneria: ogni creatura entro 18 m deve superare un TS su Saggezza o essere affascinata/spaventata."
+          "description": "Lo stregone può incanalare la presenza terrificante del suo antenato draconico, rendendo quelli attorno a lui affascinati o spaventati. Con un'azione, lo stregone può spendere 5 punti stregoneria per attingere a questo potere ed emanare un'aura di soggezione o di paura (a sua scelta) entro una distanza di 18 metri. Per 1 minuto o finché non perde la sua concentrazione (come se stesse lanciando un incantesimo che richiede concentrazione), ogni creatura ostile che inizia il suo turno entro questa aura deve superare un tiro salvezza su Saggezza o sarà affascinata (se lo stregone ha scelto soggezione) o spaventata (se ha scelto paura) finché l'aura non termina. Una creatura che supera questo tiro salvezza è immune all'aura dello stregone per 24 ore."
         }
       ]
     },
     {
       "name": "Anima Selvaggia",
+      "wild_magic_surge_table": [
+        { "roll": "01-02", "effect": "Lo stregone tira su questa tabella all'inizio di ogni suo turno per il minuto successivo, ignorando questo risultato ai tiri successivi." },
+        { "roll": "03-04", "effect": "Per il minuto successivo, lo stregone è in grado di vedere qualsiasi creatura invisibile, se dispone di linea di vista fino a essa." },
+        { "roll": "05-06", "effect": "Un modron scelto e controllato dal DM compare in uno spazio libero a 1,5 metri dallo stregone, poi scompare 1 minuto dopo." },
+        { "roll": "07-08", "effect": "Lo stregone lancia palla di fuoco come incantesimo di 3° livello centrato su se stesso." },
+        { "roll": "09-10", "effect": "Lo stregone lancia dardo incantato come incantesimo di 5° livello." },
+        { "roll": "11-12", "effect": "Lo stregone tira un d10. La sua altezza cambia di una misura pari a 2,5 cm x il risultato ottenuto. Se il risultato è dispari, si rimpicciolisce. Se è pari, cresce." },
+        { "roll": "13-14", "effect": "Lo stregone lancia confusione centrato su se stesso." },
+        { "roll": "15-16", "effect": "Per il minuto successivo, lo stregone recupera 5 punti ferita all'inizio di ogni suo turno." },
+        { "roll": "17-18", "effect": "Lo stregone sviluppa una lunga barba fatta di piume che rimane finché non starnutisce. Quando questo accade, le piume schizzano via dal suo volto in un'esplosione innocua." },
+        { "roll": "19-20", "effect": "Lo stregone lancia unto centrato su se stesso." },
+        { "roll": "21-22", "effect": "Le creature subiscono svantaggio ai tiri salvezza contro il prossimo incantesimo che sia lanciato dallo stregone nel minuto successivo e che richieda un tiro salvezza." },
+        { "roll": "23-24", "effect": "La pelle dello stregone si tinge di una vivace tonalità di azzurro. Un incantesimo rimuovi maledizione può porre termine a questo effetto." },
+        { "roll": "25-26", "effect": "Un occhio appare sulla fronte dello stregone per il minuto successivo. Durante quel periodo, lo stregone dispone di vantaggio alle prove di Saggezza (Percezione) basate sulla vista." },
+        { "roll": "27-28", "effect": "Per il minuto successivo, tutti gli incantesimi dello stregone con un tempo di lancio pari a 1 azione hanno un tempo di lancio di 1 azione bonus." },
+        { "roll": "29-30", "effect": "Lo stregone si teletrasporta fino a 18 metri di distanza, in uno spazio libero a sua scelta che egli sia in grado di vedere." },
+        { "roll": "31-32", "effect": "Lo stregone viene trasportato sul Piano Astrale fino alla fine del suo turno successivo, poi ritorna nello spazio che occupava in precedenza o nello spazio libero più vicino, se quello spazio è ora occupato." },
+        { "roll": "33-34", "effect": "Lo stregone massimizza i danni del successivo incantesimo che infligge danni e che lancerà entro il minuto successivo." },
+        { "roll": "35-36", "effect": "Lo stregone tira un d10. La sua età cambia di un numero di anni pari al risultato del tiro. Se il risultato è dispari, lo stregone ringiovanisce (fino a un minimo di un anno di età). Se il tiro è pari, invecchia." },
+        { "roll": "37-38", "effect": "1d6 flumph controllati dal DM appaiono su altrettanti spazi liberi entro 18 metri dallo stregone e sono spaventati da lui. Svaniscono dopo 1 minuto." },
+        { "roll": "39-40", "effect": "Lo stregone recupera 2d10 punti ferita." },
+        { "roll": "41-42", "effect": "Lo stregone si trasforma in una pianta in vaso fino all'inizio del suo turno successivo. Finché è una pianta, è incapacitato e subisce vulnerabilità a tutti i danni. Se lo stregone scende a 0 punti ferita, il vaso si rompe e lo stregone torna alla sua forma normale." },
+        { "roll": "43-44", "effect": "Per il minuto successivo, lo stregone può teletrasportarsi di un massimo di 6 metri come azione bonus in ognuno dei suoi turni." },
+        { "roll": "45-46", "effect": "Lo stregone lancia levitazione su se stesso." },
+        { "roll": "47-48", "effect": "Un unicorno controllato dal DM appare in uno spazio entro 1,5 metri dallo stregone, poi scompare 1 minuto dopo." },
+        { "roll": "49-50", "effect": "Lo stregone non può parlare per il minuto successivo. Ogni volta che prova a farlo, alcune bolle rosa escono fluttuando dalla sua bocca." },
+        { "roll": "51-52", "effect": "Uno scudo spettrale fluttua accanto allo stregone per il minuto successivo, conferendogli un bonus di +2 alla CA e l'immunità a dardo incantato." },
+        { "roll": "53-54", "effect": "Lo stregone è immune all'intossicazione alcolica per i 5d6 giorni successivi." },
+        { "roll": "55-56", "effect": "Lo stregone perde tutti i capelli, che però ricrescono nel giro di 24 ore." },
+        { "roll": "57-58", "effect": "Per il minuto successivo, ogni oggetto infiammabile toccato dallo stregone e che non sia indossato o trasportato da un'altra creatura prende fuoco." },
+        { "roll": "59-60", "effect": "Lo stregone recupera lo slot incantesimo di livello più basso che ha speso." },
+        { "roll": "61-62", "effect": "Per il minuto successivo, lo stregone deve gridare quando parla." },
+        { "roll": "63-64", "effect": "Lo stregone lancia nube di nebbia centrato su se stesso." },
+        { "roll": "65-66", "effect": "Fino a tre creature scelte dallo stregone e situate entro 9 metri da lui subiscono 4d10 danni da fulmine." },
+        { "roll": "67-68", "effect": "Lo stregone è spaventato dalla creatura più vicina fino alla fine del proprio turno successivo." },
+        { "roll": "69-70", "effect": "Ogni creatura entro 9 metri dallo stregone diventa invisibile per il minuto successivo. L'invisibilità su una creatura termina quando quella creatura attacca o lancia un incantesimo." },
+        { "roll": "71-72", "effect": "Lo stregone ottiene resistenza a tutti i danni per il minuto successivo." },
+        { "roll": "73-74", "effect": "Una creatura casuale entro 18 metri dallo stregone diventa avvelenata per 1d4 ore." },
+        { "roll": "75-76", "effect": "Lo stregone risplende di luce intensa entro un raggio di 9 metri per il minuto successivo. Ogni creatura che termina il suo turno entro 1,5 metri dallo stregone è accecata fino alla fine del proprio turno successivo." },
+        { "roll": "77-78", "effect": "Lo stregone lancia metamorfosi su se stesso. Se fallisce il tiro salvezza, si trasforma in una pecora per la durata dell'incantesimo." },
+        { "roll": "79-80", "effect": "Farfalle e petali di fiori illusori fluttuano nell'aria entro 3 metri dallo stregone per il minuto successivo." },
+        { "roll": "81-82", "effect": "Lo stregone può effettuare un'azione aggiuntiva immediatamente." },
+        { "roll": "83-84", "effect": "Ogni creatura entro 9 metri dallo stregone subisce 1d10 danni necrotici. Lo stregone recupera un numero di punti ferita pari alla somma dei danni necrotici inferti." },
+        { "roll": "85-86", "effect": "Lo stregone lancia immagine speculare." },
+        { "roll": "87-88", "effect": "Lo stregone lancia volare su una creatura casuale situata entro 18 metri da lui." },
+        { "roll": "89-90", "effect": "Lo stregone diventa invisibile per il minuto successivo. Durante quel periodo le altre creature non possono udirlo. L'invisibilità termina se lo stregone attacca o lancia un incantesimo." },
+        { "roll": "91-92", "effect": "Se lo stregone muore entro il minuto successivo, torna in vita immediatamente, come per l'effetto dell'incantesimo reincarnazione." },
+        { "roll": "93-94", "effect": "La taglia dello stregone aumenta di una categoria per il minuto successivo." },
+        { "roll": "95-96", "effect": "Lo stregone e tutte le creature entro 9 metri da lui ottengono vulnerabilità ai danni perforanti per il minuto successivo." },
+        { "roll": "97-98", "effect": "Lo stregone è circondato da una debole musica eterea per il minuto successivo." },
+        { "roll": "99-00", "effect": "Lo stregone recupera tutti i punti stregoneria spesi." }
+      ],
       "features": [
         {
           "level": 1,
-          "name": "Magia Selvaggia",
-          "description": "Quando lanci uno slot incantesimo stregone, il DM può chiederti di tirare su una tabella di effetti casuali."
+          "name": "Impulso di Magia Selvaggia",
+          "description": "Lo stregone può sprigionare impulsi di magia incontrollata quando lancia i suoi incantesimi. Una volta per turno il DM può chiedergli di tirare un d20 subito dopo avere lanciato un incantesimo da stregone di livello pari o superiore al 1°. Se ottiene un 1, deve tirare sulla tabella \"Impulsi di Magia Selvaggia\" per generare un effetto magico. Se quell'effetto è un incantesimo, è troppo selvaggio per essere influenzato dalla sua Metamagia, e se normalmente richiede concentrazione, in questo caso non richiede concentrazione; l'incantesimo permane per la sua durata completa."
+        },
+        {
+          "level": 1,
+          "name": "Onde di Caos",
+          "description": "Lo stregone può manipolare le forze della probabilità e del caos per ottenere vantaggio a un tiro per colpire, una prova di caratteristica o un tiro salvezza. Una volta che l'ha fatto, deve completare un riposo lungo prima che possa utilizzare di nuovo questo privilegio. In qualsiasi momento, prima di recuperare l'utilizzo di questo privilegio, il DM può chiedere al giocatore di tirare sulla tabella \"Impulsi di Magia Selvaggia\" subito dopo che lo stregone ha lanciato un incantesimo di livello pari o superiore al 1°. Poi lo stregone recupera l'utilizzo di questo privilegio."
+        },
+        {
+          "level": 6,
+          "name": "Piegare la Fortuna",
+          "description": "Lo stregone sviluppa la capacità di alterare il fato usando la sua magia selvaggia. Quando un'altra creatura che lo stregone sia in grado di vedere effettua un tiro per colpire, una prova di caratteristica o un tiro salvezza, lo stregone può usare la sua reazione e spendere 2 punti stregoneria per tirare 1d4 e applicare il risultato ottenuto come bonus o penalità (a sua scelta) al tiro della creatura. Può farlo dopo che la creatura ha effettuato il tiro, ma prima che qualsiasi effetto del tiro si verifichi."
+        },
+        {
+          "level": 14,
+          "name": "Caos Controllato",
+          "description": "Lo stregone ottiene un minimo di controllo sugli impulsi della sua magia selvaggia. Ogni volta che tira sulla tabella \"Impulsi di Magia Selvaggia\", può tirare due volte e scegliere quale numero usare."
+        },
+        {
+          "level": 18,
+          "name": "Bombardamento Magico",
+          "description": "L'energia dannosa degli incantesimi dello stregone si intensifica. Quando lo stregone tira per i danni di un incantesimo e ottiene il più alto numero possibile su qualsiasi dado, sceglie uno di quei dadi, lo tira di nuovo e aggiunge il nuovo risultato ai danni. Può utilizzare questo privilegio soltanto una volta per turno."
         }
       ]
     }
@@ -156,27 +247,66 @@
     {
       "level": 1,
       "name": "Incantesimi",
-      "description": "Una fonte innata di magia, derivante dal tuo lignaggio, ti permette di lanciare incantesimi. La caratteristica da incantatore è Carisma. Conosci un certo numero di incantesimi fisso (non li prepari giornalmente). Vedi la tabella Stregone per il numero di trucchetti, incantesimi conosciuti e slot incantesimo."
+      "description": "Al 1° livello, uno stregone conosce quattro trucchetti a sua scelta tratti dalla lista degli incantesimi da stregone. Apprende ulteriori trucchetti da stregone a sua scelta ai livelli successivi, come indicato dalla colonna \"Trucchetti Conosciuti\" nella tabella \"Stregone\". Uno stregone conosce due incantesimi di 1° livello a sua scelta dalla lista degli incantesimi da stregone. La colonna \"Incantesimi Conosciuti\" nella tabella \"Stregone\" indica quando uno stregone impara altri incantesimi da stregone a sua scelta. Ognuno di questi incantesimi deve appartenere a un livello di cui lo stregone possiede degli slot incantesimo, come indicato dalla tabella. Inoltre, quando uno stregone acquisisce un livello, può scegliere un incantesimo da stregone che conosce e sostituirlo con un altro incantesimo della lista degli incantesimi da stregone; anche il nuovo incantesimo deve essere di un livello di cui lo stregone possiede degli slot incantesimo."
     },
     {
       "level": 1,
       "name": "Origine Stregonesca",
-      "description": "Scegli un'origine stregonesca che descrive la fonte del tuo potere magico innato: Discendenza Draconica o Magia Selvaggia. La scelta ti concede privilegi al 1°, 6°, 14° e 18° livello."
+      "description": "Scegli un'origine stregonesca che descrive la fonte del tuo potere magico innato: Discendenza Draconiana o Anima Selvaggia. La scelta ti concede privilegi al 1°, 6°, 14° e 18° livello."
     },
     {
       "level": 2,
-      "name": "Fonte di Magia",
-      "description": "Trai forza magica profonda da dentro di te. Hai una riserva di punti stregoneria pari al tuo livello da stregone. Spendi punti stregoneria per creare slot incantesimo (es. 2 punti = slot 1°, 3 = slot 2°, 5 = slot 3°, 6 = slot 4°, 7 = slot 5°) o converti slot inutilizzati in punti (1 punto per slot di 1°-5°). Recupero: riposo lungo."
+      "name": "Fonte di Stregoneria",
+      "description": "Uno stregone parte con 2 punti stregoneria e ne ottiene altri ai livelli superiori, come indicato nella colonna \"Punti Stregoneria\" nella tabella \"Stregone\". Uno stregone non può mai avere un numero di punti stregoneria superiore al numero indicato sulla tabella per il suo livello. Lo stregone recupera tutti i punti stregoneria spesi quando completa un riposo lungo."
+    },
+    {
+      "level": 2,
+      "name": "Incantesimi Flessibili",
+      "description": "Uno stregone può usare i suoi punti stregoneria per ottenere degli slot incantesimo aggiuntivi, oppure può sacrificare degli slot incantesimo per ottenere dei punti stregoneria aggiuntivi. Apprende altri modi in cui usare i suoi punti stregoneria quando arriva ai livelli superiori. Creare Slot Incantesimo: usando un'azione bonus nel proprio turno, uno stregone può trasformare i punti stregoneria non spesi in uno slot incantesimo (vedi \"spell_slot_creation_cost\" per il costo di ogni livello di slot). Lo stregone non può creare slot incantesimo di livello superiore al 5°. Ogni slot incantesimo creato tramite questo privilegio svanisce quando lo stregone completa un riposo lungo. Convertire uno Slot Incantesimo in Punti Stregoneria: come azione bonus nel proprio turno, uno stregone può spendere uno slot incantesimo per ottenere un numero di punti stregoneria pari al livello dello slot."
     },
     {
       "level": 3,
       "name": "Metamagia",
-      "description": "Hai imparato a plasmare la magia. Scegli 2 opzioni di Metamagia (4 al 10°, 5 al 17°). Puoi usarne solo una su un incantesimo salvo indicazione contraria. Opzioni: Incantesimo Attento (1 pt, forzi i nemici), Incantesimo Distante (1 pt, raddoppia gittata), Incantesimo Potenziato (1-3 pt, ritira danni), Incantesimo Esteso (1 pt, raddoppia durata), Incantesimo Intensificato (3 pt, impone svantaggio al bersaglio), Incantesimo Subtile (1 pt, no componenti V/S), Incantesimo Accelerato (2 pt, lancia come azione bonus)."
+      "description": "Uno stregone sviluppa la capacità di plasmare i suoi incantesimi per adattarli ai suoi bisogni e ottiene due delle seguenti opzioni di Metamagia a sua scelta. Ne ottiene un'altra al 10° livello e un'altra al 17° livello. Lo stregone può usare soltanto un'opzione di Metamagia su un incantesimo quando lo lancia, a meno che non sia specificato diversamente.",
+      "options": [
+        {
+          "name": "Incantesimo Celato",
+          "description": "Quando lo stregone lancia un incantesimo, può spendere 1 punto stregoneria per lanciarlo senza componenti somatiche o verbali."
+        },
+        {
+          "name": "Incantesimo Distante",
+          "description": "Quando lo stregone lancia un incantesimo che ha una gittata pari o superiore a 1,5 metri, può spendere 1 punto stregoneria per raddoppiare la gittata dell'incantesimo. Quando lancia un incantesimo che ha una gittata a contatto, può spendere 1 punto stregoneria per cambiare quella gittata in 9 metri."
+        },
+        {
+          "name": "Incantesimo Esteso",
+          "description": "Quando lo stregone lancia un incantesimo di durata pari o superiore a 1 minuto, può spendere 1 punto stregoneria per raddoppiare la sua durata, fino a una durata massima di 24 ore."
+        },
+        {
+          "name": "Incantesimo Intensificato",
+          "description": "Quando lo stregone lancia un incantesimo che obbliga una creatura a effettuare un tiro salvezza per resistere ai suoi effetti, può spendere 3 punti stregoneria per infliggere svantaggio a un bersaglio dell'incantesimo in occasione del primo tiro salvezza che effettuerà contro l'incantesimo."
+        },
+        {
+          "name": "Incantesimo Potenziato",
+          "description": "Quando lo stregone tira per i danni di un incantesimo, può spendere 1 punto stregoneria per ripetere il tiro di un numero massimo di dadi pari al suo modificatore di Carisma (fino a un minimo di uno). Deve usare i nuovi risultati. Lo stregone può utilizzare Incantesimo Potenziato anche se ha già utilizzato un'opzione diversa di Metamagia durante il lancio dell'incantesimo."
+        },
+        {
+          "name": "Incantesimo Preciso",
+          "description": "Quando lo stregone lancia un incantesimo che obbliga altre creature a effettuare un tiro salvezza, può proteggere alcune di quelle creature dalla piena forza dell'incantesimo. Per farlo spende 1 punto stregoneria e sceglie un numero massimo di creature pari al suo modificatore di Carisma (fino a un minimo di una creatura). Ogni creatura scelta supera automaticamente il suo tiro salvezza contro l'incantesimo."
+        },
+        {
+          "name": "Incantesimo Raddoppiato",
+          "description": "Quando lo stregone lancia un incantesimo che bersaglia una sola creatura e non ha una gittata di \"incantatore\", può spendere un numero di punti stregoneria pari al livello dell'incantesimo per bersagliare con lo stesso incantesimo una seconda creatura entro gittata (1 punto stregoneria se l'incantesimo è un trucchetto). Affinché sia selezionabile, un incantesimo non deve essere in grado di bersagliare più di una creatura al suo livello di incantesimo attuale. Per esempio, dardo incantato e raggio rovente non sono selezionabili, mentre raggio di gelo e globo cromatico lo sono."
+        },
+        {
+          "name": "Incantesimo Rapido",
+          "description": "Quando lo stregone lancia un incantesimo che ha un tempo di lancio pari a 1 azione, può spendere 2 punti stregoneria per cambiare il tempo di lancio a 1 azione bonus per quel lancio."
+        }
+      ]
     },
     {
       "level": 20,
       "name": "Ripristino Stregonesco",
-      "description": "Recuperi 4 punti stregoneria ogni volta che finisci un riposo breve."
+      "description": "Uno stregone recupera 4 punti stregoneria spesi ogni volta che completa un riposo breve."
     }
   ]
 }

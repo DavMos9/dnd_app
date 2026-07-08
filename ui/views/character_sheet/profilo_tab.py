@@ -785,11 +785,11 @@ class ProfiloTab(ft.ListView):
                     size=12, color=COLOR_TEXT_MUTED, italic=True,
                 ))
 
-        # --- Invocazioni Occulte (solo se Warlock) ---
+        # --- Suppliche Occulte (solo se Warlock) ---
         if (c.class_name or "").lower() == "warlock":
             rows.append(ft.Divider(color=COLOR_BORDER, height=16))
             rows.append(ft.Text(
-                "Invocazioni Occulte",
+                "Suppliche Occulte",
                 size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON,
             ))
             if invocations:
@@ -821,7 +821,7 @@ class ProfiloTab(ft.ListView):
                     ))
             else:
                 rows.append(ft.Text(
-                    "Nessuna invocazione ancora — verranno mostrate dal Lv.2.",
+                    "Nessuna supplica ancora — verranno mostrate dal Lv.2.",
                     size=12, color=COLOR_TEXT_MUTED, italic=True,
                 ))
 
@@ -1237,12 +1237,12 @@ class ProfiloTab(ft.ListView):
                                 ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14,
                                         color=COLOR_ACCENT_CRIMSON),
                                 ft.Text(
-                                    f"Invocazioni Occulte — scegli {to_add} nuov{'a' if to_add == 1 else 'e'}",
+                                    f"Suppliche Occulte — scegli {to_add} nuov{'a' if to_add == 1 else 'e'}",
                                     size=13, weight=ft.FontWeight.BOLD,
                                     color=COLOR_ACCENT_CRIMSON),
                             ], spacing=6),
                             muted_text(
-                                f"Totale invocazioni a Lv.{new_level}: {total_inv} "
+                                f"Totale suppliche a Lv.{new_level}: {total_inv} "
                                 f"(già note: {len(known_inv)}).",
                                 size=11),
                             ft.Column(cast(list[ft.Control], inv_cb_widgets), spacing=2),
@@ -1843,15 +1843,16 @@ class ProfiloTab(ft.ListView):
                             f"({_sel_mm}/{_mm_count})"
                         )
 
-            # Invocazioni Occulte: deve scegliere esattamente il numero richiesto
+            # Suppliche Occulte: deve scegliere esattamente il numero richiesto
             # (solo se i checkbox sono stati mostrati, cioè invocations.json non è vuoto)
             for _inv_count, _inv_cbs in invocation_cb_groups:
                 if _inv_cbs:
                     _sel_inv = sum(1 for cb in _inv_cbs if cb.value)
                     if _sel_inv < _inv_count:
                         _errors.append(
-                            f"Scegli {_inv_count} invocazion"
-                            f"{'e' if _inv_count == 1 else 'i'} occulte "
+                            f"Scegli {_inv_count} supplic"
+                            f"{'a' if _inv_count == 1 else 'he'} occult"
+                            f"{'a' if _inv_count == 1 else 'e'} "
                             f"({_sel_inv}/{_inv_count})"
                         )
 

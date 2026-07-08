@@ -61,13 +61,32 @@
       "options": [
         [
           {
-            "name": "Sacca dei Componenti",
+            "name": "Borsa per Componenti",
             "item_type": "item"
           }
         ],
         [
           {
             "name": "Focus Arcano",
+            "item_type": "item"
+          }
+        ]
+      ]
+    },
+    {
+      "type": "choice",
+      "count": 1,
+      "from": "packages",
+      "options": [
+        [
+          {
+            "name": "Dotazione da Studioso",
+            "item_type": "item"
+          }
+        ],
+        [
+          {
+            "name": "Dotazione da Avventuriero",
             "item_type": "item"
           }
         ]
@@ -90,10 +109,6 @@
           "name": "Due pugnali",
           "item_type": "weapon",
           "quantity": 2
-        },
-        {
-          "name": "Dotazione da Avventuriero",
-          "item_type": "item"
         }
       ]
     }
@@ -102,96 +117,101 @@
     "dice": "4d4",
     "multiplier": 10
   },
-  "spellcasting_notes": "Gli slot del Warlock si recuperano con riposo breve. Tutti gli slot sono dello stesso livello (1°-5° scalato per livello del personaggio). Il Warlock può scegliere Invocazioni Occulte per ampliare i propri poteri.",
+  "spellcasting_notes": "Gli slot del Warlock si recuperano con riposo breve o lungo. Tutti gli slot sono dello stesso livello (scalato per livello del personaggio). Il Warlock può scegliere Suppliche Occulte per ampliare i propri poteri.",
   "subclass_label": "Patrono Ultraterreno",
   "subclass_choice_level": 1,
   "subclasses": [
     {
-      "name": "L'Archefey",
+      "name": "Il Signore Fatato",
       "expanded_spells": {
         "1": [
-          "Charme su Persone",
+          "Luminescenza",
           "Sonno"
         ],
         "2": [
-          "Calmare Emozioni",
-          "Blocca Persona"
+          "Allucinazione di Forza",
+          "Calmare Emozioni"
         ],
         "3": [
-          "Intermittenza",
-          "Crescita delle Piante"
+          "Crescita Vegetale",
+          "Intermittenza"
         ],
         "4": [
-          "Dominare le Bestie",
+          "Dominare Bestie",
           "Invisibilità Superiore"
         ],
         "5": [
           "Dominare Persone",
-          "Apparire"
+          "Sembrare"
         ]
       },
       "features": [
         {
           "level": 1,
-          "name": "Presenza del Fey",
-          "description": "Come azione, ogni creatura entro 3 m da te deve superare un tiro salvezza su Saggezza (CD incantesimi) o essere affascinata o spaventata (a tua scelta) fino alla fine del tuo turno successivo. Una volta usata questa capacità, non puoi usarla di nuovo fino al completamento di un riposo breve o lungo."
+          "name": "Presenza Fatata",
+          "description": "Il patrono conferisce al warlock la capacità di emanare la presenza seducente e inquietante tipica dei folletti. Con un'azione, il warlock può obbligare ogni creatura entro un cubo con spigolo di 3 metri originato da lui a effettuare un tiro salvezza su Saggezza contro la CD degli incantesimi del warlock. Le creature che falliscono il loro tiro salvezza sono tutte affascinate o spaventate dal warlock (a scelta di quest'ultimo) fino alla fine del suo turno successivo. Una volta utilizzato questo privilegio, il warlock non può più utilizzarlo finché non completa un riposo breve o lungo."
         },
         {
           "level": 6,
-          "name": "Fuga oltre il Velo",
-          "description": "Quando subisci danni, puoi usare la tua reazione per diventare invisibile e teletrasportarti fino a 18 m in uno spazio non occupato che puoi vedere. Rimani invisibile fino all'inizio del tuo prossimo turno o finché non effettui un attacco o lanci un incantesimo."
+          "name": "Fuga Velata",
+          "description": "Il warlock può svanire in uno sbuffo di nebbia in risposta a un effetto dannoso. Quando il warlock subisce danni, può usare la sua reazione per diventare invisibile e teletrasportarsi di un massimo di 18 metri fino a uno spazio libero che egli sia in grado di vedere. Rimane invisibile fino all'inizio del suo turno successivo o finché non attacca o lancia un incantesimo. Una volta utilizzato questo privilegio, il warlock non può più utilizzarlo finché non completa un riposo breve o lungo."
+        },
+        {
+          "level": 10,
+          "name": "Difese Seducenti",
+          "description": "Il patrono insegna al warlock come ritorcere le magie di influenza mentale dei suoi nemici contro loro stessi. Il warlock non può essere affascinato e, quando un'altra creatura tenta di affascinarlo, il warlock può usare la sua reazione per ritorcere l'effetto contro quella creatura. La creatura deve superare un tiro salvezza su Saggezza contro la CD degli incantesimi del warlock, altrimenti sarà affascinata dal warlock per 1 minuto o finché non subisce danni."
         },
         {
           "level": 14,
-          "name": "Follia dell'Oscurità",
-          "description": "Come azione, scegli una creatura visibile entro 18 m. Deve superare un tiro salvezza su Saggezza (CD incantesimi) o essere affascinata o spaventata (a tua scelta) per 1 minuto o finché la tua concentrazione non si spezza. L'effetto termina se la creatura subisce danni. La creatura pensa di essere persa in un reame nebuloso. Una volta usata, non puoi usarla di nuovo fino a un riposo breve o lungo."
+          "name": "Delirio Oscuro",
+          "description": "Il warlock può trascinare una creatura in un reame illusorio. Con un'azione, il warlock sceglie una creatura situata entro 18 metri da lui e che egli sia in grado di vedere. Quella creatura deve effettuare un tiro salvezza su Saggezza contro la CD degli incantesimi del warlock. Se lo fallisce, diventa affascinata o spaventata dal warlock (a scelta di quest'ultimo) per 1 minuto o finché la concentrazione del warlock non si interrompe (come se si stesse concentrando su un incantesimo). Questo effetto termina anticipatamente se la creatura subisce danni. Finché questa illusione non termina, la creatura crede di essersi smarrita in un reame nebbioso, il cui aspetto è deciso dal warlock. La creatura è in grado di vedere e sentire soltanto se stessa, il warlock e l'illusione. Prima di utilizzare di nuovo questo privilegio, il warlock deve completare un riposo breve o lungo."
         }
       ]
     },
     {
-      "name": "Il Signore degli Inferi",
+      "name": "L'Immondo",
       "expanded_spells": {
         "1": [
-          "Mani Brucianti",
-          "Comando"
+          "Comando",
+          "Mani Brucianti"
         ],
         "2": [
           "Cecità/Sordità",
           "Raggio Rovente"
         ],
         "3": [
-          "Palla di Fuoco",
-          "Velocità"
+          "Nube Maleodorante",
+          "Palla di Fuoco"
         ],
         "4": [
-          "Scudo di Fuoco",
-          "Muro di Fuoco"
+          "Muro di Fuoco",
+          "Scudo di Fuoco"
         ],
         "5": [
-          "Colpo di Fiamme",
-          "Consacrare"
+          "Colpo Infuocato",
+          "Santificare"
         ]
       },
       "features": [
         {
           "level": 1,
-          "name": "Benedizione dell'Oscurità",
-          "description": "Quando riduci una creatura ostile a 0 PF, ottieni PF temporanei pari al modificatore di Carisma + livello da Warlock (minimo 1)."
+          "name": "Benedizione dell'Oscuro",
+          "description": "Quando il warlock porta una creatura ostile a 0 punti ferita, ottiene un ammontare di punti ferita temporanei pari al proprio modificatore di Carisma + il proprio livello da warlock (fino a un minimo di 1)."
         },
         {
           "level": 6,
-          "name": "Fortuna dell'Oscurità",
-          "description": "Puoi invocare il tuo patrono per alterare il destino a tuo favore. Quando effettui una prova di caratteristica o un tiro salvezza, puoi aggiungere 1d10 al risultato (dopo il tiro iniziale, ma prima degli effetti). Una volta usata, non puoi usarla di nuovo fino a un riposo breve o lungo."
+          "name": "Fortuna dell'Oscuro",
+          "description": "Il warlock può appellarsi al suo patrono per alterare il fato in suo favore. Quando effettua una prova di caratteristica o un tiro salvezza, può utilizzare questo privilegio per aggiungere un d10 al suo tiro. Può farlo dopo avere visto il tiro iniziale, ma prima che qualsiasi effetto del tiro sia applicato. Una volta utilizzato questo privilegio, il warlock non può più utilizzarlo finché non completa un riposo breve o lungo."
         },
         {
           "level": 10,
-          "name": "Resilienza Fiendica",
-          "description": "Scegli un tipo di danno al termine di un riposo breve o lungo. Ottieni resistenza a quel tipo di danno finché non ne scegli un altro. Armi magiche o d'argento ignorano questa resistenza."
+          "name": "Resilienza Immonda",
+          "description": "Il warlock può scegliere un tipo di danno quando completa un riposo breve o lungo. Ottiene resistenza a quel tipo di danno finché non ne sceglie uno diverso tramite questo privilegio. I danni delle armi magiche o delle armi argentate ignorano questa resistenza."
         },
         {
           "level": 14,
-          "name": "Scagliare attraverso l'Inferno",
-          "description": "Quando colpisci una creatura con un attacco, puoi teletrasportarla istantaneamente nei piani inferiori. Scompare fino alla fine del tuo prossimo turno, poi torna nello spazio precedente. Se non è un diavolo, subisce 10d10 danni psichici. Recupero: riposo lungo."
+          "name": "Scagliare all'Inferno",
+          "description": "Quando il warlock colpisce una creatura con un attacco, può utilizzare questo privilegio per trascinare istantaneamente il bersaglio sui piani inferiori. La creatura scompare e sfreccia attraverso un territorio da incubo. Alla fine del turno successivo del warlock, il bersaglio torna nello spazio che occupava in precedenza, o nello spazio libero più vicino. Se il bersaglio non è un immondo, subisce 10d10 danni psichici in quanto resta sconvolto da questa esperienza terrificante. Una volta utilizzato questo privilegio, il warlock non può più utilizzarlo finché non completa un riposo lungo."
         }
       ]
     },
@@ -199,46 +219,46 @@
       "name": "Il Grande Antico",
       "expanded_spells": {
         "1": [
-          "Sussurri Dissonanti",
-          "Risata Rivoltante di Tasha"
+          "Risata Incontenibile di Tasha",
+          "Sussurri Dissonanti"
         ],
         "2": [
-          "Individuazione dei Pensieri",
-          "Immagine Speculare"
+          "Allucinazione di Forza",
+          "Individuazione dei Pensieri"
         ],
         "3": [
-          "Volare",
+          "Chiaroveggenza",
           "Inviare"
         ],
         "4": [
-          "Dominare Animale",
-          "Blocca Mostro"
+          "Dominare Bestie",
+          "Tentacoli Neri di Evard"
         ],
         "5": [
           "Dominare Persone",
-          "Contattare Altri Piani"
+          "Telecinesi"
         ]
       },
       "features": [
         {
           "level": 1,
-          "name": "Mente Svegliata",
-          "description": "Puoi comunicare telepaticamente con qualsiasi creatura che capisca almeno una lingua entro 18 m. Non hai bisogno di condividere una lingua."
+          "name": "Mente Risvegliata",
+          "description": "Il warlock può usare le sue conoscenze aliene per sfiorare le menti delle altre creature. Può parlare telepaticamente con qualsiasi creatura che si trovi entro 9 metri da lui e che egli sia in grado di vedere. Non è necessario che condivida un linguaggio con la creatura affinché quest'ultima capisca ciò che egli enuncia telepaticamente, ma la creatura deve essere in grado di capire almeno un linguaggio."
         },
         {
           "level": 6,
-          "name": "Difese Entropiche",
-          "description": "Quando una creatura ti colpisce con un tiro per colpire, puoi usare la tua reazione per imporre svantaggio a quel tiro. Se manca, ottieni vantaggio al prossimo tiro contro di essa entro il tuo prossimo turno. Una volta usata, devi finire un riposo breve o lungo."
+          "name": "Interdizione Entropica",
+          "description": "Il warlock impara a proteggersi magicamente dagli attacchi e a trasformare il colpo fallito di un nemico in un colpo di fortuna per lui. Quando una creatura effettua un tiro per colpire contro di lui, il warlock può usare la sua reazione per infliggere svantaggio a quel tiro. Se l'attacco lo manca, il successivo tiro per colpire del warlock contro la creatura dispone di vantaggio purché il warlock lo effettui entro la fine del proprio turno successivo. Una volta utilizzato questo privilegio, il warlock non può più utilizzarlo finché non completa un riposo breve o lungo."
         },
         {
           "level": 10,
-          "name": "Scudo dei Pensieri",
-          "description": "Sei immune alla lettura della mente. Ottieni resistenza ai danni psichici. Quando una creatura ti infligge danni psichici, subisce la stessa quantità di danni psichici."
+          "name": "Scudo del Pensiero",
+          "description": "I pensieri del warlock non possono essere letti tramite telepatia o mezzi di altro tipo, a meno che il warlock non lo consenta. Inoltre, il warlock dispone di resistenza ai danni psichici, e ogni volta che una creatura infligge danni psichici al warlock, essa subisce lo stesso ammontare di danni."
         },
         {
           "level": 14,
-          "name": "Creare un Servo",
-          "description": "Puoi toccare un umanoide incapace di agire. Quel creature è affascinato da te fino a quando non viene rimosso dall'incantesimo tramite un incantesimo Rimuovi Maledizione o simile. Hai un collegamento telepatico con l'umanoide affascinato fin quando si trova nello stesso piano."
+          "name": "Creare Servitore",
+          "description": "Il warlock ottiene la capacità di contaminare la mente di un umanoide con la magia aliena del suo patrono. Può usare la sua azione per toccare un umanoide incapacitato. Quella creatura diventa affascinata dal warlock finché su di essa non viene lanciato un incantesimo rimuovi maledizione, la condizione non viene rimossa, o il warlock non utilizza di nuovo questo privilegio. Il warlock può comunicare telepaticamente con la creatura affascinata fintanto che entrambi si trovano sullo stesso piano di esistenza."
         }
       ]
     }
@@ -247,32 +267,46 @@
     {
       "level": 1,
       "name": "Patrono Ultraterreno",
-      "description": "Hai stretto un patto con un'entità ultraterrena. Scegli il tuo patrono: l'Antico, il Signore Infernale, il Grande Antico. Ogni patrono ti conferisce un elenco di incantesimi di patrono (sempre preparati), e privilegi al 1°, 6°, 10° e 14° livello."
+      "description": "Hai stretto un patto con un'entità ultraterrena. Scegli il tuo patrono: il Signore Fatato, l'Immondo o il Grande Antico. Ogni patrono ti conferisce un elenco di incantesimi ampliati (aggiunti alla tua lista degli incantesimi da warlock) e privilegi al 1°, 6°, 10° e 14° livello."
     },
     {
       "level": 1,
       "name": "Magia del Patto",
-      "description": "La tua ricerca arcana e la magia concessa dal patrono ti forniscono la capacità di lanciare incantesimi. La caratteristica è Carisma. Gli slot incantesimo si recuperano con un riposo breve o lungo. Al 11° livello puoi usare gli slot di 5° livello per Arcanum Mistico. Vedi tabella Warlock per slot e livello slot."
+      "description": "Un warlock conosce due trucchetti a sua scelta tratti dalla lista degli incantesimi da warlock. Apprende ulteriori trucchetti da warlock a sua scelta ai livelli successivi, come indicato dalla colonna \"Trucchetti Conosciuti\" nella tabella \"Warlock\". La tabella \"Warlock\" indica quanti slot incantesimo possiede un warlock. La tabella indica anche il livello di quegli slot; tutti gli slot incantesimo da warlock sono dello stesso livello. Per lanciare un incantesimo di livello pari o superiore al 1°, il warlock deve spendere uno slot incantesimo. Il warlock recupera tutti gli slot incantesimo spesi quando completa un riposo breve o lungo. Al 1° livello, un warlock conosce due incantesimi di 1° livello a sua scelta dalla lista degli incantesimi da warlock. La colonna \"Incantesimi Conosciuti\" nella tabella \"Warlock\" indica quando un warlock impara altri incantesimi da warlock a sua scelta, di 1° livello o superiore. Ognuno di questi incantesimi deve appartenere a un livello pari o inferiore al \"Livello di Slot\" relativo al livello attuale del warlock e indicato nella sua tabella. Per esempio, quando un warlock arriva al 6° livello apprende un nuovo incantesimo da warlock di 1°, 2° o 3° livello. Inoltre, quando un warlock acquisisce un livello, può scegliere un incantesimo da warlock che conosce e sostituirlo con un altro incantesimo della lista degli incantesimi da warlock; anche il nuovo incantesimo deve essere di un livello di cui il warlock possiede degli slot incantesimo."
     },
     {
       "level": 2,
       "name": "Suppliche Occulte",
-      "description": "Nel tuo studio delle conoscenze occulte, hai recuperato antiche invocazioni che influenzano la tua magia e ti donano capacità soprannaturali. Scegli 2 Suppliche Occulte. Ne ottieni un'altra ai livelli 5°, 7°, 9°, 12°, 15° e 18°. Alcune suppliche richiedono un livello minimo. Puoi sostituire una supplica quando sali di livello."
+      "description": "Dedicandosi allo studio delle scienze occulte, un warlock ha scoperto come usare alcune suppliche occulte, frammenti di conoscenze proibite che gli conferiscono persistenti doti magiche. Al 2° livello, il warlock ottiene due suppliche occulte a sua scelta (vedi \"invocations.json\"). Quando il warlock raggiunge livelli superiori, ottiene ulteriori suppliche a sua scelta, come indicato nella colonna \"Suppliche Conosciute\" nella tabella \"Warlock\". Inoltre, quando acquisisce un nuovo livello, il warlock può scegliere una delle suppliche che conosce e sostituirla con un'altra che potrebbe imparare a quel livello. Se una supplica occulta prevede dei prerequisiti, il warlock deve soddisfarli per poterla apprendere. Può apprendere quella supplica nel momento in cui ne soddisfa i prerequisiti. Un prerequisito di livello indica il livello nella classe del warlock."
     },
     {
       "level": 3,
       "name": "Dono del Patto",
-      "description": "Il tuo patrono ti consegna un dono per la tua fedele servitù. Scegli uno: Patto della Catena (acquisisci un famiglio speciale), Patto della Lama (crei un'arma magica dal nulla come azione), Patto del Tomo (ottieni un Libro delle Ombre con 3 trucchetti di qualsiasi classe)."
+      "description": "Il patrono ultraterreno elargisce al warlock un dono per ricompensarlo dei suoi fedeli servigi. Il warlock ottiene uno dei privilegi seguenti a sua scelta.",
+      "options": [
+        {
+          "name": "Patto della Catena",
+          "description": "Il warlock impara l'incantesimo trova famiglio e può lanciarlo come rituale. Questo incantesimo non va conteggiato al fine di determinare il numero di incantesimi conosciuti dal warlock. Quando il warlock lancia l'incantesimo può scegliere per il suo famiglio una delle forme normali o una delle forme speciali seguenti: imp, pseudodrago, quasit o spiritello. Inoltre, quando effettua l'azione di Attacco, il warlock può rinunciare a uno dei suoi attacchi per consentire al suo famiglio di effettuare un suo attacco individuale con la sua reazione."
+        },
+        {
+          "name": "Patto della Lama",
+          "description": "Il warlock può usare la sua azione per fare apparire un'arma del patto nella sua mano vuota. Può scegliere la forma che questa arma da mischia assume ogni volta che la crea. Il warlock è considerato competente nell'arma fintanto che la impugna. Questa arma è considerata magica al fine di oltrepassare la resistenza e l'immunità agli attacchi e ai danni non magici. L'arma del patto scompare se rimane per un minuto a più di 1,5 metri di distanza dal warlock. L'arma scompare anche se il warlock utilizza di nuovo il privilegio, se la congeda (non è richiesta alcuna azione per farlo), o se muore. Il warlock può trasformare un'arma magica nella sua arma del patto celebrando un rituale speciale mentre la impugna. Il rituale dura 1 ora e può essere completato durante un periodo di riposo breve. Una volta completato il rituale, il warlock può congedare l'arma relegandola in uno spazio extradimensionale; da allora in poi compare ogni volta che il warlock crea la sua arma del patto. Non è possibile influenzare un artefatto o un'arma senziente in questo modo. L'arma cessa di essere l'arma del patto se il warlock muore, se celebra un rituale di 1 ora su un'altra arma o se celebra un altro rituale di 1 ora per spezzare il suo vincolo con l'arma. Se l'arma si trova nello spazio extradimensionale quando il vincolo viene spezzato, essa ricompare ai piedi del warlock."
+        },
+        {
+          "name": "Patto del Tomo",
+          "description": "Il patrono dona al warlock un grimorio chiamato il Libro delle Ombre. Quando ottiene questo privilegio, il warlock può scegliere tre trucchetti dalla lista degli incantesimi di qualsiasi classe (che non devono necessariamente appartenere alla stessa lista). Quando il warlock porta il libro con sé, può lanciare quei trucchetti a volontà. Non vengono conteggiati al fine di determinare il numero di trucchetti conosciuti dal warlock. Anche se non compaiono sulla lista degli incantesimi da warlock, sono comunque considerati incantesimi da warlock per lui. Se il Libro delle Ombre viene perduto, il warlock può effettuare un cerimoniale da 1 ora per riceverne un altro dal proprio patrono. Tale cerimoniale può essere effettuato durante un periodo di riposo breve o lungo, e provoca la distruzione del vecchio libro. Il libro si riduce in polvere alla morte del warlock."
+        }
+      ]
     },
     {
       "level": 11,
       "name": "Arcanum Mistico",
-      "description": "Il tuo patrono ti sblocca un segreto magico chiamato arcanum. Scegli un incantesimo di 6° livello dalla lista warlock come tuo arcanum. Lo puoi lanciare una volta senza spendere uno slot incantesimo. Recupero: riposo lungo. Ottieni un arcanum aggiuntivo di 7° (lv13), 8° (lv15) e 9° (lv17) livello."
+      "description": "Il patrono rivela al warlock un segreto magico chiamato arcanum. Il warlock sceglie un incantesimo di 6° livello dalla lista degli incantesimi da warlock come arcanum. Il warlock può lanciare il suo incantesimo arcanum senza spendere uno slot incantesimo. Deve completare un riposo lungo prima di poterlo fare di nuovo. Ai livelli successivi, il warlock ottiene altri incantesimi da warlock a sua scelta da lanciare in questo modo: un incantesimo di 7° livello al 13° livello, un incantesimo di 8° livello al 15° livello e un incantesimo di 9° livello al 17° livello. Recupera tutti gli utilizzi del suo Arcanum Mistico quando completa un riposo lungo."
     },
     {
       "level": 20,
-      "name": "Maestro Occulto",
-      "description": "Puoi attingere alla tua riserva mistica interiore mentre supplichi il tuo patrono di restituirti gli slot spesi. Puoi spendere 1 minuto a supplicare il tuo patrono per recuperare tutti gli slot incantesimo dalla tua Magia del Patto. Una volta usato, devi finire un riposo lungo prima di poterlo usare di nuovo."
+      "name": "Maestro dell'Occulto",
+      "description": "Il warlock è in grado di attingere alla sua riserva interiore di potere mistico quando invoca il suo patrono per riottenere gli slot incantesimo spesi. Il warlock può trascorrere 1 minuto invocando l'aiuto del suo patrono per riottenere tutti gli slot incantesimo concessi dal privilegio Magia del Patto che ha speso. Una volta riottenuti gli slot incantesimo tramite questo privilegio, il warlock deve completare un riposo lungo prima di poterlo fare di nuovo."
     }
   ]
 }

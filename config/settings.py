@@ -331,14 +331,14 @@ MAGO_CANTRIPS = [
 
 # Opzioni di Metamagia dello Stregone (PHB p.102)
 METAMAGIC_OPTIONS = [
-    "Incantesimo Attento",      # Careful Spell  — 1 PS: alleati esclusi dall'area
-    "Incantesimo Distante",     # Distant Spell  — 1 PS: raddoppia gittata
-    "Potenziamento Incantesimo",# Empowered Spell — 1 PS: rilancia N dadi danno
-    "Estensione Incantesimo",   # Extended Spell  — 1 PS: raddoppia durata
-    "Intensificazione",         # Heightened Spell— 3 PS: bersaglio svantaggio al TS
-    "Velocizzazione Incantesimo",# Quickened Spell — 2 PS: lanci come azione bonus
-    "Occultamento Incantesimo", # Subtle Spell    — 1 PS: niente componenti V/S
-    "Incantesimo Gemellato",    # Twinned Spell   — 1+ PS: colpisce 2 bersagli
+    "Incantesimo Celato",        # Subtle Spell    — 1 PS: niente componenti V/S
+    "Incantesimo Distante",      # Distant Spell   — 1 PS: raddoppia gittata (o contatto->9m)
+    "Incantesimo Esteso",        # Extended Spell  — 1 PS: raddoppia durata (max 24h)
+    "Incantesimo Intensificato", # Heightened Spell— 3 PS: svantaggio al 1° TS del bersaglio
+    "Incantesimo Potenziato",    # Empowered Spell — 1 PS: rilancia dadi danno (fino a mod CHA)
+    "Incantesimo Preciso",       # Careful Spell   — 1 PS: alleati esclusi dall'area (mod CHA creature)
+    "Incantesimo Raddoppiato",   # Twinned Spell   — costo = liv. incantesimo (1 se trucchetto): 2° bersaglio
+    "Incantesimo Rapido",        # Quickened Spell — 2 PS: lanci come azione bonus
 ]
 
 # Doni del Patto del Warlock (PHB p.107)
