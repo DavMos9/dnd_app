@@ -1,555 +1,126 @@
 {
+  "_source": "PHB IT, Capitolo 11, pag. 207 (Lista Incantesimi da Bardo)",
   "class": "Bardo",
   "spells": [
-    {
-      "name": "Amici",
-      "level": 0,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "Sé stesso",
-      "components": [
-        "S",
-        "M"
-      ],
-      "material": "un po' di trucco cosmético applicato sul viso",
-      "duration": "concentrazione, fino a 1 minuto",
-      "ritual": false,
-      "concentration": true,
-      "description": "Per la durata dell'incantesimo, hai vantaggio a tutte le prove di Carisma rivolte verso una creatura non ostile di tua scelta. Al termine dell'incantesimo, la creatura sa di essere stata incantata da te e può reagire di conseguenza, diventando ostile.",
-      "higher_levels": null
-    },
-    {
-      "name": "Illusione Minore",
-      "level": 0,
-      "school": "Illusione",
-      "casting_time": "1 azione",
-      "range": "9 metri",
-      "components": [
-        "S",
-        "M"
-      ],
-      "material": "un pezzetto di lana di pecora",
-      "duration": "1 minuto",
-      "ritual": false,
-      "concentration": false,
-      "description": "Crei un suono o l'immagine di un oggetto entro gittata che dura per la durata dell'incantesimo. L'illusione termina anche se usi un'azione bonus per liberarti dall'incantesimo. Se crei un suono, il suo volume può variare da un sussurro a un grido. Può essere la tua voce, la voce di qualcun altro, il ruggito di un leone, il suono di un tamburo o qualsiasi altro suono tu scelga. Il suono continua senza interruzioni per la durata dell'incantesimo o puoi fare in modo che emetta suoni distinti in momenti diversi prima che l'incantesimo termini. Se crei un'immagine di un oggetto — ad esempio una sedia, impronte fangose o un piccolo forziere — non deve essere più grande di un cubo con lato 1,5 m. L'immagine non può emettere luci, suoni, odori o altri effetti sensoriali. L'illusione è smascherata quando una creatura ci interagisce (a meno che il suono non provenga dall'immagine). Se una creatura usa la sua azione per esaminare il suono o l'immagine, può determinare che è un'illusione con una prova di Intelligenza (Indagare) riuscita contro la CD del tuo incantesimo.",
-      "higher_levels": null
-    },
-    {
-      "name": "Luce",
-      "level": 0,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "Contatto",
-      "components": [
-        "V",
-        "M"
-      ],
-      "material": "una lucciola o del muschio fosforescente",
-      "duration": "1 ora",
-      "ritual": false,
-      "concentration": false,
-      "description": "Tocchi un oggetto di taglia Grande o inferiore che non sia stato indossato o trasportato da altri. Fino al termine dell'incantesimo, l'oggetto proietta luce intensa in un raggio di 6 metri e luce fioca per altri 6 metri. Puoi scegliere il colore della luce. Coprire l'oggetto con qualcosa di opaco blocca la luce. L'incantesimo termina se lo lanci di nuovo o se usi un'azione bonus per dimettere l'incantesimo.",
-      "higher_levels": null
-    },
-    {
-      "name": "Mano del Mago",
-      "level": 0,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "9 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "1 minuto",
-      "ritual": false,
-      "concentration": false,
-      "description": "Una mano spettrale fluttuante appare in un punto entro gittata da te scelto. La mano dura per la durata dell'incantesimo o finché non la dimetti usando un'azione bonus. La mano scompare se si trova a più di 9 metri da te o se lanci di nuovo questo incantesimo. Puoi usare la tua azione per controllare la mano. Usando la mano, puoi manipolare un oggetto, aprire una porta o un contenitore non chiuso a chiave, mettere o estrarre un oggetto da un contenitore aperto, oppure versare del contenuto da una boccetta. Puoi spostare la mano fino a 9 metri ogni volta che la usi. La mano non può attaccare, attivare oggetti magici o trasportare più di 5 kg.",
-      "higher_levels": null
-    },
-    {
-      "name": "Messaggio",
-      "level": 0,
-      "school": "Trasmutazione",
-      "casting_time": "1 azione",
-      "range": "36 metri",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "un breve filo di rame",
-      "duration": "1 round",
-      "ritual": false,
-      "concentration": false,
-      "description": "Indichi una creatura entro gittata e sussurri un messaggio. Il bersaglio (e solo il bersaglio) sente il messaggio e può rispondere in un sussurro che solo tu puoi sentire. Puoi usare questo incantesimo attraverso oggetti solidi se sei familiare con il bersaglio e sai che si trova al di là della barriera. La magia non penetra 30 cm di pietra, 2,5 cm di metallo comune, un sottile foglio di piombo, o 90 cm di legno. Nessun suono è udito da chi è vicino al mittente o al destinatario.",
-      "higher_levels": null
-    },
-    {
-      "name": "Gioco di Prestigio",
-      "level": 0,
-      "school": "Trasmutazione",
-      "casting_time": "1 azione",
-      "range": "3 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "fino a 1 ora",
-      "ritual": false,
-      "concentration": false,
-      "description": "Questo incantesimo è una sorta di prova di magia per chi sta imparando l'arte arcana. Crei uno dei seguenti effetti magici entro gittata: un effetto sensoriale innocuo che dura fino a 1 round; accendi o spegni istantaneamente una candela, una torcia o un piccolo fuoco; pulisci o sporca istantaneamente un oggetto di taglia Piccola o inferiore; raffreddi, riscaldi o insaporisci fino a 30 ml di materiale non vivente per 1 ora; crei un marchio, un simbolo o un'immagine non magica su una superficie o oggetto per 1 ora; crei un giocattolo inanimato di piccole dimensioni o un'immagine illusoria che rientra in un cubo con lato 30 cm che dura fino alla fine del prossimo turno. Non puoi usare la prestidigitazione per causare danni o innescare effetti magici.",
-      "higher_levels": null
-    },
-    {
-      "name": "Riparare",
-      "level": 0,
-      "school": "Trasmutazione",
-      "casting_time": "1 minuto",
-      "range": "Contatto",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "due calamite",
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Questo incantesimo ripara una singola rottura o strappo in un oggetto che tocchi, come una catena spezzata, due metà di una chiave rotta, un mantello lacerato o una borraccia che perde. Fintanto che la rottura o lo strappo non è più grande di 30 cm in qualsiasi dimensione, la ripari, non lasciando traccia visibile della precedente danno. Quest'incantesimo può riparare fisicamente un oggetto magico o un costrutto, ma non può ripristinarne le proprietà magiche.",
-      "higher_levels": null
-    },
-    {
-      "name": "Scherno Crudele",
-      "level": 0,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Proferisci parole cariche di scherno contro una creatura che puoi vedere entro gittata. Il bersaglio deve avere successo a un tiro salvezza su Saggezza (CD del tuo incantesimo) oppure subire 1d4 danni psichici e avere svantaggio al suo prossimo tiro per colpire prima della fine del suo prossimo turno. I danni aumentano di 1d4 quando raggiungi il 5° livello (2d4), l'11° (3d4) e il 17° (4d4).",
-      "higher_levels": null
-    },
-    {
-      "name": "Colpo Mirato",
-      "level": 0,
-      "school": "Divinazione",
-      "casting_time": "1 azione",
-      "range": "9 metri",
-      "components": [
-        "S"
-      ],
-      "material": null,
-      "duration": "concentrazione, fino a 1 round",
-      "ritual": false,
-      "concentration": true,
-      "description": "Estendi il tuo senso verso una creatura che vuoi che sia la tua preda. Finché l'incantesimo dura, hai vantaggio ai tiri per colpire contro la creatura, purché tu rimanga entro 9 metri da essa. Se la creatura si allontana oltre i 9 metri, l'incantesimo termina.",
-      "higher_levels": null
-    },
-    {
-      "name": "Charme su Persone",
-      "level": 1,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "9 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "1 ora",
-      "ritual": false,
-      "concentration": false,
-      "description": "Tenti di affascinare un umanoide che riesci a vedere entro gittata. Il bersaglio deve superare un tiro salvezza su Saggezza o essere affascinato da te fino al termine dell'incantesimo o finché non gli infliggi danni o non lo fai diventare il bersaglio di un incantesimo o altro effetto magico ostile. La creatura affascinata ti considera un amico fidato. Quando l'incantesimo termina, la creatura sa di essere stata affascinata da te.",
-      "higher_levels": "Lanciando con uno slot di livello 2 o superiore, puoi bersagliare una creatura aggiuntiva per ogni livello di slot superiore al 1°."
-    },
-    {
-      "name": "Cura Ferite",
-      "level": 1,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "Contatto",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Una creatura che tocchi recupera un numero di punti ferita pari a 1d8 + il tuo modificatore di caratteristica da incantatore. Questo incantesimo non ha effetto su nonmorti o costrutti.",
-      "higher_levels": "Lanciando con uno slot di livello 2 o superiore, la quantità di guarigione aumenta di 1d8 per ogni livello di slot superiore al 1°."
-    },
-    {
-      "name": "Individuazione della Magia",
-      "level": 1,
-      "school": "Divinazione",
-      "casting_time": "1 azione",
-      "range": "Sé stesso",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "concentrazione, fino a 10 minuti",
-      "ritual": true,
-      "concentration": true,
-      "description": "Per la durata dell'incantesimo, percepisci la presenza di magia entro 9 metri da te. Se percepisci della magia puoi usare la tua azione per vedere un tenue alone attorno a qualsiasi creatura o oggetto visibile nell'area che contenga magia, e impari la sua scuola di magia.",
-      "higher_levels": null
-    },
-    {
-      "name": "Immagine Silenziosa",
-      "level": 1,
-      "school": "Illusione",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "un pezzetto di vello di pecora",
-      "duration": "concentrazione, fino a 10 minuti",
-      "ritual": false,
-      "concentration": true,
-      "description": "Crei l'immagine di un oggetto, una creatura o un altro fenomeno visibile non più grande di un cubo con lato 4,5 m. L'immagine appare in un punto entro gittata e dura per la durata dell'incantesimo. L'immagine è puramente visiva; non è accompagnata da suoni, odori o altri effetti sensoriali. Puoi usare la tua azione per spostare l'immagine in qualsiasi punto entro gittata. Se l'immagine mostra una creatura, il suo movimento può sembrare naturale. Un esame fisico rivela che l'immagine è illusoria. Se una creatura usa la sua azione per esaminare l'immagine, può determinare che è un'illusione con una prova di Intelligenza (Indagare) riuscita contro la CD del tuo incantesimo. Se la creatura smascherata l'illusione, l'illusione diventa tenue per quella creatura.",
-      "higher_levels": null
-    },
-    {
-      "name": "Onda di Tuono",
-      "level": 1,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "Sé stesso (cubo di 4,5 m)",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Un'ondata di forza tonante si irradia da te. Ogni creatura in un cubo di 4,5 m che ha origine da te deve superare un tiro salvezza su Costituzione. Se non riesce, una creatura subisce 2d8 danni da tuono e viene spinta di 3 m lontano da te. Se riesce, la creatura subisce la metà dei danni e non viene spinta. Inoltre, gli oggetti non fissi e non trasportati nell'area vengono spinti automaticamente di 3 m lontani da te dall'incantesimo. L'incantesimo emette un suono tonante udibile a 90 m di distanza.",
-      "higher_levels": "Lanciando con uno slot di livello 2 o superiore, i danni aumentano di 1d8 per ogni livello di slot superiore al 1°."
-    },
-    {
-      "name": "Sonno",
-      "level": 1,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "27 metri",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "un pizzico di sabbia finissima, petali di rosa o un grillo",
-      "duration": "1 minuto",
-      "ritual": false,
-      "concentration": false,
-      "description": "Questo incantesimo invia le creature in uno stato di sonno magico. Tira 5d8; il risultato è il numero di punti ferita delle creature che questo incantesimo può influenzare. Le creature entro 6 m dal punto scelto sono influenzate in ordine crescente dei loro PF attuali (ignorando le creature prive di sensi, i nonmorti e le creature immuni all'ammaliamento). Partendo dalla creatura con i PF attuali più bassi, ogni creatura influenzata dall'incantesimo cade privo di sensi finché l'incantesimo dura, subisce danni o qualcuno utilizza un'azione per svegliarlo.",
-      "higher_levels": "Lanciando con uno slot di livello 2 o superiore, tira 2d8 aggiuntivi per ogni livello di slot superiore al 1°."
-    },
-    {
-      "name": "Parola Guaritrice",
-      "level": 1,
-      "school": "Evocazione",
-      "casting_time": "1 azione bonus",
-      "range": "18 metri",
-      "components": [
-        "V"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Una creatura a tua scelta che puoi vedere entro gittata recupera punti ferita pari a 1d4 + il tuo modificatore di caratteristica da incantatore. Questo incantesimo non ha effetto sui nonmorti o sui costrutti.",
-      "higher_levels": "Lanciando con uno slot di livello 2 o superiore, la quantità di guarigione aumenta di 1d4 per ogni livello di slot superiore al 1°."
-    },
-    {
-      "name": "Risata Rivoltante di Tasha",
-      "level": 1,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "9 metri",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "piccole torte e una piuma che deve essere agitata in aria",
-      "duration": "concentrazione, fino a 1 minuto",
-      "ritual": false,
-      "concentration": true,
-      "description": "Una creatura a tua scelta che puoi vedere entro gittata percepisce tutto come tremendamente divertente e si ritrova a ridere se l'incantesimo ha effetto. Il bersaglio deve superare un tiro salvezza su Saggezza oppure cadere prono, diventare incapacitato e non riuscire ad alzarsi durante il turno per la durata dell'incantesimo. Ogni volta che subisce danni o all'inizio di ogni suo turno, il bersaglio può effettuare un ulteriore tiro salvezza su Saggezza; in caso di successo, l'incantesimo ha termine sul bersaglio. Le creature con Intelligenza 4 o inferiore non sono influenzate.",
-      "higher_levels": null
-    },
-    {
-      "name": "Identificare",
-      "level": 1,
-      "school": "Divinazione",
-      "casting_time": "1 minuto",
-      "range": "Contatto",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "una perla del valore di almeno 100 mo e una piuma di gufo",
-      "duration": "istantanea",
-      "ritual": true,
-      "concentration": false,
-      "description": "Scegli un oggetto che devi toccare durante il lancio di questo incantesimo. Se è un oggetto magico o un altro oggetto magicamente impregnato, impari le sue proprietà e come usarle, se richiede l'attunement per essere usato, e quante cariche possiede, se ne ha. Scopri se l'oggetto ha delle maledizioni attive su di esso. Se è un oggetto non magico, scopri se ci sono influenze magiche su di esso, come un incantesimo di Benedire.",
-      "higher_levels": null
-    },
-    {
-      "name": "Comprendere Linguaggi",
-      "level": 1,
-      "school": "Divinazione",
-      "casting_time": "1 azione",
-      "range": "Sé stesso",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "una pizzico di fuliggine e sale",
-      "duration": "1 ora",
-      "ritual": true,
-      "concentration": false,
-      "description": "Per la durata dell'incantesimo, comprendi il significato letterale di qualsiasi lingua parlata che senti. Capisci anche qualsiasi lingua scritta che vedi, ma devi toccare la superficie su cui le parole sono scritte. Ci vuole circa 1 minuto per leggere una pagina di testo. Questo incantesimo non decodifica messaggi segreti in un testo o un simbolo che non faccia parte di un linguaggio scritto.",
-      "higher_levels": null
-    },
-    {
-      "name": "Caduta della Piuma",
-      "level": 1,
-      "school": "Trasmutazione",
-      "casting_time": "1 reazione, da eseguire quando tu o una creatura entro 18 m cadete",
-      "range": "18 metri",
-      "components": [
-        "V",
-        "M"
-      ],
-      "material": "una piccola piuma o un po' di pelliccia",
-      "duration": "1 minuto",
-      "ritual": false,
-      "concentration": false,
-      "description": "Scegli fino a cinque creature che cadono entro gittata. La velocità di caduta di una creatura bersaglio scende a 18 m per round fino al termine dell'incantesimo. Se la creatura atterra prima che l'incantesimo termini, non subisce danni da caduta e atterra in piedi e l'incantesimo termina per quella creatura.",
-      "higher_levels": null
-    },
-    {
-      "name": "Dissolvi Magie",
-      "level": 3,
-      "school": "Abiurazione",
-      "casting_time": "1 azione",
-      "range": "36 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Scegli qualsiasi creatura, oggetto o effetto magico entro gittata. Qualsiasi incantesimo di 3° livello o inferiore sul bersaglio termina. Per ogni incantesimo di livello 4 o superiore sul bersaglio, effettua una prova di caratteristica usando il tuo modificatore da incantatore. La CD è pari a 10 + il livello dell'incantesimo. In caso di successo, l'incantesimo termina.",
-      "higher_levels": "Lanciando con uno slot di livello 4 o superiore, termina automaticamente gli effetti degli incantesimi sul bersaglio il cui livello è uguale o inferiore al livello dello slot incantesimo usato."
-    },
-    {
-      "name": "Suggestione",
-      "level": 2,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "9 metri",
-      "components": [
-        "V",
-        "M"
-      ],
-      "material": "una lingua di serpente e favo di miele o un goccio di olio dolce",
-      "duration": "concentrazione, fino a 8 ore",
-      "ritual": false,
-      "concentration": true,
-      "description": "Suggerisci un'azione (con una o due frasi) a una creatura che riesci a vedere entro gittata e che riesci a sentire e capire. Le creature che non possono essere affascinate sono immuni a questo incantesimo. Il suggerimento deve essere formulato in modo da sembrare ragionevole. Chiedere alla creatura di colpirsi o di compiere un'azione palesemente dannosa pone termine all'incantesimo. Il bersaglio deve superare un tiro salvezza su Saggezza oppure seguire la sequenza di azioni suggeriti nel modo più fedele possibile. Il bersaglio porta a termine le azioni il più fedelmente possibile per la durata dell'incantesimo.",
-      "higher_levels": null
-    },
-    {
-      "name": "Invisibilità",
-      "level": 2,
-      "school": "Illusione",
-      "casting_time": "1 azione",
-      "range": "Contatto",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "una membrana d'occhio avvolta in un po' di gomma arabica",
-      "duration": "concentrazione, fino a 1 ora",
-      "ritual": false,
-      "concentration": true,
-      "description": "Una creatura che tocchi diventa invisibile fino al termine dell'incantesimo. Qualsiasi cosa la creatura indossi o trasporti è invisibile finché rimane in suo possesso. L'incantesimo ha termine per un bersaglio che attacca o lancia un incantesimo.",
-      "higher_levels": "Lanciando con uno slot di livello 3 o superiore, puoi bersagliare una creatura aggiuntiva per ogni livello di slot superiore al 2°."
-    },
-    {
-      "name": "Blocca Persona",
-      "level": 2,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "un piccolo pezzo di ferro dritto",
-      "duration": "concentrazione, fino a 1 minuto",
-      "ritual": false,
-      "concentration": true,
-      "description": "Scegli come bersaglio un umanoide che riesci a vedere entro gittata. Il bersaglio deve superare un tiro salvezza su Saggezza oppure essere paralizzato per la durata dell'incantesimo. Alla fine di ogni turno del bersaglio, esso può effettuare un altro tiro salvezza su Saggezza. In caso di successo, l'incantesimo ha termine sul bersaglio.",
-      "higher_levels": "Lanciando con uno slot di livello 3 o superiore, puoi bersagliare un umanoide aggiuntivo per ogni livello di slot superiore al 2°."
-    },
-    {
-      "name": "Curare Ferite di Massa",
-      "level": 5,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V",
-        "S"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Un'ondata di energia curativa scorre da te verso le creature ferite intorno a te. Scegli fino a sei creature entro gittata. Ognuna di esse recupera punti ferita pari a 3d8 + il tuo modificatore di caratteristica da incantatore. Questo incantesimo non ha effetto sui nonmorti o sui costrutti.",
-      "higher_levels": "Lanciando con uno slot di livello 6 o superiore, la guarigione aumenta di 1d8 per ogni livello di slot superiore al 5°."
-    },
-    {
-      "name": "Risveglio",
-      "level": 5,
-      "school": "Trasmutazione",
-      "casting_time": "8 ore",
-      "range": "Contatto",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "un granata del valore di 1000 mo, che l'incantesimo consuma",
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Trascorri il tempo di lancio a tracciare formule magiche, che si impregnano di magia nella mente di una bestia o di una pianta che hai toccato. La bestia o pianta deve essere di taglia Grande o inferiore. In caso di successo, la bestia o pianta ottiene un'Intelligenza di 10 e la capacità di parlare una lingua a tua scelta. Diventa un PNG amichevole che il DM controlla e ha vantaggio in modo favorevole verso di te.",
-      "higher_levels": null
-    },
-    {
-      "name": "Paura",
-      "level": 3,
-      "school": "Illusione",
-      "casting_time": "1 azione",
-      "range": "Sé stesso (cono di 9 m)",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "una piuma bianca o un osso di pollo",
-      "duration": "concentrazione, fino a 1 minuto",
-      "ritual": false,
-      "concentration": true,
-      "description": "Proietti una visione fantasmatica di paura nelle menti delle creature entro un cono di 9 m. Ogni creatura nell'area deve superare un tiro salvezza su Saggezza. In caso di fallimento, la creatura lascia cadere qualsiasi cosa stia tenendo ed è spaventata per la durata dell'incantesimo. Mentre è spaventata in questo modo, la creatura deve effettuare l'azione Scatto e si muove nella direzione più sicura possibile lontano da te in ogni suo turno. La creatura può effettuare un tiro salvezza su Saggezza alla fine di ogni suo turno; in caso di successo, l'incantesimo termina per quella creatura.",
-      "higher_levels": null
-    },
-    {
-      "name": "Suggestione di Massa",
-      "level": 6,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V",
-        "M"
-      ],
-      "material": "una lingua di serpente e favo di miele o un goccio di olio dolce",
-      "duration": "24 ore",
-      "ritual": false,
-      "concentration": false,
-      "description": "Lanci l'incantesimo Suggestione su un massimo di dodici creature entro gittata che puoi vedere. Un suggerimento deve essere formulato in modo tale da sembrare ragionevole. Il suggerimento deve essere lo stesso per tutte le creature bersaglio.",
-      "higher_levels": "Lanciando con uno slot di livello 7, la durata è 10 giorni. Con uno slot di livello 8, 30 giorni. Con uno slot di livello 9, 1 anno e 1 giorno."
-    },
-    {
-      "name": "Teletrasporto",
-      "level": 7,
-      "school": "Evocazione",
-      "casting_time": "1 azione",
-      "range": "3 metri",
-      "components": [
-        "V"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Questo incantesimo trasporta istantaneamente te stesso e fino a otto creature disposte entro 3 m da te oppure un singolo oggetto che riesci a vedere entro 3 m da te, in una destinazione a tua scelta. Se bersagli un oggetto, deve essere in grado di contenere l'intero oggetto e non deve essere indossato o trasportato da una creatura non disposta. La destinazione che scegli deve essere nota a te. La destinazione potrebbe essere un posto sul tuo piano di esistenza. Il tuo grado di familiarità con la destinazione determina se arrivi con successo.",
-      "higher_levels": null
-    },
-    {
-      "name": "Parola di Potere: Stordisci",
-      "level": 8,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Pronunci una parola di potere che sovracarica la mente di una creatura che puoi vedere entro gittata, lasciandola senza fiato. Se il bersaglio ha 150 PF o meno, è stordito. Altrimenti, l'incantesimo non ha effetto. Il bersaglio stordito deve effettuare un tiro salvezza su Costituzione alla fine di ogni suo turno. In caso di successo, l'effetto stordito ha termine.",
-      "higher_levels": null
-    },
-    {
-      "name": "Parola di Potere: Uccidi",
-      "level": 9,
-      "school": "Ammaliamento",
-      "casting_time": "1 azione",
-      "range": "18 metri",
-      "components": [
-        "V"
-      ],
-      "material": null,
-      "duration": "istantanea",
-      "ritual": false,
-      "concentration": false,
-      "description": "Pronunci una parola di potere che costringe una creatura a tua scelta entro gittata a morire istantaneamente. Se la creatura che scegli ha 100 PF o meno, muore. Altrimenti, l'incantesimo non ha effetto.",
-      "higher_levels": null
-    },
-    {
-      "name": "Preveggenza",
-      "level": 9,
-      "school": "Divinazione",
-      "casting_time": "1 minuto",
-      "range": "Contatto",
-      "components": [
-        "V",
-        "S",
-        "M"
-      ],
-      "material": "un uccellino, penne di colibrì, incenso, tè di funghi — valore totale minimo 25 mo",
-      "duration": "8 ore",
-      "ritual": false,
-      "concentration": false,
-      "description": "Tocchi una creatura disposta e le concedi il potere di preveggenza limitata. Finché l'incantesimo dura, il bersaglio non può essere colto di sorpresa e ha vantaggio ai tiri per colpire, alle prove di caratteristica e ai tiri salvezza. Inoltre, le altre creature hanno svantaggio ai tiri per colpire contro il bersaglio per la durata dell'incantesimo.",
-      "higher_levels": null
-    }
+    {"name": "Amicizia", "level": 0},
+    {"name": "Beffa Crudele", "level": 0},
+    {"name": "Colpo Accurato", "level": 0},
+    {"name": "Illusione Minore", "level": 0},
+    {"name": "Interdizione alle Lame", "level": 0},
+    {"name": "Luce", "level": 0},
+    {"name": "Luci Danzanti", "level": 0},
+    {"name": "Mano Magica", "level": 0},
+    {"name": "Messaggio", "level": 0},
+    {"name": "Prestidigitazione", "level": 0},
+    {"name": "Riparare", "level": 0},
+    {"name": "Amicizia con gli Animali", "level": 1},
+    {"name": "Anatema", "level": 1},
+    {"name": "Caduta Morbida", "level": 1},
+    {"name": "Camuffare Se Stesso", "level": 1},
+    {"name": "Charme su Persone", "level": 1},
+    {"name": "Comprensione dei Linguaggi", "level": 1},
+    {"name": "Cura Ferite", "level": 1},
+    {"name": "Eroismo", "level": 1},
+    {"name": "Identificare", "level": 1},
+    {"name": "Immagine Silenziosa", "level": 1},
+    {"name": "Individuazione del Magico", "level": 1},
+    {"name": "Luminescenza", "level": 1},
+    {"name": "Onda Tonante", "level": 1},
+    {"name": "Parlare con gli Animali", "level": 1},
+    {"name": "Parola Guaritrice", "level": 1},
+    {"name": "Passo Veloce", "level": 1},
+    {"name": "Risata Incontenibile di Tasha", "level": 1},
+    {"name": "Scritto Illusorio", "level": 1},
+    {"name": "Servitore Inosservato", "level": 1},
+    {"name": "Sonno", "level": 1},
+    {"name": "Sussurri Dissonanti", "level": 1},
+    {"name": "Allucinazione di Forza", "level": 2},
+    {"name": "Animale Messaggero", "level": 2},
+    {"name": "Blocca Persone", "level": 2},
+    {"name": "Bocca Magica", "level": 2},
+    {"name": "Calmare Emozioni", "level": 2},
+    {"name": "Caratteristica Potenziata", "level": 2},
+    {"name": "Cecità/Sordità", "level": 2},
+    {"name": "Corona di Follia", "level": 2},
+    {"name": "Estasiare", "level": 2},
+    {"name": "Frantumare", "level": 2},
+    {"name": "Individuazione dei Pensieri", "level": 2},
+    {"name": "Invisibilità", "level": 2},
+    {"name": "Localizza Animali o Vegetali", "level": 2},
+    {"name": "Localizza Oggetto", "level": 2},
+    {"name": "Nube di Pugnali", "level": 2},
+    {"name": "Riscaldare il Metallo", "level": 2},
+    {"name": "Ristorare Inferiore", "level": 2},
+    {"name": "Scassinare", "level": 2},
+    {"name": "Silenzio", "level": 2},
+    {"name": "Suggestione", "level": 2},
+    {"name": "Vedere Invisibilità", "level": 2},
+    {"name": "Zona di Verità", "level": 2},
+    {"name": "Anti-Individuazione", "level": 3},
+    {"name": "Capanna di Leomund", "level": 3},
+    {"name": "Chiaroveggenza", "level": 3},
+    {"name": "Crescita Vegetale", "level": 3},
+    {"name": "Dissolvi Magie", "level": 3},
+    {"name": "Glifo di Interdizione", "level": 3},
+    {"name": "Immagine Maggiore", "level": 3},
+    {"name": "Inviare", "level": 3},
+    {"name": "Linguaggi", "level": 3},
+    {"name": "Morte Apparente", "level": 3},
+    {"name": "Nube Maleodorante", "level": 3},
+    {"name": "Parlare con i Morti", "level": 3},
+    {"name": "Parlare con i Vegetali", "level": 3},
+    {"name": "Paura", "level": 3},
+    {"name": "Scagliare Maledizione", "level": 3},
+    {"name": "Trama Ipnotica", "level": 3},
+    {"name": "Compulsione", "level": 4},
+    {"name": "Confusione", "level": 4},
+    {"name": "Invisibilità Superiore", "level": 4},
+    {"name": "Libertà di Movimento", "level": 4},
+    {"name": "Localizza Creatura", "level": 4},
+    {"name": "Metamorfosi", "level": 4},
+    {"name": "Porta Dimensionale", "level": 4},
+    {"name": "Terreno Illusorio", "level": 4},
+    {"name": "Animare Oggetti", "level": 5},
+    {"name": "Blocca Mostri", "level": 5},
+    {"name": "Cerchio di Teletrasporto", "level": 5},
+    {"name": "Conoscenza delle Leggende", "level": 5},
+    {"name": "Costrizione", "level": 5},
+    {"name": "Cura Ferite di Massa", "level": 5},
+    {"name": "Dominare Persone", "level": 5},
+    {"name": "Fuorviare", "level": 5},
+    {"name": "Legame Planare", "level": 5},
+    {"name": "Modificare Memoria", "level": 5},
+    {"name": "Rianimare Morti", "level": 5},
+    {"name": "Ristorare Superiore", "level": 5},
+    {"name": "Risveglio", "level": 5},
+    {"name": "Scrutare", "level": 5},
+    {"name": "Sembrare", "level": 5},
+    {"name": "Sogno", "level": 5},
+    {"name": "Danza Irresistibile di Otto", "level": 6},
+    {"name": "Illusione Programmata", "level": 6},
+    {"name": "Scopri il Percorso", "level": 6},
+    {"name": "Sguardo Penetrante", "level": 6},
+    {"name": "Suggestione di Massa", "level": 6},
+    {"name": "Vigilanza e Interdizione", "level": 6},
+    {"name": "Visione del Vero", "level": 6},
+    {"name": "Forma Eterea", "level": 7},
+    {"name": "Gabbia di Forza", "level": 7},
+    {"name": "Immagine Proiettata", "level": 7},
+    {"name": "Miraggio Arcano", "level": 7},
+    {"name": "Reggia Meravigliosa di Mordenkainen", "level": 7},
+    {"name": "Resurrezione", "level": 7},
+    {"name": "Rigenerazione", "level": 7},
+    {"name": "Simbolo", "level": 7},
+    {"name": "Spada di Mordenkainen", "level": 7},
+    {"name": "Teletrasporto", "level": 7},
+    {"name": "Dominare Mostri", "level": 8},
+    {"name": "Loquacità", "level": 8},
+    {"name": "Parola del Potere Stordire", "level": 8},
+    {"name": "Regressione Mentale", "level": 8},
+    {"name": "Vuoto Mentale", "level": 8},
+    {"name": "Metamorfosi Pura", "level": 9},
+    {"name": "Parola del Potere Guarire", "level": 9},
+    {"name": "Parola del Potere Uccidere", "level": 9},
+    {"name": "Previsione", "level": 9}
   ]
 }

@@ -54,8 +54,17 @@ class GameDataLoader:
         self._classes:     dict[str, dict[str, Any]] = {}
         self._races:       dict[str, dict[str, Any]] = {}
         self._backgrounds: dict[str, dict[str, Any]] = {}
-        # spell: class_name_lower → lista spell
+        # spell: class_name_lower → lista spell (risolta dal file master)
         self._spells: dict[str, list[dict[str, Any]]] = {}
+        # file master condiviso: nome incantesimo (lower) → dati completi.
+        # Fonte unica di verità per il TESTO degli incantesimi (school,
+        # casting_time, range, components, material, duration, description,
+        # higher_levels) — rispecchia la struttura del manuale stesso, che
+        # elenca le descrizioni una sola volta in ordine alfabetico e separa
+        # le liste per classe (solo nomi). Evita la duplicazione di testo
+        # identico tra più file classe, stesso principio già applicato a
+        # RACE_DATA/CLASSES/tags.json in precedenza in questo progetto.
+        self._spell_master: dict[str, dict[str, Any]] | None = None
         # talenti PHB
         self._feats: list[dict[str, Any]] = []
         # invocazioni occulte Warlock
@@ -406,40 +415,86 @@ class GameDataLoader:
     # Incantesimi
     # ------------------------------------------------------------------
 
+    def _ensure_spell_master(self) -> dict[str, dict[str, Any]]:
+        """
+        Carica (lazy, una sola volta) il file master `incantesimi_completi.json`
+        — dizionario {nome_esatto_da_manuale: {dati completi}}. Ritorna un
+        dizionario chiave-lower per lookup case-insensitive.
+        """
+        if self._spell_master is None:
+            path = _DATA_DIR / "spells" / "incantesimi_completi.json"
+            self._spell_master = {}
+            if path.exists() and path.stat().st_size > 0:
+                try:
+                    data = _load_json(path)
+                    raw = data.get("spells", data) if isinstance(data, dict) else {}
+                    for name, entry in raw.items():
+                        merged = {**entry, "name": entry.get("name", name)}
+                        self._spell_master[name.lower()] = merged
+                    logger.debug(
+                        "File master incantesimi caricato: %d voci",
+                        len(self._spell_master),
+                    )
+                except Exception as exc:
+                    logger.error("Errore caricamento incantesimi_completi.json: %s", exc)
+        return self._spell_master
+
     def get_spells(self, class_name: str) -> list[dict[str, Any]]:
         """
         Restituisce la lista degli incantesimi per la classe indicata.
-        File atteso: spells/incantesimi_{class_name_lower}.json
+
+        File atteso: spells/incantesimi_{class_name_lower}.json — contiene
+        SOLO la lista dei nomi conosciuti da questa classe (rispecchia le
+        liste per classe del Capitolo 11 del manuale, pag.207-211). Il testo
+        completo di ogni incantesimo viene risolto dal file master condiviso
+        `incantesimi_completi.json` (stessa fonte per tutte le classi, così
+        un incantesimo condiviso come "Cura Ferite" viene trascritto/corretto
+        una sola volta invece che in ogni file classe separatamente).
+
+        Un nome presente nella lista di classe ma non ancora nel file master
+        (trascrizione in corso) viene scartato silenziosamente con un debug
+        log, invece di rompere l'app con un KeyError.
+
         Restituisce lista vuota se il file non esiste o la classe non è
         incantatrice.
         """
         key = class_name.lower()
         if key not in self._spells:
             path = _DATA_DIR / "spells" / f"incantesimi_{key}.json"
-            if path.exists():
-                if path.stat().st_size == 0:
-                    logger.debug("File incantesimi '%s' vuoto (placeholder)", path.name)
-                    self._spells[key] = []
-                else:
-                    try:
-                        data = _load_json(path)
-                        # Supporta sia lista diretta che {"spells": [...]}
-                        if isinstance(data, list):
-                            self._spells[key] = data
-                        else:
-                            self._spells[key] = data.get("spells", [])
-                        logger.debug(
-                            "Incantesimi caricati per '%s': %d spell",
-                            class_name, len(self._spells[key]),
-                        )
-                    except Exception as exc:
-                        logger.error(
-                            "Errore caricamento incantesimi '%s': %s", path.name, exc
-                        )
-                        self._spells[key] = []
+            names: list[str] = []
+            if path.exists() and path.stat().st_size > 0:
+                try:
+                    data = _load_json(path)
+                    # Supporta lista diretta di nomi, {"spells": ["Nome", ...]}
+                    # o (formato legacy pre-refactor) {"spells": [{"name":...}]}
+                    raw = data if isinstance(data, list) else data.get("spells", [])
+                    for item in raw:
+                        if isinstance(item, str):
+                            names.append(item)
+                        elif isinstance(item, dict) and item.get("name"):
+                            names.append(item["name"])
+                except Exception as exc:
+                    logger.error(
+                        "Errore caricamento incantesimi '%s': %s", path.name, exc
+                    )
             else:
                 logger.debug("Nessun file incantesimi per classe '%s'", class_name)
-                self._spells[key] = []
+
+            master = self._ensure_spell_master()
+            resolved: list[dict[str, Any]] = []
+            for name in names:
+                entry = master.get(name.lower())
+                if entry is not None:
+                    resolved.append(entry)
+                else:
+                    logger.debug(
+                        "Incantesimo '%s' (classe %s) non ancora nel file master",
+                        name, class_name,
+                    )
+            self._spells[key] = resolved
+            logger.debug(
+                "Incantesimi risolti per '%s': %d/%d", class_name, len(resolved), len(names)
+            )
         return self._spells[key]
 
     def get_spells_by_level(
