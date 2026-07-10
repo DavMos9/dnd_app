@@ -142,6 +142,8 @@ def create(character: Character) -> bool:
                 movement_used, previous_turn_state,
                 spellcasting_ability, inspiration,
                 ca_bonus, proficiency_bonus_override, session_notes,
+                dragon_ancestry, fighting_style, totem_animal, land_terrain,
+                pact_boon, initiative_bonus, max_prepared_spells_override,
                 age, height, weight, eyes, skin, hair,
                 personality_traits, ideals, bonds, flaws,
                 backstory, allies_organizations, additional_traits, appearance_notes,
@@ -157,6 +159,8 @@ def create(character: Character) -> bool:
                 :movement_used, :previous_turn_state,
                 :spellcasting_ability, :inspiration,
                 :ca_bonus, :proficiency_bonus_override, :session_notes,
+                :dragon_ancestry, :fighting_style, :totem_animal, :land_terrain,
+                :pact_boon, :initiative_bonus, :max_prepared_spells_override,
                 :age, :height, :weight, :eyes, :skin, :hair,
                 :personality_traits, :ideals, :bonds, :flaws,
                 :backstory, :allies_organizations, :additional_traits, :appearance_notes,
@@ -216,6 +220,13 @@ def create(character: Character) -> bool:
             "ca_bonus": character.ca_bonus,
             "proficiency_bonus_override": character.proficiency_bonus_override,
             "session_notes": _s(character.session_notes),
+            "dragon_ancestry": _s(character.dragon_ancestry),
+            "fighting_style": _s(character.fighting_style),
+            "totem_animal": _s(character.totem_animal),
+            "land_terrain": _s(character.land_terrain),
+            "pact_boon": _s(character.pact_boon),
+            "initiative_bonus": character.initiative_bonus,
+            "max_prepared_spells_override": character.max_prepared_spells_override,
             "created_at": character.created_at,
             "updated_at": character.updated_at,
         })
@@ -290,6 +301,7 @@ def update(character: Character) -> bool:
                 land_terrain=:land_terrain,
                 pact_boon=:pact_boon,
                 initiative_bonus=:initiative_bonus,
+                max_prepared_spells_override=:max_prepared_spells_override,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -352,6 +364,7 @@ def update(character: Character) -> bool:
             "land_terrain": _s(character.land_terrain),
             "pact_boon": _s(character.pact_boon),
             "initiative_bonus": character.initiative_bonus,
+            "max_prepared_spells_override": character.max_prepared_spells_override,
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -1445,14 +1458,25 @@ def update_session_notes(character_id: str, notes: str) -> bool:
 
 def calculate_and_update_ca(character_id: str) -> int:
     """
-    Ricalcola la CA del personaggio in base all'armatura e agli scudi equipaggiati.
+    Ricalcola la CA del personaggio in base all'armatura e agli scudi equipaggiati,
+    e alle capacità di classe che modificano la formula di base (Categoria B
+    dell'audit 2026-07-09 — bonus condizionati all'equipaggiamento attuale, quindi
+    ricalcolati da zero ad ogni chiamata anziché salvati come "ricevuta" fissa).
 
-    Logica PHB:
-      - Nessuna armatura  → 10 + mod DES
+    Logica PHB, senza armatura equipaggiata:
+      - Monaco (Difesa Senza Armatura, e nessuno scudo) → 10 + mod DES + mod SAG
+      - Barbaro (Difesa Senza Armatura, scudo permesso) → 10 + mod DES + mod COS
+      - Stregone con Discendenza Draconica (Resilienza Draconica) → 13 + mod DES
+      - Altrimenti → 10 + mod DES
+
+    Logica PHB, con armatura equipaggiata:
       - Armatura leggera  → ca_value + mod DES
       - Armatura media    → ca_value + min(mod DES, 2)
       - Armatura pesante  → ca_value  (DES ignorato)
-      - Scudo             → somma i ca_value di tutti gli scudi equipaggiati
+      - Stile di Combattimento "Difesa" (Guerriero/Paladino/Ranger) → +1 alla CA
+
+    Scudo → somma i ca_value di tutti gli scudi equipaggiati (sempre, salvo
+    l'eccezione Monaco sopra, che perde la Difesa Senza Armatura se ne indossa uno).
 
     Aggiorna il campo `ac` nel DB e restituisce il nuovo valore.
     """
@@ -1462,6 +1486,8 @@ def calculate_and_update_ca(character_id: str) -> int:
         if not char:
             return 10
         dex_mod = get_modifier(char.dex_score)
+        class_name = (char.class_name or "").strip()
+        subclass = (char.subclass or "").strip()
 
         items = get_inventory(character_id)
         equipped_armor = [i for i in items
@@ -1479,8 +1505,21 @@ def calculate_and_update_ca(character_id: str) -> int:
                 base_ca = armor.ca_value + min(dex_mod, 2)
             else:  # pesante
                 base_ca = armor.ca_value
+            # Stile di Combattimento "Difesa" — PHB: +1 CA finché indossa
+            # un'armatura (fighting_style_details in guerriero.json)
+            if (char.fighting_style or "") == "Difesa":
+                base_ca += 1
+        elif class_name == "Monaco" and not equipped_shields:
+            # Difesa Senza Armatura (Monaco): richiede nessuna armatura E nessuno scudo
+            base_ca = 10 + dex_mod + get_modifier(char.wis_score)
+        elif class_name == "Barbaro":
+            # Difesa Senza Armatura (Barbaro): lo scudo è permesso
+            base_ca = 10 + dex_mod + get_modifier(char.con_score)
+        elif class_name == "Stregone" and subclass == "Discendenza Draconica":
+            # Resilienza Draconica
+            base_ca = 13 + dex_mod
         else:
-            base_ca = 10 + dex_mod  # senza armatura
+            base_ca = 10 + dex_mod  # senza armatura, nessuna formula di classe
 
         shield_ca = sum(s.ca_value for s in equipped_shields)
         new_ca = base_ca + shield_ca
@@ -1492,11 +1531,84 @@ def calculate_and_update_ca(character_id: str) -> int:
         )
         conn.commit()
         conn.close()
-        logger.info(f"CA aggiornata: {new_ca} (armatura={base_ca}, scudo={shield_ca})")
+        logger.info(f"CA aggiornata: {new_ca} (base={base_ca}, scudo={shield_ca})")
         return new_ca
     except Exception as e:
         logger.error(f"Errore calcolo CA: {e}")
         return 10
+
+
+def get_effective_speed(character: Character) -> float:
+    """
+    Calcola la velocità di movimento a piedi EFFETTIVA del personaggio,
+    sommando alla velocità base (`character.speed` — già comprensiva di
+    eventuali override manuali del giocatore e del bonus fisso del
+    Talento Mobile, applicato come ricevuta diretta su `speed`) il bonus
+    dinamico concesso da alcune capacità di classe condizionate
+    all'equipaggiamento attualmente indossato (Categoria B dell'audit
+    2026-07-09, parte Velocità).
+
+    Decisione architetturale (confermata da Davide 2026-07-09): a differenza
+    della CA, `speed` ha già due meccanismi consolidati (override manuale in
+    Combattimento, bonus Talento Mobile) che scriverebbero un valore assoluto
+    in conflitto con un ricalcolo automatico persistito. Questa funzione
+    quindi NON scrive mai sul DB: il bonus di classe viene ricalcolato al
+    volo ad ogni chiamata e va sommato dal chiamante solo dove serve
+    mostrare/usare la velocità effettiva. `character.speed` in DB resta
+    sempre il valore "base" (razza + override manuale + Talento Mobile),
+    intatto e mai sovrascritto da questa funzione.
+
+    Casi gestiti (PHB, testo confermato nei file classe già auditati ✅):
+      - Monaco, "Movimento Senza Armatura" (dal 2° livello): +3 m, se non
+        indossa armatura né scudo. Il bonus non è cumulativo: sale a +4,5 m
+        al 6°, +6 m al 10°, +7,5 m al 14°, +9 m al 18° (sostituisce, non si
+        somma ai livelli precedenti).
+      - Barbaro, "Movimento Veloce" (dal 5° livello): +3 m, se non indossa
+        un'armatura pesante (armatura leggera/media e scudo non ostacolano).
+
+    Scelta di scope deliberata: il bonus si applica solo alla velocità a
+    piedi (Camminata). Le velocità speciali mostrate in Esplorazione (Nuoto,
+    Scalata, Volo, quando presenti come tratto razziale) restano al valore
+    base — il testo PHB di entrambe le capacità parla esplicitamente della
+    "velocità" del personaggio nel senso di velocità di movimento a piedi,
+    non delle velocità speciali derivate dalla razza.
+    """
+    base = character.speed or 0
+    class_name = (character.class_name or "").strip()
+    level = character.level or 1
+
+    if class_name not in ("Monaco", "Barbaro"):
+        return base
+
+    try:
+        items = get_inventory(character.id)
+    except Exception as e:
+        logger.error(f"Errore lettura inventario per calcolo velocità effettiva: {e}")
+        return base
+
+    has_armor = any(i.is_equipped and i.category == "armor"
+                     and i.armor_type in ("leggera", "media", "pesante") for i in items)
+    has_heavy_armor = any(i.is_equipped and i.category == "armor"
+                          and i.armor_type == "pesante" for i in items)
+    has_shield = any(i.is_equipped and i.category == "armor"
+                     and i.armor_type == "scudo" for i in items)
+
+    bonus = 0.0
+    if class_name == "Monaco" and level >= 2 and not has_armor and not has_shield:
+        if level >= 18:
+            bonus = 9.0
+        elif level >= 14:
+            bonus = 7.5
+        elif level >= 10:
+            bonus = 6.0
+        elif level >= 6:
+            bonus = 4.5
+        else:
+            bonus = 3.0
+    elif class_name == "Barbaro" and level >= 5 and not has_heavy_armor:
+        bonus = 3.0
+
+    return base if bonus == 0 else base + bonus
 
 
 # ---------------------------------------------------------------------------
@@ -1606,7 +1718,20 @@ def init_class_resources(
         for d in defaults:
             if d["name"] in existing:
                 ex = existing[d["name"]]
-                new_current = min(ex.current_value, d["max_value"])
+                new_max = d["max_value"]
+                if new_max < 0:
+                    # Pool diventa illimitato (es. Furia del Barbaro al 20°
+                    # livello): il sentinel -1 non è un numero di usi reale,
+                    # va sempre forzato, mai clampato con min().
+                    new_current = -1
+                elif ex.current_value < 0:
+                    # Pool ERA illimitato (sentinel -1) e torna finito — tipicamente
+                    # un level-down dal 20° livello. Non c'è un "usato" reale da
+                    # riportare indietro: il min(-1, new_max) darebbe sempre -1
+                    # (bug), quindi si riparte a piena carica sul nuovo massimo.
+                    new_current = new_max
+                else:
+                    new_current = min(ex.current_value, new_max)
                 conn.execute(
                     """UPDATE class_resources
                        SET max_value=?, current_value=?, reset_on=?, display_type=?

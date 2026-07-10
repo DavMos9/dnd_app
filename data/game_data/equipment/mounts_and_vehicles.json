@@ -1,0 +1,221 @@
+{
+  "_source_note": "Tutti i dati di questo file sono trascritti esattamente dal manuale italiano 'ED 5.0 manuale del giocatore.pdf' (PHB IT 2014), Capitolo 5 'Equipaggiamento', pagine 143-159. Trascrizione eseguita il 2026-07-10 leggendo le pagine del PDF renderizzate come immagini (pdftoppm), non tramite estrazione testo OCR (pdftotext), risultata inaffidabile su queste tabelle (numeri/lettere confusi). La tabella d100 'Oggetti Insoliti' (pag.160-161, cimeli di ambientazione senza effetto meccanico) e' stata deliberatamente esclusa da questa prima versione su scelta di Davide - vedi TODO in CLAUDE.md.",
+  "_source": "Sezione 'Cavalcature e Veicoli' + tabelle, PHB IT p.155-157",
+  "rules": {
+    "introduzione": "Una buona cavalcatura puo' consentire a un personaggio di attraversare rapidamente un territorio selvaggio, ma il suo scopo primario e' trasportare l'equipaggiamento che altrimenti rallenterebbe il suo padrone. La tabella 'Cavalcature e Altri Animali' indica la velocita' e la capacita' di trasporto base di ogni animale. Un animale che tira una biga, un carretto, un carro, una carrozza o una slitta puo' spostare un peso pari a cinque volte la sua capacita' di trasporto, incluso il peso del veicolo. Se piu' animali tirano lo stesso veicolo, possono sommare assieme la loro capacita' di trasporto.",
+    "bardatura": "Una bardatura e' un'armatura concepita per proteggere la testa, il collo, il petto e il corpo di un animale. Ogni tipo di armatura elencato nella tabella 'Armature' puo' essere acquistata come bardatura. Il costo e' pari al quadruplo dell'armatura equivalente fabbricata per gli umanoidi, mentre il peso e' pari al doppio.",
+    "sella": "Un cavalcatore puo' agganciarsi a una sella militare al suo posto su una cavalcatura attiva, nel corso di una battaglia. Una sella militare conferisce vantaggio alle prove che il personaggio effettua per rimanere in sella. E' necessaria una sella esotica per cavalcare una creatura acquatica o volante.",
+    "competenza_in_un_veicolo": "Se un personaggio possiede competenza in un certo tipo di veicolo (terrestre o acquatico), puo' aggiungere il proprio bonus di competenza a qualsiasi prova effettuata per controllare quel tipo di veicolo in circostanze difficili.",
+    "imbarcazioni_a_remi": "I barconi e le barche a remi sono solitamente usati sui laghi e sui fiumi. Se un'imbarcazione segue la corrente, si aggiunge la velocita' della corrente (solitamente 4,5 km all'ora) alla sua velocita'. In genere non e' possibile remare controcorrente se la corrente ha un'intensita' rilevante, ma e' possibile far risalire un corso d'acqua a queste imbarcazioni portandole a riva e facendole trainare da una o piu' bestie da soma. Una barca a remi pesa 50 kg, qualora gli avventurieri debbano trasportarla via terra."
+  },
+  "cavalcature_e_altri_animali": {
+    "_source": "Tabella 'Cavalcature e Altri Animali', PHB IT p.157",
+    "Asino o Mulo": {
+      "cost": {
+        "quantity": 8,
+        "currency_type": "gold"
+      },
+      "speed_m": 12,
+      "carrying_capacity_kg": 210.0
+    },
+    "Cammello": {
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "speed_m": 15,
+      "carrying_capacity_kg": 240.0
+    },
+    "Cavallo da Galoppo": {
+      "cost": {
+        "quantity": 75,
+        "currency_type": "gold"
+      },
+      "speed_m": 18,
+      "carrying_capacity_kg": 240.0
+    },
+    "Cavallo da Guerra": {
+      "cost": {
+        "quantity": 400,
+        "currency_type": "gold"
+      },
+      "speed_m": 18,
+      "carrying_capacity_kg": 270.0
+    },
+    "Cavallo da Tiro": {
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "speed_m": 12,
+      "carrying_capacity_kg": 270.0
+    },
+    "Elefante": {
+      "cost": {
+        "quantity": 200,
+        "currency_type": "gold"
+      },
+      "speed_m": 12,
+      "carrying_capacity_kg": 660.0
+    },
+    "Mastino": {
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "speed_m": 12,
+      "carrying_capacity_kg": 97.5
+    },
+    "Pony": {
+      "cost": {
+        "quantity": 30,
+        "currency_type": "gold"
+      },
+      "speed_m": 12,
+      "carrying_capacity_kg": 112.5
+    }
+  },
+  "finimenti_e_veicoli_da_tiro": {
+    "_source": "Tabella 'Finimenti e Veicoli da Tiro', PHB IT p.157",
+    "Bardatura": {
+      "cost_multiplier_of_armor": 4,
+      "weight_multiplier_of_armor": 2
+    },
+    "Biga": {
+      "cost": {
+        "quantity": 250,
+        "currency_type": "gold"
+      },
+      "weight_kg": 50.0
+    },
+    "Bisacce": {
+      "cost": {
+        "quantity": 4,
+        "currency_type": "gold"
+      },
+      "weight_kg": 4.0
+    },
+    "Carretto": {
+      "cost": {
+        "quantity": 15,
+        "currency_type": "gold"
+      },
+      "weight_kg": 100.0
+    },
+    "Carro": {
+      "cost": {
+        "quantity": 35,
+        "currency_type": "gold"
+      },
+      "weight_kg": 200.0
+    },
+    "Carrozza": {
+      "cost": {
+        "quantity": 100,
+        "currency_type": "gold"
+      },
+      "weight_kg": 300.0
+    },
+    "Morso e Briglie": {
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    "Nutrimento (al giorno)": {
+      "cost": {
+        "quantity": 5,
+        "currency_type": "copper"
+      },
+      "weight_kg": 5.0
+    },
+    "Sella, Da Carico": {
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 7.5
+    },
+    "Sella, Da Galoppo": {
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 12.5
+    },
+    "Sella, Esotica": {
+      "cost": {
+        "quantity": 60,
+        "currency_type": "gold"
+      },
+      "weight_kg": 20.0
+    },
+    "Sella, Militare": {
+      "cost": {
+        "quantity": 20,
+        "currency_type": "gold"
+      },
+      "weight_kg": 15.0
+    },
+    "Slitta": {
+      "cost": {
+        "quantity": 20,
+        "currency_type": "gold"
+      },
+      "weight_kg": 150.0
+    },
+    "Stallaggio (al giorno)": {
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "weight_kg": null
+    }
+  },
+  "imbarcazioni": {
+    "_source": "Tabella 'Imbarcazioni', PHB IT p.157",
+    "Barca a Remi": {
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "speed_km_h": 2.25
+    },
+    "Barcone": {
+      "cost": {
+        "quantity": 3000,
+        "currency_type": "gold"
+      },
+      "speed_km_h": 1.5
+    },
+    "Galea": {
+      "cost": {
+        "quantity": 30000,
+        "currency_type": "gold"
+      },
+      "speed_km_h": 6.0
+    },
+    "Nave a Vela": {
+      "cost": {
+        "quantity": 10000,
+        "currency_type": "gold"
+      },
+      "speed_km_h": 3.0
+    },
+    "Nave da Guerra": {
+      "cost": {
+        "quantity": 25000,
+        "currency_type": "gold"
+      },
+      "speed_km_h": 3.75
+    },
+    "Nave Lunga": {
+      "cost": {
+        "quantity": 10000,
+        "currency_type": "gold"
+      },
+      "speed_km_h": 4.5
+    }
+  }
+}

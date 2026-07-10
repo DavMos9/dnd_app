@@ -8,13 +8,13 @@
   ],
   "spellcasting_ability": "wis",
   "armor_proficiencies": [
-    "#armature_leggere",
-    "#armature_medie",
-    "#scudi"
+    "leggere",
+    "medie",
+    "scudi"
   ],
   "weapon_proficiencies": [
-    "#armi_semplici",
-    "#armi_da_guerra"
+    "semplice",
+    "guerra"
   ],
   "tool_proficiencies": [],
   "skill_choices": {
@@ -230,7 +230,21 @@
     {
       "level": 2,
       "name": "Stile di Combattimento",
-      "description": "Al 2° livello, un ranger adotta uno stile di combattimento come specialità, scegliendo tra: Combattere con Due Armi, Difesa, Duellare o Tiro (vedi \"fighting_style_details\" in guerriero.json per il testo completo di ciascuno stile — meccanica identica e condivisa tra le classi)."
+      "description": "Al 2° livello, un ranger adotta uno stile di combattimento come specialità, scegliendo tra: Combattere con Due Armi, Difesa, Duellare o Tiro (vedi \"fighting_style_details\" in guerriero.json per il testo completo di ciascuno stile — meccanica identica e condivisa tra le classi).",
+      "options": [
+        {
+          "name": "Combattere con Due Armi"
+        },
+        {
+          "name": "Difesa"
+        },
+        {
+          "name": "Duellare"
+        },
+        {
+          "name": "Tiro"
+        }
+      ]
     },
     {
       "level": 2,

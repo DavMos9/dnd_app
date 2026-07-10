@@ -13,7 +13,7 @@
     "Dardo",
     "Fionda",
     "Bastone Ferrato",
-    "Balestra leggera"
+    "Balestra Leggera"
   ],
   "tool_proficiencies": [],
   "skill_choices": {
@@ -109,28 +109,73 @@
     "multiplier": 10
   },
   "spell_slot_creation_cost": [
-    { "slot_level": 1, "sorcery_points": 2 },
-    { "slot_level": 2, "sorcery_points": 3 },
-    { "slot_level": 3, "sorcery_points": 5 },
-    { "slot_level": 4, "sorcery_points": 6 },
-    { "slot_level": 5, "sorcery_points": 7 }
+    {
+      "slot_level": 1,
+      "sorcery_points": 2
+    },
+    {
+      "slot_level": 2,
+      "sorcery_points": 3
+    },
+    {
+      "slot_level": 3,
+      "sorcery_points": 5
+    },
+    {
+      "slot_level": 4,
+      "sorcery_points": 6
+    },
+    {
+      "slot_level": 5,
+      "sorcery_points": 7
+    }
   ],
   "subclass_label": "Origine Magica",
   "subclass_choice_level": 1,
   "subclasses": [
     {
-      "name": "Discendenza Draconiana",
+      "name": "Discendenza Draconica",
       "dragon_damage_types": [
-        { "dragon": "Argento", "damage_type": "Freddo" },
-        { "dragon": "Bianco", "damage_type": "Freddo" },
-        { "dragon": "Blu", "damage_type": "Fulmine" },
-        { "dragon": "Bronzo", "damage_type": "Fulmine" },
-        { "dragon": "Nero", "damage_type": "Acido" },
-        { "dragon": "Oro", "damage_type": "Fuoco" },
-        { "dragon": "Ottone", "damage_type": "Fuoco" },
-        { "dragon": "Rame", "damage_type": "Acido" },
-        { "dragon": "Rosso", "damage_type": "Fuoco" },
-        { "dragon": "Verde", "damage_type": "Veleno" }
+        {
+          "dragon": "Argento",
+          "damage_type": "Freddo"
+        },
+        {
+          "dragon": "Bianco",
+          "damage_type": "Freddo"
+        },
+        {
+          "dragon": "Blu",
+          "damage_type": "Fulmine"
+        },
+        {
+          "dragon": "Bronzo",
+          "damage_type": "Fulmine"
+        },
+        {
+          "dragon": "Nero",
+          "damage_type": "Acido"
+        },
+        {
+          "dragon": "Oro",
+          "damage_type": "Fuoco"
+        },
+        {
+          "dragon": "Ottone",
+          "damage_type": "Fuoco"
+        },
+        {
+          "dragon": "Rame",
+          "damage_type": "Acido"
+        },
+        {
+          "dragon": "Rosso",
+          "damage_type": "Fuoco"
+        },
+        {
+          "dragon": "Verde",
+          "damage_type": "Veleno"
+        }
       ],
       "features": [
         {
@@ -161,58 +206,208 @@
       ]
     },
     {
-      "name": "Anima Selvaggia",
+      "name": "Magia Selvaggia",
       "wild_magic_surge_table": [
-        { "roll": "01-02", "effect": "Lo stregone tira su questa tabella all'inizio di ogni suo turno per il minuto successivo, ignorando questo risultato ai tiri successivi." },
-        { "roll": "03-04", "effect": "Per il minuto successivo, lo stregone è in grado di vedere qualsiasi creatura invisibile, se dispone di linea di vista fino a essa." },
-        { "roll": "05-06", "effect": "Un modron scelto e controllato dal DM compare in uno spazio libero a 1,5 metri dallo stregone, poi scompare 1 minuto dopo." },
-        { "roll": "07-08", "effect": "Lo stregone lancia palla di fuoco come incantesimo di 3° livello centrato su se stesso." },
-        { "roll": "09-10", "effect": "Lo stregone lancia dardo incantato come incantesimo di 5° livello." },
-        { "roll": "11-12", "effect": "Lo stregone tira un d10. La sua altezza cambia di una misura pari a 2,5 cm x il risultato ottenuto. Se il risultato è dispari, si rimpicciolisce. Se è pari, cresce." },
-        { "roll": "13-14", "effect": "Lo stregone lancia confusione centrato su se stesso." },
-        { "roll": "15-16", "effect": "Per il minuto successivo, lo stregone recupera 5 punti ferita all'inizio di ogni suo turno." },
-        { "roll": "17-18", "effect": "Lo stregone sviluppa una lunga barba fatta di piume che rimane finché non starnutisce. Quando questo accade, le piume schizzano via dal suo volto in un'esplosione innocua." },
-        { "roll": "19-20", "effect": "Lo stregone lancia unto centrato su se stesso." },
-        { "roll": "21-22", "effect": "Le creature subiscono svantaggio ai tiri salvezza contro il prossimo incantesimo che sia lanciato dallo stregone nel minuto successivo e che richieda un tiro salvezza." },
-        { "roll": "23-24", "effect": "La pelle dello stregone si tinge di una vivace tonalità di azzurro. Un incantesimo rimuovi maledizione può porre termine a questo effetto." },
-        { "roll": "25-26", "effect": "Un occhio appare sulla fronte dello stregone per il minuto successivo. Durante quel periodo, lo stregone dispone di vantaggio alle prove di Saggezza (Percezione) basate sulla vista." },
-        { "roll": "27-28", "effect": "Per il minuto successivo, tutti gli incantesimi dello stregone con un tempo di lancio pari a 1 azione hanno un tempo di lancio di 1 azione bonus." },
-        { "roll": "29-30", "effect": "Lo stregone si teletrasporta fino a 18 metri di distanza, in uno spazio libero a sua scelta che egli sia in grado di vedere." },
-        { "roll": "31-32", "effect": "Lo stregone viene trasportato sul Piano Astrale fino alla fine del suo turno successivo, poi ritorna nello spazio che occupava in precedenza o nello spazio libero più vicino, se quello spazio è ora occupato." },
-        { "roll": "33-34", "effect": "Lo stregone massimizza i danni del successivo incantesimo che infligge danni e che lancerà entro il minuto successivo." },
-        { "roll": "35-36", "effect": "Lo stregone tira un d10. La sua età cambia di un numero di anni pari al risultato del tiro. Se il risultato è dispari, lo stregone ringiovanisce (fino a un minimo di un anno di età). Se il tiro è pari, invecchia." },
-        { "roll": "37-38", "effect": "1d6 flumph controllati dal DM appaiono su altrettanti spazi liberi entro 18 metri dallo stregone e sono spaventati da lui. Svaniscono dopo 1 minuto." },
-        { "roll": "39-40", "effect": "Lo stregone recupera 2d10 punti ferita." },
-        { "roll": "41-42", "effect": "Lo stregone si trasforma in una pianta in vaso fino all'inizio del suo turno successivo. Finché è una pianta, è incapacitato e subisce vulnerabilità a tutti i danni. Se lo stregone scende a 0 punti ferita, il vaso si rompe e lo stregone torna alla sua forma normale." },
-        { "roll": "43-44", "effect": "Per il minuto successivo, lo stregone può teletrasportarsi di un massimo di 6 metri come azione bonus in ognuno dei suoi turni." },
-        { "roll": "45-46", "effect": "Lo stregone lancia levitazione su se stesso." },
-        { "roll": "47-48", "effect": "Un unicorno controllato dal DM appare in uno spazio entro 1,5 metri dallo stregone, poi scompare 1 minuto dopo." },
-        { "roll": "49-50", "effect": "Lo stregone non può parlare per il minuto successivo. Ogni volta che prova a farlo, alcune bolle rosa escono fluttuando dalla sua bocca." },
-        { "roll": "51-52", "effect": "Uno scudo spettrale fluttua accanto allo stregone per il minuto successivo, conferendogli un bonus di +2 alla CA e l'immunità a dardo incantato." },
-        { "roll": "53-54", "effect": "Lo stregone è immune all'intossicazione alcolica per i 5d6 giorni successivi." },
-        { "roll": "55-56", "effect": "Lo stregone perde tutti i capelli, che però ricrescono nel giro di 24 ore." },
-        { "roll": "57-58", "effect": "Per il minuto successivo, ogni oggetto infiammabile toccato dallo stregone e che non sia indossato o trasportato da un'altra creatura prende fuoco." },
-        { "roll": "59-60", "effect": "Lo stregone recupera lo slot incantesimo di livello più basso che ha speso." },
-        { "roll": "61-62", "effect": "Per il minuto successivo, lo stregone deve gridare quando parla." },
-        { "roll": "63-64", "effect": "Lo stregone lancia nube di nebbia centrato su se stesso." },
-        { "roll": "65-66", "effect": "Fino a tre creature scelte dallo stregone e situate entro 9 metri da lui subiscono 4d10 danni da fulmine." },
-        { "roll": "67-68", "effect": "Lo stregone è spaventato dalla creatura più vicina fino alla fine del proprio turno successivo." },
-        { "roll": "69-70", "effect": "Ogni creatura entro 9 metri dallo stregone diventa invisibile per il minuto successivo. L'invisibilità su una creatura termina quando quella creatura attacca o lancia un incantesimo." },
-        { "roll": "71-72", "effect": "Lo stregone ottiene resistenza a tutti i danni per il minuto successivo." },
-        { "roll": "73-74", "effect": "Una creatura casuale entro 18 metri dallo stregone diventa avvelenata per 1d4 ore." },
-        { "roll": "75-76", "effect": "Lo stregone risplende di luce intensa entro un raggio di 9 metri per il minuto successivo. Ogni creatura che termina il suo turno entro 1,5 metri dallo stregone è accecata fino alla fine del proprio turno successivo." },
-        { "roll": "77-78", "effect": "Lo stregone lancia metamorfosi su se stesso. Se fallisce il tiro salvezza, si trasforma in una pecora per la durata dell'incantesimo." },
-        { "roll": "79-80", "effect": "Farfalle e petali di fiori illusori fluttuano nell'aria entro 3 metri dallo stregone per il minuto successivo." },
-        { "roll": "81-82", "effect": "Lo stregone può effettuare un'azione aggiuntiva immediatamente." },
-        { "roll": "83-84", "effect": "Ogni creatura entro 9 metri dallo stregone subisce 1d10 danni necrotici. Lo stregone recupera un numero di punti ferita pari alla somma dei danni necrotici inferti." },
-        { "roll": "85-86", "effect": "Lo stregone lancia immagine speculare." },
-        { "roll": "87-88", "effect": "Lo stregone lancia volare su una creatura casuale situata entro 18 metri da lui." },
-        { "roll": "89-90", "effect": "Lo stregone diventa invisibile per il minuto successivo. Durante quel periodo le altre creature non possono udirlo. L'invisibilità termina se lo stregone attacca o lancia un incantesimo." },
-        { "roll": "91-92", "effect": "Se lo stregone muore entro il minuto successivo, torna in vita immediatamente, come per l'effetto dell'incantesimo reincarnazione." },
-        { "roll": "93-94", "effect": "La taglia dello stregone aumenta di una categoria per il minuto successivo." },
-        { "roll": "95-96", "effect": "Lo stregone e tutte le creature entro 9 metri da lui ottengono vulnerabilità ai danni perforanti per il minuto successivo." },
-        { "roll": "97-98", "effect": "Lo stregone è circondato da una debole musica eterea per il minuto successivo." },
-        { "roll": "99-00", "effect": "Lo stregone recupera tutti i punti stregoneria spesi." }
+        {
+          "roll": "01-02",
+          "effect": "Lo stregone tira su questa tabella all'inizio di ogni suo turno per il minuto successivo, ignorando questo risultato ai tiri successivi."
+        },
+        {
+          "roll": "03-04",
+          "effect": "Per il minuto successivo, lo stregone è in grado di vedere qualsiasi creatura invisibile, se dispone di linea di vista fino a essa."
+        },
+        {
+          "roll": "05-06",
+          "effect": "Un modron scelto e controllato dal DM compare in uno spazio libero a 1,5 metri dallo stregone, poi scompare 1 minuto dopo."
+        },
+        {
+          "roll": "07-08",
+          "effect": "Lo stregone lancia palla di fuoco come incantesimo di 3° livello centrato su se stesso."
+        },
+        {
+          "roll": "09-10",
+          "effect": "Lo stregone lancia dardo incantato come incantesimo di 5° livello."
+        },
+        {
+          "roll": "11-12",
+          "effect": "Lo stregone tira un d10. La sua altezza cambia di una misura pari a 2,5 cm x il risultato ottenuto. Se il risultato è dispari, si rimpicciolisce. Se è pari, cresce."
+        },
+        {
+          "roll": "13-14",
+          "effect": "Lo stregone lancia confusione centrato su se stesso."
+        },
+        {
+          "roll": "15-16",
+          "effect": "Per il minuto successivo, lo stregone recupera 5 punti ferita all'inizio di ogni suo turno."
+        },
+        {
+          "roll": "17-18",
+          "effect": "Lo stregone sviluppa una lunga barba fatta di piume che rimane finché non starnutisce. Quando questo accade, le piume schizzano via dal suo volto in un'esplosione innocua."
+        },
+        {
+          "roll": "19-20",
+          "effect": "Lo stregone lancia unto centrato su se stesso."
+        },
+        {
+          "roll": "21-22",
+          "effect": "Le creature subiscono svantaggio ai tiri salvezza contro il prossimo incantesimo che sia lanciato dallo stregone nel minuto successivo e che richieda un tiro salvezza."
+        },
+        {
+          "roll": "23-24",
+          "effect": "La pelle dello stregone si tinge di una vivace tonalità di azzurro. Un incantesimo rimuovi maledizione può porre termine a questo effetto."
+        },
+        {
+          "roll": "25-26",
+          "effect": "Un occhio appare sulla fronte dello stregone per il minuto successivo. Durante quel periodo, lo stregone dispone di vantaggio alle prove di Saggezza (Percezione) basate sulla vista."
+        },
+        {
+          "roll": "27-28",
+          "effect": "Per il minuto successivo, tutti gli incantesimi dello stregone con un tempo di lancio pari a 1 azione hanno un tempo di lancio di 1 azione bonus."
+        },
+        {
+          "roll": "29-30",
+          "effect": "Lo stregone si teletrasporta fino a 18 metri di distanza, in uno spazio libero a sua scelta che egli sia in grado di vedere."
+        },
+        {
+          "roll": "31-32",
+          "effect": "Lo stregone viene trasportato sul Piano Astrale fino alla fine del suo turno successivo, poi ritorna nello spazio che occupava in precedenza o nello spazio libero più vicino, se quello spazio è ora occupato."
+        },
+        {
+          "roll": "33-34",
+          "effect": "Lo stregone massimizza i danni del successivo incantesimo che infligge danni e che lancerà entro il minuto successivo."
+        },
+        {
+          "roll": "35-36",
+          "effect": "Lo stregone tira un d10. La sua età cambia di un numero di anni pari al risultato del tiro. Se il risultato è dispari, lo stregone ringiovanisce (fino a un minimo di un anno di età). Se il tiro è pari, invecchia."
+        },
+        {
+          "roll": "37-38",
+          "effect": "1d6 flumph controllati dal DM appaiono su altrettanti spazi liberi entro 18 metri dallo stregone e sono spaventati da lui. Svaniscono dopo 1 minuto."
+        },
+        {
+          "roll": "39-40",
+          "effect": "Lo stregone recupera 2d10 punti ferita."
+        },
+        {
+          "roll": "41-42",
+          "effect": "Lo stregone si trasforma in una pianta in vaso fino all'inizio del suo turno successivo. Finché è una pianta, è incapacitato e subisce vulnerabilità a tutti i danni. Se lo stregone scende a 0 punti ferita, il vaso si rompe e lo stregone torna alla sua forma normale."
+        },
+        {
+          "roll": "43-44",
+          "effect": "Per il minuto successivo, lo stregone può teletrasportarsi di un massimo di 6 metri come azione bonus in ognuno dei suoi turni."
+        },
+        {
+          "roll": "45-46",
+          "effect": "Lo stregone lancia levitazione su se stesso."
+        },
+        {
+          "roll": "47-48",
+          "effect": "Un unicorno controllato dal DM appare in uno spazio entro 1,5 metri dallo stregone, poi scompare 1 minuto dopo."
+        },
+        {
+          "roll": "49-50",
+          "effect": "Lo stregone non può parlare per il minuto successivo. Ogni volta che prova a farlo, alcune bolle rosa escono fluttuando dalla sua bocca."
+        },
+        {
+          "roll": "51-52",
+          "effect": "Uno scudo spettrale fluttua accanto allo stregone per il minuto successivo, conferendogli un bonus di +2 alla CA e l'immunità a dardo incantato."
+        },
+        {
+          "roll": "53-54",
+          "effect": "Lo stregone è immune all'intossicazione alcolica per i 5d6 giorni successivi."
+        },
+        {
+          "roll": "55-56",
+          "effect": "Lo stregone perde tutti i capelli, che però ricrescono nel giro di 24 ore."
+        },
+        {
+          "roll": "57-58",
+          "effect": "Per il minuto successivo, ogni oggetto infiammabile toccato dallo stregone e che non sia indossato o trasportato da un'altra creatura prende fuoco."
+        },
+        {
+          "roll": "59-60",
+          "effect": "Lo stregone recupera lo slot incantesimo di livello più basso che ha speso."
+        },
+        {
+          "roll": "61-62",
+          "effect": "Per il minuto successivo, lo stregone deve gridare quando parla."
+        },
+        {
+          "roll": "63-64",
+          "effect": "Lo stregone lancia nube di nebbia centrato su se stesso."
+        },
+        {
+          "roll": "65-66",
+          "effect": "Fino a tre creature scelte dallo stregone e situate entro 9 metri da lui subiscono 4d10 danni da fulmine."
+        },
+        {
+          "roll": "67-68",
+          "effect": "Lo stregone è spaventato dalla creatura più vicina fino alla fine del proprio turno successivo."
+        },
+        {
+          "roll": "69-70",
+          "effect": "Ogni creatura entro 9 metri dallo stregone diventa invisibile per il minuto successivo. L'invisibilità su una creatura termina quando quella creatura attacca o lancia un incantesimo."
+        },
+        {
+          "roll": "71-72",
+          "effect": "Lo stregone ottiene resistenza a tutti i danni per il minuto successivo."
+        },
+        {
+          "roll": "73-74",
+          "effect": "Una creatura casuale entro 18 metri dallo stregone diventa avvelenata per 1d4 ore."
+        },
+        {
+          "roll": "75-76",
+          "effect": "Lo stregone risplende di luce intensa entro un raggio di 9 metri per il minuto successivo. Ogni creatura che termina il suo turno entro 1,5 metri dallo stregone è accecata fino alla fine del proprio turno successivo."
+        },
+        {
+          "roll": "77-78",
+          "effect": "Lo stregone lancia metamorfosi su se stesso. Se fallisce il tiro salvezza, si trasforma in una pecora per la durata dell'incantesimo."
+        },
+        {
+          "roll": "79-80",
+          "effect": "Farfalle e petali di fiori illusori fluttuano nell'aria entro 3 metri dallo stregone per il minuto successivo."
+        },
+        {
+          "roll": "81-82",
+          "effect": "Lo stregone può effettuare un'azione aggiuntiva immediatamente."
+        },
+        {
+          "roll": "83-84",
+          "effect": "Ogni creatura entro 9 metri dallo stregone subisce 1d10 danni necrotici. Lo stregone recupera un numero di punti ferita pari alla somma dei danni necrotici inferti."
+        },
+        {
+          "roll": "85-86",
+          "effect": "Lo stregone lancia immagine speculare."
+        },
+        {
+          "roll": "87-88",
+          "effect": "Lo stregone lancia volare su una creatura casuale situata entro 18 metri da lui."
+        },
+        {
+          "roll": "89-90",
+          "effect": "Lo stregone diventa invisibile per il minuto successivo. Durante quel periodo le altre creature non possono udirlo. L'invisibilità termina se lo stregone attacca o lancia un incantesimo."
+        },
+        {
+          "roll": "91-92",
+          "effect": "Se lo stregone muore entro il minuto successivo, torna in vita immediatamente, come per l'effetto dell'incantesimo reincarnazione."
+        },
+        {
+          "roll": "93-94",
+          "effect": "La taglia dello stregone aumenta di una categoria per il minuto successivo."
+        },
+        {
+          "roll": "95-96",
+          "effect": "Lo stregone e tutte le creature entro 9 metri da lui ottengono vulnerabilità ai danni perforanti per il minuto successivo."
+        },
+        {
+          "roll": "97-98",
+          "effect": "Lo stregone è circondato da una debole musica eterea per il minuto successivo."
+        },
+        {
+          "roll": "99-00",
+          "effect": "Lo stregone recupera tutti i punti stregoneria spesi."
+        }
       ],
       "features": [
         {
@@ -252,7 +447,7 @@
     {
       "level": 1,
       "name": "Origine Stregonesca",
-      "description": "Scegli un'origine stregonesca che descrive la fonte del tuo potere magico innato: Discendenza Draconiana o Anima Selvaggia. La scelta ti concede privilegi al 1°, 6°, 14° e 18° livello."
+      "description": "Scegli un'origine stregonesca che descrive la fonte del tuo potere magico innato: Discendenza Draconica o Magia Selvaggia. La scelta ti concede privilegi al 1°, 6°, 14° e 18° livello."
     },
     {
       "level": 2,

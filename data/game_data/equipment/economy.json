@@ -1,0 +1,338 @@
+{
+  "_source_note": "Tutti i dati di questo file sono trascritti esattamente dal manuale italiano 'ED 5.0 manuale del giocatore.pdf' (PHB IT 2014), Capitolo 5 'Equipaggiamento', pagine 143-159. Trascrizione eseguita il 2026-07-10 leggendo le pagine del PDF renderizzate come immagini (pdftoppm), non tramite estrazione testo OCR (pdftotext), risultata inaffidabile su queste tabelle (numeri/lettere confusi). La tabella d100 'Oggetti Insoliti' (pag.160-161, cimeli di ambientazione senza effetto meccanico) e' stata deliberatamente esclusa da questa prima versione su scelta di Davide - vedi TODO in CLAUDE.md.",
+  "starting_wealth_by_class": {
+    "_source": "Tabella 'Ricchezza di Partenza delle Classi', PHB IT p.143",
+    "Barbaro": "2d4 x 10 mo",
+    "Bardo": "5d4 x 10 mo",
+    "Chierico": "5d4 x 10 mo",
+    "Druido": "2d4 x 10 mo",
+    "Guerriero": "5d4 x 10 mo",
+    "Ladro": "4d4 x 10 mo",
+    "Mago": "4d4 x 10 mo",
+    "Monaco": "5d4 mo",
+    "Paladino": "5d4 x 10 mo",
+    "Ranger": "5d4 x 10 mo",
+    "Stregone": "3d4 x 10 mo",
+    "Warlock": "4d4 x 10 mo"
+  },
+  "currency": {
+    "_source": "Sezione 'Valuta' e tabella 'Valori di Scambio', PHB IT p.143",
+    "description": "Esistono monete comuni di varie denominazioni, in base al valore relativo del metallo di cui sono fatte. Le tre monete piu' comuni sono la moneta d'oro (mo), la moneta d'argento (ma) e la moneta di rame (mr). Una moneta d'oro vale dieci monete d'argento. Esistono inoltre alcune monete insolite fatte di altri metalli preziosi: la moneta di electrum (me) vale cinque monete d'argento e la moneta di platino (mp) vale dieci monete d'oro. Una moneta standard pesa circa dieci grammi, quindi cinquanta monete pesano circa mezzo chilogrammo.",
+    "abbreviations": {
+      "rame": "mr",
+      "argento": "ma",
+      "electrum": "me",
+      "oro": "mo",
+      "platino": "mp"
+    },
+    "exchange_table": {
+      "_note": "Valore di 1 unita' della moneta riga espresso in unita' della moneta colonna.",
+      "rame": {
+        "mr": 1,
+        "ma": 0.1,
+        "me": 0.02,
+        "mo": 0.01,
+        "mp": 0.001
+      },
+      "argento": {
+        "mr": 10,
+        "ma": 1,
+        "me": 0.2,
+        "mo": 0.1,
+        "mp": 0.01
+      },
+      "electrum": {
+        "mr": 50,
+        "ma": 5,
+        "me": 1,
+        "mo": 0.5,
+        "mp": 0.05
+      },
+      "oro": {
+        "mr": 100,
+        "ma": 10,
+        "me": 2,
+        "mo": 1,
+        "mp": 0.1
+      },
+      "platino": {
+        "mr": 1000,
+        "ma": 100,
+        "me": 20,
+        "mo": 10,
+        "mp": 1
+      }
+    }
+  },
+  "trade_goods": {
+    "_source": "Sezione 'Merci' + tabella 'Merci', PHB IT p.157",
+    "rules": "La maggior parte della ricchezza non e' misurata dalle monete, bensi' da bestiame, grano, terre, diritti di riscossione delle tasse o di sfruttamento delle risorse. Le gilde, i nobili e i casati reali regolano il commercio. I mercanti normalmente scambiano merci senza ricorrere alla valuta. La tabella 'Merci' elenca il valore delle merci di scambio piu' diffuse.",
+    "table": [
+      {
+        "cost": {
+          "quantity": 1,
+          "currency_type": "copper"
+        },
+        "goods": "0,5 kg di grano"
+      },
+      {
+        "cost": {
+          "quantity": 2,
+          "currency_type": "copper"
+        },
+        "goods": "0,5 kg di farina o un pollo"
+      },
+      {
+        "cost": {
+          "quantity": 5,
+          "currency_type": "copper"
+        },
+        "goods": "0,5 kg di sale"
+      },
+      {
+        "cost": {
+          "quantity": 1,
+          "currency_type": "silver"
+        },
+        "goods": "0,5 kg di ferro o un telo di stoffa di 90 cm di lato"
+      },
+      {
+        "cost": {
+          "quantity": 5,
+          "currency_type": "silver"
+        },
+        "goods": "0,5 kg di rame o un telo di cotone di 90 cm di lato"
+      },
+      {
+        "cost": {
+          "quantity": 1,
+          "currency_type": "gold"
+        },
+        "goods": "0,5 kg di zenzero o una capra"
+      },
+      {
+        "cost": {
+          "quantity": 2,
+          "currency_type": "gold"
+        },
+        "goods": "0,5 kg di pepe o cannella o una pecora"
+      },
+      {
+        "cost": {
+          "quantity": 3,
+          "currency_type": "gold"
+        },
+        "goods": "0,5 kg di chiodi di garofano o un maiale"
+      },
+      {
+        "cost": {
+          "quantity": 5,
+          "currency_type": "gold"
+        },
+        "goods": "0,5 kg di argento o un telo di lino di 90 cm di lato"
+      },
+      {
+        "cost": {
+          "quantity": 10,
+          "currency_type": "gold"
+        },
+        "goods": "un telo di seta di 90 cm di lato o una mucca"
+      },
+      {
+        "cost": {
+          "quantity": 15,
+          "currency_type": "gold"
+        },
+        "goods": "0,5 kg di zafferano o un bue"
+      },
+      {
+        "cost": {
+          "quantity": 50,
+          "currency_type": "gold"
+        },
+        "goods": "0,5 kg d'oro"
+      },
+      {
+        "cost": {
+          "quantity": 500,
+          "currency_type": "gold"
+        },
+        "goods": "0,5 kg di platino"
+      }
+    ]
+  },
+  "lifestyle_and_services": {
+    "_source": "Sezioni 'Spese', 'Vitto e Alloggio', 'Servizi', 'Autosufficienza', PHB IT p.157-159",
+    "rules": {
+      "spese": "Anche in un mondo fantastico, la gente deve soddisfare bisogni basilari come vitto, alloggio e vestiario. Tutto questo ha un costo, anche se certi stili di vita costano piu' di altri.",
+      "spese_stile_di_vita": "Le spese dello stile di vita sono un modo semplice per tenere conto dei costi della vita in un mondo fantasy. Coprono l'alloggio, il cibo, le bevande e tutte le altre necessita' essenziali di un personaggio. Queste spese coprono inoltre il costo di manutenzione dell'equipaggiamento del personaggio, per consentirgli di essere pronto quando giungera' la prossima chiamata all'avventura. All'inizio di ogni settimana o mese (a scelta del giocatore), ogni personaggio sceglie uno stile di vita dalla tabella 'Spese dello Stile di Vita' e paga il prezzo richiesto per mantenere quello stile di vita. I prezzi elencati sono giornalieri, quindi chi desidera calcolare il suo costo di sostentamento per un periodo di trenta giorni dovra' moltiplicare il prezzo indicato per 30.",
+      "autosufficienza": "Le spese e gli stili di vita descritti in questo capitolo presumono che il personaggio trascorra il suo tempo tra un'avventura e l'altra in citta', avvalendosi dei servigi che puo' permettersi (pagandosi vitto e alloggio, pagando gli artigiani che affilano la sua spada e riparano la sua armatura, e cosi' via). Alcuni personaggi, tuttavia, scelgono di trascorrere il loro tempo lontani dal mondo civilizzato: si sostentano nelle terre selvagge con le loro forze, andando a caccia, raccogliendo frutti e riparandosi da soli il proprio equipaggiamento. Chi adotta questo stile di vita non spende denaro, ma deve dedicare molto tempo a queste attivita'. Chi trascorre il proprio tempo tra un'avventura e l'altra a praticare una professione, come descritto nel capitolo 8, puo' guadagnarsi l'equivalente di uno stile di vita povero. La competenza nell'abilita' Sopravvivenza consente a un personaggio di vivere a uno stile di vita equivalente all'agiato.",
+      "servizi": "Gli avventurieri possono pagare i personaggi non giocanti affinche' li aiutino o agiscano in loro vece nelle circostanze piu' disparate. La maggior parte di questi gregari e' dotata di abilita' pressoche' ordinarie, mentre altri hanno padroneggiato un'arte o un mestiere e alcuni si sono specializzati in qualche abilita' da avventuriero. I gregari abili includono chiunque venga ingaggiato per sbrigare un servizio che richieda una competenza (in un'arma, in uno strumento o in un'abilita'): un mercenario, un artigiano, uno scriba e cosi' via. La paga indicata e' quella minima: alcuni gregari esperti potrebbero esigere una tariffa superiore. I gregari inesperti vengono ingaggiati per i lavori di fatica che non richiedono particolari abilita' e possono includere manovali, facchini, camerieri e altri lavoratori simili.",
+      "servizi_magici": "Gli individui che sono in grado di lanciare incantesimi non ricadono nella categoria dei gregari ordinari. Forse a volte e' possibile trovare qualcuno disposto a lanciare un incantesimo in cambio di monete o di favori, ma si tratta di casi sporadici e non esiste alcuna tariffa prestabilita al riguardo. Come indicazione generica, piu' alto e' il livello dell'incantesimo desiderato, piu' difficile e' trovare qualcuno in grado di lanciarlo, e piu' elevato e' il costo. Ingaggiare qualcuno che lanci un incantesimo relativamente comune di 1° o 2° livello come cura ferite o identificare e' relativamente facile in un paese o in una citta' e puo' costare dalle 10 alle 50 monete d'oro (piu' il prezzo delle eventuali componenti materiali costose)."
+    },
+    "spese_stile_di_vita": {
+      "_source": "Tabella 'Spese dello Stile di Vita', PHB IT p.157",
+      "Miserabile": {
+        "prezzo_giorno": null,
+        "descrizione": "Il personaggio vive in condizioni disumane. Non ha un luogo che puo' chiamare casa e si ripara dove puo', intrufolandosi in un granaio, rannicchiandosi in una vecchia cassa o affidandosi al buon cuore di chi e' piu' fortunato di lui."
+      },
+      "Squallido": {
+        "prezzo_giorno": {
+          "quantity": 1,
+          "currency_type": "copper"
+        },
+        "descrizione": "Il personaggio vive in una stalla piena di spifferi, una capanna dal pavimento di fango situata appena fuori dal paese o in un ostello pieno di pulci nel quartiere peggiore della citta'."
+      },
+      "Povero": {
+        "prezzo_giorno": {
+          "quantity": 2,
+          "currency_type": "copper"
+        },
+        "descrizione": "Uno stile di vita povero significa dover tirare avanti senza le comodita' disponibili in una comunita' stabile. Il personaggio dorme in un ostello o in una sala comune al primo piano di una taverna."
+      },
+      "Modesto": {
+        "prezzo_giorno": {
+          "quantity": 1,
+          "currency_type": "silver"
+        },
+        "descrizione": "Uno stile di vita modesto tiene un personaggio fuori dai bassifondi e gli consente di prendersi cura del suo equipaggiamento. Il personaggio vive in una parte vecchia della citta', ha una camera in affitto in una pensione, una locanda o un tempio."
+      },
+      "Agiato": {
+        "prezzo_giorno": {
+          "quantity": 2,
+          "currency_type": "gold"
+        },
+        "descrizione": "Un personaggio in grado di adottare uno stile di vita agiato puo' permettersi abiti di qualita' e prendersi cura del proprio equipaggiamento senza difficolta'. Vive in un'abitazione in un isolato di buona fama o dispone di una stanza privata presso una locanda di qualita'."
+      },
+      "Ricco": {
+        "prezzo_giorno": {
+          "quantity": 4,
+          "currency_type": "gold"
+        },
+        "descrizione": "Un personaggio che adotta uno stile di vita ricco vive nel lusso, anche se forse non ha raggiunto il prestigio sociale associato ai vecchi valori della nobilta' e del sangue reale. Alloggia in una dimora rispettabile."
+      },
+      "Aristocratico": {
+        "prezzo_giorno": {
+          "quantity": 10,
+          "currency_type": "gold",
+          "minimum": true
+        },
+        "descrizione": "Il personaggio vive comodamente nell'abbondanza e frequenta gli ambienti popolati dalle figure piu' potenti della comunita'. Dispone di una dimora eccellente."
+      }
+    },
+    "vitto_e_alloggio": {
+      "_source": "Tabella 'Vitto e Alloggio', PHB IT p.158",
+      "Banchetto (a persona)": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "Birra: Boccale": {
+        "quantity": 4,
+        "currency_type": "copper"
+      },
+      "Birra: Mezzo litro": {
+        "quantity": 2,
+        "currency_type": "silver"
+      },
+      "Carne, 1 pezzo": {
+        "quantity": 3,
+        "currency_type": "silver"
+      },
+      "Formaggio, 1 pezzo": {
+        "quantity": 1,
+        "currency_type": "silver"
+      },
+      "Locanda (al giorno): Squallida": {
+        "quantity": 7,
+        "currency_type": "copper"
+      },
+      "Locanda (al giorno): Povera": {
+        "quantity": 1,
+        "currency_type": "silver"
+      },
+      "Locanda (al giorno): Modesta": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "Locanda (al giorno): Agiata": {
+        "quantity": 8,
+        "currency_type": "silver"
+      },
+      "Locanda (al giorno): Ricca": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "Locanda (al giorno): Aristocratica": {
+        "quantity": 4,
+        "currency_type": "gold"
+      },
+      "Pane (a pagnotta)": {
+        "quantity": 2,
+        "currency_type": "copper"
+      },
+      "Pasto (al giorno): Squallido": {
+        "quantity": 3,
+        "currency_type": "copper"
+      },
+      "Pasto (al giorno): Povero": {
+        "quantity": 6,
+        "currency_type": "copper"
+      },
+      "Pasto (al giorno): Modesto": {
+        "quantity": 3,
+        "currency_type": "silver"
+      },
+      "Pasto (al giorno): Agiato": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "Pasto (al giorno): Ricco": {
+        "quantity": 8,
+        "currency_type": "silver"
+      },
+      "Pasto (al giorno): Aristocratico": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "Vino: Buono (bottiglia)": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "Vino: Comune (caraffa)": {
+        "quantity": 2,
+        "currency_type": "silver"
+      }
+    },
+    "servizi": {
+      "_source": "Tabella 'Servizi', PHB IT p.159",
+      "Carrozza: All'interno di una citta'": {
+        "quantity": 1,
+        "currency_type": "copper"
+      },
+      "Carrozza: Tra due paesi (per 1 km)": {
+        "quantity": 2,
+        "currency_type": "copper"
+      },
+      "Gregario: Abile (al giorno)": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "Gregario: Inesperto (al giorno)": {
+        "quantity": 2,
+        "currency_type": "silver"
+      },
+      "Messaggero (per 1,5 km)": {
+        "quantity": 2,
+        "currency_type": "copper"
+      },
+      "Passaggio in nave (per 1,5 km)": {
+        "quantity": 1,
+        "currency_type": "silver"
+      },
+      "Pedaggio stradale o di ingresso": {
+        "quantity": 1,
+        "currency_type": "copper"
+      }
+    }
+  }
+}

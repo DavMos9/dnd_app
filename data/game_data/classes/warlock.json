@@ -8,10 +8,10 @@
   ],
   "spellcasting_ability": "cha",
   "armor_proficiencies": [
-    "#armature_leggere"
+    "leggere"
   ],
   "weapon_proficiencies": [
-    "#armi_semplici"
+    "semplice"
   ],
   "tool_proficiencies": [],
   "skill_choices": {

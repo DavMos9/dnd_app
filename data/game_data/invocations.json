@@ -1,5 +1,5 @@
 {
-  "_note": "Suppliche Occulte (Eldritch Invocations) PHB 5e 2014 italiano. 32 suppliche — nomi/contenuto NON ancora riverificati singolarmente contro il manuale (da fare quando arriviamo alla revisione di questo file nella checklist).",
+  "_note": "Suppliche Occulte (Eldritch Invocations) PHB 5e 2014 italiano. Verificate riga per riga da Davide direttamente dal manuale cartaceo il 2026-07-09. 32 suppliche (il conteggio di 33 di una revisione precedente era sbagliato: conteneva una voce inventata, 'Esplosione Accecante', rimossa perché non esiste nel manuale). Nomi e testo presi ESCLUSIVAMENTE dal PHB italiano — la versione precedente di questo file era stata scritta traducendo dall'inglese, causando nomi di incantesimo sbagliati in tutta la lista (es. 'Esplosione dell'Occulto' invece di 'Deflagrazione Occulta', 'Imprigionamento' invece di 'Blocca Mostri', ecc.). ATTENZIONE: lo stesso tipo di errore è sospettato anche nei file incantesimi_*.json — da riverificare.",
   "_schema": {
     "name": "string — nome italiano",
     "prerequisite_level": "int — livello Warlock minimo (0 = nessuno)",
@@ -9,235 +9,228 @@
   },
   "invocations": [
     {
-      "name": "Esplosione Agonica",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "Esplosione dell'Occulto",
-      "description": "Quando lanci Esplosione dell'Occulto, aggiungi il tuo modificatore di Carisma ai danni inflitta dall'incantesimo in caso di colpo."
-    },
-    {
-      "name": "Armatura di Ombre",
+      "name": "Armatura delle Ombre",
       "prerequisite_level": 0,
       "prerequisite_pact": "",
       "prerequisite_spell": "",
-      "description": "Puoi lanciare Armatura del Mago su te stesso a volontà, senza consumare slot incantesimo o componenti materiali."
-    },
-    {
-      "name": "Passo Ascendente",
-      "prerequisite_level": 9,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Levitazione su te stesso a volontà, senza consumare slot incantesimo o componenti materiali."
-    },
-    {
-      "name": "Linguaggio delle Bestie",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Parlare con gli Animali a volontà, senza consumare slot incantesimo."
-    },
-    {
-      "name": "Influenza Ammaliante",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Guadagni competenza nelle abilità Inganno e Persuasione."
-    },
-    {
-      "name": "Sussurri Ammalianti",
-      "prerequisite_level": 7,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Compulsione una volta usando uno slot incantesimo da Warlock. Non puoi farlo di nuovo finché non termini un lungo riposo."
-    },
-    {
-      "name": "Libro dei Segreti Antichi",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "tomo",
-      "prerequisite_spell": "",
-      "description": "Ora puoi incidere incantesimi rituali nel tuo Libro delle Ombre. Scegli due incantesimi di 1° livello con il tag rituale da qualsiasi lista di incantesimi (non devono far parte della tua lista di Warlock). I rituali scelti appaiono nel libro. Puoi aggiungere altri incantesimi rituali al Libro delle Ombre nel corso delle tue avventure. Quando ne trovi uno, puoi aggiungerlo al libro se il livello dell'incantesimo è pari o inferiore alla metà del tuo livello da Warlock (arrotondata per eccesso) e se puoi permetterti il costo di tempo e materiali: 2 ore e 50 mo per livello dell'incantesimo. Puoi lanciare questi incantesimi solo come rituale."
-    },
-    {
-      "name": "Catene di Carceri",
-      "prerequisite_level": 15,
-      "prerequisite_pact": "catena",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Imprigionamento a volontà — senza consumare uno slot incantesimo — contro un elementale, un umanoide, un nonmorto, una fata o un aberrazione che vedi. Devi terminare un lungo riposo prima di poterlo fare di nuovo su quella stessa creatura."
-    },
-    {
-      "name": "Vista del Diavolo",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi vedere normalmente anche nell'oscurità sia magica che non magica fino a 120 piedi."
-    },
-    {
-      "name": "Parola Terrificante",
-      "prerequisite_level": 7,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Confusione una volta usando uno slot incantesimo da Warlock. Non puoi farlo di nuovo finché non termini un lungo riposo."
-    },
-    {
-      "name": "Vista dell'Occulto",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Individuazione della Magia a volontà, senza consumare slot incantesimo."
-    },
-    {
-      "name": "Lancia dell'Occulto",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "Esplosione dell'Occulto",
-      "description": "Quando lanci Esplosione dell'Occulto, la sua gittata è di 300 piedi."
-    },
-    {
-      "name": "Occhi del Custode delle Rune",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi leggere qualsiasi testo scritto."
-    },
-    {
-      "name": "Vigore del Diavolo",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Falsa Vita su te stesso a volontà come incantesimo di 1° livello, senza consumare slot incantesimo o componenti materiali."
-    },
-    {
-      "name": "Sguardo delle Due Menti",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi usare la tua azione per toccare un umanoide consenziente e percepire tramite i suoi sensi fino all'inizio del tuo prossimo turno. Finché la creatura che percepisci è sullo stesso piano di esistenza, puoi usare la tua azione nei turni successivi per mantenere questa connessione, che si estende fino all'inizio del tuo prossimo turno. Mentre percepisci tramite i sensi dell'altra creatura, trai vantaggio dalle sue abilità sensoriali speciali."
-    },
-    {
-      "name": "Succhiavita",
-      "prerequisite_level": 12,
-      "prerequisite_pact": "lama",
-      "prerequisite_spell": "",
-      "description": "Quando colpisci una creatura con la tua arma del patto, la creatura subisce danni necrotici extra pari al tuo modificatore di Carisma (minimo 1)."
-    },
-    {
-      "name": "Maschera dei Mille Volti",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Travestimento a volontà, senza consumare slot incantesimo."
-    },
-    {
-      "name": "Maestro delle Miriadi di Forme",
-      "prerequisite_level": 15,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Alterazione dell'Aspetto a volontà, senza consumare slot incantesimo."
-    },
-    {
-      "name": "Servitori del Caos",
-      "prerequisite_level": 9,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Convocare Elementale una volta usando uno slot incantesimo da Warlock. Non puoi farlo di nuovo finché non termini un lungo riposo."
-    },
-    {
-      "name": "Mente Impantanata",
-      "prerequisite_level": 5,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Rallentamento una volta usando uno slot incantesimo da Warlock. Non puoi farlo di nuovo finché non termini un lungo riposo."
-    },
-    {
-      "name": "Visioni Nebbiose",
-      "prerequisite_level": 0,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Immagine Silenziosa a volontà, senza consumare slot incantesimo o componenti materiali."
-    },
-    {
-      "name": "Tutt'uno con le Ombre",
-      "prerequisite_level": 5,
-      "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Quando sei in un'area di luce fioca o di oscurità, puoi usare la tua azione per diventare invisibile finché non ti muovi o non effettui un'azione o una reazione."
+      "description": "Il warlock può lanciare armatura magica su se stesso a volontà, senza spendere uno slot incantesimo o componenti materiali."
     },
     {
       "name": "Balzo Ultraterreno",
       "prerequisite_level": 9,
       "prerequisite_pact": "",
       "prerequisite_spell": "",
-      "description": "Puoi lanciare Saltare su te stesso a volontà, senza consumare slot incantesimo o componenti materiali."
+      "description": "Il warlock può lanciare saltare su se stesso a volontà, senza spendere uno slot incantesimo o componenti materiali."
     },
     {
-      "name": "Esplosione Repellente",
+      "name": "Catene di Carceri",
+      "prerequisite_level": 15,
+      "prerequisite_pact": "catena",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare blocca mostri a volontà (bersagliando un celestiale, un immondo o un elementale) senza spendere uno slot incantesimo o componenti materiali. Deve completare un riposo lungo prima che possa usare di nuovo questa supplica sulla stessa creatura."
+    },
+    {
+      "name": "Deflagrazione Agonizzante",
       "prerequisite_level": 0,
       "prerequisite_pact": "",
-      "prerequisite_spell": "Esplosione dell'Occulto",
-      "description": "Quando colpisci una creatura con Esplosione dell'Occulto, puoi spingere la creatura fino a 10 piedi in linea retta, allontanandola da te."
+      "prerequisite_spell": "Deflagrazione Occulta",
+      "description": "Quando il warlock lancia deflagrazione occulta, aggiunge il suo modificatore di Carisma ai danni che infligge quando colpisce il bersaglio."
     },
     {
-      "name": "Scultore di Carne",
-      "prerequisite_level": 7,
+      "name": "Deflagrazione Respingente",
+      "prerequisite_level": 0,
       "prerequisite_pact": "",
-      "prerequisite_spell": "",
-      "description": "Puoi lanciare Polimorfo una volta usando uno slot incantesimo da Warlock. Non puoi farlo di nuovo finché non termini un lungo riposo."
+      "prerequisite_spell": "Deflagrazione Occulta",
+      "description": "Quando il warlock colpisce una creatura con deflagrazione occulta, può spingere la creatura fino a un massimo di 3 metri per allontanarla da sé in linea retta."
     },
     {
-      "name": "Segno di Malaugurio",
+      "name": "Fardello Mentale",
       "prerequisite_level": 5,
       "prerequisite_pact": "",
       "prerequisite_spell": "",
-      "description": "Puoi lanciare Maledizione del Sangue una volta usando uno slot incantesimo da Warlock. Non puoi farlo di nuovo finché non termini un lungo riposo."
+      "description": "Il warlock può lanciare lentezza una volta usando uno slot incantesimo da warlock. Non può farlo di nuovo finché non completa un riposo lungo."
     },
     {
-      "name": "Ladro dei Cinque Destini",
-      "prerequisite_level": 5,
+      "name": "Influenza Seducente",
+      "prerequisite_level": 0,
       "prerequisite_pact": "",
       "prerequisite_spell": "",
-      "description": "Puoi lanciare Destino una volta usando uno slot incantesimo da Warlock. Non puoi farlo di nuovo finché non termini un lungo riposo."
+      "description": "Il warlock ottiene competenza nelle abilità Inganno e Persuasione."
+    },
+    {
+      "name": "Ladro dei Cinque Fati",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare anatema una volta usando uno slot incantesimo da warlock. Non può farlo di nuovo finché non completa un riposo lungo."
     },
     {
       "name": "Lama Assetata",
       "prerequisite_level": 5,
       "prerequisite_pact": "lama",
       "prerequisite_spell": "",
-      "description": "Puoi attaccare con la tua arma del patto due volte, invece di una, ogni volta che effettui l'azione di attacco durante il tuo turno."
+      "description": "Ogni volta che effettua l'azione di Attacco nel suo turno, il warlock può attaccare con la sua arma del patto due volte anziché una volta."
     },
     {
-      "name": "Visioni di Reami Lontani",
+      "name": "Lancia Occulta",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "Deflagrazione Occulta",
+      "description": "Quando il warlock lancia deflagrazione occulta, la sua gittata è di 90 metri."
+    },
+    {
+      "name": "Libro degli Antichi Segreti",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "tomo",
+      "prerequisite_spell": "",
+      "description": "Il warlock può ora trascrivere i rituali magici nel suo Libro delle Ombre. Sceglie due incantesimi di 1° livello con il descrittore rituale dalle liste di incantesimi di qualsiasi classe (non è necessario che i due incantesimi appartengano alla stessa lista). Gli incantesimi compaiono nel libro e non contano ai fini di determinare il numero di incantesimi che il warlock conosce. Quando il warlock impugna il suo Libro delle Ombre, può lanciare gli incantesimi scelti come rituali. Può lanciare quegli incantesimi soltanto come rituali, a meno che non li abbia appresi anche in altri modi. Può inoltre lanciare un incantesimo da warlock che lui conosce come rituale, se tale incantesimo possiede il descrittore rituale. Nel corso delle sue avventure, il warlock può aggiungere altri incantesimi rituali al suo Libro delle Ombre. Quando trova un incantesimo del genere, può aggiungerlo al libro se il livello dell'incantesimo è pari o inferiore alla metà del suo livello da warlock (arrotondato per eccesso) e se dispone di abbastanza tempo da trascrivere l'incantesimo. Per ogni livello dell'incantesimo, il processo di trascrizione richiede 2 ore e costa 50 mo per gli inchiostri rari richiesti."
+    },
+    {
+      "name": "Lingue delle Bestie",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare parlare con gli animali a volontà, senza spendere uno slot incantesimo."
+    },
+    {
+      "name": "Maestro di Mille Forme",
       "prerequisite_level": 15,
       "prerequisite_pact": "",
       "prerequisite_spell": "",
-      "description": "Puoi lanciare Occhio Arcano a volontà, senza consumare slot incantesimo."
+      "description": "Il warlock può lanciare alterare se stesso a volontà, senza spendere uno slot incantesimo."
     },
     {
-      "name": "Voce del Maestro della Catena",
+      "name": "Maschera dei Molti Volti",
       "prerequisite_level": 0,
-      "prerequisite_pact": "catena",
+      "prerequisite_pact": "",
       "prerequisite_spell": "",
-      "description": "Puoi comunicare telepaticamente con il tuo famiglio e percepire tramite i suoi sensi finché si trova entro 100 piedi da te. Inoltre, quando percepisci tramite i sensi del tuo famiglio, puoi anche parlare attraverso di lui con la tua voce, anche se normalmente non sarebbe in grado di parlare."
+      "description": "Il warlock può lanciare camuffare se stesso a volontà, senza spendere uno slot incantesimo."
     },
     {
-      "name": "Sussurri della Tomba",
+      "name": "Occhi del Custode delle Rune",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock è in grado di leggere ogni forma di scrittura."
+    },
+    {
+      "name": "Parola Temibile",
+      "prerequisite_level": 7,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare confusione una volta usando uno slot incantesimo da warlock. Non può farlo di nuovo finché non completa un riposo lungo."
+    },
+    {
+      "name": "Passo Ascendente",
       "prerequisite_level": 9,
       "prerequisite_pact": "",
       "prerequisite_spell": "",
-      "description": "Puoi lanciare Parlare con i Morti a volontà, senza consumare slot incantesimo."
+      "description": "Il warlock può lanciare levitazione su se stesso a volontà, senza spendere uno slot incantesimo o componenti materiali."
     },
     {
-      "name": "Vista della Strega",
+      "name": "Presagio di Sventura",
+      "prerequisite_level": 5,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare scagliare maledizione una volta usando uno slot incantesimo da warlock. Non può farlo di nuovo finché non completa un riposo lungo."
+    },
+    {
+      "name": "Scultore della Carne",
+      "prerequisite_level": 7,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare metamorfosi una volta usando uno slot incantesimo da warlock. Non può farlo di nuovo finché non completa un riposo lungo."
+    },
+    {
+      "name": "Servitori del Caos",
+      "prerequisite_level": 9,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare evoca elementale una volta usando uno slot incantesimo da warlock. Non può farlo di nuovo finché non completa un riposo lungo."
+    },
+    {
+      "name": "Sguardo delle Due Menti",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può usare la sua azione per toccare un umanoide consenziente e percepire il mondo attraverso i suoi sensi fino alla fine del proprio turno successivo. Fintanto che la creatura si trova sullo stesso piano di esistenza del warlock, quest'ultimo può usare la sua azione nei turni successivi per mantenere questo legame, estendendo la durata fino alla fine del suo turno successivo. Finché percepisce il mondo attraverso i sensi dell'altra creatura, il warlock beneficia degli eventuali sensi speciali posseduti da essa, ma è cieco e sordo riguardo a ciò che accade attorno a lui."
+    },
+    {
+      "name": "Succhiavita",
+      "prerequisite_level": 12,
+      "prerequisite_pact": "lama",
+      "prerequisite_spell": "",
+      "description": "Quando il warlock colpisce una creatura con la sua arma del patto, quella creatura subisce danni necrotici extra pari al modificatore di Carisma del warlock (fino a un minimo di 1)."
+    },
+    {
+      "name": "Sussurri dalla Tomba",
+      "prerequisite_level": 9,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare parlare con i morti a volontà, senza spendere uno slot incantesimo."
+    },
+    {
+      "name": "Sussurri Stregati",
+      "prerequisite_level": 7,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare compulsione una volta usando uno slot incantesimo da warlock. Non può farlo di nuovo finché non completa un riposo lungo."
+    },
+    {
+      "name": "Tutt'uno con le Ombre",
+      "prerequisite_level": 5,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Quando il warlock si trova in un'area di luce fioca o di oscurità, può usare la sua azione per diventare invisibile finché non si muove, effettua un'azione o una reazione."
+    },
+    {
+      "name": "Vigore Immondo",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare vita falsata su se stesso a volontà come incantesimo di 1° livello, senza spendere uno slot incantesimo o componenti materiali."
+    },
+    {
+      "name": "Visione dei Reami Lontani",
       "prerequisite_level": 15,
       "prerequisite_pact": "",
       "prerequisite_spell": "",
-      "description": "Puoi vedere la vera forma di qualsiasi mutaforma o creatura nascosta dalla magia dell'illusione o della trasmutazione entro 30 piedi da te, anche quando è travestita."
+      "description": "Il warlock può lanciare occhio arcano a volontà, senza spendere uno slot incantesimo."
     },
     {
-      "name": "Esplosione Accecante",
+      "name": "Visioni Velate",
       "prerequisite_level": 0,
       "prerequisite_pact": "",
-      "prerequisite_spell": "Esplosione dell'Occulto",
-      "description": "Quando colpisci una creatura con Esplosione dell'Occulto, puoi imporre alla creatura di superare un tiro salvezza su Costituzione o essere accecata fino all'inizio del tuo prossimo turno."
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare immagine silenziosa a volontà, senza spendere uno slot incantesimo o componenti materiali."
+    },
+    {
+      "name": "Vista del Diavolo",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock è in grado di vedere normalmente nell'oscurità, sia magica che comune, fino a una distanza di 36 metri."
+    },
+    {
+      "name": "Vista dell'Occulto",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock può lanciare individuazione del magico a volontà, senza spendere uno slot incantesimo."
+    },
+    {
+      "name": "Vista Stregata",
+      "prerequisite_level": 15,
+      "prerequisite_pact": "",
+      "prerequisite_spell": "",
+      "description": "Il warlock è in grado di vedere la vera forma di qualsiasi mutaforma o creatura celata da una magia di illusione o trasmutazione, fintanto che quella creatura si trova entro 9 metri da lui ed entro linea di vista."
+    },
+    {
+      "name": "Voce del Signore delle Catene",
+      "prerequisite_level": 0,
+      "prerequisite_pact": "catena",
+      "prerequisite_spell": "",
+      "description": "Il warlock può comunicare telepaticamente con il suo famiglio e percepire il mondo attraverso i sensi di quest'ultimo, purché entrambi si trovino sullo stesso piano di esistenza. Inoltre, finché percepisce il mondo attraverso i sensi del suo famiglio, il warlock può anche parlare attraverso il famiglio con la propria voce anche se il suo famiglio normalmente non è in grado di parlare."
     }
   ]
 }

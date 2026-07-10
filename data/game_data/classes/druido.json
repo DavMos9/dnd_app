@@ -8,9 +8,9 @@
   ],
   "spellcasting_ability": "wis",
   "armor_proficiencies": [
-    "#armature_leggere",
-    "#armature_medie",
-    "#scudi"
+    "leggere",
+    "medie",
+    "scudi"
   ],
   "armor_notes": "I druidi non indossano armature di metallo",
   "weapon_proficiencies": [
@@ -127,52 +127,148 @@
       ],
       "circle_spells": {
         "Artico": {
-          "3": ["Blocca Persone", "Crescita di Spine"],
-          "5": ["Lentezza", "Tempesta di Nevischio"],
-          "7": ["Libertà di Movimento", "Tempesta di Ghiaccio"],
-          "9": ["Comunione con la Natura", "Cono di Freddo"]
+          "3": [
+            "Blocca Persone",
+            "Crescita di Spine"
+          ],
+          "5": [
+            "Lentezza",
+            "Tempesta di Nevischio"
+          ],
+          "7": [
+            "Libertà di Movimento",
+            "Tempesta di Ghiaccio"
+          ],
+          "9": [
+            "Comunione con la Natura",
+            "Cono di Freddo"
+          ]
         },
         "Costa": {
-          "3": ["Immagine Speculare", "Passo Velato"],
-          "5": ["Camminare sull'Acqua", "Respirare Sott'Acqua"],
-          "7": ["Controllare Acqua", "Libertà di Movimento"],
-          "9": ["Evoca Elementale", "Scrutare"]
+          "3": [
+            "Immagine Speculare",
+            "Passo Velato"
+          ],
+          "5": [
+            "Camminare sull'Acqua",
+            "Respirare Sott'Acqua"
+          ],
+          "7": [
+            "Controllare Acqua",
+            "Libertà di Movimento"
+          ],
+          "9": [
+            "Evoca Elementale",
+            "Scrutare"
+          ]
         },
         "Deserto": {
-          "3": ["Sfocatura", "Silenzio"],
-          "5": ["Creare Cibo e Acqua", "Protezione dall'Energia"],
-          "7": ["Inaridire", "Terreno Illusorio"],
-          "9": ["Muro di Pietra", "Piaga degli Insetti"]
+          "3": [
+            "Sfocatura",
+            "Silenzio"
+          ],
+          "5": [
+            "Creare Cibo e Acqua",
+            "Protezione dall'Energia"
+          ],
+          "7": [
+            "Inaridire",
+            "Terreno Illusorio"
+          ],
+          "9": [
+            "Muro di Pietra",
+            "Piaga degli Insetti"
+          ]
         },
         "Foresta": {
-          "3": ["Movimenti del Ragno", "Pelle Coriacea"],
-          "5": ["Crescita Vegetale", "Invocare il Fulmine"],
-          "7": ["Divinazione", "Libertà di Movimento"],
-          "9": ["Comunione con la Natura", "Traslazione Arborea"]
+          "3": [
+            "Movimenti del Ragno",
+            "Pelle Coriacea"
+          ],
+          "5": [
+            "Crescita Vegetale",
+            "Invocare il Fulmine"
+          ],
+          "7": [
+            "Divinazione",
+            "Libertà di Movimento"
+          ],
+          "9": [
+            "Comunione con la Natura",
+            "Traslazione Arborea"
+          ]
         },
         "Montagna": {
-          "3": ["Crescita di Spine", "Movimenti del Ragno"],
-          "5": ["Fondersi nella Pietra", "Fulmine"],
-          "7": ["Pelle di Pietra", "Scolpire Pietra"],
-          "9": ["Muro di Pietra", "Passapareti"]
+          "3": [
+            "Crescita di Spine",
+            "Movimenti del Ragno"
+          ],
+          "5": [
+            "Fondersi nella Pietra",
+            "Fulmine"
+          ],
+          "7": [
+            "Pelle di Pietra",
+            "Scolpire Pietra"
+          ],
+          "9": [
+            "Muro di Pietra",
+            "Passapareti"
+          ]
         },
         "Palude": {
-          "3": ["Freccia Acida di Melf", "Oscurità"],
-          "5": ["Camminare sull'Acqua", "Nube Maleodorante"],
-          "7": ["Libertà di Movimento", "Localizza Creatura"],
-          "9": ["Piaga degli Insetti", "Sogno"]
+          "3": [
+            "Freccia Acida di Melf",
+            "Oscurità"
+          ],
+          "5": [
+            "Camminare sull'Acqua",
+            "Nube Maleodorante"
+          ],
+          "7": [
+            "Libertà di Movimento",
+            "Localizza Creatura"
+          ],
+          "9": [
+            "Piaga degli Insetti",
+            "Sogno"
+          ]
         },
         "Prateria": {
-          "3": ["Invisibilità", "Passare Senza Tracce"],
-          "5": ["Luce Diurna", "Velocità"],
-          "7": ["Divinazione", "Libertà di Movimento"],
-          "9": ["Piaga degli Insetti", "Sogno"]
+          "3": [
+            "Invisibilità",
+            "Passare Senza Tracce"
+          ],
+          "5": [
+            "Luce Diurna",
+            "Velocità"
+          ],
+          "7": [
+            "Divinazione",
+            "Libertà di Movimento"
+          ],
+          "9": [
+            "Piaga degli Insetti",
+            "Sogno"
+          ]
         },
         "Underdark": {
-          "3": ["Movimenti del Ragno", "Ragnatela"],
-          "5": ["Forma Gassosa", "Nube Maleodorante"],
-          "7": ["Invisibilità Superiore", "Scolpire Pietra"],
-          "9": ["Nube Mortale", "Piaga degli Insetti"]
+          "3": [
+            "Movimenti del Ragno",
+            "Ragnatela"
+          ],
+          "5": [
+            "Forma Gassosa",
+            "Nube Maleodorante"
+          ],
+          "7": [
+            "Invisibilità Superiore",
+            "Scolpire Pietra"
+          ],
+          "9": [
+            "Nube Mortale",
+            "Piaga degli Insetti"
+          ]
         }
       },
       "features": [

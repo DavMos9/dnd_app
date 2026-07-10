@@ -8,12 +8,13 @@ import uuid
 import logging
 from typing import Optional
 
-from config.settings import CLASSES, RACES, ALIGNMENTS, STANDARD_ARRAY, RACE_DATA, get_modifier
+from config.settings import RACES, ALIGNMENTS, STANDARD_ARRAY, get_modifier
 from data.models import Character
 from data.game_data.wizard_data import (
-    WIZARD_QUESTIONS, BACKGROUNDS,
+    WIZARD_QUESTIONS,
     CLASS_PRIMARY_STATS, CLASS_SUGGESTED_RACES, CLASS_DESCRIPTIONS,
 )
+from data.game_data.game_data_loader import game_data
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,9 @@ class WizardEngine:
 
     def __init__(self):
         # Punteggi cumulativi per classe
-        self.class_scores: dict[str, int] = {cls: 0 for cls in CLASSES}
-        # Punteggi cumulativi per background
-        self.bg_scores: dict[str, int] = {bg: 0 for bg in BACKGROUNDS}
+        self.class_scores: dict[str, int] = {cls: 0 for cls in game_data.get_class_names()}
+        # Punteggi cumulativi per background (nomi letti da data/game_data/backgrounds/*.json)
+        self.bg_scores: dict[str, int] = {bg: 0 for bg in game_data.get_background_names()}
         # Assi allineamento derivati dalle risposte
         self.alignment_ge: Optional[str] = None   # Buono / Neutrale / Malvagio
         self.alignment_lc: Optional[str] = None   # Legale / Neutrale / Caotico
@@ -189,13 +190,16 @@ class WizardEngine:
         HP max = max del dado vita della classe + modificatore Costituzione (PHB p.12).
         CA base = 10 + modificatore Destrezza (senza armatura).
         Velocità base: 9 metri (30 ft, standard per la maggior parte delle razze).
-        subrace: nome della sottorazza PHB (es. "Elfo Alto") — lookup prioritario su RACE_DATA.
+        subrace: nome della sottorazza PHB (es. "Elfo Alto") — passato a
+        `game_data.get_resolved_race()`, unica fonte dato per bonus razziali
+        (legge solo i JSON in data/game_data/races/, mai dataset scritti a mano).
         """
-        hit_die = CLASSES.get(class_name, {}).get("hit_die", 8)
-        spellcasting = CLASSES.get(class_name, {}).get("spellcasting_ability")
+        cls_data = game_data.get_class(class_name) or {}
+        hit_die = cls_data.get("hit_die", 8)
+        spellcasting = cls_data.get("spellcasting_ability")
 
-        # Lookup: sottorazza prima (ha bonuses specifici), poi razza base
-        race_info = (RACE_DATA.get(subrace) or RACE_DATA.get(race)) or {}
+        # Bonus caratteristica base + sottorazza già sommati da get_resolved_race()
+        race_info = game_data.get_resolved_race(race, subrace)
         racial_bonuses = race_info.get("ability_bonuses", {})
         race_speed = race_info.get("speed", 9)
 
@@ -213,11 +217,25 @@ class WizardEngine:
         hp_max = max(1, hit_die + con_mod)
 
         # Estrae tratti casuali dal PHB per il background scelto
-        bg_data = BACKGROUNDS.get(background, {})
-        trait = random.choice(bg_data["traits"]) if bg_data.get("traits") else ""
-        ideal = random.choice(bg_data["ideals"]) if bg_data.get("ideals") else ""
-        bond  = random.choice(bg_data["bonds"])  if bg_data.get("bonds")  else ""
-        flaw  = random.choice(bg_data["flaws"])  if bg_data.get("flaws")  else ""
+        # (unica fonte: data/game_data/backgrounds/*.json)
+        bg_data = game_data.get_background(background) or {}
+        traits_list = bg_data.get("personality_traits") or []
+        ideals_list = bg_data.get("ideals") or []
+        bonds_list  = bg_data.get("bonds") or []
+        flaws_list  = bg_data.get("flaws") or []
+
+        trait = random.choice(traits_list) if traits_list else ""
+        if ideals_list:
+            _chosen_ideal = random.choice(ideals_list)
+            ideal = (
+                f"{_chosen_ideal.get('name', '')}. "
+                f"{_chosen_ideal.get('description', '')} "
+                f"({_chosen_ideal.get('alignment', '')})"
+            )
+        else:
+            ideal = ""
+        bond = random.choice(bonds_list) if bonds_list else ""
+        flaw = random.choice(flaws_list) if flaws_list else ""
 
         char = Character(
             id=str(uuid.uuid4()),

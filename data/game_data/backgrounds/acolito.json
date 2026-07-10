@@ -1,6 +1,7 @@
 {
-  "name": "Acolito",
-  "description": "Hai trascorso la tua vita al servizio in un tempio di un dio specifico o in un pantheon di dei. Agisci come intermediario tra il regno del sacro e il mondo mortale.",
+  "name": "Accolito",
+  "_source": "PHB IT p.127",
+  "description": "Hai trascorso la tua vita a servire un tempio dedicato a una specifica divinità o un pantheon di divinità. Fungi da intermediario tra il regno del sacro e il mondo dei mortali, celebrando riti solenni e offrendo sacrifici al fine di radunare nuovi fedeli presso il tuo patrono divino. Non sei necessariamente un chierico, poiché celebrare i riti sacri è ben diverso dall'incanalare il potere divino.",
   "skill_proficiencies": [
     "Intuizione",
     "Religione"
@@ -15,11 +16,11 @@
   ],
   "equipment": [
     {
-      "name": "Simbolo sacro (regalo di qualcuno di importante per te)",
+      "name": "Simbolo sacro (donato quando sei stato ordinato sacerdote)",
       "item_type": "item"
     },
     {
-      "name": "Libro di preghiere o ruota di preghiere",
+      "name": "Libro di preghiere o ruota della preghiera",
       "item_type": "item"
     },
     {
@@ -27,7 +28,11 @@
       "item_type": "item"
     },
     {
-      "name": "Abito",
+      "name": "Vesti",
+      "item_type": "item"
+    },
+    {
+      "name": "Abito comune",
       "item_type": "item"
     },
     {
@@ -39,64 +44,64 @@
   ],
   "feature": {
     "name": "Rifugio dei Fedeli",
-    "description": "Come acolito, puoi richiedere la cura e il rifugio del tuo tempio. Quando hai bisogno di cure, i sacerdoti ti curano gratuitamente. Puoi anche richiedere alloggio e pasti in qualsiasi struttura che ospiti la tua religione o la tua fede."
+    "description": "Godi del rispetto di coloro che condividono la tua fede e sei in grado di celebrare le cerimonie religiose della tua divinità. Tu e i tuoi compagni avventurieri potete aspettarvi di ricevere cure e guarigioni gratuite presso un tempio, un santuario o un'altra presenza stabile della tua fede, anche se dovrai fornire le eventuali componenti richieste per gli incantesimi. Coloro che condividono la tua religione ti manterranno (limitandosi soltanto a te) offrendoti uno stile di vita modesto.\n\nPotresti anche avere dei legami con un tempio specifico dedicato alla divinità o al pantheon di tua scelta, e beneficiare di una dimora presso quel tempio. Potrebbe trattarsi dello stesso tempio dove hai prestato servizio in passato, se sei rimasto in buoni rapporti con i fedeli del posto, oppure di un tempio dove hai trovato accoglienza recentemente. Finché ti trovi nei pressi del tuo tempio, puoi chiedere aiuto ai sacerdoti, purché quell'aiuto non comporti pericoli e tu goda di una buona reputazione presso il tempio."
   },
   "personality_traits": [
-    "Idolatro i miei dei e trovo pace e conforto nella preghiera.",
-    "Sono tollerante e rispettoso di tutti coloro che praticano la fede.",
-    "Ho passato tanti anni in studi religiosi che sono molto distaccato dalla realtà mondana.",
-    "Ho una certa tendenza a citare le scritture sacre in ogni conversazione.",
-    "Sono generoso con i miei conoscenti e voglio aiutare chi ne ha bisogno.",
-    "Sono indulgente con la debolezza degli altri e trovo ispirazione nei loro slanci di speranza.",
-    "Sono meticoloso e ordinato in tutto ciò che faccio.",
-    "Ho trascorso così tanto tempo in meditazione che ho difficoltà a concentrarmi su più di una cosa alla volta."
+    "Venero un particolare eroe della mia fede e mi ispiro continuamente alle sue gesta e al suo esempio.",
+    "Riesco a trovare punti in comune perfino tra due acerrimi nemici, riuscendo a fraternizzare con loro e adoperandomi sempre per una soluzione pacifica.",
+    "Riesco a vedere presagi in ogni evento e gesto. Ritengo che gli dèi cerchino continuamente di parlare ai mortali, e che i mortali debbano soltanto imparare ad ascoltarli.",
+    "Nulla riesce a minare il mio ottimismo.",
+    "Cito (non necessariamente con esattezza) i testi sacri e i proverbi pressoché in ogni situazione.",
+    "Sono tollerante (o intollerante) nei confronti delle altre fedi e rispetto (o disprezzo) il culto degli altri dèi.",
+    "Frequentando gli alti funzionari del mio tempio, ho goduto dei piaceri del buon cibo e del buon vino e mi sono inserito nell'alta società. La povertà mi mette a disagio.",
+    "Ho passato così tanto tempo all'interno del tempio che oggi ho qualche difficoltà a interagire con gli altri esseri umani nel mondo esterno."
   ],
   "ideals": [
     {
       "name": "Tradizione",
       "alignment": "Legale",
-      "description": "L'ordine antico e la dottrina del mio tempio devono essere preservati e rispettati."
+      "description": "Le antiche tradizioni di preghiera e sacrificio devono essere conservate e sostenute."
     },
     {
       "name": "Carità",
       "alignment": "Buono",
-      "description": "Cerco sempre di aiutare chi ne ha bisogno, qualunque cosa costi."
+      "description": "Cerco sempre di aiutare i bisognosi e non esito a sacrificarmi personalmente."
     },
     {
       "name": "Cambiamento",
       "alignment": "Caotico",
-      "description": "Dobbiamo portare avanti il cambiamento. I nostri dei ci stanno guidando verso qualcosa di migliore."
+      "description": "Devo contribuire alla diffusione dei mutamenti che gli dèi operano costantemente nel mondo."
     },
     {
       "name": "Potere",
-      "alignment": "Malvagio",
-      "description": "Spero di salire alle alte sfere della gerarchia del mio tempio."
+      "alignment": "Legale",
+      "description": "Spero di riuscire un giorno a raggiungere le posizioni più elevate della gerarchia della mia chiesa."
     },
     {
       "name": "Fede",
-      "alignment": "Neutrale",
-      "description": "Confido che il mio dio mi guiderà nelle mie azioni."
+      "alignment": "Legale",
+      "description": "Sono profondamente convinto che la mia divinità guidi le mie scelte. Credo quindi che se mi impegnerò a fondo, le cose non potranno che andare bene."
     },
     {
-      "name": "Aspirazione",
+      "name": "Ambizione",
       "alignment": "Qualsiasi",
-      "description": "Spero di dimostrare la mia devozione ai miei dei attraverso le mie azioni."
+      "description": "Cerco di dimostrarmi degno del favore della mia divinità e intervengo per correggere le azioni che vanno contro i suoi insegnamenti."
     }
   ],
   "bonds": [
-    "Sono disposto a dare la vita per le Scritture Sacre del mio tempio.",
-    "Cerco di trovare un manufatto perduto che ha un grande significato per la mia fede.",
-    "Devo la mia vita al sacerdote che mi ha accolto quando ero un orfano.",
-    "Tutto ciò che faccio è per il bene della gente comune.",
-    "Proteggerò gli altri a qualunque costo.",
-    "Cerco di diffondere la parola del mio dio a quante più persone possibile."
+    "Morirei pur di recuperare un'antica reliquia della mia fede, perduta da molto tempo.",
+    "Cerco vendetta contro i corrotti ministri del mio tempio che mi accusarono di eresia.",
+    "Devo la vita al sacerdote che mi fece entrare nel tempio alla morte dei miei genitori.",
+    "Tutto ciò che faccio, lo faccio per la gente comune.",
+    "Farò qualunque cosa pur di proteggere il tempio in cui ho servito.",
+    "Cerco di proteggere un testo sacro che i miei nemici considerano invece eretico e cercano di distruggere."
   ],
   "flaws": [
-    "Sono inflessibile nel mio pensiero.",
-    "Mi fido troppo facilmente di quelli con cui mi associo.",
-    "Sono rigido nel mio pensiero.",
-    "Mostro la mia pietà religiosa a ogni occasione e posso essere monotono.",
-    "Sono facilmente influenzato da quelli che mostrano devozione ai miei dei.",
-    "Mi sento superiore ai non credenti e agli apostati."
+    "Giudico gli altri con durezza, e me stesso ancora più severamente.",
+    "Mi affido totalmente e acriticamente a quelli che detengono il potere all'interno del mio tempio.",
+    "La mia religiosità mi induce a volte a credere ciecamente a coloro che professano la mia stessa fede.",
+    "Sono inflessibile.",
+    "Non mi fido degli sconosciuti e mi aspetto sempre il peggio da essi.",
+    "Quando mi prefiggo un obiettivo, ne sono ossessionato fino a ignorare ogni altro aspetto della mia vita."
   ]
 }

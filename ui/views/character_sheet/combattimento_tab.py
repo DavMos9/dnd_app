@@ -26,7 +26,7 @@ from config.settings import get_race_display_traits
 from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource, CreatureEntry
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
-from ui.theme import section_header
+from ui.theme import section_header, muted_text
 
 _loader = GameDataLoader()
 
@@ -63,8 +63,11 @@ class CombattimentoTab(ft.ListView):
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id)
         self._prepared: list[KnownSpell] = character_repo.get_prepared_spells(character.id)
         self._resources: list[ClassResource] = character_repo.get_class_resources(character.id)
-        # Lazy init per personaggi creati prima di questa feature
-        if not self._resources and character.class_name:
+        # Sync automatico a ogni apertura della tab: aggiunge risorse nuove, aggiorna
+        # i pool massimi in base al livello corrente (es. Furia che scala nel tempo) e
+        # rimuove risorse non più applicabili (es. sottoclasse cambiata) — idempotente,
+        # non tocca current_value oltre al clamp al nuovo massimo.
+        if character.class_name:
             character_repo.init_class_resources(
                 character.id, character.class_name, character.level, character
             )
@@ -439,6 +442,12 @@ class CombattimentoTab(ft.ListView):
         initiative = get_modifier(c.dex_score) + (c.initiative_bonus or 0)
         init_str = f"+{initiative}" if initiative >= 0 else str(initiative)
 
+        # Velocità effettiva: base (razza + override manuale + Talento Mobile)
+        # + bonus dinamico di classe non equipaggiato (Monaco/Barbaro, Categoria B)
+        effective_speed = character_repo.get_effective_speed(c)
+        speed_bonus_active = effective_speed != (c.speed or 0)
+        speed_label = "VELOCITÀ" if not speed_bonus_active else "VELOCITÀ ✦"
+
         def _stat_box(label: str, value: str, accent: str = COLOR_TEXT_PRIMARY) -> ft.Container:
             return ft.Container(
                 content=ft.Column(
@@ -519,7 +528,8 @@ class CombattimentoTab(ft.ListView):
                     ft.Row(
                         [
                             ca_box,
-                            _stat_box("VELOCITÀ", f"{c.speed}m"),
+                            _stat_box(speed_label, f"{effective_speed:g}m",
+                                     COLOR_ACCENT_BLUE if speed_bonus_active else COLOR_TEXT_PRIMARY),
                             _stat_box("INIZIAT.", init_str, COLOR_ACCENT_BLUE),
                             ispir_box,
                         ],
@@ -721,7 +731,9 @@ class CombattimentoTab(ft.ListView):
             self._refresh()
 
         # --- Tracker movimento ---
-        speed = c.speed or 9
+        # Include il bonus dinamico di classe non equipaggiato (Monaco/Barbaro)
+        # nel movimento realmente disponibile in combattimento
+        speed = character_repo.get_effective_speed(c)
         used_m = c.movement_used or 0
         remaining_m = max(0, speed - used_m)
         move_ratio = min(1.0, used_m / speed) if speed > 0 else 0.0
@@ -748,7 +760,7 @@ class CombattimentoTab(ft.ListView):
                                 weight=ft.FontWeight.BOLD),
                         ft.Container(expand=True),
                         ft.Text(
-                            f"{remaining_m} / {speed} m rimanenti",
+                            f"{remaining_m:g} / {speed:g} m rimanenti",
                             size=12, color=COLOR_TEXT_PRIMARY,
                         ),
                     ],
@@ -1472,10 +1484,18 @@ class CombattimentoTab(ft.ListView):
         """
         rows: list[ft.Control] = []
         for res in self._resources:
-            if res.display_type == "circles":
+            if res.max_value < 0 or res.display_type == "unlimited":
+                rows.append(self._resource_unlimited_row(res))
+            elif res.display_type == "circles":
                 rows.append(self._resource_circles_row(res))
             else:
                 rows.append(self._resource_counter_row(res))
+
+        # Incantesimi Flessibili (solo Stregone, dal momento in cui ha Punti Stregoneria)
+        sp_res = next((r for r in self._resources if r.name == "Punti Stregoneria"), None)
+        if (self.character.class_name or "").strip().lower() == "stregone" and sp_res:
+            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(self._section_flexible_casting(sp_res))
 
         return ft.Container(
             content=ft.Column(rows, spacing=10),
@@ -1488,6 +1508,134 @@ class CombattimentoTab(ft.ListView):
                 bottom=ft.BorderSide(1, COLOR_BORDER),
             ),
             border_radius=6,
+        )
+
+    def _section_flexible_casting(self, sp_res: ClassResource) -> ft.Column:
+        """
+        Incantesimi Flessibili (Stregone, PHB): converte Punti Stregoneria in slot
+        incantesimo aggiuntivi (spariscono al riposo lungo) o viceversa.
+        Costo di creazione letto da stregone.json ("spell_slot_creation_cost"),
+        fonte unica condivisa con la scheda di classe.
+        """
+        class_data = _loader.get_class("Stregone") or {}
+        cost_table: dict[int, int] = {
+            row["slot_level"]: row["sorcery_points"]
+            for row in class_data.get("spell_slot_creation_cost", [])
+        } or {1: 2, 2: 3, 3: 5, 4: 6, 5: 7}  # fallback se il JSON non è disponibile
+
+        create_dd = ft.Dropdown(
+            label="Crea slot di livello",
+            options=[
+                ft.DropdownOption(key=str(lv), text=f"{lv}° — costo {cost} pt")
+                for lv, cost in sorted(cost_table.items())
+            ],
+            value=str(min(cost_table.keys())) if cost_table else None,
+            width=190,
+            dense=True,
+            text_size=12,
+            border_radius=6,
+        )
+
+        available_slots = [s for s in self._slots if s.total > 0 and s.used < s.total]
+        convert_dd = ft.Dropdown(
+            label="Converti slot di livello",
+            options=(
+                [
+                    ft.DropdownOption(key=str(s.slot_level),
+                                       text=f"{s.slot_level}° — {s.total - s.used} liber{'o' if s.total - s.used == 1 else 'i'}")
+                    for s in available_slots
+                ] or [ft.DropdownOption(key="", text="Nessuno slot disponibile")]
+            ),
+            value=str(available_slots[0].slot_level) if available_slots else "",
+            disabled=not available_slots,
+            width=190,
+            dense=True,
+            text_size=12,
+            border_radius=6,
+        )
+
+        def on_create(e: Any) -> None:
+            if not create_dd.value:
+                return
+            lv = int(create_dd.value)
+            cost = cost_table.get(lv, 0)
+            if sp_res.current_value < cost:
+                self._show_flex_cast_error(
+                    f"Punti stregoneria insufficienti: servono {cost}, "
+                    f"disponibili {sp_res.current_value}."
+                )
+                return
+            sp_res.current_value -= cost
+            character_repo.update_class_resource(sp_res.id, sp_res.current_value)
+            slot = next((s for s in self._slots if s.slot_level == lv), None)
+            new_total = (slot.total if slot else 0) + 1
+            character_repo.update_spell_slot_total(self.character.id, lv, new_total)
+            self._refresh()
+
+        def on_convert(e: Any) -> None:
+            if not convert_dd.value:
+                return
+            lv = int(convert_dd.value)
+            slot = next((s for s in self._slots if s.slot_level == lv), None)
+            if not slot or slot.used >= slot.total:
+                self._show_flex_cast_error("Nessuno slot disponibile a quel livello.")
+                return
+            character_repo.update_spell_slot(self.character.id, lv, slot.used + 1)
+            sp_res.current_value = min(sp_res.max_value, sp_res.current_value + lv)
+            character_repo.update_class_resource(sp_res.id, sp_res.current_value)
+            self._refresh()
+
+        return ft.Column(
+            [
+                ft.Text("Incantesimi Flessibili", size=12, weight=ft.FontWeight.BOLD,
+                        color=COLOR_ACCENT_CRIMSON),
+                muted_text(
+                    "Azione bonus: crea uno slot spendendo punti stregoneria (svanisce "
+                    "al riposo lungo), oppure sacrifica uno slot per ottenere punti "
+                    "pari al suo livello.",
+                    size=11,
+                ),
+                ft.Row([create_dd, ft.ElevatedButton("Crea", on_click=on_create, height=36)],
+                       spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Row([convert_dd, ft.ElevatedButton("Converti", on_click=on_convert, height=36,
+                                                        disabled=not available_slots)],
+                       spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ],
+            spacing=8,
+        )
+
+    def _show_flex_cast_error(self, message: str) -> None:
+        page = self._page
+        if page is None:
+            return
+        page.show_dialog(ft.AlertDialog(
+            title=ft.Text("Operazione non valida", size=14, weight=ft.FontWeight.BOLD,
+                          color=COLOR_ACCENT_CRIMSON),
+            content=ft.Text(message, size=13, color=COLOR_TEXT_PRIMARY),
+            actions=[ft.TextButton("OK", on_click=lambda ev: page.pop_dialog() if page else None)],
+            bgcolor=COLOR_BG_CARD,
+        ))
+
+    def _resource_unlimited_row(self, res: ClassResource) -> ft.Row:
+        """Riga per risorse senza limite di utilizzi (es. Furia del Barbaro al 20° livello)."""
+        reset_icon  = "☽" if res.reset_on == "short_rest" else "☀"
+        reset_label = "Ripristino: riposo breve" if res.reset_on == "short_rest" else "Ripristino: riposo lungo"
+        return ft.Row(
+            [
+                ft.Text(res.name, size=12, color=COLOR_TEXT_PRIMARY,
+                        weight=ft.FontWeight.W_600, expand=True),
+                ft.Text(reset_icon, size=14, color=COLOR_TEXT_MUTED, tooltip=reset_label),
+                ft.Container(width=6),
+                ft.Container(
+                    content=ft.Text("∞ Illimitata", size=12, color=COLOR_ACCENT_CRIMSON,
+                                     weight=ft.FontWeight.BOLD),
+                    bgcolor=COLOR_BG_SECONDARY,
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+                    border_radius=6,
+                ),
+            ],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=4,
         )
 
     def _resource_circles_row(self, res: ClassResource) -> ft.Row:
@@ -2023,6 +2171,9 @@ class CombattimentoTab(ft.ListView):
             c.death_saves_failure = 0
             # Ripristina tutti gli slot incantesimo (usato=0)
             character_repo.reset_all_spell_slots(c.id)
+            # Ricalcola i totali PHB — rimuove eventuali slot temporanei creati
+            # con Incantesimi Flessibili (Stregone), che svaniscono al riposo lungo
+            character_repo.auto_init_spell_slots(c.id, c.class_name or "", c.level)
             # Ripristina tutte le risorse di classe (short_rest e long_rest)
             character_repo.reset_class_resources(c.id, "short_rest")
             character_repo.reset_class_resources(c.id, "long_rest")

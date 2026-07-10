@@ -1,0 +1,615 @@
+{
+  "_source_note": "Tutti i dati di questo file sono trascritti esattamente dal manuale italiano 'ED 5.0 manuale del giocatore.pdf' (PHB IT 2014), Capitolo 5 'Equipaggiamento', pagine 143-159. Trascrizione eseguita il 2026-07-10 leggendo le pagine del PDF renderizzate come immagini (pdftoppm), non tramite estrazione testo OCR (pdftotext), risultata inaffidabile su queste tabelle (numeri/lettere confusi). La tabella d100 'Oggetti Insoliti' (pag.160-161, cimeli di ambientazione senza effetto meccanico) e' stata deliberatamente esclusa da questa prima versione su scelta di Davide - vedi TODO in CLAUDE.md.",
+  "_source": "Sezione 'Armi' + tabella 'Armi', PHB IT p.146-149",
+  "rules": {
+    "introduzione": "Ogni classe conferisce a un personaggio competenza nell'utilizzo di certe armi. Ogni arma e' classificata come arma da mischia o arma a distanza. Un'arma da mischia si usa per attaccare un bersaglio entro 1,5 metri dal personaggio, mentre un'arma a distanza si usa per attaccare un bersaglio piu' lontano.",
+    "competenza_nelle_armi": "Le razze, le classi e i talenti conferiscono ai personaggi competenza in certe armi o categorie di armi. Le due categorie sono le armi semplici e da guerra. La competenza in un'arma consente a un personaggio di aggiungere il proprio bonus di competenza al tiro per colpire di ogni attacco che effettua con quell'arma. Se un personaggio effettua un tiro per colpire usando un'arma in cui non possiede competenza, non aggiunge il suo bonus di competenza al tiro per colpire."
+  },
+  "properties": {
+    "_source": "Sezione 'Proprieta' delle Armi', PHB IT p.146-147",
+    "Accurata": "Quando un personaggio effettua un attacco con un'arma accurata, puo' scegliere se usare il modificatore di Forza o di Destrezza per il tiro per colpire e il tiro per i danni. Deve usare lo stesso modificatore per entrambi i tiri.",
+    "Due Mani": "Questa arma richiede di essere impugnata a due mani quando il personaggio la usa per attaccare.",
+    "Gittata": "Un'arma che puo' essere usata per effettuare un attacco a distanza indica una gittata tra parentesi dopo le munizioni o la proprieta' da lancio. La gittata e' costituita da due numeri. Il primo e' la gittata normale dell'arma in metri, il secondo indica la gittata lunga dell'arma. Quando un personaggio attacca un bersaglio oltre la gittata normale, subisce svantaggio al tiro per colpire. Non e' possibile attaccare un bersaglio oltre la gittata lunga dell'arma.",
+    "Lancio": "Se un'arma possiede la proprieta' da lancio, il personaggio puo' lanciarla per effettuare un attacco a distanza. Se l'arma e' un'arma da mischia, il personaggio applica al tiro per colpire e al tiro per i danni lo stesso modificatore di caratteristica che userebbe per un attacco in mischia effettuato con quell'arma. Per esempio, se lancia un'ascia, usa la sua Forza, ma se lancia un pugnale puo' usare la sua Forza o la sua Destrezza, dal momento che il pugnale possiede la proprieta' accurata.",
+    "Leggera": "Un'arma leggera e' piccola e facile da maneggiare, cosa che ne fa un'arma ideale da usare per combattere con due armi. Vedi le regole relative a combattere con due armi nel capitolo 9.",
+    "Munizioni": "Un personaggio puo' effettuare un attacco a distanza usando un'arma dotata della proprieta' munizioni solo se possiede delle munizioni da lanciare. Ogni volta che attacca con l'arma, consuma una delle sue munizioni. Estrarre la munizione da una faretra, una custodia o un altro contenitore e' considerato parte dell'attacco (il personaggio avra' bisogno di una mano libera per caricare un'arma a una mano). Alla fine della battaglia, il personaggio puo' recuperare meta' delle munizioni consumate impiegando un minuto a setacciare il campo di battaglia. Se il personaggio usa un'arma dotata della proprieta' munizioni per effettuare un attacco in mischia, considera quell'arma come un'arma improvvisata. Una fionda deve essere caricata per infliggere danni quando viene usata in questo modo.",
+    "Pesante": "Le creature piccole subiscono svantaggio ai tiri per colpire con le armi pesanti. La taglia e la stazza di un'arma pesante sono eccessive affinche' una creatura Piccola possa usarla con efficacia.",
+    "Portata": "Questa arma aggiunge 1,5 metri alla portata del personaggio che la usa per attaccare o per determinare la portata dei suoi attacchi di opportunita' (vedi il capitolo 9).",
+    "Ricarica": "Dato che ricaricare questa arma richiede del tempo, un personaggio puo' scagliare una sola munizione con essa quando usa un'azione, un'azione bonus o una reazione per fare fuoco, a prescindere dal numero di attacchi che potrebbe effettuare normalmente.",
+    "Speciale": "Un'arma con la proprieta' speciale prevede alcune regole insolite che ne governano l'utilizzo, spiegate nella descrizione dell'arma stessa (vedi 'Armi Speciali').",
+    "Versatile": "Questa arma puo' essere usata a una o due mani. La proprieta' e' accompagnata da un valore in danni indicato tra parentesi (i danni che l'arma infligge quando viene impugnata a due mani per effettuare un attacco in mischia)."
+  },
+  "armi_improvvisate": "A volte un personaggio e' privo di armi ed e' costretto ad attaccare con cio' che trova a portata di mano. Un'arma improvvisata include un qualsiasi oggetto che un personaggio possa impugnare a una o due mani, come una bottiglia rotta, la gamba di un tavolo, una padella, la ruota di un carro o un goblin morto. Un oggetto che non assomiglia a nessuna arma infligge 1d4 danni (il DM stabilisce un tipo di danno appropriato). Se un personaggio usa un'arma a distanza per effettuare un attacco in mischia o lancia un'arma da mischia che non possiede la proprieta' da lancio, anche quell'arma infligge 1d4 danni. Un'arma da lancio improvvisata ha una gittata normale di 6 metri e una gittata lunga di 18 metri.",
+  "armi_argentate": "Alcuni mostri dotati di immunita' o resistenza alle armi non magiche sono suscettibili alle armi argentate, quindi gli avventurieri piu' lungimiranti investono qualche moneta in piu' per far placcare in argento le loro armi. Un personaggio puo' rendere argentata una singola arma o dieci munizioni al costo di 100 mo. Questo costo rappresenta non solo il prezzo dell'argento, ma anche il tempo e la perizia richieste per aggiungere l'argento all'arma senza comprometterne l'efficacia.",
+  "armi_speciali": {
+    "Lancia da Cavaliere": "Il personaggio subisce svantaggio quando usa una lancia da cavaliere per attaccare un bersaglio entro 1,5 metri da lui. Inoltre, una lancia da cavaliere deve essere impugnata a due mani quando il personaggio non e' in sella.",
+    "Rete": "Una creatura di taglia Grande o inferiore che viene colpita da una rete e' trattenuta finche' non viene liberata. Una rete non ha effetto sulle creature prive di forma o le creature di taglia Enorme o superiore. Una creatura puo' usare la sua azione per effettuare una prova di Forza con CD 10, liberando se stessa o un'altra creatura entro la sua portata in caso di successo. Anche infliggendo 5 danni taglienti alla rete (CA 10) si libera la creatura senza infliggerle danni, ponendo fine all'effetto e distruggendo la rete. Quando il personaggio usa un'azione, un'azione bonus o una reazione per attaccare con una rete, puo' effettuare un solo attacco, a prescindere dal numero di attacchi che potrebbe effettuare normalmente."
+  },
+  "semplici_mischia": [
+    {
+      "name": "Ascia",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "taglienti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Lancio (gittata 6/18)",
+        "Leggera"
+      ],
+      "category": "semplice",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Bastone Ferrato",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "silver"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "contundenti",
+      "weight_kg": 2.0,
+      "properties": [
+        "Versatile (1d8)"
+      ],
+      "category": "semplice",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Falcetto",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d4",
+      "damage_type": "taglienti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Leggera"
+      ],
+      "category": "semplice",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Giavellotto",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "perforanti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Lancio (gittata 9/36)"
+      ],
+      "category": "semplice",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Lancia",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "perforanti",
+      "weight_kg": 1.5,
+      "properties": [
+        "Lancio (gittata 6/18)",
+        "Versatile (1d8)"
+      ],
+      "category": "semplice",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Martello Leggero",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d4",
+      "damage_type": "contundenti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Lancio (gittata 6/18)",
+        "Leggera"
+      ],
+      "category": "semplice",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Mazza",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "contundenti",
+      "weight_kg": 2.0,
+      "properties": [],
+      "category": "semplice",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Pugnale",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d4",
+      "damage_type": "perforanti",
+      "weight_kg": 0.5,
+      "properties": [
+        "Accurata",
+        "Lancio (gittata 6/18)",
+        "Leggera"
+      ],
+      "category": "semplice",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Randello",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "silver"
+      },
+      "damage_dice": "1d4",
+      "damage_type": "contundenti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Leggera"
+      ],
+      "category": "semplice",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Randello Pesante",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "silver"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "contundenti",
+      "weight_kg": 5.0,
+      "properties": [
+        "Due Mani"
+      ],
+      "category": "semplice",
+      "range_type": "mischia"
+    }
+  ],
+  "semplici_distanza": [
+    {
+      "name": "Arco Corto",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "perforanti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Due Mani",
+        "Munizioni (gittata 24/96)"
+      ],
+      "category": "semplice",
+      "range_type": "distanza"
+    },
+    {
+      "name": "Balestra Leggera",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "perforanti",
+      "weight_kg": 2.5,
+      "properties": [
+        "Due Mani",
+        "Munizioni (gittata 24/96)",
+        "Ricarica"
+      ],
+      "category": "semplice",
+      "range_type": "distanza"
+    },
+    {
+      "name": "Dardo",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "copper"
+      },
+      "damage_dice": "1d4",
+      "damage_type": "perforanti",
+      "weight_kg": 0.125,
+      "properties": [
+        "Accurata",
+        "Lancio (gittata 6/18)"
+      ],
+      "category": "semplice",
+      "range_type": "distanza"
+    },
+    {
+      "name": "Fionda",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "silver"
+      },
+      "damage_dice": "1d4",
+      "damage_type": "contundenti",
+      "weight_kg": null,
+      "properties": [
+        "Munizioni (gittata 9/36)"
+      ],
+      "category": "semplice",
+      "range_type": "distanza"
+    }
+  ],
+  "guerra_mischia": [
+    {
+      "name": "Alabarda",
+      "cost": {
+        "quantity": 20,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d10",
+      "damage_type": "taglienti",
+      "weight_kg": 3.0,
+      "properties": [
+        "Due Mani",
+        "Pesante",
+        "Portata"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Ascia Bipenne",
+      "cost": {
+        "quantity": 30,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d12",
+      "damage_type": "taglienti",
+      "weight_kg": 3.5,
+      "properties": [
+        "Due Mani",
+        "Pesante"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Ascia da Battaglia",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "taglienti",
+      "weight_kg": 2.0,
+      "properties": [
+        "Versatile (1d10)"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Falcione",
+      "cost": {
+        "quantity": 20,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d10",
+      "damage_type": "taglienti",
+      "weight_kg": 3.0,
+      "properties": [
+        "Due Mani",
+        "Pesante",
+        "Portata"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Frusta",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d4",
+      "damage_type": "taglienti",
+      "weight_kg": 1.5,
+      "properties": [
+        "Accurata",
+        "Portata"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Lancia da Cavaliere",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d12",
+      "damage_type": "perforanti",
+      "weight_kg": 3.0,
+      "properties": [
+        "Portata",
+        "Speciale"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Maglio",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "damage_dice": "2d6",
+      "damage_type": "contundenti",
+      "weight_kg": 5.0,
+      "properties": [
+        "Due Mani",
+        "Pesante"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Martello da Guerra",
+      "cost": {
+        "quantity": 15,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "contundenti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Versatile (1d10)"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Mazzafrusto",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "contundenti",
+      "weight_kg": 1.0,
+      "properties": [],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Morning Star",
+      "cost": {
+        "quantity": 15,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "perforanti",
+      "weight_kg": 2.0,
+      "properties": [],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Picca",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d10",
+      "damage_type": "perforanti",
+      "weight_kg": 9.0,
+      "properties": [
+        "Due Mani",
+        "Pesante",
+        "Portata"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Piccone da Guerra",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "perforanti",
+      "weight_kg": 1.0,
+      "properties": [],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Scimitarra",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "taglienti",
+      "weight_kg": 1.5,
+      "properties": [
+        "Accurata",
+        "Leggera"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Spada Corta",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "perforanti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Accurata",
+        "Leggera"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Spada Lunga",
+      "cost": {
+        "quantity": 15,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "taglienti",
+      "weight_kg": 1.5,
+      "properties": [
+        "Versatile (1d10)"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Spadone",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "damage_dice": "2d6",
+      "damage_type": "taglienti",
+      "weight_kg": 3.0,
+      "properties": [
+        "Due Mani",
+        "Pesante"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Stocco",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "perforanti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Accurata"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    },
+    {
+      "name": "Tridente",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "perforanti",
+      "weight_kg": 2.0,
+      "properties": [
+        "Lancio (gittata 6/18)",
+        "Versatile (1d8)"
+      ],
+      "category": "guerra",
+      "range_type": "mischia"
+    }
+  ],
+  "guerra_distanza": [
+    {
+      "name": "Arco Lungo",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d8",
+      "damage_type": "perforanti",
+      "weight_kg": 1.0,
+      "properties": [
+        "Due Mani",
+        "Munizioni (gittata 45/180)",
+        "Pesante"
+      ],
+      "category": "guerra",
+      "range_type": "distanza"
+    },
+    {
+      "name": "Balestra a Mano",
+      "cost": {
+        "quantity": 75,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d6",
+      "damage_type": "perforanti",
+      "weight_kg": 1.5,
+      "properties": [
+        "Leggera",
+        "Munizioni (gittata 9/36)",
+        "Ricarica"
+      ],
+      "category": "guerra",
+      "range_type": "distanza"
+    },
+    {
+      "name": "Balestra Pesante",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1d10",
+      "damage_type": "perforanti",
+      "weight_kg": 9.0,
+      "properties": [
+        "Due Mani",
+        "Munizioni (gittata 30/120)",
+        "Pesante",
+        "Ricarica"
+      ],
+      "category": "guerra",
+      "range_type": "distanza"
+    },
+    {
+      "name": "Cerbottana",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "damage_dice": "1",
+      "damage_type": "perforante",
+      "weight_kg": 0.5,
+      "properties": [
+        "Munizioni (gittata 7,5/30)",
+        "Ricarica"
+      ],
+      "category": "guerra",
+      "range_type": "distanza"
+    },
+    {
+      "name": "Rete",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "damage_dice": null,
+      "damage_type": null,
+      "weight_kg": 1.5,
+      "properties": [
+        "Lancio (gittata 1,5/4,5)",
+        "Speciale"
+      ],
+      "category": "guerra",
+      "range_type": "distanza"
+    }
+  ]
+}

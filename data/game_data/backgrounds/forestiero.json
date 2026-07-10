@@ -1,6 +1,7 @@
 {
   "name": "Forestiero",
-  "description": "Sei cresciuto nelle terre selvagge, lontano dal mondo civilizzato e dalle comodità dei centri abitati. Hai assistito alla migrazione di branchi più grandi delle foreste e sei sopravvissuto a intemperie estreme.",
+  "_source": "PHB IT p.133-135",
+  "description": "Sei cresciuto nelle terre selvagge, lontano dal mondo civilizzato e dalle comodità dei centri abitati e della tecnologia. Hai assistito alla migrazione di branchi più grandi delle foreste, sei sopravvissuto a intemperie più estreme di quelle che qualsiasi abitante di città potrebbe mai concepire e ti sei goduto la solitudine offerta dalla consapevolezza di essere l'unica creatura pensante nel raggio di molti chilometri in ogni direzione. Il vigore delle terre selvagge scorre nelle tue vene, che la tua storia sia quella di un nomade, un esploratore, un'anima solitaria, un cacciatore o raccoglitore o perfino un predone. Anche in quei luoghi in cui non conosci i dettagli del territorio, resti comunque un maestro della vita nelle terre selvagge.",
   "skill_proficiencies": [
     "Atletica",
     "Sopravvivenza"

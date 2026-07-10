@@ -1,5 +1,6 @@
 {
   "name": "Eroe Popolare",
+  "_source": "PHB IT p.132-133",
   "description": "Provieni dai ceti sociali più bassi, ma sei destinato a qualcosa di grandioso. Gli abitanti del tuo villaggio natio ti considerano già il loro campione, e presto il destino ti chiamerà a fronteggiare i tiranni e i mostri che minacciano la gente comune di ogni terra.",
   "skill_proficiencies": [
     "Addestrare Animali",
@@ -24,7 +25,7 @@
       "item_type": "item"
     },
     {
-      "name": "Pentola di ferro",
+      "name": "Vaso di ferro",
       "item_type": "item"
     },
     {

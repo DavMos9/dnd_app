@@ -165,12 +165,22 @@ def get_class_resource_defaults(
         }
 
     if class_name == "Barbaro":
-        rage = 2
-        if level >= 17:   rage = 6
-        elif level >= 12: rage = 5
-        elif level >= 6:  rage = 4
-        elif level >= 3:  rage = 3
-        resources.append(_r("Furia", rage, "long_rest"))
+        if level >= 20:
+            # Furia illimitata dal 20° livello — nessun pool da tracciare.
+            resources.append({
+                "name": "Furia",
+                "max_value": -1,
+                "current_value": -1,
+                "reset_on": "long_rest",
+                "display_type": "unlimited",
+            })
+        else:
+            rage = 2
+            if level >= 17:   rage = 6
+            elif level >= 12: rage = 5
+            elif level >= 6:  rage = 4
+            elif level >= 3:  rage = 3
+            resources.append(_r("Furia", rage, "long_rest"))
 
     elif class_name == "Bardo":
         insp = _cha_mod()
@@ -178,19 +188,21 @@ def get_class_resource_defaults(
         resources.append(_r("Ispirazione Bardica", insp, reset))
 
     elif class_name == "Chierico":
-        cd = 1
-        if level >= 18:  cd = 3
-        elif level >= 6: cd = 2
-        resources.append(_r("Incanalare Divinità", cd, "short_rest"))
+        if level >= 2:
+            cd = 1
+            if level >= 18:  cd = 3
+            elif level >= 6: cd = 2
+            resources.append(_r("Incanalare Divinità", cd, "short_rest"))
 
     elif class_name == "Druido":
         if level >= 2:
             resources.append(_r("Forma Selvatica", 2, "short_rest"))
 
     elif class_name == "Guerriero":
-        resources.append(_r("Ripresa", 1, "short_rest"))
-        ba = 2 if level >= 17 else 1
-        resources.append(_r("Baldanza d'Azione", ba, "short_rest"))
+        resources.append(_r("Recupera Energie", 1, "short_rest"))
+        if level >= 2:
+            ba = 2 if level >= 17 else 1
+            resources.append(_r("Azione Impetuosa", ba, "short_rest"))
 
     elif class_name == "Monaco":
         if level >= 2:
@@ -205,19 +217,34 @@ def get_class_resource_defaults(
         if level >= 2:
             resources.append(_r("Punti Stregoneria", level, "long_rest", "counter"))
 
-    elif class_name == "Warlock":
-        if level >= 17:   n = 4
-        elif level >= 11: n = 3
-        elif level >= 2:  n = 2
-        else:             n = 1
-        resources.append(_r("Slot del Patto", n, "short_rest"))
-
     elif class_name == "Mago":
         resources.append(_r("Recupero Arcano", 1, "long_rest"))
 
-    # Ranger e Ladro: nessuna risorsa di classe base
+    # Warlock: gli slot del Patto della Magia sono già gestiti tramite la
+    # tabella standard degli slot incantesimo (_WARLOCK_SLOTS in character_repo.py),
+    # che li ripristina correttamente a riposo breve — nessuna risorsa duplicata qui.
+    # Ranger e Ladro: nessuna risorsa di classe base.
 
     return resources
+
+
+def get_permanent_class_hp_bonus(class_name: str, subclass: str, level: int) -> int:
+    """
+    Bonus permanente ai PF massimi concesso da capacità di classe/sottoclasse
+    non temporanee (Categoria A dell'audit 2026-07-09), da sommare oltre al
+    normale calcolo dado vita + modificatore Costituzione.
+
+    Restituisce il TOTALE accumulato fino al livello indicato (non un delta):
+    chi chiama deve calcolare la differenza tra il valore al nuovo livello e
+    quello al vecchio livello per ottenere il PF da aggiungere/rimuovere.
+
+    Casi gestiti:
+      - Stregone, Discendenza Draconica → Resilienza Draconica:
+        +1 PF massimo per ogni livello da stregone (PHB, cumulativo dal lv1).
+    """
+    if class_name == "Stregone" and subclass == "Discendenza Draconica":
+        return max(0, level)
+    return 0
 
 # Statistiche base
 ABILITY_SCORES = ["Forza", "Destrezza", "Costituzione", "Intelligenza", "Saggezza", "Carisma"]
@@ -281,72 +308,60 @@ RACES_BASE: dict[str, list[str]] = {
 }
 
 # Discendenze del Dragonide (determina tipo soffio e resistenza)
-# Riutilizzato anche per la Discendenza Draconiana dello Stregone
+# Riutilizzato anche per la Discendenza Draconica dello Stregone
 DRACONIDE_ANCESTRIES = [
     "Bianco", "Blu", "Verde", "Nero", "Rosso",
     "Oro", "Argento", "Rame", "Ottone", "Bronzo",
 ]
 
-# Stili di combattimento PHB per classe (PHB p.72, p.84, p.91)
-FIGHTING_STYLES: dict[str, list[str]] = {
-    "guerriero": [
-        "Tiro",
-        "Combattere con Due Armi",
-        "Difesa",
-        "Duellare",
-        "Combattere con Armi Possenti",
-        "Protezione",
-    ],
-    "paladino": [
-        "Difesa",
-        "Duellare",
-        "Combattere con Armi Possenti",
-        "Protezione",
-    ],
-    "ranger": [
-        "Tiro",
-        "Combattere con Due Armi",
-        "Difesa",
-        "Duellare",
-    ],
-}
-
-# Animali totem del Barbaro (Percorso del Totem Guerriero)
-TOTEM_ANIMALS = ["Orso", "Aquila", "Lupo"]
-
-# Terreni del Druido (Cerchio della Terra — Incantesimi del Cerchio)
-LAND_TERRAINS = [
-    "Artico", "Costa", "Deserto", "Foresta",
-    "Montagna", "Piana", "Palude", "Sottosuolo",
-]
-
-# Trucchetti del Mago disponibili per l'Elfo Alto (PHB — lista completa)
-MAGO_CANTRIPS = [
-    "Amici", "Danno Acido", "Danza Delle Spade", "Fulmine Guida",
-    "Getto di Veleno", "Illusione Minore", "Luce", "Mano del Mago",
-    "Messaggio", "Occhio del Mago", "Prestidigitazione",
-    "Raggio di Gelo", "Raggio di Fuoco", "Scossa Tonante",
-    "Saggio Mano", "Tocco del Gelo",
-]
-
-# Opzioni di Metamagia dello Stregone (PHB p.102)
-METAMAGIC_OPTIONS = [
-    "Incantesimo Celato",        # Subtle Spell    — 1 PS: niente componenti V/S
-    "Incantesimo Distante",      # Distant Spell   — 1 PS: raddoppia gittata (o contatto->9m)
-    "Incantesimo Esteso",        # Extended Spell  — 1 PS: raddoppia durata (max 24h)
-    "Incantesimo Intensificato", # Heightened Spell— 3 PS: svantaggio al 1° TS del bersaglio
-    "Incantesimo Potenziato",    # Empowered Spell — 1 PS: rilancia dadi danno (fino a mod CHA)
-    "Incantesimo Preciso",       # Careful Spell   — 1 PS: alleati esclusi dall'area (mod CHA creature)
-    "Incantesimo Raddoppiato",   # Twinned Spell   — costo = liv. incantesimo (1 se trucchetto): 2° bersaglio
-    "Incantesimo Rapido",        # Quickened Spell — 2 PS: lanci come azione bonus
-]
-
-# Doni del Patto del Warlock (PHB p.107)
-PACT_BOONS = [
-    "Patto della Catena",  # Famiglio potenziato
-    "Patto della Lama",    # Arma del patto evocata
-    "Patto del Tomo",      # Libro delle Ombre (3 trucchetti extra)
-]
+# ---------------------------------------------------------------------------
+# Dati di Classe (stili di combattimento, totem, terreni, metamagia, patti,
+# trucchetti Mago) — RIMOSSI (2026-07-09), stesso refactor di RACE_DATA sopra.
+#
+# In precedenza qui vivevano FIGHTING_STYLES, TOTEM_ANIMALS, LAND_TERRAINS,
+# MAGO_CANTRIPS, METAMAGIC_OPTIONS, PACT_BOONS: liste Python scritte a mano,
+# duplicate rispetto ai dati già presenti (o aggiunti in questo stesso
+# refactor) nei JSON di data/game_data/classes/. Motivazione identica a
+# RACE_DATA: singola fonte di verità nei JSON, il codice deve solo leggerli.
+#
+# Sostituite da metodi su GameDataLoader (data/game_data/game_data_loader.py):
+#   get_fighting_styles(class_name)   -> legge fighting_style_details
+#                                         (guerriero.json) o le "options" della
+#                                         feature "Stile di Combattimento"
+#                                         (paladino.json / ranger.json)
+#   get_totem_animals()               -> barbaro.json, feature "Spirito
+#                                         Totemico" -> options
+#   get_land_terrains()               -> druido.json, chiavi di circle_spells
+#   get_mago_cantrips()               -> spells/incantesimi_mago.json
+#                                         (livello 0), NON mago.json: gli
+#                                         incantesimi/trucchetti vivono solo
+#                                         nel loro file dedicato, mai duplicati
+#                                         nel JSON di classe. I 16 nomi sono
+#                                         già stati sostituiti con quelli
+#                                         verificati in guerriero.json
+#                                         Cavaliere Mistico / ladro.json
+#                                         Mistificatore Arcano; le descrizioni
+#                                         restano da aggiungere con l'audit
+#                                         dedicato di incantesimi_mago.json
+#   get_metamagic_options()           -> stregone.json, feature "Metamagia"
+#   get_pact_boons()                  -> warlock.json, feature "Dono del
+#                                         Patto" -> options
+#
+# Durante questo refactor sono stati corretti anche 2 problemi di dati:
+# - LAND_TERRAINS aveva "Piana"/"Sottosuolo" mentre druido.json (già
+#   auditato) usa "Prateria"/"Underdark" — nessun bug live (land_terrain è
+#   solo testo salvato, mai usato per filtrare incantesimi), ma dato
+#   comunque sbagliato, ora risolto leggendo direttamente da circle_spells.
+# - MAGO_CANTRIPS conteneva nomi tradotti dall'inglese, solo 5/16 coerenti
+#   con incantesimi_mago.json (che aveva 11 trucchetti con nomi sospetti,
+#   vedi Checklist Revisione Dati PHB) — quei nomi sono stati sostituiti
+#   direttamente in incantesimi_mago.json con i 16 già verificati in
+#   guerriero.json/ladro.json (solo nome, descrizione rimandata all'audit
+#   dedicato di quel file).
+#
+# Verificato via grep su tutto l'albero .py: zero riferimenti residui a
+# nessuna delle 6 costanti fuori da questo file dopo il refactor.
+# ---------------------------------------------------------------------------
 
 # Lingue D&D 5e (PHB)
 LANGUAGES = [
@@ -355,42 +370,29 @@ LANGUAGES = [
     "Silvano", "Sottocomune", "Infernale", "Primordiale",
 ]
 
-# Strumenti per categoria (mappati dai 'from' dei JSON background)
-ARTISAN_TOOLS = [
-    "Strumenti da Fabbro", "Strumenti da Birraio", "Strumenti da Muratore",
-    "Strumenti da Calligrafo", "Strumenti da Falegname", "Strumenti da Calzolaio",
-    "Strumenti da Cuoco", "Strumenti da Vetraio", "Strumenti da Gioielliere",
-    "Strumenti da Conciatore", "Strumenti da Scalpellino", "Strumenti da Pittore",
-    "Strumenti da Vasaio", "Strumenti da Fabbricante di Archi",
-    "Strumenti da Sarto", "Strumenti da Calderaio", "Strumenti da Tessitore",
-    "Strumenti da Armaolo",
-]
-MUSICAL_INSTRUMENTS = [
-    "Cornamusa", "Batacchio", "Flauto", "Liuto",
-    "Lira", "Corno", "Piffero", "Tamburello", "Tromba", "Viola",
-]
-GAMING_SETS = ["Carte da Gioco", "Dadi", "Scacchi dei Draghi", "Tre Draghi"]
-
-# 'from' key nei JSON background → lista opzioni selezionabili
-TOOL_CATEGORIES: dict[str, list[str]] = {
-    "strumenti_artigiani":           ARTISAN_TOOLS,
-    "strumenti_musicali":            MUSICAL_INSTRUMENTS,
-    "strumenti_artigiani_o_musicali": ARTISAN_TOOLS + MUSICAL_INSTRUMENTS,  # Monaco PHB
-    "gioco_carte":                   ["Carte da Gioco"],
-    "gioco_dadi":                    ["Dadi"],
-    "scacchi":                       ["Scacchi dei Draghi"],
-    "gioco_tre_draghi":              ["Tre Draghi"],
-    "altro_gioco":                   GAMING_SETS,
-}
-
-# Label singola per chiave categoria (usata quando 'from' è una lista di chiavi)
-TOOL_CATEGORY_LABEL: dict[str, str] = {
-    "gioco_carte":      "Carte da Gioco",
-    "gioco_dadi":       "Dadi",
-    "scacchi":          "Scacchi dei Draghi",
-    "gioco_tre_draghi": "Tre Draghi",
-    "altro_gioco":      "Altro gioco a scelta",
-}
+# ---------------------------------------------------------------------------
+# ARTISAN_TOOLS, MUSICAL_INSTRUMENTS, GAMING_SETS, TOOL_CATEGORIES,
+# TOOL_CATEGORY_LABEL — RIMOSSE IL 2026-07-10 (stesso refactor già applicato
+# a RACE_DATA e alle 7 costanti di classe: eliminare dati duplicati a mano in
+# Python quando esiste già un JSON che dovrebbe essere l'unica fonte).
+#
+# Il 2026-07-10 queste liste erano state prima CORRETTE sul posto (nomi
+# allineati al manuale, vedi equipment.json) invece di essere eliminate —
+# Davide ha fatto notare che questo era lo stesso errore di duplicazione già
+# risolto altrove: avevamo appena creato data/game_data/equipment/equipment.json
+# apposta come fonte unica, quindi tenere ANCHE le liste Python (per quanto
+# corrette) ricreava lo stesso rischio di disallineamento futuro.
+#
+# Sostituite da metodi GameDataLoader che leggono equipment.json → tools.items
+# (ogni voce ha un campo "category": "strumenti_artigiano" | "strumenti_musicali"
+# | "giochi" | "strumenti_vari"):
+#   get_tool_names(category)      -> list[str], sostituisce le 3 costanti
+#   get_tool_categories()         -> dict, sostituisce TOOL_CATEGORIES
+#   get_tool_category_label(key)  -> str,  sostituisce TOOL_CATEGORY_LABEL
+#
+# Verificato via grep su tutto l'albero .py: zero riferimenti residui a
+# nessuna delle 5 costanti fuori da questo commento dopo il refactor.
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Lista armi PHB 5e italiano (tabella p.149)
@@ -423,21 +425,14 @@ WEAPONS_BY_CATEGORY: dict[str, list[str]] = {
     "guerra_mischia":   sorted(WEAPONS_GUERRA_MISCHIA),
 }
 
-# Classi disponibili con dado vita e caratteristica da incantatore
-CLASSES = {
-    "Barbaro":  {"hit_die": 12, "spellcasting_ability": None},
-    "Bardo":    {"hit_die": 8,  "spellcasting_ability": "cha"},
-    "Chierico": {"hit_die": 8,  "spellcasting_ability": "wis"},
-    "Druido":   {"hit_die": 8,  "spellcasting_ability": "wis"},
-    "Guerriero":{"hit_die": 10, "spellcasting_ability": None},
-    "Ladro":    {"hit_die": 8,  "spellcasting_ability": None},
-    "Mago":     {"hit_die": 6,  "spellcasting_ability": "int"},
-    "Monaco":   {"hit_die": 8,  "spellcasting_ability": None},
-    "Paladino": {"hit_die": 10, "spellcasting_ability": "cha"},
-    "Ranger":   {"hit_die": 10, "spellcasting_ability": "wis"},
-    "Stregone": {"hit_die": 6,  "spellcasting_ability": "cha"},
-    "Warlock":  {"hit_die": 8,  "spellcasting_ability": "cha"},
-}
+# Classi disponibili con dado vita e caratteristica da incantatore —
+# RIMOSSO (2026-07-10). `CLASSES` duplicava hit_die/spellcasting_ability
+# già presenti in ogni data/game_data/classes/*.json (verificato: nessuna
+# discrepanza al momento della rimozione, ma stesso rischio architetturale
+# già risolto per RACE_DATA e le altre costanti classe). Sostituito da
+# `GameDataLoader.get_class(name)` (dict completo, incluso hit_die e
+# spellcasting_ability) e `GameDataLoader.get_class_names()` (elenco nomi,
+# per i dropdown "Classe").
 
 # Valute (ordine crescente di valore)
 CURRENCIES = ["MR", "MA", "ME", "MO", "MP"]
@@ -457,21 +452,11 @@ ASI_LEVELS: dict[str, set[int]] = {
 }
 ASI_LEVELS_DEFAULT: set[int] = {4, 8, 12, 16, 19}
 
-# Tiri salvezza competenti per classe — PHB 5e
-CLASS_SAVING_THROWS: dict[str, list[str]] = {
-    "Barbaro":   ["Forza", "Costituzione"],
-    "Bardo":     ["Destrezza", "Carisma"],
-    "Chierico":  ["Saggezza", "Carisma"],
-    "Druido":    ["Intelligenza", "Saggezza"],
-    "Guerriero": ["Forza", "Costituzione"],
-    "Ladro":     ["Destrezza", "Intelligenza"],
-    "Mago":      ["Intelligenza", "Saggezza"],
-    "Monaco":    ["Forza", "Destrezza"],
-    "Paladino":  ["Saggezza", "Carisma"],
-    "Ranger":    ["Forza", "Destrezza"],
-    "Stregone":  ["Costituzione", "Carisma"],
-    "Warlock":   ["Saggezza", "Carisma"],
-}
+# Tiri salvezza competenti per classe — RIMOSSO (2026-07-09), vedi il blocco
+# di commento sopra ("Dati di Classe... RIMOSSI"). Sostituito da
+# GameDataLoader.get_class_saving_throws(class_name), che legge il campo
+# "saving_throws" (chiavi brevi "str"/"dex"/... convertite in etichette
+# italiane) direttamente da ogni JSON in data/game_data/classes/.
 
 # Standard array D&D 5e
 STANDARD_ARRAY = [15, 14, 13, 12, 10, 8]
@@ -481,182 +466,28 @@ POINT_BUY_COSTS = {8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
 POINT_BUY_BUDGET = 27
 
 # ---------------------------------------------------------------------------
-# Dati Razziali — PHB 5e italiano
-# ability_bonuses: dict {stat_key: bonus} applicati ai punteggi base
-# ability_bonuses_flex: N slot da +1 a scelta del giocatore (es. Mezzelfo)
-# speed: velocità in metri
-# darkvision: distanza scurovisione in metri (None = nessuna)
-# traits: lista di tratti speciali della razza
+# Dati Razziali — RIMOSSI (2026-07-09).
+#
+# In precedenza qui viveva `RACE_DATA`, un dizionario scritto a mano con
+# bonus caratteristica/velocità/scurovisione/tratti per le 14 combinazioni
+# razza-sottorazza, usato da wizard_engine.py (creazione personaggio),
+# manual_form.py (anteprima bonus + velocità) ed esplorazione_tab.py/
+# profilo_tab.py (visualizzazione tratti razziali).
+#
+# Era un secondo dataset indipendente dai JSON in data/game_data/races/,
+# con i suoi propri errori (nomi tratti sbagliati, un tratto del Gnomo delle
+# Rocce completamente inventato, ecc. — vedi CLAUDE.md, sezione razze,
+# 2026-07-09) e un bug reale: il confronto `race == "Mezzelf"` in
+# wizard_view.py/manual_form.py non corrispondeva mai a "Mezzelfo" (il nome
+# usato ovunque nel resto dell'app), quindi i Mezzelfo creati non ricevevano
+# mai il bonus flessibile +1/+1 né le 2 abilità di Versatilità.
+#
+# Sostituito da `GameDataLoader.get_resolved_race(race_name, subrace_name)`
+# (in data/game_data/game_data_loader.py), che legge esclusivamente dai JSON
+# e somma bonus base+sottorazza. Questo rende i JSON l'unica fonte dato per
+# le razze: aggiungere o modificare una razza (anche di un'altra edizione)
+# richiede solo di toccare/aggiungere un file JSON, mai il codice Python.
 # ---------------------------------------------------------------------------
-RACE_DATA: dict[str, dict] = {
-    "Nano delle Colline": {
-        "ability_bonuses": {"con": 2, "wis": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 7.5,
-        "darkvision": 18,
-        "traits": [
-            "Resistenza Nanica — vantaggio ai tiri salvezza vs veleni, resistenza al danno da veleno",
-            "Competenza in armi — ascia da guerra, ascia leggera, martello leggero, martello da guerra",
-            "Formazione in attrezzi — scegli tra strumenti da ferraro, birraio o falegname",
-            "Scaltrezza della pietra — vantaggio alle prove di Storia su architettura, pietra e oggetti di pietra",
-            "Tenacia dei Colli — punti ferita massimi aumentano di 1 per ogni livello",
-        ],
-    },
-    "Nano della Montagna": {
-        "ability_bonuses": {"con": 2, "str": 2},
-        "ability_bonuses_flex": 0,
-        "speed": 7.5,
-        "darkvision": 18,
-        "traits": [
-            "Resistenza Nanica — vantaggio ai tiri salvezza vs veleni, resistenza al danno da veleno",
-            "Competenza in armi — ascia da guerra, ascia leggera, martello leggero, martello da guerra",
-            "Addestramento con armature — competenza nelle armature leggere e medie",
-            "Scaltrezza della pietra — vantaggio alle prove di Storia su architettura e pietra",
-        ],
-    },
-    "Elfo Alto": {
-        "ability_bonuses": {"dex": 2, "int": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 9,
-        "darkvision": 18,
-        "traits": [
-            "Sensi affinati — competenza nell'abilità Percezione",
-            "Discendenza fatata — vantaggio ai tiri salvezza vs incantesimi e altri effetti magici",
-            "Transe — non hai bisogno di dormire; il riposo lungo richiede 4 ore di meditazione",
-            "Competenza in armi elfici — spada corta, spada lunga, arco corto, arco lungo",
-            "Trucchetto da Mago — conosci un trucchetto a scelta dall'elenco del Mago (INT)",
-            "Lingua aggiuntiva — una lingua a scelta",
-        ],
-    },
-    "Elfo dei Boschi": {
-        "ability_bonuses": {"dex": 2, "wis": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 10.5,
-        "darkvision": 18,
-        "traits": [
-            "Sensi affinati — competenza nell'abilità Percezione",
-            "Discendenza fatata — vantaggio ai tiri salvezza vs incantesimi e altri effetti magici",
-            "Transe — non hai bisogno di dormire; il riposo lungo richiede 4 ore di meditazione",
-            "Competenza in armi elfici — spada corta, spada lunga, arco corto, arco lungo",
-            "Passo del bosco — ignori il terreno difficile nei boschi; puoi muoverti silenziosamente",
-            "Mascheramento naturale — puoi tentare di nasconderti in terreno naturale (vegetazione, pioggia, neve)",
-        ],
-    },
-    "Elfo Oscuro (Drow)": {
-        "ability_bonuses": {"dex": 2, "cha": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 9,
-        "darkvision": 36,
-        "traits": [
-            "Scurovisione superiore — 36 metri (vista nella luce fioca come se fosse luminosa, buio come luce fioca)",
-            "Sensibilità alla luce solare — svantaggio ai tiri per colpire e alle prove di Percezione basate sulla vista se tu, il bersaglio o ciò che cerchi di vedere è in luce solare diretta",
-            "Discendenza fatata — vantaggio ai tiri salvezza vs incantesimi",
-            "Competenza in armi Drow — rapier, balestra a mano, spada corta",
-            "Magia Drow — Luce danzante (trucco), Fata Fuoco 1/riposo lungo (SAG), Oscurità 1/riposo lungo (SAG)",
-        ],
-    },
-    "Halfling Piedelesto": {
-        "ability_bonuses": {"dex": 2, "cha": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 7.5,
-        "darkvision": None,
-        "traits": [
-            "Fortuna — quando ottieni un 1 naturale su un tiro per colpire, prova di caratteristica o tiro salvezza, puoi ritirare il dado e devi usare il nuovo risultato",
-            "Coraggioso — vantaggio ai tiri salvezza contro la condizione di spavento",
-            "Agilità Halfling — puoi muoverti attraverso lo spazio di qualsiasi creatura di taglia superiore alla tua",
-            "Nascondersi agevolmente — puoi tentare di nasconderti dietro creature di taglia Media o più grande",
-        ],
-    },
-    "Halfling Tozzo": {
-        "ability_bonuses": {"dex": 2, "con": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 7.5,
-        "darkvision": None,
-        "traits": [
-            "Fortuna — quando ottieni un 1 naturale, puoi ritirare il dado",
-            "Coraggioso — vantaggio ai tiri salvezza contro la condizione di spavento",
-            "Agilità Halfling — puoi muoverti attraverso lo spazio di creature più grandi di te",
-            "Resistenza Halfling — vantaggio ai tiri salvezza vs veleni; resistenza al danno da veleno",
-        ],
-    },
-    "Umano": {
-        "ability_bonuses": {"str": 1, "dex": 1, "con": 1, "int": 1, "wis": 1, "cha": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 9,
-        "darkvision": None,
-        "traits": [
-            "+1 a tutte e sei le caratteristiche — incredibile versatilità e adattabilità",
-            "Competenza aggiuntiva — competenza in una lingua aggiuntiva a scelta",
-        ],
-    },
-    "Dragonide": {
-        "ability_bonuses": {"str": 2, "cha": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 9,
-        "darkvision": None,
-        "traits": [
-            "Lignaggio Draconico — scegli l'antenato draconico: determina tipo di danno e resistenza",
-            "Arma Soffio — azione: CA 8 + bonus competenza + mod DES (area cono o linea, danni da 2d6 a Lv.1/5°→3d6/11°→4d6/17°→5d6). 1 uso per riposo breve/lungo",
-            "Resistenza ai Danni — resistenza al tipo di danno del tuo antenato draconico",
-        ],
-    },
-    "Gnomo delle Rocce": {
-        "ability_bonuses": {"int": 2, "con": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 7.5,
-        "darkvision": 18,
-        "traits": [
-            "Scaltrezza Gnoma — vantaggio ai tiri salvezza di Intelligenza, Saggezza e Carisma contro la magia",
-            "Conoscenza Artificiere — ogni volta che effettui una prova di Intelligenza (Storia) relativa a oggetti magici, oggetti alchemici o congegni tecnologici, puoi aggiungere il doppio del bonus competenza",
-            "Illusione Artificiere — trucchetto Illusione Minore modificato: puoi creare suoni e immagini (INT)",
-            "Comunicare con costrutti — puoi comunicare concetti semplici a creature meccaniche/costrutti entro 30 m",
-        ],
-    },
-    "Gnomo delle Foreste": {
-        "ability_bonuses": {"int": 2, "dex": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 7.5,
-        "darkvision": 18,
-        "traits": [
-            "Scaltrezza Gnoma — vantaggio ai tiri salvezza di INT, SAG e CAR contro la magia",
-            "Illusione Naturale — conosci il trucchetto Illusione Minore (INT)",
-            "Parlare con gli Animali Piccoli — puoi comunicare con bestie di taglia Piccola o più piccola",
-        ],
-    },
-    "Mezzelfo": {
-        "ability_bonuses": {"cha": 2},
-        "ability_bonuses_flex": 2,  # +1 a 2 caratteristiche a scelta (non CAR)
-        "speed": 9,
-        "darkvision": 18,
-        "traits": [
-            "+1 a due caratteristiche a scelta (escluso Carisma) — grande flessibilità",
-            "Discendenza fatata — vantaggio ai tiri salvezza vs incantesimi e altri effetti magici",
-            "Transe — non hai bisogno di dormire; il riposo lungo richiede 4 ore di meditazione",
-            "Versatilità — competenza in due abilità a scelta",
-        ],
-    },
-    "Mezzorco": {
-        "ability_bonuses": {"str": 2, "con": 1},
-        "ability_bonuses_flex": 0,
-        "speed": 9,
-        "darkvision": 18,
-        "traits": [
-            "Minaccioso — competenza nell'abilità Intimidire",
-            "Resistenza Implacabile — quando scendi a 0 PF per la prima volta in uno scontro, rimani invece a 1 PF (1 uso, ripristinato dopo riposo lungo)",
-            "Attacchi Feroci — quando ottieni un colpo critico con un attacco in mischia, tira uno dei dadi danno dell'arma una volta aggiuntiva e somma al danno extra",
-        ],
-    },
-    "Tiefling": {
-        "ability_bonuses": {"int": 1, "cha": 2},
-        "ability_bonuses_flex": 0,
-        "speed": 9,
-        "darkvision": 18,
-        "traits": [
-            "Resistenza Infernale — resistenza al danno da fuoco",
-            "Eredità Infernale — Thaumaturgy (trucco, CAR); Hellish Rebuke come incantesimo di 2° livello 1/riposo lungo (CAR); Darkness come incantesimo di 2° livello 1/riposo lungo (CAR)",
-        ],
-    },
-}
 
 
 # ---------------------------------------------------------------------------
@@ -802,7 +633,7 @@ def get_race_display_traits(
                 if label not in resistances:
                     resistances.append(label)
             if t.get("resistance_by_ancestry"):
-                resistances.append("(vedi Discendenza Draconiana)")
+                resistances.append("(vedi Discendenza Draconica)")
             for sv in t.get("advantage_save", []):
                 label = _SAVE_IT.get(str(sv), str(sv).capitalize())
                 if label not in advantage_saves:
@@ -816,8 +647,8 @@ def get_race_display_traits(
         dmg = DRAGON_DAMAGE.get(sub_key)
         if dmg:
             # Sostituisce il placeholder generico
-            if "(vedi Discendenza Draconiana)" in resistances:
-                resistances.remove("(vedi Discendenza Draconiana)")
+            if "(vedi Discendenza Draconica)" in resistances:
+                resistances.remove("(vedi Discendenza Draconica)")
             if dmg not in resistances:
                 resistances.append(dmg)
 

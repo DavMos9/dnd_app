@@ -1,26 +1,27 @@
 {
   "name": "Intrattenitore",
-  "description": "Sei cresciuto davanti a un pubblico. Hai imparato a recitare, suonare, cantare o praticare acrobazie, e usi queste abilità per guadagnarti da vivere.",
+  "_source": "PHB IT p.135-136",
+  "description": "Brilli soprattutto quando ti esibisci davanti a un pubblico: sai come entusiasmare, divertire e perfino ispirare chi assiste alle tue esibizioni. La tua poesia è in grado di toccare i cuori di coloro che ti ascoltano, suscitando gioia o dolore, risate o indignazione. La tua musica eleva lo spirito o dà voce al dolore, i tuoi passi di danza ipnotizzano e il tuo umorismo è fulmineo e sferzante. Qualunque sia la tua tecnica preferita, vivi per la tua arte.",
   "skill_proficiencies": [
     "Acrobazia",
-    "Intrattenimento"
+    "Intrattenere"
   ],
   "tool_proficiencies": [
+    "Trucchi per il Camuffamento",
     {
       "type": "choice",
       "count": 1,
       "from": "strumenti_musicali"
-    },
-    "Kit del travestimento"
+    }
   ],
   "languages": [],
   "equipment": [
     {
-      "name": "Strumento musicale a scelta",
+      "name": "Strumento musicale (a scelta)",
       "item_type": "item"
     },
     {
-      "name": "Favore di un ammiratore (ciuffo di capelli, lettera d'amore, ecc.)",
+      "name": "Pegno di un ammiratore (lettera d'amore, ciocca di capelli o monile)",
       "item_type": "item"
     },
     {
@@ -35,65 +36,65 @@
     }
   ],
   "feature": {
-    "name": "Per Amore del Palcoscenico",
-    "description": "Puoi sempre trovare alloggio e pasti gratuiti in un luogo in cui esibisci la tua arte, di qualità sufficiente per il tuo stile di vita. Oltre a questo, la tua esibizione crea entusiasmo per te in quella comunità."
+    "name": "A Grande Richiesta",
+    "description": "Riesci sempre a trovare un luogo in cui esibirti, solitamente una locanda o una taverna, ma a volte anche un circo, un teatro o addirittura una corte nobiliare. Di conseguenza, in questi luoghi ricevi gratuitamente vitto e alloggio di tenore modesto o agiato (in base alla qualità del locale), purché tu possa esibirti ogni notte. Inoltre, l'esibizione fa di te una sorta di celebrità locale. Quando gli stranieri ti riconoscono in una città in cui ti sei esibito, solitamente ti ammirano."
   },
   "personality_traits": [
-    "Amo stare al centro dell'attenzione.",
-    "Non posso fare a meno di intrattenermi con tutti quelli che incontro.",
-    "Mi sento perso se non c'è un pubblico.",
-    "Parlo sempre con un tono drammatico, anche per le cose banali.",
-    "Mi affido alla voce, al gesto e all'espressione per comunicare.",
-    "Sono appassionato di storie emozionanti.",
-    "Non riesco a smettere di migliorare le mie abilità.",
-    "Adoro le feste e le celebrazioni."
+    "Ho una storia interessante per ogni situazione.",
+    "Quando giungo in un nuovo luogo, mi informo sulle dicerie locali e i pettegolezzi del momento.",
+    "Sono un inguaribile romantico, sempre in cerca di qualcuno di \"speciale\".",
+    "Nessuno rimane arrabbiato a lungo con me o con i miei compagni, perché sono in grado di allentare facilmente ogni tensione.",
+    "So apprezzare un insulto ben congegnato, anche se è rivolto a me.",
+    "Mi amareggio quando non sono al centro dell'attenzione.",
+    "Punto sempre alla perfezione.",
+    "Cambio umore o opinione con la stessa rapidità con cui cambia la tonalità di una canzone."
   ],
   "ideals": [
     {
       "name": "Bellezza",
       "alignment": "Buono",
-      "description": "Quando eseguo la mia arte, devo farlo con bellezza e grazia."
+      "description": "Quando mi esibisco, voglio rendere il mondo migliore di come l'ho trovato."
     },
     {
       "name": "Tradizione",
       "alignment": "Legale",
-      "description": "Le storie e le canzoni del passato devono essere preservate."
+      "description": "Le storie, leggende e canzoni del passato non devono mai essere dimenticate, poiché ci raccontano chi siamo."
     },
     {
       "name": "Creatività",
       "alignment": "Caotico",
-      "description": "Il mondo deve cambiare e io voglio contribuire a quel cambiamento."
+      "description": "Il mondo ha bisogno di nuove idee e azioni significative."
     },
     {
       "name": "Avidità",
       "alignment": "Malvagio",
-      "description": "Ho un talento speciale e voglio essere pagato bene per esso."
+      "description": "Mi esibisco solo per il denaro e la fama."
     },
     {
-      "name": "Popolo",
+      "name": "Persone",
       "alignment": "Neutrale",
-      "description": "Mi importa solo di quelli che mi ascoltano e mi amano."
+      "description": "Amo vedere i sorrisi sul volto della gente quando mi esibisco. È l'unica cosa che conta."
     },
     {
       "name": "Onestà",
       "alignment": "Qualsiasi",
-      "description": "L'arte è la verità più pura."
+      "description": "L'arte dovrebbe riflettere l'anima, scaturire dal cuore e rivelare chi siamo veramente."
     }
   ],
   "bonds": [
-    "Voglio diventare famoso.",
-    "Devo qualcosa a un impresario che mi ha scoperto.",
-    "Un rivale cerca di rubarmi la scena.",
-    "Voglio dedicare le mie esibizioni alla memoria di qualcuno che amavo.",
-    "Il pubblico è la mia famiglia.",
-    "Voglio creare l'opera d'arte più grande mai concepita."
+    "Il mio strumento musicale è per me il bene più prezioso, poiché mi ricorda una persona amata.",
+    "Qualcuno mi ha derubato del mio prezioso strumento, e ho giurato di riuscire a recuperarlo prima o poi.",
+    "Voglio diventare famoso, costi quel che costi.",
+    "Ammiro un eroe delle vecchie leggende e confronto le mie imprese con le sue.",
+    "Farò qualsiasi cosa pur di dimostrare di essere superiore al mio odiato rivale.",
+    "Farei qualsiasi cosa per i membri della mia vecchia compagnia di artisti."
   ],
   "flaws": [
-    "Non riesco a resistere ai complimenti.",
-    "Faccio tutto per stare al centro dell'attenzione.",
-    "Sono geloso del talento altrui.",
-    "Mento spesso per abbellire le mie storie.",
-    "Sono facilmente distratto da persone belle.",
-    "Non riesco a smettere di cercare riconoscimento e apprezzamento."
+    "Farò qualunque cosa pur di conquistare fama e onore.",
+    "Quando vedo un bel viso, divento un completo idiota.",
+    "Uno scandalo mi impedisce di fare ritorno a casa mia. Lo stesso problema sembra perseguitarmi ovunque vada.",
+    "Una volta ho ridicolizzato un nobile che oggi vuole la mia testa. So di avere commesso un errore e che probabilmente lo farò di nuovo.",
+    "Ho qualche problema a tenere nascosti i miei veri sentimenti. La mia lingua affilata mi mette nei guai.",
+    "Benché ci provi con tutte le mie forze, non sono affidabile nemmeno con i miei amici."
   ]
 }

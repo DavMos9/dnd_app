@@ -8,11 +8,13 @@
   ],
   "spellcasting_ability": "cha",
   "armor_proficiencies": [
-    "#armature_tutte"
+    "leggere",
+    "medie",
+    "pesanti"
   ],
   "weapon_proficiencies": [
-    "#armi_semplici",
-    "#armi_da_guerra"
+    "semplice",
+    "guerra"
   ],
   "tool_proficiencies": [],
   "skill_choices": {
@@ -288,7 +290,21 @@
     {
       "level": 2,
       "name": "Stile di Combattimento",
-      "description": "Al 2° livello, un paladino adotta uno stile di combattimento come specialità, scegliendo tra: Combattere con Armi Possenti, Difesa, Duellare o Protezione (vedi \"fighting_style_details\" in guerriero.json per il testo completo di ciascuno stile — meccanica identica e condivisa tra le classi)."
+      "description": "Al 2° livello, un paladino adotta uno stile di combattimento come specialità, scegliendo tra: Combattere con Armi Possenti, Difesa, Duellare o Protezione (vedi \"fighting_style_details\" in guerriero.json per il testo completo di ciascuno stile — meccanica identica e condivisa tra le classi).",
+      "options": [
+        {
+          "name": "Combattere con Armi Possenti"
+        },
+        {
+          "name": "Difesa"
+        },
+        {
+          "name": "Duellare"
+        },
+        {
+          "name": "Protezione"
+        }
+      ]
     },
     {
       "level": 2,
@@ -324,6 +340,11 @@
       "level": 10,
       "name": "Aura di Coraggio",
       "description": "Il paladino e le creature amiche entro 3 metri da lui non possono essere spaventate finché il paladino è cosciente. Al 18° livello, la gittata di questa aura aumenta a 9 metri."
+    },
+    {
+      "level": 11,
+      "name": "Punizione Divina Migliorata",
+      "description": "All'11° livello, il paladino è talmente pervaso dalla potenza della giustizia che tutti i suoi colpi con le armi si caricano di potere divino. Ogni volta che il paladino colpisce una creatura con un'arma da mischia, quella creatura subisce 1d8 danni radiosi extra. Inoltre, se utilizza Punizione Divina con un attacco, aggiunge questi danni ai danni extra della sua Punizione Divina."
     },
     {
       "level": 14,

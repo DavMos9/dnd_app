@@ -14,7 +14,7 @@
   ],
   "traits": [
     {
-      "name": "Discendenza Draconiana",
+      "name": "Discendenza Draconica",
       "description": "Scegli un tipo di drago. Determina la tua Resistenza ai Danni e il tipo di soffio.",
       "options": [
         {
@@ -81,13 +81,13 @@
     },
     {
       "name": "Resistenza ai Danni",
-      "description": "Hai resistenza al tipo di danno associato alla tua Discendenza Draconiana.",
+      "description": "Hai resistenza al tipo di danno associato alla tua Discendenza Draconica.",
       "resistance_by_ancestry": true,
-      "note": "Vedi Discendenza Draconiana per il tipo di danno"
+      "note": "Vedi Discendenza Draconica per il tipo di danno"
     },
     {
-      "name": "Soffio",
-      "description": "Come azione, puoi espirare un'energia distruttiva. Il suo tipo di danno e la sua forma sono determinati dalla tua Discendenza Draconiana. Usi = 1 / riposo breve o lungo. Danno: 2d6 al 1° livello (+1d6 ogni 5 livelli). TS Destrezza o Costituzione (CD 8 + bonus competenza + mod Costituzione) per dimezzare.",
+      "name": "Arma a Soffio",
+      "description": "Come azione, puoi espirare un'energia distruttiva. Il suo tipo di danno e la sua forma sono determinati dalla tua Discendenza Draconica. Usi = 1 / riposo breve o lungo. Danno: 2d6 al 1° livello (+1d6 ogni 5 livelli). TS Destrezza o Costituzione (CD 8 + bonus competenza + mod Costituzione) per dimezzare.",
       "resource": {
         "name": "Soffio del Dragonide",
         "max_value": 1,

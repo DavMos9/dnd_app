@@ -1,0 +1,353 @@
+{
+  "_source_note": "Tutti i dati di questo file sono trascritti esattamente dal manuale italiano 'ED 5.0 manuale del giocatore.pdf' (PHB IT 2014), Capitolo 5 'Equipaggiamento', pagine 143-159. Trascrizione eseguita il 2026-07-10 leggendo le pagine del PDF renderizzate come immagini (pdftoppm), non tramite estrazione testo OCR (pdftotext), risultata inaffidabile su queste tabelle (numeri/lettere confusi). La tabella d100 'Oggetti Insoliti' (pag.160-161, cimeli di ambientazione senza effetto meccanico) e' stata deliberatamente esclusa da questa prima versione su scelta di Davide - vedi TODO in CLAUDE.md.",
+  "_source": "Sezione 'Strumenti' + tabella 'Strumenti', PHB IT p.154",
+  "rules": {
+    "introduzione": "Uno strumento consente a un personaggio di fare qualcosa che altrimenti non sarebbe in grado di fare, come fabbricare o riparare un oggetto, falsificare un documento o scassinare una serratura. La razza, la classe, il background o i talenti possono fornire a un personaggio competenza in certi strumenti. La competenza in uno strumento consente a un personaggio di aggiungere il proprio bonus di competenza a qualsiasi prova di caratteristica effettuata quando usa quello strumento. L'utilizzo di uno strumento non e' collegato a una singola caratteristica, dal momento che la competenza in uno strumento rappresenta una conoscenza piu' vasta dal suo utilizzo basilare.",
+    "Arnesi da Falsario": "Questo scrigno contiene vari tipi di fogli di carta e di pergamena, pennini, inchiostri, sigilli e cera per sigilli, filigrana d'oro e d'argento e altri materiali necessari per creare fisicamente dei documenti falsi che risultino convincenti. La competenza in questi arnesi consente a un personaggio di aggiungere il proprio bonus di competenza a ogni prova di caratteristica effettuata per creare una falsificazione fisica di un documento.",
+    "Arnesi da Scasso": "Questo set di arnesi include una piccola lima, una serie di passepartout, uno specchietto montato su una maniglia di metallo, un paio di forbicine e un paio di pinze. La competenza in questo oggetto consente a un personaggio di aggiungere il proprio bonus di competenza a ogni prova di caratteristica effettuata per disattivare trappole o scassinare serrature.",
+    "Borsa da Erborista": "Questa borsa contiene vari strumenti come forbici, mortaio, pestello, sacchetti e fiale usate dagli erboristi per creare rimedi e pozioni. La competenza in questo oggetto consente a un personaggio di aggiungere il proprio bonus di competenza a ogni prova di caratteristica effettuata per identificare o applicare erbe. E' inoltre richiesta competenza in questo oggetto per creare antitossine e pozioni di guarigione.",
+    "Giochi": "Questo strumento comprende un assortimento di pezzi da gioco, tra cui dadi e mazzi di carte (per giochi come Tre Draghi al Buio). Alcuni esempi comuni compaiono sulla tabella 'Strumenti', ma esistono anche giochi di altro tipo. Se un personaggio e' competente in un gioco, puo' aggiungere il suo bonus di competenza alle prove di caratteristica che effettua quando gioca una partita a quel gioco. Ogni tipo di gioco richiede una competenza separata.",
+    "Sostanze da Avvelenatore": "Una borsa dell'avvelenatore include le fiale, le sostanze chimiche e le altre attrezzature necessarie per fabbricare veleni. La competenza in questo strumento consente a un personaggio di aggiungere il proprio bonus di competenza a ogni prova di caratteristica effettuata per fabbricare o utilizzare veleni.",
+    "Strumenti da Artigiano": "Questi strumenti speciali includono gli oggetti necessari per praticare un'arte o un mestiere. La tabella contiene alcuni esempi dei tipi di strumenti piu' ricorrenti, ognuno dei quali fornisce gli oggetti relativi a un singolo tipo di artigianato. La competenza in un set di strumenti da artigiano consente a un personaggio di aggiungere il proprio bonus di competenza a ogni prova di caratteristica effettuata usando gli strumenti del suo mestiere. Ogni tipo di strumenti da artigiano richiede una competenza separata.",
+    "Strumenti da Navigatore": "Questa serie di strumenti viene usata per navigare in mare. La competenza negli strumenti da navigatore consente a un personaggio di tracciare la rotta di una nave e di seguire le carte nautiche. Questi strumenti consentono inoltre a un personaggio di aggiungere il proprio bonus di competenza a ogni prova di caratteristica effettuata per evitare di smarrirsi in mare.",
+    "Strumenti Musicali": "Alcuni dei piu' comuni tipi di strumenti musicali sono indicati nella tabella come esempi. Un personaggio che possiede competenza in un determinato strumento musicale puo' aggiungere il proprio bonus di competenza alle prove di caratteristica effettuate per suonare con quello strumento. Un bardo puo' usare uno strumento musicale come focus da incantatore, come descritto nel capitolo 10. Ogni tipo di strumento musicale richiede una competenza separata.",
+    "Trucchi per il Camuffamento": "Questa borsa di cosmetici, tinture per capelli e piccoli accessori consente a chi la usa di alterare il proprio aspetto fisico. La competenza in questi trucchi permette a un personaggio di aggiungere il proprio bonus di competenza a ogni prova di caratteristica che effettua per camuffare visivamente qualcuno."
+  },
+  "items": [
+    {
+      "name": "Arnesi da Falsario",
+      "cost": {
+        "quantity": 15,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5,
+      "category": "strumenti_vari"
+    },
+    {
+      "name": "Arnesi da Scasso",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5,
+      "category": "strumenti_vari"
+    },
+    {
+      "name": "Borsa da Erborista",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.5,
+      "category": "strumenti_vari"
+    },
+    {
+      "name": "Dadi",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "silver"
+      },
+      "weight_kg": null,
+      "category": "giochi"
+    },
+    {
+      "name": "Mazzo di Carte",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "weight_kg": null,
+      "category": "giochi"
+    },
+    {
+      "name": "Scacchi dei Draghi",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.25,
+      "category": "giochi"
+    },
+    {
+      "name": "Tre Draghi al Buio",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": null,
+      "category": "giochi"
+    },
+    {
+      "name": "Sostanze da Avvelenatore",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0,
+      "category": "strumenti_vari"
+    },
+    {
+      "name": "Scorte da Alchimista",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "weight_kg": 4.0,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Scorte da Calligrafo",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Scorte da Mescitore",
+      "cost": {
+        "quantity": 20,
+        "currency_type": "gold"
+      },
+      "weight_kg": 4.5,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Calzolaio",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Cartografo",
+      "cost": {
+        "quantity": 15,
+        "currency_type": "gold"
+      },
+      "weight_kg": 3.0,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Conciatore",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Costruttore",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 4.0,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Fabbro",
+      "cost": {
+        "quantity": 20,
+        "currency_type": "gold"
+      },
+      "weight_kg": 4.0,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Falegname",
+      "cost": {
+        "quantity": 8,
+        "currency_type": "gold"
+      },
+      "weight_kg": 3.0,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Gioielliere",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Intagliatore",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Inventore",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "weight_kg": 5.0,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Pittore",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Soffiatore",
+      "cost": {
+        "quantity": 30,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Tessitore",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Vasaio",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.5,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Utensili da Cuoco",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 4.0,
+      "category": "strumenti_artigiano"
+    },
+    {
+      "name": "Strumenti da Navigatore",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0,
+      "category": "strumenti_vari"
+    },
+    {
+      "name": "Ciaramella",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Cornamusa",
+      "cost": {
+        "quantity": 30,
+        "currency_type": "gold"
+      },
+      "weight_kg": 3.0,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Corno",
+      "cost": {
+        "quantity": 3,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Dulcimer",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 5.0,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Flauto",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Flauto di Pan",
+      "cost": {
+        "quantity": 12,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Lira",
+      "cost": {
+        "quantity": 30,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Liuto",
+      "cost": {
+        "quantity": 35,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Tamburo",
+      "cost": {
+        "quantity": 6,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.5,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Viola",
+      "cost": {
+        "quantity": 30,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5,
+      "category": "strumenti_musicali"
+    },
+    {
+      "name": "Trucchi per il Camuffamento",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.5,
+      "category": "strumenti_vari"
+    }
+  ],
+  "_note_veicoli": "La voce 'Veicoli (terrestri o acquatici)' della tabella Strumenti rimanda alla sezione 'Cavalcature e Veicoli' (vedi data.mounts_and_vehicles) per costo/velocita', dato che la competenza in un veicolo non ha un costo di acquisto proprio.",
+  "_note_categorie": "category: 'strumenti_artigiano' (17 voci) | 'strumenti_musicali' (10 voci) | 'giochi' (4 voci) | 'strumenti_vari' (arnesi da falsario/scasso, borsa da erborista, sostanze da avvelenatore, strumenti da navigatore, trucchi per il camuffamento — oggetti a se stanti, non parte di una delle 3 categorie sopra)."
+}

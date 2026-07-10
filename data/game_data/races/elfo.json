@@ -17,8 +17,8 @@
       "description": "Hai competenza nell'abilità Percezione."
     },
     {
-      "name": "Discendenza Fatata",
-      "description": "Hai vantaggio ai tiri salvezza contro l'essere affascinato e la magia non può farti addormentare."
+      "name": "Retaggio Fatato",
+      "description": "Hai vantaggio ai tiri salvezza per non essere affascinato e non puoi essere addormentato tramite la magia."
     },
     {
       "name": "Trance",
@@ -40,7 +40,7 @@
       ],
       "traits": [
         {
-          "name": "Addestramento con le Armi degli Elfi",
+          "name": "Addestramento nelle Armi Elfiche",
           "description": "Hai competenza con spada lunga, spada corta, arco corto e arco lungo."
         },
         {
@@ -54,19 +54,19 @@
       "ability_bonuses": {
         "wis": 1
       },
-      "speed": 10,
+      "speed": 10.5,
       "traits": [
         {
-          "name": "Addestramento con le Armi degli Elfi",
+          "name": "Addestramento nelle Armi Elfiche",
           "description": "Hai competenza con spada lunga, spada corta, arco corto e arco lungo."
         },
         {
-          "name": "Passo della Foresta",
-          "description": "Muoverti attraverso la vegetazione non magica non ti costa movimento aggiuntivo e non ti provoca attacchi di opportunità."
+          "name": "Piede Lesto",
+          "description": "La tua velocità base sul terreno aumenta a 10,5 metri."
         },
         {
-          "name": "Nascondersi nella Natura",
-          "description": "Puoi tentare di nasconderti anche quando sei solo leggermente oscurato dal fogliame, forte pioggia, neve, nebbia e altri fenomeni naturali."
+          "name": "Maschera della Selva",
+          "description": "Puoi tentare di nasconderti alla vista altrui anche quando sei solo leggermente oscurato da fogliame, pioggia fitta, neve, foschia e altri fenomeni naturali."
         }
       ]
     },
@@ -78,15 +78,15 @@
       "darkvision": 36,
       "traits": [
         {
-          "name": "Sensibilità alla Luce Solare",
-          "description": "Hai svantaggio ai tiri di attacco e alle prove di Percezione (vista) quando tu o il tuo bersaglio siete in piena luce solare."
+          "name": "Sensibilità alla Luce del Sole",
+          "description": "Hai svantaggio ai tiri per colpire e alle prove di Saggezza (Percezione) basate sulla vista quando tu, il bersaglio del tuo attacco o l'oggetto da percepire si trovano in piena luce del sole."
         },
         {
           "name": "Magia Drow",
-          "description": "Conosci il trucchetto Luci Danzanti. Puoi lanciare Fuoco delle Fate e Oscurità una volta per riposo lungo. Il modificatore è Carisma.",
+          "description": "Conosci il trucchetto Luci Danzanti. Quando raggiungi il 3° livello puoi lanciare l'incantesimo Luminescenza una volta con questo tratto, recuperando la capacità di farlo al completamento di un riposo lungo. Quando raggiungi il 5° livello puoi lanciare l'incantesimo Oscurità una volta con questo tratto, recuperando la capacità di farlo al completamento di un riposo lungo. Il modificatore per questi incantesimi è Carisma.",
           "resources": [
             {
-              "name": "Fuoco delle Fate (drow)",
+              "name": "Luminescenza (drow)",
               "max_value": 1,
               "reset_on": "long_rest",
               "display_type": "circles",
@@ -102,8 +102,8 @@
           ]
         },
         {
-          "name": "Addestramento con le Armi dei Drow",
-          "description": "Hai competenza con rapiere, spada corta e balestra a mano."
+          "name": "Addestramento nelle Armi Drow",
+          "description": "Hai competenza con spada corta, stocco e balestra a mano."
         }
       ]
     }

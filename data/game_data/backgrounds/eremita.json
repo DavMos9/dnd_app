@@ -1,12 +1,13 @@
 {
   "name": "Eremita",
-  "description": "Hai vissuto in isolamento per un periodo della tua vita, in riflessione o ricerca spirituale. Durante quel tempo, hai guadagnato intuizioni sulla vita che pochi altri hanno.",
+  "_source": "PHB IT p.131-132",
+  "description": "Hai trascorso gli anni formativi della tua vita in un luogo isolato, forse presso una comunità separata (come per esempio un monastero) o forse completamente da solo. Nel tempo che hai trascorso lontano dalla confusione della società hai trovato tranquillità, solitudine e magari alcune delle risposte che cercavi.",
   "skill_proficiencies": [
     "Medicina",
     "Religione"
   ],
   "tool_proficiencies": [
-    "Forniture erboristiche"
+    "Borsa da Erborista"
   ],
   "languages": [
     {
@@ -17,7 +18,7 @@
   ],
   "equipment": [
     {
-      "name": "Contenitore per erbe",
+      "name": "Custodia per pergamene con appunti di studio o di preghiere",
       "item_type": "item"
     },
     {
@@ -25,11 +26,11 @@
       "item_type": "item"
     },
     {
-      "name": "Abiti comuni",
+      "name": "Abito comune",
       "item_type": "item"
     },
     {
-      "name": "Libro delle note",
+      "name": "Borsa da erborista",
       "item_type": "item"
     },
     {
@@ -41,64 +42,64 @@
   ],
   "feature": {
     "name": "Scoperta",
-    "description": "Il tuo isolamento ti ha dato accesso a una scoperta unica e potente. Lavora con il tuo DM per determinare quale forma prende questa scoperta. Potrebbe essere una grande verità sull'universo, degli dei, delle forze potenti o di qualche essere."
+    "description": "Nella tranquillità e nell'isolamento prolungato del tuo eremo, sei riuscito a fare un'unica e importante scoperta. La natura esatta di questa rivelazione dipende dalla natura del tuo isolamento: potrebbe trattarsi di una grande verità sul cosmo, le divinità, le potenti entità dei piani esterni o le forze della natura. Potrebbe trattarsi di un luogo che nessun altro ha mai visto. Forse hai scoperto qualcosa che era stato dimenticato da tempo, o forse hai rinvenuto una reliquia del passato in grado di riscrivere la storia. Potresti avere scoperto informazioni dannose per coloro che ti hanno esiliato, e questo potrebbe spingerti a fare ritorno nella società. Consultati con il tuo DM per determinare i dettagli della tua scoperta e il suo impatto sulla campagna."
   },
   "personality_traits": [
-    "Sto cercando la pace interiore.",
-    "Sono convinto che l'ispirazione venga dal dentro.",
-    "Mi piace la solitudine e trovo difficile stare in mezzo alla folla.",
-    "Passo le giornate in meditazione e riflessione.",
-    "Parlo poco, ma quando parlo, le mie parole sono piene di significato.",
-    "Vedo il mondo come un insieme complesso di relazioni.",
-    "Sono sempre curioso di scoprire nuove verità.",
-    "Non mi interessa la ricchezza o la fama."
+    "Ho passato così tanto tempo da solo che parlo raramente: preferisco gesticolare e ogni tanto emetto qualche grugnito.",
+    "Sono profondamente sereno, anche di fronte al disastro.",
+    "Il capo della mia comunità ha una massima di saggezza per ogni argomento, e sono impaziente di condividere queste massime con gli altri.",
+    "Avverto una forte empatia nei confronti di tutti coloro che soffrono.",
+    "Sono totalmente indifferente all'etichetta e alle convenzioni sociali.",
+    "Collego tutto ciò che mi accade a un grandioso progetto cosmico.",
+    "Spesso mi immergo talmente a fondo nella contemplazione dei miei pensieri da dimenticare il mondo circostante.",
+    "Sto lavorando a un grandioso sistema filosofico e amo condividere le mie idee."
   ],
   "ideals": [
     {
-      "name": "Grande Bene",
+      "name": "Bene superiore",
       "alignment": "Buono",
-      "description": "Il mio dono va a tutti quelli che possono trarne vantaggio."
+      "description": "Credo che i miei doni vadano condivisi e non usati a mio esclusivo vantaggio."
     },
     {
       "name": "Logica",
       "alignment": "Legale",
-      "description": "La logica e la ragione devono guidare tutte le nostre scelte."
+      "description": "Le emozioni non devono impedirci di vedere ciò che è vero e giusto, né limitare il pensiero logico."
     },
     {
-      "name": "Libertà",
+      "name": "Libero pensiero",
       "alignment": "Caotico",
-      "description": "Non ho bisogno di catene o obblighi verso nessuno."
+      "description": "Ricerca e curiosità sono i pilastri del progresso."
     },
     {
       "name": "Potere",
       "alignment": "Malvagio",
-      "description": "La mia comprensione del mondo mi dà potere sugli altri."
+      "description": "La solitudine e la contemplazione sono le vie che conducono al potere mistico o magico."
     },
     {
-      "name": "Vita",
+      "name": "Vivi e lascia vivere",
       "alignment": "Neutrale",
-      "description": "Tutte le vite hanno uguale valore."
+      "description": "Impicciarsi degli affari altrui crea solo problemi."
     },
     {
-      "name": "Illuminazione",
+      "name": "Autocoscienza",
       "alignment": "Qualsiasi",
-      "description": "Sto cercando di capire il significato ultimo dell'esistenza."
+      "description": "Chi conosce se stesso non ha bisogno di conoscere altro."
     }
   ],
   "bonds": [
-    "Niente è più importante della mia ricerca spirituale.",
-    "Sono uscito dall'isolamento per proteggere qualcuno che mi è caro.",
-    "Voglio portare la mia conoscenza a chi ne ha bisogno.",
-    "Sono alla ricerca di qualcuno che possa rispondere alle mie domande.",
-    "Devo proteggere il luogo sacro dove ho vissuto la mia solitudine.",
-    "Il mio maestro spirituale mi ha incaricato di portare avanti il suo lavoro."
+    "Per me, gli altri membri della mia comunità, ordine o gruppo di clausura vengono prima di ogni altra cosa.",
+    "Avevo scelto l'isolamento per sfuggire a qualcuno che potrebbe essere ancora alla mia ricerca. Qualcuno che prima o poi dovrò affrontare.",
+    "Sono ancora alla ricerca dell'illuminazione che speravo di ottenere dall'eremitaggio e che continua a sfuggirmi.",
+    "Avevo scelto l'isolamento perché amavo una persona che non potei avere.",
+    "Se la mia scoperta divenisse di dominio pubblico, segnerebbe la rovina nel mondo.",
+    "L'isolamento mi ha portato a conoscenza di un grande male che solo io ho il potere di sconfiggere."
   ],
   "flaws": [
-    "Ora che sono uscito dall'isolamento, sono facilmente confuso dal trambusto del mondo.",
-    "Dico la verità senza preoccuparmi delle conseguenze.",
-    "Sono convinto che la mia comprensione del mondo sia superiore a quella degli altri.",
-    "Passo molto tempo a riflettere invece di agire.",
-    "Mi comporto in modo strano e imbarazzo i miei compagni.",
-    "Ignoro le cose di tutti i giorni in favore della meditazione."
+    "Ora che ho fatto ritorno nel mondo esterno, indulgo spesso e volentieri ai piaceri della vita mondana.",
+    "Sono preda di pensieri oscuri e violenti che l'isolamento e la meditazione non sono riusciti a domare.",
+    "Sono estremamente dogmatico riguardo ai miei pensieri e alla mia filosofia.",
+    "Non riesco a impedire che il mio bisogno di avere l'ultima parola nelle dispute rovini le mie amicizie e turbi l'armonia della mia vita.",
+    "Rischio più del dovuto pur di riportare alla luce ogni minuscolo frammento di conoscenza.",
+    "Amo custodire segreti da non condividere con nessuno."
   ]
 }

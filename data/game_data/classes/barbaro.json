@@ -8,13 +8,13 @@
   ],
   "spellcasting_ability": null,
   "armor_proficiencies": [
-    "#armature_leggere",
-    "#armature_medie",
-    "#scudi"
+    "leggere",
+    "medie",
+    "scudi"
   ],
   "weapon_proficiencies": [
-    "#armi_semplici",
-    "#armi_da_guerra"
+    "semplice",
+    "guerra"
   ],
   "tool_proficiencies": [],
   "skill_choices": {

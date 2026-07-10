@@ -1,9 +1,10 @@
 {
   "name": "Nobile",
-  "description": "Capisci ricchezza, potere e privilegio. Porti un titolo nobile e la tua famiglia possiede terre, raccoglie tasse e detiene una posizione di potere politico.",
+  "_source": "PHB IT p.138-139",
+  "description": "Conosci l'importanza della ricchezza, del potere e dei privilegi. Detieni un titolo nobiliare e la tua famiglia possiede terre, riscuote tasse ed esercita una notevole influenza politica.",
   "skill_proficiencies": [
-    "Storia",
-    "Persuasione"
+    "Persuasione",
+    "Storia"
   ],
   "tool_proficiencies": [
     {
@@ -26,7 +27,7 @@
   ],
   "equipment": [
     {
-      "name": "Abiti fini",
+      "name": "Abito pregiato",
       "item_type": "item"
     },
     {
@@ -34,7 +35,7 @@
       "item_type": "item"
     },
     {
-      "name": "Pergamena della propria stirpe",
+      "name": "Pergamena con albero genealogico",
       "item_type": "item"
     },
     {
@@ -45,65 +46,65 @@
     }
   ],
   "feature": {
-    "name": "Posizione di Privilegio",
-    "description": "Grazie al tuo rango nobile, le persone sono pronte ad assumersi il meglio di te. Sei accolto nell'alta società, e le persone presumono che tu abbia il diritto di essere ovunque tu vada. I nobili ordinari si avvicineranno a te per fare amicizia, e puoi ottenere udienza dai nobili locali e dai funzionari governativi."
+    "name": "Posizione Privilegiata",
+    "description": "Grazie ai tuoi nobili natali, sei tenuto in grande considerazione dalla gente. Sei bene accetto nell'alta società e la gente presume che tu abbia il diritto di andare ovunque desideri. I popolani fanno di tutto per compiacerti e per evitare di irritarti, e gli altri nobili ti considerano un membro alla pari della loro sfera sociale. Puoi facilmente ottenere udienza presso un altro nobile locale, se lo desideri."
   },
   "personality_traits": [
-    "La mia eleganza e raffinatezza mi sono state infuse fin dall'infanzia.",
-    "Mi aspetto che tutti rispettino il mio rango e la mia posizione sociale.",
-    "Sono gentile e rispettoso con tutti, non importa il loro rango.",
-    "La gente comune non può capire gli affari di stato.",
-    "Sto cercando di capire il mondo al di fuori del mio cerchio ristretto.",
-    "Voglio dimostrare di valere più della mia nascita privilegiata.",
-    "Sono sempre pronto a fare beneficenza ai bisognosi.",
-    "Non dimentico mai un'offesa e aspetto il momento giusto per vendicarmi."
+    "Con le mie raffinate lusinghe so come fare sentire il mio interlocutore la persona più meravigliosa e importante del mondo.",
+    "La gente comune ama me per la mia gentilezza e la mia generosità.",
+    "Nessuno, guardando il mio portamento regale, potrebbe dubitare per un solo istante che io mi elevi sopra al volgo.",
+    "Sopporto disagi pur di apparire sempre al meglio delle mie possibilità e vestire sempre all'ultima moda.",
+    "Detesto sporcarmi le mani e non sarò mai visto da nessuno in condizioni meno che perfette.",
+    "Nonostante le mie nobili origini, non mi sento superiore agli altri. Ritengo che tutti gli uomini abbiano lo stesso sangue.",
+    "Quando qualcuno perde il mio favore, lo perde per sempre.",
+    "Se qualcuno mi danneggia, lo distruggerò, getterò fango sul suo nome e sale sulle sue terre."
   ],
   "ideals": [
     {
       "name": "Rispetto",
       "alignment": "Buono",
-      "description": "Il rispetto è dovuto a tutti, indipendentemente dalla nascita."
+      "description": "Ai nobili è dovuto il rispetto per la loro posizione, ma tutti, a prescindere dal rango, hanno diritto a essere trattati con dignità."
     },
     {
       "name": "Responsabilità",
       "alignment": "Legale",
-      "description": "Devo fare quello che devo fare, non quello che voglio."
+      "description": "È doveroso rispettare i propri superiori così come farsi rispettare dai propri sottoposti."
     },
     {
       "name": "Indipendenza",
       "alignment": "Caotico",
-      "description": "Devo dimostrare di poter farcela da solo."
+      "description": "Voglio dimostrare di potermela cavare da solo, senza la protezione della famiglia."
     },
     {
       "name": "Potere",
       "alignment": "Malvagio",
-      "description": "Se posso arrivare in cima, lo farò."
-    },
-    {
-      "name": "Noblesse Oblige",
-      "alignment": "Neutrale",
-      "description": "È mio dovere proteggere coloro che sono al di sotto di me."
+      "description": "Voglio ottenere ulteriore potere, affinché nessuno possa dirmi cosa devo fare."
     },
     {
       "name": "Famiglia",
       "alignment": "Qualsiasi",
-      "description": "Il sangue è più denso dell'acqua."
+      "description": "Il sangue non è acqua."
+    },
+    {
+      "name": "Obbligo nobiliare",
+      "alignment": "Buono",
+      "description": "Ho il dovere di proteggere e far prosperare la gente posta sotto la mia tutela."
     }
   ],
   "bonds": [
-    "Sono legato alla mia famiglia nobile.",
-    "Il mio titolo non significa nulla senza la fedeltà dei miei servitori.",
-    "La reputazione della mia famiglia dipende dalle mie azioni.",
-    "L'alleanza di una famiglia vicina è importante per proteggere le mie terre.",
-    "Ho una relazione segreta che non può essere rivelata.",
-    "La mia famiglia è in declino e devo portarla in alto."
+    "Affronterò qualunque sfida pur di guadagnarmi l'approvazione della mia famiglia.",
+    "Sosterrò l'alleanza della mia famiglia con un altro casato nobiliare a qualunque costo.",
+    "Per me non c'è niente di più importante degli altri membri della mia famiglia.",
+    "Sono innamorato di un membro di una famiglia odiata dalla mia.",
+    "La mia lealtà nei confronti del mio sovrano è incrollabile.",
+    "Voglio che la gente comune mi consideri un eroe popolare."
   ],
   "flaws": [
-    "Sono convinto di essere superiore alla gente comune.",
-    "Maschero il mio disprezzo per chi non è della mia classe con educazione formale.",
-    "Prendo decisioni rischiose spesso senza consultare i miei compagni.",
-    "Odio sporcarmi le mani.",
-    "Non sopporto le persone rozze.",
-    "Mi preoccupo troppo per come vengo percepito dagli altri."
+    "Dentro di me, credo che tutti mi siano inferiori.",
+    "Custodisco un segreto scandaloso che rovinerebbe la mia famiglia per sempre.",
+    "Credo troppo spesso di cogliere velati insulti e minacce nelle parole che mi vengono rivolte e mi adombro facilmente.",
+    "Nutro una bramosia insaziabile per i piaceri carnali.",
+    "Sono convinto nel mio intimo che il mondo giri veramente intorno a me.",
+    "Spesso getto vergogna sulla mia famiglia con le mie parole e le mie azioni."
   ]
 }

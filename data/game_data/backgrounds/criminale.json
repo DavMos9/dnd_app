@@ -1,9 +1,10 @@
 {
   "name": "Criminale",
-  "description": "Sei un esperto a stare fuori dalla legge. Hai passato gran parte della tua vita a rubare, truffare o uccidere per sopravvivere.",
+  "_source": "PHB IT p.130-131",
+  "description": "Sei un esperto malfattore che ha già violato la legge più volte in passato. Hai trascorso molto tempo tra gli altri criminali e mantieni ancora qualche contatto con il mondo del crimine. Sei molto più vicino della maggior parte della gente a quel mondo clandestino di omicidi, furti e violenze che contamina gli strati più bassi di una comunità e sei sopravvissuto fino a oggi sfidando le leggi e le regole della società.",
   "skill_proficiencies": [
-    "Inganno",
-    "Furtività"
+    "Furtività",
+    "Inganno"
   ],
   "tool_proficiencies": [
     "Arnesi da Scasso",
@@ -24,7 +25,7 @@
       "item_type": "item"
     },
     {
-      "name": "Abiti scuri comuni",
+      "name": "Abito comune comprensivo di cappuccio",
       "item_type": "item"
     },
     {
@@ -35,65 +36,65 @@
     }
   ],
   "feature": {
-    "name": "Contatti Criminali",
-    "description": "Hai un contatto affidabile e fidato che agisce come tuo tramite con una rete di altri criminali. Sai come trovare i messaggi attraverso codici specifici, e puoi far passare e ricevere messaggi attraverso bande di contrabbandieri, gilde di ladri, assassini e altre organizzazioni illegali."
+    "name": "Contatto Criminale",
+    "description": "Conosci un contatto affidabile che funge da tramite tra te e una rete di altri criminali. Sai come inviare e ricevere messaggi dal tuo contatto, anche a grandi distanze; nello specifico, conosci i messaggeri locali, i mastri carovanieri corrotti e i marinai poco raccomandabili che trasmetteranno il messaggio per tuo conto."
   },
   "personality_traits": [
-    "Sempre ho un piano di uscita di emergenza.",
-    "Sono sempre calmo, non importa la situazione. Non lascio mai vedere il panico.",
-    "Sono stato ingannato più e più volte; preferisco fare le cose nel modo sporco.",
-    "La lealtà per me è un imperativo: non li tradirò mai.",
-    "Sono incredibilmente curioso.",
-    "Preferisco fare le cose in modo discreto.",
-    "Dono parte del mio guadagno alle organizzazioni di carità.",
-    "Sono un bugiardo compulsivo."
+    "Ho sempre un piano di riserva, qualora le cose dovessero mettersi male.",
+    "Mantengo sempre la calma, a prescindere dalla situazione. Non alzo mai la voce e non permetto mai alle emozioni di prendere il sopravvento sulla mia razionalità.",
+    "La prima cosa che faccio quando giungo in un nuovo luogo è notare tutte le zone in cui sono custoditi o potrebbero essere stati nascosti dei valori.",
+    "Preferisco farmi un nuovo amico piuttosto che un nuovo nemico.",
+    "Impiego molto tempo a fidarmi di qualcuno. Ritengo che spesso proprio quelli che sembrano più onesti sono quelli che hanno più cose da nascondere.",
+    "Non bado ai rischi. Parlarmi di probabilità è perfettamente inutile.",
+    "Il modo più efficace per indurmi a fare qualcosa è dirmi che non ho il permesso di farla.",
+    "Reagisco con collera alla minima provocazione."
   ],
   "ideals": [
     {
       "name": "Onore",
       "alignment": "Legale",
-      "description": "Non rubo ai poveri. Seguo le regole della mia banda."
+      "description": "Non derubo altri criminali."
     },
     {
       "name": "Libertà",
       "alignment": "Caotico",
-      "description": "Le catene devono essere spezzate e la burocrazia è nemica della libertà."
+      "description": "Le catene devono essere spezzate, e lo stesso vale per chi cerca di imporle agli altri."
     },
     {
       "name": "Carità",
       "alignment": "Buono",
-      "description": "Rubo ai ricchi e do ai poveri."
+      "description": "Rubo ai ricchi per donare ai poveri."
     },
     {
       "name": "Avidità",
       "alignment": "Malvagio",
-      "description": "Voglio tutto il denaro possibile."
+      "description": "Farò tutto ciò che è in mio potere per arricchirmi."
     },
     {
-      "name": "Popolo",
+      "name": "Persone",
       "alignment": "Neutrale",
-      "description": "Mi preoccupo della gente del posto."
+      "description": "Sono leale solo nei confronti dei miei amici, non mi curo degli ideali astratti, e per quello che mi riguarda, tutti gli altri possono andare a tuffarsi nello Stige."
     },
     {
       "name": "Redenzione",
-      "alignment": "Qualsiasi",
-      "description": "Voglio smetterla con questo stile di vita criminale."
+      "alignment": "Buono",
+      "description": "C'è una scintilla di bontà in ogni individuo."
     }
   ],
   "bonds": [
-    "Sono fedele alla mia banda.",
-    "Sto cercando di ripagare un vecchio debito.",
-    "Qualcuno che mi è vicino è stato ucciso e sto cercando vendetta.",
-    "Sono fedele alla mia città, non alla legge.",
-    "Uno sbirro corrotto mi ha rovinato la vita.",
-    "I poveri mi hanno aiutato quando ne avevo bisogno, quindi li aiuterò a mia volta."
+    "Cerco di ripagare un vecchio debito che ho contratto con un generoso benefattore.",
+    "Uso i proventi delle mie attività illecite per sostenere la mia famiglia.",
+    "Mi è stato sottratto qualcosa di importante, e il mio obiettivo è riprendermelo.",
+    "Voglio diventare il più grande ladro di tutti i tempi.",
+    "Mi sono macchiato di un crimine terribile e spero di potermi redimere.",
+    "Una persona amata da me ha perso la vita per colpa mia. Sono determinato a far sì che questo non accada mai più."
   ],
   "flaws": [
-    "Non riesco a resistere a rubare qualcosa di prezioso.",
-    "Sono sempre paranoico che le persone mi stiano spiando.",
-    "Una volta che qualcuno mi ha fatto del male, non lo dimentico mai.",
-    "Sono un giocatore d'azzardo compulsivo.",
-    "Mi piace il rischio e l'eccitazione del pericolo.",
-    "Quando vedo qualcosa di prezioso, devo avercelo."
+    "Quando vedo qualcosa di valore, riesco solo a pensare a come appropriarmene.",
+    "Quando mi trovo a dover scegliere tra gli amici e il denaro, generalmente scelgo il denaro.",
+    "Quando c'è un piano, lo dimentico. E se non lo dimentico, lo ignoro.",
+    "Quando mento, c'è qualcosa che rivela la mia bugia.",
+    "Quando le cose sembrano mettersi male, me la do a gambe levate.",
+    "Un innocente è in prigione accusato di un crimine che ho commesso io, e io da parte mia convivo tranquillamente con la situazione."
   ]
 }

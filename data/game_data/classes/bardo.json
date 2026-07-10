@@ -8,13 +8,13 @@
   ],
   "spellcasting_ability": "cha",
   "armor_proficiencies": [
-    "#armature_leggere"
+    "leggere"
   ],
   "weapon_proficiencies": [
-    "#armi_semplici",
-    "Balestra a mano",
-    "Spada corta",
-    "Spada lunga",
+    "semplice",
+    "Balestra a Mano",
+    "Spada Corta",
+    "Spada Lunga",
     "Stocco"
   ],
   "tool_proficiencies": [

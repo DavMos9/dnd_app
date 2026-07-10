@@ -21,11 +21,11 @@ from config.settings import (
     COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_CARD, COLOR_BG_SELECTED,
     COLOR_ACCENT_GOLD,COLOR_ACCENT_BLUE, COLOR_ACCENT_RED, COLOR_ACCENT_CRIMSON, COLOR_BORDER,
     COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED, COLOR_TEXT_TITLE,
-    CLASSES, RACES_BASE, DRACONIDE_ANCESTRIES, ALIGNMENTS,
+    RACES_BASE, DRACONIDE_ANCESTRIES, ALIGNMENTS,
     ABILITY_SCORES, ABILITY_KEYS, STANDARD_ARRAY, SKILLS,
-    CLASS_SAVING_THROWS, LANGUAGES, TOOL_CATEGORIES, TOOL_CATEGORY_LABEL,
-    FIGHTING_STYLES, MAGO_CANTRIPS, WEAPONS_BY_CATEGORY,
-    get_modifier, get_modifier_str,
+    LANGUAGES,
+    WEAPONS_BY_CATEGORY,
+    get_modifier, get_modifier_str, get_permanent_class_hp_bonus,
 )
 from ui.theme import (
     title_text, body_text, muted_text, label_text,
@@ -33,7 +33,7 @@ from ui.theme import (
 )
 from core.wizard_engine import WizardEngine
 from data.game_data.wizard_data import (
-    WIZARD_QUESTIONS, BACKGROUNDS, CLASS_DESCRIPTIONS, CLASS_SUGGESTED_RACES,
+    WIZARD_QUESTIONS, CLASS_DESCRIPTIONS, CLASS_SUGGESTED_RACES,
 )
 from data.game_data.game_data_loader import GameDataLoader
 from data.repositories import character_repo
@@ -121,7 +121,7 @@ class WizardView(ft.Column):
         self._review_languages: list[str]  = []   # lingue scelte dal background
         self._review_tools:     list[str]  = []   # strumenti scelti dal background
         # Scelte extra per razza/classe
-        self._review_dragon_ancestry: str       = ""   # Stregone Discendenza Draconiana
+        self._review_dragon_ancestry: str       = ""   # Stregone Discendenza Draconica
         self._review_fighting_style:  str       = ""   # Guerriero/Paladino/Ranger
         self._review_mezzelf_flex:    list[str] = []   # 2 stat key per +1 Mezzelf
         self._review_mezzelf_skills:  list[str] = []   # 2 abilità Mezzelf (Versatilità)
@@ -498,8 +498,9 @@ class WizardView(ft.Column):
                     padding=ft.Padding.symmetric(horizontal=8, vertical=3),
                 ),
             ]
-            hit_die = CLASSES.get(cls, {}).get("hit_die", 8)
-            spell_ab = CLASSES.get(cls, {}).get("spellcasting_ability")
+            _cls_data = _loader.get_class(cls) or {}
+            hit_die = _cls_data.get("hit_die", 8)
+            spell_ab = _cls_data.get("spellcasting_ability")
             spell_label = (
                 {"int": "Intelligenza", "wis": "Saggezza", "cha": "Carisma"}.get(spell_ab, "—")
                 if spell_ab else "—"
@@ -558,7 +559,7 @@ class WizardView(ft.Column):
                 ft.Column([
                     label_text("BACKGROUND SUGGERITO", 10),
                     body_text(rec_bg, 15, weight=ft.FontWeight.W_600),
-                    muted_text(", ".join(BACKGROUNDS.get(rec_bg, {}).get("skills", [])), 11),
+                    muted_text(", ".join((_loader.get_background(rec_bg) or {}).get("skill_proficiencies", [])), 11),
                 ], spacing=4, expand=True),
                 ft.VerticalDivider(width=1, color=COLOR_BORDER),
                 ft.Column([
@@ -642,9 +643,7 @@ class WizardView(ft.Column):
     def _bg_skill_proficiencies(self) -> list[str]:
         """Abilità fisse concesse dal background corrente."""
         bg_data = _loader.get_background(self._review_bg)
-        if bg_data:
-            return bg_data.get("skill_proficiencies", [])
-        return BACKGROUNDS.get(self._review_bg, {}).get("skills", [])
+        return bg_data.get("skill_proficiencies", []) if bg_data else []
 
     def _class_skill_options(self) -> tuple[int, list[str]]:
         """(count, options) per le abilità di classe."""
@@ -678,16 +677,17 @@ class WizardView(ft.Column):
             if isinstance(entry, dict) and entry.get("type") == "choice":
                 frm = entry.get("from", "")
                 count = entry.get("count", 1)
+                tool_categories = _loader.get_tool_categories()
                 if isinstance(frm, list):
                     seen_labels: set[str] = set()
                     opts = []
                     for k in frm:
-                        label = TOOL_CATEGORY_LABEL.get(k) or TOOL_CATEGORIES.get(k, [k])[0]
+                        label = _loader.get_tool_category_label(k) or tool_categories.get(k, [k])[0]
                         if label not in seen_labels:
                             opts.append(label)
                             seen_labels.add(label)
                 else:
-                    opts = TOOL_CATEGORIES.get(frm, [])
+                    opts = tool_categories.get(frm, [])
                 result.append((count, opts))
         return result
 
@@ -702,7 +702,7 @@ class WizardView(ft.Column):
         class_dd = ft.Dropdown(
             label="Classe",
             value=self._review_class,
-            options=[ft.DropdownOption(key=c, text=str(c)) for c in CLASSES.keys()],
+            options=[ft.DropdownOption(key=c, text=str(c)) for c in _loader.get_class_names()],
             on_select=lambda e: _on_class_change(e),
             bgcolor=COLOR_BG_CARD,
             color=COLOR_TEXT_PRIMARY,
@@ -726,7 +726,7 @@ class WizardView(ft.Column):
         bg_dd = ft.Dropdown(
             label="Background",
             value=self._review_bg,
-            options=[ft.DropdownOption(key=b, text=str(b)) for b in BACKGROUNDS.keys()],
+            options=[ft.DropdownOption(key=b, text=str(b)) for b in _loader.get_background_names()],
             on_select=lambda e: _on_bg_change(e),
             bgcolor=COLOR_BG_CARD,
             color=COLOR_TEXT_PRIMARY,
@@ -798,7 +798,7 @@ class WizardView(ft.Column):
         )
 
         def _hit_die_note() -> str:
-            hd = CLASSES.get(self._review_class, {}).get("hit_die", 8)
+            hd = (_loader.get_class(self._review_class) or {}).get("hit_die", 8)
             con_mod = get_modifier(self._review_stats.get("con", 10))
             hp = max(1, hd + con_mod)
             sign = "+" if con_mod >= 0 else ""
@@ -814,9 +814,9 @@ class WizardView(ft.Column):
             race = self._review_race
             subraces = RACES_BASE.get(race, [])
             if race == "Dragonide":
-                # Discendenza draconiana
+                # Discendenza draconica
                 anc_dd = ft.Dropdown(
-                    label="Discendenza Draconiana",
+                    label="Discendenza Draconica",
                     value=self._review_subrace or DRACONIDE_ANCESTRIES[0],
                     options=[ft.DropdownOption(key=a, text=a) for a in DRACONIDE_ANCESTRIES],
                     on_select=lambda e: setattr(self, "_review_subrace", e.control.value),
@@ -903,12 +903,12 @@ class WizardView(ft.Column):
 
         _rebuild_subclass_col()
 
-        # ------ Tipo drago antenato (Stregone + Discendenza Draconiana) ------
+        # ------ Tipo drago antenato (Stregone + Discendenza Draconica) ------
         dragon_col = ft.Column([], spacing=8, visible=False)
 
         def _rebuild_dragon_col():
             dragon_col.controls.clear()
-            if self._review_subclass == "Discendenza Draconiana":
+            if self._review_subclass == "Discendenza Draconica":
                 if not self._review_dragon_ancestry:
                     self._review_dragon_ancestry = DRACONIDE_ANCESTRIES[0]
                 curr = self._review_dragon_ancestry if self._review_dragon_ancestry in DRACONIDE_ANCESTRIES else DRACONIDE_ANCESTRIES[0]
@@ -942,7 +942,7 @@ class WizardView(ft.Column):
 
         def _rebuild_fighting_style_col():
             fighting_style_col.controls.clear()
-            styles = FIGHTING_STYLES.get((self._review_class or "").strip().lower(), [])
+            styles = _loader.get_fighting_styles((self._review_class or "").strip())
             if styles:
                 if not self._review_fighting_style or self._review_fighting_style not in styles:
                     self._review_fighting_style = styles[0]
@@ -978,8 +978,8 @@ class WizardView(ft.Column):
             race   = (self._review_race or "").strip()
             subrace = (self._review_subrace or "").strip()
 
-            # --- Mezzelf: +1 a 2 caratteristiche (escluso CHA già +2) ---
-            if race == "Mezzelf":
+            # --- Mezzelfo: +1 a 2 caratteristiche (escluso CHA già +2) ---
+            if race == "Mezzelfo":
                 has_content = True
                 all_stat_keys = [k for k in ABILITY_KEYS if k != "cha"]
                 all_stat_labels = {k: ABILITY_SCORES[i] for i, k in enumerate(ABILITY_KEYS)}
@@ -1077,12 +1077,13 @@ class WizardView(ft.Column):
             # --- Alto Elfo: trucchetto del Mago ---
             if race == "Elfo" and subrace == "Elfo Alto":
                 has_content = True
-                if not self._review_elf_cantrip or self._review_elf_cantrip not in MAGO_CANTRIPS:
-                    self._review_elf_cantrip = MAGO_CANTRIPS[0]
+                mago_cantrips = _loader.get_mago_cantrips()
+                if not self._review_elf_cantrip or self._review_elf_cantrip not in mago_cantrips:
+                    self._review_elf_cantrip = mago_cantrips[0] if mago_cantrips else ""
                 race_extras_col.controls.append(ft.Dropdown(
                     label="Trucchetto del Mago (tratto Elfo Alto)",
                     value=self._review_elf_cantrip,
-                    options=[ft.DropdownOption(key=c, text=c) for c in MAGO_CANTRIPS],
+                    options=[ft.DropdownOption(key=c, text=c) for c in mago_cantrips],
                     on_select=lambda e: setattr(self, "_review_elf_cantrip", e.control.value or ""),
                     bgcolor=COLOR_BG_CARD,
                     color=COLOR_TEXT_PRIMARY,
@@ -1882,7 +1883,7 @@ class WizardView(ft.Column):
         error_text = ft.Text("", color=COLOR_ACCENT_RED, size=13, visible=False)
 
         # Riepilogo
-        hd    = CLASSES.get(self._review_class, {}).get("hit_die", 8)
+        hd    = (_loader.get_class(self._review_class) or {}).get("hit_die", 8)
         con_m = get_modifier(self._review_stats.get("con", 10))
         hp    = max(1, hd + con_m)
         dex_m = get_modifier(self._review_stats.get("dex", 10))
@@ -1987,6 +1988,13 @@ class WizardView(ft.Column):
                     char.subrace = self._review_subrace
                 if self._review_subclass:
                     char.subclass = self._review_subclass
+                    # Bonus PF permanente da capacità di sottoclasse
+                    # (es. Resilienza Draconica dello Stregone)
+                    hp_bonus = get_permanent_class_hp_bonus(
+                        char.class_name, char.subclass, char.level
+                    )
+                    char.hp_max += hp_bonus
+                    char.hp_current = char.hp_max
 
                 # Scelte razza/classe extra
                 if self._review_dragon_ancestry:
@@ -1995,7 +2003,7 @@ class WizardView(ft.Column):
                     char.fighting_style = self._review_fighting_style
 
                 # Mezzelf: applica i bonus flessibili (+1 a 2 stat)
-                if self._review_race == "Mezzelf" and len(self._review_mezzelf_flex) == 2:
+                if self._review_race == "Mezzelfo" and len(self._review_mezzelf_flex) == 2:
                     stat_map = {
                         "str": "str_score", "dex": "dex_score", "con": "con_score",
                         "int": "int_score", "wis": "wis_score", "cha": "cha_score",
@@ -2018,16 +2026,12 @@ class WizardView(ft.Column):
                     raise RuntimeError(f"Errore DB: {detail}" if detail else "Errore nel salvataggio sul database.")
 
                 # Tiri salvezza competenti dalla classe (PHB)
-                for stat_name in CLASS_SAVING_THROWS.get(self._review_class, []):
+                for stat_name in _loader.get_class_saving_throws(self._review_class):
                     character_repo._save_single_proficiency(char.id, "save", stat_name)
 
                 # Abilità: background (fisso) + scelte di classe
                 bg_data = _loader.get_background(self._review_bg)
-                bg_skills: list[str] = []
-                if bg_data:
-                    bg_skills = bg_data.get("skill_proficiencies", [])
-                else:
-                    bg_skills = BACKGROUNDS.get(self._review_bg, {}).get("skills", [])
+                bg_skills: list[str] = bg_data.get("skill_proficiencies", []) if bg_data else []
                 for skill in bg_skills:
                     character_repo._save_single_proficiency(char.id, "skill", skill)
                 for skill in self._review_skills:
@@ -2164,6 +2168,11 @@ class WizardView(ft.Column):
                     for entry in bg_data.get("equipment", []):
                         if isinstance(entry, dict):
                             _save_item(char.id, entry)
+
+                # Ricalcola la CA con le formule di classe senza armatura
+                # (Monaco, Barbaro, Stregone+Discendenza Draconica) — alla
+                # creazione nessuna armatura risulta equipaggiata di default.
+                character_repo.calculate_and_update_ca(char.id)
 
                 logger.info(f"Personaggio wizard creato: {char.name} ({char.id})")
                 self.on_complete(char.id)

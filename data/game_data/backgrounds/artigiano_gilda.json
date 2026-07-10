@@ -1,6 +1,7 @@
 {
   "name": "Artigiano di Gilda",
-  "description": "Sei membro di una gilda artigiana, provvisto delle risorse per creare oggetti finemente lavorati. La tua gilda ti ha supportato, ti ha insegnato il tuo mestiere e ha garantito un certo livello di benessere.",
+  "_source": "PHB IT p.128-129",
+  "description": "Appartieni a una gilda specializzata in un particolare settore di lavoro a cui aderiscono altri artigiani. Sei una presenza consolidata nel mondo mercantile e grazie al tuo talento e alla tua ricchezza ti sei liberato dalle costrizioni dell'ordine sociale feudale. Hai appreso il tuo mestiere da un mastro artigiano, con il patrocinio della gilda, finché non sei diventato a tua volta un maestro.",
   "skill_proficiencies": [
     "Intuizione",
     "Persuasione"
@@ -21,15 +22,15 @@
   ],
   "equipment": [
     {
-      "name": "Strumenti dell'artigiano (a scelta)",
+      "name": "Strumenti da artigiano (a scelta)",
       "item_type": "item"
     },
     {
-      "name": "Lettera d'introduzione della tua gilda",
+      "name": "Lettera di presentazione della gilda",
       "item_type": "item"
     },
     {
-      "name": "Abiti da viaggio",
+      "name": "Abito da viaggiatore",
       "item_type": "item"
     },
     {
@@ -40,65 +41,65 @@
     }
   ],
   "feature": {
-    "name": "Membro della Gilda",
-    "description": "Come membro di gilda, puoi richiedere alloggio e pasti gratuiti ai tuoi confratelli. La gilda potrebbe anche fornire assistenza legale, in certi limiti. Puoi anche aumentare la tua reputazione all'interno della gilda, salendo di rango."
+    "name": "Appartenenza alla Gilda",
+    "description": "In qualità di membro rispettato e di vecchia data di una gilda, puoi contare su diversi benefici. I tuoi colleghi di gilda ti offriranno vitto e alloggio e pagheranno per il tuo funerale, se necessario. In alcune città e paesi, la tua gilda dispone di una sede centrale dove incontrare gli altri membri, un luogo utile dove incontrare potenziali datori di lavoro, alleati o gregari.\n\nLe gilde spesso esercitano una forte influenza politica. Se sei accusato di un crimine, la tua gilda ti sosterrà se la tua innocenza risulta evidente o se il crimine è giustificabile. Puoi anche usare la gilda per ottenere l'accesso alle figure politiche più potenti, fintanto che rimani un membro stimato. Tali contatti potrebbero richiedere una donazione in denaro o in oggetti magici alla tesoreria della gilda.\n\nDevi pagare una tariffa di 5 mo al mese alla gilda. Se salti uno o più pagamenti, dovrai versare i pagamenti arretrati se desideri rimanere in buoni rapporti con la gilda."
   },
   "personality_traits": [
-    "Sono orgoglioso del mio lavoro.",
-    "Mi piace creare oggetti belli e utili.",
-    "Sono sempre pronto a dare una mano a chi ha bisogno di aiuto.",
-    "Mi preoccupo molto della qualità del mio lavoro.",
-    "Sono curioso di ogni mestiere e arte.",
-    "Sono abituato a lavorare in gruppo.",
-    "Sono paziente e meticoloso.",
-    "Valuto le persone in base a quello che riescono a fare con le mani."
+    "Credo che se una cosa va fatta, va fatta bene. Cerco sempre di lavorare al mio meglio.",
+    "Sono uno snob che guarda dall'alto in basso chi non è in grado di apprezzare l'arte.",
+    "Voglio sempre sapere come funzionano le cose, e le motivazioni che spingono le altre persone ad agire.",
+    "Ho un proverbio da citare in ogni occasione.",
+    "Sono molto duro con chi non dimostra la mia stessa dedizione al lavoro costante e onesto.",
+    "Amo parlare a lungo della mia professione.",
+    "Adoro il mio denaro e conduco sempre accanite contrattazioni al fine di ottenere le migliori condizioni.",
+    "Sono famoso per la qualità del mio lavoro. Resto sempre esterrefatto quando incontro qualcuno che non ha mai sentito parlare di me."
   ],
   "ideals": [
     {
       "name": "Comunità",
       "alignment": "Legale",
-      "description": "Il singolo deve sacrificarsi per il bene della comunità."
+      "description": "È dovere di ogni cittadino rafforzare i legami della comunità e la sicurezza della civilizzazione."
     },
     {
       "name": "Generosità",
       "alignment": "Buono",
-      "description": "Il denaro e il talento devono essere condivisi con tutti."
+      "description": "I talenti vengono donati alle persone affinché queste li usino per il bene del mondo."
     },
     {
       "name": "Libertà",
       "alignment": "Caotico",
-      "description": "Chiunque dovrebbe poter diventare qualcuno attraverso il lavoro duro."
+      "description": "Tutti dovrebbero essere liberi di procurarsi da vivere come meglio credono."
     },
     {
       "name": "Avidità",
       "alignment": "Malvagio",
-      "description": "Sono in questo per i soldi, nient'altro."
+      "description": "Agisco solo per denaro."
     },
     {
-      "name": "Popolo",
+      "name": "Persone",
       "alignment": "Neutrale",
-      "description": "Mi preoccupo solo di quelli che amo."
+      "description": "Sento di avere dei doveri verso le persone care, non verso ideali astratti."
     },
     {
-      "name": "Aspirazione",
+      "name": "Aspirazioni",
       "alignment": "Qualsiasi",
-      "description": "Voglio creare l'opera d'arte più grande mai concepita."
+      "description": "Lavoro sodo per essere il migliore nel mio lavoro."
     }
   ],
   "bonds": [
-    "La gilda è la mia famiglia.",
-    "Voglio portare onore alla mia famiglia lavorando sodo.",
-    "Qualcuno che conosco ha bisogno del mio aiuto.",
-    "Devo onorare il debito che ho con il mio maestro artigiano.",
-    "Voglio creare un capolavoro che sia ricordato nei secoli.",
-    "Ho rubato qualcosa di prezioso e devo restituirlo."
+    "Il laboratorio in cui ho imparato il mestiere è per me il luogo più importante del mondo.",
+    "Ho creato un'opera straordinaria per qualcuno che si è poi rivelato indegno di possederla. Sono ancora in cerca di qualcuno che meriti una tale meraviglia.",
+    "Mi sento in debito con la mia gilda, che ha fatto di me l'individuo che sono oggi.",
+    "Perseguo la ricchezza per conquistare l'amore di qualcuno.",
+    "Ho giurato di riuscire un giorno a tornare presso la mia gilda e dimostrare di essere un artigiano migliore di tutti gli altri membri.",
+    "Ho giurato di vendicarmi delle forze malvagie che hanno distrutto il mio luogo di lavoro e lo hanno privato della mia fonte di reddito."
   ],
   "flaws": [
-    "Sono convinto di essere il migliore nel mio mestiere.",
-    "Sono geloso del successo degli altri.",
-    "Mi ostino a fare le cose a modo mio.",
-    "Non riesco a smettere di criticare il lavoro altrui.",
-    "Non ammetto mai di sbagliarmi.",
-    "Antepongo sempre il lavoro alle relazioni personali."
+    "Farei qualsiasi cosa pur di mettere le mani su qualcosa di raro o di inestimabile valore.",
+    "Mi convinco facilmente che qualcuno stia cercando di imbrogliarmi.",
+    "Nessuno dovrà mai sapere che ho sottratto denaro dai forzieri della gilda.",
+    "Sono incontentabile; ciò che possiedo non mi basta mai.",
+    "Ucciderei per ottenere un titolo nobiliare.",
+    "Sono incredibilmente geloso di chiunque produca un'opera migliore della mia. Ovunque vada, mi vedo circondato da rivali."
   ]
 }

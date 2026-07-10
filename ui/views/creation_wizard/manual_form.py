@@ -19,20 +19,18 @@ from typing import Any, cast
 import flet as ft
 
 from config.settings import (
-    CLASS_SAVING_THROWS,
     COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_GOLD, COLOR_ACCENT_RED,
     COLOR_BG_CARD, COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_SELECTED,
     COLOR_BORDER,
     COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
-    ABILITY_KEYS, ABILITY_SCORES, ALIGNMENTS, CLASSES, DRACONIDE_ANCESTRIES,
-    FIGHTING_STYLES, LANGUAGES, MAGO_CANTRIPS, RACE_DATA, RACES_BASE,
-    SKILLS, STANDARD_ARRAY, TOOL_CATEGORIES, TOOL_CATEGORY_LABEL,
+    ABILITY_KEYS, ABILITY_SCORES, ALIGNMENTS, DRACONIDE_ANCESTRIES,
+    LANGUAGES, RACES_BASE,
+    SKILLS, STANDARD_ARRAY,
     WEAPONS_BY_CATEGORY,
-    get_modifier, get_modifier_str,
+    get_modifier, get_modifier_str, get_permanent_class_hp_bonus,
 )
 from core.wizard_engine import WizardEngine
 from data.game_data.game_data_loader import GameDataLoader
-from data.game_data.wizard_data import BACKGROUNDS
 from data.repositories import character_repo
 from ui.theme import (
     body_text, fantasy_card, ghost_button, label_text, muted_text,
@@ -72,9 +70,10 @@ class ManualCreationForm(ft.Column):
         self._player_name:  str = ""
 
         # ---- State condiviso fasi 2-5 ----
-        _first_class = list(CLASSES.keys())[0]
+        _first_class = _loader.get_class_names()[0]
         _first_race  = list(RACES_BASE.keys())[0]
-        _first_bg    = list(BACKGROUNDS.keys())[0] if BACKGROUNDS else ""
+        _bg_names    = _loader.get_background_names()
+        _first_bg    = _bg_names[0] if _bg_names else ""
 
         self._review_class:    str       = _first_class
         self._review_race:     str       = _first_race
@@ -171,9 +170,7 @@ class ManualCreationForm(ft.Column):
 
     def _bg_skill_proficiencies(self) -> list[str]:
         bg_data = _loader.get_background(self._review_bg)
-        if bg_data:
-            return bg_data.get("skill_proficiencies", [])
-        return BACKGROUNDS.get(self._review_bg, {}).get("skills", [])
+        return bg_data.get("skill_proficiencies", []) if bg_data else []
 
     def _class_skill_options(self) -> tuple[int, list[str]]:
         cls_data = _loader.get_class(self._review_class)
@@ -204,16 +201,17 @@ class ManualCreationForm(ft.Column):
             if isinstance(entry, dict) and entry.get("type") == "choice":
                 frm   = entry.get("from", "")
                 count = entry.get("count", 1)
+                tool_categories = _loader.get_tool_categories()
                 if isinstance(frm, list):
                     seen_labels: set[str] = set()
                     opts = []
                     for k in frm:
-                        lbl = TOOL_CATEGORY_LABEL.get(k) or TOOL_CATEGORIES.get(k, [k])[0]
+                        lbl = _loader.get_tool_category_label(k) or tool_categories.get(k, [k])[0]
                         if lbl not in seen_labels:
                             opts.append(lbl)
                             seen_labels.add(lbl)
                 else:
-                    opts = TOOL_CATEGORIES.get(frm, [])
+                    opts = tool_categories.get(frm, [])
                 result.append((count, opts))
         return result
 
@@ -266,9 +264,11 @@ class ManualCreationForm(ft.Column):
             expand=True,
         )
 
-        class_val = self._review_class if self._review_class in CLASSES else list(CLASSES.keys())[0]
+        _class_names = _loader.get_class_names()
+        _bg_names    = _loader.get_background_names()
+        class_val = self._review_class if self._review_class in _class_names else _class_names[0]
         race_val  = self._review_race  if self._review_race  in RACES_BASE else list(RACES_BASE.keys())[0]
-        bg_val    = self._review_bg    if self._review_bg    in BACKGROUNDS else (list(BACKGROUNDS.keys())[0] if BACKGROUNDS else None)
+        bg_val    = self._review_bg    if self._review_bg    in _bg_names  else (_bg_names[0] if _bg_names else None)
         align_val = self._review_align if self._review_align in ALIGNMENTS else ALIGNMENTS[0]
 
         def _on_class_change(val: str) -> None:
@@ -294,11 +294,11 @@ class ManualCreationForm(ft.Column):
             self._review_tools     = []
             self._review_expertise = []
 
-        class_dd = self._dd("Classe *", list(CLASSES.keys()), class_val,
+        class_dd = self._dd("Classe *", _class_names, class_val,
                             lambda e: _on_class_change(e.control.value or ""))
         race_dd  = self._dd("Razza *",  list(RACES_BASE.keys()), race_val,
                             lambda e: _on_race_change(e.control.value or ""))
-        bg_dd    = self._dd("Background *", list(BACKGROUNDS.keys()), bg_val,
+        bg_dd    = self._dd("Background *", _bg_names, bg_val,
                             lambda e: _on_bg_change(e.control.value or ""))
         align_dd = self._dd("Allineamento", ALIGNMENTS, align_val,
                             lambda e: setattr(self, "_review_align", e.control.value or ALIGNMENTS[0]))
@@ -317,8 +317,10 @@ class ManualCreationForm(ft.Column):
                 return
             self._name        = nm
             self._player_name = (player_tf.value or "").strip()
-            if not self._review_bg and BACKGROUNDS:
-                self._review_bg = list(BACKGROUNDS.keys())[0]
+            if not self._review_bg:
+                _bg_names_fallback = _loader.get_background_names()
+                if _bg_names_fallback:
+                    self._review_bg = _bg_names_fallback[0]
             # Inizializza Standard Array ottimale per la classe scelta
             self._review_stats = _stat_engine.get_suggested_stat_assignment(self._review_class)
             self._phase = "stats"
@@ -420,7 +422,7 @@ class ManualCreationForm(ft.Column):
                 pass
 
         def _hp_note() -> str:
-            hd      = CLASSES.get(self._review_class, {}).get("hit_die", 8)
+            hd      = (_loader.get_class(self._review_class) or {}).get("hit_die", 8)
             con_mod = get_modifier(self._review_stats.get("con", 10))
             hp      = max(1, hd + con_mod)
             sign    = "+" if con_mod >= 0 else ""
@@ -433,16 +435,9 @@ class ManualCreationForm(ft.Column):
         hp_note = ft.Text(_hp_note(), size=11, color=COLOR_TEXT_MUTED, italic=True)
 
         # Anteprima bonus razziali (solo info, vengono applicati al salvataggio)
-        race_info = RACE_DATA.get(self._review_race, {})
+        # get_resolved_race() somma già base+sottorazza leggendo solo dal JSON.
+        race_info = _loader.get_resolved_race(self._review_race, self._review_subrace)
         bonuses   = race_info.get("ability_bonuses", {})
-        # Integra eventuali bonus fissi di sottorazza già scelta
-        if self._review_subrace:
-            race_json = _loader.get_race(self._review_race)
-            if race_json:
-                for sr in race_json.get("subraces", []):
-                    if sr.get("name") == self._review_subrace:
-                        bonuses = {**bonuses, **sr.get("ability_bonuses", {})}
-                        break
         bonus_lines: list[ft.Control] = []
         if bonuses:
             stat_abbr = dict(zip(ABILITY_KEYS, ABILITY_SCORES))
@@ -504,7 +499,7 @@ class ManualCreationForm(ft.Column):
         self._phase = "choices"
         self._update_progress()
 
-        # ---- Sottorazza / Discendenza draconiana ----
+        # ---- Sottorazza / Discendenza draconica ----
         subrace_col = ft.Column([], spacing=8, visible=False)
 
         def _rebuild_subrace_col() -> None:
@@ -515,7 +510,7 @@ class ManualCreationForm(ft.Column):
                 if not self._review_subrace:
                     self._review_subrace = val
                 subrace_col.controls.append(ft.Dropdown(
-                    label="Discendenza Draconiana",
+                    label="Discendenza Draconica",
                     value=val,
                     options=[ft.DropdownOption(key=a, text=a) for a in DRACONIDE_ANCESTRIES],
                     on_select=lambda e: setattr(self, "_review_subrace", e.control.value or ""),
@@ -589,12 +584,12 @@ class ManualCreationForm(ft.Column):
             except RuntimeError:
                 pass
 
-        # ---- Tipo drago antenato (Stregone + Discendenza Draconiana) ----
+        # ---- Tipo drago antenato (Stregone + Discendenza Draconica) ----
         dragon_col = ft.Column([], spacing=8, visible=False)
 
         def _rebuild_dragon_col() -> None:
             dragon_col.controls.clear()
-            if self._review_subclass == "Discendenza Draconiana":
+            if self._review_subclass == "Discendenza Draconica":
                 if not self._review_dragon_ancestry:
                     self._review_dragon_ancestry = DRACONIDE_ANCESTRIES[0]
                 curr = self._review_dragon_ancestry if self._review_dragon_ancestry in DRACONIDE_ANCESTRIES else DRACONIDE_ANCESTRIES[0]
@@ -623,7 +618,7 @@ class ManualCreationForm(ft.Column):
 
         def _rebuild_fighting_style_col() -> None:
             fighting_style_col.controls.clear()
-            styles = FIGHTING_STYLES.get((self._review_class or "").strip().lower(), [])
+            styles = _loader.get_fighting_styles((self._review_class or "").strip())
             if styles:
                 if not self._review_fighting_style or self._review_fighting_style not in styles:
                     self._review_fighting_style = styles[0]
@@ -655,8 +650,8 @@ class ManualCreationForm(ft.Column):
             race    = (self._review_race   or "").strip()
             subrace = (self._review_subrace or "").strip()
 
-            # Mezzelf: +1 a 2 stat (escluso CHA già +2)
-            if race == "Mezzelf":
+            # Mezzelfo: +1 a 2 stat (escluso CHA già +2)
+            if race == "Mezzelfo":
                 has_content   = True
                 all_stat_keys = [k for k in ABILITY_KEYS if k != "cha"]
                 stat_labels   = {k: ABILITY_SCORES[i] for i, k in enumerate(ABILITY_KEYS)}
@@ -752,12 +747,13 @@ class ManualCreationForm(ft.Column):
             # Alto Elfo: trucchetto del Mago
             if race == "Elfo" and subrace == "Elfo Alto":
                 has_content = True
-                if not self._review_elf_cantrip or self._review_elf_cantrip not in MAGO_CANTRIPS:
-                    self._review_elf_cantrip = MAGO_CANTRIPS[0]
+                mago_cantrips = _loader.get_mago_cantrips()
+                if not self._review_elf_cantrip or self._review_elf_cantrip not in mago_cantrips:
+                    self._review_elf_cantrip = mago_cantrips[0] if mago_cantrips else ""
                 race_extras_col.controls.append(ft.Dropdown(
                     label="Trucchetto del Mago (tratto Elfo Alto)",
                     value=self._review_elf_cantrip,
-                    options=[ft.DropdownOption(key=c, text=c) for c in MAGO_CANTRIPS],
+                    options=[ft.DropdownOption(key=c, text=c) for c in mago_cantrips],
                     on_select=lambda e: setattr(self, "_review_elf_cantrip", e.control.value or ""),
                     bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
                     label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -1408,12 +1404,12 @@ class ManualCreationForm(ft.Column):
         self._update_progress()
 
         # Calcola valori derivati per il riepilogo
-        hd      = CLASSES.get(self._review_class, {}).get("hit_die", 8)
+        hd      = (_loader.get_class(self._review_class) or {}).get("hit_die", 8)
         con_mod = get_modifier(self._review_stats.get("con", 10))
         dex_mod = get_modifier(self._review_stats.get("dex", 10))
         hp_val  = max(1, hd + con_mod)
         ac_val  = 10 + dex_mod
-        speed   = RACE_DATA.get(self._review_race, {}).get("speed", 9)
+        speed   = _loader.get_resolved_race(self._review_race, self._review_subrace).get("speed", 9)
 
         error_text = ft.Text("", color=COLOR_ACCENT_RED, size=13, visible=False)
 
@@ -1497,8 +1493,17 @@ class ManualCreationForm(ft.Column):
                 char.dragon_ancestry  = self._review_dragon_ancestry
                 char.fighting_style   = self._review_fighting_style
 
+                # Bonus PF permanente da capacità di sottoclasse
+                # (es. Resilienza Draconica dello Stregone)
+                if char.subclass:
+                    hp_bonus = get_permanent_class_hp_bonus(
+                        char.class_name, char.subclass, char.level
+                    )
+                    char.hp_max += hp_bonus
+                    char.hp_current = char.hp_max
+
                 # Mezzelf: applica bonus flessibili (+1 a 2 stat scelte)
-                if self._review_race == "Mezzelf" and len(self._review_mezzelf_flex) == 2:
+                if self._review_race == "Mezzelfo" and len(self._review_mezzelf_flex) == 2:
                     stat_map = {
                         "str": "str_score", "dex": "dex_score", "con": "con_score",
                         "int": "int_score", "wis": "wis_score", "cha": "cha_score",
@@ -1514,15 +1519,12 @@ class ManualCreationForm(ft.Column):
                     raise RuntimeError(f"Errore DB: {detail}" if detail else "Errore nel salvataggio sul database.")
 
                 # ---- Tiri salvezza di classe ----
-                for stat_name in CLASS_SAVING_THROWS.get(self._review_class, []):
+                for stat_name in _loader.get_class_saving_throws(self._review_class):
                     character_repo._save_single_proficiency(char.id, "save", stat_name)
 
                 # ---- Abilità: background + scelte di classe ----
                 bg_data   = _loader.get_background(self._review_bg)
-                bg_skills: list[str] = (
-                    bg_data.get("skill_proficiencies", []) if bg_data
-                    else BACKGROUNDS.get(self._review_bg, {}).get("skills", [])
-                )
+                bg_skills: list[str] = bg_data.get("skill_proficiencies", []) if bg_data else []
                 for skill in bg_skills:
                     character_repo._save_single_proficiency(char.id, "skill", skill)
                 for skill in self._review_skills:
@@ -1651,6 +1653,11 @@ class ManualCreationForm(ft.Column):
                     for entry in bg_data.get("equipment", []):
                         if isinstance(entry, dict):
                             _save_item(char.id, entry)
+
+                # Ricalcola la CA con le formule di classe senza armatura
+                # (Monaco, Barbaro, Stregone+Discendenza Draconica) — alla
+                # creazione nessuna armatura risulta equipaggiata di default.
+                character_repo.calculate_and_update_ca(char.id)
 
                 logger.info("Personaggio creato manualmente: %s (%s)", char.name, char.id)
                 self.on_complete(char.id)

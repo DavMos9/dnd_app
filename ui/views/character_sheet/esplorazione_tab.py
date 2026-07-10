@@ -18,6 +18,7 @@ from config.settings import *
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
 from data.database import get_connection
+from data.game_data.game_data_loader import game_data
 from ui.theme import section_header, body_text, muted_text, label_text
 
 logger = logging.getLogger(__name__)
@@ -150,14 +151,21 @@ class EsplorazioneTab(ft.ListView):
     # ------------------------------------------------------------------
 
     def _section_sensi(self, c: Character) -> ft.Container:
-        race_info = RACE_DATA.get(c.race, {})
+        race_info = game_data.get_resolved_race(c.race, c.subrace)
         darkvision = race_info.get("darkvision", 0)
 
         rows: list[ft.Control] = []
 
-        speed_rows: list[tuple[str, str]] = [("Camminata", f"{c.speed or 9} m")]
+        # Velocità a piedi effettiva: include il bonus dinamico di classe
+        # non equipaggiato (Monaco Movimento Senza Armatura, Barbaro
+        # Movimento Veloce — Categoria B, audit 2026-07-09). Le velocità
+        # speciali sotto (Nuoto/Scalata/Volo) restano al valore base: il
+        # PHB descrive entrambe le capacità come bonus alla velocità di
+        # movimento a piedi, non alle velocità speciali di razza.
+        effective_walk_speed = character_repo.get_effective_speed(c)
+        speed_rows: list[tuple[str, str]] = [("Camminata", f"{effective_walk_speed:g} m")]
         for trait in race_info.get("traits", []):
-            t_lower = trait.lower()
+            t_lower = (trait.get("name", "") + " " + trait.get("description", "")).lower()
             if "nuoto" in t_lower or "swim" in t_lower:
                 speed_rows.append(("Nuoto", f"{c.speed or 9} m"))
             elif "scalat" in t_lower or "climb" in t_lower:

@@ -1,0 +1,196 @@
+{
+  "_source_note": "Tutti i dati di questo file sono trascritti esattamente dal manuale italiano 'ED 5.0 manuale del giocatore.pdf' (PHB IT 2014), Capitolo 5 'Equipaggiamento', pagine 143-159. Trascrizione eseguita il 2026-07-10 leggendo le pagine del PDF renderizzate come immagini (pdftoppm), non tramite estrazione testo OCR (pdftotext), risultata inaffidabile su queste tabelle (numeri/lettere confusi). La tabella d100 'Oggetti Insoliti' (pag.160-161, cimeli di ambientazione senza effetto meccanico) e' stata deliberatamente esclusa da questa prima versione su scelta di Davide - vedi TODO in CLAUDE.md.",
+  "_source": "Sezione 'Armature e Scudi' + tabella 'Armature', PHB IT p.144-146",
+  "rules": {
+    "competenza_nelle_armature": "Tutti possono indossare un'armatura o legarsi uno scudo a un braccio, ma soltanto chi e' competente nell'utilizzo delle armature sapra' come indossarla con efficacia. Ogni classe fornisce al personaggio competenze in certi tipi di armature. Se un personaggio indossa un'armatura in cui non e' competente, subisce svantaggio a ogni prova di caratteristica, tiro salvezza o tiro per colpire correlato a Forza o Destrezza, e non puo' lanciare incantesimi.",
+    "classe_armatura": "Un'armatura protegge il portatore dagli attacchi. L'armatura che un personaggio indossa (e l'eventuale scudo) determinano la sua Classe Armatura base.",
+    "armature_leggere": "Le armature leggere, ricavate da materiali flessibili e sottili, sono le piu' adatte agli avventurieri agili, dal momento che forniscono una certa misura di protezione senza sacrificare la mobilita'. Quando un personaggio indossa un'armatura leggera, aggiunge il proprio modificatore di Destrezza al numero base del suo tipo di armatura per determinare la sua Classe Armatura.",
+    "armature_medie": "Le armature medie forniscono una protezione superiore alle armature leggere, ma ostacolano maggiormente i movimenti. Quando un personaggio indossa un'armatura media, aggiunge il suo modificatore di Destrezza fino a un massimo di +2 al numero base del suo tipo di armatura per determinare la sua Classe Armatura.",
+    "armature_pesanti": "Tra tutte le categorie di armature, le armature pesanti sono quelle che offrono la protezione migliore. Queste armature coprono tutto il corpo e sono concepite per fermare una vasta gamma di attacchi. Soltanto i combattenti competenti sono in grado di gestire il peso e la stazza di un'armatura pesante. L'armatura pesante non consente a un personaggio di aggiungere il proprio modificatore di Destrezza alla Classe Armatura, ma non lo penalizza neanche, qualora il suo modificatore di Destrezza sia negativo. Se la tabella 'Armature' indica 'For 13' o 'For 15' nella colonna 'Forza' relativamente a un certo tipo di armatura, quell'armatura riduce la velocita' del portatore di 3 metri, a meno che il portatore non possieda un punteggio di Forza pari o superiore al punteggio elencato.",
+    "furtivita": "Se sulla tabella 'Armature' compare la voce 'Svantaggio' nella colonna 'Furtivita'', il portatore subisce svantaggio alle prove di Destrezza (Furtivita').",
+    "scudi": "Uno scudo puo' essere fatto di legno o di metallo ed e' impugnato a una mano. Uno scudo impugnato aumenta di 2 la Classe Armatura del personaggio. Un personaggio puo' beneficiare di un solo scudo alla volta."
+  },
+  "leggere": [
+    {
+      "name": "Imbottita",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "ac_formula": "11 + modificatore di Des",
+      "strength_requirement": null,
+      "stealth": "Svantaggio",
+      "weight_kg": 4.0,
+      "description": "Un'armatura imbottita e' costituita da vari strati trapuntati di stoffa e imbottitura."
+    },
+    {
+      "name": "Cuoio",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "ac_formula": "11 + modificatore di Des",
+      "strength_requirement": null,
+      "stealth": null,
+      "weight_kg": 5.0,
+      "description": "Il pettorale e le spalline che compongono questa armatura sono fatti di cuoio indurito e bollito nell'olio. Il resto dell'armatura e' fatto di materiali piu' morbidi e flessibili."
+    },
+    {
+      "name": "Cuoio Borchiato",
+      "cost": {
+        "quantity": 45,
+        "currency_type": "gold"
+      },
+      "ac_formula": "12 + modificatore di Des",
+      "strength_requirement": null,
+      "stealth": null,
+      "weight_kg": 6.5,
+      "description": "Un'armatura di cuoio borchiato e' fatta di cuoio resistente ma flessibile, rinforzato con borchie o spuntoni di metallo."
+    }
+  ],
+  "medie": [
+    {
+      "name": "Pelle",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "ac_formula": "12 + modificatore di Des (max 2)",
+      "strength_requirement": null,
+      "stealth": null,
+      "weight_kg": 6.0,
+      "description": "Questa rozza armatura e' composta da un fitto strato di pelle o pelliccia. Solitamente e' indossata dai membri delle tribu' barbariche, umanoidi malvagi e altri individui che non possono accedere agli strumenti e ai materiali necessari per fabbricare armature migliori."
+    },
+    {
+      "name": "Giaco di Maglia",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "ac_formula": "13 + modificatore di Des (max 2)",
+      "strength_requirement": null,
+      "stealth": null,
+      "weight_kg": 10.0,
+      "description": "Un giaco di maglia, composto da anelli di metallo interconnessi, si indossa tra due strati di stoffa o di cuoio. Questa armatura offre una minima protezione alla parte superiore del corpo e smorza il rumore degli anelli di metallo soffocandolo tra i due strati esterni."
+    },
+    {
+      "name": "Corazza di Scaglie",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "ac_formula": "14 + modificatore di Des (max 2)",
+      "strength_requirement": null,
+      "stealth": "Svantaggio",
+      "weight_kg": 22.5,
+      "description": "Questa armatura e' composta da un corpetto e da gambali (e forse da una gonna separata) di cuoio ed e' ricoperta di pezzi di metallo leggermente sovrapposti, proprio come le scaglie di un pesce. Include anche due guanti d'arme."
+    },
+    {
+      "name": "Corazza di Piastre",
+      "cost": {
+        "quantity": 400,
+        "currency_type": "gold"
+      },
+      "ac_formula": "14 + modificatore di Des (max 2)",
+      "strength_requirement": null,
+      "stealth": null,
+      "weight_kg": 10.0,
+      "description": "Questa armatura e' composta da un pettorale di metallo montato su uno strato di cuoio flessibile. Anche se lascia le gambe e le braccia relativamente scoperte, fornisce una buona protezione degli organi vitali del portatore, lasciandolo anche relativamente privo di ingombro."
+    },
+    {
+      "name": "Mezza Armatura",
+      "cost": {
+        "quantity": 750,
+        "currency_type": "gold"
+      },
+      "ac_formula": "15 + modificatore di Des (max 2)",
+      "strength_requirement": null,
+      "stealth": "Svantaggio",
+      "weight_kg": 20.0,
+      "description": "Una mezza armatura e' composta da una serie di piastre di metallo modellate che coprono la maggior parte del corpo. Non include una protezione per le gambe, al di la' di due semplici gambiere fissate da alcune cinghie di cuoio."
+    }
+  ],
+  "pesanti": [
+    {
+      "name": "Corazza ad Anelli",
+      "cost": {
+        "quantity": 30,
+        "currency_type": "gold"
+      },
+      "ac_formula": "14",
+      "strength_requirement": null,
+      "stealth": "Svantaggio",
+      "weight_kg": 20.0,
+      "description": "E' un'armatura di cuoio su cui sono stati cuciti dei pesanti anelli di metallo. Gli anelli rinforzano l'armatura contro i colpi di spada e ascia. Una corazza ad anelli e' inferiore a una cotta di maglia e solitamente e' indossata soltanto da coloro che non possono permettersi un'armatura migliore."
+    },
+    {
+      "name": "Cotta di Maglia",
+      "cost": {
+        "quantity": 75,
+        "currency_type": "gold"
+      },
+      "ac_formula": "16",
+      "strength_requirement": 13,
+      "stealth": "Svantaggio",
+      "weight_kg": 27.5,
+      "description": "Una cotta di maglia, composta da anelli di metallo interconnessi, include uno strato di tessuto trapuntato da indossare sotto la cotta per evitare l'attrito e per attutire l'impatto dei colpi. Questa armatura include anche dei guanti d'arme."
+    },
+    {
+      "name": "Corazza a Strisce",
+      "cost": {
+        "quantity": 200,
+        "currency_type": "gold"
+      },
+      "ac_formula": "17",
+      "strength_requirement": 15,
+      "stealth": "Svantaggio",
+      "weight_kg": 30.0,
+      "description": "Questa armatura e' fatta di strette strisce verticali di metallo imbullonate su uno strato di cuoio da indossare su un'imbottitura di stoffa. Le giunture sono protette da uno strato flessibile di anelli di maglia."
+    },
+    {
+      "name": "Armatura Completa",
+      "cost": {
+        "quantity": 1500,
+        "currency_type": "gold"
+      },
+      "ac_formula": "18",
+      "strength_requirement": 15,
+      "stealth": "Svantaggio",
+      "weight_kg": 32.5,
+      "description": "Un'armatura completa e' composta da piastre di metallo modellate e interconnesse che coprono tutto il corpo. Un'armatura completa include guanti d'arme, pesanti stivali di cuoio, un elmo con visiera e uno spesso strato di imbottitura sotto l'armatura. Una serie di fibbie e di cinghie consente di distribuire il peso su tutto il corpo."
+    }
+  ],
+  "scudi": [
+    {
+      "name": "Scudo",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "ac_bonus": 2,
+      "strength_requirement": null,
+      "stealth": null,
+      "weight_kg": 3.0
+    }
+  ],
+  "indossare_e_togliere": {
+    "_source": "Tabella 'Indossare e Togliere Armature', PHB IT p.146",
+    "rules": "Il tempo richiesto per indossare o togliere un determinato tipo di armatura o uno scudo e' indicato nella tabella. Indossare: il personaggio beneficia della sua CA solo se impiega tutto il tempo richiesto per indossarlo. Togliere: se qualcuno aiuta il personaggio nella rimozione, il tempo e' ridotto della meta'.",
+    "Armatura Leggera": {
+      "indossare": "1 minuto",
+      "togliere": "1 minuto"
+    },
+    "Armatura Media": {
+      "indossare": "5 minuti",
+      "togliere": "1 minuto"
+    },
+    "Armatura Pesante": {
+      "indossare": "10 minuti",
+      "togliere": "5 minuti"
+    },
+    "Scudo": {
+      "indossare": "1 azione",
+      "togliere": "1 azione"
+    }
+  }
+}

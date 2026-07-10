@@ -22,7 +22,6 @@ from config.settings import *
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
 from ui.theme import section_header, muted_text
-from data.game_data.wizard_data import BACKGROUNDS
 from data.game_data.game_data_loader import GameDataLoader
 from core.level_manager import get_level_up_steps, estimate_hp_loss, StepType
 import re as _re
@@ -434,7 +433,7 @@ class ProfiloTab(ft.ListView):
         ], "anagrafica")
 
     def _build_razza(self, c: Character) -> ft.Container:
-        race_info = RACE_DATA.get(c.race, {})
+        race_info = _loader.get_resolved_race(c.race, c.subrace)
         speed = race_info.get("speed", c.speed or 9)
         darkvision = race_info.get("darkvision", 0)
         traits = race_info.get("traits", [])
@@ -449,11 +448,9 @@ class ProfiloTab(ft.ListView):
                                  weight=ft.FontWeight.BOLD,
                                  style=ft.TextStyle(letter_spacing=0.8)))
             for t in traits:
-                # t è una stringa "Nome — descrizione"
-                if " — " in t:
-                    name, desc = t.split(" — ", 1)
-                else:
-                    name, desc = t, ""
+                # t è un dict {"name": ..., "description": ...} dal JSON razza
+                name = t.get("name", "")
+                desc = t.get("description", "")
                 rows.append(ft.Container(
                     content=ft.Column([
                         ft.Text(name.strip(), size=12, weight=ft.FontWeight.BOLD,
@@ -735,6 +732,65 @@ class ProfiloTab(ft.ListView):
                 size=12, color=COLOR_TEXT_MUTED, italic=True,
             ))
 
+        # --- Scelte di Classe (Stile di Combattimento, Totem, Terreno, Discendenza) ---
+        # Questi campi vengono chiesti durante il level-up ma altrimenti non
+        # comparirebbero mai più da nessuna parte nella scheda (a differenza del
+        # Dono del Patto del Warlock, mostrato più sotto).
+        class_choices: list[tuple[str, str, str]] = []  # (etichetta, valore, dettaglio)
+
+        if c.fighting_style:
+            style_detail = ""
+            guerriero_data = _loader.get_class("Guerriero") or {}
+            for fs in guerriero_data.get("fighting_style_details", []):
+                if fs.get("name") == c.fighting_style:
+                    style_detail = fs.get("description", "")
+                    break
+            class_choices.append(("Stile di Combattimento", c.fighting_style, style_detail))
+
+        if c.totem_animal:
+            class_choices.append(("Animale Totem (Combattente Totemico)", c.totem_animal, ""))
+
+        if c.land_terrain:
+            class_choices.append(("Terreno (Circolo della Terra)", c.land_terrain, ""))
+
+        if c.dragon_ancestry:
+            dmg_type = ""
+            stregone_data = _loader.get_class("Stregone") or {}
+            for sub in stregone_data.get("subclasses", []):
+                if sub.get("name") == "Discendenza Draconica":
+                    for row in sub.get("dragon_damage_types", []):
+                        if row.get("dragon") == c.dragon_ancestry:
+                            dmg_type = row.get("damage_type", "")
+                            break
+                    break
+            detail = f"Tipo di danno associato: {dmg_type}" if dmg_type else ""
+            class_choices.append(("Antenato Draconico", c.dragon_ancestry, detail))
+
+        if class_choices:
+            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Text(
+                "Scelte di Classe", size=13, weight=ft.FontWeight.BOLD,
+                color=COLOR_ACCENT_CRIMSON,
+            ))
+            for label, value, detail in class_choices:
+                rows.append(ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_CRIMSON),
+                            ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                                    weight=ft.FontWeight.BOLD),
+                        ], spacing=6),
+                        ft.Text(value, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_TEXT_TITLE),
+                        ft.Text(detail, size=12, color=COLOR_TEXT_PRIMARY,
+                                visible=bool(detail)),
+                    ], spacing=2),
+                    bgcolor=COLOR_BG_CARD,
+                    border=ft.Border.all(1, COLOR_BORDER),
+                    border_radius=6,
+                    padding=ft.Padding.all(10),
+                ))
+
         # --- Metamagia (solo se Stregone) ---
         if (c.class_name or "").lower() == "stregone":
             metamagic = [p for p in all_profs if p.proficiency_type == "metamagic"]
@@ -862,7 +918,7 @@ class ProfiloTab(ft.ListView):
 
         old_pb = get_proficiency_bonus(c.level)
         new_pb = get_proficiency_bonus(new_level)
-        steps = get_level_up_steps(c.class_name or "", new_level, old_pb, new_pb)
+        steps = get_level_up_steps(c.class_name or "", new_level, old_pb, new_pb, c.subclass or "")
 
         hit_die = c.hit_dice_type or 8
         con_mod = get_modifier(c.con_score)
@@ -1109,12 +1165,13 @@ class ProfiloTab(ft.ListView):
 
             elif step.step_type == StepType.PACT_CHOICE:
                 if not c.pact_boon:
+                    pact_boons = _loader.get_pact_boons()
                     pact_rg = ft.RadioGroup(
                         content=ft.Column([
                             ft.Radio(value=b, label=b)
-                            for b in PACT_BOONS
+                            for b in pact_boons
                         ], spacing=4),
-                        value=PACT_BOONS[0],
+                        value=pact_boons[0] if pact_boons else "",
                     )
                     pact_rg_ref.append(pact_rg)
                     dlg_rows += [
@@ -1145,7 +1202,7 @@ class ProfiloTab(ft.ListView):
                     p.name for p in _all_profs
                     if p.proficiency_type == "metamagic"
                 }
-                available_mm = [o for o in METAMAGIC_OPTIONS if o not in known_mm]
+                available_mm = [o for o in _loader.get_metamagic_options() if o not in known_mm]
                 to_add_mm = min(count, len(available_mm))
 
                 if available_mm:
@@ -1705,7 +1762,7 @@ class ProfiloTab(ft.ListView):
 
         # Stile di Combattimento — Paladino Lv2 / Ranger Lv2
         if not c.fighting_style:
-            styles = FIGHTING_STYLES.get(cls_lower, [])
+            styles = _loader.get_fighting_styles(cls_lower)
             if styles and new_level == 2 and cls_lower in ("paladino", "ranger"):
                 fs_dd = _make_choice_dd("Stile di Combattimento", styles, "")
                 fighting_style_dd_ref.append(fs_dd)
@@ -1722,7 +1779,7 @@ class ProfiloTab(ft.ListView):
         # Animale Totem — Barbaro Percorso del Totem Guerriero, Lv3
         if (not c.totem_animal and cls_lower == "barbaro"
                 and "totem" in sc_lower and new_level == 3):
-            ta_dd = _make_choice_dd("Spirito del Totem", TOTEM_ANIMALS, "")
+            ta_dd = _make_choice_dd("Spirito del Totem", _loader.get_totem_animals(), "")
             totem_animal_dd_ref.append(ta_dd)
             dlg_rows += [
                 ft.Divider(color=COLOR_BORDER),
@@ -1738,7 +1795,7 @@ class ProfiloTab(ft.ListView):
         # Terreno — Druido Cerchio della Terra, Lv2
         if (not c.land_terrain and cls_lower == "druido"
                 and "terra" in sc_lower and new_level == 2):
-            lt_dd = _make_choice_dd("Terreno del Cerchio", LAND_TERRAINS, "")
+            lt_dd = _make_choice_dd("Terreno del Cerchio", _loader.get_land_terrains(), "")
             land_terrain_dd_ref.append(lt_dd)
             dlg_rows += [
                 ft.Divider(color=COLOR_BORDER),
@@ -1893,9 +1950,17 @@ class ProfiloTab(ft.ListView):
                 gained = hp_avg_gain + con_mod
             gained = max(1, gained)
 
+            # Bonus PF permanente da capacità di sottoclasse (es. Resilienza
+            # Draconica dello Stregone: +1 PF/livello) — delta tra il totale
+            # al nuovo livello e quello al livello precedente.
+            hp_class_bonus = (
+                get_permanent_class_hp_bonus(c.class_name, c.subclass, new_level)
+                - get_permanent_class_hp_bonus(c.class_name, c.subclass, c.level)
+            )
+
             c.level = new_level
-            c.hp_max += gained
-            c.hp_current = min(c.hp_current + gained, c.hp_max)
+            c.hp_max += gained + hp_class_bonus
+            c.hp_current = min(c.hp_current + gained + hp_class_bonus, c.hp_max)
             # Dadi vita: +1 per ogni livello acquisito (PHB p.12)
             c.hit_dice_total += 1
             c.hit_dice_remaining = min(c.hit_dice_remaining + 1, c.hit_dice_total)
@@ -2032,6 +2097,14 @@ class ProfiloTab(ft.ListView):
             character_repo.update(c)
             # Aggiorna slot incantesimo PHB per il nuovo livello
             character_repo.auto_init_spell_slots(c.id, c.class_name, new_level)
+            # Aggiorna risorse di classe (Furia, Ki, Incanalare Divinità, ecc.)
+            # per il nuovo livello — senza questa chiamata i pool restavano
+            # congelati al valore calcolato alla creazione del personaggio.
+            character_repo.init_class_resources(c.id, c.class_name, new_level, c)
+            # Ricalcola la CA — copre i casi in cui questo level-up ha assegnato
+            # una sottoclasse (es. Discendenza Draconica), uno Stile di
+            # Combattimento (es. Difesa) o un ASI su DES/COS/SAG.
+            character_repo.calculate_and_update_ca(c.id)
             page.pop_dialog()
             self._refresh()
 
@@ -2067,6 +2140,11 @@ class ProfiloTab(ft.ListView):
         hit_die = c.hit_dice_type or 8
         con_mod = get_modifier(c.con_score)
         hp_loss = estimate_hp_loss(hit_die, con_mod)
+        # Simmetrico al bonus applicato al level-up (es. Resilienza Draconica)
+        hp_loss += (
+            get_permanent_class_hp_bonus(c.class_name, c.subclass, c.level)
+            - get_permanent_class_hp_bonus(c.class_name, c.subclass, new_level)
+        )
 
         def do_level_down(ev):
             if page is None:
@@ -2082,6 +2160,13 @@ class ProfiloTab(ft.ListView):
             self.character.hp_max = max(1, self.character.hp_max - hp_loss)
             self.character.hp_current = min(self.character.hp_current, self.character.hp_max)
             character_repo.update(self.character)
+            # Ricalcola slot incantesimo e risorse di classe per il livello ridotto
+            # (altrimenti restano al valore del livello precedente più alto)
+            character_repo.auto_init_spell_slots(self.character.id, self.character.class_name, new_level)
+            character_repo.init_class_resources(self.character.id, self.character.class_name, new_level, self.character)
+            # Ricalcola la CA — coerente con il ricalcolo fatto al level-up
+            # (es. perdita di una sottoclasse/ASI che influenzava la CA senza armatura)
+            character_repo.calculate_and_update_ca(self.character.id)
             page.pop_dialog()
             self._refresh()
 
@@ -2167,9 +2252,9 @@ class ProfiloTab(ft.ListView):
 
         if section == "anagrafica":
             fields["player_name"] = f("Giocatore", c.player_name)
-            fields["class_name"]  = dd("Classe", list(CLASSES.keys()), c.class_name or "")
+            fields["class_name"]  = dd("Classe", _loader.get_class_names(), c.class_name or "")
             fields["race"]        = dd("Razza", RACES, c.race or "")
-            fields["background"]  = dd("Background", list(BACKGROUNDS.keys()), c.background or "")
+            fields["background"]  = dd("Background", _loader.get_background_names(), c.background or "")
             fields["alignment"]   = dd("Allineamento", ALIGNMENTS, c.alignment or "")
         elif section == "fisico":
             fields["age"]    = f("Età", str(c.age) if c.age else "")

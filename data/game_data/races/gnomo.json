@@ -2,14 +2,14 @@
   "name": "Gnomo",
   "has_subrace": true,
   "ability_bonuses": {"int": 2},
-  "speed": 7,
+  "speed": 7.5,
   "darkvision": 18,
   "size": "Piccola",
   "languages": ["Comune", "Gnomesco"],
   "traits": [
     {
-      "name": "Furbizia degli Gnomi",
-      "description": "Hai vantaggio ai tiri salvezza su Intelligenza, Saggezza e Carisma contro la magia."
+      "name": "Astuzia Gnomesca",
+      "description": "Hai vantaggio a tutti i tiri salvezza su Intelligenza, Saggezza e Carisma contro la magia."
     }
   ],
   "subraces": [
@@ -22,8 +22,8 @@
           "description": "Conosci il trucchetto Illusione Minore. Il modificatore è Intelligenza."
         },
         {
-          "name": "Parlare con gli Animali",
-          "description": "Puoi comunicare idee semplici con bestie di dimensione Piccola o inferiore attraverso suoni e gesti."
+          "name": "Parlare con le Piccole Bestie",
+          "description": "Puoi usare suoni e gesti per comunicare i concetti più semplici alle bestie di taglia Piccola o inferiore."
         }
       ]
     },
@@ -32,11 +32,26 @@
       "ability_bonuses": {"con": 1},
       "traits": [
         {
-          "name": "Conoscitore degli Arnesi",
-          "description": "Hai competenza con gli strumenti dell'artigiano (a scelta), i gadget illusori e le trappole."},
+          "name": "Inventore",
+          "description": "Hai competenza con gli strumenti da artigiano (strumenti da inventore). Utilizzando questi strumenti, puoi dedicare un'ora e una quantità di materiali pari a un valore di 10 mo per costruire un congegno meccanico Minuscolo (CA 5, 1 pf). Il congegno cessa di funzionare dopo 24 ore, a meno che tu non spenda 1 ora a ripararlo per mantenerlo in funzione, oppure quando usi un'azione per smantellarlo, potendo così recuperare i materiali utilizzati per crearlo. Non puoi avere più di tre congegni attivi allo stesso tempo. Quando crei un congegno, scegline uno tra le opzioni seguenti.",
+          "options": [
+            {
+              "name": "Accendifuoco",
+              "description": "Il congegno produce una fiamma in miniatura, che un personaggio può usare per accendere una candela, una torcia o un fuoco da campo. Per utilizzare questo congegno è richiesta un'azione."
+            },
+            {
+              "name": "Carillon",
+              "description": "Una volta aperto, il carillon emette un'unica melodia a un volume moderato. Smette di suonare quando arriva alla fine della melodia o quando viene richiuso."
+            },
+            {
+              "name": "Giocattolo a Molla",
+              "description": "Questo giocattolo meccanico ha la forma di un animale, un mostro o un individuo, come per esempio una rana, un topo, un uccello, un drago o un soldato. Quando viene posizionato per terra, il giocattolo si sposta di 1,5 metri a ogni turno del personaggio, in una direzione casuale, ed emette i tipici suoni della creatura che rappresenta."
+            }
+          ]
+        },
         {
-          "name": "Conoscenza dei Meccanismi",
-          "description": "Ogni volta che fai una prova di Intelligenza (Storia) relativa a oggetti magici, congegni alchemici o marchingegni meccanici, aggiungi il doppio del bonus di competenza."
+          "name": "Conoscenze dell'Artefice",
+          "description": "Ogni volta che effettui una prova di Intelligenza (Storia) relativa a oggetti magici, alchemici o congegni tecnologici, puoi aggiungere il doppio del tuo bonus di competenza, anziché l'eventuale bonus di competenza che applicheresti solitamente."
         }
       ]
     }

@@ -1,6 +1,7 @@
 {
   "name": "Soldato",
-  "description": "Hai trascorso anni di addestramento nel servizio militare. Hai combattuto in battaglia, e la guerra ha lasciato il suo segno su di te.",
+  "_source": "PHB IT p.140-141",
+  "description": "La guerra è stata una presenza costante nella tua vita. Da giovane ti sei addestrato, hai studiato l'uso delle armi e delle armature e hai appreso le tecniche basilari di sopravvivenza, tra cui come rimanere in vita sul campo di battaglia. Potresti avere fatto parte di un esercito nazionale regolare o di una compagnia mercenaria, o forse di una milizia locale che si è distinta per il suo valore durante una guerra recente.",
   "skill_proficiencies": [
     "Atletica",
     "Intimidire"
@@ -19,19 +20,19 @@
   "languages": [],
   "equipment": [
     {
-      "name": "Grado militare (insegna o simbolo)",
+      "name": "Mostrina con i gradi",
       "item_type": "item"
     },
     {
-      "name": "Trofeo di un nemico sconfitto",
+      "name": "Trofeo strappato a un nemico abbattuto (pugnale, lama spezzata o pezzo di bandiera)",
       "item_type": "item"
     },
     {
-      "name": "Osso con i dadi",
+      "name": "Dadi in osso o mazzo di carte",
       "item_type": "item"
     },
     {
-      "name": "Abiti comuni",
+      "name": "Abito comune",
       "item_type": "item"
     },
     {
@@ -42,65 +43,65 @@
     }
   ],
   "feature": {
-    "name": "Rango Militare",
-    "description": "Hai un rango militare grazie alla tua carriera nelle forze armate. I soldati fedeli alla tua ex organizzazione militare ti riconoscono ancora l'autorità, e se ricoprono un rango inferiore al tuo, si piegheranno a te. Puoi usare questa influenza per procurare cavalli, equipaggiamento e ospitalità."
+    "name": "Grado Militare",
+    "description": "Hai conseguito un grado militare nel corso della tua carriera. I soldati fedeli alla tua vecchia organizzazione militare riconoscono ancora la tua autorità e la tua influenza e ti obbediscono, se sono di grado inferiore. Puoi appellarti al tuo rango per esercitare la tua influenza sugli altri soldati e ottenere l'uso temporaneo di cavalli o attrezzature varie. Solitamente puoi anche ottenere l'accesso agli accampamenti e alle fortezze militari amiche, là dove il tuo grado è riconosciuto."
   },
   "personality_traits": [
-    "Sono sempre pronto a combattere per quelli che amo.",
-    "Sono un leader naturale.",
-    "Sono diretto e vado dritto al punto.",
-    "Rispetto la gerarchia e l'ordine.",
-    "Sono più a mio agio in battaglia che in conversazione.",
-    "Sono sempre vigile e pronto a rispondere a qualsiasi minaccia.",
-    "Tendo a pensare alla tattica in ogni situazione.",
-    "Non posso tolerare la codardia."
+    "Sono sempre educato e rispettoso.",
+    "Sono perseguitato dai ricordi della guerra. Non riesco a levarmi dalla testa le immagini delle atrocità di cui sono stato testimone.",
+    "Ho perso troppi amici e ho difficoltà a farmene di nuovi.",
+    "Dalla mia esperienza militare ho tratto una quantità di aneddoti che ispirano alla battaglia o inducono alla prudenza, appropriati a quasi ogni situazione di combattimento.",
+    "Posso intimorire un segugio infernale con un semplice sguardo.",
+    "Mi piace dimostrare la mia forza e rompere le cose.",
+    "Ho un senso dell'umorismo alquanto nero e pesante.",
+    "Affronto i problemi a testa bassa. La soluzione più semplice e diretta è per me la strada migliore verso il successo."
   ],
   "ideals": [
     {
-      "name": "Grande Bene",
+      "name": "Bene superiore",
       "alignment": "Buono",
-      "description": "La nostra causa giusta richiederà dei sacrifici."
+      "description": "Il destino di un soldato è sacrificare la propria vita in difesa degli altri."
     },
     {
       "name": "Responsabilità",
       "alignment": "Legale",
-      "description": "Fare la cosa giusta anche quando è difficile."
+      "description": "Si tratta semplicemente di fare il proprio dovere e obbedire agli ordini."
     },
     {
       "name": "Indipendenza",
       "alignment": "Caotico",
-      "description": "Quando la gente segue gli ordini ciecamente, abbraccia la tirannia."
+      "description": "Quando la gente obbedisce agli ordini ciecamente, finisce per abbracciare una qualche tirannia."
     },
     {
       "name": "Potere",
       "alignment": "Malvagio",
-      "description": "In guerra, il potere è tutto."
+      "description": "Nella guerra come nella vita, il più forte vince."
     },
     {
-      "name": "Nazione",
+      "name": "Vivi e lascia vivere",
       "alignment": "Neutrale",
-      "description": "Il mio paese, i miei ordini, i miei compagni, tutto quello che conta."
+      "description": "Non vale la pena di uccidere o scendere in guerra per un ideale."
     },
     {
-      "name": "Vita",
+      "name": "Patria",
       "alignment": "Qualsiasi",
-      "description": "Bisogna fare di tutto per proteggere la vita degli innocenti."
+      "description": "La patria, la città e la propria gente sono tutto ciò che importa."
     }
   ],
   "bonds": [
-    "Devo a tutto quello che so al mio comandante.",
-    "Devo trovare gli uomini che hanno disertato e farli tornare.",
-    "Ricordo ogni uomo che ho perso in combattimento.",
-    "Ho giurato fedeltà alla mia nazione.",
-    "La mia unità era la mia famiglia.",
-    "Voglio vendicare l'onore della mia unità."
+    "Sono ancora disposto a perdere la vita per le persone che ho servito in passato.",
+    "Qualcuno salvò la mia vita sul campo di battaglia. Oggi non lascerò indietro alcun compagno.",
+    "Il mio onore è la mia vita.",
+    "Non dimenticherò mai la pesante disfatta subita dai miei compagni, né i nemici che ce la inflissero.",
+    "Per me le persone per cui vale la pena di morire sono quelle che combattono al mio fianco.",
+    "Combatto per quelli che non sono in grado di farlo."
   ],
   "flaws": [
-    "I mostri che vedo in battaglia non possono essere perdonati.",
-    "Non mi fido facilmente di chi non ha combattuto al mio fianco.",
-    "Ho orribili incubi sulle battaglie a cui ho partecipato.",
-    "Ucciderei innocenti per proteggere la mia unità.",
-    "Non posso fare a meno di pensare alla guerra e alla tattica in ogni situazione.",
-    "Non riesco a sfuggire all'impulso di saccheggiare quello che trovo."
+    "Il mostruoso avversario affrontato in battaglia mi fa ancora tremare di terrore.",
+    "Non ho alcun rispetto per chiunque non si sia dimostrato un bravo guerriero.",
+    "In battaglia commisi un grave errore che costò molte vite, e ora farei qualunque cosa pur di tenere segreto quell'errore.",
+    "Covo verso i miei nemici un odio furioso e cieco.",
+    "Obbedisco alle leggi, anche se queste causano miseria e sventure.",
+    "Preferirei mangiarmi l'armatura piuttosto che ammettere un torto."
   ]
 }

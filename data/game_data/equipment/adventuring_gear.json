@@ -1,0 +1,912 @@
+{
+  "_source_note": "Tutti i dati di questo file sono trascritti esattamente dal manuale italiano 'ED 5.0 manuale del giocatore.pdf' (PHB IT 2014), Capitolo 5 'Equipaggiamento', pagine 143-159. Trascrizione eseguita il 2026-07-10 leggendo le pagine del PDF renderizzate come immagini (pdftoppm), non tramite estrazione testo OCR (pdftotext), risultata inaffidabile su queste tabelle (numeri/lettere confusi). La tabella d100 'Oggetti Insoliti' (pag.160-161, cimeli di ambientazione senza effetto meccanico) e' stata deliberatamente esclusa da questa prima versione su scelta di Davide - vedi TODO in CLAUDE.md.",
+  "_source": "Tabella 'Equipaggiamento d'Avventura' + descrizioni oggetti, PHB IT p.150-153",
+  "items": [
+    {
+      "name": "Abaco",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Abito, Comune",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "weight_kg": 1.5
+    },
+    {
+      "name": "Abito, Costume",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.0
+    },
+    {
+      "name": "Abito, da Viaggiatore",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.0
+    },
+    {
+      "name": "Abito, Pregiato",
+      "cost": {
+        "quantity": 15,
+        "currency_type": "gold"
+      },
+      "weight_kg": 3.0
+    },
+    {
+      "name": "Acciarino e Pietra Focaia",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Acido (fiala)",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Acqua Santa (ampolla)",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Ampolla o Boccale",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "copper"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Anello con Sigillo",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Antitossina (fiala)",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Ariete Portatile",
+      "cost": {
+        "quantity": 4,
+        "currency_type": "gold"
+      },
+      "weight_kg": 17.5
+    },
+    {
+      "name": "Asta (3 metri)",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "copper"
+      },
+      "weight_kg": 3.5
+    },
+    {
+      "name": "Attrezzi da Scalatore",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 6.0
+    },
+    {
+      "name": "Barile",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 35.0
+    },
+    {
+      "name": "Bilancia da Mercante",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.5
+    },
+    {
+      "name": "Borsa",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Borsa del Guaritore",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.5
+    },
+    {
+      "name": "Borsa per Componenti",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Bottiglia di Vetro",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Brocca o Caraffa",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "copper"
+      },
+      "weight_kg": 2.0
+    },
+    {
+      "name": "Campanella",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Candela",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "copper"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Canestro",
+      "cost": {
+        "quantity": 4,
+        "currency_type": "silver"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Canna da Pesca",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.0
+    },
+    {
+      "name": "Cannocchiale",
+      "cost": {
+        "quantity": 1000,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Carrucola e Paranco",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5
+    },
+    {
+      "name": "Carta (un foglio)",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "silver"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Catena (3 metri)",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 5.0
+    },
+    {
+      "name": "Cera per Sigillo",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Chiodo da Rocciatore",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "copper"
+      },
+      "weight_kg": 0.125
+    },
+    {
+      "name": "Clessidra",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Coperta",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "weight_kg": 1.5
+    },
+    {
+      "name": "Corda di Canapa (15 metri)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 5.0
+    },
+    {
+      "name": "Corda di Seta (15 metri)",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5
+    },
+    {
+      "name": "Cote per Affilare",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "copper"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Custodia per Mappe o Pergamene",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Custodia per Quadrelli da Balestra",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Faretra",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Fiala",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Fischietto da Richiamo",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "copper"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Focus Arcano: Bacchetta",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Focus Arcano: Bastone",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.0
+    },
+    {
+      "name": "Focus Arcano: Cristallo",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Focus Arcano: Globo",
+      "cost": {
+        "quantity": 20,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.5
+    },
+    {
+      "name": "Focus Arcano: Verga",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Focus Druidico: Bacchetta in Legno di Tasso",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Focus Druidico: Bastone di Legno",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.0
+    },
+    {
+      "name": "Focus Druidico: Rametto di Vischio",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Focus Druidico: Totem",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Forziere",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 12.5
+    },
+    {
+      "name": "Fuoco dell'Alchimista (ampolla)",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Gavetta",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "silver"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Gessetto (1 pezzo)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "copper"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Giaciglio",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 3.5
+    },
+    {
+      "name": "Inchiostro (boccetta da 30 grammi)",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Lampada",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Lanterna a Lente Sporgente",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Lanterna Schermabile",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Lente d'Ingrandimento",
+      "cost": {
+        "quantity": 100,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Libro",
+      "cost": {
+        "quantity": 25,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5
+    },
+    {
+      "name": "Libro degli Incantesimi",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.5
+    },
+    {
+      "name": "Manette",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 3.0
+    },
+    {
+      "name": "Martello",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.5
+    },
+    {
+      "name": "Martello da Demolizione",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 5.0
+    },
+    {
+      "name": "Munizioni: Aghi da Cerbottana (50)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Munizioni: Frecce (20)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Munizioni: Proiettili da Fionda (20)",
+      "cost": {
+        "quantity": 4,
+        "currency_type": "copper"
+      },
+      "weight_kg": 0.75
+    },
+    {
+      "name": "Munizioni: Quadrelli da Balestra (20)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.75
+    },
+    {
+      "name": "Olio (ampolla)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "silver"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Otre",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "silver"
+      },
+      "weight_kg": 2.5,
+      "note": "Peso indicato a otre pieno"
+    },
+    {
+      "name": "Pennino",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "copper"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Pergamena (un foglio)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "silver"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Piccone da Minatore",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 5.0
+    },
+    {
+      "name": "Piede di Porco",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5
+    },
+    {
+      "name": "Pozione di Guarigione",
+      "cost": {
+        "quantity": 50,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.25
+    },
+    {
+      "name": "Profumo (fiala)",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Rampino",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.0
+    },
+    {
+      "name": "Razioni (1 giornata)",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "silver"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Sacco",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "copper"
+      },
+      "weight_kg": 0.25
+    },
+    {
+      "name": "Sapone",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "copper"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Scala a Pioli (3 metri)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "silver"
+      },
+      "weight_kg": 12.5
+    },
+    {
+      "name": "Secchio",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "copper"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Serratura",
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Sfere Metalliche (sacchetto da 1.000)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Simbolo Sacro: Amuleto",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Simbolo Sacro: Emblema",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Simbolo Sacro: Reliquiario",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Specchio Piccolo di Metallo",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 0.25
+    },
+    {
+      "name": "Spuntoni, Ferro (10)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5
+    },
+    {
+      "name": "Tagliola",
+      "cost": {
+        "quantity": 5,
+        "currency_type": "gold"
+      },
+      "weight_kg": 12.5
+    },
+    {
+      "name": "Tenda, per Due Persone",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 10.0
+    },
+    {
+      "name": "Torcia",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "copper"
+      },
+      "weight_kg": 0.5
+    },
+    {
+      "name": "Triboli (sacchetto da 20)",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 1.0
+    },
+    {
+      "name": "Vanga o Badile",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5
+    },
+    {
+      "name": "Vaso di Ferro",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 5.0
+    },
+    {
+      "name": "Veleno, base (fiala)",
+      "cost": {
+        "quantity": 100,
+        "currency_type": "gold"
+      },
+      "weight_kg": null
+    },
+    {
+      "name": "Veste",
+      "cost": {
+        "quantity": 1,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.0
+    },
+    {
+      "name": "Zaino",
+      "cost": {
+        "quantity": 2,
+        "currency_type": "gold"
+      },
+      "weight_kg": 2.5
+    }
+  ],
+  "item_descriptions": {
+    "Acciarino e Pietra Focaia": "Un piccolo contenitore usato per accendere il fuoco, che contiene acciarino, pietra focaia e materiale combustibile (solitamente stracci essiccati e bagnati d'olio). Per accendere una torcia (o qualsiasi altra cosa che faccia uso di abbondante combustibile scoperto) usando acciarino e pietra focaia e' richiesta un'azione. Per accendere un fuoco di qualsiasi altro tipo e' richiesto 1 minuto.",
+    "Acido (fiala)": "Con un'azione, il personaggio puo' spruzzare il contenuto di questa fiala su una creatura situata entro 1,5 metri da lui o lanciarla fino a 6 metri di distanza (la fiala si frantumera' all'impatto). In ogni caso, il personaggio effettua un attacco a distanza contro una creatura o un oggetto, considerando l'acido come un'arma improvvisata. Se la fiala d'acido colpisce il bersaglio, quest'ultimo subisce 2d6 danni da acido.",
+    "Acqua Santa (ampolla)": "Con un'azione, il personaggio puo' spruzzare il contenuto di questa ampolla su una creatura situata entro 1,5 metri da lui o lanciarla fino a 6 metri di distanza (l'ampolla si frantumera' all'impatto). In ogni caso, il personaggio effettua un attacco a distanza contro la creatura bersaglio, considerando l'acqua santa come un'arma improvvisata. Se il bersaglio e' un immondo o un non morto, subisce 2d6 danni radiosi. Un chierico o un paladino puo' creare l'acqua santa celebrando un rituale speciale. Per celebrare questo rituale e' richiesta 1 ora di tempo e polvere d'argento per un valore di 25 mo; l'incantatore deve inoltre spendere uno slot incantesimo di 1 livello.",
+    "Antitossina (fiala)": "Una creatura che beve questa fiala di liquido dispone di vantaggio ai tiri salvezza contro veleno per 1 ora. Non conferisce alcun beneficio ai costrutti o ai non morti.",
+    "Ariete Portatile": "Un ariete portatile puo' essere usato per sfondare le porte e conferisce un bonus di +4 alla prova di Forza del personaggio. Un altro personaggio puo' aiutare il primo a usare l'ariete, nel qual caso il primo personaggio dispone di vantaggio a questa prova.",
+    "Attrezzi da Scalatore": "Gli attrezzi da scalatore includono dei chiodi da rocciatore speciali, punte per stivali, guanti e un'imbragatura. Un personaggio puo' usare gli attrezzi da scalatore con un'azione per ancorarsi; quando lo fa, non puo' cadere per piu' di 7,5 metri dal punto in cui e' ancorato e non puo' arrampicarsi per piu' di 7,5 metri dal quel punto senza disfare l'ancora.",
+    "Bilancia da Mercante": "Una bilancia e' composta da un piccolo braccio, due piatti e un assortimento di pesi di varie misure fino a un massimo di 1 kg. Grazie a questa bilancia, un personaggio puo' misurare il peso esatto degli oggetti piu' piccoli, come per esempio i metalli preziosi allo stato grezzo o le merci, per determinarne il valore esatto.",
+    "Borsa": "Una borsa di stoffa o di cuoio puo' contenere fino a 20 proiettili da fionda o 50 aghi da cerbottana, tra le altre cose. Una borsa suddivisa in scomparti per contenere le componenti per incantesimi e' chiamata una borsa per componenti (descritta di seguito).",
+    "Borsa del Guaritore": "Questa borsa in pelle contiene bende, unguenti e stecche di legno. Prevede dieci utilizzi. Con un'azione, un personaggio puo' spendere un utilizzo per stabilizzare una creatura scesa a 0 punti ferita senza dover effettuare una prova di Saggezza (Medicina).",
+    "Borsa per Componenti": "Una borsa per componenti e' una piccola borsa di cuoio impermeabile da legare alla cintura, dotata di scomparti dove custodire tutte le componenti materiali e gli altri oggetti speciali di cui il personaggio ha bisogno per lanciare incantesimi, fatta eccezione per quelle componenti che prevedono un costo specifico (come indicato nella descrizione dell'incantesimo).",
+    "Candela": "Per 1 ora, una candela proietta luce intensa entro un raggio di 1,5 metri e luce fioca per altri 1,5 metri.",
+    "Canna da Pesca": "Questo oggetto include un'asta di legno, un filo di seta, un galleggiante di sughero, ami in acciaio, mosche da usare come esche e una reticella.",
+    "Cannocchiale": "Gli oggetti osservati attraverso un cannocchiale appaiono grandi il doppio della loro taglia.",
+    "Carrucola e Paranco": "Questa serie di carrucole e' dotata di un cavo che le attraversa e che si collega a un uncino da agganciare a un oggetto. Consente a un personaggio di sollevare fino al quadruplo del peso che normalmente potrebbe sollevare.",
+    "Catena (3 metri)": "Una catena ha 10 punti ferita. Puo' essere spezzata superando una prova di Forza con CD 20.",
+    "Corda": "Una corda, che sia di canapa o di seta, possiede 2 punti ferita e puo' essere spezzata superando una prova di Forza con CD 17.",
+    "Custodia per Mappe o Pergamene": "Questa custodia cilindrica in cuoio puo' contenere fino a dieci fogli di carta arrotolati o fino a cinque fogli di pergamena arrotolati.",
+    "Custodia per Quadrelli da Balestra": "Questa custodia in legno puo' contenere fino a 20 quadrelli da balestra.",
+    "Faretra": "Una faretra puo' contenere fino a 20 frecce.",
+    "Focus Arcano": "Un focus arcano e' un oggetto speciale (una bacchetta in legno, un bastone di fattura speciale, un cristallo, un globo, una verga), creato per incanalare il potere degli incantesimi arcani. Un mago, uno stregone o un warlock puo' usare questo oggetto come focus da incantatore nel modo descritto nel capitolo 10.",
+    "Focus Druidico": "Un focus druidico potrebbe essere una bacchetta o uno scettro fatto in legno di tasso, un bastone ricavato da un albero vivente, un rametto di vischio o di agrifoglio, o un totem che includa piume, pelliccia, ossa e denti di qualche animale sacro. Un druido puo' usare un oggetto del genere come focus da incantatore nel modo descritto nel capitolo 10.",
+    "Fuoco dell'Alchimista (ampolla)": "Questo fluido adesivo e gommoso si infiamma quando e' esposto all'aria. Con un'azione, il personaggio puo' lanciare questa ampolla fino 6 metri di distanza (l'ampolla si frantumera' all'impatto). Il personaggio effettua un attacco a distanza contro una creatura o un oggetto, considerando il fuoco dell'alchimista come arma improvvisata. Se colpisce il bersaglio, esso subisce 1d4 danni da fuoco all'inizio di ogni suo turno. Una creatura puo' terminare questi danni usando un'azione per effettuare una prova di Destrezza con CD 10 al fine di estinguere le fiamme.",
+    "Gavetta": "Questa scatola di stagno contiene una scodella e delle semplici posate. Le due meta' della scatola, una volta aperte, possono essere usate come padella e come piatto o scodella.",
+    "Lampada": "Una lampada proietta luce intensa in un raggio di 4,5 metri e luce fioca per ulteriori 9 metri. Una volta accesa, arde per 6 ore consumando 1 ampolla (0,5 litri) di olio.",
+    "Lanterna a Lente Sporgente": "Una lanterna a lente sporgente proietta luce intensa in un cono di 18 metri e luce fioca per ulteriori 18 metri. Una volta accesa, arde per 6 ore consumando 1 ampolla (0,5 litri) di olio.",
+    "Lanterna Schermabile": "Una lanterna schermabile proietta luce intensa in un raggio di 9 metri e luce fioca per ulteriori 9 metri. Una volta accesa, arde per 6 ore consumando 1 ampolla (0,5 litri) di olio. Con un'azione, un personaggio puo' abbassare il cappuccio della lanterna, riducendo la luce proiettata a luce fioca in un raggio di 1,5 metri.",
+    "Lente d'Ingrandimento": "Questa lente consente di esaminare piu' da vicino gli oggetti piu' piccoli. Puo' anche tornare utile come alternativa alla pietra focaia e all'acciarino per accendere un fuoco. Per accendere un fuoco con una lente d'ingrandimento e' necessaria una luce da concentrare intensa quanto la luce del sole, dei rametti da accendere e circa 5 minuti affinche' il fuoco attecchisca. Una lente d'ingrandimento conferisce vantaggio a ogni prova di caratteristica effettuata per valutare o ispezionare un oggetto di piccola taglia o estremamente dettagliato.",
+    "Libro": "Un libro puo' contenere poesie, resoconti storici, informazioni in un campo specifico di conoscenze, diagrammi e appunti su un marchingegno gnomesco o pressoche' ogni informazione che sia possibile trasmettere tramite testi e immagini. Se contiene incantesimi, si tratta di un libro degli incantesimi (descritto di seguito).",
+    "Libro degli Incantesimi": "Un libro degli incantesimi, essenziale per i maghi, e' un tomo rilegato in cuoio e composto da 100 pagine pergamenate vuote su cui annotare gli incantesimi.",
+    "Manette": "Queste costrizioni di metallo possono bloccare una creatura di taglia Media o Piccola. Per sfuggire alle manette e' necessario superare una prova di Destrezza con CD 20. A ogni coppia di manette e' abbinata una chiave. Senza la chiave, una creatura competente negli arnesi da scasso puo' scassinare la serratura superando una prova di Destrezza con CD 15. Le manette hanno 15 punti ferita.",
+    "Olio (ampolla)": "L'olio solitamente viene venduto in ampolle di argilla da 0,5 litri. Con un'azione, il personaggio puo' spruzzare l'olio dell'ampolla su una creatura situata entro 1,5 metri da lui o lanciarla fino a 6 metri di distanza (l'ampolla si frantumera' all'impatto). Il personaggio effettua un attacco a distanza contro una creatura o un oggetto, considerando l'olio come un'arma improvvisata. Se colpisce il bersaglio, lo ricopre di olio. Se il bersaglio subisce danni da fuoco prima che l'olio si asciughi (dopo 1 minuto), esso subisce 5 danni da fuoco aggiuntivi a causa dell'olio incendiato. Un personaggio puo' anche versare un'ampolla di olio sul terreno per coprire un'area quadrata con lato di 1,5 metri, purche' la superficie sia piana. Una volta incendiato, l'olio brucia per 2 round e infligge 5 danni da fuoco a qualsiasi creatura che entri nell'area o vi termini il proprio turno. Una creatura puo' subire questi danni solo una volta per turno.",
+    "Piede di Porco": "L'utilizzo di un piede di porco conferisce vantaggio alle prove di Forza in cui e' possibile usare il piede di porco per fare leva.",
+    "Pozione di Guarigione": "Quando un personaggio beve il fluido magico rosso contenuto in questa fiala recupera 2d4 + 2 punti ferita. Per bere o somministrare una pozione e' richiesta un'azione.",
+    "Razioni (1 giornata)": "Le razioni consistono in cibo essiccato adatto a essere trasportato nei lunghi viaggi: carne secca, frutta secca, gallette e noci.",
+    "Serratura": "Assieme alla serratura viene fornita una chiave. Senza la chiave, una creatura competente negli arnesi da scasso puo' scassinare la serratura superando una prova di Destrezza con CD 15. Il DM puo' permettere che siano disponibili serrature migliori a prezzi piu' alti.",
+    "Sfere Metalliche (sacchetto da 1.000)": "Con un'azione, un personaggio puo' versare queste minuscole sfere di metallo fuori dal sacchetto per coprire un'area quadrata regolare e pianeggiante con lato di 3 metri. Quando una creatura si muove attraverso l'area coperta dalle sfere, deve superare un tiro salvezza su Destrezza con CD 10, altrimenti cade a terra prona. Se una creatura si muove attraverso l'area a velocita' dimezzata, non deve effettuare il tiro salvezza.",
+    "Simbolo Sacro": "Un simbolo sacro e' la rappresentazione di un dio o di un pantheon. Potrebbe essere un amuleto che raffigura il simbolo di una divinita', o uno scudo che porta quel simbolo inciso come emblema, o un minuscolo scrigno contenente il frammento di una reliquia sacra. L'appendice B elenca i simboli comunemente associati alla maggior parte delle divinita' del multiverso. Un chierico o un paladino puo' usare un simbolo sacro come focus da incantatore, nel modo descritto nel capitolo 10. Per usare il simbolo in questo modo, l'incantatore deve impugnarlo in modo ben visibile o portarlo su uno scudo.",
+    "Tagliola": "Quando il personaggio usa la sua azione per predisporre questa trappola, colloca a terra un cerchio di metallo dentato che si chiude con uno scatto quando una creatura preme una leva d'aggancio situata al centro. La trappola viene fissata a una pesante catena o a un oggetto immobile come un albero o un palo piantato a terra. Quando una creatura mette un piede sulla leva, deve superare un tiro salvezza su Destrezza con CD 13, altrimenti subisce 1d4 danni perforanti e smette di muoversi. Da allora in poi, finche' la creatura non si libera dalla trappola, il suo movimento e' limitato dalla lunghezza della catena (solitamente 90 cm). Una creatura puo' usare la sua azione per effettuare una prova di Forza con CD 13 per liberare se stessa o un'altra creatura entro portata in caso di successo. Ogni prova fallita infligge 1 danno perforante alla creatura intrappolata.",
+    "Tenda, per Due Persone": "Un semplice riparo portatile in tela, che puo' ospitare due persone.",
+    "Torcia": "Una torcia arde per 1 ora e proietta luce intensa in un raggio di 6 metri e luce fioca per ulteriori 6 metri. Se un personaggio effettua un attacco in mischia con una torcia accesa e colpisce, infligge 1 danno da fuoco.",
+    "Triboli (sacchetto da 20)": "Con un'azione, un personaggio puo' spargere il contenuto di un sacchetto di triboli per coprire un'area quadrata con lato di 1,5 metri. Ogni creatura che entra in quell'area deve superare un tiro salvezza su Destrezza con CD 15, altrimenti dovra' smettere di muoversi per questo turno e subire 1 danno perforante. Se subisce questo danno, la sua velocita' base sul terreno e' ridotta di 3 metri finche' non recupera almeno 1 punto ferita. Se una creatura si muove attraverso l'area a velocita' dimezzata, non deve effettuare il tiro salvezza.",
+    "Veleno, base (fiala)": "Un personaggio puo' usare il veleno contenuto in questa fiala per rivestire un'arma tagliente o perforante o un massimo di tre munizioni. Per applicare il veleno e' richiesta un'azione. Una creatura colpita dall'arma o dalle munizioni avvelenate deve superare un tiro salvezza su Costituzione con CD 10, altrimenti subira' 1d4 danni da veleno. Una volta applicato, il veleno mantiene la sua potenza per 1 minuto prima di essiccarsi."
+  },
+  "container_capacity": {
+    "_source": "Tabella 'Capienza dei Contenitori', PHB IT p.153",
+    "Ampolla o Boccale": "0,5 litri liquidi",
+    "Barile": "160 litri liquidi, 4 cubi con spigolo di 30 cm",
+    "Borsa": "1 cubo con spigolo di 3 cm / 3 kg di equipaggiamento",
+    "Bottiglia": "0,75 litri liquidi",
+    "Brocca o Caraffa": "4 litri liquidi",
+    "Canestro": "2 cubi con spigolo di 30 cm / 20 kg di equipaggiamento",
+    "Fiala": "120 grammi liquidi",
+    "Forziere": "12 cubi con spigolo di 30 cm / 150 kg di equipaggiamento",
+    "Otre": "2 litri liquidi",
+    "Sacco": "1 cubo con spigolo di 30 cm / 15 kg di equipaggiamento",
+    "Secchio": "12 litri liquidi, 1 cubo con spigolo di 15 cm",
+    "Vaso di Ferro": "4 litri liquidi",
+    "Zaino": "1 cubo con spigolo di 30 cm / 15 kg di equipaggiamento (un personaggio puo' anche legare alcuni oggetti come un giaciglio o un rotolo di corda all'esterno dello zaino)"
+  },
+  "packs": {
+    "_source": "Box 'Dotazioni', PHB IT p.151",
+    "_rules": "L'equipaggiamento di partenza che un personaggio riceve dalla sua classe include anche un insieme di oggetti da avventuriero riuniti in una dotazione. Se il personaggio sceglie di acquistare il suo equipaggiamento di partenza, puo' acquistare una dotazione al prezzo indicato, che generalmente e' piu' conveniente rispetto all'acquisto dei singoli oggetti separati.",
+    "Dotazione da Avventuriero": {
+      "cost": {
+        "quantity": 12,
+        "currency_type": "gold"
+      },
+      "contents": "Uno zaino, un piede di porco, un martello, 10 chiodi da rocciatore, 10 torce, un acciarino e pietra focaia, 10 razioni giornaliere e un otre. La dotazione include anche 15 metri di corda di canapa legata allo zaino."
+    },
+    "Dotazione da Diplomatico": {
+      "cost": {
+        "quantity": 39,
+        "currency_type": "gold"
+      },
+      "contents": "Un forziere, 2 custodie per mappe e pergamene, un abito pregiato, una boccetta di inchiostro, un pennino, una lampada, 2 ampolle di olio, 5 fogli di carta, una fiala di profumo, cera per sigillo e sapone."
+    },
+    "Dotazione da Esploratore": {
+      "cost": {
+        "quantity": 10,
+        "currency_type": "gold"
+      },
+      "contents": "Uno zaino, un giaciglio, una gavetta, un acciarino e pietra focaia, 10 torce, 10 razioni giornaliere e un otre. La dotazione include anche 15 metri di corda di canapa legata allo zaino."
+    },
+    "Dotazione da Intrattenitore": {
+      "cost": {
+        "quantity": 40,
+        "currency_type": "gold"
+      },
+      "contents": "Uno zaino, un giaciglio, 2 costumi, 5 candele, 5 razioni giornaliere, un otre e trucchi per il camuffamento."
+    },
+    "Dotazione da Sacerdote": {
+      "cost": {
+        "quantity": 19,
+        "currency_type": "gold"
+      },
+      "contents": "Uno zaino, una coperta, 10 candele, un acciarino e pietra focaia, una cassetta per le offerte, 2 cubetti di incenso, un incensiere, una veste, 2 razioni giornaliere e un otre."
+    },
+    "Dotazione da Scassinatore": {
+      "cost": {
+        "quantity": 16,
+        "currency_type": "gold"
+      },
+      "contents": "Uno zaino, un sacchetto con 1.000 sfere metalliche, 3 metri di spago, una campanella, 5 candele, un piede di porco, un martello, 10 chiodi da rocciatore, una lanterna schermabile, 2 ampolle di olio, 5 razioni giornaliere, un acciarino e pietra focaia e un otre. La dotazione include anche 15 metri di corda di canapa legata allo zaino."
+    },
+    "Dotazione da Studioso": {
+      "cost": {
+        "quantity": 40,
+        "currency_type": "gold"
+      },
+      "contents": "Uno zaino, un libro di studio, una boccetta d'inchiostro, un pennino, 10 fogli di pergamena, un sacchetto di sabbia e un coltellino."
+    }
+  }
+}

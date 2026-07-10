@@ -82,7 +82,7 @@ class Character:
     session_notes: str = ""
 
     # Scelte di classe/razza che influenzano feature successive
-    dragon_ancestry: str = ""       # Stregone Discendenza Draconiana: tipo drago (es. "Rosso")
+    dragon_ancestry: str = ""       # Stregone Discendenza Draconica: tipo drago (es. "Rosso")
     fighting_style: str = ""        # Guerriero/Paladino/Ranger: stile di combattimento scelto
     totem_animal: str = ""          # Barbaro Percorso del Totem: animale (Orso/Aquila/Lupo)
     land_terrain: str = ""          # Druido Cerchio della Terra: terreno scelto

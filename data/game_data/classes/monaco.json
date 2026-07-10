@@ -9,8 +9,8 @@
   "spellcasting_ability": null,
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "#armi_semplici",
-    "Spada corta"
+    "semplice",
+    "Spada Corta"
   ],
   "tool_proficiencies": [
     {
@@ -118,10 +118,22 @@
     {
       "name": "Via dei Quattro Elementi",
       "max_ki_per_spell_by_level": [
-        { "levels": "5-8",   "max_ki": 3 },
-        { "levels": "9-12",  "max_ki": 4 },
-        { "levels": "13-16", "max_ki": 5 },
-        { "levels": "17-20", "max_ki": 6 }
+        {
+          "levels": "5-8",
+          "max_ki": 3
+        },
+        {
+          "levels": "9-12",
+          "max_ki": 4
+        },
+        {
+          "levels": "13-16",
+          "max_ki": 5
+        },
+        {
+          "levels": "17-20",
+          "max_ki": 6
+        }
       ],
       "disciplines": [
         {
@@ -295,7 +307,7 @@
     {
       "level": 2,
       "name": "Movimento Senza Armatura",
-      "description": "La tua velocità aumenta di 3 m mentre non indossi armature né usi scudo. Questo bonus aumenta a +4,5 m al 6°, +6 m al 10°, +7,5 m al 14° e +9 m al 18°. Al 9° livello puoi muoverti lungo superfici verticali e sull'acqua durante il tuo turno senza cadere."
+      "description": "La tua velocità aumenta di 3 m mentre non indossi armature né usi scudo. Questo bonus aumenta a +4,5 m al 6°, +6 m al 10°, +7,5 m al 14° e +9 m al 18°."
     },
     {
       "level": 3,
@@ -331,6 +343,11 @@
       "level": 7,
       "name": "Mente Lucida",
       "description": "Puoi usare un'azione per porre fine a un effetto di charme o paura su di te."
+    },
+    {
+      "level": 9,
+      "name": "Movimento Senza Armatura Migliorato",
+      "description": "Puoi muoverti lungo superfici verticali e sull'acqua durante il tuo turno senza cadere."
     },
     {
       "level": 10,

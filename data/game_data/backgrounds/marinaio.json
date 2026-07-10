@@ -1,6 +1,7 @@
 {
   "name": "Marinaio",
-  "description": "Hai trascorso anni su navi mercantili o militari. Il mare e le tempeste non ti spaventano, e sai come navigare e sopravvivere in alto mare.",
+  "_source": "PHB IT p.136-137",
+  "description": "Hai prestato servizio a bordo di un vascello per anni. Hai affrontato violente burrasche, mostri degli abissi e predoni impazienti di spedire la tua nave sul fondo dell'oceano. Il tuo primo amore è stato l'orizzonte più lontano, ma ora è giunto il momento di provare qualcosa di nuovo.",
   "skill_proficiencies": [
     "Atletica",
     "Percezione"
@@ -12,15 +13,19 @@
   "languages": [],
   "equipment": [
     {
-      "name": "Fune 15 m",
+      "name": "Galloccia da marinaio (randello)",
       "item_type": "item"
     },
     {
-      "name": "Amuleto della fortuna",
+      "name": "Corda di seta di 15 metri",
       "item_type": "item"
     },
     {
-      "name": "Abiti comuni",
+      "name": "Portafortuna (zampa di coniglio o piccola pietra forata)",
+      "item_type": "item"
+    },
+    {
+      "name": "Abito comune",
       "item_type": "item"
     },
     {
@@ -31,65 +36,65 @@
     }
   ],
   "feature": {
-    "name": "Passaggio in Nave",
-    "description": "Quando hai bisogno di un passaggio in mare, puoi ottenerlo gratuitamente o a prezzo ridotto su qualsiasi nave mercantile. Potresti dover lavorare durante il viaggio, ma sarai portato a destinazione."
+    "name": "Passaggio Via Nave",
+    "description": "Quando si presenta il bisogno, puoi ottenere un passaggio gratuito su una nave in partenza per te stesso e i tuoi compagni d'avventura. Puoi viaggiare sulla nave su cui hai prestato servizio o su un'altra nave con cui hai buoni rapporti (magari capitanata da un tuo vecchio compagno di ciurma). Dal momento che ottieni questo passaggio come favore, non puoi essere sicuro di ottenere dei tempi di viaggio o una rotta che soddisfino le tue esigenze. Il Dungeon Master determina quanto tempo richiede il viaggio fino alla destinazione desiderata. In cambio di questo passaggio gratuito, tu e i tuoi compagni d'avventura dovrete prestare aiuto all'equipaggio nel corso del viaggio."
   },
   "personality_traits": [
-    "Il mio equipaggio è la mia famiglia.",
-    "Non c'è niente che non si possa risolvere con una buona storia o una bottiglia di rum.",
-    "Preferisco l'azione alla parola.",
-    "Non ho paura del pericolo.",
-    "Mantengo la calma in qualsiasi situazione di emergenza.",
-    "Ho sempre una storia da raccontare.",
-    "Posso navigare qualsiasi nave.",
-    "Sono di poche parole, ma sono un buon ascoltatore."
+    "I miei amici sanno di poter contare su di me in ogni circostanza.",
+    "Lavoro sodo in modo da potermi divertire con altrettanto zelo quando avrò finito.",
+    "Mi piace attraccare in porti sconosciuti e conoscere nuovi amici di fronte a una bella fiasca di birra.",
+    "Posso forzare un po' la verità pur di ottenere una buona storia.",
+    "Per me una rissa in taverna rappresenta un buon modo per conoscere una nuova città.",
+    "Non rinuncio mai a un'amichevole scommessa.",
+    "Uso un linguaggio sporco come la tana di un otyugh.",
+    "Mi piace che un lavoro sia fatto bene, soprattutto se riesco a convincere qualcun altro a farlo."
   ],
   "ideals": [
     {
       "name": "Rispetto",
       "alignment": "Buono",
-      "description": "La cosa più importante è il rispetto reciproco tra l'equipaggio."
+      "description": "Ciò che tiene unita una nave è il rispetto reciproco tra capitano ed equipaggio."
+    },
+    {
+      "name": "Giustizia",
+      "alignment": "Legale",
+      "description": "Dato che si lavora tutti insieme, le ricompense vanno divise equamente."
     },
     {
       "name": "Libertà",
       "alignment": "Caotico",
-      "description": "Il mare è libero e anch'io devo esserlo."
+      "description": "Il mare è libertà: la libertà di andare ovunque e di fare qualsiasi cosa."
     },
     {
-      "name": "Tradizione",
-      "alignment": "Legale",
-      "description": "Ogni marinaro conosce le leggi del mare."
-    },
-    {
-      "name": "Potere",
+      "name": "Dominio",
       "alignment": "Malvagio",
-      "description": "Chi comanda una nave, comanda tutto."
+      "description": "Mi considero un predatore e le altre navi che solcano il mare sono le mie prede."
     },
     {
-      "name": "Nazione",
+      "name": "Persone",
       "alignment": "Neutrale",
-      "description": "Navigo per il mio paese."
+      "description": "Mi sento in obbligo nei confronti della mia ciurma e non verso qualche ideale astratto."
     },
     {
-      "name": "Aspirazione",
+      "name": "Ambizione",
       "alignment": "Qualsiasi",
-      "description": "Voglio possedere la mia nave un giorno."
+      "description": "Aspiro ad avere una nave di mia proprietà e di poter decidere da solo il mio destino."
     }
   ],
   "bonds": [
-    "Voglio vendicarmi del capitano che mi ha trattato male.",
-    "L'equipaggio della mia prima nave era la mia famiglia.",
-    "Sono fedele alla mia nave e al capitano.",
-    "Una volta ho salvato la vita di qualcuno in mare e voglio trovarlo.",
-    "Una tempesta ha distrutto la mia nave e voglio costruirne una nuova.",
-    "Voglio scoprire il mistero della nave fantasma che ho visto in mare."
+    "La mia lealtà va per prima cosa al mio capitano e poi a tutti gli altri.",
+    "La nave è l'unica cosa che conta: i marinai e il capitano vanno e vengono.",
+    "Ricorderò sempre il mio primo viaggio.",
+    "In una città portuale, ho avuto un amore i cui occhi mi hanno quasi fatto abbandonare il mare.",
+    "Sono stato imbrogliato durante la spartizione di un bottino e ora voglio avere quanto mi spetta.",
+    "Pirati senza scrupoli hanno ucciso il mio capitano e i miei compagni, hanno saccheggiato la nave e mi hanno abbandonato al mio destino. Ora reclamo vendetta."
   ],
   "flaws": [
-    "Seguo le regole solo quando mi conviene.",
-    "Bevo troppo quando sono a terra.",
-    "Mi comporto in modo strano fuori dall'acqua.",
-    "Sono superstizioso riguardo al mare.",
-    "Non posso resistere all'impulso di prendere il controllo di qualsiasi situazione.",
-    "Ho lasciato qualcuno che mi amava per seguire il mare."
+    "Obbedisco agli ordini anche quando li ritengo sbagliati.",
+    "Sono pronto a dire qualsiasi cosa pur di evitare ulteriore lavoro.",
+    "Se qualcuno mette in dubbio il mio coraggio, non indietreggerò a nessun costo, a prescindere da quanto la situazione diventi pericolosa.",
+    "Quando comincio a bere, mi riesce difficile fermarmi.",
+    "Non riesco a trattenermi, e mi intasco tutte le monete e i piccoli oggetti in cui mi imbatto.",
+    "Probabilmente il mio orgoglio sarà la mia rovina."
   ]
 }

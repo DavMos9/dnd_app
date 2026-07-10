@@ -4,7 +4,7 @@
   "ability_bonuses": {
     "con": 2
   },
-  "speed": 7,
+  "speed": 7.5,
   "darkvision": 18,
   "size": "Media",
   "languages": [
@@ -13,7 +13,7 @@
   ],
   "traits": [
     {
-      "name": "Resistenza dei Nani",
+      "name": "Resilienza Nanica",
       "description": "Hai vantaggio ai tiri salvezza contro il veleno e hai resistenza ai danni da veleno.",
       "resistance": [
         "poison"
@@ -23,16 +23,16 @@
       ]
     },
     {
-      "name": "Addestramento con le Armi dei Nani",
+      "name": "Addestramento da Combattimento Nanico",
       "description": "Hai competenza con ascia da battaglia, ascia da mano, martello leggero e martello da guerra."
     },
     {
       "name": "Competenza negli Strumenti",
-      "description": "Hai competenza con gli strumenti dell'artigiano a scelta: falegname, fabbro o birraio."
+      "description": "Hai competenza con un gruppo di strumenti da artigiano a tua scelta: strumenti da fabbro, scorte da mescitore o strumenti da costruttore."
     },
     {
-      "name": "Senso della Pietra",
-      "description": "Ogni volta che effettui una prova di Intelligenza (Storia) riguardante l'origine di un lavoro in pietra, sei considerato competente e aggiungi il doppio del tuo bonus di competenza."
+      "name": "Esperto Minatore",
+      "description": "Ogni volta che effettui una prova di Intelligenza (Storia) relativa all'origine di una struttura in pietra, sei considerato avere competenza nell'abilità Storia e aggiungi il doppio del tuo bonus di competenza alla prova, anziché il tuo normale bonus di competenza."
     }
   ],
   "subraces": [
@@ -47,7 +47,7 @@
       ],
       "traits": [
         {
-          "name": "Addestramento con l'Armatura dei Nani",
+          "name": "Addestramento nelle Armature Naniche",
           "description": "Hai competenza con le armature leggere e medie."
         }
       ]
@@ -60,7 +60,7 @@
       "hp_bonus_per_level": 1,
       "traits": [
         {
-          "name": "Durezza dei Nani",
+          "name": "Robustezza Nanica",
           "description": "I tuoi punti ferita massimi aumentano di 1 e aumentano di 1 ulteriore ogni volta che sali di livello."
         }
       ]

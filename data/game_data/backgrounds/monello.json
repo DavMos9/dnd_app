@@ -1,13 +1,14 @@
 {
   "name": "Monello",
+  "_source": "PHB IT p.137-138",
   "description": "Sei cresciuto solo, povero e orfano per le vie della città. Non avevi nessuno che vegliasse su di te o si prendesse cura di te, quindi hai imparato molto presto a badare a te stesso.",
   "skill_proficiencies": [
     "Furtività",
     "Rapidità di Mano"
   ],
   "tool_proficiencies": [
-    "Arnesi da scasso",
-    "Trucchi per il camuffamento"
+    "Arnesi da Scasso",
+    "Trucchi per il Camuffamento"
   ],
   "languages": [],
   "equipment": [
@@ -40,7 +41,7 @@
   ],
   "feature": {
     "name": "Segreti Cittadini",
-    "description": "Conosci i ritmi e le vie segrete della città ed sei in grado di sfruttare dei passaggi all'interno della struttura urbana che altri non noterebbero mai. Quando non sei in combattimento, puoi spostarti (assieme ai compagni da te guidati) da un luogo all'altro della città al doppio di quanto la tua velocità normale ti consentirebbe."
+    "description": "Conosci i ritmi e le vie segrete della città e sei in grado di sfruttare dei passaggi all'interno della struttura urbana che altri non noterebbero mai. Quando non sei in combattimento, puoi spostarti (assieme ai compagni da te guidati) da un luogo all'altro della città al doppio di quanto la tua velocità normale ti consentirebbe."
   },
   "personality_traits": [
     "Nascondo nelle tasche pezzi di cibo e oggetti insoliti.",
@@ -85,8 +86,8 @@
     }
   ],
   "bonds": [
-    "La città o il paese in cui sono cresciuto sono la mia casa, e la difenderò.",
-    "Finanzierei un orfanotrofio affinché nessuno debba passare quello che ho passato io.",
+    "La città o il paese in cui sono cresciuto sono la mia casa, e li difenderò.",
+    "Finanzio un orfanotrofio affinché nessuno debba passare quello che ho passato io.",
     "Sono sopravvissuto grazie a un altro monello che mi ha insegnato a vivere per la strada.",
     "Ho un debito che non potrò mai ripagare nei confronti della persona che ebbe pietà di me.",
     "Sono sfuggito alla mia vita di miseria derubando una persona importante e sono ancora ricercato per quel furto.",

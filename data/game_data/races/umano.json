@@ -13,5 +13,24 @@
       "name": "Versatile",
       "description": "Gli umani ricevono +1 a tutti i punteggi di caratteristica e imparano una lingua aggiuntiva a scelta."
     }
-  ]
+  ],
+  "variant_human_optional_rule": {
+    "name": "Tratti Umani Alternativi",
+    "note": "Regola facoltativa (PHB IT, richiede l'uso della regola opzionale dei talenti descritta nel capitolo 6). Se adottata, sostituisce interamente il tratto standard di Incremento del Punteggio di Caratteristica (+1 a tutte le caratteristiche). Non ancora selezionabile in wizard/form manuale — dato presente solo a livello di JSON in attesa di implementazione UI.",
+    "ability_bonuses_flex": {
+      "count": 2,
+      "bonus": 1,
+      "from": "any",
+      "note": "Due punteggi di caratteristica diversi a scelta aumentano di 1 ciascuno."
+    },
+    "skill_proficiency_choice": {
+      "count": 1,
+      "from": "any",
+      "note": "Un umano ha competenza in un'abilità a scelta."
+    },
+    "feat_choice": {
+      "count": 1,
+      "note": "Un umano ottiene un talento a scelta."
+    }
+  }
 }

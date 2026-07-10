@@ -14,14 +14,14 @@
   ],
   "traits": [
     {
-      "name": "Minacciante",
+      "name": "Minaccioso",
       "description": "Hai competenza nell'abilità Intimidire."
     },
     {
-      "name": "Resistenza Implacabile",
+      "name": "Tenacia Implacabile",
       "description": "Quando vieni ridotto a 0 PF ma non sei ucciso sul colpo, puoi invece essere ridotto a 1 PF. Non puoi usare questa capacità di nuovo finché non completi un riposo lungo.",
       "resource": {
-        "name": "Resistenza Implacabile",
+        "name": "Tenacia Implacabile",
         "max_value": 1,
         "reset_on": "long_rest",
         "display_type": "circles"

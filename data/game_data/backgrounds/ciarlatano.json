@@ -1,6 +1,7 @@
 {
   "name": "Ciarlatano",
-  "description": "Sei sempre stato portato per le interazioni sociali. Sei abile nel capire le persone e, dopo pochi minuti di conversazione, riesci a individuare ciò che il loro cuore desidera. Sai cosa la gente vuole, e glielo offri su un piatto d'argento... o meglio, prometti di offrirglielo.",
+  "_source": "PHB IT p.129-130",
+  "description": "Sei sempre stato portato per le interazioni sociali. Sei abile nel capire le persone e, dopo pochi minuti di conversazione, riesci a individuare ciò che il loro cuore desidera e, dopo alcune domande mirate, ogni interlocutore è per te un libro aperto. È una dote molto utile, che non esiti a sfruttare a tuo vantaggio.",
   "skill_proficiencies": [
     "Inganno",
     "Rapidità di Mano"
