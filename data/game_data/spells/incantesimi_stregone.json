@@ -2,133 +2,521 @@
   "_source": "PHB IT, Capitolo 11, pag. 210-211 (Lista Incantesimi da Stregone)",
   "class": "Stregone",
   "spells": [
-    {"name": "Amicizia", "level": 0},
-    {"name": "Colpo Accurato", "level": 0},
-    {"name": "Dardo di Fuoco", "level": 0},
-    {"name": "Fiotto Acido", "level": 0},
-    {"name": "Illusione Minore", "level": 0},
-    {"name": "Interdizione alle Lame", "level": 0},
-    {"name": "Luce", "level": 0},
-    {"name": "Luci Danzanti", "level": 0},
-    {"name": "Mano Magica", "level": 0},
-    {"name": "Messaggio", "level": 0},
-    {"name": "Prestidigitazione", "level": 0},
-    {"name": "Raggio di Gelo", "level": 0},
-    {"name": "Riparare", "level": 0},
-    {"name": "Spruzzo Velenoso", "level": 0},
-    {"name": "Stretta Folgorante", "level": 0},
-    {"name": "Tocco Gelido", "level": 0},
-    {"name": "Armatura Magica", "level": 1},
-    {"name": "Caduta Morbida", "level": 1},
-    {"name": "Camuffare Se Stesso", "level": 1},
-    {"name": "Charme su Persone", "level": 1},
-    {"name": "Comprensione dei Linguaggi", "level": 1},
-    {"name": "Dardo Incantato", "level": 1},
-    {"name": "Dardo Stregato", "level": 1},
-    {"name": "Globo Cromatico", "level": 1},
-    {"name": "Immagine Silenziosa", "level": 1},
-    {"name": "Individuazione del Magico", "level": 1},
-    {"name": "Mani Brucianti", "level": 1},
-    {"name": "Nube di Nebbia", "level": 1},
-    {"name": "Onda Tonante", "level": 1},
-    {"name": "Raggio di Infermità", "level": 1},
-    {"name": "Ritirata Rapida", "level": 1},
-    {"name": "Saltare", "level": 1},
-    {"name": "Scudo", "level": 1},
-    {"name": "Sonno", "level": 1},
-    {"name": "Spruzzo Colorato", "level": 1},
-    {"name": "Vita Falsata", "level": 1},
-    {"name": "Allucinazione di Forza", "level": 2},
-    {"name": "Alterare Se Stesso", "level": 2},
-    {"name": "Blocca Persone", "level": 2},
-    {"name": "Caratteristica Potenziata", "level": 2},
-    {"name": "Cecità/Sordità", "level": 2},
-    {"name": "Corona di Follia", "level": 2},
-    {"name": "Folata di Vento", "level": 2},
-    {"name": "Frantumare", "level": 2},
-    {"name": "Immagine Speculare", "level": 2},
-    {"name": "Individuazione dei Pensieri", "level": 2},
-    {"name": "Ingrandire/Ridurre", "level": 2},
-    {"name": "Invisibilità", "level": 2},
-    {"name": "Levitazione", "level": 2},
-    {"name": "Movimenti del Ragno", "level": 2},
-    {"name": "Nube di Pugnali", "level": 2},
-    {"name": "Oscurità", "level": 2},
-    {"name": "Passo Velato", "level": 2},
-    {"name": "Raggio Rovente", "level": 2},
-    {"name": "Scassinare", "level": 2},
-    {"name": "Scurovisione", "level": 2},
-    {"name": "Sfocatura", "level": 2},
-    {"name": "Suggestione", "level": 2},
-    {"name": "Vedere Invisibilità", "level": 2},
-    {"name": "Camminare sull'Acqua", "level": 3},
-    {"name": "Chiaroveggenza", "level": 3},
-    {"name": "Controincantesimo", "level": 3},
-    {"name": "Dissolvi Magie", "level": 3},
-    {"name": "Forma Gassosa", "level": 3},
-    {"name": "Fulmine", "level": 3},
-    {"name": "Immagine Maggiore", "level": 3},
-    {"name": "Intermittenza", "level": 3},
-    {"name": "Lentezza", "level": 3},
-    {"name": "Linguaggi", "level": 3},
-    {"name": "Luce Diurna", "level": 3},
-    {"name": "Nube Maleodorante", "level": 3},
-    {"name": "Palla di Fuoco", "level": 3},
-    {"name": "Paura", "level": 3},
-    {"name": "Protezione dall'Energia", "level": 3},
-    {"name": "Respirare sott'Acqua", "level": 3},
-    {"name": "Tempesta di Nevischio", "level": 3},
-    {"name": "Trama Ipnotica", "level": 3},
-    {"name": "Velocità", "level": 3},
-    {"name": "Volare", "level": 3},
-    {"name": "Confusione", "level": 4},
-    {"name": "Dominare Bestie", "level": 4},
-    {"name": "Esilio", "level": 4},
-    {"name": "Inaridire", "level": 4},
-    {"name": "Invisibilità Superiore", "level": 4},
-    {"name": "Metamorfosi", "level": 4},
-    {"name": "Muro di Fuoco", "level": 4},
-    {"name": "Pelle di Pietra", "level": 4},
-    {"name": "Porta Dimensionale", "level": 4},
-    {"name": "Tempesta di Ghiaccio", "level": 4},
-    {"name": "Animare Oggetti", "level": 5},
-    {"name": "Blocca Mostri", "level": 5},
-    {"name": "Cerchio di Teletrasporto", "level": 5},
-    {"name": "Cono di Freddo", "level": 5},
-    {"name": "Creazione", "level": 5},
-    {"name": "Dominare Persone", "level": 5},
-    {"name": "Muro di Pietra", "level": 5},
-    {"name": "Nube Mortale", "level": 5},
-    {"name": "Piaga degli Insetti", "level": 5},
-    {"name": "Sembrare", "level": 5},
-    {"name": "Telecinesi", "level": 5},
-    {"name": "Bagliore Solare", "level": 6},
-    {"name": "Catena di Fulmini", "level": 6},
-    {"name": "Cerchio di Morte", "level": 6},
-    {"name": "Disintegrazione", "level": 6},
-    {"name": "Globo di Invulnerabilità", "level": 6},
-    {"name": "Muovere il Terreno", "level": 6},
-    {"name": "Portale Arcano", "level": 6},
-    {"name": "Sguardo Penetrante", "level": 6},
-    {"name": "Suggestione di Massa", "level": 6},
-    {"name": "Visione del Vero", "level": 6},
-    {"name": "Dito della Morte", "level": 7},
-    {"name": "Forma Eterea", "level": 7},
-    {"name": "Inversione della Gravità", "level": 7},
-    {"name": "Palla di Fuoco Ritardata", "level": 7},
-    {"name": "Spostamento Planare", "level": 7},
-    {"name": "Spruzzo Prismatico", "level": 7},
-    {"name": "Teletrasporto", "level": 7},
-    {"name": "Tempesta di Fuoco", "level": 7},
-    {"name": "Dominare Mostri", "level": 8},
-    {"name": "Esplosione Solare", "level": 8},
-    {"name": "Nube Incendiaria", "level": 8},
-    {"name": "Parola del Potere Stordire", "level": 8},
-    {"name": "Terremoto", "level": 8},
-    {"name": "Desiderio", "level": 9},
-    {"name": "Fermare il Tempo", "level": 9},
-    {"name": "Parola del Potere Uccidere", "level": 9},
-    {"name": "Portale", "level": 9},
-    {"name": "Sciame di Meteore", "level": 9}
+    {
+      "name": "Amicizia",
+      "level": 0
+    },
+    {
+      "name": "Colpo Accurato",
+      "level": 0
+    },
+    {
+      "name": "Dardo di Fuoco",
+      "level": 0
+    },
+    {
+      "name": "Fiotto Acido",
+      "level": 0
+    },
+    {
+      "name": "Illusione Minore",
+      "level": 0
+    },
+    {
+      "name": "Interdizione alle Lame",
+      "level": 0
+    },
+    {
+      "name": "Luce",
+      "level": 0
+    },
+    {
+      "name": "Luci Danzanti",
+      "level": 0
+    },
+    {
+      "name": "Mano Magica",
+      "level": 0
+    },
+    {
+      "name": "Messaggio",
+      "level": 0
+    },
+    {
+      "name": "Prestidigitazione",
+      "level": 0
+    },
+    {
+      "name": "Raggio di Gelo",
+      "level": 0
+    },
+    {
+      "name": "Riparare",
+      "level": 0
+    },
+    {
+      "name": "Spruzzo Velenoso",
+      "level": 0
+    },
+    {
+      "name": "Stretta Folgorante",
+      "level": 0
+    },
+    {
+      "name": "Tocco Gelido",
+      "level": 0
+    },
+    {
+      "name": "Armatura Magica",
+      "level": 1
+    },
+    {
+      "name": "Caduta Morbida",
+      "level": 1
+    },
+    {
+      "name": "Camuffare Se Stesso",
+      "level": 1
+    },
+    {
+      "name": "Charme su Persone",
+      "level": 1
+    },
+    {
+      "name": "Comprensione dei Linguaggi",
+      "level": 1
+    },
+    {
+      "name": "Dardo Incantato",
+      "level": 1
+    },
+    {
+      "name": "Dardo Stregato",
+      "level": 1
+    },
+    {
+      "name": "Globo Cromatico",
+      "level": 1
+    },
+    {
+      "name": "Immagine Silenziosa",
+      "level": 1
+    },
+    {
+      "name": "Individuazione del Magico",
+      "level": 1
+    },
+    {
+      "name": "Mani Brucianti",
+      "level": 1
+    },
+    {
+      "name": "Nube di Nebbia",
+      "level": 1
+    },
+    {
+      "name": "Onda Tonante",
+      "level": 1
+    },
+    {
+      "name": "Raggio di Infermità",
+      "level": 1
+    },
+    {
+      "name": "Ritirata Rapida",
+      "level": 1
+    },
+    {
+      "name": "Saltare",
+      "level": 1
+    },
+    {
+      "name": "Scudo",
+      "level": 1
+    },
+    {
+      "name": "Sonno",
+      "level": 1
+    },
+    {
+      "name": "Spruzzo Colorato",
+      "level": 1
+    },
+    {
+      "name": "Vita Falsata",
+      "level": 1
+    },
+    {
+      "name": "Allucinazione di Forza",
+      "level": 2
+    },
+    {
+      "name": "Alterare Se Stesso",
+      "level": 2
+    },
+    {
+      "name": "Blocca Persone",
+      "level": 2
+    },
+    {
+      "name": "Caratteristica Potenziata",
+      "level": 2
+    },
+    {
+      "name": "Cecità/Sordità",
+      "level": 2
+    },
+    {
+      "name": "Corona di Follia",
+      "level": 2
+    },
+    {
+      "name": "Folata di Vento",
+      "level": 2
+    },
+    {
+      "name": "Frantumare",
+      "level": 2
+    },
+    {
+      "name": "Immagine Speculare",
+      "level": 2
+    },
+    {
+      "name": "Individuazione dei Pensieri",
+      "level": 2
+    },
+    {
+      "name": "Ingrandire/Ridurre",
+      "level": 2
+    },
+    {
+      "name": "Invisibilità",
+      "level": 2
+    },
+    {
+      "name": "Levitazione",
+      "level": 2
+    },
+    {
+      "name": "Movimenti del Ragno",
+      "level": 2
+    },
+    {
+      "name": "Nube di Pugnali",
+      "level": 2
+    },
+    {
+      "name": "Oscurità",
+      "level": 2
+    },
+    {
+      "name": "Passo Velato",
+      "level": 2
+    },
+    {
+      "name": "Raggio Rovente",
+      "level": 2
+    },
+    {
+      "name": "Ragnatela",
+      "level": 2
+    },
+    {
+      "name": "Scassinare",
+      "level": 2
+    },
+    {
+      "name": "Scurovisione",
+      "level": 2
+    },
+    {
+      "name": "Sfocatura",
+      "level": 2
+    },
+    {
+      "name": "Suggestione",
+      "level": 2
+    },
+    {
+      "name": "Vedere Invisibilità",
+      "level": 2
+    },
+    {
+      "name": "Camminare sull'Acqua",
+      "level": 3
+    },
+    {
+      "name": "Chiaroveggenza",
+      "level": 3
+    },
+    {
+      "name": "Controincantesimo",
+      "level": 3
+    },
+    {
+      "name": "Dissolvi Magie",
+      "level": 3
+    },
+    {
+      "name": "Forma Gassosa",
+      "level": 3
+    },
+    {
+      "name": "Fulmine",
+      "level": 3
+    },
+    {
+      "name": "Immagine Maggiore",
+      "level": 3
+    },
+    {
+      "name": "Intermittenza",
+      "level": 3
+    },
+    {
+      "name": "Lentezza",
+      "level": 3
+    },
+    {
+      "name": "Linguaggi",
+      "level": 3
+    },
+    {
+      "name": "Luce Diurna",
+      "level": 3
+    },
+    {
+      "name": "Nube Maleodorante",
+      "level": 3
+    },
+    {
+      "name": "Palla di Fuoco",
+      "level": 3
+    },
+    {
+      "name": "Paura",
+      "level": 3
+    },
+    {
+      "name": "Protezione dall'Energia",
+      "level": 3
+    },
+    {
+      "name": "Respirare sott'Acqua",
+      "level": 3
+    },
+    {
+      "name": "Tempesta di Nevischio",
+      "level": 3
+    },
+    {
+      "name": "Trama Ipnotica",
+      "level": 3
+    },
+    {
+      "name": "Velocità",
+      "level": 3
+    },
+    {
+      "name": "Volare",
+      "level": 3
+    },
+    {
+      "name": "Confusione",
+      "level": 4
+    },
+    {
+      "name": "Dominare Bestie",
+      "level": 4
+    },
+    {
+      "name": "Esilio",
+      "level": 4
+    },
+    {
+      "name": "Inaridire",
+      "level": 4
+    },
+    {
+      "name": "Invisibilità Superiore",
+      "level": 4
+    },
+    {
+      "name": "Metamorfosi",
+      "level": 4
+    },
+    {
+      "name": "Muro di Fuoco",
+      "level": 4
+    },
+    {
+      "name": "Pelle di Pietra",
+      "level": 4
+    },
+    {
+      "name": "Porta Dimensionale",
+      "level": 4
+    },
+    {
+      "name": "Tempesta di Ghiaccio",
+      "level": 4
+    },
+    {
+      "name": "Animare Oggetti",
+      "level": 5
+    },
+    {
+      "name": "Blocca Mostri",
+      "level": 5
+    },
+    {
+      "name": "Cerchio di Teletrasporto",
+      "level": 5
+    },
+    {
+      "name": "Cono di Freddo",
+      "level": 5
+    },
+    {
+      "name": "Creazione",
+      "level": 5
+    },
+    {
+      "name": "Dominare Persone",
+      "level": 5
+    },
+    {
+      "name": "Muro di Pietra",
+      "level": 5
+    },
+    {
+      "name": "Nube Mortale",
+      "level": 5
+    },
+    {
+      "name": "Piaga degli Insetti",
+      "level": 5
+    },
+    {
+      "name": "Sembrare",
+      "level": 5
+    },
+    {
+      "name": "Telecinesi",
+      "level": 5
+    },
+    {
+      "name": "Bagliore Solare",
+      "level": 6
+    },
+    {
+      "name": "Catena di Fulmini",
+      "level": 6
+    },
+    {
+      "name": "Cerchio di Morte",
+      "level": 6
+    },
+    {
+      "name": "Disintegrazione",
+      "level": 6
+    },
+    {
+      "name": "Globo di Invulnerabilità",
+      "level": 6
+    },
+    {
+      "name": "Muovere il Terreno",
+      "level": 6
+    },
+    {
+      "name": "Portale Arcano",
+      "level": 6
+    },
+    {
+      "name": "Sguardo Penetrante",
+      "level": 6
+    },
+    {
+      "name": "Suggestione di Massa",
+      "level": 6
+    },
+    {
+      "name": "Visione del Vero",
+      "level": 6
+    },
+    {
+      "name": "Dito della Morte",
+      "level": 7
+    },
+    {
+      "name": "Forma Eterea",
+      "level": 7
+    },
+    {
+      "name": "Inversione della Gravità",
+      "level": 7
+    },
+    {
+      "name": "Palla di Fuoco Ritardata",
+      "level": 7
+    },
+    {
+      "name": "Spostamento Planare",
+      "level": 7
+    },
+    {
+      "name": "Spruzzo Prismatico",
+      "level": 7
+    },
+    {
+      "name": "Teletrasporto",
+      "level": 7
+    },
+    {
+      "name": "Tempesta di Fuoco",
+      "level": 7
+    },
+    {
+      "name": "Dominare Mostri",
+      "level": 8
+    },
+    {
+      "name": "Esplosione Solare",
+      "level": 8
+    },
+    {
+      "name": "Nube Incendiaria",
+      "level": 8
+    },
+    {
+      "name": "Parola del Potere Stordire",
+      "level": 8
+    },
+    {
+      "name": "Terremoto",
+      "level": 8
+    },
+    {
+      "name": "Desiderio",
+      "level": 9
+    },
+    {
+      "name": "Fermare il Tempo",
+      "level": 9
+    },
+    {
+      "name": "Parola del Potere Uccidere",
+      "level": 9
+    },
+    {
+      "name": "Portale",
+      "level": 9
+    },
+    {
+      "name": "Sciame di Meteore",
+      "level": 9
+    }
   ]
 }

@@ -2,219 +2,865 @@
   "_source": "PHB IT, Capitolo 11, pag. 208-209 (Lista Incantesimi da Mago)",
   "class": "Mago",
   "spells": [
-    {"name": "Amicizia", "level": 0},
-    {"name": "Colpo Accurato", "level": 0},
-    {"name": "Dardo di Fuoco", "level": 0},
-    {"name": "Fiotto Acido", "level": 0},
-    {"name": "Illusione Minore", "level": 0},
-    {"name": "Interdizione alle Lame", "level": 0},
-    {"name": "Luce", "level": 0},
-    {"name": "Luci Danzanti", "level": 0},
-    {"name": "Mano Magica", "level": 0},
-    {"name": "Messaggio", "level": 0},
-    {"name": "Prestidigitazione", "level": 0},
-    {"name": "Raggio di Gelo", "level": 0},
-    {"name": "Riparare", "level": 0},
-    {"name": "Spruzzo Velenoso", "level": 0},
-    {"name": "Stretta Folgorante", "level": 0},
-    {"name": "Tocco Gelido", "level": 0},
-    {"name": "Allarme", "level": 1},
-    {"name": "Armatura Magica", "level": 1},
-    {"name": "Caduta Morbida", "level": 1},
-    {"name": "Camuffare Se Stesso", "level": 1},
-    {"name": "Charme su Persone", "level": 1},
-    {"name": "Comprensione dei Linguaggi", "level": 1},
-    {"name": "Dardo Incantato", "level": 1},
-    {"name": "Dardo Stregato", "level": 1},
-    {"name": "Disco Fluttuante di Tenser", "level": 1},
-    {"name": "Globo Cromatico", "level": 1},
-    {"name": "Identificare", "level": 1},
-    {"name": "Immagine Silenziosa", "level": 1},
-    {"name": "Individuazione del Magico", "level": 1},
-    {"name": "Mani Brucianti", "level": 1},
-    {"name": "Nube di Nebbia", "level": 1},
-    {"name": "Onda Tonante", "level": 1},
-    {"name": "Passo Veloce", "level": 1},
-    {"name": "Protezione dal Bene e dal Male", "level": 1},
-    {"name": "Raggio di Infermità", "level": 1},
-    {"name": "Risata Incontenibile di Tasha", "level": 1},
-    {"name": "Ritirata Rapida", "level": 1},
-    {"name": "Saltare", "level": 1},
-    {"name": "Scritto Illusorio", "level": 1},
-    {"name": "Servitore Inosservato", "level": 1},
-    {"name": "Sonno", "level": 1},
-    {"name": "Spruzzo Colorato", "level": 1},
-    {"name": "Trova Famiglio", "level": 1},
-    {"name": "Unto", "level": 1},
-    {"name": "Vita Falsata", "level": 1},
-    {"name": "Allucinazione di Forza", "level": 2},
-    {"name": "Alterare Se Stesso", "level": 2},
-    {"name": "Arma Magica", "level": 2},
-    {"name": "Aura Magica di Nystul", "level": 2},
-    {"name": "Blocca Persone", "level": 2},
-    {"name": "Bocca Magica", "level": 2},
-    {"name": "Cecità/Sordità", "level": 2},
-    {"name": "Corona di Follia", "level": 2},
-    {"name": "Fiamma Perenne", "level": 2},
-    {"name": "Folata di Vento", "level": 2},
-    {"name": "Frantumare", "level": 2},
-    {"name": "Freccia Acida di Melf", "level": 2},
-    {"name": "Immagine Speculare", "level": 2},
-    {"name": "Individuazione dei Pensieri", "level": 2},
-    {"name": "Ingrandire/Ridurre", "level": 2},
-    {"name": "Invisibilità", "level": 2},
-    {"name": "Levitazione", "level": 2},
-    {"name": "Localizza Oggetto", "level": 2},
-    {"name": "Movimenti del Ragno", "level": 2},
-    {"name": "Nube di Pugnali", "level": 2},
-    {"name": "Oscurità", "level": 2},
-    {"name": "Passo Velato", "level": 2},
-    {"name": "Raggio di Affaticamento", "level": 2},
-    {"name": "Raggio Rovente", "level": 2},
-    {"name": "Ragnatela", "level": 2},
-    {"name": "Riposo Inviolato", "level": 2},
-    {"name": "Scassinare", "level": 2},
-    {"name": "Scurovisione", "level": 2},
-    {"name": "Serratura Arcana", "level": 2},
-    {"name": "Sfera Infuocata", "level": 2},
-    {"name": "Sfocatura", "level": 2},
-    {"name": "Suggestione", "level": 2},
-    {"name": "Trucco della Corda", "level": 2},
-    {"name": "Vedere Invisibilità", "level": 2},
-    {"name": "Animare Morti", "level": 3},
-    {"name": "Anti-Individuazione", "level": 3},
-    {"name": "Capanna di Leomund", "level": 3},
-    {"name": "Cerchio Magico", "level": 3},
-    {"name": "Chiaroveggenza", "level": 3},
-    {"name": "Controincantesimo", "level": 3},
-    {"name": "Destriero Fantomatico", "level": 3},
-    {"name": "Dissolvi Magie", "level": 3},
-    {"name": "Forma Gassosa", "level": 3},
-    {"name": "Fulmine", "level": 3},
-    {"name": "Glifo di Interdizione", "level": 3},
-    {"name": "Immagine Maggiore", "level": 3},
-    {"name": "Intermittenza", "level": 3},
-    {"name": "Inviare", "level": 3},
-    {"name": "Lentezza", "level": 3},
-    {"name": "Linguaggi", "level": 3},
-    {"name": "Morte Apparente", "level": 3},
-    {"name": "Nube Maleodorante", "level": 3},
-    {"name": "Palla di Fuoco", "level": 3},
-    {"name": "Paura", "level": 3},
-    {"name": "Protezione dall'Energia", "level": 3},
-    {"name": "Respirare sott'Acqua", "level": 3},
-    {"name": "Rimuovi Maledizione", "level": 3},
-    {"name": "Scagliare Maledizione", "level": 3},
-    {"name": "Tempesta di Nevischio", "level": 3},
-    {"name": "Tocco del Vampiro", "level": 3},
-    {"name": "Trama Ipnotica", "level": 3},
-    {"name": "Velocità", "level": 3},
-    {"name": "Volare", "level": 3},
-    {"name": "Allucinazione Mortale", "level": 4},
-    {"name": "Confusione", "level": 4},
-    {"name": "Controllare Acqua", "level": 4},
-    {"name": "Esilio", "level": 4},
-    {"name": "Evoca Elementali Minori", "level": 4},
-    {"name": "Fabbricare", "level": 4},
-    {"name": "Inaridire", "level": 4},
-    {"name": "Invisibilità Superiore", "level": 4},
-    {"name": "Localizza Creatura", "level": 4},
-    {"name": "Metamorfosi", "level": 4},
-    {"name": "Muro di Fuoco", "level": 4},
-    {"name": "Occhio Arcano", "level": 4},
-    {"name": "Pelle di Pietra", "level": 4},
-    {"name": "Porta Dimensionale", "level": 4},
-    {"name": "Santuario Privato di Mordenkainen", "level": 4},
-    {"name": "Scolpire Pietra", "level": 4},
-    {"name": "Scrigno Segreto di Leomund", "level": 4},
-    {"name": "Scudo di Fuoco", "level": 4},
-    {"name": "Segugio Fedele di Mordenkainen", "level": 4},
-    {"name": "Sfera Elastica di Otiluke", "level": 4},
-    {"name": "Tempesta di Ghiaccio", "level": 4},
-    {"name": "Tentacoli Neri di Evard", "level": 4},
-    {"name": "Terreno Illusorio", "level": 4},
-    {"name": "Animare Oggetti", "level": 5},
-    {"name": "Blocca Mostri", "level": 5},
-    {"name": "Cerchio di Teletrasporto", "level": 5},
-    {"name": "Cono di Freddo", "level": 5},
-    {"name": "Conoscenza delle Leggende", "level": 5},
-    {"name": "Contattare Altri Piani", "level": 5},
-    {"name": "Costrizione", "level": 5},
-    {"name": "Creazione", "level": 5},
-    {"name": "Dominare Persone", "level": 5},
-    {"name": "Evoca Elementale", "level": 5},
-    {"name": "Fuorviare", "level": 5},
-    {"name": "Legame Planare", "level": 5},
-    {"name": "Legame Telepatico di Rary", "level": 5},
-    {"name": "Mano di Bigby", "level": 5},
-    {"name": "Modificare Memoria", "level": 5},
-    {"name": "Muro di Forza", "level": 5},
-    {"name": "Muro di Pietra", "level": 5},
-    {"name": "Nube Mortale", "level": 5},
-    {"name": "Passapareti", "level": 5},
-    {"name": "Scrutare", "level": 5},
-    {"name": "Sembrare", "level": 5},
-    {"name": "Sogno", "level": 5},
-    {"name": "Telecinesi", "level": 5},
-    {"name": "Bagliore Solare", "level": 6},
-    {"name": "Carne in Pietra", "level": 6},
-    {"name": "Catena di Fulmini", "level": 6},
-    {"name": "Cerchio di Morte", "level": 6},
-    {"name": "Contingenza", "level": 6},
-    {"name": "Creare Non Morti", "level": 6},
-    {"name": "Danza Irresistibile di Otto", "level": 6},
-    {"name": "Disintegrazione", "level": 6},
-    {"name": "Evocazioni Istantanee di Drawmij", "level": 6},
-    {"name": "Giara Magica", "level": 6},
-    {"name": "Globo di Invulnerabilità", "level": 6},
-    {"name": "Illusione Programmata", "level": 6},
-    {"name": "Muovere il Terreno", "level": 6},
-    {"name": "Muro di Ghiaccio", "level": 6},
-    {"name": "Portale Arcano", "level": 6},
-    {"name": "Sfera Congelante di Otiluke", "level": 6},
-    {"name": "Sguardo Penetrante", "level": 6},
-    {"name": "Suggestione di Massa", "level": 6},
-    {"name": "Vigilanza e Interdizione", "level": 6},
-    {"name": "Visione del Vero", "level": 6},
-    {"name": "Celare", "level": 7},
-    {"name": "Dito della Morte", "level": 7},
-    {"name": "Forma Eterea", "level": 7},
-    {"name": "Gabbia di Forza", "level": 7},
-    {"name": "Immagine Proiettata", "level": 7},
-    {"name": "Inversione della Gravità", "level": 7},
-    {"name": "Miraggio Arcano", "level": 7},
-    {"name": "Palla di Fuoco Ritardata", "level": 7},
-    {"name": "Reggia Meravigliosa di Mordenkainen", "level": 7},
-    {"name": "Simbolo", "level": 7},
-    {"name": "Simulacro", "level": 7},
-    {"name": "Spada di Mordenkainen", "level": 7},
-    {"name": "Spostamento Planare", "level": 7},
-    {"name": "Spruzzo Prismatico", "level": 7},
-    {"name": "Teletrasporto", "level": 7},
-    {"name": "Antipatia/Simpatia", "level": 8},
-    {"name": "Campo Anti-Magia", "level": 8},
-    {"name": "Clone", "level": 8},
-    {"name": "Controllare Tempo Atmosferico", "level": 8},
-    {"name": "Dominare Mostri", "level": 8},
-    {"name": "Esplosione Solare", "level": 8},
-    {"name": "Labirinto", "level": 8},
-    {"name": "Nube Incendiaria", "level": 8},
-    {"name": "Parola del Potere Stordire", "level": 8},
-    {"name": "Regressione Mentale", "level": 8},
-    {"name": "Semipiano", "level": 8},
-    {"name": "Telepatia", "level": 8},
-    {"name": "Vuoto Mentale", "level": 8},
-    {"name": "Desiderio", "level": 9},
-    {"name": "Fatale", "level": 9},
-    {"name": "Fermare il Tempo", "level": 9},
-    {"name": "Imprigionare", "level": 9},
-    {"name": "Metamorfosi Pura", "level": 9},
-    {"name": "Muro Prismatico", "level": 9},
-    {"name": "Parola del Potere Uccidere", "level": 9},
-    {"name": "Portale", "level": 9},
-    {"name": "Previsione", "level": 9},
-    {"name": "Proiezione Astrale", "level": 9},
-    {"name": "Sciame di Meteore", "level": 9},
-    {"name": "Trasformazione", "level": 9}
+    {
+      "name": "Amicizia",
+      "level": 0
+    },
+    {
+      "name": "Colpo Accurato",
+      "level": 0
+    },
+    {
+      "name": "Dardo di Fuoco",
+      "level": 0
+    },
+    {
+      "name": "Fiotto Acido",
+      "level": 0
+    },
+    {
+      "name": "Illusione Minore",
+      "level": 0
+    },
+    {
+      "name": "Interdizione alle Lame",
+      "level": 0
+    },
+    {
+      "name": "Luce",
+      "level": 0
+    },
+    {
+      "name": "Luci Danzanti",
+      "level": 0
+    },
+    {
+      "name": "Mano Magica",
+      "level": 0
+    },
+    {
+      "name": "Messaggio",
+      "level": 0
+    },
+    {
+      "name": "Prestidigitazione",
+      "level": 0
+    },
+    {
+      "name": "Raggio di Gelo",
+      "level": 0
+    },
+    {
+      "name": "Riparare",
+      "level": 0
+    },
+    {
+      "name": "Spruzzo Velenoso",
+      "level": 0
+    },
+    {
+      "name": "Stretta Folgorante",
+      "level": 0
+    },
+    {
+      "name": "Tocco Gelido",
+      "level": 0
+    },
+    {
+      "name": "Allarme",
+      "level": 1
+    },
+    {
+      "name": "Armatura Magica",
+      "level": 1
+    },
+    {
+      "name": "Caduta Morbida",
+      "level": 1
+    },
+    {
+      "name": "Camuffare Se Stesso",
+      "level": 1
+    },
+    {
+      "name": "Charme su Persone",
+      "level": 1
+    },
+    {
+      "name": "Comprensione dei Linguaggi",
+      "level": 1
+    },
+    {
+      "name": "Dardo Incantato",
+      "level": 1
+    },
+    {
+      "name": "Dardo Stregato",
+      "level": 1
+    },
+    {
+      "name": "Disco Fluttuante di Tenser",
+      "level": 1
+    },
+    {
+      "name": "Globo Cromatico",
+      "level": 1
+    },
+    {
+      "name": "Identificare",
+      "level": 1
+    },
+    {
+      "name": "Immagine Silenziosa",
+      "level": 1
+    },
+    {
+      "name": "Individuazione del Magico",
+      "level": 1
+    },
+    {
+      "name": "Mani Brucianti",
+      "level": 1
+    },
+    {
+      "name": "Nube di Nebbia",
+      "level": 1
+    },
+    {
+      "name": "Onda Tonante",
+      "level": 1
+    },
+    {
+      "name": "Passo Veloce",
+      "level": 1
+    },
+    {
+      "name": "Protezione dal Bene e dal Male",
+      "level": 1
+    },
+    {
+      "name": "Raggio di Infermità",
+      "level": 1
+    },
+    {
+      "name": "Risata Incontenibile di Tasha",
+      "level": 1
+    },
+    {
+      "name": "Ritirata Rapida",
+      "level": 1
+    },
+    {
+      "name": "Saltare",
+      "level": 1
+    },
+    {
+      "name": "Scritto Illusorio",
+      "level": 1
+    },
+    {
+      "name": "Scudo",
+      "level": 1
+    },
+    {
+      "name": "Servitore Inosservato",
+      "level": 1
+    },
+    {
+      "name": "Sonno",
+      "level": 1
+    },
+    {
+      "name": "Spruzzo Colorato",
+      "level": 1
+    },
+    {
+      "name": "Trova Famiglio",
+      "level": 1
+    },
+    {
+      "name": "Unto",
+      "level": 1
+    },
+    {
+      "name": "Vita Falsata",
+      "level": 1
+    },
+    {
+      "name": "Allucinazione di Forza",
+      "level": 2
+    },
+    {
+      "name": "Alterare Se Stesso",
+      "level": 2
+    },
+    {
+      "name": "Arma Magica",
+      "level": 2
+    },
+    {
+      "name": "Aura Magica di Nystul",
+      "level": 2
+    },
+    {
+      "name": "Blocca Persone",
+      "level": 2
+    },
+    {
+      "name": "Bocca Magica",
+      "level": 2
+    },
+    {
+      "name": "Cecità/Sordità",
+      "level": 2
+    },
+    {
+      "name": "Corona di Follia",
+      "level": 2
+    },
+    {
+      "name": "Fiamma Perenne",
+      "level": 2
+    },
+    {
+      "name": "Folata di Vento",
+      "level": 2
+    },
+    {
+      "name": "Frantumare",
+      "level": 2
+    },
+    {
+      "name": "Freccia Acida di Melf",
+      "level": 2
+    },
+    {
+      "name": "Immagine Speculare",
+      "level": 2
+    },
+    {
+      "name": "Individuazione dei Pensieri",
+      "level": 2
+    },
+    {
+      "name": "Ingrandire/Ridurre",
+      "level": 2
+    },
+    {
+      "name": "Invisibilità",
+      "level": 2
+    },
+    {
+      "name": "Levitazione",
+      "level": 2
+    },
+    {
+      "name": "Localizza Oggetto",
+      "level": 2
+    },
+    {
+      "name": "Movimenti del Ragno",
+      "level": 2
+    },
+    {
+      "name": "Nube di Pugnali",
+      "level": 2
+    },
+    {
+      "name": "Oscurità",
+      "level": 2
+    },
+    {
+      "name": "Passo Velato",
+      "level": 2
+    },
+    {
+      "name": "Raggio Rovente",
+      "level": 2
+    },
+    {
+      "name": "Raggio di Affaticamento",
+      "level": 2
+    },
+    {
+      "name": "Ragnatela",
+      "level": 2
+    },
+    {
+      "name": "Riposo Inviolato",
+      "level": 2
+    },
+    {
+      "name": "Scassinare",
+      "level": 2
+    },
+    {
+      "name": "Scurovisione",
+      "level": 2
+    },
+    {
+      "name": "Serratura Arcana",
+      "level": 2
+    },
+    {
+      "name": "Sfera Infuocata",
+      "level": 2
+    },
+    {
+      "name": "Sfocatura",
+      "level": 2
+    },
+    {
+      "name": "Suggestione",
+      "level": 2
+    },
+    {
+      "name": "Trucco della Corda",
+      "level": 2
+    },
+    {
+      "name": "Vedere Invisibilità",
+      "level": 2
+    },
+    {
+      "name": "Animare Morti",
+      "level": 3
+    },
+    {
+      "name": "Anti-Individuazione",
+      "level": 3
+    },
+    {
+      "name": "Capanna di Leomund",
+      "level": 3
+    },
+    {
+      "name": "Cerchio Magico",
+      "level": 3
+    },
+    {
+      "name": "Chiaroveggenza",
+      "level": 3
+    },
+    {
+      "name": "Controincantesimo",
+      "level": 3
+    },
+    {
+      "name": "Destriero Fantomatico",
+      "level": 3
+    },
+    {
+      "name": "Dissolvi Magie",
+      "level": 3
+    },
+    {
+      "name": "Forma Gassosa",
+      "level": 3
+    },
+    {
+      "name": "Fulmine",
+      "level": 3
+    },
+    {
+      "name": "Glifo di Interdizione",
+      "level": 3
+    },
+    {
+      "name": "Immagine Maggiore",
+      "level": 3
+    },
+    {
+      "name": "Intermittenza",
+      "level": 3
+    },
+    {
+      "name": "Inviare",
+      "level": 3
+    },
+    {
+      "name": "Lentezza",
+      "level": 3
+    },
+    {
+      "name": "Linguaggi",
+      "level": 3
+    },
+    {
+      "name": "Morte Apparente",
+      "level": 3
+    },
+    {
+      "name": "Nube Maleodorante",
+      "level": 3
+    },
+    {
+      "name": "Palla di Fuoco",
+      "level": 3
+    },
+    {
+      "name": "Paura",
+      "level": 3
+    },
+    {
+      "name": "Protezione dall'Energia",
+      "level": 3
+    },
+    {
+      "name": "Respirare sott'Acqua",
+      "level": 3
+    },
+    {
+      "name": "Rimuovi Maledizione",
+      "level": 3
+    },
+    {
+      "name": "Scagliare Maledizione",
+      "level": 3
+    },
+    {
+      "name": "Tempesta di Nevischio",
+      "level": 3
+    },
+    {
+      "name": "Tocco del Vampiro",
+      "level": 3
+    },
+    {
+      "name": "Trama Ipnotica",
+      "level": 3
+    },
+    {
+      "name": "Velocità",
+      "level": 3
+    },
+    {
+      "name": "Volare",
+      "level": 3
+    },
+    {
+      "name": "Allucinazione Mortale",
+      "level": 4
+    },
+    {
+      "name": "Confusione",
+      "level": 4
+    },
+    {
+      "name": "Controllare Acqua",
+      "level": 4
+    },
+    {
+      "name": "Esilio",
+      "level": 4
+    },
+    {
+      "name": "Evoca Elementali Minori",
+      "level": 4
+    },
+    {
+      "name": "Fabbricare",
+      "level": 4
+    },
+    {
+      "name": "Inaridire",
+      "level": 4
+    },
+    {
+      "name": "Invisibilità Superiore",
+      "level": 4
+    },
+    {
+      "name": "Localizza Creatura",
+      "level": 4
+    },
+    {
+      "name": "Metamorfosi",
+      "level": 4
+    },
+    {
+      "name": "Muro di Fuoco",
+      "level": 4
+    },
+    {
+      "name": "Occhio Arcano",
+      "level": 4
+    },
+    {
+      "name": "Pelle di Pietra",
+      "level": 4
+    },
+    {
+      "name": "Porta Dimensionale",
+      "level": 4
+    },
+    {
+      "name": "Santuario Privato di Mordenkainen",
+      "level": 4
+    },
+    {
+      "name": "Scolpire Pietra",
+      "level": 4
+    },
+    {
+      "name": "Scrigno Segreto di Leomund",
+      "level": 4
+    },
+    {
+      "name": "Scudo di Fuoco",
+      "level": 4
+    },
+    {
+      "name": "Segugio Fedele di Mordenkainen",
+      "level": 4
+    },
+    {
+      "name": "Sfera Elastica di Otiluke",
+      "level": 4
+    },
+    {
+      "name": "Tempesta di Ghiaccio",
+      "level": 4
+    },
+    {
+      "name": "Tentacoli Neri di Evard",
+      "level": 4
+    },
+    {
+      "name": "Terreno Illusorio",
+      "level": 4
+    },
+    {
+      "name": "Animare Oggetti",
+      "level": 5
+    },
+    {
+      "name": "Blocca Mostri",
+      "level": 5
+    },
+    {
+      "name": "Cerchio di Teletrasporto",
+      "level": 5
+    },
+    {
+      "name": "Cono di Freddo",
+      "level": 5
+    },
+    {
+      "name": "Conoscenza delle Leggende",
+      "level": 5
+    },
+    {
+      "name": "Contattare Altri Piani",
+      "level": 5
+    },
+    {
+      "name": "Costrizione",
+      "level": 5
+    },
+    {
+      "name": "Creazione",
+      "level": 5
+    },
+    {
+      "name": "Dominare Persone",
+      "level": 5
+    },
+    {
+      "name": "Evoca Elementale",
+      "level": 5
+    },
+    {
+      "name": "Fuorviare",
+      "level": 5
+    },
+    {
+      "name": "Legame Planare",
+      "level": 5
+    },
+    {
+      "name": "Legame Telepatico di Rary",
+      "level": 5
+    },
+    {
+      "name": "Mano di Bigby",
+      "level": 5
+    },
+    {
+      "name": "Modificare Memoria",
+      "level": 5
+    },
+    {
+      "name": "Muro di Forza",
+      "level": 5
+    },
+    {
+      "name": "Muro di Pietra",
+      "level": 5
+    },
+    {
+      "name": "Nube Mortale",
+      "level": 5
+    },
+    {
+      "name": "Passapareti",
+      "level": 5
+    },
+    {
+      "name": "Scrutare",
+      "level": 5
+    },
+    {
+      "name": "Sembrare",
+      "level": 5
+    },
+    {
+      "name": "Sogno",
+      "level": 5
+    },
+    {
+      "name": "Telecinesi",
+      "level": 5
+    },
+    {
+      "name": "Bagliore Solare",
+      "level": 6
+    },
+    {
+      "name": "Carne in Pietra",
+      "level": 6
+    },
+    {
+      "name": "Catena di Fulmini",
+      "level": 6
+    },
+    {
+      "name": "Cerchio di Morte",
+      "level": 6
+    },
+    {
+      "name": "Contingenza",
+      "level": 6
+    },
+    {
+      "name": "Creare Non Morti",
+      "level": 6
+    },
+    {
+      "name": "Danza Irresistibile di Otto",
+      "level": 6
+    },
+    {
+      "name": "Disintegrazione",
+      "level": 6
+    },
+    {
+      "name": "Evocazioni Istantanee di Drawmij",
+      "level": 6
+    },
+    {
+      "name": "Giara Magica",
+      "level": 6
+    },
+    {
+      "name": "Globo di Invulnerabilità",
+      "level": 6
+    },
+    {
+      "name": "Illusione Programmata",
+      "level": 6
+    },
+    {
+      "name": "Muovere il Terreno",
+      "level": 6
+    },
+    {
+      "name": "Muro di Ghiaccio",
+      "level": 6
+    },
+    {
+      "name": "Portale Arcano",
+      "level": 6
+    },
+    {
+      "name": "Sfera Congelante di Otiluke",
+      "level": 6
+    },
+    {
+      "name": "Sguardo Penetrante",
+      "level": 6
+    },
+    {
+      "name": "Suggestione di Massa",
+      "level": 6
+    },
+    {
+      "name": "Vigilanza e Interdizione",
+      "level": 6
+    },
+    {
+      "name": "Visione del Vero",
+      "level": 6
+    },
+    {
+      "name": "Celare",
+      "level": 7
+    },
+    {
+      "name": "Dito della Morte",
+      "level": 7
+    },
+    {
+      "name": "Forma Eterea",
+      "level": 7
+    },
+    {
+      "name": "Gabbia di Forza",
+      "level": 7
+    },
+    {
+      "name": "Immagine Proiettata",
+      "level": 7
+    },
+    {
+      "name": "Inversione della Gravità",
+      "level": 7
+    },
+    {
+      "name": "Miraggio Arcano",
+      "level": 7
+    },
+    {
+      "name": "Palla di Fuoco Ritardata",
+      "level": 7
+    },
+    {
+      "name": "Reggia Meravigliosa di Mordenkainen",
+      "level": 7
+    },
+    {
+      "name": "Simbolo",
+      "level": 7
+    },
+    {
+      "name": "Simulacro",
+      "level": 7
+    },
+    {
+      "name": "Spada di Mordenkainen",
+      "level": 7
+    },
+    {
+      "name": "Spostamento Planare",
+      "level": 7
+    },
+    {
+      "name": "Spruzzo Prismatico",
+      "level": 7
+    },
+    {
+      "name": "Teletrasporto",
+      "level": 7
+    },
+    {
+      "name": "Antipatia/Simpatia",
+      "level": 8
+    },
+    {
+      "name": "Campo Anti-Magia",
+      "level": 8
+    },
+    {
+      "name": "Clone",
+      "level": 8
+    },
+    {
+      "name": "Controllare Tempo Atmosferico",
+      "level": 8
+    },
+    {
+      "name": "Dominare Mostri",
+      "level": 8
+    },
+    {
+      "name": "Esplosione Solare",
+      "level": 8
+    },
+    {
+      "name": "Labirinto",
+      "level": 8
+    },
+    {
+      "name": "Nube Incendiaria",
+      "level": 8
+    },
+    {
+      "name": "Parola del Potere Stordire",
+      "level": 8
+    },
+    {
+      "name": "Regressione Mentale",
+      "level": 8
+    },
+    {
+      "name": "Semipiano",
+      "level": 8
+    },
+    {
+      "name": "Telepatia",
+      "level": 8
+    },
+    {
+      "name": "Vuoto Mentale",
+      "level": 8
+    },
+    {
+      "name": "Desiderio",
+      "level": 9
+    },
+    {
+      "name": "Fatale",
+      "level": 9
+    },
+    {
+      "name": "Fermare il Tempo",
+      "level": 9
+    },
+    {
+      "name": "Imprigionare",
+      "level": 9
+    },
+    {
+      "name": "Metamorfosi Pura",
+      "level": 9
+    },
+    {
+      "name": "Muro Prismatico",
+      "level": 9
+    },
+    {
+      "name": "Parola del Potere Uccidere",
+      "level": 9
+    },
+    {
+      "name": "Portale",
+      "level": 9
+    },
+    {
+      "name": "Previsione",
+      "level": 9
+    },
+    {
+      "name": "Proiezione Astrale",
+      "level": 9
+    },
+    {
+      "name": "Sciame di Meteore",
+      "level": 9
+    },
+    {
+      "name": "Trasformazione",
+      "level": 9
+    }
   ]
 }
