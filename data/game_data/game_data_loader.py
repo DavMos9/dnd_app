@@ -73,6 +73,8 @@ class GameDataLoader:
         # una entry per file: "weapons", "armor", "adventuring_gear", "tools",
         # "mounts_and_vehicles", "economy"
         self._equipment: dict[str, dict[str, Any]] = {}
+        # progressioni slot incantesimo (full/half/pact caster) + mappa classe→tipo
+        self._spell_slot_progressions: dict[str, Any] | None = None
 
         self._classes_loaded     = False
         self._races_loaded       = False
@@ -110,6 +112,156 @@ class GameDataLoader:
         """Nomi leggibili di tutte le classi (campo 'name' del JSON)."""
         self._ensure_classes()
         return [d.get("name", k.capitalize()) for k, d in self._classes.items()]
+
+    # Livelli ASI PHB standard — applicabile a tutte le classi tranne le 2
+    # eccezioni esplicite (Guerriero, Ladro) che hanno un campo "asi_levels"
+    # dedicato nel proprio JSON. Costante universale, non "dato di classe"
+    # (nessuna delle 10 classi standard avrebbe motivo di un valore diverso
+    # da questo — scriverlo in tutti e 10 i file sarebbe pura duplicazione
+    # dello stesso letterale, non informazione nuova).
+    _ASI_LEVELS_DEFAULT: set[int] = {4, 8, 12, 16, 19}
+
+    def get_asi_levels(self, class_name: str) -> set[int]:
+        """
+        Livelli in cui la classe ottiene un ASI (Ability Score Improvement).
+        Legge il campo "asi_levels" dal JSON di classe se presente (Guerriero,
+        Ladro — le uniche 2 progressioni non standard PHB), altrimenti
+        restituisce la progressione standard {4,8,12,16,19}.
+        """
+        cls_data = self.get_class(class_name)
+        if cls_data and "asi_levels" in cls_data:
+            return set(cls_data["asi_levels"])
+        return set(self._ASI_LEVELS_DEFAULT)
+
+    def get_spell_learn_delta(self, class_name: str) -> dict[int, int]:
+        """
+        Numero di nuovi incantesimi (non-trucchetti) appresi a ogni livello,
+        per le classi "know" (Bardo/Ranger/Stregone/Warlock). Letto dal campo
+        "spell_learn_delta" del JSON di classe (chiavi stringa nel JSON,
+        convertite in int qui). Dizionario vuoto per le altre classi.
+        Spostato da core/level_manager.py (_SPELL_LEARN_DELTA) il 2026-07-10
+        — numeri già verificati pagina per pagina contro il PHB IT nelle
+        sessioni di audit level-up, nessun valore cambiato in questa migrazione.
+        """
+        cls_data = self.get_class(class_name)
+        if not cls_data:
+            return {}
+        return {int(k): v for k, v in cls_data.get("spell_learn_delta", {}).items()}
+
+    def get_cantrips_known_at_1(self, class_name: str) -> int:
+        """
+        Trucchetti conosciuti al 1° livello, per le classi che ne concedono
+        alla creazione (Bardo, Chierico, Druido, Mago, Stregone, Warlock —
+        Paladino e Ranger non hanno trucchetti nel PHB). Letto dal campo
+        "cantrips_known_at_1" del JSON di classe. 0 se assente (classe senza
+        trucchetti, o non incantatrice).
+
+        Dato trascritto/derivato dal testo delle rispettive feature "Incantesimi"
+        / "Trucchetti" / "Magia del Patto" già presente nei JSON di classe
+        (verificato pagina per pagina durante gli audit level-up precedenti;
+        per il Bardo il valore non era scritto esplicitamente in prosa — è
+        stato usato al suo posto per verifica incrociata, vedi
+        get_spells_known_at_1()).
+        """
+        cls_data = self.get_class(class_name)
+        if not cls_data:
+            return 0
+        return int(cls_data.get("cantrips_known_at_1", 0) or 0)
+
+    def get_spells_known_at_1(self, class_name: str) -> int:
+        """
+        Incantesimi (non trucchetti) conosciuti al 1° livello, solo per le
+        classi "know" che scelgono una lista fissa alla creazione (Bardo,
+        Stregone, Warlock — non i "preparatori" come Chierico/Druido/Paladino,
+        che ogni giorno preparano dal pool completo della classe, né il Mago,
+        che parte con un libro degli incantesimi — meccanica separata).
+        Letto dal campo "spells_known_at_1" del JSON di classe. 0 se assente.
+
+        Stregone e Warlock: valore confermato testualmente nella feature
+        "Incantesimi"/"Magia del Patto" ("conosce due incantesimi di 1°
+        livello a sua scelta"). Bardo: non è scritto esplicitamente in prosa
+        nel JSON — ricavato per calcolo da due fatti già verificati contro
+        il manuale in sessioni di audit precedenti: la tabella
+        `spell_learn_delta["Bardo"]` (verificata pag.53, somma dei delta dal
+        Lv.2 al Lv.20 = 18) e il totale finale confermato a Lv.20 = 22
+        (vedi CLAUDE.md, audit level-up Bardo) → 22 − 18 = 4.
+        """
+        cls_data = self.get_class(class_name)
+        if not cls_data:
+            return 0
+        return int(cls_data.get("spells_known_at_1", 0) or 0)
+
+    def get_metamagic_count_by_level(self) -> dict[int, int]:
+        """Stregone, Metamagia: nuove opzioni acquisite a ciascun livello (PHB p.102)."""
+        cls_data = self.get_class("stregone")
+        if not cls_data:
+            return {}
+        return {int(k): v for k, v in cls_data.get("metamagic_count_by_level", {}).items()}
+
+    def get_invocations_total_by_level(self) -> dict[int, int]:
+        """Warlock, Suppliche Occulte: totale cumulativo conosciuto a ciascun livello (PHB p.114)."""
+        cls_data = self.get_class("warlock")
+        if not cls_data:
+            return {}
+        return {int(k): v for k, v in cls_data.get("invocations_total_by_level", {}).items()}
+
+    def get_segreti_magici_levels(self) -> set[int]:
+        """Bardo, Segreti Magici (progressione base, PHB p.55): livelli di innesco."""
+        cls_data = self.get_class("bardo")
+        if not cls_data:
+            return set()
+        return set(cls_data.get("segreti_magici_levels", []))
+
+    def get_expertise_levels(self, class_name: str) -> set[int]:
+        """
+        Livelli di innesco della Maestria/Expertise (2 abilità aggiuntive)
+        per la classe indicata (Ladro Lv1/6, Bardo Lv3/10). Insieme vuoto
+        per le classi senza questa meccanica.
+        """
+        cls_data = self.get_class(class_name)
+        if not cls_data:
+            return set()
+        return set(cls_data.get("expertise_levels", []))
+
+    def get_bardic_inspiration_die(self, level: int) -> str:
+        """
+        Dado di Ispirazione Bardica per il livello indicato (PHB: d6 dal
+        1°, d8 dal 5°, d10 dal 10°, d12 dal 15°). Letto da
+        bardo.json → "bardic_inspiration_die_by_level" (già confermato dal
+        testo della feature "Ispirazione Bardica" in sessioni precedenti —
+        "Il dado diventa d8 al 5° livello, d10 al 10° e d12 al 15°").
+        Restituisce "d6" come fallback se il campo manca o il livello è
+        sotto la soglia minima.
+        """
+        cls_data = self.get_class("bardo")
+        table: dict[str, str] = (cls_data or {}).get("bardic_inspiration_die_by_level", {})
+        if not table:
+            return "d6"
+        best = "d6"
+        for threshold_str in sorted(table.keys(), key=int):
+            if level >= int(threshold_str):
+                best = table[threshold_str]
+        return best
+
+    def get_sneak_attack_dice(self, level: int) -> str:
+        """
+        Dado di danno dell'Attacco Furtivo del Ladro al livello indicato.
+        Letto da ladro.json → "sneak_attack_dice_by_level" — tabella "Ladro"
+        del PHB IT (colonna "Attacco Furtivo"), trascritta da una foto della
+        pagina fornita da Davide il 2026-07-10: 1d6 al 1°, +1d6 ogni 2 livelli
+        (3°,5°,7°,9°,11°,13°,15°,17°,19°), fino a 10d6 al 19°-20°.
+        Restituisce "1d6" come fallback se il campo manca o il livello è
+        sotto la soglia minima.
+        """
+        cls_data = self.get_class("ladro")
+        table: dict[str, str] = (cls_data or {}).get("sneak_attack_dice_by_level", {})
+        if not table:
+            return "1d6"
+        best = "1d6"
+        for threshold_str in sorted(table.keys(), key=int):
+            if level >= int(threshold_str):
+                best = table[threshold_str]
+        return best
 
     def get_class_saving_throws(self, class_name: str) -> list[str]:
         """
@@ -206,6 +358,48 @@ class GameDataLoader:
         quel file (Checklist Revisione Dati PHB in CLAUDE.md).
         """
         return [s["name"] for s in self.get_spells_by_level("mago", 0) if s.get("name")]
+
+    def _ensure_spell_slot_progressions(self) -> None:
+        """
+        Carica pigramente spell_slot_progressions.json: le 3 tabelle PHB
+        (full/half/pact caster) + la mappa classe→tipo di incantatore.
+        Numeri già verificati contro il manuale in sessioni di audit
+        precedenti (vedi CLAUDE.md) — questo file è solo la loro
+        rappresentazione JSON, spostata da data/repositories/character_repo.py
+        per evitare di avere dati PHB scritti a mano solo in Python.
+        """
+        if self._spell_slot_progressions is not None:
+            return
+        path = _DATA_DIR / "spell_slot_progressions.json"
+        try:
+            self._spell_slot_progressions = _load_json(path)
+        except Exception as exc:
+            logger.error("Errore caricamento spell_slot_progressions.json: %s", exc)
+            self._spell_slot_progressions = {
+                "caster_type_by_class": {}, "full_caster": [], "half_caster": [], "warlock": [],
+            }
+
+    def get_caster_type(self, class_name: str) -> str:
+        """
+        Restituisce "full" / "half" / "pact" per le classi incantatrici PHB,
+        stringa vuota per le classi che non lanciano incantesimi a livello
+        base (Barbaro, Guerriero, Ladro, Monaco — anche se possono ottenere
+        casting da sottoclasse, gestito separatamente da spell_progression).
+        """
+        self._ensure_spell_slot_progressions()
+        assert self._spell_slot_progressions is not None
+        return self._spell_slot_progressions["caster_type_by_class"].get(class_name.strip().lower(), "")
+
+    def get_spell_slot_table(self, caster_type: str) -> list[list[int]]:
+        """
+        Tabella slot incantesimo PHB per il tipo di incantatore indicato
+        ("full" | "half" | "pact"). Indice 0 = Lv.1 ... indice 19 = Lv.20.
+        Lista vuota se il tipo non è riconosciuto.
+        """
+        self._ensure_spell_slot_progressions()
+        assert self._spell_slot_progressions is not None
+        key = {"full": "full_caster", "half": "half_caster", "pact": "warlock"}.get(caster_type, "")
+        return self._spell_slot_progressions.get(key, [])
 
     def _ensure_classes(self) -> None:
         if self._classes_loaded:

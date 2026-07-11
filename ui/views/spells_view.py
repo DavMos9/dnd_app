@@ -168,7 +168,6 @@ class SpellsView(ft.ListView):
             return
         page = self._page
         c = self.character
-        formula_max = _calc_max_prepared(c)
         # Calcola il valore formula escludendo l'override corrente
         tmp_override = c.max_prepared_spells_override
         c.max_prepared_spells_override = 0

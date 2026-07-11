@@ -11,11 +11,11 @@ Struttura (ListView scrollabile):
 import flet as ft
 import json
 import logging
-from typing import Any, Callable, cast
+from typing import Callable, cast
 from config.settings import *
 from data.models import Character, Currency, InventoryItem, Weapon
 import data.repositories.character_repo as character_repo
-from ui.theme import section_header, muted_text, label_text
+from ui.theme import section_header, muted_text, label_text, show_error_dialog
 
 logger = logging.getLogger(__name__)
 
@@ -402,6 +402,14 @@ class InventarioTab(ft.ListView):
                     font_family=FONT_MONO, width=32,
                     text_align=ft.TextAlign.RIGHT),
             muted_text(wt_str, 11),
+            ft.IconButton(
+                icon=ft.Icons.CHECK_CIRCLE if item.is_equipped else ft.Icons.RADIO_BUTTON_UNCHECKED,
+                icon_color=COLOR_ACCENT_CRIMSON if item.is_equipped else COLOR_BORDER,
+                icon_size=14,
+                tooltip="Disequipaggia" if item.is_equipped else "Equipaggia",
+                on_click=lambda e, it=item: self._toggle_item_equipped(it),
+                padding=ft.Padding.all(2),
+            ),
             ft.IconButton(
                 icon=ft.Icons.EDIT,
                 icon_color=COLOR_TEXT_MUTED, icon_size=14, tooltip="Modifica",
@@ -815,6 +823,32 @@ class InventarioTab(ft.ListView):
             range_max=weapon.range_max or 0,
             magic_damages=weapon.magic_damages or "[]",
         )
+        self._refresh()
+
+    def _toggle_item_equipped(self, item: InventoryItem) -> None:
+        """
+        Equipaggia/disequipaggia rapidamente un oggetto generico (armatura,
+        scudo, attrezzo, ecc.) senza dover aprire il dialog "Modifica" —
+        stesso pattern del toggle rapido già esistente per le armi
+        (_toggle_weapon_equipped). Se l'oggetto è un'armatura, ricalcola
+        subito la CA (stesso comportamento già presente nel dialog di
+        modifica), altrimenti equipaggiare/disequipaggiare un'armatura da
+        qui non aggiornava la CA finché non si riapriva il dialog.
+        """
+        ok = character_repo.update_inventory_item(
+            item.id, item.name, item.quantity, item.weight,
+            item.description or "", item.category or "misc",
+            not item.is_equipped,
+            ca_value=item.ca_value or 0,
+            armor_type=item.armor_type or "",
+            effects=item.effects or "",
+        )
+        if not ok:
+            show_error_dialog(self._page)
+            return
+        if (item.category or "") == "armor":
+            new_ca = character_repo.calculate_and_update_ca(self.character.id)
+            self.character.ac = new_ca
         self._refresh()
 
     # ------------------------------------------------------------------

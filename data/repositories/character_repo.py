@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from data.database import get_connection
+from data.game_data.game_data_loader import game_data
 from data.models import Character, CharacterProficiency, Currency, SpellSlot, ClassResource, CreatureEntry
 
 logger = logging.getLogger(__name__)
@@ -729,54 +730,15 @@ def update_spell_slot(character_id: str, slot_level: int, used: int) -> bool:
 
 # ---------------------------------------------------------------------------
 # Tabella PHB slot incantesimo per livello di personaggio
-# Indice 0 = Lv 1, indice 19 = Lv 20. Ogni lista: [1°,2°,3°,...,9°]
+#
+# Spostata in data/game_data/spell_slot_progressions.json il 2026-07-10 —
+# stesso principio già applicato a RACE_DATA/CLASSES/tags.json: i numeri
+# erano già stati verificati contro il manuale in sessioni di audit
+# precedenti, ma vivevano solo come dizionari Python invece che come dato
+# JSON. GameDataLoader.get_caster_type()/get_spell_slot_table() sono
+# l'unica fonte ora — nessun valore è cambiato in questa migrazione
+# (confrontato con uno script di diff automatico prima della rimozione).
 # ---------------------------------------------------------------------------
-_FULL_CASTER_SLOTS = [
-    [2,0,0,0,0,0,0,0,0], [3,0,0,0,0,0,0,0,0], [4,2,0,0,0,0,0,0,0],
-    [4,3,0,0,0,0,0,0,0], [4,3,2,0,0,0,0,0,0], [4,3,3,0,0,0,0,0,0],
-    [4,3,3,1,0,0,0,0,0], [4,3,3,2,0,0,0,0,0], [4,3,3,3,1,0,0,0,0],
-    [4,3,3,3,2,0,0,0,0], [4,3,3,3,2,1,0,0,0], [4,3,3,3,2,1,0,0,0],
-    [4,3,3,3,2,1,1,0,0], [4,3,3,3,2,1,1,0,0], [4,3,3,3,2,1,1,1,0],
-    [4,3,3,3,2,1,1,1,0], [4,3,3,3,2,1,1,1,1], [4,3,3,3,3,1,1,1,1],
-    [4,3,3,3,3,2,1,1,1], [4,3,3,3,3,2,2,1,1],
-]
-_HALF_CASTER_SLOTS = [
-    [0,0,0,0,0,0,0,0,0], [2,0,0,0,0,0,0,0,0], [3,0,0,0,0,0,0,0,0],
-    [3,0,0,0,0,0,0,0,0], [4,2,0,0,0,0,0,0,0], [4,2,0,0,0,0,0,0,0],
-    [4,3,0,0,0,0,0,0,0], [4,3,0,0,0,0,0,0,0], [4,3,2,0,0,0,0,0,0],
-    [4,3,2,0,0,0,0,0,0], [4,3,3,0,0,0,0,0,0], [4,3,3,0,0,0,0,0,0],
-    [4,3,3,1,0,0,0,0,0], [4,3,3,1,0,0,0,0,0], [4,3,3,2,0,0,0,0,0],
-    [4,3,3,2,0,0,0,0,0], [4,3,3,3,1,0,0,0,0], [4,3,3,3,1,0,0,0,0],
-    [4,3,3,3,2,0,0,0,0], [4,3,3,3,2,0,0,0,0],
-]
-# Warlock — Magia del Patto (PHB p.107): tutti gli slot allo stesso livello,
-# ripristinati a riposo breve O lungo. Formato: [Lv1, Lv2, Lv3, Lv4, Lv5, 0,0,0,0]
-# (gli altri livelli sono sempre 0 per il warlock)
-_WARLOCK_SLOTS = [
-    [1,0,0,0,0,0,0,0,0],  # Lv 1:  1 slot Lv1
-    [2,0,0,0,0,0,0,0,0],  # Lv 2:  2 slot Lv1
-    [0,2,0,0,0,0,0,0,0],  # Lv 3:  2 slot Lv2
-    [0,2,0,0,0,0,0,0,0],  # Lv 4:  2 slot Lv2
-    [0,0,2,0,0,0,0,0,0],  # Lv 5:  2 slot Lv3
-    [0,0,2,0,0,0,0,0,0],  # Lv 6:  2 slot Lv3
-    [0,0,0,2,0,0,0,0,0],  # Lv 7:  2 slot Lv4
-    [0,0,0,2,0,0,0,0,0],  # Lv 8:  2 slot Lv4
-    [0,0,0,0,2,0,0,0,0],  # Lv 9:  2 slot Lv5
-    [0,0,0,0,2,0,0,0,0],  # Lv10:  2 slot Lv5
-    [0,0,0,0,3,0,0,0,0],  # Lv11:  3 slot Lv5
-    [0,0,0,0,3,0,0,0,0],  # Lv12:  3 slot Lv5
-    [0,0,0,0,3,0,0,0,0],  # Lv13:  3 slot Lv5
-    [0,0,0,0,3,0,0,0,0],  # Lv14:  3 slot Lv5
-    [0,0,0,0,3,0,0,0,0],  # Lv15:  3 slot Lv5
-    [0,0,0,0,3,0,0,0,0],  # Lv16:  3 slot Lv5
-    [0,0,0,0,4,0,0,0,0],  # Lv17:  4 slot Lv5
-    [0,0,0,0,4,0,0,0,0],  # Lv18:  4 slot Lv5
-    [0,0,0,0,4,0,0,0,0],  # Lv19:  4 slot Lv5
-    [0,0,0,0,4,0,0,0,0],  # Lv20:  4 slot Lv5
-]
-_FULL_CASTERS   = {"bardo","chierico","druido","mago","stregone"}
-_HALF_CASTERS   = {"paladino","ranger"}
-_PACT_CASTERS   = {"warlock"}
 
 
 def auto_init_spell_slots(character_id: str, class_name: str, level: int) -> bool:
@@ -786,15 +748,12 @@ def auto_init_spell_slots(character_id: str, class_name: str, level: int) -> boo
     Per il Warlock (Patto della Magia) azzera i livelli non più attivi quando il
     livello degli slot aumenta (es. da Lv2 a Lv3: slot Lv1→0, slot Lv2→2).
     """
-    key = class_name.strip().lower()
-    if key in _FULL_CASTERS:
-        table = _FULL_CASTER_SLOTS
-    elif key in _HALF_CASTERS:
-        table = _HALF_CASTER_SLOTS
-    elif key in _PACT_CASTERS:
-        table = _WARLOCK_SLOTS
-    else:
+    caster_type = game_data.get_caster_type(class_name)
+    if not caster_type:
         return False  # Classe non incantatore o non gestita
+    table = game_data.get_spell_slot_table(caster_type)
+    if not table:
+        return False
 
     lv_idx = max(0, min(level - 1, 19))
     slots = table[lv_idx]
@@ -2004,7 +1963,7 @@ def delete_creature_entry(creature_id: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def update_turn_state(character_id: str, action: bool, bonus: bool,
-                      reaction: bool, movement: int, prev_state: str) -> bool:
+                      reaction: bool, movement: float, prev_state: str) -> bool:
     """Aggiornamento rapido dello stato turno."""
     try:
         conn = get_connection()

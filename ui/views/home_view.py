@@ -10,8 +10,8 @@ from config.settings import *
 from data.models import Character
 from data.repositories import character_repo
 from ui.theme import (
-    title_text, body_text, muted_text, label_text,
-    fantasy_card, primary_button, ghost_button, danger_button,
+    title_text, body_text, muted_text,
+    primary_button, ghost_button,
 )
 
 

@@ -185,6 +185,13 @@ def get_class_resource_defaults(
     elif class_name == "Bardo":
         insp = _cha_mod()
         reset = "short_rest" if level >= 5 else "long_rest"
+        # NOTA: il dado (d6→d8→d10→d12) NON va incluso nel nome della risorsa.
+        # init_class_resources() fa il merge DB↔defaults per NOME esatto — se il
+        # nome cambiasse ad ogni soglia di livello, la vecchia riga verrebbe
+        # cancellata come "obsoleta" e ricreata da zero con current_value=max,
+        # perdendo il conteggio di utilizzi già spesi dal giocatore. Il dado
+        # corrente si legge invece a runtime in combattimento_tab.py via
+        # GameDataLoader.get_bardic_inspiration_die(character.level).
         resources.append(_r("Ispirazione Bardica", insp, reset))
 
     elif class_name == "Chierico":
@@ -221,7 +228,8 @@ def get_class_resource_defaults(
         resources.append(_r("Recupero Arcano", 1, "long_rest"))
 
     # Warlock: gli slot del Patto della Magia sono già gestiti tramite la
-    # tabella standard degli slot incantesimo (_WARLOCK_SLOTS in character_repo.py),
+    # tabella standard degli slot incantesimo (data/game_data/spell_slot_progressions.json,
+    # chiave "warlock", letta via GameDataLoader.get_spell_slot_table("pact")),
     # che li ripristina correttamente a riposo breve — nessuna risorsa duplicata qui.
     # Ranger e Ladro: nessuna risorsa di classe base.
 
@@ -445,12 +453,13 @@ CURRENCY_NAMES = {
 }
 
 
-# Livelli in cui si ottiene un ASI (Ability Score Improvement) per classe — PHB 5e
-ASI_LEVELS: dict[str, set[int]] = {
-    "Guerriero": {4, 6, 8, 12, 14, 16, 19},
-    "Ladro":     {4, 8, 10, 12, 16, 19},
-}
-ASI_LEVELS_DEFAULT: set[int] = {4, 8, 12, 16, 19}
+# Livelli ASI (Ability Score Improvement) per classe — RIMOSSO (2026-07-10),
+# spostato in GameDataLoader.get_asi_levels(class_name): legge il campo
+# "asi_levels" da guerriero.json/ladro.json (le uniche 2 eccezioni PHB),
+# altrimenti la progressione standard {4,8,12,16,19}. Prima esisteva sia qui
+# sia come copia locale in profilo_tab.py (_ASI_LEVELS) — stesso dato scritto
+# a mano in due posti indipendenti, stesso rischio già eliminato altrove nel
+# progetto (RACE_DATA, CLASS_FEATURES, ecc.).
 
 # Tiri salvezza competenti per classe — RIMOSSO (2026-07-09), vedi il blocco
 # di commento sopra ("Dati di Classe... RIMOSSI"). Sostituito da

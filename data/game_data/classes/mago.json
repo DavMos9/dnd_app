@@ -7,6 +7,7 @@
     "wis"
   ],
   "spellcasting_ability": "int",
+  "cantrips_known_at_1": 3,
   "armor_proficiencies": [],
   "weapon_proficiencies": [
     "Pugnale",

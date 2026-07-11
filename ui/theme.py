@@ -198,3 +198,25 @@ def danger_button(text: str, on_click=None) -> ft.ElevatedButton:
             shape=ft.RoundedRectangleBorder(radius=4),
         ),
     )
+
+
+def show_error_dialog(
+    page: ft.Page | None,
+    message: str = "Errore nel salvataggio. Riprova.",
+    title: str = "Errore",
+) -> None:
+    """
+    AlertDialog di errore standard, da usare ogni volta che una scrittura sul DB
+    (es. character_repo.update()) fallisce e l'utente deve saperlo esplicitamente
+    invece che vedere l'operazione fallire in silenzio.
+    """
+    if page is None:
+        return
+    page.show_dialog(ft.AlertDialog(
+        title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON),
+        content=ft.Text(message, size=13, color=COLOR_TEXT_PRIMARY),
+        actions=[
+            ft.TextButton("OK", on_click=lambda e: page.pop_dialog()),
+        ],
+        bgcolor=COLOR_BG_CARD,
+    ))

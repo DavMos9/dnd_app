@@ -10,12 +10,12 @@ import flet as ft
 import logging
 from typing import Any
 from config.settings import (
-    COLOR_BG_PRIMARY, COLOR_BG_CARD, COLOR_BG_SECONDARY,
+    COLOR_BG_CARD,
     COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED,
-    COLOR_ACCENT_CRIMSON, COLOR_ACCENT_AMBER, COLOR_BORDER,
+    COLOR_ACCENT_AMBER, COLOR_BORDER,
     FONT_TITLE,
 )
-from ui.theme import muted_text, section_header
+from ui.theme import muted_text
 from data.game_data.game_data_loader import GameDataLoader
 
 logger = logging.getLogger(__name__)

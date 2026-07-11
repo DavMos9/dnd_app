@@ -172,7 +172,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
 
             -- Combattimento
             ac                   INTEGER NOT NULL DEFAULT 10,
-            speed                INTEGER NOT NULL DEFAULT 9,
+            speed                REAL NOT NULL DEFAULT 9,
             hit_dice_type        INTEGER NOT NULL DEFAULT 6,
             hit_dice_total       INTEGER NOT NULL DEFAULT 1,
             hit_dice_remaining   INTEGER NOT NULL DEFAULT 1,
@@ -185,7 +185,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             action_used          INTEGER NOT NULL DEFAULT 0,
             bonus_action_used    INTEGER NOT NULL DEFAULT 0,
             reaction_used        INTEGER NOT NULL DEFAULT 0,
-            movement_used        INTEGER NOT NULL DEFAULT 0,
+            movement_used        REAL NOT NULL DEFAULT 0,
             previous_turn_state  TEXT NOT NULL DEFAULT '',
 
             -- Magia

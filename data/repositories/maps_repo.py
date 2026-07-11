@@ -6,7 +6,6 @@ Una mappa è associata a un personaggio e contiene:
   - annotations: JSON list di annotazioni (testo + coordinate opzionali)
 """
 
-import json
 import logging
 import uuid
 from datetime import datetime

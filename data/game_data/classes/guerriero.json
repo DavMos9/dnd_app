@@ -1,6 +1,7 @@
 {
   "name": "Guerriero",
   "hit_die": 10,
+  "asi_levels": [4, 6, 8, 12, 14, 16, 19],
   "primary_ability": "str",
   "saving_throws": [
     "str",

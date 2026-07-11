@@ -684,7 +684,6 @@ class MapsView(ft.Column):
         for stroke in self._strokes:
             if stroke.get("type") != "stroke":
                 continue
-                continue
 
             pts = stroke.get("points", [])
             color = stroke.get("color", "#e53935")

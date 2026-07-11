@@ -7,6 +7,7 @@
     "dex"
   ],
   "spellcasting_ability": "wis",
+  "spell_learn_delta": {"2":2,"3":1,"5":1,"7":1,"9":1,"11":1,"13":1,"15":1,"17":1,"19":1},
   "armor_proficiencies": [
     "leggere",
     "medie",

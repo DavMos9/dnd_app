@@ -7,6 +7,7 @@
     "cha"
   ],
   "spellcasting_ability": "wis",
+  "cantrips_known_at_1": 3,
   "armor_proficiencies": [
     "leggere",
     "medie",

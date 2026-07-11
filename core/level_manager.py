@@ -42,9 +42,10 @@ voci ripetute per livello): Metamagia (Stregone, +opzioni a 3/10/17),
 Suppliche Occulte (Warlock, totale cumulativo a 2/5/7/9/12/15/17), Segreti
 Magici (Bardo, a 10/14/18), Maestria/Expertise (Ladro 1/6, Bardo 3/10). Per
 questi casi il NOME resta letto dal JSON (mai duplicato come stringa), ma il
-livello di innesco e il conteggio sono piccole tabelle numeriche qui sotto
-— stessa categoria di ASI_LEVELS/_SPELL_LEARN_DELTA (progressioni PHB
-universali e stabili, non testo/nomi soggetti a correzione).
+livello di innesco e il conteggio sono piccole tabelle numeriche lette dai
+rispettivi JSON di classe via GameDataLoader (vedi sotto per il changelog
+del 2026-07-10) — stessa categoria di ASI_LEVELS: progressioni PHB
+universali e stabili, non testo/nomi soggetti a correzione.
 
 Scelta di scope deliberata: i promemoria puramente informativi che nel
 vecchio _CLASS_FEATURES mostravano un numero crescente senza una vera scelta
@@ -79,7 +80,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from config.settings import ASI_LEVELS, ASI_LEVELS_DEFAULT
 from data.game_data.game_data_loader import game_data
 
 
@@ -113,60 +113,22 @@ class LevelStep:
 # ---------------------------------------------------------------------------
 # Meccaniche ricorrenti registrate una sola volta nel JSON di classe
 # (il nome/descrizione si legge comunque da lì — vedi _find_feature_name()),
-# ma che si ripetono a più livelli con conteggi diversi. Solo NUMERI qui,
-# mai testo/nomi — stessa categoria di ASI_LEVELS/_SPELL_LEARN_DELTA.
-# ---------------------------------------------------------------------------
-
-# Stregone, Metamagia: nuove opzioni acquisite a ciascun livello (PHB p.102).
-_METAMAGIC_COUNT_BY_LEVEL: dict[int, int] = {3: 2, 10: 1, 17: 1}
-
-# Warlock, Suppliche Occulte: TOTALE cumulativo conosciuto a ciascun livello.
-_INVOCATIONS_TOTAL_BY_LEVEL: dict[int, int] = {
-    2: 2, 5: 3, 7: 4, 9: 5, 12: 6, 15: 7, 17: 8,
-}
-
-# Bardo, Segreti Magici (progressione BASE, PHB p.55): 2 incantesimi da
-# qualsiasi lista a ciascun livello — un'unica feature JSON al lv10 la cui
-# description descrive in prosa i due incrementi successivi. NON copre la
-# versione di sottoclasse (Collegio della Conoscenza lv6, "Segreti Magici
-# Aggiuntivi"), rilevata invece dinamicamente in get_level_up_steps().
-_SEGRETI_MAGICI_LEVELS: set[int] = {10, 14, 18}
-
-# Maestria/Expertise (2 abilità aggiuntive in maestria): livelli di innesco
-# per classe. Nome feature identico per entrambe ("Maestria", PHB) — letto
-# comunque dal JSON, non hardcoded qui.
-_EXPERTISE_LEVELS: dict[str, set[int]] = {
-    "Ladro": {1, 6},
-    "Bardo": {3, 10},
-}
-
-
-# ---------------------------------------------------------------------------
-# Progressione incantesimi per classi "know" (PHB 5e)
-# ---------------------------------------------------------------------------
-
-# Numero di nuovi incantesimi (non-cantrip) appresi a ogni livello.
-# Solo i livelli dove il delta > 0 sono elencati.
+# ma che si ripetono a più livelli con conteggi diversi.
 #
-# Verificato il 2026-07-10 (task "Audit level-up: Bardo") leggendo visivamente
-# la colonna "Incantesimi Conosciuti" delle tabelle di classe dal PHB IT
-# (pdftoppm, non pdftotext): pag.53 Bardo, pag.103 Ranger, pag.108 Stregone,
-# pag.114 Warlock. Trovati e corretti 2 bug reali (Ranger e Warlock erano già
-# corretti):
-#   - Bardo: mancavano i salti di +2 (non +1) ai livelli 10/14/18 (Segreti
-#     Magici cumulativi) e c'era un +1 in eccesso al lv19 (che nel manuale
-#     non concede nulla) — il totale finale a lv20 tornava per coincidenza
-#     vicino al valore corretto (19 invece di 22) ma i valori intermedi e la
-#     tempistica delle scelte erano sbagliati.
-#   - Stregone: +1 in eccesso al lv14 (il manuale non concede nulla quel
-#     livello) e mancava il +1 al lv17 — stesso tipo di "errore compensato"
-#     che nascondeva il problema al lv20 (15=15) ma sbagliava i livelli 14-17.
-_SPELL_LEARN_DELTA: dict[str, dict[int, int]] = {
-    "Bardo":    {2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:2,11:1,13:1,14:2,15:1,17:1,18:2},
-    "Stregone": {2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,13:1,15:1,17:1},
-    "Warlock":  {2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,11:1,13:1,15:1,17:1,19:1},
-    "Ranger":   {2:2,3:1,5:1,7:1,9:1,11:1,13:1,15:1,17:1,19:1},
-}
+# Le tabelle numeriche (_METAMAGIC_COUNT_BY_LEVEL, _INVOCATIONS_TOTAL_BY_LEVEL,
+# _SEGRETI_MAGICI_LEVELS, _EXPERTISE_LEVELS, _SPELL_LEARN_DELTA) sono state
+# spostate nei rispettivi JSON di classe il 2026-07-10 (stregone.json →
+# "metamagic_count_by_level"/"spell_learn_delta", warlock.json →
+# "invocations_total_by_level"/"spell_learn_delta", bardo.json →
+# "segreti_magici_levels"/"expertise_levels"/"spell_learn_delta", ladro.json →
+# "expertise_levels", ranger.json → "spell_learn_delta") — stesso principio
+# già applicato a RACE_DATA/CLASS_FEATURES/ASI_LEVELS: erano tabelle PHB già
+# verificate ma scritte a mano solo in Python. Lette ora tramite
+# game_data.get_metamagic_count_by_level()/get_invocations_total_by_level()/
+# get_segreti_magici_levels()/get_expertise_levels()/get_spell_learn_delta().
+# Nessun valore cambiato in questa migrazione (verificato con test di
+# regressione end-to-end su tutte le 12 classi × 20 livelli).
+# ---------------------------------------------------------------------------
 
 
 def _max_spell_level_for(class_name: str, level: int) -> int:
@@ -248,7 +210,7 @@ def get_level_up_steps(
     ))
 
     # 1b. SPELL_LEARN per classi "know": emesso subito dopo HP
-    spell_delta = _SPELL_LEARN_DELTA.get(class_name, {}).get(new_level, 0)
+    spell_delta = game_data.get_spell_learn_delta(class_name).get(new_level, 0)
     if spell_delta > 0:
         max_lv = _max_spell_level_for(class_name, new_level)
         label = (
@@ -274,8 +236,9 @@ def get_level_up_steps(
 
     # 2a. Meccaniche ricorrenti (nome dal JSON, conteggio/livello da tabella
     # numerica — vedi docstring del modulo).
-    if new_level in _METAMAGIC_COUNT_BY_LEVEL and class_name == "Stregone":
-        count = _METAMAGIC_COUNT_BY_LEVEL[new_level]
+    metamagic_by_level = game_data.get_metamagic_count_by_level()
+    if new_level in metamagic_by_level and class_name == "Stregone":
+        count = metamagic_by_level[new_level]
         name = _find_feature_name("metamagia", base_features, subclass_features, "Metamagia")
         steps.append(LevelStep(
             step_type=StepType.METAMAGIC,
@@ -284,8 +247,9 @@ def get_level_up_steps(
             data={"count": count},
         ))
 
-    if new_level in _INVOCATIONS_TOTAL_BY_LEVEL and class_name == "Warlock":
-        total = _INVOCATIONS_TOTAL_BY_LEVEL[new_level]
+    invocations_by_level = game_data.get_invocations_total_by_level()
+    if new_level in invocations_by_level and class_name == "Warlock":
+        total = invocations_by_level[new_level]
         name = _find_feature_name("supplic", base_features, subclass_features, "Suppliche Occulte")
         steps.append(LevelStep(
             step_type=StepType.INVOCATION,
@@ -298,7 +262,7 @@ def get_level_up_steps(
     # ("Segreti Magici", registrata al lv10) la cui description descrive in
     # prosa i due incrementi successivi ("Apprendi altri 2 al 14° livello e
     # 2 al 18° livello") — stessa convenzione di ASI_LEVELS, quindi il livello
-    # di innesco resta una piccola tabella numerica (_SEGRETI_MAGICI_LEVELS).
+    # di innesco resta una piccola tabella numerica (bardo.json → "segreti_magici_levels").
     # La sottoclasse Collegio della Conoscenza concede la STESSA meccanica
     # ("Segreti Magici Aggiuntivi", 2 incantesimi da qualsiasi classe) come
     # una feature JSON a sé stante al lv6 — rilevata invece dinamicamente,
@@ -309,7 +273,7 @@ def get_level_up_steps(
     # più sotto la toglieva comunque dai FEATURE_AUTO, ma nessun altro step
     # la sostituiva) — vedi CLAUDE.md "Note Importanti".
     if class_name == "Bardo":
-        if new_level in _SEGRETI_MAGICI_LEVELS:
+        if new_level in game_data.get_segreti_magici_levels():
             name = _find_feature_name("segreti magici", base_features, subclass_features, "Segreti Magici")
             steps.append(LevelStep(
                 step_type=StepType.SPELL_LEARN,
@@ -335,7 +299,7 @@ def get_level_up_steps(
                         },
                     ))
 
-    if new_level in _EXPERTISE_LEVELS.get(class_name, set()):
+    if new_level in game_data.get_expertise_levels(class_name):
         # Il nome PHB per questa meccanica è "Maestria" sia per Ladro che
         # per Bardo (confermato nell'audit di entrambi i JSON) — cerchiamo
         # comunque anche "perizia" come fallback difensivo, nel caso in cui
@@ -380,7 +344,7 @@ def get_level_up_steps(
         # mostrata come FEATURE_AUTO. Bug reale corretto il 2026-07-10: prima
         # il filtro era incondizionato e faceva sparire "Maestria negli
         # Incantesimi" dal level-up del Mago — vedi CLAUDE.md "Note Importanti".
-        if new_level in _EXPERTISE_LEVELS.get(class_name, set()) and (
+        if new_level in game_data.get_expertise_levels(class_name) and (
             "maestria" in feat_lower or "perizia" in feat_lower
         ):
             continue
@@ -466,7 +430,7 @@ def get_level_up_steps(
         ))
 
     # 3. ASI — ai livelli appropriati per la classe
-    asi_set = ASI_LEVELS.get(class_name, ASI_LEVELS_DEFAULT)
+    asi_set = game_data.get_asi_levels(class_name)
     if new_level in asi_set:
         steps.append(LevelStep(
             step_type=StepType.ASI,

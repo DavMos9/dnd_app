@@ -34,12 +34,11 @@ from typing import Any, cast
 
 from config.settings import (
     COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-    COLOR_TEXT_MUTED, COLOR_BORDER, COLOR_BG_CARD, COLOR_BG_PRIMARY,
+    COLOR_TEXT_MUTED, COLOR_BORDER, COLOR_BG_CARD,
     COLOR_ACCENT_CRIMSON,
 )
 from data.models import Character, DiaryEntry, CampaignNote
 import data.repositories.character_repo as character_repo
-from ui.theme import muted_text
 
 logger = logging.getLogger(__name__)
 

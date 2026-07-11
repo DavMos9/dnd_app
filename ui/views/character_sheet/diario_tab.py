@@ -13,7 +13,7 @@ from typing import Callable, cast
 from config.settings import *
 from data.models import Character, DiaryEntry
 import data.repositories.character_repo as character_repo
-from ui.theme import section_header, body_text, muted_text, label_text
+from ui.theme import muted_text
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +60,14 @@ class DiarioTab(ft.ListView):
             ),
         ]
 
-        self.controls = [
-            ft.Container(
-                content=ft.Row(header_row, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                padding=ft.Padding.only(bottom=4),
-            ),
-        ]
+        # IMPORTANTE: modificare self.controls IN-PLACE (mai self.controls = [...]).
+        # In Flet 0.85.3 la riassegnazione diretta rimpiazza la ControlsList interna
+        # che Flutter usa per il rendering → schermata bianca (vedi CLAUDE.md).
+        self.controls.clear()
+        self.controls.append(ft.Container(
+            content=ft.Row(header_row, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            padding=ft.Padding.only(bottom=4),
+        ))
 
         if not self._entries:
             self.controls.append(self._empty_state())

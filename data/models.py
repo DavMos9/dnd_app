@@ -4,7 +4,6 @@ Nessuna logica di business qui: solo struttura dati.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 import uuid
 
 
@@ -44,7 +43,7 @@ class Character:
 
     # Combattimento
     ac: int = 10
-    speed: int = 9                # in metri (velocità base terreno)
+    speed: float = 9.0            # in metri (velocità base terreno) — float: alcune razze hanno velocità frazionarie (Nano/Halfling 7,5 m, Elfo dei Boschi 10,5 m)
     hit_dice_type: int = 6        # d6, d8, d10, d12
     hit_dice_total: int = 1
     hit_dice_remaining: int = 1
@@ -57,7 +56,7 @@ class Character:
     action_used: bool = False
     bonus_action_used: bool = False
     reaction_used: bool = False
-    movement_used: int = 0        # metri già usati nel turno
+    movement_used: float = 0.0    # metri già usati nel turno — float per permettere step frazionari (0,5 m / 1,5 m)
     previous_turn_state: str = "" # JSON snapshot per undo
 
     # Magia

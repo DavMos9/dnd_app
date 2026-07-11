@@ -21,10 +21,9 @@ import logging
 from config.settings import *
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
-from ui.theme import section_header, muted_text
+from ui.theme import section_header, muted_text, show_error_dialog
 from data.game_data.game_data_loader import GameDataLoader
 from core.level_manager import get_level_up_steps, estimate_hp_loss, StepType
-import re as _re
 
 _loader = GameDataLoader()
 
@@ -54,16 +53,17 @@ def _data_uri(b64: str) -> str:
         mime = "image/jpeg"
     return f"data:{mime};base64,{b64}"
 
-# Livelli ASI per classe — PHB 5e
-_ASI_LEVELS: dict[str, set[int]] = {
-    "Guerriero": {4, 6, 8, 12, 14, 16, 19},
-    "Ladro":     {4, 8, 10, 12, 16, 19},
-}
-_ASI_DEFAULT: set[int] = {4, 8, 12, 16, 19}
-
-
 def _is_asi_level(class_name: str, level: int) -> bool:
-    return level in _ASI_LEVELS.get(class_name, _ASI_DEFAULT)
+    """
+    Livelli ASI per classe — letti da GameDataLoader.get_asi_levels(), che
+    legge il campo "asi_levels" dal JSON di classe per le 2 eccezioni
+    (Guerriero, Ladro) e la progressione standard PHB {4,8,12,16,19} per
+    tutte le altre. Prima del 2026-07-10 questa era una copia locale
+    duplicata di ASI_LEVELS/ASI_LEVELS_DEFAULT (config/settings.py) — stesso
+    dato scritto a mano in due posti indipendenti, stesso tipo di rischio già
+    eliminato altrove nel progetto (RACE_DATA, CLASS_FEATURES, ecc.).
+    """
+    return level in _loader.get_asi_levels(class_name)
 
 
 class ProfiloTab(ft.ListView):
@@ -106,23 +106,25 @@ class ProfiloTab(ft.ListView):
             elif p.proficiency_type == "save":
                 save_map[p.name] = p.is_expert
 
-        self.controls = [
-            self._build_photo_header(c),
-            section_header("Anagrafica"),
-            self._build_anagrafica(c),
-            section_header("Tratti Razziali"),
-            self._build_razza(c),
-            section_header("Dettagli Fisici"),
-            self._build_fisico(c),
-            section_header("Personalità"),
-            self._build_personalita(c),
-            section_header("Storia"),
-            self._build_storia(c),
-            section_header("Competenze"),
-            self._build_competenze(c, prof_bonus, skill_map, save_map),
-            section_header("Talenti"),
-            self._build_talenti(c),
-        ]
+        # IMPORTANTE: modificare self.controls IN-PLACE (mai self.controls = [...]).
+        # In Flet 0.85.3 la riassegnazione diretta rimpiazza la ControlsList interna
+        # che Flutter usa per il rendering → schermata bianca (vedi CLAUDE.md).
+        self.controls.clear()
+        self.controls.append(self._build_photo_header(c))
+        self.controls.append(section_header("Anagrafica"))
+        self.controls.append(self._build_anagrafica(c))
+        self.controls.append(section_header("Tratti Razziali"))
+        self.controls.append(self._build_razza(c))
+        self.controls.append(section_header("Dettagli Fisici"))
+        self.controls.append(self._build_fisico(c))
+        self.controls.append(section_header("Personalità"))
+        self.controls.append(self._build_personalita(c))
+        self.controls.append(section_header("Storia"))
+        self.controls.append(self._build_storia(c))
+        self.controls.append(section_header("Competenze"))
+        self.controls.append(self._build_competenze(c, prof_bonus, skill_map, save_map))
+        self.controls.append(section_header("Talenti"))
+        self.controls.append(self._build_talenti(c))
 
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
@@ -439,7 +441,7 @@ class ProfiloTab(ft.ListView):
         traits = race_info.get("traits", [])
 
         rows: list[ft.Control] = [
-            self._info_row("Velocità", f"{speed} m"),
+            self._info_row("Velocità", f"{speed:g} m"),
             self._info_row("Scurovisione", f"{darkvision} m" if darkvision else "Nessuna"),
         ]
         if traits:
@@ -812,7 +814,7 @@ class ProfiloTab(ft.ListView):
                     ))
             else:
                 rows.append(ft.Text(
-                    "Nessuna metamagia — disponibile dal Lv.2.",
+                    "Nessuna metamagia — disponibile dal Lv.3.",
                     size=12, color=COLOR_TEXT_MUTED, italic=True,
                 ))
 
@@ -904,7 +906,8 @@ class ProfiloTab(ft.ListView):
         except ValueError:
             return
         self.character.xp = xp
-        character_repo.update(self.character)
+        if not character_repo.update(self.character):
+            show_error_dialog(self._page)
 
     # ------------------------------------------------------------------
     # Level Up guidato
@@ -2094,7 +2097,9 @@ class ProfiloTab(ft.ListView):
                 for spell_name, class_name in choices:
                     _save_known_spell(spell_name, class_name, c)
 
-            character_repo.update(c)
+            if not character_repo.update(c):
+                show_error_dialog(page)
+                return
             # Aggiorna slot incantesimo PHB per il nuovo livello
             character_repo.auto_init_spell_slots(c.id, c.class_name, new_level)
             # Aggiorna risorse di classe (Furia, Ki, Incanalare Divinità, ecc.)
@@ -2159,7 +2164,9 @@ class ProfiloTab(ft.ListView):
             self.character.level = new_level
             self.character.hp_max = max(1, self.character.hp_max - hp_loss)
             self.character.hp_current = min(self.character.hp_current, self.character.hp_max)
-            character_repo.update(self.character)
+            if not character_repo.update(self.character):
+                show_error_dialog(page)
+                return
             # Ricalcola slot incantesimo e risorse di classe per il livello ridotto
             # (altrimenti restano al valore del livello precedente più alto)
             character_repo.auto_init_spell_slots(self.character.id, self.character.class_name, new_level)
@@ -2294,7 +2301,9 @@ class ProfiloTab(ft.ListView):
                         setattr(c, attr, None)
                 else:
                     setattr(c, attr, val)
-            character_repo.update(c)
+            if not character_repo.update(c):
+                show_error_dialog(page)
+                return
             page.pop_dialog()
             self._refresh()
 
@@ -2522,7 +2531,9 @@ class ProfiloTab(ft.ListView):
 
         encoded = base64.b64encode(raw).decode("utf-8")
         self.character.image_data = encoded
-        character_repo.update(self.character)
+        if not character_repo.update(self.character):
+            show_error_dialog(self._page, "Errore nel salvataggio della foto. Riprova.")
+            return
         logger.info(f"Foto salvata nel DB ({len(raw)} bytes) per {self.character.name}")
         self._refresh()
 

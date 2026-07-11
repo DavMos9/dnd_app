@@ -40,7 +40,6 @@ _w("=" * 60)
 _w(f"[1] main.py started — python {sys.version}")
 _w(f"    __file__ = {__file__}")
 _w(f"    cwd      = {os.getcwd()}")
-print(">>> [1] main.py started", flush=True)
 
 # ---------------------------------------------------------------------------
 # import flet
@@ -48,11 +47,9 @@ print(">>> [1] main.py started", flush=True)
 try:
     import flet as ft
     _w("[2] flet imported OK")
-    print(">>> [2] flet imported OK", flush=True)
 except Exception as e:
     _w(f"[2] flet import FAILED: {e}")
     _w(traceback.format_exc())
-    print(f">>> [2] flet import FAILED: {e}", flush=True)
     raise
 
 # ---------------------------------------------------------------------------
@@ -60,7 +57,6 @@ except Exception as e:
 # ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).parent))
 _w(f"[3] sys.path[0] = {Path(__file__).parent}")
-print(f">>> [3] sys.path root: {Path(__file__).parent}", flush=True)
 
 try:
     root_files = sorted(os.listdir(Path(__file__).parent))
@@ -74,11 +70,9 @@ except Exception as e:
 try:
     from data.database import init_db
     _w("[4] data.database imported OK")
-    print(">>> [4] data.database imported OK", flush=True)
 except Exception as e:
     _w(f"[4] data.database import FAILED: {e}")
     _w(traceback.format_exc())
-    print(f">>> [4] data.database import FAILED: {e}", flush=True)
     raise
 
 # ---------------------------------------------------------------------------
@@ -87,11 +81,9 @@ except Exception as e:
 try:
     from ui.app import run_app
     _w("[5] ui.app imported OK")
-    print(">>> [5] ui.app imported OK", flush=True)
 except Exception as e:
     _w(f"[5] ui.app import FAILED: {e}")
     _w(traceback.format_exc())
-    print(f">>> [5] ui.app import FAILED: {e}", flush=True)
     raise
 
 # ---------------------------------------------------------------------------
@@ -107,22 +99,18 @@ logging.basicConfig(
 # init_db
 # ---------------------------------------------------------------------------
 _w("[6] calling init_db()")
-print(">>> [6] calling init_db()", flush=True)
 try:
     init_db()
     _w("[7] init_db OK")
-    print(">>> [7] init_db OK", flush=True)
 except Exception as e:
     _w(f"[7] init_db FAILED: {e}")
     _w(traceback.format_exc())
-    print(f">>> [7] init_db FAILED: {e}", flush=True)
 
 # ---------------------------------------------------------------------------
 # ft.run — modalità web (Docker) o desktop/mobile
 # FLET_WEB=true  → web server su 0.0.0.0:FLET_PORT (default 8000)
 # ---------------------------------------------------------------------------
 _w("[8] calling ft.run()")
-print(">>> [8] calling ft.run()", flush=True)
 
 _web  = os.environ.get("FLET_WEB", "").lower() in ("1", "true", "yes")
 _port = int(os.environ.get("FLET_PORT", "8000"))

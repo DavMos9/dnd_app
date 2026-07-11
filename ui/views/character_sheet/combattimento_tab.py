@@ -26,7 +26,7 @@ from config.settings import get_race_display_traits
 from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource, CreatureEntry
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
-from ui.theme import section_header, muted_text
+from ui.theme import section_header, muted_text, show_error_dialog
 
 _loader = GameDataLoader()
 
@@ -308,7 +308,6 @@ class CombattimentoTab(ft.ListView):
     def _on_damage_click(self, e):
         if not self._page:
             return
-            return
         page = self._page
         field = ft.TextField(
             label="Quantità danno", keyboard_type=ft.KeyboardType.NUMBER,
@@ -351,7 +350,6 @@ class CombattimentoTab(ft.ListView):
 
     def _on_heal_click(self, e):
         if not self._page:
-            return
             return
         page = self._page
         field = ft.TextField(
@@ -417,7 +415,9 @@ class CombattimentoTab(ft.ListView):
             except ValueError:
                 return
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
-            character_repo.update(c)
+            if not character_repo.update(c):
+                show_error_dialog(page)
+                return
             page.pop_dialog()
             self._refresh()
 
@@ -561,7 +561,10 @@ class CombattimentoTab(ft.ListView):
 
     def _toggle_inspiration(self, e):
         self.character.inspiration = not self.character.inspiration
-        character_repo.update(self.character)
+        if not character_repo.update(self.character):
+            self.character.inspiration = not self.character.inspiration  # rollback in memoria
+            show_error_dialog(self._page)
+            return
         self._refresh()
 
     def _on_edit_stats_click(self, e):
@@ -584,11 +587,20 @@ class CombattimentoTab(ft.ListView):
             if page is None:
                 return
             try:
-                c.ac    = max(0, int(f_ac.value or c.ac))
-                c.speed = max(0, int(f_speed.value or c.speed))
+                c.ac = max(0, int(f_ac.value or c.ac))
+                # float, non int: alcune razze hanno velocità frazionaria
+                # (Nano/Halfling 7,5 m, Elfo dei Boschi 10,5 m) — prima di
+                # questo fix salvare la scheda con `int()` falliva sempre
+                # con ValueError su questi personaggi (il dialog restava
+                # aperto senza errore visibile). Normalizza anche la virgola
+                # italiana in punto, nel caso l'utente digiti "7,5".
+                speed_raw = (f_speed.value or str(c.speed)).strip().replace(",", ".")
+                c.speed = max(0.0, float(speed_raw))
             except ValueError:
                 return
-            character_repo.update(c)
+            if not character_repo.update(c):
+                show_error_dialog(page)
+                return
             page.pop_dialog()
             self._refresh()
 
@@ -738,9 +750,9 @@ class CombattimentoTab(ft.ListView):
         remaining_m = max(0, speed - used_m)
         move_ratio = min(1.0, used_m / speed) if speed > 0 else 0.0
 
-        def use_movement(delta: int):
+        def use_movement(delta: float):
             """Aggiunge delta metri al movimento usato (positivo = usa, negativo = recupera)."""
-            c.movement_used = max(0, min(speed, used_m + delta))
+            c.movement_used = max(0.0, min(speed, used_m + delta))
             character_repo.update_turn_state(
                 c.id, c.action_used, c.bonus_action_used,
                 c.reaction_used, c.movement_used,
@@ -769,7 +781,11 @@ class CombattimentoTab(ft.ListView):
                 move_bar,
                 ft.Row(
                     [
+                        ft.TextButton("−0,5m", on_click=lambda e: use_movement(0.5),
+                                      style=ft.ButtonStyle(color=COLOR_ACCENT_AMBER)),
                         ft.TextButton("−1m", on_click=lambda e: use_movement(1),
+                                      style=ft.ButtonStyle(color=COLOR_ACCENT_AMBER)),
+                        ft.TextButton("−1,5m", on_click=lambda e: use_movement(1.5),
                                       style=ft.ButtonStyle(color=COLOR_ACCENT_AMBER)),
                         ft.TextButton("−2m", on_click=lambda e: use_movement(2),
                                       style=ft.ButtonStyle(color=COLOR_ACCENT_AMBER)),
@@ -1643,6 +1659,16 @@ class CombattimentoTab(ft.ListView):
         reset_icon  = "☽" if res.reset_on == "short_rest" else "☀"
         reset_label = "Ripristino: riposo breve" if res.reset_on == "short_rest" else "Ripristino: riposo lungo"
 
+        # Ispirazione Bardica: il dado (d6→d8→d10→d12) è calcolato a runtime dal
+        # livello del personaggio, MAI salvato nel nome della risorsa — vedi
+        # nota in config/settings.py get_class_resource_defaults() sul perché
+        # (init_class_resources() fa il merge per nome esatto, un nome che
+        # cambia ad ogni soglia di livello resetterebbe gli utilizzi già spesi).
+        display_name = res.name
+        if res.name == "Ispirazione Bardica":
+            die = _loader.get_bardic_inspiration_die(self.character.level)
+            display_name = f"{res.name} ({die})"
+
         circles: list[ft.Control] = []
         for i in range(res.max_value):
             is_avail = i < res.current_value
@@ -1661,7 +1687,7 @@ class CombattimentoTab(ft.ListView):
 
         return ft.Row(
             [
-                ft.Text(res.name, size=12, color=COLOR_TEXT_PRIMARY,
+                ft.Text(display_name, size=12, color=COLOR_TEXT_PRIMARY,
                         weight=ft.FontWeight.W_600, expand=True),
                 ft.Text(reset_icon, size=14, color=COLOR_TEXT_MUTED,
                         tooltip=reset_label),
@@ -1872,7 +1898,6 @@ class CombattimentoTab(ft.ListView):
             # Usa self._page direttamente: la closure viene invocata DOPO did_mount()
             if not self._page:
                 return
-                return
             page = self._page
             source_label = (
                 f"  ·  {feat['source']}"
@@ -1925,6 +1950,17 @@ class CombattimentoTab(ft.ListView):
             is_subclass = feat["source"].lower() != (self.character.class_name or "").lower()
             badge_color = COLOR_ACCENT_BLUE if is_subclass else COLOR_ACCENT_CRIMSON
 
+            # Attacco Furtivo (Ladro): il dado scala col livello — mostrato
+            # in coda al nome, mai persistito (calcolato a runtime, stesso
+            # pattern già usato per il dado di Ispirazione Bardica).
+            display_name = feat["name"]
+            if (
+                feat["name"] == "Attacco Furtivo"
+                and (self.character.class_name or "").lower() == "ladro"
+            ):
+                die = _loader.get_sneak_attack_dice(self.character.level)
+                display_name = f"{feat['name']} ({die})"
+
             row = ft.Container(
                 content=ft.Row([
                     ft.Container(
@@ -1940,7 +1976,7 @@ class CombattimentoTab(ft.ListView):
                     ),
                     ft.Container(width=8),
                     ft.Text(
-                        feat["name"],
+                        display_name,
                         size=13, color=COLOR_TEXT_PRIMARY,
                         weight=ft.FontWeight.W_600,
                         expand=True,
@@ -2178,7 +2214,9 @@ class CombattimentoTab(ft.ListView):
             character_repo.reset_class_resources(c.id, "short_rest")
             character_repo.reset_class_resources(c.id, "long_rest")
             # Salva tutto
-            character_repo.update(c)
+            if not character_repo.update(c):
+                show_error_dialog(page)
+                return
             character_repo.update_hp(c.id, c.hp_max, 0)
             page.pop_dialog()
             self._refresh()
@@ -2877,6 +2915,9 @@ class CombattimentoTab(ft.ListView):
                 already = m["name"].upper() in existing_names
                 cr_str = f"GS {m['cr']}" if m.get("cr") else "GS —"
                 type_str = m.get("type", "")
+                subtitle = f"{type_str} · {cr_str} · {m.get('hp_max', '?')} PF"
+                if already:
+                    subtitle += " · Già aggiunta"
 
                 def _go_detail(_e: Any, mon: dict = m) -> None:
                     _show_detail(mon)
@@ -2888,15 +2929,19 @@ class CombattimentoTab(ft.ListView):
                                 monster_display_name(m["name"]),
                                 size=13,
                                 weight=ft.FontWeight.W_600,
-                                color=COLOR_TEXT_PRIMARY,
+                                color=COLOR_TEXT_MUTED if already else COLOR_TEXT_PRIMARY,
                             ),
                             ft.Text(
-                                f"{type_str} · {cr_str} · {m.get('hp_max', '?')} PF",
+                                subtitle,
                                 size=11,
-                                color=COLOR_TEXT_MUTED,
+                                color=COLOR_ACCENT_CRIMSON if already else COLOR_TEXT_MUTED,
                             ),
                         ], spacing=1, expand=True),
-                        ft.Icon(ft.Icons.CHEVRON_RIGHT, color=COLOR_TEXT_MUTED, size=18),
+                        ft.Icon(
+                            ft.Icons.CHECK_CIRCLE if already else ft.Icons.CHEVRON_RIGHT,
+                            color=COLOR_ACCENT_CRIMSON if already else COLOR_TEXT_MUTED,
+                            size=18,
+                        ),
                     ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     padding=ft.Padding.symmetric(vertical=6, horizontal=4),
                     border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),

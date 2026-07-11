@@ -15,7 +15,7 @@ import logging
 from typing import cast
 from config.settings import *
 from data.models import Character, CharacterProficiency
-from ui.theme import title_text, muted_text
+from ui.theme import show_error_dialog
 import data.repositories.character_repo as character_repo
 
 logger = logging.getLogger(__name__)
@@ -250,7 +250,9 @@ class SheetView(ft.Column):
                     return
             for key, val in new_vals.items():
                 setattr(c, f"{key}_score", val)
-            character_repo.update(c)
+            if not character_repo.update(c):
+                show_error_dialog(page)
+                return
             page.pop_dialog()
             self._refresh_all()
 
@@ -329,7 +331,19 @@ class SheetView(ft.Column):
                     error_text.value = "Inserire un numero tra 1 e 20 (o lasciare vuoto per standard PHB)"
                     error_text.update()
                     return
-            character_repo.update(c)
+            if not character_repo.update(c):
+                show_error_dialog(page)
+                return
+            page.pop_dialog()
+            self._refresh_all()
+
+        def on_reset_phb(ev):
+            if page is None:
+                return
+            c.proficiency_bonus_override = 0
+            if not character_repo.update(c):
+                show_error_dialog(page)
+                return
             page.pop_dialog()
             self._refresh_all()
 
@@ -358,12 +372,7 @@ class SheetView(ft.Column):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.TextButton(
                     "Reset PHB",
-                    on_click=lambda ev: (
-                        setattr(c, "proficiency_bonus_override", 0),
-                        character_repo.update(c),
-                        page.pop_dialog(),
-                        self._refresh_all(),
-                    ) if page else None,
+                    on_click=on_reset_phb,
                     style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
                 ),
                 ft.ElevatedButton(

@@ -19,7 +19,7 @@ from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
 from data.database import get_connection
 from data.game_data.game_data_loader import game_data
-from ui.theme import section_header, body_text, muted_text, label_text
+from ui.theme import section_header, muted_text, label_text
 
 logger = logging.getLogger(__name__)
 
@@ -167,11 +167,11 @@ class EsplorazioneTab(ft.ListView):
         for trait in race_info.get("traits", []):
             t_lower = (trait.get("name", "") + " " + trait.get("description", "")).lower()
             if "nuoto" in t_lower or "swim" in t_lower:
-                speed_rows.append(("Nuoto", f"{c.speed or 9} m"))
+                speed_rows.append(("Nuoto", f"{c.speed or 9:g} m"))
             elif "scalat" in t_lower or "climb" in t_lower:
-                speed_rows.append(("Scalata", f"{c.speed or 9} m"))
+                speed_rows.append(("Scalata", f"{c.speed or 9:g} m"))
             elif "volo" in t_lower or "fly" in t_lower:
-                speed_rows.append(("Volo", f"{c.speed or 9} m"))
+                speed_rows.append(("Volo", f"{c.speed or 9:g} m"))
 
         for label, value in speed_rows:
             rows.append(self._info_row(label, value))

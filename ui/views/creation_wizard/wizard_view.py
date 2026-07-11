@@ -13,7 +13,6 @@ Il wizard è offline: nessuna API, solo albero decisionale + dati PHB.
 
 import copy
 import flet as ft
-import json
 import logging
 from typing import Any, cast
 
@@ -33,11 +32,10 @@ from ui.theme import (
 )
 from core.wizard_engine import WizardEngine
 from data.game_data.wizard_data import (
-    WIZARD_QUESTIONS, CLASS_DESCRIPTIONS, CLASS_SUGGESTED_RACES,
+    WIZARD_QUESTIONS, CLASS_DESCRIPTIONS,
 )
 from data.game_data.game_data_loader import GameDataLoader
 from data.repositories import character_repo
-from data.models import CharacterProficiency
 
 logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
@@ -128,6 +126,9 @@ class WizardView(ft.Column):
         self._review_elf_cantrip:     str       = ""   # trucchetto Alto Elfo
         self._review_umano_language:  str       = ""   # lingua aggiuntiva Umano
         self._review_expertise:       list[str] = []   # 2 abilità Perizia Ladro Lv1
+        # Trucchetti/incantesimi conosciuti scelti alla creazione (task #74)
+        self._review_cantrips:        list[str] = []
+        self._review_spells_lv1:      list[str] = []
 
         # Stato equipment (popolato in _render_equipment)
         # lista di dict: {name, item_type, quantity, selected}
@@ -440,10 +441,8 @@ class WizardView(ft.Column):
         rec_race_by_class = {cls: self.engine.get_recommended_race(cls) for cls, _ in top3}
         rec_align = self.engine.get_alignment_string()
 
-        # Etichette razza dinamiche in base alla classe selezionata
+        # Etichetta razza dinamica in base alla classe selezionata
         race_label_ref = ft.Ref[ft.Text]()
-        race_note_ref  = ft.Ref[ft.Text]()
-        continue_btn_ref = ft.Ref[ft.ElevatedButton]()
 
         def _refresh_cards():
             sel = selected_class[0]
@@ -633,6 +632,8 @@ class WizardView(ft.Column):
         self._review_elf_cantrip     = ""
         self._review_umano_language  = ""
         self._review_expertise       = []
+        self._review_cantrips        = []
+        self._review_spells_lv1      = []
         self._phase = "review"
         self._render_review()
 
@@ -646,7 +647,13 @@ class WizardView(ft.Column):
         return bg_data.get("skill_proficiencies", []) if bg_data else []
 
     def _class_skill_options(self) -> tuple[int, list[str]]:
-        """(count, options) per le abilità di classe."""
+        """
+        (count, options) per le abilità di classe. Esclude le abilità già
+        concesse dal background (fisse) e quelle già scelte tramite il
+        tratto razziale Mezzelfo (Versatilità nelle Abilità) — altrimenti
+        lo stesso personaggio potrebbe ottenere due volte la competenza
+        nella stessa abilità, una da classe e una da razza.
+        """
         cls_data = _loader.get_class(self._review_class)
         if not cls_data:
             return 0, []
@@ -655,7 +662,8 @@ class WizardView(ft.Column):
         opts = sc.get("options", [])
         if opts == "any":
             opts = list(SKILLS.keys())
-        return count, [o for o in opts if o not in self._bg_skill_proficiencies()]
+        excluded = set(self._bg_skill_proficiencies()) | set(self._review_mezzelf_skills)
+        return count, [o for o in opts if o not in excluded]
 
     def _bg_language_choices(self) -> tuple[int, str]:
         """(count, from) per le lingue a scelta del background, o (0,'') se nessuna."""
@@ -1020,8 +1028,12 @@ class WizardView(ft.Column):
                     ))
                 race_extras_col.controls.append(ft.Row(flex_dds, spacing=12))
 
-                # Mezzelf: 2 abilità a scelta (Versatilità nelle Abilità)
-                all_skills = list(SKILLS.keys())
+                # Mezzelf: 2 abilità a scelta (Versatilità nelle Abilità) —
+                # esclude le abilità già concesse dal background e quelle già
+                # scelte tramite le abilità di classe, per evitare doppia
+                # competenza sulla stessa abilità (razza + classe).
+                already_taken = set(self._bg_skill_proficiencies()) | set(self._review_skills)
+                all_skills = [s for s in SKILLS.keys() if s not in already_taken]
                 self._review_mezzelf_skills = [s for s in self._review_mezzelf_skills if s in all_skills]
                 mez_skill_count = 2
                 mez_label_row = ft.Row([
@@ -1053,6 +1065,11 @@ class WizardView(ft.Column):
                     mez_counter.value = f"({len(self._review_mezzelf_skills)}/{mez_skill_count})"
                     try: mez_counter.update()
                     except RuntimeError: pass
+                    # L'abilità appena scelta/deselezionata come tratto razziale
+                    # non deve essere (più) selezionabile nel pool di abilità di
+                    # classe, e viceversa — ricostruisce quella sezione per
+                    # riflettere subito l'esclusione incrociata.
+                    _rebuild_skills_col()
 
                 left_m: list[ft.Control] = []
                 right_m: list[ft.Control] = []
@@ -1080,11 +1097,20 @@ class WizardView(ft.Column):
                 mago_cantrips = _loader.get_mago_cantrips()
                 if not self._review_elf_cantrip or self._review_elf_cantrip not in mago_cantrips:
                     self._review_elf_cantrip = mago_cantrips[0] if mago_cantrips else ""
+                def _on_elf_cantrip_select(e):
+                    self._review_elf_cantrip = e.control.value or ""
+                    # Il trucchetto Alto Elfo condivide la lista Mago con la
+                    # sezione "Trucchetti Iniziali" quando la classe è Mago —
+                    # va ricostruita subito per escludere/reintrodurre il nome.
+                    if self._review_class == "Mago":
+                        _rebuild_spells_init_col()
+                        _update_extra_card()
+
                 race_extras_col.controls.append(ft.Dropdown(
                     label="Trucchetto del Mago (tratto Elfo Alto)",
                     value=self._review_elf_cantrip,
                     options=[ft.DropdownOption(key=c, text=c) for c in mago_cantrips],
-                    on_select=lambda e: setattr(self, "_review_elf_cantrip", e.control.value or ""),
+                    on_select=_on_elf_cantrip_select,
                     bgcolor=COLOR_BG_CARD,
                     color=COLOR_TEXT_PRIMARY,
                     label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
@@ -1236,7 +1262,6 @@ class WizardView(ft.Column):
                 return
             # Mantieni le selezioni valide
             self._review_skills = [s for s in self._review_skills if s in opts]
-            selected_count_ref = [len(self._review_skills)]
 
             label_row = ft.Row([
                 ft.Text(f"Scegli {count} abilità dalla lista", size=13,
@@ -1275,6 +1300,10 @@ class WizardView(ft.Column):
                     pass
                 # Aggiorna il pool di Perizia se siamo Ladro
                 _rebuild_expertise_col()
+                # Esclusione reciproca con l'abilità razziale Mezzelf (Versatilità
+                # nelle Abilità) — l'abilità appena scelta qui non deve essere
+                # (più) selezionabile anche come tratto razziale, e viceversa.
+                _rebuild_race_extras_col()
 
             # Checkbox in griglia 2 colonne
             left_col: list[ft.Control] = []
@@ -1328,7 +1357,7 @@ class WizardView(ft.Column):
                 # Mantieni selezioni valide
                 self._review_languages = [l for l in self._review_languages if l in avail_langs]
                 lang_label = ft.Row([
-                    ft.Text(f"Scegli {lang_count} lingua{'e' if lang_count > 1 else ''}",
+                    ft.Text(f"Scegli {lang_count} {'lingue' if lang_count > 1 else 'lingua'}",
                             size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
                     ft.Container(expand=True),
                     ft.Text(f"({len(self._review_languages)}/{lang_count})",
@@ -1428,6 +1457,120 @@ class WizardView(ft.Column):
 
         _rebuild_lang_tool_col()
 
+        # ------ Trucchetti e incantesimi conosciuti al Lv.1 (task #74) ------
+        # Stesso meccanismo di manual_form.py: numero fisso per classe da
+        # GameDataLoader (dato trascritto/derivato dal testo delle feature
+        # "Incantesimi"/"Trucchetti" nei JSON classe). Trucchetti: tutte le
+        # classi incantatrici con cantrips_known_at_1 > 0. Incantesimi
+        # conosciuti di 1° livello: solo le classi "know" (Bardo/Stregone/
+        # Warlock) — i "preparatori" (Chierico/Druido/Paladino) scelgono ogni
+        # giorno dal pool completo, il Mago parte con un libro degli
+        # incantesimi (meccanica separata, non affrontata qui).
+        spells_init_col = ft.Column([], spacing=10, visible=False)
+        cantrip_dds: list[ft.Dropdown] = []
+        spell_dds: list[ft.Dropdown] = []
+
+        def _rebuild_spells_init_col():
+            spells_init_col.controls.clear()
+            cantrip_dds.clear()
+            spell_dds.clear()
+
+            n_cantrips = _loader.get_cantrips_known_at_1(self._review_class)
+            n_spells   = _loader.get_spells_known_at_1(self._review_class)
+
+            if n_cantrips <= 0 and n_spells <= 0:
+                self._review_cantrips   = []
+                self._review_spells_lv1 = []
+                spells_init_col.visible = False
+                try:
+                    spells_init_col.update()
+                except RuntimeError:
+                    pass
+                return
+
+            cantrip_names = sorted(s["name"] for s in _loader.get_spells_by_level(self._review_class, 0))
+            spell_names   = sorted(s["name"] for s in _loader.get_spells_by_level(self._review_class, 1))
+
+            elf_reserved = (
+                {self._review_elf_cantrip}
+                if self._review_class == "Mago" and self._review_elf_cantrip
+                else set()
+            )
+            cantrip_pool = [c for c in cantrip_names if c not in elf_reserved]
+
+            self._review_cantrips = [c for c in self._review_cantrips if c in cantrip_pool][:n_cantrips]
+            while len(self._review_cantrips) < n_cantrips and len(self._review_cantrips) < len(cantrip_pool):
+                for c in cantrip_pool:
+                    if c not in self._review_cantrips:
+                        self._review_cantrips.append(c)
+                        break
+
+            self._review_spells_lv1 = [s for s in self._review_spells_lv1 if s in spell_names][:n_spells]
+            while len(self._review_spells_lv1) < n_spells and len(self._review_spells_lv1) < len(spell_names):
+                for s in spell_names:
+                    if s not in self._review_spells_lv1:
+                        self._review_spells_lv1.append(s)
+                        break
+
+            def _set_cantrip(idx: int, val: str):
+                while len(self._review_cantrips) <= idx:
+                    self._review_cantrips.append("")
+                self._review_cantrips[idx] = val
+
+            def _set_spell(idx: int, val: str):
+                while len(self._review_spells_lv1) <= idx:
+                    self._review_spells_lv1.append("")
+                self._review_spells_lv1[idx] = val
+
+            if n_cantrips > 0 and cantrip_pool:
+                spells_init_col.controls.append(
+                    ft.Text(f"Trucchetti conosciuti (scegli {n_cantrips})",
+                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                )
+                for i in range(n_cantrips):
+                    current = self._review_cantrips[i] if i < len(self._review_cantrips) else ""
+                    dd = ft.Dropdown(
+                        label=f"Trucchetto {i + 1}",
+                        value=current if current in cantrip_pool else (cantrip_pool[0] if cantrip_pool else None),
+                        options=[ft.DropdownOption(key=c, text=c) for c in cantrip_pool],
+                        on_select=lambda e, idx=i: _set_cantrip(idx, e.control.value or ""),
+                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        expand=True,
+                    )
+                    cantrip_dds.append(dd)
+                    spells_init_col.controls.append(dd)
+
+            if n_spells > 0 and spell_names:
+                spells_init_col.controls.append(ft.Container(height=4))
+                spells_init_col.controls.append(
+                    ft.Text(f"Incantesimi di 1° livello conosciuti (scegli {n_spells})",
+                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                )
+                for i in range(n_spells):
+                    current = self._review_spells_lv1[i] if i < len(self._review_spells_lv1) else ""
+                    dd = ft.Dropdown(
+                        label=f"Incantesimo {i + 1}",
+                        value=current if current in spell_names else (spell_names[0] if spell_names else None),
+                        options=[ft.DropdownOption(key=s, text=s) for s in spell_names],
+                        on_select=lambda e, idx=i: _set_spell(idx, e.control.value or ""),
+                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        expand=True,
+                    )
+                    spell_dds.append(dd)
+                    spells_init_col.controls.append(dd)
+
+            spells_init_col.visible = True
+            try:
+                spells_init_col.update()
+            except RuntimeError:
+                pass
+
+        _rebuild_spells_init_col()
+
         # ------ Handler dropdown principali ------
 
         def _on_class_change(e):
@@ -1438,6 +1581,8 @@ class WizardView(ft.Column):
             self._review_dragon_ancestry = ""
             self._review_fighting_style = ""
             self._review_expertise = []
+            self._review_cantrips = []
+            self._review_spells_lv1 = []
             for key, dd_ctrl in stat_dropdowns.items():
                 dd_ctrl.value = str(self._review_stats.get(key, 10))
                 dd_ctrl.update()
@@ -1449,6 +1594,7 @@ class WizardView(ft.Column):
             _rebuild_fighting_style_col()
             _rebuild_skills_col()
             _rebuild_expertise_col()
+            _rebuild_spells_init_col()
             _update_extra_card()
 
         def _on_race_change(e):
@@ -1460,6 +1606,7 @@ class WizardView(ft.Column):
             self._review_umano_language = ""
             _rebuild_subrace_col()
             _rebuild_race_extras_col()
+            _rebuild_spells_init_col()
             _update_extra_card()
 
         def _on_bg_change(e):
@@ -1480,6 +1627,7 @@ class WizardView(ft.Column):
         sec_extra_razziali = ft.Container(content=section_header("Extra Razziali"),  visible=False)
         sec_abilita       = ft.Container(content=section_header("Abilità di Classe"), visible=False)
         sec_perizia       = ft.Container(content=section_header("Perizia (Ladro Lv.1)"), visible=False)
+        sec_incantesimi   = ft.Container(content=section_header("Trucchetti e Incantesimi Iniziali"), visible=False)
         sec_lang_tool     = ft.Container(content=section_header("Lingue e Strumenti"), visible=False)
 
         extra_card_content = ft.Column([
@@ -1494,6 +1642,8 @@ class WizardView(ft.Column):
             skills_col,
             sec_perizia,
             expertise_col,
+            sec_incantesimi,
+            spells_init_col,
             sec_lang_tool,
             lang_tool_col,
         ], spacing=12)
@@ -1513,10 +1663,11 @@ class WizardView(ft.Column):
             sec_extra_razziali.visible = race_extras_col.visible
             sec_abilita.visible        = skills_col.visible
             sec_perizia.visible        = expertise_col.visible
+            sec_incantesimi.visible    = spells_init_col.visible
             sec_lang_tool.visible      = lang_tool_col.visible
             extra_card.visible = (
                 has_rc or race_extras_col.visible or skills_col.visible
-                or expertise_col.visible or lang_tool_col.visible
+                or expertise_col.visible or spells_init_col.visible or lang_tool_col.visible
             )
             try:
                 extra_card.update()
@@ -1559,14 +1710,68 @@ class WizardView(ft.Column):
             extra_card,
         ]
 
+        # ---- Validazione obbligatoria prima di avanzare ----
+        # Stesso principio di manual_form.py: le checkbox multi-select senza
+        # un default pre-compilato (abilità di classe, Versatilità Mezzelfo,
+        # lingue a scelta dal background, Perizia Ladro, trucchetti/incantesimi
+        # iniziali) devono essere completate esplicitamente dal giocatore
+        # prima di poter proseguire — a differenza dei dropdown (sottorazza,
+        # sottoclasse, stile di combattimento, trucchetto Alto Elfo, lingua
+        # Umano, strumenti), che sono sempre auto-popolati con un valore
+        # valido di default.
+        def _review_validation_error() -> str:
+            skill_count, skill_opts = self._class_skill_options()
+            if skill_count > 0 and skill_opts and len(self._review_skills) != skill_count:
+                return f"Seleziona {skill_count} abilità di classe (sezione Abilità di Classe)."
+
+            if self._review_race == "Mezzelfo" and len(self._review_mezzelf_skills) != 2:
+                return "Seleziona 2 abilità per il tratto Versatilità nelle Abilità (Mezzelfo)."
+
+            lang_count, _ = self._bg_language_choices()
+            if lang_count > 0 and len(self._review_languages) != lang_count:
+                return f"Seleziona {lang_count} {'lingue' if lang_count > 1 else 'lingua'} (sezione Lingue e Strumenti)."
+
+            if self._review_class.lower() == "ladro" and len(self._review_expertise) != 2:
+                return "Ladro: seleziona 2 abilità per la Perizia (Lv.1)."
+
+            n_cantrips = _loader.get_cantrips_known_at_1(self._review_class)
+            n_spells   = _loader.get_spells_known_at_1(self._review_class)
+            cantrips_chosen = [c for c in self._review_cantrips if c]
+            spells_chosen   = [s for s in self._review_spells_lv1 if s]
+            if (
+                len(cantrips_chosen) < n_cantrips
+                or len(spells_chosen) < n_spells
+                or len(set(cantrips_chosen)) < len(cantrips_chosen)
+                or len(set(spells_chosen)) < len(spells_chosen)
+            ):
+                return "Completa la scelta di trucchetti/incantesimi iniziali (nessun duplicato ammesso)."
+
+            return ""
+
+        review_error_text = ft.Text("", color=COLOR_ACCENT_RED, size=13, visible=False)
+
+        def _on_continue_to_equipment(e):
+            err = _review_validation_error()
+            if err:
+                review_error_text.value   = err
+                review_error_text.visible = True
+                try:
+                    review_error_text.update()
+                except RuntimeError:
+                    pass
+                return
+            self._goto_equipment()
+
         content_sections += [
-            ft.Container(height=20),
+            ft.Container(height=12),
+            review_error_text,
+            ft.Container(height=8),
             ft.Row(
                 [
                     ghost_button("Indietro", on_click=self._on_back),
                     primary_button(
                         "Continua",
-                        on_click=lambda e: self._goto_equipment(),
+                        on_click=_on_continue_to_equipment,
                         icon=ft.Icons.ARROW_FORWARD,
                     ),
                 ],
@@ -2013,9 +2218,55 @@ class WizardView(ft.Column):
                         if attr:
                             setattr(char, attr, min(20, getattr(char, attr) + 1))
 
+                # Validazione completa scelte obbligatorie — rete di sicurezza
+                # (nel flusso normale l'utente non arriva qui senza aver già
+                # superato _review_validation_error() sul pulsante "Continua"
+                # della fase Revisione, ma la si riesegue per difesa in
+                # profondità, stesso principio di manual_form.py).
+                skill_count, skill_opts = self._class_skill_options()
+                if skill_count > 0 and skill_opts and len(self._review_skills) != skill_count:
+                    error_text.value = f"Seleziona {skill_count} abilità di classe (sezione Revisione)."
+                    error_text.visible = True
+                    error_text.update()
+                    return
+
+                if self._review_race == "Mezzelfo" and len(self._review_mezzelf_skills) != 2:
+                    error_text.value = "Mezzelfo: seleziona 2 abilità per Versatilità nelle Abilità (sezione Revisione)."
+                    error_text.visible = True
+                    error_text.update()
+                    return
+
+                lang_count, _ = self._bg_language_choices()
+                if lang_count > 0 and len(self._review_languages) != lang_count:
+                    error_text.value = (
+                        f"Seleziona {lang_count} {'lingue' if lang_count > 1 else 'lingua'} (sezione Revisione)."
+                    )
+                    error_text.visible = True
+                    error_text.update()
+                    return
+
                 # Validazione Perizia Ladro
                 if self._review_class.lower() == "ladro" and len(self._review_expertise) != 2:
                     error_text.value = "Ladro: seleziona 2 abilità per la Perizia (sezione Perizia nella fase Revisione)."
+                    error_text.visible = True
+                    error_text.update()
+                    return
+
+                # Validazione Trucchetti/Incantesimi iniziali (task #74)
+                n_cantrips_needed = _loader.get_cantrips_known_at_1(self._review_class)
+                n_spells_needed   = _loader.get_spells_known_at_1(self._review_class)
+                cantrips_chosen   = [c for c in self._review_cantrips if c]
+                spells_chosen     = [s for s in self._review_spells_lv1 if s]
+                if (
+                    len(cantrips_chosen) < n_cantrips_needed
+                    or len(spells_chosen) < n_spells_needed
+                    or len(set(cantrips_chosen)) < len(cantrips_chosen)
+                    or len(set(spells_chosen)) < len(spells_chosen)
+                ):
+                    error_text.value = (
+                        "Completa la scelta di trucchetti/incantesimi iniziali "
+                        "(sezione Trucchetti e Incantesimi Iniziali, nessun duplicato ammesso)."
+                    )
                     error_text.visible = True
                     error_text.update()
                     return
@@ -2064,14 +2315,64 @@ class WizardView(ft.Column):
                         class_list="Mago",
                     )
 
+                # Trucchetti e incantesimi conosciuti al Lv.1 (task #74)
+                def _save_known_spell_by_name(spell_name: str, class_name: str) -> None:
+                    """Recupera i dettagli dell'incantesimo dal JSON di classe e lo salva come conosciuto."""
+                    spell = next(
+                        (s for s in _loader.get_spells(class_name) if s.get("name") == spell_name),
+                        None,
+                    )
+                    if spell is None:
+                        logger.warning(
+                            "Incantesimo '%s' non trovato per classe '%s' (creazione wizard)",
+                            spell_name, class_name,
+                        )
+                        return
+                    comps = spell.get("components", [])
+                    comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
+                    if spell.get("material"):
+                        comp_str += f" ({spell['material']})"
+                    character_repo.upsert_known_spell(
+                        character_id=char.id,
+                        name=spell_name,
+                        level=spell.get("level", 0),
+                        is_prepared=True,
+                        school=spell.get("school", ""),
+                        casting_time=spell.get("casting_time", ""),
+                        spell_range=spell.get("range", ""),
+                        components=comp_str,
+                        duration=spell.get("duration", ""),
+                        description=spell.get("description", ""),
+                        higher_levels=spell.get("higher_levels", "") or "",
+                        class_list=class_name,
+                    )
+
+                for cname in cantrips_chosen:
+                    _save_known_spell_by_name(cname, self._review_class)
+                for sname in spells_chosen:
+                    _save_known_spell_by_name(sname, self._review_class)
+
+                # Lingue fisse concesse dalla razza (es. Comune + Elfico per l'Elfo)
+                # — prima di questo fix venivano lette da get_resolved_race() solo
+                # per la UI (Esplorazione/Profilo), mai salvate come proficiency
+                # reale alla creazione del personaggio.
+                lang_seen: set[str] = set()
+                resolved_race = _loader.get_resolved_race(self._review_race, self._review_subrace)
+                for entry in resolved_race.get("languages", []):
+                    if isinstance(entry, str) and entry not in lang_seen:
+                        character_repo._save_single_proficiency(char.id, "language", entry)
+                        lang_seen.add(entry)
+
                 # Lingua aggiuntiva Umano
-                if self._review_umano_language:
+                if self._review_umano_language and self._review_umano_language not in lang_seen:
                     character_repo._save_single_proficiency(char.id, "language", self._review_umano_language)
+                    lang_seen.add(self._review_umano_language)
 
                 # Lingue scelte da background
                 for lang in self._review_languages:
-                    if lang:
+                    if lang and lang not in lang_seen:
                         character_repo._save_single_proficiency(char.id, "language", lang)
+                        lang_seen.add(lang)
 
                 # Strumenti scelti (+ strumenti fissi del background)
                 tool_seen: set[str] = set()
@@ -2085,8 +2386,38 @@ class WizardView(ft.Column):
                             character_repo._save_single_proficiency(char.id, "tool", entry)
                             tool_seen.add(entry)
 
+                def _save_weapon_by_name(character_id: str, wname: str) -> None:
+                    """
+                    Crea l'arma nella tabella weapons (non in inventario) leggendo
+                    dado danno/tipo danno/proprietà da equipment/weapons.json.
+                    Se il nome non viene trovato (es. refuso di trascrizione),
+                    ripiega su un inventory_item generico invece di perdere
+                    silenziosamente l'oggetto, e logga un warning diagnosticabile.
+                    """
+                    wdata = _loader.get_weapon(wname)
+                    if wdata:
+                        props = wdata.get("properties", [])
+                        props_str = ", ".join(props) if isinstance(props, list) else str(props)
+                        character_repo.create_weapon(
+                            character_id=character_id, name=wname,
+                            damage_dice=wdata.get("damage_dice", ""),
+                            damage_type=wdata.get("damage_type", ""),
+                            properties=props_str,
+                            is_equipped=True,
+                        )
+                    else:
+                        logger.warning(
+                            "Arma '%s' non trovata in equipment/weapons.json — "
+                            "salvata come oggetto generico in inventario", wname,
+                        )
+                        character_repo.create_inventory_item(
+                            character_id=character_id, name=wname,
+                            quantity=1, weight=0.0, category="weapon",
+                            is_equipped=False, description="",
+                        )
+
                 def _save_item(character_id: str, item: dict) -> None:
-                    """Salva un item di equipaggiamento: weapon_choice → inventario con nome scelto,
+                    """Salva un item di equipaggiamento: weapon/weapon_choice → tabella weapons,
                     regular item → inventario, currency → update_currencies."""
                     itype = item.get("item_type", "item")
                     if itype == "weapon_choice":
@@ -2094,19 +2425,11 @@ class WizardView(ft.Column):
                         if count > 1:
                             for wname in item.get("chosen_weapons", []):
                                 if wname:
-                                    character_repo.create_inventory_item(
-                                        character_id=character_id, name=wname,
-                                        quantity=1, weight=0.0, category="weapon",
-                                        is_equipped=False, description="",
-                                    )
+                                    _save_weapon_by_name(character_id, wname)
                         else:
                             wname = item.get("chosen_weapon", "")
                             if wname:
-                                character_repo.create_inventory_item(
-                                    character_id=character_id, name=wname,
-                                    quantity=1, weight=0.0, category="weapon",
-                                    is_equipped=False, description="",
-                                )
+                                _save_weapon_by_name(character_id, wname)
                     elif itype == "currency":
                         cur = character_repo.get_currencies(character_id)
                         if cur:
@@ -2121,9 +2444,10 @@ class WizardView(ft.Column):
                                 gold=cur.gold + delta.get("gold", 0),
                                 platinum=cur.platinum + delta.get("platinum", 0),
                             )
+                    elif itype == "weapon":
+                        _save_weapon_by_name(character_id, item["name"])
                     else:
-                        cat = "weapon" if itype == "weapon" else \
-                              "armor" if itype == "armor" else "misc"
+                        cat = "armor" if itype == "armor" else "misc"
                         character_repo.create_inventory_item(
                             character_id=character_id,
                             name=item["name"],
