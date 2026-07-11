@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -834,6 +835,57 @@ class GameDataLoader:
         """Dizionario grezzo di equipment/armor.json (regole + leggere/medie/pesanti/scudi)."""
         self._ensure_equipment_file("armor")
         return self._equipment["armor"]
+
+    _ARMOR_TYPE_BY_KEY = {
+        "leggere": "leggera",
+        "medie": "media",
+        "pesanti": "pesante",
+        "scudi": "scudo",
+    }
+
+    def get_armor_item(self, name: str) -> dict[str, Any] | None:
+        """
+        Cerca un'armatura o uno scudo per nome esatto (case-insensitive) in
+        equipment/armor.json, attraversando tutte e 4 le liste (leggere/
+        medie/pesanti/scudi). Il dict ritornato è una copia della voce
+        originale con due campi aggiuntivi già risolti, pronti per
+        `character_repo.create_inventory_item(ca_value=..., armor_type=...)`:
+
+        - "armor_type": "leggera"|"media"|"pesante"|"scudo" (dedotto dalla
+          lista di provenienza, non da un campo del JSON — armor.json non
+          lo aveva perché pensato per sola consultazione, non per essere
+          risolto a runtime da un nome).
+        - "ca_value": intero base da sommare secondo la formula PHB già
+          implementata in `calculate_and_update_ca()` (leggera=ca_value+DEX,
+          media=ca_value+min(DEX,2), pesante=ca_value, scudo=+ca_value).
+          Per gli scudi viene letto da "ac_bonus" (es. 2). Per le armature
+          viene estratto il numero iniziale di "ac_formula" (es. "14 +
+          modificatore di Des (max 2)" → 14) con una regex sul prefisso
+          numerico — la parte testuale ("+ modificatore di Des...") descrive
+          esattamente la stessa formula già hardcoded in
+          `calculate_and_update_ca()`, quindi non va sommata di nuovo.
+
+        Ritorna None se il nome non è presente nel catalogo (es. "Abito
+        comune", che non è un'armatura del Capitolo 5 — vedi
+        `_save_armor_by_name()` in wizard_view.py/manual_form.py per il
+        fallback "capo non protettivo" che questo caso deve produrre).
+        """
+        needle = name.lower()
+        armor = self.get_armor()
+        for key, armor_type in self._ARMOR_TYPE_BY_KEY.items():
+            for a in armor.get(key, []):
+                if a.get("name", "").lower() != needle:
+                    continue
+                result = dict(a)
+                result["armor_type"] = armor_type
+                if armor_type == "scudo":
+                    result["ca_value"] = int(a.get("ac_bonus", 0) or 0)
+                else:
+                    formula = a.get("ac_formula", "") or ""
+                    match = re.match(r"\s*(\d+)", formula)
+                    result["ca_value"] = int(match.group(1)) if match else 0
+                return result
+        return None
 
     def get_adventuring_gear(self) -> dict[str, Any]:
         """Dizionario grezzo di equipment/adventuring_gear.json (items/descrizioni/dotazioni)."""

@@ -101,7 +101,7 @@
       "type": "fixed",
       "items": [
         {
-          "name": "Due pugnali",
+          "name": "Pugnale",
           "item_type": "weapon",
           "quantity": 2
         }

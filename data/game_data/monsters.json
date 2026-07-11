@@ -54,8 +54,12 @@
     "type": "Costrutto"
   },
   {
+    "name": "ABOLETH",
+    "type": "Aberrazione",
+    "size": "Grande",
+    "alignment": "legale malvagio",
     "ac": 17,
-    "ac_note": "armatura naturale}",
+    "ac_note": "armatura naturale",
     "hp_max": 135,
     "hp_formula": "18d10 + 36",
     "speed": "3 m, nuotare 12 m",
@@ -66,20 +70,20 @@
     "wis_score": 15,
     "cha_score": 18,
     "saving_throws": {
-      "cos": "+6",
-      "lnt": "+8",
-      "sag": "+6"
+      "Cos": "+6",
+      "Int": "+8",
+      "Sag": "+6"
     },
     "skills": {
-      "percezione": "+10",
-      "storia": "+12"
+      "Percezione": "+10",
+      "Storia": "+12"
     },
     "damage_vulnerabilities": "",
     "damage_resistances": "",
     "damage_immunities": "",
     "condition_immunities": "",
-    "senses": "Percezione passiva 20, scurovisione 36 m linguaggi Gergo delle Profondità, telepatia 36 m",
-    "languages": "",
+    "senses": "Percezione passiva 20, scurovisione 36 m",
+    "languages": "Gergo delle Profondità, telepatia 36 m",
     "cr": "10",
     "xp": "5900",
     "traits": [
@@ -89,7 +93,7 @@
       },
       {
         "name": "Nube di Muco",
-        "description": "Finché si trova sott'acqua, l'aboleth è circondato da uno strato di muco mutageno. Se una creatura tocca l'aboleth o lo colpisce con un attacco in mischia mentre si trova a 1,5 metri da esso, quella creatura deve effettuare un tiro salvezza su Costituzione con CD 14; se lo fallisce, è malata per ld4 ore. La creatura malata può respirare soltanto sott'acqua."
+        "description": "Finché si trova sott'acqua, l'aboleth è circondato da uno strato di muco mutageno. Se una creatura tocca l'aboleth o lo colpisce con un attacco in mischia mentre si trova a 1,5 metri da esso, quella creatura deve effettuare un tiro salvezza su Costituzione con CD 14; se lo fallisce, è malata per 1d4 ore. La creatura malata può respirare soltanto sott'acqua."
       },
       {
         "name": "Sonda Telepatica",
@@ -103,16 +107,33 @@
       },
       {
         "name": "Tentacolo",
-        "description": "Attacco con Arma da Mischia: +9 al tiro per colpire, portata 3 m, un bersaglio. Colpito: 12 (2d6 + 5) danni contundenti. Se il bersaglio è una creatura, deve superare un tiro salvezza su Costituzione con CD 14, altrimenti è malato. La malattia non ha effetto per l minuto e può essere rimossa da qualsiasi magia in grado di curare malattie. Dopo l minuto, la"
+        "description": "Attacco con Arma da Mischia: +9 al tiro per colpire, portata 3 m, un bersaglio. Colpito: 12 (2d6 + 5) danni contundenti. Se il bersaglio è una creatura, deve superare un tiro salvezza su Costituzione con CD 14, altrimenti è malato. La malattia non ha effetto per 1 minuto e può essere rimossa da qualsiasi magia in grado di curare malattie. Dopo 1 minuto, la pelle della creatura malata diventa trasparente e viscida, la creatura non può recuperare punti ferita a meno che non si trovi sott'acqua e la malattia può essere rimossa soltanto da guarigione o da un altro incantesimo in grado di curare malattie di 6° livello o superiore. Quando la creatura si trova al di fuori di una massa d'acqua, subisce 6 (1d12) danni da acido ogni 10 minuti, a meno che la sua pelle non venga inumidita prima che i 10 minuti siano trascorsi."
+      },
+      {
+        "name": "Coda",
+        "description": "Attacco con Arma da Mischia: +9 al tiro per colpire, portata 3 m, un bersaglio. Colpito: 15 (3d6 + 5) danni contundenti."
+      },
+      {
+        "name": "Schiavizzare (3/Giorno)",
+        "description": "L'aboleth bersaglia una creatura situata entro 9 metri da lui e che esso sia in grado di vedere. Il bersaglio deve superare un tiro salvezza su Saggezza con CD 14, altrimenti è affascinato magicamente dall'aboleth finché quest'ultimo non muore o non si trova su un piano di esistenza diverso da quello del bersaglio. Il bersaglio affascinato è sotto il controllo dell'aboleth e non può effettuare reazioni. Inoltre, l'aboleth e il bersaglio possono comunicare telepaticamente l'uno con l'altro a qualsiasi distanza. Ogni volta che il bersaglio affascinato subisce danni, può ripetere il tiro salvezza. Se lo supera, l'effetto ha termine. Non più di una volta ogni 24 ore, il bersaglio può anche ripetere il tiro salvezza quando si trova ad almeno 1,5 chilometri dall'aboleth."
       }
     ],
     "reactions": [],
-    "legendary_actions": [],
-    "name": "ABOLETH",
-    "creature_type": "Aberrazione",
-    "size": "Grande",
-    "alignment": "legale malvagio",
-    "type": "Aberrazione"
+    "legendary_actions": [
+      {
+        "name": "Individuazione",
+        "description": "L'aboleth effettua una prova di Saggezza (Percezione)."
+      },
+      {
+        "name": "Spazzata di Coda",
+        "description": "L'aboleth effettua un attacco con la coda."
+      },
+      {
+        "name": "Risucchio Psichico (Costa 2 Azioni)",
+        "description": "Una creatura affascinata dall'aboleth subisce 10 (3d6) danni psichici e l'aboleth recupera un ammontare di punti ferita pari ai danni subiti dalla creatura."
+      }
+    ],
+    "source_page": 13
   },
   {
     "ac": 10,
@@ -450,17 +471,21 @@
     "type": "Mostruosità"
   },
   {
+    "name": "ANKHEG",
+    "type": "Mostruosità",
+    "size": "Grande",
+    "alignment": "senza allineamento",
     "ac": 14,
-    "ac_note": "armatura naturale), 11 se prono",
+    "ac_note": "armatura naturale, 11 se prono",
     "hp_max": 39,
-    "hp_formula": "6dl0 + 6",
+    "hp_formula": "6d10 + 6",
     "speed": "9 m, scavare 3 m",
     "str_score": 17,
-    "dex_score": 3,
-    "con_score": 11,
-    "int_score": 13,
-    "wis_score": 1,
-    "cha_score": 5,
+    "dex_score": 11,
+    "con_score": 13,
+    "int_score": 1,
+    "wis_score": 13,
+    "cha_score": 6,
     "saving_throws": {},
     "skills": {},
     "damage_vulnerabilities": "",
@@ -475,7 +500,7 @@
     "actions": [
       {
         "name": "Morso",
-        "description": "Attacco con Arma da. Mischia: +5 al tiro per colpire, portata 1,5 m, un bersaglioColpito: 10 (2d6 + 3) danni taglienti più 3 (ld6) danni da acido. Se il bersaglio è una creatura di taglia Grande o inferiore, è afferrato (CD 13 per sfuggire). Finché l'ankheg afferra il bersaglio, può mordere soltanto la creatura afferrata e dispone di vantaggio ai tiri per colpire per farlo."
+        "description": "Attacco con Arma da Mischia: +5 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 10 (2d6 + 3) danni taglienti più 3 (1d6) danni da acido. Se il bersaglio è una creatura di taglia Grande o inferiore, è afferrato (CD 13 per sfuggire). Finché l'ankheg afferra il bersaglio, può mordere soltanto la creatura afferrata e dispone di vantaggio ai tiri per colpire per farlo."
       },
       {
         "name": "Spruzzo Acido (Ricarica 6)",
@@ -484,11 +509,7 @@
     ],
     "reactions": [],
     "legendary_actions": [],
-    "name": "ANKHEG",
-    "creature_type": "Mostruosità",
-    "size": "Grande",
-    "alignment": "senza allineamento",
-    "type": "Mostruosità"
+    "source_page": 19
   },
   {
     "ac": 12,
@@ -727,17 +748,21 @@
     "type": "Umanoide"
   },
   {
+    "name": "ARTIGLIO STRISCIANTE",
+    "type": "Non morto",
+    "size": "Minuscolo",
+    "alignment": "neutrale malvagio",
     "ac": 12,
     "ac_note": "",
     "hp_max": 2,
-    "hp_formula": "1 d4",
+    "hp_formula": "1d4",
     "speed": "6 m, scalare 6 m",
     "str_score": 13,
-    "dex_score": 1,
-    "con_score": 14,
-    "int_score": 2,
-    "wis_score": 11,
-    "cha_score": 5,
+    "dex_score": 14,
+    "con_score": 11,
+    "int_score": 5,
+    "wis_score": 10,
+    "cha_score": 4,
     "saving_throws": {},
     "skills": {},
     "damage_vulnerabilities": "",
@@ -757,16 +782,12 @@
     "actions": [
       {
         "name": "Artiglio",
-        "description": "Attacco con Arma da Mischia: +3 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 3 (ld4 + 1) danni taglienti o contundenti (a scelta dell'artiglio)."
+        "description": "Attacco con Arma da Mischia: +3 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 3 (1d4 + 1) danni taglienti o contundenti (a scelta dell'artiglio)."
       }
     ],
     "reactions": [],
     "legendary_actions": [],
-    "name": "ARTIGLIO STRISCIANTE",
-    "creature_type": "Non morto",
-    "size": "Minuscolo",
-    "alignment": "neutrale malvagio",
-    "type": "Non morto"
+    "source_page": 21
   },
   {
     "ac": 15,
@@ -3248,6 +3269,10 @@
     "type": "Demone"
   },
   {
+    "name": "DEVA",
+    "type": "Celestiale",
+    "size": "Medio",
+    "alignment": "legale buono",
     "ac": 17,
     "ac_note": "armatura naturale",
     "hp_max": 136,
@@ -3260,17 +3285,17 @@
     "wis_score": 20,
     "cha_score": 20,
     "saving_throws": {
-      "sag": "+9",
-      "car": "+9"
+      "Sag": "+9",
+      "Car": "+9"
     },
     "skills": {
-      "intuizione": "+9",
-      "percezione": "+9"
+      "Intuizione": "+9",
+      "Percezione": "+9"
     },
     "damage_vulnerabilities": "",
-    "damage_resistances": "radioso; contundente, perforante e tagliente da attacchi non magici Immunità alle Condizjoni affascinato, indebolimento, spaventato",
+    "damage_resistances": "radioso; contundente, perforante e tagliente da attacchi non magici",
     "damage_immunities": "",
-    "condition_immunities": "",
+    "condition_immunities": "affascinato, indebolimento, spaventato",
     "senses": "Percezione passiva 19, scurovisione 36 m",
     "languages": "tutti, telepatia 36 m",
     "cr": "10",
@@ -3278,34 +3303,38 @@
     "traits": [
       {
         "name": "Armi Angeliche",
-        "description": "Gli attacchi con arma del deva sono magici. Quando il deva colpisce con qualsiasi arma, la sua arma infligge 4d8 danni radiosi extra (già indusi nell'attacco}."
+        "description": "Gli attacchi con arma del deva sono magici. Quando il deva colpisce con qualsiasi arma, la sua arma infligge 4d8 danni radiosi extra (già inclusi nell'attacco)."
       },
       {
         "name": "Incantesimi Innati",
-        "description": "La caratteristica da incantatore del deva è Carisma (tiro salvezza degli incantesimi CD 17). Il deva può lanciare i seguenti incantesimi innati, che richiedono solo componenti verbali: ANGELO"
+        "description": "La caratteristica da incantatore del deva è Carisma (tiro salvezza degli incantesimi CD 17). Il deva può lanciare i seguenti incantesimi innati, che richiedono solo componenti verbali:\nA volontà: individuazione del bene e del male\n1/giorno ciascuno: comunione, rianimare morti"
+      },
+      {
+        "name": "Resistenza alla Magia",
+        "description": "Il deva dispone di vantaggio ai tiri salvezza contro incantesimi e altri effetti magici."
       }
     ],
     "actions": [
       {
         "name": "Multiattacco",
-        "text": "Il deva effettua due attacchi in mischia."
+        "description": "Il deva effettua due attacchi in mischia."
       },
       {
         "name": "Mazza",
-        "text": "Attacco con Arma da Mischia: +8 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 7 {ld6 + 4) danni contundenti più 18 (4d8) danni radiosi. Tocco Guaritore (3/Ciorno}. Il deva tocca un'altra creatura. Il bersaglio recupera magicamente 20 (4d8 + 2) punti ferita ed è liberato da qualsiasi maledizione, malattia, veleno, cecità o sordità."
+        "description": "Attacco con Arma da Mischia: +8 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 7 (1d6 + 4) danni contundenti più 18 (4d8) danni radiosi."
+      },
+      {
+        "name": "Tocco Guaritore (3/Giorno)",
+        "description": "Il deva tocca un'altra creatura. Il bersaglio recupera magicamente 20 (4d8 + 2) punti ferita ed è liberato da qualsiasi maledizione, malattia, veleno, cecità o sordità."
       },
       {
         "name": "Cambiare Forma",
-        "text": "Il deva si trasforma magicamente in una bestia o in un umanoide con grado di sfida pari o inferiore al proprio, o ritorna alla sua vera forma. Se muore, ritorna alla sua vera forma. Ogni oggetto che indossava o trasportava viene assorbito o trasportato dalla sua nuova forma (a scelta del deva). In una nuova forma, il deva conserva le sue statistiche di gioco e la capacità di parlare, ma CA, modalità di movimento, Forza, Destrezza e sensi speciali sono sostituiti da quelli della nuova forma. Inoltre, il deva ottiene le eventuali statistiche e capacità (eccetto i privilegi di classe, le azioni leggendarie e le azioni di tana) che la nuova forma possiede, ma di cui egli è privo."
+        "description": "Il deva si trasforma magicamente in una bestia o in un umanoide con grado di sfida pari o inferiore al proprio, o ritorna alla sua vera forma. Se muore, ritorna alla sua vera forma. Ogni oggetto che indossava o trasportava viene assorbito o trasportato dalla sua nuova forma (a scelta del deva).\nIn una nuova forma, il deva conserva le sue statistiche di gioco e la capacità di parlare, ma CA, modalità di movimento, Forza, Destrezza e sensi speciali sono sostituiti da quelli della nuova forma. Inoltre, il deva ottiene le eventuali statistiche e capacità (eccetto i privilegi di classe, le azioni leggendarie e le azioni di tana) che la nuova forma possiede, ma di cui egli è privo."
       }
     ],
     "reactions": [],
     "legendary_actions": [],
-    "name": "DEVA",
-    "creature_type": "Celestiale",
-    "size": "Medio",
-    "alignment": "legale buono",
-    "type": "Celeste"
+    "source_page": 16
   },
   {
     "ac": 13,
@@ -11983,10 +12012,14 @@
     "type": "Bestia"
   },
   {
+    "name": "PLANETAR",
+    "type": "Celestiale",
+    "size": "Grande",
+    "alignment": "legale buono",
     "ac": 19,
     "ac_note": "armatura naturale",
     "hp_max": 200,
-    "hp_formula": "",
+    "hp_formula": "16d10 + 112",
     "speed": "12 m, volare 36 m",
     "str_score": 24,
     "dex_score": 20,
@@ -11995,12 +12028,12 @@
     "wis_score": 22,
     "cha_score": 25,
     "saving_throws": {
-      "cos": "+12",
-      "sag": "+11",
-      "car": "+12"
+      "Cos": "+12",
+      "Sag": "+11",
+      "Car": "+12"
     },
     "skills": {
-      "percezione": "+1"
+      "Percezione": "+11"
     },
     "damage_vulnerabilities": "",
     "damage_resistances": "radioso; contundente, perforante e tagliente da attacchi non magici",
@@ -12017,50 +12050,34 @@
       },
       {
         "name": "Consapevolezza Divina",
-        "description": "li planetar capisce se ciò che sente è una menzogna."
+        "description": "Il planetar capisce se ciò che sente è una menzogna."
+      },
+      {
+        "name": "Incantesimi Innati",
+        "description": "La caratteristica da incantatore del planetar è Carisma (tiro salvezza degli incantesimi CD 20). Il planetar può lanciare i seguenti incantesimi innati, che non richiedono alcuna componente materiale:\nA volontà: individuazione del bene e del male, invisibilità (solo se stesso)\n3/giorno ciascuno: barriera di lame, colpo infuocato, dissolvi il bene e il male, rianimare morti\n1/giorno ciascuno: comunione, controllare tempo atmosferico, piaga degli insetti"
+      },
+      {
+        "name": "Resistenza alla Magia",
+        "description": "Il planetar dispone di vantaggio ai tiri salvezza contro incantesimi e altri effetti magici."
       }
     ],
     "actions": [
       {
         "name": "Multiattacco",
-        "text": "Il planetar effettua due attacchi in mischia."
+        "description": "Il planetar effettua due attacchi in mischia."
       },
       {
         "name": "Spadone",
-        "text": "Attacco con Arma da Mischia: +12 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 21 (4d6 + 7) danni taglienti più 22 (5d8) danni radiosi. Tocco Cuoritore (4/Ciorno). Il planetar tocca un'altra creatura. Il bersaglio recupera magicamente 30 (6d8 + 2) punti ferita ed è liberato da qualsiasi maledizione, malattia, veleno, cecità o sordità. Celestiale Grande, legale buono Classe Armatura 19 (armatura naturale) Punti Ferita 200 {16dl0 + 112) Velocità 12 m, volare 36 m FOR DES cos INT SAG CAR 24 (+7) 20 (+5) 24 (+7) 19 (+4) 22 (+6) 25 (+7) Tiri Salvezza Cos +12, Sag +11, Car +12 Abilità Percezione+1 1 Resistenze ai Danni radioso; contundente, perforante e tagliente da attacchi non magici Immunità alle Condizioni affascinato, indebolimento, spaventato Sensi Percezione passiva 21, vista pura 36 m Linguaggi tutti, telepatia 36 m Sfida 16 (15000 PE)"
+        "description": "Attacco con Arma da Mischia: +12 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 21 (4d6 + 7) danni taglienti più 22 (5d8) danni radiosi."
       },
       {
-        "name": "Armi Angeliche",
-        "text": "Gli attacchi con arma del planetar sono magici. Quando il planetar colpisce con qualsiasi arma, la sua arma infligge 5d8 danni radiosi extra (già inclusi nell'attacco)."
-      },
-      {
-        "name": "Consapevolezza Divina",
-        "text": "li planetar capisce se ciò che sente è una menzogna. .."
-      },
-      {
-        "name": "Incantesimi Innati",
-        "text": "la caratteristica da incantatore del planetar è Carisma (tiro salvezza degli incantesimi CD 20). Il planetar può lanciare i seguenti incantesimi innati, che non richiedono alcuna componente materiale: A volontà: individuazione del bene e del male, invisibilità (solo se stesso) 3/giorno ciascuno: barriera di lame, colpo infuocato, dissolvi il bene e if male, rianimare morti l/giorno ciascuno: comunione, controllare tempo atmosferico, piaga degli insetti"
-      },
-      {
-        "name": "Resistenza alla Magia",
-        "text": "Il planetar dispone di vantaggio ai tiri salvezza contro incantesimi e altri effetti magici. AZIONI"
-      },
-      {
-        "name": "Multiattacco",
-        "text": "Il planetar effettua due attacchi in mischia."
-      },
-      {
-        "name": "Spadone",
-        "text": "Attacco con Arma da Mischia: +12 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 21 (4d6 + 7) danni taglienti più 22 (5d8) danni radiosi. Tocco Cuoritore (4/Ciorno). Il planetar tocca un'altra creatura. Il bersaglio recupera magicamente 30 (6d8 + 2) punti ferita ed è liberato da qualsiasi maledizione, malattia, veleno, cecità o sordità."
+        "name": "Tocco Guaritore (4/Giorno)",
+        "description": "Il planetar tocca un'altra creatura. Il bersaglio recupera magicamente 30 (6d8 + 2) punti ferita ed è liberato da qualsiasi maledizione, malattia, veleno, cecità o sordità."
       }
     ],
     "reactions": [],
     "legendary_actions": [],
-    "name": "PLANETAR",
-    "creature_type": "Celestiale",
-    "size": "Grande",
-    "alignment": "legale buono",
-    "type": "Celeste"
+    "source_page": 17
   },
   {
     "ac": 13,
@@ -14340,6 +14357,10 @@
     "type": "Aberrazione"
   },
   {
+    "name": "SOLAR",
+    "type": "Celestiale",
+    "size": "Grande",
+    "alignment": "legale buono",
     "ac": 21,
     "ac_note": "armatura naturale",
     "hp_max": 243,
@@ -14352,12 +14373,12 @@
     "wis_score": 25,
     "cha_score": 30,
     "saving_throws": {
-      "lnt": "+14",
-      "sag": "+14",
-      "car": "+17"
+      "Int": "+14",
+      "Sag": "+14",
+      "Car": "+17"
     },
     "skills": {
-      "percezione": "+14"
+      "Percezione": "+14"
     },
     "damage_vulnerabilities": "",
     "damage_resistances": "radioso; contundente, perforante e tagliente da attacchi non magici",
@@ -14374,15 +14395,11 @@
       },
       {
         "name": "Consapevolezza Divina",
-        "description": "li solar capisce se ciò che sente è una menzogna."
+        "description": "Il solar capisce se ciò che sente è una menzogna."
       },
       {
         "name": "Incantesimi Innati",
-        "description": "La caratteristica da incantatore del solar è"
-      },
-      {
-        "name": "Carisma (tiro salvezza degli incantesimi CD 25)",
-        "description": "Il solar può lanciare i seguenti incantesimi innati, che non richiedono alcuna componente materiale: A volontà: individuazione del bene e del male, invisibilità (solo se stesso) 3/giorno ciascuno: barriera di lame, dissolvi il bene e il male, resurrezione 1/giorno ciascuno: comunione, controllare tempo atmosferico"
+        "description": "La caratteristica da incantatore del solar è Carisma (tiro salvezza degli incantesimi CD 25). Il solar può lanciare i seguenti incantesimi innati, che non richiedono alcuna componente materiale:\nA volontà: individuazione del bene e del male, invisibilità (solo se stesso)\n3/giorno ciascuno: barriera di lame, dissolvi il bene e il male, resurrezione\n1/giorno ciascuno: comunione, controllare tempo atmosferico"
       },
       {
         "name": "Resistenza alla Magia",
@@ -14392,16 +14409,41 @@
     "actions": [
       {
         "name": "Multiattacco",
-        "description": "rl solar effettua due attacchi con lo spadone. ANGELO"
+        "description": "Il solar effettua due attacchi con lo spadone."
+      },
+      {
+        "name": "Spadone",
+        "description": "Attacco con Arma da Mischia: +15 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 22 (4d6 + 8) danni taglienti più 27 (6d8) danni radiosi."
+      },
+      {
+        "name": "Arco Lungo Assassino",
+        "description": "Attacco con Arma a Distanza: +13 al tiro per colpire, gittata 45/180 m, un bersaglio. Colpito: 15 (2d8 + 6) danni perforanti più 27 (6d8) danni radiosi. Se il bersaglio è una creatura con 100 punti ferita o meno, deve superare un tiro salvezza su Costituzione con CD 15, altrimenti muore."
+      },
+      {
+        "name": "Spada Volante",
+        "description": "Il solar lascia andare il suo spadone, che fluttua magicamente in uno spazio libero entro 1,5 metri da lui. Se il solar è in grado di vedere lo spadone, come azione bonus può ordinargli mentalmente di volare fino a un massimo di 15 metri e di sferrare un attacco contro un bersaglio o di tornare nella sua mano. Se la spada fluttuante è bersagliata da un qualsiasi effetto, è comunque considerata impugnata dal solar. Se il solar muore, la spada fluttuante cade a terra."
+      },
+      {
+        "name": "Tocco Guaritore (4/Giorno)",
+        "description": "Il solar tocca un'altra creatura. Il bersaglio recupera magicamente 40 (8d8 + 4) punti ferita ed è liberato da qualsiasi maledizione, malattia, veleno, cecità o sordità."
       }
     ],
     "reactions": [],
-    "legendary_actions": [],
-    "name": "SOLAR",
-    "creature_type": "Celestiale",
-    "size": "Grande",
-    "alignment": "legale buono",
-    "type": "Celeste"
+    "legendary_actions": [
+      {
+        "name": "Teletrasporto",
+        "description": "Il solar si teletrasporta magicamente, assieme ad ogni oggetto che indossa o trasporta, fino a uno spazio libero situato entro 36 metri e che egli sia in grado di vedere."
+      },
+      {
+        "name": "Esplosione Incandescente (Costa 2 Azioni)",
+        "description": "Il solar emette un'onda di energia magica divina. Ogni creatura a sua scelta entro un raggio di 3 metri deve effettuare un tiro salvezza su Destrezza con CD 23; se lo fallisce, subisce 14 (4d6) danni da fuoco più 14 (4d6) danni radiosi, mentre se lo supera, subisce la metà di quei danni."
+      },
+      {
+        "name": "Sguardo Accecante (Costa 3 Azioni)",
+        "description": "Il solar bersaglia una creatura situata entro 9 metri da lui e che egli sia in grado di vedere. Se il bersaglio è in grado di vedere il solar, deve superare un tiro salvezza su Costituzione con CD 15, altrimenti è accecato finché una magia come ristorare inferiore non rimuove la cecità."
+      }
+    ],
+    "source_page": 18
   },
   {
     "ac": 17,
@@ -16546,5 +16588,155 @@
     "size": "Media",
     "alignment": "senza allineamento",
     "type": "Mostruosità"
+  },
+  {
+    "name": "AARAKOCRA",
+    "type": "Umanoide",
+    "subtype": "aarakocra",
+    "size": "Medio",
+    "alignment": "neutrale buono",
+    "ac": 12,
+    "ac_note": "",
+    "hp_max": 13,
+    "hp_formula": "3d8",
+    "speed": "6 m, volare 15 m",
+    "str_score": 10,
+    "dex_score": 14,
+    "con_score": 10,
+    "int_score": 11,
+    "wis_score": 12,
+    "cha_score": 11,
+    "saving_throws": {},
+    "skills": {
+      "Percezione": "+5"
+    },
+    "damage_vulnerabilities": "",
+    "damage_resistances": "",
+    "damage_immunities": "",
+    "condition_immunities": "",
+    "senses": "Percezione passiva 15",
+    "languages": "Aarakocra, Auran",
+    "cr": "1/4",
+    "xp": "50",
+    "traits": [
+      {
+        "name": "Attacco in Picchiata",
+        "description": "Se l'aarakocra è in volo, si tuffa per almeno 9 metri in linea retta verso un bersaglio e lo colpisce con un attacco con arma da mischia, quell'attacco infligge 3 (1d6) danni extra al bersaglio."
+      }
+    ],
+    "actions": [
+      {
+        "name": "Sperone",
+        "description": "Attacco con Arma da Mischia: +4 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 4 (1d4 + 2) danni taglienti."
+      },
+      {
+        "name": "Giavellotto",
+        "description": "Attacco con Arma da Mischia o a Distanza: +4 al tiro per colpire, portata 1,5 m o gittata 9/36 m, un bersaglio. Colpito: 5 (1d6 + 2) danni perforanti."
+      }
+    ],
+    "reactions": [],
+    "legendary_actions": [],
+    "source_page": 12
+  },
+  {
+    "name": "ARPIA",
+    "type": "Mostruosità",
+    "size": "Media",
+    "alignment": "caotico malvagio",
+    "ac": 11,
+    "ac_note": "",
+    "hp_max": 38,
+    "hp_formula": "7d8 + 7",
+    "speed": "6 m, volare 12 m",
+    "str_score": 12,
+    "dex_score": 13,
+    "con_score": 12,
+    "int_score": 7,
+    "wis_score": 10,
+    "cha_score": 13,
+    "saving_throws": {},
+    "skills": {},
+    "damage_vulnerabilities": "",
+    "damage_resistances": "",
+    "damage_immunities": "",
+    "condition_immunities": "",
+    "senses": "Percezione passiva 10",
+    "languages": "Comune",
+    "cr": "1",
+    "xp": "200",
+    "traits": [],
+    "actions": [
+      {
+        "name": "Multiattacco",
+        "description": "L'arpia effettua due attacchi: uno con gli artigli e uno con il randello."
+      },
+      {
+        "name": "Artigli",
+        "description": "Attacco con Arma da Mischia: +3 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 6 (2d4 + 1) danni taglienti."
+      },
+      {
+        "name": "Randello",
+        "description": "Attacco con Arma da Mischia: +3 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 3 (1d4 + 1) danni contundenti."
+      },
+      {
+        "name": "Canto Seducente",
+        "description": "L'arpia intona una melodia magica. Ogni umanoide e gigante situato entro 90 metri dall'arpia e che sia in grado di udire il canto deve superare un tiro salvezza su Saggezza con CD 11, altrimenti è affascinato finché il canto non termina. L'arpia deve effettuare un'azione bonus nei suoi turni successivi per continuare a cantare, ma può smettere di cantare in qualsiasi momento. Se l'arpia è incapacitata, il canto termina.\nFinché è affascinato dall'arpia, un bersaglio è incapacitato e ignora i canti delle altre arpie. Se il bersaglio affascinato si trova a più di 1,5 metri di distanza dall'arpia, esso deve muoversi nel proprio turno verso l'arpia seguendo il percorso più diretto e cercando di giungere entro 1,5 metri. Il bersaglio non evita gli attacchi di opportunità, ma prima di muoversi su un terreno pericoloso (come per esempio un lago di lava o una fossa) e qualora subisca danni da una fonte diversa dall'arpia, può ripetere il tiro salvezza. Un bersaglio affascinato può ripetere il tiro salvezza alla fine di ogni suo turno. Se lo supera, l'effetto per lui termina.\nUn bersaglio che supera il tiro salvezza è immune al canto di questa arpia per le 24 ore successive."
+      }
+    ],
+    "reactions": [],
+    "legendary_actions": [],
+    "source_page": 20
+  },
+  {
+    "name": "AZER",
+    "type": "Elementale",
+    "size": "Medio",
+    "alignment": "legale neutrale",
+    "ac": 17,
+    "ac_note": "armatura naturale, scudo",
+    "hp_max": 39,
+    "hp_formula": "6d8 + 12",
+    "speed": "9 m",
+    "str_score": 17,
+    "dex_score": 12,
+    "con_score": 15,
+    "int_score": 12,
+    "wis_score": 13,
+    "cha_score": 10,
+    "saving_throws": {
+      "Cos": "+4"
+    },
+    "skills": {},
+    "damage_vulnerabilities": "",
+    "damage_resistances": "",
+    "damage_immunities": "fuoco, veleno",
+    "condition_immunities": "avvelenato",
+    "senses": "Percezione passiva 11",
+    "languages": "Ignan",
+    "cr": "2",
+    "xp": "450",
+    "traits": [
+      {
+        "name": "Corpo Surriscaldato",
+        "description": "Una creatura che tocca l'azer o lo colpisce con un attacco in mischia mentre si trova a 1,5 metri da esso subisce 5 (1d10) danni da fuoco."
+      },
+      {
+        "name": "Armi Surriscaldate",
+        "description": "Quando l'azer colpisce con un'arma da mischia in metallo, infligge 3 (1d6) danni da fuoco extra (già inclusi nell'attacco)."
+      },
+      {
+        "name": "Illuminazione",
+        "description": "L'azer proietta luce intensa entro un raggio di 3 metri e luce fioca per 3 metri aggiuntivi."
+      }
+    ],
+    "actions": [
+      {
+        "name": "Martello da Guerra",
+        "description": "Attacco con Arma da Mischia: +5 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 7 (1d8 + 3) danni contundenti, o 8 (1d10 + 3) danni contundenti se usato a due mani per effettuare un attacco in mischia, più 3 (1d6) danni da fuoco."
+      }
+    ],
+    "reactions": [],
+    "legendary_actions": [],
+    "source_page": 22
   }
 ]

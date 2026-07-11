@@ -56,13 +56,13 @@
       "options": [
         [
           {
-            "name": "Armatura a scaglie",
+            "name": "Corazza di Scaglie",
             "item_type": "armor"
           }
         ],
         [
           {
-            "name": "Armatura di cuoio",
+            "name": "Cuoio",
             "item_type": "armor"
           }
         ],

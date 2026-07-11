@@ -40,13 +40,13 @@
       "options": [
         [
           {
-            "name": "Corazza a scaglie",
+            "name": "Corazza di Scaglie",
             "item_type": "armor"
           }
         ],
         [
           {
-            "name": "Armatura di cuoio",
+            "name": "Cuoio",
             "item_type": "armor"
           }
         ]
@@ -59,7 +59,7 @@
       "options": [
         [
           {
-            "name": "Due spade corte",
+            "name": "Spada corta",
             "item_type": "weapon",
             "quantity": 2
           }
@@ -101,8 +101,13 @@
           "item_type": "weapon"
         },
         {
-          "name": "Faretra con 20 frecce",
+          "name": "Faretra",
           "item_type": "item"
+        },
+        {
+          "name": "Frecce",
+          "item_type": "item",
+          "quantity": 20
         }
       ]
     }

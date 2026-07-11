@@ -141,6 +141,16 @@ class Weapon:
     range_max: int = 0            # gittata massima in metri
     # Danni magici aggiuntivi — JSON: [{"dice":"1d6","type":"Fuoco","note":""}]
     magic_damages: str = "[]"
+    # Proprietà "Versatile" (PHB p.149): dado danno quando impugnata a due
+    # mani (es. "1d10" per una spada lunga il cui damage_dice a una mano è
+    # "1d8"). Significativo solo se "Versatile" è tra le properties.
+    versatile_damage_dice: str = ""
+    # True se l'arma è attualmente impugnata a due mani — rilevante solo per
+    # armi Versatile (le armi "Due Mani" sono sempre a due mani, non serve
+    # un flag). Determina sia il dado danno effettivo (damage_dice vs
+    # versatile_damage_dice) sia l'occupazione delle mani in
+    # core/equipment_manager.py.
+    grip_two_handed: bool = False
 
 
 # ---------------------------------------------------------------------------

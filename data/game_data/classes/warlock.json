@@ -100,7 +100,7 @@
       "type": "fixed",
       "items": [
         {
-          "name": "Armatura di cuoio",
+          "name": "Cuoio",
           "item_type": "armor"
         },
         {
@@ -110,7 +110,7 @@
           "count": 1
         },
         {
-          "name": "Due pugnali",
+          "name": "Pugnale",
           "item_type": "weapon",
           "quantity": 2
         }

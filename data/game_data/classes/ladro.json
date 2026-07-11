@@ -72,8 +72,13 @@
             "item_type": "weapon"
           },
           {
-            "name": "Faretra con 20 frecce",
+            "name": "Faretra",
             "item_type": "item"
+          },
+          {
+            "name": "Frecce",
+            "item_type": "item",
+            "quantity": 20
           }
         ],
         [
@@ -113,11 +118,11 @@
       "type": "fixed",
       "items": [
         {
-          "name": "Armatura di cuoio",
+          "name": "Cuoio",
           "item_type": "armor"
         },
         {
-          "name": "Due pugnali",
+          "name": "Pugnale",
           "item_type": "weapon",
           "quantity": 2
         },

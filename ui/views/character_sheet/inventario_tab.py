@@ -5,16 +5,26 @@ Struttura (ListView scrollabile):
   - Monete          — MR / MA / ME / MO / MP con editing inline
   - Peso            — peso attuale / capacità massima (FOR × 7.5 kg)
   - Armi            — lista con aggiunta / modifica / elimina / equipaggia toggle
-  - Oggetti         — lista per categoria con aggiunta / modifica / elimina
+  - Armature        — lista armature/scudi (category="armor") con aggiunta /
+                       modifica / elimina / equipaggia toggle; equipaggiare
+                       applica l'esclusione reciproca di postazione (una sola
+                       armatura indossata, un solo scudo impugnato — vedi
+                       core/equipment_manager.py) prima di ricalcolare la CA
+  - Oggetti         — lista per le restanti categorie (misc/weapon/tool/magic)
+                       con aggiunta / modifica / elimina
 """
 
 import flet as ft
 import json
 import logging
-from typing import Callable, cast
+from typing import Any, Callable, cast
 from config.settings import *
 from data.models import Character, Currency, InventoryItem, Weapon
 import data.repositories.character_repo as character_repo
+from core.equipment_manager import (
+    ArmorCandidate, EquipCandidate, resolve_armor_equip, resolve_weapon_equip,
+)
+from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
 
 logger = logging.getLogger(__name__)
@@ -48,7 +58,17 @@ _WEAPON_PROPERTIES = [
     "Carica",          # Loading — un solo attacco per azione
     "Lanciabile",      # (arma lanciabile generica)
 ]
-_CATEGORIES = ["misc", "armor", "weapon", "tool", "magic"]
+# "armor" ha una sezione dedicata ("Armature", vedi _section_armature) e
+# non compare più nella lista generica "Oggetti" per evitare di mostrare
+# le armature due volte. "weapon" ("Armi (riserva)") non è più selezionabile
+# nel dialog Nuovo/Modifica Oggetto (2026-07-11, vedi CLAUDE.md "Armi
+# riserva") — ogni arma va sempre creata nella sezione Armi dedicata
+# (tabella weapons), unica fonte di verità che partecipa al limite di 2
+# mani; resta comunque nella lista qui sotto come rete di sicurezza, così un
+# eventuale item non ancora migrato (o una migrazione fallita, vedi
+# _migrate_legacy_weapon_items) resta visibile e gestibile invece di
+# sparire silenziosamente dalla UI.
+_OGGETTI_CATEGORIES = ["misc", "weapon", "tool", "magic"]
 
 
 class InventarioTab(ft.ListView):
@@ -64,6 +84,11 @@ class InventarioTab(ft.ListView):
         self._currencies: Currency | None = character_repo.get_currencies(character.id)
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id, equipped_only=False)
         self._items: list[InventoryItem] = character_repo.get_inventory(character.id)
+        if self._migrate_legacy_weapon_items():
+            # La migrazione ha modificato weapons/inventory_items: ricarica
+            # entrambe le liste prima di costruire la UI.
+            self._weapons = character_repo.get_weapons(character.id, equipped_only=False)
+            self._items = character_repo.get_inventory(character.id)
         try:
             self._build()
         except Exception as exc:
@@ -74,6 +99,72 @@ class InventarioTab(ft.ListView):
 
     def did_mount(self) -> None:
         self._page = cast(ft.Page, self.page)
+
+    def _migrate_legacy_weapon_items(self) -> bool:
+        """
+        Migrazione automatica, una tantum per personaggio: converte in righe
+        vere della tabella `weapons` gli eventuali `InventoryItem` con
+        `category=="weapon"` ("Armi (riserva)") creati prima del 2026-07-11
+        (fallback diagnostico di `_save_weapon_by_name()` in
+        wizard_view.py/manual_form.py quando un'arma iniziale non veniva
+        trovata nel catalogo — vedi CLAUDE.md "Armi riserva"). Quella
+        categoria viveva in una tabella diversa dalle armi vere, quindi non
+        partecipava mai al limite di 2 mani di core/equipment_manager.py:
+        equipaggiarla da Oggetti non sostituiva mai le armi già impugnate
+        nella sezione Armi.
+
+        Per ogni item legacy: prova a risolvere dado danno/tipo/proprietà
+        dal catalogo (`equipment/weapons.json`, stesso identico tentativo già
+        fatto alla creazione); se il nome non si risolve, crea comunque
+        l'arma con statistiche vuote (modificabili dal dialog "Modifica" in
+        Armi) invece di far sparire l'oggetto. Elimina la riga di inventario
+        solo dopo che la creazione in weapons è andata a buon fine — in caso
+        di errore di scrittura, l'item legacy resta visibile in Oggetti
+        (categoria "Armi (riserva) — legacy", vedi _open_item_dialog) invece
+        di essere perso.
+
+        Ritorna True se ha modificato almeno un record (il chiamante deve
+        ricaricare `self._weapons`/`self._items` dal DB), False altrimenti —
+        idempotente: dopo la prima esecuzione riuscita per un personaggio,
+        le chiamate successive non trovano più nulla da migrare.
+        """
+        legacy = [i for i in self._items if (i.category or "") == "weapon"]
+        if not legacy:
+            return False
+        loader = GameDataLoader()
+        migrated_any = False
+        for legacy_item in legacy:
+            wdata = loader.get_weapon(legacy_item.name)
+            if wdata:
+                props = wdata.get("properties", [])
+                props_str = ", ".join(props) if isinstance(props, list) else str(props)
+                ok = character_repo.create_weapon(
+                    self.character.id, legacy_item.name,
+                    damage_dice=wdata.get("damage_dice", ""),
+                    damage_type=wdata.get("damage_type", ""),
+                    properties=props_str,
+                    is_equipped=False,
+                )
+            else:
+                ok = character_repo.create_weapon(
+                    self.character.id, legacy_item.name, is_equipped=False,
+                )
+            if ok:
+                if character_repo.delete_inventory_item(legacy_item.id):
+                    migrated_any = True
+                else:
+                    logger.warning(
+                        "Migrazione arma legacy '%s': creata in weapons ma non "
+                        "rimossa da inventory_items (personaggio %s) — verrà "
+                        "duplicata al prossimo caricamento",
+                        legacy_item.name, self.character.id,
+                    )
+            else:
+                logger.warning(
+                    "Migrazione arma legacy '%s' fallita per il personaggio %s "
+                    "— l'oggetto resta in Oggetti", legacy_item.name, self.character.id,
+                )
+        return migrated_any
 
     # ------------------------------------------------------------------
     # Build
@@ -90,6 +181,8 @@ class InventarioTab(ft.ListView):
         self.controls.append(self._section_peso())
         self.controls.append(section_header("Armi"))
         self.controls.append(self._section_armi())
+        self.controls.append(section_header("Armature"))
+        self.controls.append(self._section_armature())
         self.controls.append(section_header("Oggetti"))
         self.controls.append(self._section_oggetti())
 
@@ -228,7 +321,15 @@ class InventarioTab(ft.ListView):
         att_str = f"+{atk_bonus}" if atk_bonus >= 0 else str(atk_bonus)
         db_str  = (f"+{dmg_bonus}" if dmg_bonus > 0
                    else (str(dmg_bonus) if dmg_bonus < 0 else ""))
-        dmg_str = f"{w.damage_dice or ''}{db_str}  {w.damage_type or ''}"
+
+        # Proprietà "Versatile" (PHB p.149): il dado danno mostrato/attivo
+        # dipende dall'impugnatura corrente — a due mani si usa
+        # versatile_damage_dice (se compilato), non damage_dice.
+        is_versatile = "versatile" in (w.properties or "").lower()
+        active_dice = w.damage_dice or ""
+        if is_versatile and w.grip_two_handed and w.versatile_damage_dice:
+            active_dice = w.versatile_damage_dice
+        dmg_str = f"{active_dice}{db_str}  {w.damage_type or ''}"
         rng_n   = w.range_normal if w.range_normal is not None else 0
         rng_x   = w.range_max   if w.range_max   is not None else 0
         rng_str = (f"{rng_n}/{rng_x} m" if rng_x
@@ -254,7 +355,7 @@ class InventarioTab(ft.ListView):
             ))
 
         # Colonna azioni (destra)
-        action_col = ft.Column([
+        action_buttons: list[ft.Control] = [
             ft.IconButton(
                 icon=ft.Icons.SHIELD,
                 icon_color=equip_color, icon_size=16,
@@ -262,6 +363,21 @@ class InventarioTab(ft.ListView):
                 on_click=lambda e, ww=w: self._toggle_weapon_equipped(ww),
                 padding=ft.Padding.all(2),
             ),
+        ]
+        if is_versatile and w.versatile_damage_dice:
+            action_buttons.append(ft.IconButton(
+                icon=ft.Icons.BACK_HAND if w.grip_two_handed else ft.Icons.FRONT_HAND,
+                icon_color=COLOR_ACCENT_BLUE if w.grip_two_handed else COLOR_TEXT_MUTED,
+                icon_size=16,
+                tooltip=(
+                    f"Impugnata a due mani ({w.versatile_damage_dice}) — clic per una mano"
+                    if w.grip_two_handed
+                    else f"Impugnata a una mano ({w.damage_dice}) — clic per due mani ({w.versatile_damage_dice})"
+                ),
+                on_click=lambda e, ww=w: self._toggle_weapon_grip(ww),
+                padding=ft.Padding.all(2),
+            ))
+        action_buttons += [
             ft.IconButton(
                 icon=ft.Icons.EDIT,
                 icon_color=COLOR_TEXT_MUTED, icon_size=16,
@@ -276,7 +392,10 @@ class InventarioTab(ft.ListView):
                 on_click=lambda e, ww=w: self._on_delete_weapon(ww),
                 padding=ft.Padding.all(2),
             ),
-        ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        ]
+        action_col = ft.Column(
+            action_buttons, spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER
+        )
 
         # Colonna contenuto — NO expand=True (causa layout infinito in ListView)
         content_rows: list[ft.Control] = [
@@ -290,6 +409,13 @@ class InventarioTab(ft.ListView):
         ]
         if w.properties:
             content_rows.append(muted_text(w.properties, 11))
+        if is_versatile and w.versatile_damage_dice:
+            grip_label = "a due mani" if w.grip_two_handed else "a una mano"
+            content_rows.append(muted_text(
+                f"Versatile — impugnata {grip_label}: "
+                f"{w.damage_dice or '?'} (1 mano) / {w.versatile_damage_dice} (2 mani)",
+                11,
+            ))
 
         # Il bordo sinistro colorato sostituisce la sidebar Container (evita STRETCH)
         return ft.Container(
@@ -310,6 +436,141 @@ class InventarioTab(ft.ListView):
             ),
             border_radius=6,
         )
+
+    # ------------------------------------------------------------------
+    # Armature & Scudi
+    # ------------------------------------------------------------------
+
+    def _armor_items(self) -> list[InventoryItem]:
+        return [i for i in self._items if (i.category or "") == "armor"]
+
+    def _section_armature(self) -> ft.Container:
+        header: list[ft.Control] = [
+            ft.Text("ARMATURE & SCUDI", size=10, color=COLOR_TEXT_MUTED,
+                    weight=ft.FontWeight.BOLD,
+                    style=ft.TextStyle(letter_spacing=1.5), expand=True),
+            ft.ElevatedButton(
+                "Aggiungi Armatura", icon=ft.Icons.ADD,
+                on_click=lambda e: self._on_add_armor(),
+                style=ft.ButtonStyle(
+                    bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                    shape=ft.RoundedRectangleBorder(radius=4),
+                    padding=ft.Padding.symmetric(horizontal=10, vertical=4),
+                ),
+            ),
+        ]
+
+        cards: list[ft.Control] = [
+            ft.Container(
+                content=ft.Row(header,
+                               alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                               vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.Padding.only(top=4, bottom=4),
+            )
+        ]
+
+        armors = self._armor_items()
+        if not armors:
+            cards.append(self._empty_card("Nessuna armatura — usa «Aggiungi Armatura»"))
+        else:
+            for a in sorted(armors, key=lambda x: x.name):
+                cards.append(self._armor_card(a))
+
+        return ft.Container(content=ft.Column(cards, spacing=6))
+
+    _ARMOR_TYPE_LABELS = {
+        "leggera": "Leggera (+ mod DES)",
+        "media":   "Media (+ min mod DES, 2)",
+        "pesante": "Pesante (DES ignorato)",
+        "scudo":   "Scudo",
+        "":        "—",
+    }
+
+    def _armor_card(self, item: InventoryItem) -> ft.Container:
+        equip_color = COLOR_ACCENT_CRIMSON if item.is_equipped else COLOR_BORDER
+        armor_type = item.armor_type or ""
+        ca_val = item.ca_value or 0
+        if armor_type == "scudo":
+            ca_str = f"+{ca_val}"
+        else:
+            ca_str = str(ca_val) if ca_val else "—"
+        type_label = self._ARMOR_TYPE_LABELS.get(armor_type, armor_type or "—")
+
+        badge_items: list[ft.Control] = [
+            self._badge(ca_str, "CA", COLOR_ACCENT_BLUE),
+        ]
+        if item.effects:
+            badge_items.append(ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.STAR, size=10, color=COLOR_ACCENT_AMBER),
+                    ft.Text("effetti", size=10, color=COLOR_ACCENT_AMBER),
+                ], spacing=2),
+                bgcolor="#fef9ec",
+                padding=ft.Padding.symmetric(horizontal=6, vertical=3),
+                border_radius=4,
+                border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+            ))
+
+        action_col = ft.Column([
+            ft.IconButton(
+                icon=ft.Icons.SHIELD,
+                icon_color=equip_color, icon_size=16,
+                tooltip="Equipaggiata" if item.is_equipped else "Non equipaggiata",
+                on_click=lambda e, ii=item: self._toggle_item_equipped(ii),
+                padding=ft.Padding.all(2),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.EDIT,
+                icon_color=COLOR_TEXT_MUTED, icon_size=16,
+                tooltip="Modifica",
+                on_click=lambda e, ii=item: self._on_edit_item(ii),
+                padding=ft.Padding.all(2),
+            ),
+            ft.IconButton(
+                icon=ft.Icons.DELETE,
+                icon_color=COLOR_ACCENT_CRIMSON, icon_size=16,
+                tooltip="Elimina",
+                on_click=lambda e, ii=item: self._on_delete_item(ii),
+                padding=ft.Padding.all(2),
+            ),
+        ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+        content_rows: list[ft.Control] = [
+            ft.Row([
+                ft.Text(item.name, size=14, weight=ft.FontWeight.BOLD,
+                        color=COLOR_TEXT_TITLE),
+                ft.Container(expand=True),
+                muted_text(type_label, 11),
+            ], spacing=6),
+            ft.Row(badge_items, spacing=6, wrap=True),
+        ]
+        if item.description:
+            content_rows.append(muted_text(item.description, 11))
+
+        return ft.Container(
+            content=ft.Row([
+                ft.Column(content_rows, spacing=4),
+                action_col,
+            ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.START,
+            ),
+            bgcolor=COLOR_BG_SECONDARY if item.is_equipped else COLOR_BG_CARD,
+            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+            border=ft.Border(
+                left=ft.BorderSide(4, equip_color),
+                top=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _on_add_armor(self) -> None:
+        page = self._page
+        if page is None:
+            return
+        self._open_item_dialog(page, item=None, force_category="armor")
 
     # ------------------------------------------------------------------
     # Oggetti
@@ -348,7 +609,7 @@ class InventarioTab(ft.ListView):
         for item in self._items:
             by_cat.setdefault(item.category or "misc", []).append(item)
 
-        for cat in _CATEGORIES:
+        for cat in _OGGETTI_CATEGORIES:
             items = by_cat.get(cat, [])
             if not items:
                 continue
@@ -611,6 +872,39 @@ class InventarioTab(ft.ListView):
             spacing=4,
         )
 
+        # Campi dedicati alla proprietà "Versatile" (PHB p.149): l'arma può
+        # essere impugnata a una o due mani, con un dado danno diverso per
+        # ciascuna impugnatura — visibili solo se "Versatile" è selezionata
+        # tra le proprietà (vedi _on_versatile_toggle più sotto).
+        f_vdice = _tf(
+            "Dado danno a due mani (es. 1d10)",
+            "" if is_new else (weapon.versatile_damage_dice or ""),
+        )
+        grip_cb = ft.Checkbox(
+            label="Impugnata a due mani ora (usa il dado a due mani)",
+            value=False if is_new else weapon.grip_two_handed,
+        )
+        versatile_fields = ft.Column(
+            cast(list[ft.Control], [f_vdice, grip_cb]),
+            spacing=4,
+            visible=("Versatile" in existing_props) if not is_new else False,
+        )
+        versatile_cb = next(
+            (cb for cb in props_checks if str(cb.label) == "Versatile"), None
+        )
+
+        def _on_versatile_toggle(ev: Any) -> None:
+            if versatile_cb is None:
+                return
+            versatile_fields.visible = bool(versatile_cb.value)
+            try:
+                versatile_fields.update()
+            except RuntimeError:
+                pass
+
+        if versatile_cb is not None:
+            versatile_cb.on_change = _on_versatile_toggle
+
         f_rng    = _tf("Gittata normale (m, 0=mischia)",
                         "0" if is_new else str(weapon.range_normal or 0),
                         ft.KeyboardType.NUMBER)
@@ -714,11 +1008,20 @@ class InventarioTab(ft.ListView):
             equipped   = bool(equip_cb.value)
 
             # Proprietà selezionate (cb.label è StrOrControl nei type stub → str() safe)
-            selected_props = ",".join([
+            selected_props_list = [
                 str(cb.label) if cb.label else ""
                 for cb in props_checks
                 if cb.value
-            ])
+            ]
+            selected_props = ",".join(selected_props_list)
+
+            # Dado a due mani/impugnatura: significativi solo se "Versatile"
+            # è tra le proprietà selezionate — se il giocatore deseleziona
+            # Versatile dopo averli compilati, li azzeriamo invece di
+            # lasciare dati orfani non più raggiungibili dalla UI.
+            is_versatile_selected = "Versatile" in selected_props_list
+            versatile_dice = (f_vdice.value or "").strip() if is_versatile_selected else ""
+            grip_two_handed = bool(grip_cb.value) if is_versatile_selected else False
 
             # Colleziona danni magici dalle righe dinamiche
             magic_dmgs = []
@@ -734,7 +1037,7 @@ class InventarioTab(ft.ListView):
             is_magical = bool(magic_desc) or bool(magic_dmgs)
 
             if is_new:
-                character_repo.create_weapon(
+                ok = character_repo.create_weapon(
                     self.character.id, name,
                     damage_dice=f_dice.value or "",
                     damage_type=dtype_dd.value or "",
@@ -744,10 +1047,12 @@ class InventarioTab(ft.ListView):
                     magic_description=magic_desc,
                     range_normal=rng, range_max=rngmax,
                     magic_damages=magic_damages_str,
+                    versatile_damage_dice=versatile_dice,
+                    grip_two_handed=grip_two_handed,
                 )
             else:
                 assert weapon is not None
-                character_repo.update_weapon(
+                ok = character_repo.update_weapon(
                     weapon.id, name,
                     damage_dice=f_dice.value or "",
                     damage_type=dtype_dd.value or "",
@@ -757,7 +1062,12 @@ class InventarioTab(ft.ListView):
                     magic_description=magic_desc,
                     range_normal=rng, range_max=rngmax,
                     magic_damages=magic_damages_str,
+                    versatile_damage_dice=versatile_dice,
+                    grip_two_handed=grip_two_handed,
                 )
+            if not ok:
+                show_error_dialog(page)
+                return
             page.pop_dialog()
             self._refresh()
 
@@ -766,7 +1076,8 @@ class InventarioTab(ft.ListView):
                           size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Column(
                 [f_name, f_dice, dtype_dd, f_atk, f_dbonus,
-                 props_section, f_rng, f_rngmax, f_magic, magic_section, equip_cb],
+                 props_section, versatile_fields, f_rng, f_rngmax, f_magic,
+                 magic_section, equip_cb],
                 spacing=8, scroll=ft.ScrollMode.AUTO,
             ),
             actions=[
@@ -808,21 +1119,160 @@ class InventarioTab(ft.ListView):
             bgcolor=COLOR_BG_CARD,
         ))
 
-    def _toggle_weapon_equipped(self, weapon: Weapon) -> None:
-        character_repo.update_weapon(
+    def _update_weapon_equipped_flag(
+        self, weapon: Weapon, equipped: bool, grip_two_handed: bool | None = None
+    ) -> bool:
+        """Scrive is_equipped (e opzionalmente grip_two_handed) di un'arma,
+        preservando tutti gli altri campi già presenti — helper condiviso da
+        _toggle_weapon_equipped e _toggle_weapon_grip per evitare di ripetere
+        l'elenco completo dei parametri ad ogni chiamata.
+
+        `versatile_damage_dice`/`grip_two_handed` vanno SEMPRE ripassati a
+        update_weapon (anche quando non cambiano): altrimenti, dato che
+        update_weapon li accetta con default vuoti/False, un semplice
+        equip/disequip azzererebbe silenziosamente l'impugnatura/il dado a
+        due mani già impostati su un'arma Versatile (bug trovato il
+        2026-07-11 mentre si implementava il grip Versatile — vedi CLAUDE.md).
+        """
+        return character_repo.update_weapon(
             weapon.id, weapon.name,
             damage_dice=weapon.damage_dice,
             damage_type=weapon.damage_type,
             attack_bonus=weapon.attack_bonus,
             damage_bonus=weapon.damage_bonus,
             properties=weapon.properties or "",
-            is_equipped=not weapon.is_equipped,
+            is_equipped=equipped,
             is_magical=weapon.is_magical,
             magic_description=weapon.magic_description or "",
             range_normal=weapon.range_normal or 0,
             range_max=weapon.range_max or 0,
             magic_damages=weapon.magic_damages or "[]",
+            versatile_damage_dice=weapon.versatile_damage_dice or "",
+            grip_two_handed=(
+                grip_two_handed if grip_two_handed is not None else weapon.grip_two_handed
+            ),
         )
+
+    def _toggle_weapon_equipped(self, weapon: Weapon) -> None:
+        """
+        Equipaggia/disequipaggia un'arma rispettando il limite di 2 mani del
+        personaggio (PHB IT — vedi core/equipment_manager.py per le regole
+        esatte e le fonti). Disequipaggiare è sempre un'operazione isolata
+        (libera solo le mani di quell'arma). Equipaggiare invece può avere
+        effetti a cascata: un'arma a due mani disequipaggia automaticamente
+        tutte le altre armi e un eventuale scudo; un'arma a una mano
+        disequipaggia automaticamente le armi più "vecchie" (in ordine di
+        creazione) che non entrano più nelle mani rimaste libere.
+        """
+        if weapon.is_equipped:
+            # Disequipaggiare non ha mai effetti a cascata.
+            if not self._update_weapon_equipped_flag(weapon, False):
+                show_error_dialog(self._page)
+                return
+            self._refresh()
+            return
+
+        candidates = [
+            EquipCandidate(
+                id=w.id, properties=w.properties or "", is_equipped=w.is_equipped,
+                grip_two_handed=w.grip_two_handed,
+            )
+            for w in self._weapons
+        ]
+        shield_equipped = any(
+            i.is_equipped and i.category == "armor" and i.armor_type == "scudo"
+            for i in self._items
+        )
+        equipped_ids, unequip_shield = resolve_weapon_equip(
+            candidates, weapon.id, shield_equipped
+        )
+
+        for w in self._weapons:
+            new_state = w.id in equipped_ids
+            if new_state != w.is_equipped:
+                if not self._update_weapon_equipped_flag(w, new_state):
+                    show_error_dialog(self._page)
+                    return
+
+        if unequip_shield:
+            if not self._unequip_shield_and_recalc_ca():
+                return
+
+        self._refresh()
+
+    def _unequip_shield_and_recalc_ca(self) -> bool:
+        """Disequipaggia l'eventuale scudo indossato e ricalcola la CA —
+        estratto come helper perché serve sia a _toggle_weapon_equipped sia
+        a _toggle_weapon_grip (entrambi possono forzare un'arma a due mani,
+        che non lascia mai spazio a uno scudo). Ritorna False (e mostra già
+        il dialog d'errore) se una scrittura fallisce."""
+        for i in self._items:
+            if i.is_equipped and i.category == "armor" and i.armor_type == "scudo":
+                ok = character_repo.update_inventory_item(
+                    i.id, i.name, i.quantity, i.weight,
+                    i.description or "", i.category or "misc",
+                    False,
+                    ca_value=i.ca_value or 0,
+                    armor_type=i.armor_type or "",
+                    effects=i.effects or "",
+                )
+                if not ok:
+                    show_error_dialog(self._page)
+                    return False
+        new_ca = character_repo.calculate_and_update_ca(self.character.id)
+        self.character.ac = new_ca
+        return True
+
+    def _toggle_weapon_grip(self, weapon: Weapon) -> None:
+        """
+        Cambia l'impugnatura (1 mano ↔ 2 mani) di un'arma con la proprietà
+        "Versatile" (PHB IT, vedi core/equipment_manager.py). Passare a
+        un'impugnatura a una mano non ha mai effetti a cascata (libera
+        spazio, non ne occupa). Passare a due mani su un'arma già
+        equipaggiata invece richiede lo stesso calcolo di conflitto usato
+        per l'equip iniziale, perché l'arma da quel momento occupa
+        l'intera capacità di mani del personaggio.
+        """
+        new_grip = not weapon.grip_two_handed
+
+        if not (weapon.is_equipped and new_grip):
+            if not self._update_weapon_equipped_flag(weapon, weapon.is_equipped, new_grip):
+                show_error_dialog(self._page)
+                return
+            self._refresh()
+            return
+
+        candidates = [
+            EquipCandidate(
+                id=w.id, properties=w.properties or "", is_equipped=w.is_equipped,
+                grip_two_handed=(new_grip if w.id == weapon.id else w.grip_two_handed),
+            )
+            for w in self._weapons
+        ]
+        shield_equipped = any(
+            i.is_equipped and i.category == "armor" and i.armor_type == "scudo"
+            for i in self._items
+        )
+        equipped_ids, unequip_shield = resolve_weapon_equip(
+            candidates, weapon.id, shield_equipped
+        )
+
+        for w in self._weapons:
+            if w.id == weapon.id:
+                if not self._update_weapon_equipped_flag(w, w.is_equipped, new_grip):
+                    show_error_dialog(self._page)
+                    return
+                continue
+            new_state = w.id in equipped_ids
+            if new_state != w.is_equipped:
+                if not self._update_weapon_equipped_flag(w, new_state):
+                    show_error_dialog(self._page)
+                    return
+
+        if unequip_shield:
+            if not self._unequip_shield_and_recalc_ca():
+                return
+
         self._refresh()
 
     def _toggle_item_equipped(self, item: InventoryItem) -> None:
@@ -830,15 +1280,23 @@ class InventarioTab(ft.ListView):
         Equipaggia/disequipaggia rapidamente un oggetto generico (armatura,
         scudo, attrezzo, ecc.) senza dover aprire il dialog "Modifica" —
         stesso pattern del toggle rapido già esistente per le armi
-        (_toggle_weapon_equipped). Se l'oggetto è un'armatura, ricalcola
-        subito la CA (stesso comportamento già presente nel dialog di
-        modifica), altrimenti equipaggiare/disequipaggiare un'armatura da
-        qui non aggiornava la CA finché non si riapriva il dialog.
+        (_toggle_weapon_equipped). Se l'oggetto è un'armatura/scudo:
+          - equipaggiare applica l'esclusione reciproca di postazione
+            (core/equipment_manager.py — una sola armatura indossata, un
+            solo scudo impugnato) PRIMA di ricalcolare la CA, altrimenti
+            equipaggiarne una seconda senza disequipaggiare la prima
+            lasciava la CA legata alla prima armatura creata (bug reale:
+            calculate_and_update_ca() usa `equipped_armor[0]`, quindi
+            "vince" sempre la prima della lista finché non viene
+            esplicitamente disequipaggiata);
+          - disequipaggiare resta un'operazione isolata (libera solo la
+            propria postazione, nessun effetto a cascata).
         """
+        new_state = not item.is_equipped
         ok = character_repo.update_inventory_item(
             item.id, item.name, item.quantity, item.weight,
             item.description or "", item.category or "misc",
-            not item.is_equipped,
+            new_state,
             ca_value=item.ca_value or 0,
             armor_type=item.armor_type or "",
             effects=item.effects or "",
@@ -847,9 +1305,50 @@ class InventarioTab(ft.ListView):
             show_error_dialog(self._page)
             return
         if (item.category or "") == "armor":
+            if new_state:
+                self._items = character_repo.get_inventory(self.character.id)
+                if not self._enforce_armor_exclusivity(item.id):
+                    return
             new_ca = character_repo.calculate_and_update_ca(self.character.id)
             self.character.ac = new_ca
         self._refresh()
+
+    def _enforce_armor_exclusivity(self, target_id: str) -> bool:
+        """
+        Da chiamare SUBITO DOPO aver scritto `is_equipped=True` per
+        l'armatura/scudo `target_id` (già persistito su DB): calcola con
+        core/equipment_manager.py quali altre armature/scudi occupano la
+        stessa postazione e li disequipaggia. Si aspetta `self._items`
+        già aggiornato (letto fresco dal DB) in modo da vedere lo stato
+        corretto di `target_id`.
+
+        Ritorna False (mostrando già il dialog d'errore) se una scrittura
+        fallisce, True altrimenti — il chiamante deve interrompersi senza
+        ricalcolare la CA se il ritorno è False, per non presentare una
+        CA calcolata su uno stato di equipaggiamento parzialmente scritto.
+        """
+        candidates = [
+            ArmorCandidate(id=i.id, armor_type=i.armor_type or "", is_equipped=i.is_equipped)
+            for i in self._items if (i.category or "") == "armor"
+        ]
+        keep_ids = resolve_armor_equip(candidates, target_id)
+        for i in self._items:
+            if (i.category or "") != "armor":
+                continue
+            should_be_equipped = i.id in keep_ids
+            if should_be_equipped != i.is_equipped:
+                ok = character_repo.update_inventory_item(
+                    i.id, i.name, i.quantity, i.weight,
+                    i.description or "", i.category or "misc",
+                    should_be_equipped,
+                    ca_value=i.ca_value or 0,
+                    armor_type=i.armor_type or "",
+                    effects=i.effects or "",
+                )
+                if not ok:
+                    show_error_dialog(self._page)
+                    return False
+        return True
 
     # ------------------------------------------------------------------
     # Dialog oggetto — condiviso tra aggiungi e modifica
@@ -867,7 +1366,10 @@ class InventarioTab(ft.ListView):
             return
         self._open_item_dialog(page, item=item)
 
-    def _open_item_dialog(self, page: ft.Page, item: InventoryItem | None) -> None:
+    def _open_item_dialog(
+        self, page: ft.Page, item: InventoryItem | None,
+        force_category: str | None = None,
+    ) -> None:
         is_new = item is None
 
         def _tf(label: str, value: str = "", kb=ft.KeyboardType.TEXT) -> ft.TextField:
@@ -889,18 +1391,33 @@ class InventarioTab(ft.ListView):
         f_effects = _tf("Effetti magici / note speciali",
                         "" if is_new else (item.effects or ""))
 
-        initial_cat = "misc" if is_new else (item.category or "misc")
+        if is_new:
+            initial_cat = force_category or "misc"
+        else:
+            initial_cat = item.category or "misc"
+
+        # "weapon" ("Armi (riserva)") deliberatamente assente dalle scelte
+        # normali: le armi si creano sempre nella sezione Armi dedicata
+        # (tabella weapons), non più come categoria di oggetto generico —
+        # vedi CLAUDE.md 2026-07-11 "Armi riserva". Riaggiunta come opzione
+        # SOLO se si sta modificando un item che ha già questa categoria
+        # (es. una migrazione automatica fallita, vedi
+        # _migrate_legacy_weapon_items): il Dropdown di Flet richiede che
+        # `value` compaia tra `options`, altrimenti il campo si presenta
+        # vuoto anche se il dato esiste.
+        cat_options = [
+            ft.DropdownOption(key="misc",   text="Varie"),
+            ft.DropdownOption(key="armor",  text="Armature & Scudi"),
+            ft.DropdownOption(key="tool",   text="Strumenti"),
+            ft.DropdownOption(key="magic",  text="Oggetti Magici"),
+        ]
+        if initial_cat == "weapon":
+            cat_options.append(ft.DropdownOption(key="weapon", text="Armi (riserva) — legacy"))
 
         cat_dd = ft.Dropdown(
             label="Categoria",
             value=initial_cat,
-            options=[
-                ft.DropdownOption(key="misc",   text="Varie"),
-                ft.DropdownOption(key="armor",  text="Armature & Scudi"),
-                ft.DropdownOption(key="weapon", text="Armi (riserva)"),
-                ft.DropdownOption(key="tool",   text="Strumenti"),
-                ft.DropdownOption(key="magic",  text="Oggetti Magici"),
-            ],
+            options=cat_options,
             text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
             border_color=COLOR_BORDER,
             focused_border_color=COLOR_ACCENT_CRIMSON,
@@ -965,25 +1482,49 @@ class InventarioTab(ft.ListView):
             arm_type = (armor_type_dd.value or "") if cat == "armor" else ""
 
             if is_new:
-                character_repo.create_inventory_item(
+                new_id = character_repo.create_inventory_item(
                     self.character.id, name, qty, wt, desc, cat, equipped,
                     ca_value=ca_val, armor_type=arm_type, effects=effects,
                 )
+                if not new_id:
+                    show_error_dialog(page)
+                    return
+                saved_id = new_id
             else:
                 assert item is not None
-                character_repo.update_inventory_item(
+                ok = character_repo.update_inventory_item(
                     item.id, name, qty, wt, desc, cat, equipped,
                     ca_value=ca_val, armor_type=arm_type, effects=effects,
                 )
-            # Ricalcola CA se ci sono armature/scudi coinvolti
-            if cat == "armor" or (not is_new and item is not None and item.category == "armor"):
+                if not ok:
+                    show_error_dialog(page)
+                    return
+                saved_id = item.id
+
+            # Se è un'armatura/scudo equipaggiato, applica l'esclusione
+            # reciproca di postazione (core/equipment_manager.py) PRIMA di
+            # ricalcolare la CA — stesso bug/fix di _toggle_item_equipped:
+            # senza questo passaggio, equipaggiare una seconda armatura da
+            # questo dialog senza disequipaggiare la prima non avrebbe
+            # aggiornato la CA (calculate_and_update_ca() usa sempre la
+            # prima armatura equipaggiata trovata).
+            was_armor = (not is_new) and item is not None and item.category == "armor"
+            if cat == "armor" or was_armor:
+                if cat == "armor" and equipped:
+                    self._items = character_repo.get_inventory(self.character.id)
+                    if not self._enforce_armor_exclusivity(saved_id):
+                        return
                 new_ca = character_repo.calculate_and_update_ca(self.character.id)
                 self.character.ac = new_ca
             page.pop_dialog()
             self._refresh()
 
+        if is_new:
+            dialog_title = "Nuova Armatura" if force_category == "armor" else "Nuovo Oggetto"
+        else:
+            dialog_title = "Modifica Oggetto"
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Nuovo Oggetto" if is_new else "Modifica Oggetto",
+            title=ft.Text(dialog_title,
                           size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Column(
                 [f_name, f_qty, f_wt, cat_dd, armor_fields,

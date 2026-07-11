@@ -853,6 +853,8 @@ def get_weapons(character_id: str, equipped_only: bool = True) -> list:
                 range_normal=r["range_normal"] or 0,
                 range_max=r["range_max"] or 0,
                 magic_damages=r["magic_damages"] or "[]",
+                versatile_damage_dice=r["versatile_damage_dice"] or "",
+                grip_two_handed=bool(r["grip_two_handed"]),
             )
             for r in rows
         ]
@@ -1022,8 +1024,15 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
                   damage_bonus: int = 0, properties: str = "",
                   is_equipped: bool = True, is_magical: bool = False,
                   magic_description: str = "", range_normal: int = 0,
-                  range_max: int = 0, magic_damages: str = "[]") -> bool:
-    """Crea una nuova arma per il personaggio."""
+                  range_max: int = 0, magic_damages: str = "[]",
+                  versatile_damage_dice: str = "",
+                  grip_two_handed: bool = False) -> bool:
+    """Crea una nuova arma per il personaggio.
+
+    versatile_damage_dice/grip_two_handed: dado danno a due mani e stato
+    dell'impugnatura per le armi con proprietà "Versatile" (PHB p.149) —
+    vedi il docstring di core/equipment_manager.py per i dettagli meccanici.
+    """
     import uuid as _uuid
     try:
         conn = get_connection()
@@ -1031,11 +1040,13 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
             """INSERT INTO weapons
                (id, character_id, name, damage_dice, damage_type, attack_bonus,
                 damage_bonus, properties, is_magical, magic_description,
-                is_equipped, range_normal, range_max, magic_damages)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                is_equipped, range_normal, range_max, magic_damages,
+                versatile_damage_dice, grip_two_handed)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (str(_uuid.uuid4()), character_id, name, damage_dice, damage_type,
              attack_bonus, damage_bonus, properties, int(is_magical),
-             magic_description, int(is_equipped), range_normal, range_max, magic_damages)
+             magic_description, int(is_equipped), range_normal, range_max, magic_damages,
+             versatile_damage_dice, int(grip_two_handed))
         )
         conn.commit()
         conn.close()
@@ -1049,7 +1060,9 @@ def update_weapon(weapon_id: str, name: str, damage_dice: str, damage_type: str,
                   attack_bonus: int, damage_bonus: int, properties: str,
                   is_equipped: bool, is_magical: bool, magic_description: str,
                   range_normal: int, range_max: int,
-                  magic_damages: str = "[]") -> bool:
+                  magic_damages: str = "[]",
+                  versatile_damage_dice: str = "",
+                  grip_two_handed: bool = False) -> bool:
     """Aggiorna un'arma esistente."""
     try:
         conn = get_connection()
@@ -1057,11 +1070,12 @@ def update_weapon(weapon_id: str, name: str, damage_dice: str, damage_type: str,
             """UPDATE weapons SET name=?, damage_dice=?, damage_type=?,
                attack_bonus=?, damage_bonus=?, properties=?, is_equipped=?,
                is_magical=?, magic_description=?, range_normal=?, range_max=?,
-               magic_damages=?
+               magic_damages=?, versatile_damage_dice=?, grip_two_handed=?
                WHERE id=?""",
             (name, damage_dice, damage_type, attack_bonus, damage_bonus,
              properties, int(is_equipped), int(is_magical), magic_description,
-             range_normal, range_max, magic_damages, weapon_id)
+             range_normal, range_max, magic_damages,
+             versatile_damage_dice, int(grip_two_handed), weapon_id)
         )
         conn.commit()
         conn.close()
@@ -1088,9 +1102,20 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
                           weight: float = 0.0, description: str = "",
                           category: str = "misc", is_equipped: bool = False,
                           ca_value: int = 0, armor_type: str = "",
-                          effects: str = "") -> bool:
-    """Crea un nuovo oggetto nell'inventario."""
+                          effects: str = "") -> str | None:
+    """Crea un nuovo oggetto nell'inventario.
+
+    Ritorna l'id generato in caso di successo, None in caso di errore —
+    il valore resta "truthy" per i chiamanti preesistenti che facevano
+    `if not create_inventory_item(...): show_error_dialog(...)` (un id
+    UUID non è mai stringa vuota), ma i nuovi chiamanti possono usare
+    l'id per operazioni successive sullo stesso oggetto appena creato
+    (es. risoluzione dei conflitti di equipaggiamento in
+    core/equipment_manager.py, che ha bisogno dell'id per essere incluso
+    nel calcolo — vedi inventario_tab.py → _open_item_dialog).
+    """
     import uuid as _uuid
+    new_id = str(_uuid.uuid4())
     try:
         conn = get_connection()
         conn.execute(
@@ -1098,15 +1123,15 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
                (id, character_id, name, quantity, weight, description,
                 category, is_equipped, ca_value, armor_type, effects)
                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (str(_uuid.uuid4()), character_id, name, quantity, weight,
+            (new_id, character_id, name, quantity, weight,
              description, category, int(is_equipped), ca_value, armor_type, effects)
         )
         conn.commit()
         conn.close()
-        return True
+        return new_id
     except Exception as e:
         logger.error(f"Errore creazione oggetto inventario: {e}")
-        return False
+        return None
 
 
 def update_inventory_item(item_id: str, name: str, quantity: int, weight: float,
@@ -1438,6 +1463,18 @@ def calculate_and_update_ca(character_id: str) -> int:
     l'eccezione Monaco sopra, che perde la Difesa Senza Armatura se ne indossa uno).
 
     Aggiorna il campo `ac` nel DB e restituisce il nuovo valore.
+
+    NOTA (2026-07-11): questa funzione presuppone che al massimo UN'armatura
+    corporea e UN solo scudo risultino equipaggiati alla volta — invariante
+    ora garantita a monte da `core/equipment_manager.py → resolve_armor_equip()`,
+    applicata da `inventario_tab.py` ad ogni equip di armatura/scudo (esclude
+    automaticamente l'altra armatura/scudo già indossato). Prima di questo
+    fix, equipaggiarne una seconda senza disequipaggiare la prima lasciava
+    `equipped_armor[0]` legato per sempre al primo item creato: la CA
+    sembrava "non aggiornarsi più" nonostante l'equipaggiamento cambiasse.
+    Questa funzione resta comunque difensiva (prende sempre e solo il primo
+    risultato) nel caso l'invariante venga violata da un percorso di codice
+    futuro che non passi da resolve_armor_equip().
     """
     from config.settings import get_modifier
     try:

@@ -53,7 +53,7 @@
       "options": [
         [
           {
-            "name": "Scudo di legno",
+            "name": "Scudo",
             "item_type": "armor"
           }
         ],
@@ -92,7 +92,7 @@
       "type": "fixed",
       "items": [
         {
-          "name": "Armatura di cuoio",
+          "name": "Cuoio",
           "item_type": "armor"
         },
         {

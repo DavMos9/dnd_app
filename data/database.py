@@ -119,6 +119,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "character_proficiencies", "bonus_data",        "TEXT DEFAULT NULL")
     _add_column(cur, "character_proficiencies", "level_obtained",    "INTEGER DEFAULT 0")
     _add_column(cur, "weapons",                 "magic_damages",     "TEXT DEFAULT '[]'")
+    _add_column(cur, "weapons",                 "versatile_damage_dice", "TEXT DEFAULT ''")
+    _add_column(cur, "weapons",                 "grip_two_handed",   "INTEGER DEFAULT 0")
     _add_column(cur, "inventory_items","ca_value",        "INTEGER DEFAULT 0")
     _add_column(cur, "inventory_items","armor_type",      "TEXT DEFAULT ''")
     _add_column(cur, "inventory_items","effects",          "TEXT DEFAULT ''")

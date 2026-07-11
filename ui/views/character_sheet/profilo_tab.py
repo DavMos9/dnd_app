@@ -1058,14 +1058,14 @@ class ProfiloTab(ft.ListView):
             ft.Divider(color=COLOR_BORDER),
         ]
 
-        # Abilità/strumenti su cui il personaggio è già competente (candidati Perizia)
+        # Abilità/strumenti su cui il personaggio è già competente (candidati Maestria)
         _all_profs = character_repo.get_proficiencies(c.id)
         _expertise_candidates = [
             p.name for p in _all_profs
             if p.proficiency_type in ("skill", "tool") and not p.is_expert
         ]
 
-        # Lista di riferimenti ai Checkbox di Perizia per raccogliere le scelte
+        # Lista di riferimenti ai Checkbox di Maestria per raccogliere le scelte
         expertise_cb_groups: list[list[ft.Checkbox]] = []
 
         # Invocazioni: (count_to_add, list[Checkbox])
@@ -1368,7 +1368,7 @@ class ProfiloTab(ft.ListView):
                         ft.Divider(color=COLOR_BORDER),
                         ft.Row([
                             ft.Icon(ft.Icons.STAR_HALF, size=14, color=COLOR_ACCENT_AMBER),
-                            ft.Text(f"Perizia — scegli {count} abilità da portare a Maestria",
+                            ft.Text(f"Maestria — scegli {count} abilità aggiuntive",
                                     size=13, weight=ft.FontWeight.BOLD,
                                     color=COLOR_ACCENT_AMBER),
                         ], spacing=6),
@@ -2070,7 +2070,7 @@ class ProfiloTab(ft.ListView):
                             c.id, "invocation", str(cb.label)
                         )
 
-            # Expertise (Perizia)
+            # Expertise (Maestria)
             for cb_group in expertise_cb_groups:
                 chosen = [
                     str(cb.label) for cb in cb_group if cb.value and cb.label

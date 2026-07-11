@@ -33,6 +33,7 @@ from config.settings import (
     get_modifier, get_modifier_str, get_permanent_class_hp_bonus,
 )
 from core.wizard_engine import WizardEngine
+from core.equipment_manager import ArmorCandidate, resolve_armor_equip
 from data.game_data.game_data_loader import GameDataLoader
 from data.repositories import character_repo
 from ui.theme import (
@@ -949,7 +950,7 @@ class ManualCreationForm(ft.Column):
             except RuntimeError:
                 pass
 
-        # ---- Perizia Ladro Lv1 ----
+        # ---- Maestria Ladro Lv1 ----
         expertise_col    = ft.Column([], spacing=6, visible=False)
         expertise_checks: dict[str, ft.Checkbox] = {}
 
@@ -977,7 +978,7 @@ class ManualCreationForm(ft.Column):
             exp_counter = ft.Text(f"({len(self._review_expertise)}/2 selezionate)",
                                   size=11, color=COLOR_TEXT_MUTED)
             expertise_col.controls.append(ft.Row([
-                ft.Text("Scegli 2 abilità per la Perizia (Lv.1)",
+                ft.Text("Scegli 2 abilità per la Maestria (Lv.1)",
                         size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
                 ft.Container(expand=True),
                 exp_counter,
@@ -1024,7 +1025,7 @@ class ManualCreationForm(ft.Column):
                 spacing=8,
             ))
             expertise_col.controls.append(
-                muted_text("La Perizia raddoppia il bonus di competenza per le abilità scelte.", size=11)
+                muted_text("La Maestria raddoppia il bonus di competenza per le abilità scelte.", size=11)
             )
             expertise_col.visible = True
             try:
@@ -1262,7 +1263,7 @@ class ManualCreationForm(ft.Column):
         sec_razza_classe   = ft.Container(content=section_header("Razza e Classe"),     visible=False)
         sec_extra_razziali = ft.Container(content=section_header("Extra Razziali"),      visible=False)
         sec_abilita        = ft.Container(content=section_header("Abilità di Classe"),   visible=False)
-        sec_perizia        = ft.Container(content=section_header("Perizia (Ladro Lv.1)"), visible=False)
+        sec_perizia        = ft.Container(content=section_header("Maestria (Ladro Lv.1)"), visible=False)
         sec_incantesimi    = ft.Container(content=section_header("Trucchetti e Incantesimi Iniziali"), visible=False)
         sec_lang_tool      = ft.Container(content=section_header("Lingue e Strumenti"),  visible=False)
 
@@ -1326,7 +1327,7 @@ class ManualCreationForm(ft.Column):
         # per gli strumenti, tutti già sempre validi). Le checkbox invece
         # partono vuote e richiedono un'azione esplicita del giocatore:
         # abilità di classe, abilità Mezzelfo (Versatilità), lingue a scelta
-        # dal background, Perizia Ladro, trucchetti/incantesimi iniziali.
+        # dal background, Maestria Ladro, trucchetti/incantesimi iniziali.
         def _scelte_validation_error() -> str:
             skill_count, skill_opts = self._class_skill_options()
             if skill_count > 0 and skill_opts and len(self._review_skills) != skill_count:
@@ -1340,7 +1341,7 @@ class ManualCreationForm(ft.Column):
                 return f"Seleziona {lang_count} {'lingue' if lang_count > 1 else 'lingua'} (sezione Lingue e Strumenti)."
 
             if self._review_class.lower() == "ladro" and len(self._review_expertise) != 2:
-                return "Ladro: seleziona 2 abilità per la Perizia (Lv.1)."
+                return "Ladro: seleziona 2 abilità per la Maestria (Lv.1)."
 
             n_cantrips = _loader.get_cantrips_known_at_1(self._review_class)
             n_spells   = _loader.get_spells_known_at_1(self._review_class)
@@ -1760,9 +1761,9 @@ class ManualCreationForm(ft.Column):
                     pass
                 return
 
-            # Validazione Perizia Ladro
+            # Validazione Maestria Ladro
             if self._review_class.lower() == "ladro" and len(self._review_expertise) != 2:
-                error_text.value   = "Ladro: seleziona 2 abilità per la Perizia nella fase Scelte."
+                error_text.value   = "Ladro: seleziona 2 abilità per la Maestria nella fase Scelte."
                 error_text.visible = True
                 try:
                     error_text.update()
@@ -1858,7 +1859,7 @@ class ManualCreationForm(ft.Column):
                     if skill:
                         character_repo._save_single_proficiency(char.id, "skill", skill)
 
-                # Perizia Ladro Lv1
+                # Maestria Ladro Lv1
                 if self._review_class.lower() == "ladro" and self._review_expertise:
                     character_repo.set_expertise(char.id, self._review_expertise)
 
@@ -1948,11 +1949,16 @@ class ManualCreationForm(ft.Column):
 
                 def _save_weapon_by_name(character_id: str, wname: str) -> None:
                     """
-                    Crea l'arma nella tabella weapons (non in inventario) leggendo
-                    dado danno/tipo danno/proprietà da equipment/weapons.json.
-                    Se il nome non viene trovato (es. refuso di trascrizione),
-                    ripiega su un inventory_item generico invece di perdere
-                    silenziosamente l'oggetto, e logga un warning diagnosticabile.
+                    Crea l'arma nella tabella weapons (mai in inventario — unica
+                    fonte di verità per le armi, vedi CLAUDE.md 2026-07-11 "Armi
+                    riserva"), leggendo dado danno/tipo danno/proprietà da
+                    equipment/weapons.json. Se il nome non viene trovato (es.
+                    refuso di trascrizione), crea comunque la riga in weapons ma
+                    con statistiche vuote (modificabili poi dal dialog "Modifica"
+                    in Inventario → Armi) invece di perdere silenziosamente
+                    l'oggetto o di farlo atterrare nella categoria "Armi
+                    (riserva)" ormai rimossa dalla UI — logga comunque un
+                    warning diagnosticabile.
                     """
                     wdata = _loader.get_weapon(wname)
                     if wdata:
@@ -1968,15 +1974,58 @@ class ManualCreationForm(ft.Column):
                     else:
                         logger.warning(
                             "Arma '%s' non trovata in equipment/weapons.json — "
-                            "salvata come oggetto generico in inventario", wname,
+                            "creata in weapons con statistiche vuote", wname,
+                        )
+                        character_repo.create_weapon(
+                            character_id=character_id, name=wname,
+                            is_equipped=False,
+                        )
+
+                def _save_armor_by_name(character_id: str, aname: str, quantity: int = 1) -> None:
+                    """
+                    Crea un'armatura/scudo in inventario (category="armor"),
+                    risolvendo ca_value/armor_type/peso dal catalogo
+                    equipment/armor.json via GameDataLoader.get_armor_item().
+
+                    Se il nome NON è nel catalogo (es. "Abito comune", un
+                    indumento che il PHB non tratta come protezione del
+                    Cap.5 Armature) crea comunque l'oggetto, ma con
+                    ca_value=0 e armor_type="" — calculate_and_update_ca()
+                    filtra esplicitamente solo gli item con armor_type in
+                    ("leggera","media","pesante") o "scudo", quindi un
+                    oggetto con armor_type="" ha effetto ESATTAMENTE NULLO
+                    sulla CA anche se equipaggiato: il personaggio resta
+                    sulla formula "senza armatura" (10+DEX, o le formule
+                    speciali di Monaco/Barbaro/Stregone+Discendenza
+                    Draconica). Comportamento richiesto esplicitamente da
+                    Davide il 2026-07-11: "abito comune... è un'armatura che
+                    non aumenta la classe armatura" — vedi CLAUDE.md.
+                    """
+                    adata = _loader.get_armor_item(aname)
+                    if adata:
+                        character_repo.create_inventory_item(
+                            character_id=character_id, name=aname, quantity=quantity,
+                            weight=float(adata.get("weight_kg") or 0.0),
+                            category="armor", is_equipped=True,
+                            ca_value=adata.get("ca_value", 0),
+                            armor_type=adata.get("armor_type", ""),
+                        )
+                    else:
+                        logger.warning(
+                            "Armatura '%s' non trovata in equipment/armor.json — "
+                            "creata come indumento non protettivo (ca_value=0)", aname,
                         )
                         character_repo.create_inventory_item(
-                            character_id=character_id, name=wname,
-                            quantity=1, weight=0.0, category="weapon",
-                            is_equipped=False, description="",
+                            character_id=character_id, name=aname, quantity=quantity,
+                            weight=0.0, category="armor", is_equipped=True,
+                            ca_value=0, armor_type="",
                         )
 
                 def _save_item(character_id: str, item: dict) -> None:
+                    """Salva un item di equipaggiamento: weapon/weapon_choice → tabella weapons
+                    (una riga per unità se quantity>1), armor → inventario con ca_value/
+                    armor_type risolti dal catalogo, currency → update_currencies,
+                    regular item → inventario generico."""
                     itype = item.get("item_type", "item")
                     if itype == "weapon_choice":
                         count = item.get("count", 1)
@@ -2003,14 +2052,22 @@ class ManualCreationForm(ft.Column):
                                 platinum=cur.platinum + delta.get("platinum", 0),
                             )
                     elif itype == "weapon":
-                        _save_weapon_by_name(character_id, item["name"])
+                        # Una riga distinta in weapons per ogni unità — un
+                        # nome tipo "Due pugnali" con quantity=2 è un bug di
+                        # dato già corretto nei JSON (rinominato "Pugnale"),
+                        # ma il loop resta comunque la protezione strutturale
+                        # corretta per qualunque item_type="weapon" con
+                        # quantity>1 (Davide, 2026-07-11).
+                        for _ in range(max(1, item.get("quantity", 1))):
+                            _save_weapon_by_name(character_id, item["name"])
+                    elif itype == "armor":
+                        _save_armor_by_name(character_id, item["name"], item.get("quantity", 1))
                     else:
-                        cat = "armor" if itype == "armor" else "misc"
                         character_repo.create_inventory_item(
                             character_id=character_id,
                             name=item["name"],
                             quantity=item.get("quantity", 1),
-                            weight=0.0, category=cat,
+                            weight=0.0, category="misc",
                             is_equipped=False, description="",
                         )
 
@@ -2049,9 +2106,44 @@ class ManualCreationForm(ft.Column):
                         if isinstance(entry, dict):
                             _save_item(char.id, entry)
 
-                # Ricalcola la CA con le formule di classe senza armatura
-                # (Monaco, Barbaro, Stregone+Discendenza Draconica) — alla
-                # creazione nessuna armatura risulta equipaggiata di default.
+                # Risolve eventuali conflitti di equipaggiamento tra le
+                # armature/scudi appena creati (_save_armor_by_name li crea
+                # sempre is_equipped=True) applicando la stessa esclusività
+                # di resolve_armor_equip() già usata in inventario_tab.py —
+                # nel normale caso (1 armatura + max 1 scudo per classe) non
+                # cambia nulla, ma protegge da un futuro package JSON
+                # malformato con 2 armature corporee/2 scudi fissi entrambi
+                # equipaggiati (Davide, 2026-07-11: "puoi indossare al
+                # massimo una armatura per volta e uno scudo").
+                armor_rows = [
+                    i for i in character_repo.get_inventory(char.id)
+                    if i.category == "armor"
+                ]
+                candidates = [
+                    ArmorCandidate(id=i.id, armor_type=i.armor_type, is_equipped=i.is_equipped)
+                    for i in armor_rows
+                ]
+                for cand in candidates:
+                    if not cand.is_equipped:
+                        continue
+                    keep_ids = resolve_armor_equip(candidates, cand.id)
+                    for other in candidates:
+                        other.is_equipped = other.id in keep_ids
+                final_state = {c.id: c.is_equipped for c in candidates}
+                for i in armor_rows:
+                    if final_state.get(i.id, i.is_equipped) != i.is_equipped:
+                        character_repo.update_inventory_item(
+                            item_id=i.id, name=i.name, quantity=i.quantity,
+                            weight=i.weight, description=i.description,
+                            category=i.category, is_equipped=final_state[i.id],
+                            ca_value=i.ca_value, armor_type=i.armor_type,
+                            effects=i.effects,
+                        )
+
+                # Ricalcola la CA in base alle armature/scudi effettivamente
+                # equipaggiati (dopo la risoluzione sopra) e alle formule di
+                # classe senza armatura (Monaco, Barbaro, Stregone+
+                # Discendenza Draconica) per chi non ne ha ricevuta nessuna.
                 character_repo.calculate_and_update_ca(char.id)
 
                 logger.info("Personaggio creato manualmente: %s (%s)", char.name, char.id)
