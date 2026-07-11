@@ -46,6 +46,19 @@ _loader = GameDataLoader()
 # Solo per get_suggested_stat_assignment — non registra risposte al quiz.
 _stat_engine = WizardEngine()
 
+# Classi "preparatrici" (nessuna lista di incantesimi conosciuti fissa —
+# scelgono ogni giorno dal pool completo) per cui, a differenza di
+# Bardo/Stregone/Warlock (known) e del Mago (libro degli incantesimi,
+# gestito a parte), aggiungiamo comunque una scelta di incantesimi
+# preparati iniziale alla creazione (task #99, 2026-07-11). Il Ranger NON è
+# incluso: nonostante SpellsView._PREP_HALF lo tratti (erroneamente, vedi
+# TODO in CLAUDE.md) come "mezzo preparatore", ranger.json conferma
+# testualmente che il ranger "conosce" un numero fisso di incantesimi
+# (stessa meccanica di Bardo/Stregone/Warlock) — i suoi incantesimi
+# iniziali arrivano dal 2° livello via lo step SPELL_LEARN del level-up,
+# già esistente.
+_PREPARED_CASTER_CLASSES: set[str] = {"chierico", "druido", "paladino"}
+
 
 # ---------------------------------------------------------------------------
 # Costanti di fase
@@ -102,6 +115,15 @@ class ManualCreationForm(ft.Column):
         # completo (Chierico/Druido/Paladino) o senza trucchetti (Paladino/Ranger).
         self._review_cantrips:        list[str] = []
         self._review_spells_lv1:      list[str] = []
+        # Incantesimi preparati iniziali per Chierico/Druido/Paladino (task
+        # #99, 2026-07-11) — questi non hanno una lista "conosciuta" fissa
+        # (preparano ogni giorno dal pool completo), ma senza questa scelta
+        # nascevano a 0 incantesimi preparati e il giocatore doveva aprire la
+        # tab Incantesimi prima di poter giocare.
+        self._review_prepared_spells: list[str] = []
+        # Libro degli Incantesimi del Mago: 6 incantesimi di 1° livello
+        # (task #100, 2026-07-11) — mago.json → "spellbook_starting_spells".
+        self._review_spellbook_spells: list[str] = []
 
         # ---- State fase 4 ----
         self._equip_fixed:   list[dict[str, Any]] = []
@@ -210,6 +232,62 @@ class ManualCreationForm(ft.Column):
                 return entry.get("count", 1), entry.get("from", "any")
         return 0, ""
 
+    def _prepared_spell_ability_score(self) -> int:
+        """
+        Punteggio finale (Standard Array + bonus razziali) della
+        caratteristica da incantatore della classe corrente, usato per
+        calcolare quanti incantesimi preparati iniziali offrire a
+        Chierico/Druido/Paladino (task #99, 2026-07-11). A questo punto del
+        form (fase Scelte) self._review_stats è già definitivo — la
+        sottorazza si sceglie nella fase precedente Punteggi (task #76).
+        """
+        cls_data = _loader.get_class(self._review_class) or {}
+        ability_key = cls_data.get("spellcasting_ability", "")
+        if not ability_key:
+            return 10
+        base = self._review_stats.get(ability_key, 10)
+        race_bonus = 0
+        if self._review_race:
+            resolved_race = _loader.get_resolved_race(self._review_race, self._review_subrace)
+            race_bonus = resolved_race.get("ability_bonuses", {}).get(ability_key, 0)
+        mezzelf_bonus = 1 if (
+            self._review_race == "Mezzelfo" and ability_key in self._review_mezzelf_flex
+        ) else 0
+        return min(20, base + race_bonus + mezzelf_bonus)
+
+    def _compute_prepared_spell_count(self) -> int:
+        """
+        Numero di incantesimi preparati iniziali da offrire alla creazione
+        per Chierico/Druido/Paladino (0 per tutte le altre classi). Stessa
+        formula PHB già usata da `spells_view.py._calc_max_prepared()` per
+        i "full preparatori" (mod. caratteristica + livello, min 1) — al
+        Lv.1 la formula per mezzo-preparatore (Paladino) produce lo stesso
+        risultato (mod + max(1, 1//2) = mod + 1), quindi un'unica formula
+        basta per questa fase di creazione (sempre Lv.1).
+        """
+        key = (self._review_class or "").strip().lower()
+        if key not in _PREPARED_CASTER_CLASSES:
+            return 0
+        score = self._prepared_spell_ability_score()
+        return max(1, get_modifier(score) + 1)
+
+    def _compute_mago_max_prepared(self) -> int:
+        """
+        Quanti dei 6 incantesimi iniziali del libro del Mago (task #100)
+        possono essere già "preparati" al Lv.1, stessa formula "full caster"
+        (mod. Intelligenza + livello, min 1) già usata da
+        `spells_view.py._calc_max_prepared()` — il Mago è in `_PREP_FULL`
+        lì. Serve a non violare quel limite: se salvassimo tutti e 6 come
+        `is_prepared=True` a prescindere dal modificatore, un Mago con INT
+        bassa nascerebbe già "sopra al limite" di preparazione (SpellsView
+        blocca solo NUOVE preparazioni oltre il limite, non corregge mai
+        uno stato preesistente).
+        """
+        if (self._review_class or "").strip().lower() != "mago":
+            return 0
+        score = self._prepared_spell_ability_score()
+        return max(1, get_modifier(score) + 1)
+
     def _bg_tool_choices(self) -> list[tuple[int, list[str]]]:
         bg_data = _loader.get_background(self._review_bg)
         if not bg_data:
@@ -298,6 +376,8 @@ class ManualCreationForm(ft.Column):
             self._review_expertise    = []
             self._review_cantrips     = []
             self._review_spells_lv1   = []
+            self._review_prepared_spells = []
+            self._review_spellbook_spells = []
 
         def _on_race_change(val: str) -> None:
             self._review_race         = val
@@ -717,6 +797,13 @@ class ManualCreationForm(ft.Column):
                 all_stat_keys = [k for k in ABILITY_KEYS if k != "cha"]
                 stat_labels   = {k: ABILITY_SCORES[i] for i, k in enumerate(ABILITY_KEYS)}
                 self._review_mezzelf_flex = [k for k in self._review_mezzelf_flex if k in all_stat_keys]
+                # Le due caratteristiche devono essere diverse (PHB: "+1 a
+                # due caratteristiche a scelta") — se uno stato precedente ha
+                # lasciato un duplicato (bug corretto il 2026-07-11: i due
+                # dropdown non si escludevano a vicenda), scarta il secondo
+                # valore e lascialo rigenerare dal while sotto.
+                if len(self._review_mezzelf_flex) == 2 and self._review_mezzelf_flex[0] == self._review_mezzelf_flex[1]:
+                    self._review_mezzelf_flex = self._review_mezzelf_flex[:1]
                 while len(self._review_mezzelf_flex) < 2:
                     for k in all_stat_keys:
                         if k not in self._review_mezzelf_flex:
@@ -728,6 +815,31 @@ class ManualCreationForm(ft.Column):
                             size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
                 )
                 flex_dds: list[ft.Control] = []
+                flex_dd_refs: list[ft.Dropdown] = []
+
+                def _refresh_mezzelf_flex_options() -> None:
+                    # Ogni dropdown esclude dalle proprie opzioni il valore
+                    # attualmente selezionato nell'ALTRO dropdown — le due
+                    # caratteristiche non possono mai coincidere (Davide,
+                    # 2026-07-11: "il mezzelfo nella selezione delle
+                    # caratteristiche +1 due caratteristiche permette la
+                    # scelta della stessa caratteristica, quando questo non
+                    # dovrebbe accadere").
+                    for i, dd in enumerate(flex_dd_refs):
+                        other_idx = 1 - i
+                        other_val = (
+                            self._review_mezzelf_flex[other_idx]
+                            if other_idx < len(self._review_mezzelf_flex) else None
+                        )
+                        dd.options = [
+                            ft.DropdownOption(key=k, text=stat_labels.get(k, k))
+                            for k in all_stat_keys if k != other_val
+                        ]
+                        try:
+                            dd.update()
+                        except RuntimeError:
+                            pass
+
                 for slot in range(2):
                     curr_key = self._review_mezzelf_flex[slot] if slot < len(self._review_mezzelf_flex) else all_stat_keys[slot]
 
@@ -736,9 +848,10 @@ class ManualCreationForm(ft.Column):
                             while len(self._review_mezzelf_flex) <= slot_idx:
                                 self._review_mezzelf_flex.append("")
                             self._review_mezzelf_flex[slot_idx] = e.control.value or ""
+                            _refresh_mezzelf_flex_options()
                         return _handler
 
-                    flex_dds.append(ft.Dropdown(
+                    dd = ft.Dropdown(
                         label=f"+1 a (scelta {slot + 1})",
                         value=curr_key,
                         options=[ft.DropdownOption(key=k, text=stat_labels.get(k, k)) for k in all_stat_keys],
@@ -747,8 +860,11 @@ class ManualCreationForm(ft.Column):
                         label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
                         border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
                         expand=True,
-                    ))
+                    )
+                    flex_dd_refs.append(dd)
+                    flex_dds.append(dd)
                 race_extras_col.controls.append(ft.Row(flex_dds, spacing=12))
+                _refresh_mezzelf_flex_options()
 
                 # Mezzelf: 2 abilità a scelta (Versatilità nelle Abilità) —
                 # esclude le abilità già concesse dal background e quelle già
@@ -822,13 +938,15 @@ class ManualCreationForm(ft.Column):
                     self._review_elf_cantrip = mago_cantrips[0] if mago_cantrips else ""
                 def _on_elf_cantrip_select(e: Any) -> None:
                     self._review_elf_cantrip = e.control.value or ""
-                    # Il trucchetto Alto Elfo condivide la lista Mago con la
-                    # sezione "Trucchetti Iniziali" quando la classe è Mago
-                    # (vedi _rebuild_spells_init_col) — va ricostruita subito
-                    # per escludere/reintrodurre il nome appena scelto.
-                    if self._review_class == "Mago":
-                        _rebuild_spells_init_col()
-                        _update_extra_card()
+                    # Il trucchetto Alto Elfo (sempre dalla lista Mago) va
+                    # escluso dal pool "Trucchetti Iniziali" di QUALUNQUE
+                    # classe, non solo Mago — due liste di classi diverse
+                    # possono condividere lo stesso nome di trucchetto (es.
+                    # "Luce"). Va quindi sempre ricostruita, non solo quando
+                    # la classe è Mago (bug corretto il 2026-07-11, vedi
+                    # CLAUDE.md).
+                    _rebuild_spells_init_col()
+                    _update_extra_card()
 
                 race_extras_col.controls.append(ft.Dropdown(
                     label="Trucchetto del Mago (tratto Elfo Alto)",
@@ -853,7 +971,10 @@ class ManualCreationForm(ft.Column):
                     label="Lingua aggiuntiva (tratto Umano)",
                     value=self._review_umano_language,
                     options=[ft.DropdownOption(key=l, text=l) for l in avail],
-                    on_select=lambda e: setattr(self, "_review_umano_language", e.control.value or ""),
+                    on_select=lambda e: [
+                        setattr(self, "_review_umano_language", e.control.value or ""),
+                        _rebuild_lang_tool_col(),
+                    ],
                     bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
                     label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
                     border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
@@ -1046,18 +1167,26 @@ class ManualCreationForm(ft.Column):
         spells_init_col = ft.Column([], spacing=10, visible=False)
         cantrip_dds: list[ft.Dropdown] = []
         spell_dds:   list[ft.Dropdown] = []
+        prepared_dds: list[ft.Dropdown] = []
+        spellbook_dds: list[ft.Dropdown] = []
 
         def _rebuild_spells_init_col() -> None:
             spells_init_col.controls.clear()
             cantrip_dds.clear()
             spell_dds.clear()
+            prepared_dds.clear()
+            spellbook_dds.clear()
 
-            n_cantrips = _loader.get_cantrips_known_at_1(self._review_class)
-            n_spells   = _loader.get_spells_known_at_1(self._review_class)
+            n_cantrips  = _loader.get_cantrips_known_at_1(self._review_class)
+            n_spells    = _loader.get_spells_known_at_1(self._review_class)
+            n_prepared  = self._compute_prepared_spell_count()
+            n_spellbook = _loader.get_spellbook_starting_spells(self._review_class)
 
-            if n_cantrips <= 0 and n_spells <= 0:
-                self._review_cantrips   = []
-                self._review_spells_lv1 = []
+            if n_cantrips <= 0 and n_spells <= 0 and n_prepared <= 0 and n_spellbook <= 0:
+                self._review_cantrips         = []
+                self._review_spells_lv1       = []
+                self._review_prepared_spells  = []
+                self._review_spellbook_spells = []
                 spells_init_col.visible = False
                 try:
                     spells_init_col.update()
@@ -1068,15 +1197,16 @@ class ManualCreationForm(ft.Column):
             cantrip_names = sorted(s["name"] for s in _loader.get_spells_by_level(self._review_class, 0))
             spell_names   = sorted(s["name"] for s in _loader.get_spells_by_level(self._review_class, 1))
 
-            # Il trucchetto del tratto Alto Elfo condivide la stessa lista
-            # (Mago) solo se il personaggio è effettivamente un Mago —
-            # esclude quel nome dalle scelte di classe per evitare che lo
-            # stesso trucchetto occupi "due slot" diversi.
-            elf_reserved = (
-                {self._review_elf_cantrip}
-                if self._review_class == "Mago" and self._review_elf_cantrip
-                else set()
-            )
+            # Il trucchetto scelto come tratto razziale (Alto Elfo, sempre
+            # dalla lista Mago) va escluso dal pool di classe A PRESCINDERE
+            # dalla classe del personaggio — non solo quando è Mago: due
+            # liste di classi diverse possono condividere lo stesso nome di
+            # trucchetto (es. "Luce"), e sceglierlo sia come tratto
+            # razziale sia come trucchetto di classe farebbe "sprecare" una
+            # scelta su un trucchetto già posseduto (Davide, 2026-07-11:
+            # "la selezione mi permette di selezionare... quello conosciuto
+            # tramite bonus razziale, ma devono essere trucchetti diversi").
+            elf_reserved = {self._review_elf_cantrip} if self._review_elf_cantrip else set()
             cantrip_pool = [c for c in cantrip_names if c not in elf_reserved]
 
             self._review_cantrips = [c for c in self._review_cantrips if c in cantrip_pool][:n_cantrips]
@@ -1093,15 +1223,133 @@ class ManualCreationForm(ft.Column):
                         self._review_spells_lv1.append(s)
                         break
 
+            # Incantesimi preparati iniziali (Chierico/Druido/Paladino,
+            # task #99) — stesso pool di primo livello di `spell_names`,
+            # nessuna esclusione incrociata necessaria: una classe non è mai
+            # contemporaneamente "know" (n_spells>0) e "preparatrice"
+            # (n_prepared>0), quindi le due liste non competono mai per lo
+            # stesso personaggio.
+            self._review_prepared_spells = [
+                s for s in self._review_prepared_spells if s in spell_names
+            ][:n_prepared]
+            while len(self._review_prepared_spells) < n_prepared and len(self._review_prepared_spells) < len(spell_names):
+                for s in spell_names:
+                    if s not in self._review_prepared_spells:
+                        self._review_prepared_spells.append(s)
+                        break
+
+            # Libro degli Incantesimi del Mago (task #100) — stesso pool
+            # `spell_names`; nessuna esclusione incrociata necessaria per lo
+            # stesso motivo di `_review_prepared_spells` sopra.
+            self._review_spellbook_spells = [
+                s for s in self._review_spellbook_spells if s in spell_names
+            ][:n_spellbook]
+            while len(self._review_spellbook_spells) < n_spellbook and len(self._review_spellbook_spells) < len(spell_names):
+                for s in spell_names:
+                    if s not in self._review_spellbook_spells:
+                        self._review_spellbook_spells.append(s)
+                        break
+
+            # I dropdown trucchetti (e, separatamente, i dropdown incantesimi
+            # di 1° livello) non devono mai permettere di scegliere lo stesso
+            # nome due volte — bug segnalato da Davide il 2026-07-11
+            # ("la selezione mi permette di selezionare sempre lo stesso
+            # trucchetto"). Fix: le `options` di ogni dropdown escludono
+            # dinamicamente i valori già scelti negli ALTRI dropdown dello
+            # stesso gruppo (mai il proprio valore corrente), ricalcolate a
+            # ogni selezione — esclusione preventiva, non validazione a
+            # posteriori: il duplicato non appare mai come opzione.
+            def _refresh_cantrip_options() -> None:
+                for i, dd in enumerate(cantrip_dds):
+                    others = {c for j, c in enumerate(self._review_cantrips) if j != i and c}
+                    available = [c for c in cantrip_pool if c not in others]
+                    dd.options = [ft.DropdownOption(key=c, text=c) for c in available]
+                    current = self._review_cantrips[i] if i < len(self._review_cantrips) else ""
+                    if current not in available:
+                        current = available[0] if available else ""
+                        while len(self._review_cantrips) <= i:
+                            self._review_cantrips.append("")
+                        self._review_cantrips[i] = current
+                    dd.value = current or None
+                    try:
+                        dd.update()
+                    except RuntimeError:
+                        pass
+
+            def _refresh_spell_options() -> None:
+                for i, dd in enumerate(spell_dds):
+                    others = {s for j, s in enumerate(self._review_spells_lv1) if j != i and s}
+                    available = [s for s in spell_names if s not in others]
+                    dd.options = [ft.DropdownOption(key=s, text=s) for s in available]
+                    current = self._review_spells_lv1[i] if i < len(self._review_spells_lv1) else ""
+                    if current not in available:
+                        current = available[0] if available else ""
+                        while len(self._review_spells_lv1) <= i:
+                            self._review_spells_lv1.append("")
+                        self._review_spells_lv1[i] = current
+                    dd.value = current or None
+                    try:
+                        dd.update()
+                    except RuntimeError:
+                        pass
+
             def _set_cantrip(idx: int, val: str) -> None:
                 while len(self._review_cantrips) <= idx:
                     self._review_cantrips.append("")
                 self._review_cantrips[idx] = val
+                _refresh_cantrip_options()
 
             def _set_spell(idx: int, val: str) -> None:
                 while len(self._review_spells_lv1) <= idx:
                     self._review_spells_lv1.append("")
                 self._review_spells_lv1[idx] = val
+                _refresh_spell_options()
+
+            def _refresh_prepared_options() -> None:
+                for i, dd in enumerate(prepared_dds):
+                    others = {s for j, s in enumerate(self._review_prepared_spells) if j != i and s}
+                    available = [s for s in spell_names if s not in others]
+                    dd.options = [ft.DropdownOption(key=s, text=s) for s in available]
+                    current = self._review_prepared_spells[i] if i < len(self._review_prepared_spells) else ""
+                    if current not in available:
+                        current = available[0] if available else ""
+                        while len(self._review_prepared_spells) <= i:
+                            self._review_prepared_spells.append("")
+                        self._review_prepared_spells[i] = current
+                    dd.value = current or None
+                    try:
+                        dd.update()
+                    except RuntimeError:
+                        pass
+
+            def _set_prepared(idx: int, val: str) -> None:
+                while len(self._review_prepared_spells) <= idx:
+                    self._review_prepared_spells.append("")
+                self._review_prepared_spells[idx] = val
+                _refresh_prepared_options()
+
+            def _refresh_spellbook_options() -> None:
+                for i, dd in enumerate(spellbook_dds):
+                    others = {s for j, s in enumerate(self._review_spellbook_spells) if j != i and s}
+                    available = [s for s in spell_names if s not in others]
+                    dd.options = [ft.DropdownOption(key=s, text=s) for s in available]
+                    current = self._review_spellbook_spells[i] if i < len(self._review_spellbook_spells) else ""
+                    if current not in available:
+                        current = available[0] if available else ""
+                        while len(self._review_spellbook_spells) <= i:
+                            self._review_spellbook_spells.append("")
+                        self._review_spellbook_spells[i] = current
+                    dd.value = current or None
+                    try:
+                        dd.update()
+                    except RuntimeError:
+                        pass
+
+            def _set_spellbook(idx: int, val: str) -> None:
+                while len(self._review_spellbook_spells) <= idx:
+                    self._review_spellbook_spells.append("")
+                self._review_spellbook_spells[idx] = val
+                _refresh_spellbook_options()
 
             if n_cantrips > 0 and cantrip_pool:
                 spells_init_col.controls.append(
@@ -1122,6 +1370,7 @@ class ManualCreationForm(ft.Column):
                     )
                     cantrip_dds.append(dd)
                     spells_init_col.controls.append(dd)
+                _refresh_cantrip_options()
 
             if n_spells > 0 and spell_names:
                 spells_init_col.controls.append(ft.Container(height=4))
@@ -1143,6 +1392,67 @@ class ManualCreationForm(ft.Column):
                     )
                     spell_dds.append(dd)
                     spells_init_col.controls.append(dd)
+                _refresh_spell_options()
+
+            if n_prepared > 0 and spell_names:
+                spells_init_col.controls.append(ft.Container(height=4))
+                spells_init_col.controls.append(
+                    ft.Text(f"Incantesimi preparati iniziali (scegli {n_prepared})",
+                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                )
+                spells_init_col.controls.append(
+                    muted_text(
+                        "Mod. caratteristica da incantatore + livello (min 1) — PHB. "
+                        "Potrai prepararne di diversi dopo ogni riposo lungo.",
+                        size=11,
+                    )
+                )
+                for i in range(n_prepared):
+                    current = self._review_prepared_spells[i] if i < len(self._review_prepared_spells) else ""
+                    dd = ft.Dropdown(
+                        label=f"Incantesimo preparato {i + 1}",
+                        value=current if current in spell_names else (spell_names[0] if spell_names else None),
+                        options=[ft.DropdownOption(key=s, text=s) for s in spell_names],
+                        on_select=lambda e, idx=i: _set_prepared(idx, e.control.value or ""),
+                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        expand=True,
+                    )
+                    prepared_dds.append(dd)
+                    spells_init_col.controls.append(dd)
+                _refresh_prepared_options()
+
+            if n_spellbook > 0 and spell_names:
+                spells_init_col.controls.append(ft.Container(height=4))
+                spells_init_col.controls.append(
+                    ft.Text(f"Libro degli Incantesimi (scegli {n_spellbook})",
+                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                )
+                spells_init_col.controls.append(
+                    muted_text(
+                        "Il libro inizia con 6 incantesimi di 1° livello (PHB). "
+                        "Verranno preparati automaticamente quelli che il tuo "
+                        "modificatore ti permette; gli altri restano nel libro, "
+                        "pronti da preparare dopo un riposo lungo.",
+                        size=11,
+                    )
+                )
+                for i in range(n_spellbook):
+                    current = self._review_spellbook_spells[i] if i < len(self._review_spellbook_spells) else ""
+                    dd = ft.Dropdown(
+                        label=f"Incantesimo del libro {i + 1}",
+                        value=current if current in spell_names else (spell_names[0] if spell_names else None),
+                        options=[ft.DropdownOption(key=s, text=s) for s in spell_names],
+                        on_select=lambda e, idx=i: _set_spellbook(idx, e.control.value or ""),
+                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        expand=True,
+                    )
+                    spellbook_dds.append(dd)
+                    spells_init_col.controls.append(dd)
+                _refresh_spellbook_options()
 
             spells_init_col.visible = True
             try:
@@ -1160,7 +1470,17 @@ class ManualCreationForm(ft.Column):
             lang_count, _ = self._bg_language_choices()
             if lang_count > 0:
                 has_content = True
-                avail_langs = LANGUAGES
+                # Esclude le lingue già conosciute di base — fisse di razza
+                # (get_resolved_race) e l'eventuale lingua extra già scelta
+                # dal tratto Umano — vedi stessa nota in wizard_view.py
+                # (Davide, 2026-07-11).
+                already_known: set[str] = set()
+                if self._review_race:
+                    resolved_race = _loader.get_resolved_race(self._review_race, self._review_subrace)
+                    already_known |= {l for l in resolved_race.get("languages", []) if isinstance(l, str)}
+                if self._review_umano_language:
+                    already_known.add(self._review_umano_language)
+                avail_langs = [l for l in LANGUAGES if l not in already_known]
                 self._review_languages = [l for l in self._review_languages if l in avail_langs]
                 lang_counter = ft.Text(f"({len(self._review_languages)}/{lang_count})",
                                        size=11, color=COLOR_TEXT_MUTED)
@@ -1343,15 +1663,23 @@ class ManualCreationForm(ft.Column):
             if self._review_class.lower() == "ladro" and len(self._review_expertise) != 2:
                 return "Ladro: seleziona 2 abilità per la Maestria (Lv.1)."
 
-            n_cantrips = _loader.get_cantrips_known_at_1(self._review_class)
-            n_spells   = _loader.get_spells_known_at_1(self._review_class)
-            cantrips_chosen = [c for c in self._review_cantrips if c]
-            spells_chosen   = [s for s in self._review_spells_lv1 if s]
+            n_cantrips  = _loader.get_cantrips_known_at_1(self._review_class)
+            n_spells    = _loader.get_spells_known_at_1(self._review_class)
+            n_prepared  = self._compute_prepared_spell_count()
+            n_spellbook = _loader.get_spellbook_starting_spells(self._review_class)
+            cantrips_chosen  = [c for c in self._review_cantrips if c]
+            spells_chosen    = [s for s in self._review_spells_lv1 if s]
+            prepared_chosen  = [s for s in self._review_prepared_spells if s]
+            spellbook_chosen = [s for s in self._review_spellbook_spells if s]
             if (
                 len(cantrips_chosen) < n_cantrips
                 or len(spells_chosen) < n_spells
+                or len(prepared_chosen) < n_prepared
+                or len(spellbook_chosen) < n_spellbook
                 or len(set(cantrips_chosen)) < len(cantrips_chosen)
                 or len(set(spells_chosen)) < len(spells_chosen)
+                or len(set(prepared_chosen)) < len(prepared_chosen)
+                or len(set(spellbook_chosen)) < len(spellbook_chosen)
             ):
                 return "Completa la scelta di trucchetti/incantesimi iniziali (nessun duplicato ammesso)."
 
@@ -1771,16 +2099,24 @@ class ManualCreationForm(ft.Column):
                     pass
                 return
 
-            # Validazione Trucchetti/Incantesimi iniziali (task #74)
-            n_cantrips_needed = _loader.get_cantrips_known_at_1(self._review_class)
-            n_spells_needed   = _loader.get_spells_known_at_1(self._review_class)
+            # Validazione Trucchetti/Incantesimi iniziali (task #74, esteso task #99/#100)
+            n_cantrips_needed  = _loader.get_cantrips_known_at_1(self._review_class)
+            n_spells_needed    = _loader.get_spells_known_at_1(self._review_class)
+            n_prepared_needed  = self._compute_prepared_spell_count()
+            n_spellbook_needed = _loader.get_spellbook_starting_spells(self._review_class)
             cantrips_chosen   = [c for c in self._review_cantrips if c]
             spells_chosen     = [s for s in self._review_spells_lv1 if s]
+            prepared_chosen   = [s for s in self._review_prepared_spells if s]
+            spellbook_chosen  = [s for s in self._review_spellbook_spells if s]
             if (
                 len(cantrips_chosen) < n_cantrips_needed
                 or len(spells_chosen) < n_spells_needed
+                or len(prepared_chosen) < n_prepared_needed
+                or len(spellbook_chosen) < n_spellbook_needed
                 or len(set(cantrips_chosen)) < len(cantrips_chosen)
                 or len(set(spells_chosen)) < len(spells_chosen)
+                or len(set(prepared_chosen)) < len(prepared_chosen)
+                or len(set(spellbook_chosen)) < len(spellbook_chosen)
             ):
                 error_text.value = (
                     "Completa la scelta di trucchetti/incantesimi iniziali nella fase Scelte "
@@ -1877,7 +2213,9 @@ class ManualCreationForm(ft.Column):
                     )
 
                 # Trucchetti e incantesimi conosciuti al Lv.1 (task #74)
-                def _save_known_spell_by_name(spell_name: str, class_name: str) -> None:
+                def _save_known_spell_by_name(
+                    spell_name: str, class_name: str, is_prepared: bool = True
+                ) -> None:
                     """Recupera i dettagli dell'incantesimo dal JSON di classe e lo salva come conosciuto."""
                     spell = next(
                         (s for s in _loader.get_spells(class_name) if s.get("name") == spell_name),
@@ -1897,7 +2235,7 @@ class ManualCreationForm(ft.Column):
                         character_id=char.id,
                         name=spell_name,
                         level=spell.get("level", 0),
-                        is_prepared=True,
+                        is_prepared=is_prepared,
                         school=spell.get("school", ""),
                         casting_time=spell.get("casting_time", ""),
                         spell_range=spell.get("range", ""),
@@ -1912,6 +2250,21 @@ class ManualCreationForm(ft.Column):
                     _save_known_spell_by_name(cname, self._review_class)
                 for sname in spells_chosen:
                     _save_known_spell_by_name(sname, self._review_class)
+                for pname in prepared_chosen:
+                    _save_known_spell_by_name(pname, self._review_class)
+
+                # Libro degli Incantesimi del Mago (task #100) — tutti e 6
+                # persistiti come "conosciuti" (nel libro), ma solo i primi
+                # `_compute_mago_max_prepared()` marcati is_prepared=True
+                # per non violare il limite già applicato dalla tab
+                # Incantesimi (spells_view.py._calc_max_prepared, Mago è
+                # "full caster") — vedi commento identico in wizard_view.py.
+                if spellbook_chosen:
+                    max_prep_mago = self._compute_mago_max_prepared()
+                    for idx, bname in enumerate(spellbook_chosen):
+                        _save_known_spell_by_name(
+                            bname, self._review_class, is_prepared=idx < max_prep_mago
+                        )
 
                 # Lingue fisse concesse dalla razza (es. Comune + Elfico per l'Elfo)
                 # — prima di questo fix venivano lette da get_resolved_race() solo
@@ -1959,6 +2312,29 @@ class ManualCreationForm(ft.Column):
                     l'oggetto o di farlo atterrare nella categoria "Armi
                     (riserva)" ormai rimossa dalla UI — logga comunque un
                     warning diagnosticabile.
+
+                    Creata sempre `is_equipped=False` (2026-07-11, bug report
+                    Davide: "alla creazione risultano tutte le armi
+                    equipaggiate, dovrebbe essere solo una, due al massimo
+                    se si hanno per esempio 2 pugnali"). Un precedente
+                    tentativo (stesso giorno, sessione precedente) auto-
+                    equipaggiava ogni arma e poi risolveva i conflitti con
+                    `resolve_weapon_equip()` in una passata di finalizzazione
+                    a fine creazione — ma quella passata chiama la funzione
+                    una volta per OGNI arma ancora marcata equipaggiata dopo
+                    le iterazioni precedenti, e ogni chiamata può ri-
+                    confermare armi già "tenute" nell'iterazione precedente E
+                    aggiungerne altre finché restano mani libere cumulate tra
+                    chiamate diverse — con 3+ armi di partenza (es. Ladro:
+                    2 pugnali fissi + arma principale a scelta + arco) il
+                    risultato è imprevedibile e non banale da verificare
+                    (confermato con un caso di test dedicato: Pugnale+Stocco
+                    finivano entrambi equipaggiati, non solo l'arma
+                    principale). Scelta esplicitamente autorizzata da Davide
+                    come alternativa più semplice e robusta: nessuna arma
+                    parte equipaggiata, il giocatore la equipaggia dalla tab
+                    Inventario col pulsante dedicato (già corretto e testato
+                    per il singolo click, vedi `inventario_tab.py`).
                     """
                     wdata = _loader.get_weapon(wname)
                     if wdata:
@@ -1969,7 +2345,7 @@ class ManualCreationForm(ft.Column):
                             damage_dice=wdata.get("damage_dice", ""),
                             damage_type=wdata.get("damage_type", ""),
                             properties=props_str,
-                            is_equipped=True,
+                            is_equipped=False,
                         )
                     else:
                         logger.warning(
@@ -2021,11 +2397,35 @@ class ManualCreationForm(ft.Column):
                             ca_value=0, armor_type="",
                         )
 
+                # Indice del prossimo "strumento a scelta" del background da
+                # risolvere in _save_item() — vedi commento lì. Condiviso tra
+                # tutte le chiamate di _save_item per lo stesso personaggio,
+                # incrementato ogni volta che un placeholder "(a scelta)"
+                # viene incontrato nell'equipaggiamento (task #105, Davide
+                # 2026-07-11: "strumento musicale a scelta... scritto come
+                # frase invece di permettere la scelta").
+                _choice_equip_idx = 0
+
                 def _save_item(character_id: str, item: dict) -> None:
                     """Salva un item di equipaggiamento: weapon/weapon_choice → tabella weapons
                     (una riga per unità se quantity>1), armor → inventario con ca_value/
                     armor_type risolti dal catalogo, currency → update_currencies,
-                    regular item → inventario generico."""
+                    regular item → inventario generico.
+
+                    I nomi placeholder "(a scelta)" (es. "Strumento musicale
+                    (a scelta)", "Strumenti da artigiano (a scelta)") non
+                    sono trattati come oggetti letterali: vengono risolti
+                    contro self._review_tools (lo/gli strumento/i che il
+                    giocatore ha effettivamente scelto per la competenza
+                    tool_proficiencies a scelta dello stesso background) e
+                    salvati con quel nome esatto e category="tool" — non più
+                    come oggetto generico "misc" col nome letterale del
+                    placeholder. Se per qualche motivo non c'è una scelta
+                    disponibile (background senza scelta strumenti, indice
+                    esaurito), il placeholder letterale resta come fallback
+                    diagnosticabile invece di sparire silenziosamente.
+                    """
+                    nonlocal _choice_equip_idx
                     itype = item.get("item_type", "item")
                     if itype == "weapon_choice":
                         count = item.get("count", 1)
@@ -2063,13 +2463,47 @@ class ManualCreationForm(ft.Column):
                     elif itype == "armor":
                         _save_armor_by_name(character_id, item["name"], item.get("quantity", 1))
                     else:
-                        character_repo.create_inventory_item(
-                            character_id=character_id,
-                            name=item["name"],
-                            quantity=item.get("quantity", 1),
-                            weight=0.0, category="misc",
-                            is_equipped=False, description="",
-                        )
+                        item_name = item["name"]
+                        item_category = "misc"
+                        if "(a scelta)" in item_name:
+                            chosen = (
+                                self._review_tools[_choice_equip_idx]
+                                if _choice_equip_idx < len(self._review_tools)
+                                else ""
+                            )
+                            _choice_equip_idx += 1
+                            if chosen:
+                                item_name = chosen
+                                item_category = "tool"
+                            else:
+                                logger.warning(
+                                    "Equipaggiamento '%s': nessuna scelta strumenti "
+                                    "disponibile da risolvere, mantenuto il nome "
+                                    "placeholder", item["name"],
+                                )
+                        pack_items = _loader.get_pack_contents(item_name)
+                        if pack_items is not None:
+                            # "Dotazione da X" non è un oggetto in sé ma un
+                            # insieme di oggetti (PHB p.151) — espansa nei
+                            # singoli oggetti che contiene invece di creare
+                            # un unico InventoryItem con il nome letterale
+                            # della dotazione (Davide, 2026-07-11).
+                            for sub in pack_items:
+                                character_repo.create_inventory_item(
+                                    character_id=character_id,
+                                    name=sub["name"],
+                                    quantity=sub.get("quantity", 1),
+                                    weight=0.0, category="misc",
+                                    is_equipped=False, description="",
+                                )
+                        else:
+                            character_repo.create_inventory_item(
+                                character_id=character_id,
+                                name=item_name,
+                                quantity=item.get("quantity", 1),
+                                weight=0.0, category=item_category,
+                                is_equipped=False, description="",
+                            )
 
                 if self._gold_mode:
                     # Modalità oro: salva monete invece degli oggetti di classe
@@ -2140,8 +2574,13 @@ class ManualCreationForm(ft.Column):
                             effects=i.effects,
                         )
 
+                # Le armi non partono mai equipaggiate (vedi docstring di
+                # _save_weapon_by_name) — nessuna risoluzione di conflitto
+                # necessaria qui, il giocatore equipaggia dalla tab
+                # Inventario (già corretto e testato per il singolo click).
+
                 # Ricalcola la CA in base alle armature/scudi effettivamente
-                # equipaggiati (dopo la risoluzione sopra) e alle formule di
+                # risultanti dalle risoluzioni sopra, e alle formule di
                 # classe senza armatura (Monaco, Barbaro, Stregone+
                 # Discendenza Draconica) per chi non ne ha ricevuta nessuna.
                 character_repo.calculate_and_update_ca(char.id)

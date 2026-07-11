@@ -10,6 +10,14 @@ Scelte IMPLEMENTATE:
   ASI                — scelta giocatore (+2 a uno / +1 a due)
   PROFICIENCY_BONUS_UP — automatico, nessuna scelta
   SPELL_LEARN        — scelta nuovi incantesimi (Bardo/Stregone/Warlock/Ranger + Segreti Magici)
+  SPELL_SWAP         — scelta OPZIONALE: sostituire un incantesimo conosciuto con un
+                        altro della stessa lista (Bardo/Ranger/Stregone/Warlock, ad ogni
+                        livello — PHB IT, testo identico nelle 4 feature "Incantesimi"/
+                        "Magia del Patto": "quando [la classe] acquisisce un livello, può
+                        scegliere un incantesimo che conosce e sostituirlo con un altro")
+  CANTRIP_LEARN      — scelta nuovo trucchetto ai lv.4/10 (Bardo/Chierico/Druido/Mago/
+                        Stregone/Warlock — colonna "Trucchetti Conosciuti" delle rispettive
+                        tabelle di classe PHB, +1 a entrambi i livelli per tutte e 6)
   EXPERTISE          — scelta maestria abilità Ladro/Bardo
   INVOCATION         — scelta suppliche occulte Warlock
   METAMAGIC          — scelta metamagia Stregone
@@ -94,6 +102,8 @@ class StepType(Enum):
     FEATURE_AUTO         = auto()  # feature di classe automatica — solo info
     SUBCLASS_CHOICE      = auto()  # scelta sottoclasse
     SPELL_LEARN          = auto()  # scelta nuovi incantesimi — futuro picker
+    SPELL_SWAP           = auto()  # scelta OPZIONALE: sostituisci un incantesimo conosciuto
+    CANTRIP_LEARN        = auto()  # scelta nuovo trucchetto (lv.4/10, 6 classi incantatrici)
     EXPERTISE            = auto()  # scelta maestria abilità (Ladro/Bardo)
     INVOCATION           = auto()  # scelta suppliche occulte (Warlock)
     METAMAGIC            = auto()  # scelta metamagia (Stregone)
@@ -129,6 +139,28 @@ class LevelStep:
 # Nessun valore cambiato in questa migrazione (verificato con test di
 # regressione end-to-end su tutte le 12 classi × 20 livelli).
 # ---------------------------------------------------------------------------
+
+
+# Livelli in cui il numero di "Trucchetti Conosciuti" cresce di +1, per le 6
+# classi che hanno un conteggio fisso di trucchetti (campo
+# "cantrips_known_at_1" nel JSON di classe: bardo/chierico/druido/mago/
+# stregone/warlock — non le sottoclassi "Mago aggiuntivo" di Cavaliere
+# Mistico/Mistificatore Arcano, gestite separatamente e non ancora wired,
+# vedi CLAUDE.md TODO dedicato). Verificato leggendo visivamente (pdftoppm,
+# non pdftotext) la colonna "Trucchetti Conosciuti" delle 6 tabelle di
+# classe PHB IT (Bardo p.53, Chierico p.57, Druido p.65, Mago p.82, Stregone
+# p.108, Warlock p.114) il 2026-07-11: tutte e 6 crescono di esattamente +1
+# al 4° livello e di nuovo +1 al 10° livello, nessuna eccezione — stessa
+# categoria di ASI_LEVELS_DEFAULT: progressione PHB universale e stabile,
+# non testo/nomi soggetti a correzione, quindi vive come costante Python
+# invece che duplicata identica in 6 file JSON.
+_CANTRIP_GROWTH_LEVELS: tuple[int, ...] = (4, 10)
+
+# Classi con un conteggio fisso di trucchetti conosciuti (vedi sopra) — letto
+# dinamicamente da cantrips_known_at_1 > 0 per non duplicare l'elenco.
+_CANTRIP_CLASSES: tuple[str, ...] = (
+    "Bardo", "Chierico", "Druido", "Mago", "Stregone", "Warlock",
+)
 
 
 def _max_spell_level_for(class_name: str, level: int) -> int:
@@ -223,6 +255,49 @@ def get_level_up_steps(
             label=label,
             requires_player_choice=True,
             data={"count": spell_delta, "max_level": max_lv, "any_class": False},
+        ))
+
+    # 1b2. CANTRIP_LEARN — nuovo trucchetto ai lv.4/10 per le 6 classi con un
+    # conteggio fisso di trucchetti conosciuti (vedi _CANTRIP_GROWTH_LEVELS).
+    # Bug segnalato da Davide 2026-07-11: "il bardo e altri incantatori
+    # imparano anche altri trucchetti a determinati livelli, non solo
+    # incantesimi, non mi sembra gestita questa cosa" — confermato: prima di
+    # questo fix nessuno step veniva mai generato per questa crescita.
+    if class_name in _CANTRIP_CLASSES and new_level in _CANTRIP_GROWTH_LEVELS:
+        if (cls_data_for_cantrips := game_data.get_class(class_name)) and \
+                cls_data_for_cantrips.get("cantrips_known_at_1", 0) > 0:
+            steps.append(LevelStep(
+                step_type=StepType.CANTRIP_LEARN,
+                label="Nuovo trucchetto conosciuto (+1)",
+                requires_player_choice=True,
+                data={"count": 1},
+            ))
+
+    # 1c. SPELL_SWAP — scelta OPZIONALE, disponibile a OGNI level-up per le 4
+    # classi "know" (Bardo/Ranger/Stregone/Warlock), non solo ai livelli in
+    # cui si impara un nuovo incantesimo. Testo PHB identico (confermato da
+    # Davide incollando il testo delle rispettive feature "Incantesimi"/
+    # "Magia del Patto" per tutte e 4): "quando [la classe] acquisisce un
+    # livello, può scegliere un incantesimo [della classe] che conosce e
+    # sostituirlo con un altro incantesimo della lista [della classe]; anche
+    # il nuovo incantesimo deve essere di un livello di cui [la classe]
+    # possiede degli slot incantesimo". Soglia minima per classe: Bardo/
+    # Stregone/Warlock hanno già incantesimi conosciuti dalla creazione
+    # (Lv.1), quindi la prima occasione di scambio è al level-up verso il
+    # Lv.2; il Ranger impara i suoi primi incantesimi solo al level-up verso
+    # il Lv.2 (via SPELL_LEARN, delta 2), quindi la prima occasione di
+    # scambio è al level-up verso il Lv.3 — prima non avrebbe nulla da
+    # scambiare. Implementato il 2026-07-11 su richiesta esplicita di
+    # Davide, vedi CLAUDE.md.
+    _SWAP_MIN_LEVEL: dict[str, int] = {
+        "Bardo": 2, "Stregone": 2, "Warlock": 2, "Ranger": 3,
+    }
+    if class_name in _SWAP_MIN_LEVEL and new_level >= _SWAP_MIN_LEVEL[class_name]:
+        steps.append(LevelStep(
+            step_type=StepType.SPELL_SWAP,
+            label="Sostituisci un incantesimo conosciuto (opzionale)",
+            requires_player_choice=True,
+            data={"max_level": _max_spell_level_for(class_name, new_level)},
         ))
 
     cls_data = game_data.get_class(class_name) or {}

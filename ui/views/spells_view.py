@@ -11,8 +11,13 @@ Struttura:
 Regole PHB preparazione:
   - I trucchetti (livello 0) sono sempre disponibili, non contano nel limite.
   - Full caster (Chierico, Druido, Mago): mod_car + livello classe (min 1)
-  - Half caster (Paladino, Ranger): mod_car + metà livello arrotondato giù (min 1)
-  - Classi "know" (Bardo, Stregone, Warlock): nessun limite (sezione "Incantesimi Conosciuti")
+  - Half caster (Paladino): mod_car + metà livello arrotondato giù (min 1)
+  - Classi "know" (Bardo, Ranger, Stregone, Warlock): nessun limite, lista fissa di
+    incantesimi conosciuti (sezione "Incantesimi Conosciuti") — il Ranger NON prepara
+    ogni giorno come Chierico/Druido/Paladino, "conosce" incantesimi fissi esattamente
+    come Bardo/Stregone/Warlock (PHB IT, ranger.json → feature "Incantesimi": "Un ranger
+    conosce due incantesimi di 1° livello a sua scelta"). Corretto il 2026-07-11 — prima
+    era erroneamente incluso tra gli "half caster", vedi CLAUDE.md.
   - Override manuale del giocatore: sovrascrive la formula se ≥ 1.
 """
 
@@ -34,9 +39,36 @@ _SLOT_NAMES = ["1°", "2°", "3°", "4°", "5°", "6°", "7°", "8°", "9°"]
 
 # Classi con sistema "prepara dalla lista"
 _PREP_FULL: set[str] = {"chierico", "druido", "mago"}
-_PREP_HALF: set[str] = {"paladino", "ranger"}
-# Classi "know" (nessun limite di preparazione)
-_KNOW_CLASSES: set[str] = {"bardo", "stregone", "warlock"}
+_PREP_HALF: set[str] = {"paladino"}
+# Classi "know" (nessun limite di preparazione) — il Ranger vive qui, non in
+# _PREP_HALF: PHB IT conferma "un ranger conosce due incantesimi di 1° livello
+# a sua scelta", stessa meccanica di Bardo/Stregone/Warlock (vedi CLAUDE.md,
+# fix 2026-07-11).
+_KNOW_CLASSES: set[str] = {"bardo", "ranger", "stregone", "warlock"}
+
+
+def _expected_known_spell_count(c: Character) -> int:
+    """
+    Totale atteso di incantesimi (livello ≥ 1, trucchetti esclusi) che una
+    classe "know" dovrebbe conoscere al livello attuale del personaggio,
+    secondo le tabelle PHB già usate da core/level_manager.py per generare
+    lo step SPELL_LEARN al level-up (spells_known_at_1 + spell_learn_delta
+    cumulativo). Per il Ranger (nessun `spells_known_at_1`, i primi
+    incantesimi arrivano al level-up verso il Lv.2) parte da 0. 0 per
+    qualunque classe che non sia "know" (chiamante deve già filtrare).
+
+    Aggiunto 2026-07-11 — bug report di Davide: "per le classi con
+    incantesimi conosciuti fissi esce incantesimi conosciuti, ma non quelli
+    selezionati, comodo per capire se hai sforato" — prima il banner
+    mostrava solo il conteggio grezzo, senza un totale di riferimento contro
+    cui confrontarlo.
+    """
+    cls = c.class_name or ""
+    total = _loader.get_spells_known_at_1(cls)
+    delta = _loader.get_spell_learn_delta(cls)
+    for lv in range(2, c.level + 1):
+        total += delta.get(lv, 0)
+    return total
 
 
 def _calc_max_prepared(c: Character) -> int | None:
@@ -456,21 +488,30 @@ class SpellsView(ft.ListView):
         count    = self._prepared_count()
 
         if max_prep is None:
-            # Classi "know": nessun limite
-            label_text = f"{count} incantesimi conosciuti"
-            color = COLOR_TEXT_MUTED
-            ratio = 0.0
+            # Classi "know": nessun limite RIGIDO (il toggle resta libero,
+            # coerente con la stessa scelta già accettata per i trucchetti —
+            # vedi CLAUDE.md), ma ora mostriamo comunque il totale atteso
+            # per livello (spells_known_at_1 + spell_learn_delta cumulativo,
+            # la stessa tabella usata dal level-up) così il giocatore può
+            # verificare a colpo d'occhio se ha selezionato più incantesimi
+            # di quanti dovrebbe conoscere al suo livello.
+            expected = _expected_known_spell_count(c)
+            over     = expected > 0 and count > expected
+            label_text = f"{count} / {expected} incantesimi conosciuti"
+            color = COLOR_ACCENT_CRIMSON if over else COLOR_TEXT_MUTED
+            ratio = min(1.0, count / expected) if expected > 0 else 0.0
         else:
             label_text = f"{count} / {max_prep} preparati"
             at_limit   = count >= max_prep
             color      = COLOR_ACCENT_CRIMSON if at_limit else COLOR_ACCENT_BLUE
             ratio      = min(1.0, count / max_prep) if max_prep > 0 else 0.0
 
-        note = (
-            "I trucchetti (0°) non contano nel limite  ·  ✎ per modificare manuale"
-            if max_prep is not None
-            else "Tocca ◉ per segnare un incantesimo come conosciuto"
-        )
+        if max_prep is not None:
+            note = "I trucchetti (0°) non contano nel limite  ·  ✎ per modificare manuale"
+        elif expected > 0 and count > expected:
+            note = f"Hai {count - expected} incantesim{'o' if count - expected == 1 else 'i'} in più del previsto per il tuo livello — controlla se è corretto (Segreti Magici e simili contano a parte)"
+        else:
+            note = "Tocca ◉ per segnare un incantesimo come conosciuto"
 
         rows: list[ft.Control] = [
             ft.Row([
@@ -487,7 +528,7 @@ class SpellsView(ft.ListView):
                 ),
             ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
         ]
-        if max_prep is not None:
+        if max_prep is not None or expected > 0:
             rows.append(ft.Row([ft.ProgressBar(
                 value=ratio,
                 color=color,

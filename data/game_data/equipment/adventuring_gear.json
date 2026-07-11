@@ -859,54 +859,135 @@
   "packs": {
     "_source": "Box 'Dotazioni', PHB IT p.151",
     "_rules": "L'equipaggiamento di partenza che un personaggio riceve dalla sua classe include anche un insieme di oggetti da avventuriero riuniti in una dotazione. Se il personaggio sceglie di acquistare il suo equipaggiamento di partenza, puo' acquistare una dotazione al prezzo indicato, che generalmente e' piu' conveniente rispetto all'acquisto dei singoli oggetti separati.",
+    "_contents_items_note": "Campo 'contents_items' aggiunto il 2026-07-11 (task Davide: le dotazioni comparivano come un unico oggetto letterale in inventario invece dei singoli oggetti che contengono) parsando manualmente la prosa gia' verificata di 'contents' (nessun dato nuovo, solo la stessa lista resa machine-readable). I nomi ricalcano esattamente quelli di 'items' quando esiste una corrispondenza nel catalogo; alcuni oggetti citati nelle dotazioni non hanno una voce propria nel catalogo 'items' di questo file (Cassetta per le Offerte, Cubetto di Incenso, Incensiere, Spago (3 metri), Sacchetto di Sabbia, Libro di Studio, Coltellino) e sono stati mantenuti con lo stesso nome citato dal manuale, senza costo/peso proprio (non presenti come voce a se' nella Tabella 'Equipaggiamento d'Avventura' consultata) - 'Coltellino' e' gia' un nome oggetto standalone noto altrove nel progetto (background Sapiente).",
     "Dotazione da Avventuriero": {
       "cost": {
         "quantity": 12,
         "currency_type": "gold"
       },
-      "contents": "Uno zaino, un piede di porco, un martello, 10 chiodi da rocciatore, 10 torce, un acciarino e pietra focaia, 10 razioni giornaliere e un otre. La dotazione include anche 15 metri di corda di canapa legata allo zaino."
+      "contents": "Uno zaino, un piede di porco, un martello, 10 chiodi da rocciatore, 10 torce, un acciarino e pietra focaia, 10 razioni giornaliere e un otre. La dotazione include anche 15 metri di corda di canapa legata allo zaino.",
+      "contents_items": [
+        {"name": "Zaino", "quantity": 1},
+        {"name": "Piede di Porco", "quantity": 1},
+        {"name": "Martello", "quantity": 1},
+        {"name": "Chiodo da Rocciatore", "quantity": 10},
+        {"name": "Torcia", "quantity": 10},
+        {"name": "Acciarino e Pietra Focaia", "quantity": 1},
+        {"name": "Razioni (1 giornata)", "quantity": 10},
+        {"name": "Otre", "quantity": 1},
+        {"name": "Corda di Canapa (15 metri)", "quantity": 1}
+      ]
     },
     "Dotazione da Diplomatico": {
       "cost": {
         "quantity": 39,
         "currency_type": "gold"
       },
-      "contents": "Un forziere, 2 custodie per mappe e pergamene, un abito pregiato, una boccetta di inchiostro, un pennino, una lampada, 2 ampolle di olio, 5 fogli di carta, una fiala di profumo, cera per sigillo e sapone."
+      "contents": "Un forziere, 2 custodie per mappe e pergamene, un abito pregiato, una boccetta di inchiostro, un pennino, una lampada, 2 ampolle di olio, 5 fogli di carta, una fiala di profumo, cera per sigillo e sapone.",
+      "contents_items": [
+        {"name": "Forziere", "quantity": 1},
+        {"name": "Custodia per Mappe o Pergamene", "quantity": 2},
+        {"name": "Abito, Pregiato", "quantity": 1},
+        {"name": "Inchiostro (boccetta da 30 grammi)", "quantity": 1},
+        {"name": "Pennino", "quantity": 1},
+        {"name": "Lampada", "quantity": 1},
+        {"name": "Olio (ampolla)", "quantity": 2},
+        {"name": "Carta (un foglio)", "quantity": 5},
+        {"name": "Profumo (fiala)", "quantity": 1},
+        {"name": "Cera per Sigillo", "quantity": 1},
+        {"name": "Sapone", "quantity": 1}
+      ]
     },
     "Dotazione da Esploratore": {
       "cost": {
         "quantity": 10,
         "currency_type": "gold"
       },
-      "contents": "Uno zaino, un giaciglio, una gavetta, un acciarino e pietra focaia, 10 torce, 10 razioni giornaliere e un otre. La dotazione include anche 15 metri di corda di canapa legata allo zaino."
+      "contents": "Uno zaino, un giaciglio, una gavetta, un acciarino e pietra focaia, 10 torce, 10 razioni giornaliere e un otre. La dotazione include anche 15 metri di corda di canapa legata allo zaino.",
+      "contents_items": [
+        {"name": "Zaino", "quantity": 1},
+        {"name": "Giaciglio", "quantity": 1},
+        {"name": "Gavetta", "quantity": 1},
+        {"name": "Acciarino e Pietra Focaia", "quantity": 1},
+        {"name": "Torcia", "quantity": 10},
+        {"name": "Razioni (1 giornata)", "quantity": 10},
+        {"name": "Otre", "quantity": 1},
+        {"name": "Corda di Canapa (15 metri)", "quantity": 1}
+      ]
     },
     "Dotazione da Intrattenitore": {
       "cost": {
         "quantity": 40,
         "currency_type": "gold"
       },
-      "contents": "Uno zaino, un giaciglio, 2 costumi, 5 candele, 5 razioni giornaliere, un otre e trucchi per il camuffamento."
+      "contents": "Uno zaino, un giaciglio, 2 costumi, 5 candele, 5 razioni giornaliere, un otre e trucchi per il camuffamento.",
+      "contents_items": [
+        {"name": "Zaino", "quantity": 1},
+        {"name": "Giaciglio", "quantity": 1},
+        {"name": "Abito, Costume", "quantity": 2},
+        {"name": "Candela", "quantity": 5},
+        {"name": "Razioni (1 giornata)", "quantity": 5},
+        {"name": "Otre", "quantity": 1},
+        {"name": "Trucchi per il Camuffamento", "quantity": 1}
+      ]
     },
     "Dotazione da Sacerdote": {
       "cost": {
         "quantity": 19,
         "currency_type": "gold"
       },
-      "contents": "Uno zaino, una coperta, 10 candele, un acciarino e pietra focaia, una cassetta per le offerte, 2 cubetti di incenso, un incensiere, una veste, 2 razioni giornaliere e un otre."
+      "contents": "Uno zaino, una coperta, 10 candele, un acciarino e pietra focaia, una cassetta per le offerte, 2 cubetti di incenso, un incensiere, una veste, 2 razioni giornaliere e un otre.",
+      "contents_items": [
+        {"name": "Zaino", "quantity": 1},
+        {"name": "Coperta", "quantity": 1},
+        {"name": "Candela", "quantity": 10},
+        {"name": "Acciarino e Pietra Focaia", "quantity": 1},
+        {"name": "Cassetta per le Offerte", "quantity": 1},
+        {"name": "Cubetto di Incenso", "quantity": 2},
+        {"name": "Incensiere", "quantity": 1},
+        {"name": "Veste", "quantity": 1},
+        {"name": "Razioni (1 giornata)", "quantity": 2},
+        {"name": "Otre", "quantity": 1}
+      ]
     },
     "Dotazione da Scassinatore": {
       "cost": {
         "quantity": 16,
         "currency_type": "gold"
       },
-      "contents": "Uno zaino, un sacchetto con 1.000 sfere metalliche, 3 metri di spago, una campanella, 5 candele, un piede di porco, un martello, 10 chiodi da rocciatore, una lanterna schermabile, 2 ampolle di olio, 5 razioni giornaliere, un acciarino e pietra focaia e un otre. La dotazione include anche 15 metri di corda di canapa legata allo zaino."
+      "contents": "Uno zaino, un sacchetto con 1.000 sfere metalliche, 3 metri di spago, una campanella, 5 candele, un piede di porco, un martello, 10 chiodi da rocciatore, una lanterna schermabile, 2 ampolle di olio, 5 razioni giornaliere, un acciarino e pietra focaia e un otre. La dotazione include anche 15 metri di corda di canapa legata allo zaino.",
+      "contents_items": [
+        {"name": "Zaino", "quantity": 1},
+        {"name": "Sfere Metalliche (sacchetto da 1.000)", "quantity": 1},
+        {"name": "Spago (3 metri)", "quantity": 1},
+        {"name": "Campanella", "quantity": 1},
+        {"name": "Candela", "quantity": 5},
+        {"name": "Piede di Porco", "quantity": 1},
+        {"name": "Martello", "quantity": 1},
+        {"name": "Chiodo da Rocciatore", "quantity": 10},
+        {"name": "Lanterna Schermabile", "quantity": 1},
+        {"name": "Olio (ampolla)", "quantity": 2},
+        {"name": "Razioni (1 giornata)", "quantity": 5},
+        {"name": "Acciarino e Pietra Focaia", "quantity": 1},
+        {"name": "Otre", "quantity": 1},
+        {"name": "Corda di Canapa (15 metri)", "quantity": 1}
+      ]
     },
     "Dotazione da Studioso": {
       "cost": {
         "quantity": 40,
         "currency_type": "gold"
       },
-      "contents": "Uno zaino, un libro di studio, una boccetta d'inchiostro, un pennino, 10 fogli di pergamena, un sacchetto di sabbia e un coltellino."
+      "contents": "Uno zaino, un libro di studio, una boccetta d'inchiostro, un pennino, 10 fogli di pergamena, un sacchetto di sabbia e un coltellino.",
+      "contents_items": [
+        {"name": "Zaino", "quantity": 1},
+        {"name": "Libro di Studio", "quantity": 1},
+        {"name": "Inchiostro (boccetta da 30 grammi)", "quantity": 1},
+        {"name": "Pennino", "quantity": 1},
+        {"name": "Pergamena (un foglio)", "quantity": 10},
+        {"name": "Sacchetto di Sabbia", "quantity": 1},
+        {"name": "Coltellino", "quantity": 1}
+      ]
     }
   }
 }

@@ -1083,6 +1083,13 @@ class ProfiloTab(ft.ListView):
         # Segreti Magici (qualsiasi classe): [(step_data, [(spell_name, class_name), ...]), ...]
         magical_secrets_refs: list[tuple[dict, list[tuple[str, str]]]] = []
 
+        # Sostituzione incantesimo conosciuto (opzionale, classi "know"):
+        # [(enable_checkbox, dd_remove, dd_add), ...]
+        spell_swap_refs: list[tuple[ft.Checkbox, ft.Dropdown, ft.Dropdown]] = []
+
+        # Nuovo trucchetto conosciuto (lv.4/10, 6 classi incantatrici): [dd, ...]
+        cantrip_learn_refs: list[ft.Dropdown] = []
+
         has_asi = False
         subclass_dd_ref: list[ft.Dropdown] = []  # [0] = dropdown sottoclasse, se presente
         for step in steps:
@@ -1732,6 +1739,165 @@ class ProfiloTab(ft.ListView):
                         dlg_rows.append(dd)
                     spell_learn_refs.append((step.data, dds))
 
+            elif step.step_type == StepType.SPELL_SWAP:
+                # Sostituzione OPZIONALE di un incantesimo conosciuto — PHB IT,
+                # stesso testo confermato per Bardo/Ranger/Stregone/Warlock:
+                # "quando [la classe] acquisisce un livello, può scegliere un
+                # incantesimo che conosce e sostituirlo con un altro". A
+                # differenza di SPELL_LEARN non è mai obbligatoria: il
+                # giocatore può lasciare la checkbox spenta e non succede
+                # nulla. Il pool "da sostituire" è filtrato solo sugli
+                # incantesimi che appartengono davvero alla lista della
+                # classe (esclude i trucchetti, che non hanno slot, ed
+                # esclude eventuali incantesimi noti tramite Segreti Magici
+                # del Bardo — "da qualsiasi classe", non "da bardo").
+                max_lv = step.data.get("max_level", 9)
+                class_spell_names = {
+                    s.get("name", "") for s in _loader.get_spells(c.class_name or "")
+                }
+                known_class_spells = sorted(
+                    (
+                        ks for ks in character_repo.get_known_spells(c.id)
+                        if ks.spell_level > 0 and ks.name in class_spell_names
+                    ),
+                    key=lambda k: (k.spell_level, k.name),
+                )
+                known_names_all = {k.name for k in known_class_spells}
+
+                swap_enable_cb = ft.Checkbox(
+                    label="Sostituisci un incantesimo conosciuto",
+                    value=False,
+                )
+                dd_remove = ft.Dropdown(
+                    label="Incantesimo da sostituire",
+                    options=[
+                        ft.DropdownOption(key=k.name, text=f"[Lv{k.spell_level}] {k.name}")
+                        for k in known_class_spells
+                    ],
+                    disabled=True,
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_BLUE,
+                    expand=True,
+                )
+                dd_add = ft.Dropdown(
+                    label="Nuovo incantesimo",
+                    options=[],
+                    disabled=True,
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_BLUE,
+                    expand=True,
+                )
+
+                def _refresh_swap_add_options(
+                    ev: Any = None, _rm: ft.Dropdown = dd_remove,
+                    _add: ft.Dropdown = dd_add, _cls: str = c.class_name or "",
+                    _ml: int = max_lv, _known: set = known_names_all,
+                ) -> None:
+                    excluded = set(_known)
+                    excluded.discard(_rm.value or "")
+                    eligible = sorted(
+                        (s for s in _loader.get_spells(_cls)
+                         if 0 < s.get("level", 0) <= _ml
+                         and s.get("name") not in excluded),
+                        key=lambda s: (s.get("level", 0), s.get("name", "")),
+                    )
+                    _add.options = [
+                        ft.DropdownOption(key=s["name"], text=f"[Lv{s['level']}] {s['name']}")
+                        for s in eligible
+                    ]
+                    if _add.value not in {o.key for o in _add.options}:
+                        _add.value = None
+                    try:
+                        _add.update()
+                    except RuntimeError:
+                        pass
+
+                def _on_swap_toggle(
+                    ev: Any, _cb: ft.Checkbox = swap_enable_cb,
+                    _rm: ft.Dropdown = dd_remove, _add: ft.Dropdown = dd_add,
+                ) -> None:
+                    enabled = bool(_cb.value)
+                    _rm.disabled = not enabled
+                    _add.disabled = not enabled
+                    if not enabled:
+                        _rm.value = None
+                        _add.value = None
+                    _refresh_swap_add_options()
+                    try:
+                        _rm.update()
+                        _add.update()
+                    except RuntimeError:
+                        pass
+
+                def _on_swap_remove_select(ev: Any) -> None:
+                    _refresh_swap_add_options()
+
+                swap_enable_cb.on_change = _on_swap_toggle
+                dd_remove.on_select = _on_swap_remove_select
+                _refresh_swap_add_options()
+
+                if not known_class_spells:
+                    swap_enable_cb.disabled = True
+                    swap_enable_cb.label = "Sostituisci un incantesimo conosciuto (nessuno disponibile)"
+
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_BLUE, expand=True),
+                    ], spacing=6),
+                    swap_enable_cb,
+                    dd_remove,
+                    dd_add,
+                ]
+                spell_swap_refs.append((swap_enable_cb, dd_remove, dd_add))
+
+            elif step.step_type == StepType.CANTRIP_LEARN:
+                # Nuovo trucchetto conosciuto ai lv.4/10 (Bardo/Chierico/
+                # Druido/Mago/Stregone/Warlock — colonna "Trucchetti
+                # Conosciuti" delle tabelle di classe PHB, vedi
+                # core/level_manager.py). Stesso pattern minimale di
+                # SPELL_LEARN ma filtrato su spell_level == 0 (trucchetti,
+                # niente slot/livello massimo) ed escludendo i trucchetti
+                # già conosciuti dal personaggio.
+                _known_cantrips: set[str] = {
+                    ks.name for ks in character_repo.get_known_spells(c.id)
+                    if ks.spell_level == 0
+                }
+                _eligible_cantrips = sorted(
+                    (s for s in _loader.get_spells(c.class_name or "")
+                     if s.get("level", 0) == 0 and s.get("name") not in _known_cantrips),
+                    key=lambda s: s.get("name", ""),
+                )
+                cantrip_dd = ft.Dropdown(
+                    label="Nuovo trucchetto",
+                    hint_text="Scegli dalla lista...",
+                    options=[
+                        ft.DropdownOption(key=s["name"], text=s["name"])
+                        for s in _eligible_cantrips
+                    ],
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_BLUE,
+                    expand=True,
+                )
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_BLUE, expand=True),
+                    ], spacing=6),
+                    cantrip_dd,
+                ]
+                cantrip_learn_refs.append(cantrip_dd)
+
             elif step.step_type == StepType.PROFICIENCY_BONUS_UP:
                 dlg_rows.append(ft.Container(
                     content=ft.Text(f"⬆ {step.label}", size=12,
@@ -1882,6 +2048,24 @@ class ProfiloTab(ft.ListView):
                 for _i, _dd in enumerate(_dds):
                     if not _dd.value:
                         _errors.append(f"Scegli l'incantesimo {_i + 1}/{len(_dds)}")
+
+            # Nuovo trucchetto conosciuto (lv.4/10) — sempre obbligatorio,
+            # stesso trattamento di SPELL_LEARN (non è opzionale come SPELL_SWAP).
+            for _cantrip_dd in cantrip_learn_refs:
+                if not _cantrip_dd.value:
+                    _errors.append("Scegli il nuovo trucchetto")
+
+            # Sostituzione incantesimo conosciuto — OPZIONALE: se la checkbox
+            # non è attiva, nessuna validazione. Se attiva, entrambi i
+            # dropdown devono essere compilati (il pool di `dd_add` già
+            # esclude `dd_remove.value` a monte, quindi non serve controllare
+            # che siano diversi).
+            for _swap_cb, _swap_rm, _swap_add in spell_swap_refs:
+                if _swap_cb.value:
+                    if not _swap_rm.value:
+                        _errors.append("Scegli quale incantesimo sostituire")
+                    if not _swap_add.value:
+                        _errors.append("Scegli il nuovo incantesimo")
 
             # Segreti Magici: deve aver aperto il picker e scelto tutti gli incantesimi
             for _sd, _choices in magical_secrets_refs:
@@ -2091,6 +2275,30 @@ class ProfiloTab(ft.ListView):
                 for dd in dds:
                     if dd.value:
                         _save_known_spell(dd.value, c.class_name or "", c)
+
+            # Nuovo trucchetto conosciuto (lv.4/10) — salvato come known_spell
+            # is_prepared=True, stessa convenzione dei trucchetti iniziali
+            # (task #74) e di SPELL_LEARN sopra.
+            for _cantrip_dd in cantrip_learn_refs:
+                if _cantrip_dd.value:
+                    _save_known_spell(_cantrip_dd.value, c.class_name or "", c)
+
+            # Sostituzione incantesimo conosciuto (opzionale) — rimuove il
+            # vecchio incantesimo da known_spells e salva il nuovo con lo
+            # stesso pattern di _save_known_spell già usato sopra. Il livello
+            # del vecchio incantesimo viene riletto dal DB (non dal JSON) per
+            # essere certi di cancellare la riga esatta.
+            for _swap_cb, _swap_rm, _swap_add in spell_swap_refs:
+                if _swap_cb.value and _swap_rm.value and _swap_add.value:
+                    _old_name = _swap_rm.value
+                    _old_row = next(
+                        (ks for ks in character_repo.get_known_spells(c.id)
+                         if ks.name == _old_name),
+                        None,
+                    )
+                    if _old_row is not None:
+                        character_repo.remove_known_spell(c.id, _old_name, _old_row.spell_level)
+                    _save_known_spell(_swap_add.value, c.class_name or "", c)
 
             # Segreti Magici (qualsiasi classe)
             for _step_data, choices in magical_secrets_refs:

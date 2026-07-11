@@ -24,8 +24,9 @@
       "item_type": "item"
     },
     {
-      "name": "5 bastoncini di incenso",
-      "item_type": "item"
+      "name": "Bastoncino di Incenso",
+      "item_type": "item",
+      "quantity": 5
     },
     {
       "name": "Vesti",

@@ -192,6 +192,26 @@ class GameDataLoader:
             return 0
         return int(cls_data.get("spells_known_at_1", 0) or 0)
 
+    def get_spellbook_starting_spells(self, class_name: str) -> int:
+        """
+        Numero di incantesimi di 1° livello con cui il libro degli
+        incantesimi del Mago inizia alla creazione (task #100, 2026-07-11).
+        Letto dal campo "spellbook_starting_spells" del JSON di classe
+        (aggiunto in mago.json — 6, confermato testualmente dalla feature
+        "Incantesimi": "Il tuo libro inizia con 6 incantesimi di 1°
+        livello."). 0 per qualunque altra classe: questa è una meccanica
+        distinta sia dai trucchetti/incantesimi "conosciuti" delle classi
+        know (get_cantrips_known_at_1/get_spells_known_at_1) sia dalla
+        scelta di incantesimi preparati iniziali dei "preparatori"
+        (Chierico/Druido/Paladino) — il Mago prepara ogni giorno dal suo
+        libro, non da un pool di classe illimitato, e il libro stesso
+        cresce solo con nuove trascrizioni, non con una lista fissa.
+        """
+        cls_data = self.get_class(class_name)
+        if not cls_data:
+            return 0
+        return int(cls_data.get("spellbook_starting_spells", 0) or 0)
+
     def get_metamagic_count_by_level(self) -> dict[int, int]:
         """Stregone, Metamagia: nuove opzioni acquisite a ciascun livello (PHB p.102)."""
         cls_data = self.get_class("stregone")
@@ -891,6 +911,32 @@ class GameDataLoader:
         """Dizionario grezzo di equipment/adventuring_gear.json (items/descrizioni/dotazioni)."""
         self._ensure_equipment_file("adventuring_gear")
         return self._equipment["adventuring_gear"]
+
+    def get_pack_contents(self, pack_name: str) -> list[dict[str, Any]] | None:
+        """
+        Contenuto strutturato di una Dotazione (es. "Dotazione da Avventuriero"),
+        letto da equipment/adventuring_gear.json → packs[pack_name].contents_items
+        (campo aggiunto il 2026-07-11, parsing manuale della prosa "contents"
+        già verificata contro il manuale — vedi "_contents_items_note" nel JSON).
+
+        Ritorna una lista di dict {"name": str, "quantity": int}, oppure None
+        se pack_name non corrisponde a nessuna dotazione nota (case-insensitive
+        sul nome esatto della dotazione, non sui nomi dei singoli oggetti).
+        Usata da wizard_view.py/manual_form.py per espandere una voce di
+        equipaggiamento "Dotazione da X" nei singoli oggetti che contiene,
+        invece di creare un unico InventoryItem con quel nome letterale.
+        """
+        packs = self.get_adventuring_gear().get("packs", {})
+        target = pack_name.strip().lower()
+        for name, data in packs.items():
+            if name.startswith("_"):
+                continue
+            if name.strip().lower() == target:
+                items = data.get("contents_items")
+                if items:
+                    return [dict(it) for it in items]
+                return None
+        return None
 
     def get_tools(self) -> dict[str, Any]:
         """Dizionario grezzo di equipment/tools.json."""

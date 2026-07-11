@@ -185,7 +185,7 @@
     {
       "level": 1,
       "name": "Incantesimi",
-      "description": "Sei un incantatore che attinge alla magia di musica e linguaggio. Usa la tabella Bardo per gli slot incantesimo. La caratteristica da incantatore è Carisma. CD tiro salvezza = 8 + bonus competenza + mod. Carisma. Bonus all'attacco con incantesimi = bonus competenza + mod. Carisma."
+      "description": "Sei un incantatore che attinge alla magia di musica e linguaggio. Usa la tabella Bardo per gli slot incantesimo. La caratteristica da incantatore è Carisma. Un bardo conosce quattro incantesimi di 1° livello a sua scelta dalla lista degli incantesimi da bardo. La colonna \"Incantesimi Conosciuti\" nella tabella \"Bardo\" indica quando un bardo impara altri incantesimi da bardo a sua scelta. Ognuno di questi incantesimi deve appartenere a un livello di cui il bardo possiede degli slot incantesimo, come indicato nella tabella. Per esempio, quando un bardo arriva al 3° livello, può imparare un nuovo incantesimo di 1° o di 2° livello. Inoltre, quando un bardo acquisisce un livello, può scegliere un incantesimo da bardo che conosce e sostituirlo con un altro incantesimo della lista degli incantesimi da bardo; anche il nuovo incantesimo deve essere di un livello di cui il bardo possiede degli slot incantesimo. CD tiro salvezza = 8 + bonus competenza + mod. Carisma. Bonus all'attacco con incantesimi = bonus competenza + mod. Carisma."
     },
     {
       "level": 1,

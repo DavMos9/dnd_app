@@ -167,12 +167,27 @@ def resolve_weapon_equip(
 #     letterale come per lo scudo: va tenuta distinta nella documentazione
 #     da quanto è invece scritto testualmente nel manuale.
 #
-# Le due "postazioni" — armatura indossata e scudo — sono indipendenti:
+# Le due "postazioni" — corpo (armatura vera O indumento comune, es.
+# "Abito comune" con armor_type="") e scudo — sono indipendenti:
 # equipaggiare un'armatura non tocca lo scudo già impugnato, e viceversa
 # (un guerriero con cotta di maglia + scudo indossa entrambi insieme).
-
-_BODY_ARMOR_TYPES = {"leggera", "media", "pesante"}
-
+#
+# NOTA (2026-07-11, bug report Davide: "non devo poter indossare più
+# armature alla volta, o indosso abito comune o indosso armatura di
+# maglia ecc."): la postazione "corpo" include ANCHE gli item con
+# armor_type="" (indumenti non protettivi come "Abito comune", creati da
+# `_save_armor_by_name()` quando il nome non risolve nel catalogo
+# equipment/armor.json — vedi CLAUDE.md). Prima di questo fix, un item
+# con armor_type="" veniva trattato come una "postazione diversa" che non
+# escludeva né veniva esclusa da una vera armatura corporea: un
+# personaggio poteva risultare con "Abito comune" E "Cotta di Maglia"
+# equipaggiati insieme (senza alcun effetto visibile sulla CA, dato che
+# solo l'armatura vera viene sommata — ma comunque scorretto: fisicamente
+# non si indossano contemporaneamente vestiti comuni e un'armatura sopra,
+# e la UI mostrava entrambi come "equipaggiati" in modo fuorviante). Ora
+# è sufficiente verificare "non è uno scudo" per appartenere alla
+# postazione corpo, quindi qualunque indumento/armatura la occupa e la
+# esclude in modo reciproco.
 
 @dataclass
 class ArmorCandidate:
@@ -212,8 +227,12 @@ def resolve_armor_equip(armors: list["ArmorCandidate"], target_id: str) -> set[s
             continue
         if is_shield and a.armor_type == "scudo":
             continue   # un solo scudo alla volta: espelle l'altro
-        if (not is_shield) and a.armor_type in _BODY_ARMOR_TYPES:
-            continue   # una sola armatura indossata alla volta: espelle l'altra
-        kept.add(a.id)  # postazione diversa (o tipo non riconosciuto): non tocca
+        if (not is_shield) and a.armor_type != "scudo":
+            # Postazione "corpo": qualunque armatura vera (leggera/media/
+            # pesante) O indumento non protettivo (armor_type="", es.
+            # "Abito comune") occupa questa stessa postazione ed espelle
+            # chiunque altro la occupi già — non solo le armature vere.
+            continue
+        kept.add(a.id)  # postazione diversa: non tocca
 
     return kept | {target.id}
