@@ -1287,6 +1287,19 @@ class GameDataLoader:
             "altro_gioco": games,
         }
 
+    def get_all_tool_names(self) -> list[str]:
+        """
+        Nomi di TUTTI gli strumenti PHB (equipment/tools.json), a prescindere
+        dalla categoria — artigiano, musicale, gioco, vario (arnesi da
+        scasso, borsa da erborista, strumenti da navigatore, ecc.). Usata dal
+        talento "Abile" (competenza libera in 3 abilità/strumenti a scelta,
+        nessun vincolo di categoria) — a differenza di get_tool_categories(),
+        che serve le scelte di background/classe già vincolate a un
+        sottoinsieme specifico.
+        """
+        items = self.get_tools().get("items", [])
+        return sorted({it["name"] for it in items if it.get("name")})
+
     def get_tool_category_label(self, key: str) -> str:
         """
         Label singola per una chiave categoria "a scelta singola già nota"

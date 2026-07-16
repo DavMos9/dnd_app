@@ -171,6 +171,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # 0 = nessun override, usa il valore calcolato dalla formula PHB.
     _add_column(cur, "characters", "passive_perception_override", "INTEGER DEFAULT 0")
     _add_column(cur, "characters", "carry_capacity_override",     "REAL DEFAULT 0")
+    _add_column(cur, "characters", "exhaustion_level",            "INTEGER DEFAULT 0")
     # Bonus permanente al massimo di una risorsa di classe (es. talento o
     # oggetto magico che concede +1 uso) — additivo rispetto al valore PHB
     # calcolato da get_class_resource_defaults(), sopravvive al ri-sync di

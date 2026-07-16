@@ -25,12 +25,13 @@ from config.settings import (
     LANGUAGES,
     WEAPONS_BY_CATEGORY,
     get_modifier, get_modifier_str, get_permanent_class_hp_bonus,
+    get_feats_permanent_hp_bonus,
 )
 from ui.theme import (
     title_text, body_text, muted_text, label_text,
     fantasy_card, section_header, primary_button, ghost_button,
 )
-from ui.widgets import dropdown_with_info, make_spell_describe, make_feat_describe
+from ui.widgets import CardPicker, spell_card_options, feat_card_options
 from core.wizard_engine import WizardEngine
 from core.equipment_manager import ArmorCandidate, resolve_armor_equip
 from data.game_data.wizard_data import (
@@ -159,6 +160,11 @@ class WizardView(ft.Column):
         self._review_umano_variant_skill:      str       = ""
         self._review_umano_variant_feat:       str       = ""
         self._review_umano_variant_feat_bonus_stat: str  = ""
+        # Competenze a scelta concesse dal talento (proficiency_grants in
+        # feats.json, es. Abile/Maestro d'Armi/Linguista) se il talento scelto
+        # come Variante Umana ne ha (gap fix 2026-07-16, stesso schema
+        # dell'ASI level-up in profilo_tab.py e di manual_form.py).
+        self._review_umano_variant_feat_prof_values: list[str] = []
         self._review_expertise:       list[str] = []   # 2 abilità Maestria Ladro Lv1
         # Trucchetti/incantesimi conosciuti scelti alla creazione (task #74)
         self._review_cantrips:        list[str] = []
@@ -1456,22 +1462,16 @@ class WizardView(ft.Column):
                     _rebuild_spells_init_col()
                     _update_extra_card()
 
-                elf_cantrip_dd = ft.Dropdown(
-                    label="Trucchetto del Mago (tratto Elfo Alto)",
+                elf_cantrip_dd = CardPicker(
+                    options=spell_card_options(_loader.get_spells_by_level("Mago", 0)),
                     value=self._review_elf_cantrip,
-                    options=[ft.DropdownOption(key=c, text=c) for c in mago_cantrips],
                     on_select=_on_elf_cantrip_select,
-                    bgcolor=COLOR_BG_CARD,
-                    color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_GOLD,
-                    expand=True,
+                    height=240,
                 )
-                race_extras_col.controls.append(dropdown_with_info(
-                    lambda: self.page, elf_cantrip_dd,
-                    make_spell_describe(_loader.get_spells_by_level("Mago", 0)),
-                ))
+                race_extras_col.controls.append(
+                    muted_text("Trucchetto del Mago (tratto Elfo Alto)", size=11)
+                )
+                race_extras_col.controls.append(elf_cantrip_dd.control)
             else:
                 if race != "Elfo":
                     self._review_elf_cantrip = ""
@@ -1657,34 +1657,140 @@ class WizardView(ft.Column):
 
                     def _on_uv_feat_select(e: Any) -> None:
                         self._review_umano_variant_feat = e.control.value or ""
-                        _refresh_uv_feat_bonus_dd()
+                        # Il talento potrebbe concedere competenze a scelta
+                        # diverse (proficiency_grants) — ricostruisce l'intera
+                        # colonna extra razziali (non solo feat_bonus_dd), dato
+                        # che il NUMERO di dropdown da mostrare dipende dal
+                        # talento appena scelto.
+                        self._review_umano_variant_feat_prof_values = []
+                        _rebuild_race_extras_col()
+                        try:
+                            race_extras_col.update()
+                        except RuntimeError:
+                            pass
 
-                    uv_feat_dd = ft.Dropdown(
-                        label="Talento a scelta (Variante Umana)",
+                    uv_feat_dd = CardPicker(
+                        options=feat_card_options(_loader, feat_names_u),
                         value=self._review_umano_variant_feat,
-                        options=[ft.DropdownOption(key=f, text=f) for f in feat_names_u],
                         on_select=_on_uv_feat_select,
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
-                        expand=True,
+                        height=260,
                     )
-                    race_extras_col.controls.append(dropdown_with_info(
-                        lambda: self.page, uv_feat_dd, make_feat_describe(_loader),
-                    ))
+                    race_extras_col.controls.append(muted_text("Talento a scelta (Variante Umana)", size=11))
+                    race_extras_col.controls.append(uv_feat_dd.control)
                     race_extras_col.controls.append(uv_feat_bonus_dd)
                     _refresh_uv_feat_bonus_dd()
+
+                    # --- Competenze concesse dal talento (proficiency_grants) ---
+                    uv_feat_prof_dds: list[ft.Dropdown] = []
+                    uv_feat_prof_col = ft.Column([], spacing=6)
+                    uv_feat_prof_fixed_text = ft.Text("", size=12, color=COLOR_TEXT_SECONDARY)
+
+                    def _uv_feat_prof_excluded_skills() -> set:
+                        return (
+                            set(self._bg_skill_proficiencies())
+                            | set(self._review_skills)
+                            | set(self._review_mezzelf_skills)
+                            | ({self._review_umano_variant_skill} if self._review_umano_variant_skill else set())
+                        )
+
+                    def _uv_feat_prof_excluded_languages() -> set:
+                        fixed = {
+                            v for v in _loader.get_resolved_race(
+                                self._review_race, self._review_subrace
+                            ).get("languages", []) if isinstance(v, str)
+                        }
+                        return fixed | set(self._review_race_languages) | set(self._review_languages)
+
+                    def _uv_feat_prof_pool(ptype: str) -> list[str]:
+                        pool_full = character_repo.resolve_feat_proficiency_choice_pool(ptype)
+                        if ptype == "skill_or_tool":
+                            excl_skills = _uv_feat_prof_excluded_skills()
+                            return [v for v in pool_full if not (v in SKILLS and v in excl_skills)]
+                        if ptype == "skill":
+                            excl = _uv_feat_prof_excluded_skills()
+                            return [v for v in pool_full if v not in excl]
+                        if ptype == "language":
+                            excl = _uv_feat_prof_excluded_languages()
+                            return [v for v in pool_full if v not in excl]
+                        return pool_full
+
+                    def _refresh_uv_feat_prof_options() -> None:
+                        chosen_now = {dd.value for dd in uv_feat_prof_dds if dd.value}
+                        for dd in uv_feat_prof_dds:
+                            pool = getattr(dd, "_prof_pool", [])
+                            others_chosen = chosen_now - ({dd.value} if dd.value else set())
+                            dd.options = [ft.DropdownOption(key=v, text=v) for v in pool if v not in others_chosen]
+                        for dd in uv_feat_prof_dds:
+                            try:
+                                dd.update()
+                            except RuntimeError:
+                                pass
+
+                    def _on_uv_feat_prof_select(e: Any) -> None:
+                        self._review_umano_variant_feat_prof_values = [
+                            dd.value or "" for dd in uv_feat_prof_dds
+                        ]
+                        _refresh_uv_feat_prof_options()
+
+                    _uv_fp_labels = {
+                        "skill": "Abilità", "tool": "Strumento", "weapon": "Arma",
+                        "language": "Lingua", "skill_or_tool": "Abilità o Strumento",
+                    }
+                    _uv_fd_grants = (_loader.get_feat(self._review_umano_variant_feat) or {}).get(
+                        "proficiency_grants", []
+                    ) or []
+                    _uv_fixed_labels: list[str] = []
+                    _uv_prev_values = list(self._review_umano_variant_feat_prof_values)
+                    _uv_val_idx = 0
+                    for _grant in _uv_fd_grants:
+                        if _grant.get("type") == "fixed":
+                            _uv_fixed_labels.append(_grant.get("name", ""))
+                            continue
+                        if _grant.get("type") != "choice":
+                            continue
+                        _ptype = _grant.get("proficiency_type", "")
+                        _count = int(_grant.get("count", 0) or 0)
+                        _pool = _uv_feat_prof_pool(_ptype)
+                        _label = _uv_fp_labels.get(_ptype, "Competenza")
+                        for _i in range(_count):
+                            _preset = _uv_prev_values[_uv_val_idx] if _uv_val_idx < len(_uv_prev_values) else ""
+                            _uv_val_idx += 1
+                            if _preset not in _pool:
+                                _preset = ""
+                            dd_fp = ft.Dropdown(
+                                label=f"{_label} {_i + 1}/{_count}",
+                                value=_preset or None,
+                                options=[ft.DropdownOption(key=v, text=v) for v in _pool],
+                                on_select=_on_uv_feat_prof_select,
+                                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                                expand=True,
+                            )
+                            setattr(dd_fp, "_prof_pool", _pool)
+                            uv_feat_prof_dds.append(dd_fp)
+                            uv_feat_prof_col.controls.append(dd_fp)
+                    self._review_umano_variant_feat_prof_values = [dd.value or "" for dd in uv_feat_prof_dds]
+                    if uv_feat_prof_dds:
+                        _refresh_uv_feat_prof_options()
+                    if _uv_fixed_labels:
+                        uv_feat_prof_fixed_text.value = "Competenza automatica: " + ", ".join(_uv_fixed_labels)
+                        race_extras_col.controls.append(uv_feat_prof_fixed_text)
+                    if uv_feat_prof_dds:
+                        race_extras_col.controls.append(uv_feat_prof_col)
                 elif not self._review_umano_variant:
                     self._review_umano_variant_stats = []
                     self._review_umano_variant_skill = ""
                     self._review_umano_variant_feat = ""
                     self._review_umano_variant_feat_bonus_stat = ""
+                    self._review_umano_variant_feat_prof_values = []
             else:
                 self._review_umano_variant = False
                 self._review_umano_variant_stats = []
                 self._review_umano_variant_skill = ""
                 self._review_umano_variant_feat = ""
                 self._review_umano_variant_feat_bonus_stat = ""
+                self._review_umano_variant_feat_prof_values = []
 
             # --- Lingua/e aggiuntive a scelta libera concesse dalla razza
             # (Umano: 1; Mezzelfo: 1, "terza lingua" oltre a Comune+Elfico) ---
@@ -2147,10 +2253,10 @@ class WizardView(ft.Column):
         # giorno dal pool completo, il Mago parte con un libro degli
         # incantesimi (meccanica separata, non affrontata qui).
         spells_init_col = ft.Column([], spacing=10, visible=False)
-        cantrip_dds: list[ft.Dropdown] = []
-        spell_dds: list[ft.Dropdown] = []
-        prepared_dds: list[ft.Dropdown] = []
-        spellbook_dds: list[ft.Dropdown] = []
+        cantrip_dds: list[CardPicker] = []
+        spell_dds: list[CardPicker] = []
+        prepared_dds: list[CardPicker] = []
+        spellbook_dds: list[CardPicker] = []
 
         def _rebuild_spells_init_col():
             spells_init_col.controls.clear()
@@ -2194,12 +2300,6 @@ class WizardView(ft.Column):
                 if s.get("name") not in {b.get("name") for b in _spell_lv1_base}
             ]
             spell_names   = sorted(s["name"] for s in _spell_lv1_pool)
-            # Descrizione completa per l'icona ⓘ accanto ai dropdown sotto
-            # (2026-07-16, richiesta Davide: vedere la descrizione prima di
-            # scegliere) — stesso pool di dati già letto sopra, solo con i
-            # dict completi invece dei soli nomi.
-            describe_cantrip = make_spell_describe(_loader.get_spells_by_level(self._review_class, 0))
-            describe_spell = make_spell_describe(_spell_lv1_pool)
 
             # Il trucchetto scelto come tratto razziale (Alto Elfo, sempre
             # dalla lista Mago) va escluso dal pool di classe A PRESCINDERE
@@ -2212,6 +2312,10 @@ class WizardView(ft.Column):
             # tramite bonus razziale, ma devono essere trucchetti diversi").
             elf_reserved = {self._review_elf_cantrip} if self._review_elf_cantrip else set()
             cantrip_pool = [c for c in cantrip_names if c not in elf_reserved]
+            # Lookup nome->dict per costruire le opzioni CardPicker (con
+            # descrizione completa) a partire dai soli nomi già filtrati sopra.
+            _cantrip_by_name = {s["name"]: s for s in _loader.get_spells_by_level(self._review_class, 0)}
+            _spell_lv1_by_name = {s["name"]: s for s in _spell_lv1_pool}
 
             self._review_cantrips = [c for c in self._review_cantrips if c in cantrip_pool][:n_cantrips]
             while len(self._review_cantrips) < n_cantrips and len(self._review_cantrips) < len(cantrip_pool):
@@ -2270,7 +2374,9 @@ class WizardView(ft.Column):
                 for i, dd in enumerate(cantrip_dds):
                     others = {c for j, c in enumerate(self._review_cantrips) if j != i and c}
                     available = [c for c in cantrip_pool if c not in others]
-                    dd.options = [ft.DropdownOption(key=c, text=c) for c in available]
+                    dd.options = spell_card_options(
+                        [_cantrip_by_name[c] for c in available if c in _cantrip_by_name]
+                    )
                     current = self._review_cantrips[i] if i < len(self._review_cantrips) else ""
                     if current not in available:
                         current = available[0] if available else ""
@@ -2287,7 +2393,9 @@ class WizardView(ft.Column):
                 for i, dd in enumerate(spell_dds):
                     others = {s for j, s in enumerate(self._review_spells_lv1) if j != i and s}
                     available = [s for s in spell_names if s not in others]
-                    dd.options = [ft.DropdownOption(key=s, text=s) for s in available]
+                    dd.options = spell_card_options(
+                        [_spell_lv1_by_name[s] for s in available if s in _spell_lv1_by_name]
+                    )
                     current = self._review_spells_lv1[i] if i < len(self._review_spells_lv1) else ""
                     if current not in available:
                         current = available[0] if available else ""
@@ -2316,7 +2424,9 @@ class WizardView(ft.Column):
                 for i, dd in enumerate(prepared_dds):
                     others = {s for j, s in enumerate(self._review_prepared_spells) if j != i and s}
                     available = [s for s in spell_names if s not in others]
-                    dd.options = [ft.DropdownOption(key=s, text=s) for s in available]
+                    dd.options = spell_card_options(
+                        [_spell_lv1_by_name[s] for s in available if s in _spell_lv1_by_name]
+                    )
                     current = self._review_prepared_spells[i] if i < len(self._review_prepared_spells) else ""
                     if current not in available:
                         current = available[0] if available else ""
@@ -2339,7 +2449,9 @@ class WizardView(ft.Column):
                 for i, dd in enumerate(spellbook_dds):
                     others = {s for j, s in enumerate(self._review_spellbook_spells) if j != i and s}
                     available = [s for s in spell_names if s not in others]
-                    dd.options = [ft.DropdownOption(key=s, text=s) for s in available]
+                    dd.options = spell_card_options(
+                        [_spell_lv1_by_name[s] for s in available if s in _spell_lv1_by_name]
+                    )
                     current = self._review_spellbook_spells[i] if i < len(self._review_spellbook_spells) else ""
                     if current not in available:
                         current = available[0] if available else ""
@@ -2365,20 +2477,17 @@ class WizardView(ft.Column):
                 )
                 for i in range(n_cantrips):
                     current = self._review_cantrips[i] if i < len(self._review_cantrips) else ""
-                    dd = ft.Dropdown(
-                        label=f"Trucchetto {i + 1}",
+                    dd = CardPicker(
+                        options=spell_card_options(
+                            [_cantrip_by_name[c] for c in cantrip_pool if c in _cantrip_by_name]
+                        ),
                         value=current if current in cantrip_pool else (cantrip_pool[0] if cantrip_pool else None),
-                        options=[ft.DropdownOption(key=c, text=c) for c in cantrip_pool],
                         on_select=lambda e, idx=i: _set_cantrip(idx, e.control.value or ""),
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
-                        expand=True,
+                        height=220,
                     )
                     cantrip_dds.append(dd)
-                    spells_init_col.controls.append(
-                        dropdown_with_info(lambda: self.page, dd, describe_cantrip)
-                    )
+                    spells_init_col.controls.append(muted_text(f"Trucchetto {i + 1}", size=11))
+                    spells_init_col.controls.append(dd.control)
                 _refresh_cantrip_options()
 
             if n_spells > 0 and spell_names:
@@ -2389,20 +2498,17 @@ class WizardView(ft.Column):
                 )
                 for i in range(n_spells):
                     current = self._review_spells_lv1[i] if i < len(self._review_spells_lv1) else ""
-                    dd = ft.Dropdown(
-                        label=f"Incantesimo {i + 1}",
+                    dd = CardPicker(
+                        options=spell_card_options(
+                            [_spell_lv1_by_name[s] for s in spell_names if s in _spell_lv1_by_name]
+                        ),
                         value=current if current in spell_names else (spell_names[0] if spell_names else None),
-                        options=[ft.DropdownOption(key=s, text=s) for s in spell_names],
                         on_select=lambda e, idx=i: _set_spell(idx, e.control.value or ""),
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
-                        expand=True,
+                        height=260,
                     )
                     spell_dds.append(dd)
-                    spells_init_col.controls.append(
-                        dropdown_with_info(lambda: self.page, dd, describe_spell)
-                    )
+                    spells_init_col.controls.append(muted_text(f"Incantesimo {i + 1}", size=11))
+                    spells_init_col.controls.append(dd.control)
                 _refresh_spell_options()
 
             if n_prepared > 0 and spell_names:
@@ -2420,20 +2526,17 @@ class WizardView(ft.Column):
                 )
                 for i in range(n_prepared):
                     current = self._review_prepared_spells[i] if i < len(self._review_prepared_spells) else ""
-                    dd = ft.Dropdown(
-                        label=f"Incantesimo preparato {i + 1}",
+                    dd = CardPicker(
+                        options=spell_card_options(
+                            [_spell_lv1_by_name[s] for s in spell_names if s in _spell_lv1_by_name]
+                        ),
                         value=current if current in spell_names else (spell_names[0] if spell_names else None),
-                        options=[ft.DropdownOption(key=s, text=s) for s in spell_names],
                         on_select=lambda e, idx=i: _set_prepared(idx, e.control.value or ""),
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
-                        expand=True,
+                        height=260,
                     )
                     prepared_dds.append(dd)
-                    spells_init_col.controls.append(
-                        dropdown_with_info(lambda: self.page, dd, describe_spell)
-                    )
+                    spells_init_col.controls.append(muted_text(f"Incantesimo preparato {i + 1}", size=11))
+                    spells_init_col.controls.append(dd.control)
                 _refresh_prepared_options()
 
             if n_spellbook > 0 and spell_names:
@@ -2453,20 +2556,17 @@ class WizardView(ft.Column):
                 )
                 for i in range(n_spellbook):
                     current = self._review_spellbook_spells[i] if i < len(self._review_spellbook_spells) else ""
-                    dd = ft.Dropdown(
-                        label=f"Incantesimo del libro {i + 1}",
+                    dd = CardPicker(
+                        options=spell_card_options(
+                            [_spell_lv1_by_name[s] for s in spell_names if s in _spell_lv1_by_name]
+                        ),
                         value=current if current in spell_names else (spell_names[0] if spell_names else None),
-                        options=[ft.DropdownOption(key=s, text=s) for s in spell_names],
                         on_select=lambda e, idx=i: _set_spellbook(idx, e.control.value or ""),
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
-                        expand=True,
+                        height=260,
                     )
                     spellbook_dds.append(dd)
-                    spells_init_col.controls.append(
-                        dropdown_with_info(lambda: self.page, dd, describe_spell)
-                    )
+                    spells_init_col.controls.append(muted_text(f"Incantesimo del libro {i + 1}", size=11))
+                    spells_init_col.controls.append(dd.control)
                 _refresh_spellbook_options()
 
             spells_init_col.visible = True
@@ -2526,6 +2626,7 @@ class WizardView(ft.Column):
             self._review_umano_variant_skill = ""
             self._review_umano_variant_feat = ""
             self._review_umano_variant_feat_bonus_stat = ""
+            self._review_umano_variant_feat_prof_values = []
             _rebuild_subrace_col()
             _rebuild_race_extras_col()
             _rebuild_spells_init_col()
@@ -2673,6 +2774,14 @@ class WizardView(ft.Column):
                 _ab_u = (_fd_u.get("ability_bonus") if _fd_u else None) or {}
                 if _ab_u.get("choose_one") and not self._review_umano_variant_feat_bonus_stat:
                     return "Variante Umana: scegli la caratteristica da aumentare per il talento."
+                _uv_fp_grants = (_fd_u or {}).get("proficiency_grants", []) or []
+                _uv_fp_total = sum(
+                    int(g.get("count", 0) or 0) for g in _uv_fp_grants if g.get("type") == "choice"
+                )
+                if _uv_fp_total > 0:
+                    _uv_fp_filled = [v for v in self._review_umano_variant_feat_prof_values if v]
+                    if len(_uv_fp_filled) != _uv_fp_total or len(set(_uv_fp_filled)) != len(_uv_fp_filled):
+                        return "Variante Umana: completa la scelta delle competenze concesse dal talento (nessun duplicato ammesso)."
 
             # Competenze bonus di sottoclasse a scelta (task #20, 2026-07-16)
             _sc_bonus_entries = _loader.get_subclass_bonus_proficiencies(self._review_class, self._review_subclass)
@@ -3270,6 +3379,17 @@ class WizardView(ft.Column):
                         error_text.visible = True
                         error_text.update()
                         return
+                    _uv_fp_grants2 = (_fd_u2 or {}).get("proficiency_grants", []) or []
+                    _uv_fp_total2 = sum(
+                        int(g.get("count", 0) or 0) for g in _uv_fp_grants2 if g.get("type") == "choice"
+                    )
+                    if _uv_fp_total2 > 0:
+                        _uv_fp_filled2 = [v for v in self._review_umano_variant_feat_prof_values if v]
+                        if len(_uv_fp_filled2) != _uv_fp_total2 or len(set(_uv_fp_filled2)) != len(_uv_fp_filled2):
+                            error_text.value = "Variante Umana: completa la scelta delle competenze concesse dal talento (sezione Revisione)."
+                            error_text.visible = True
+                            error_text.update()
+                            return
 
                 # Validazione competenze bonus di sottoclasse (task #20, 2026-07-16,
                 # difesa in profondità — stesso controllo già fatto dal pulsante
@@ -3354,6 +3474,7 @@ class WizardView(ft.Column):
                         _ob_save = (_fd_save.get("other_bonuses") if _fd_save else None) or {}
                         _applied_ability: dict[str, int] = {}
                         _applied_other: dict[str, int] = {}
+                        _grant_save_key_uv = ""  # per grants_save_proficiency (Resiliente)
                         if _ab_save:
                             if _ab_save.get("choose_one"):
                                 if self._review_umano_variant_feat_bonus_stat:
@@ -3361,12 +3482,14 @@ class WizardView(ft.Column):
                                     _cur_f = getattr(char, f"{_stat_f}_score", 10)
                                     setattr(char, f"{_stat_f}_score", min(20, _cur_f + 1))
                                     _applied_ability[_stat_f] = 1
+                                    _grant_save_key_uv = _stat_f
                             else:
                                 for _stat_f, _val_f in _ab_save.items():
                                     if _stat_f in ABILITY_KEYS and isinstance(_val_f, int):
                                         _cur_f = getattr(char, f"{_stat_f}_score", 10)
                                         setattr(char, f"{_stat_f}_score", min(20, _cur_f + _val_f))
                                         _applied_ability[_stat_f] = _val_f
+                                        _grant_save_key_uv = _stat_f
                         if _ob_save:
                             if "initiative" in _ob_save:
                                 char.initiative_bonus = (char.initiative_bonus or 0) + _ob_save["initiative"]
@@ -3374,17 +3497,40 @@ class WizardView(ft.Column):
                             if "speed" in _ob_save:
                                 char.speed = (char.speed or 9) + _ob_save["speed"]
                                 _applied_other["speed"] = _ob_save["speed"]
+
+                        # Competenze concesse dal talento (proficiency_grants)
+                        # + eventuale competenza nel tiro salvezza (Resiliente)
+                        if not _ab_save.get("grants_save_proficiency"):
+                            _grant_save_key_uv = ""
+                        _granted_profs_uv = character_repo.apply_feat_proficiency_grants(
+                            char.id, self._review_umano_variant_feat,
+                            self._review_umano_variant_feat_prof_values, _grant_save_key_uv,
+                        )
+
                         _bonus_data_save: dict = {}
                         if _applied_ability:
                             _bonus_data_save["ability"] = _applied_ability
                         if _applied_other:
                             _bonus_data_save["other"] = _applied_other
+                        if _granted_profs_uv:
+                            _bonus_data_save["granted_proficiencies"] = _granted_profs_uv
                         import json as _json_uv
                         character_repo._save_single_proficiency(
                             char.id, "feat", self._review_umano_variant_feat,
                             bonus_data=_json_uv.dumps(_bonus_data_save) if _bonus_data_save else None,
                             level_obtained=1,
                         )
+
+                        # Bonus PF permanente per-livello (es. Robusto: 2×livello,
+                        # a Lv.1 = 2) — stesso principio "ricalcola il totale"
+                        # già usato per il bonus di sottoclasse più sopra.
+                        _hp_feat_bonus_uv = get_feats_permanent_hp_bonus(
+                            [self._review_umano_variant_feat], char.level or 1
+                        )
+                        if _hp_feat_bonus_uv:
+                            char.hp_max += _hp_feat_bonus_uv
+                            char.hp_current = char.hp_max
+
                         # Il talento può aver cambiato caratteristiche/PF —
                         # persiste le eventuali modifiche fatte sopra.
                         character_repo.update(char)
@@ -3542,6 +3688,11 @@ class WizardView(ft.Column):
                 _sc_fixed_save, _sc_choices_save = character_repo.classify_bonus_proficiency_entries(_sc_bonus_entries_save)
                 _sc_resolved_save = list(_sc_fixed_save) + [c for c in self._review_subclass_bonus_choices if c]
                 character_repo.apply_subclass_bonus_proficiencies(char.id, _sc_resolved_save)
+
+                # Competenze base di classe (armor_proficiencies/weapon_proficiencies
+                # di classes/*.json — livello classe, non sottoclasse). Gap segnalato
+                # in CLAUDE.md, mai applicate finora da nessun percorso di creazione.
+                character_repo.apply_class_base_proficiencies(char.id, char.class_name)
 
                 def _save_weapon_by_name(character_id: str, wname: str) -> None:
                     """

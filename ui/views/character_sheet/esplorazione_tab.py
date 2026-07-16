@@ -7,6 +7,9 @@ Struttura (ListView scrollabile):
   - Velocità             — base + nuoto / scalata / volo (se presenti)
   - Lingue               — dalla scheda proficiencies (type="language"), CRUD
   - Strumenti            — dalla scheda proficiencies (type="tool"), CRUD
+  - Competenze Armatura e Armi — sola lettura, da armor_proficiencies/
+                        weapon_proficiencies di classe (type="armor"/"weapon"),
+                        applicate automaticamente, rimovibili per house rule
   - Tiri Salvezza        — griglia compatta 6 valori con indicatore competenza
   - Abilità              — griglia compatta 18 abilità con modificatore calcolato
 """
@@ -45,6 +48,13 @@ class EsplorazioneTab(ft.ListView):
         self.character = character
         self._on_refresh = on_refresh
         self._page: ft.Page | None = None
+        # Competenze base di classe (armor_proficiencies/weapon_proficiencies) —
+        # self-healing ad ogni apertura tab, stesso principio già usato per
+        # sync_borrowed_spellcasting_ability/init_class_resources altrove nel
+        # progetto: backfilla i personaggi creati prima di questo fix
+        # (2026-07-16), idempotente (dedup per proficiency_type+name).
+        if character.class_name:
+            character_repo.apply_class_base_proficiencies(character.id, character.class_name)
         self._profs: list[CharacterProficiency] = character_repo.get_proficiencies(character.id)
         # Abilità Speciali custom di esplorazione (2026-07-16, richiesta
         # Davide: abilità concesse dal master o annotazioni aggiuntive —
@@ -75,9 +85,28 @@ class EsplorazioneTab(ft.ListView):
             elif p.proficiency_type in ("save", "saving_throw"):
                 self._save_profs.add(p.name)
 
+        # Bonus passivi da talenti (feats.json -> "passive_bonuses", es.
+        # Osservatore: +5 Percezione Passiva e Indagare Passivo) — sommati
+        # su TUTTI i talenti posseduti che hanno questo campo (dato-driven,
+        # nessun nome di talento hardcoded), stesso principio già usato per
+        # get_feats_permanent_hp_bonus(). Mai persistiti: ricalcolati sempre
+        # a display, stesso pattern di get_effective_speed().
+        self._feat_passive_perception_bonus = 0
+        self._feat_passive_investigation_bonus = 0
+        for p in self._profs:
+            if p.proficiency_type != "feat":
+                continue
+            fd = game_data.get_feat(p.name)
+            if not fd:
+                continue
+            pbo = fd.get("passive_bonuses", {}) or {}
+            self._feat_passive_perception_bonus += int(pbo.get("perception", 0) or 0)
+            self._feat_passive_investigation_bonus += int(pbo.get("investigation", 0) or 0)
+
         # IMPORTANTE: modifica in-place — NON riassegnare self.controls
         self.controls.clear()
         self.controls.append(self._section_percezione(c, pb))
+        self.controls.append(self._section_indagare_passiva(c, pb))
         self.controls.append(section_header("Sensi e Velocità"))
         self.controls.append(self._section_sensi(c))
         self.controls.append(self._section_lingue_header())
@@ -103,7 +132,8 @@ class EsplorazioneTab(ft.ListView):
         is_expert = self._skill_profs.get("Percezione", False)
 
         bonus = pb * (2 if is_expert else 1) if has_perc else 0
-        calculated = 10 + wis_mod + bonus
+        feat_bonus = self._feat_passive_perception_bonus
+        calculated = 10 + wis_mod + bonus + feat_bonus
         override = c.passive_perception_override or 0
         passive = override if override > 0 else calculated
 
@@ -126,6 +156,7 @@ class EsplorazioneTab(ft.ListView):
             else (
                 f"10 + {wis_mod:+d} SAG"
                 + (f" + {bonus} comp." if bonus else "")
+                + (f" + {feat_bonus} talento" if feat_bonus else "")
                 + (f"  {indicator}" if indicator else "")
             )
         )
@@ -233,6 +264,69 @@ class EsplorazioneTab(ft.ListView):
             ],
         )
         page.show_dialog(dlg)
+
+    def _section_indagare_passiva(self, c: Character, pb: int) -> ft.Container:
+        """
+        Indagare Passivo (10 + mod INT + eventuale competenza + bonus da
+        talenti, es. Osservatore: +5) — sola lettura, nessun override
+        manuale (a differenza della Percezione Passiva): aggiunta insieme al
+        fix del talento Osservatore (2026-07-16), che è il primo e unico
+        caso PHB in cui questo valore serve davvero in questa app. Se in
+        futuro servisse un override anche qui, andrebbe aggiunta una nuova
+        colonna dedicata (stesso pattern di passive_perception_override).
+        """
+        int_mod = get_modifier(c.int_score)
+        has_ind = "Indagare" in self._skill_profs
+        is_expert = self._skill_profs.get("Indagare", False)
+
+        bonus = pb * (2 if is_expert else 1) if has_ind else 0
+        feat_bonus = self._feat_passive_investigation_bonus
+        calculated = 10 + int_mod + bonus + feat_bonus
+
+        indicator = ""
+        if is_expert:
+            indicator = "★ maestria"
+        elif has_ind:
+            indicator = "● competente"
+
+        detail = (
+            f"10 + {int_mod:+d} INT"
+            + (f" + {bonus} comp." if bonus else "")
+            + (f" + {feat_bonus} talento" if feat_bonus else "")
+            + (f"  {indicator}" if indicator else "")
+        )
+
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Column(
+                        [
+                            label_text("Indagare Passivo", 9),
+                            ft.Text(
+                                str(calculated),
+                                size=30,
+                                weight=ft.FontWeight.BOLD,
+                                color=COLOR_TEXT_PRIMARY,
+                                font_family=FONT_MONO,
+                            ),
+                            muted_text(detail, size=11, text_align=ft.TextAlign.CENTER),
+                        ],
+                        spacing=2,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
+            bgcolor=COLOR_BG_CARD,
+            padding=ft.Padding.symmetric(horizontal=16, vertical=12),
+            border=ft.Border(
+                top=ft.BorderSide(2, COLOR_BORDER),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
 
     # ------------------------------------------------------------------
     # Sensi e Velocità
@@ -889,7 +983,8 @@ class EsplorazioneTab(ft.ListView):
         if page is None:
             return
 
-        tipo = "lingua" if prof.proficiency_type == "language" else "strumento"
+        _TIPO_LABELS = {"language": "lingua", "tool": "strumento", "armor": "competenza", "weapon": "competenza"}
+        tipo = _TIPO_LABELS.get(prof.proficiency_type, "strumento")
 
         def _confirm(e):
             try:
@@ -1029,6 +1124,8 @@ class EsplorazioneTab(ft.ListView):
         refreshed = character_repo.get_by_id(self.character.id)
         if refreshed:
             self.character = refreshed
+        if self.character.class_name:
+            character_repo.apply_class_base_proficiencies(self.character.id, self.character.class_name)
         self._profs = character_repo.get_proficiencies(self.character.id)
         self._custom_abilities = character_repo.get_custom_abilities(self.character.id, "esplorazione")
         self._build()  # già chiama controls.clear() internamente

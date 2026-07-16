@@ -69,6 +69,7 @@ def _row_to_character(row) -> Character:
         max_prepared_spells_override=d.get("max_prepared_spells_override", 0) or 0,
         passive_perception_override=d.get("passive_perception_override", 0) or 0,
         carry_capacity_override=d.get("carry_capacity_override", 0) or 0,
+        exhaustion_level=d.get("exhaustion_level", 0) or 0,
         dragon_ancestry=d.get("dragon_ancestry", "") or "",
         fighting_style=d.get("fighting_style", "") or "",
         totem_animal=d.get("totem_animal", "") or "",
@@ -148,6 +149,7 @@ def create(character: Character) -> bool:
                 dragon_ancestry, fighting_style, totem_animal, land_terrain,
                 pact_boon, initiative_bonus, max_prepared_spells_override,
                 passive_perception_override, carry_capacity_override,
+                exhaustion_level,
                 age, height, weight, eyes, skin, hair,
                 personality_traits, ideals, bonds, flaws,
                 backstory, allies_organizations, additional_traits, appearance_notes,
@@ -166,6 +168,7 @@ def create(character: Character) -> bool:
                 :dragon_ancestry, :fighting_style, :totem_animal, :land_terrain,
                 :pact_boon, :initiative_bonus, :max_prepared_spells_override,
                 :passive_perception_override, :carry_capacity_override,
+                :exhaustion_level,
                 :age, :height, :weight, :eyes, :skin, :hair,
                 :personality_traits, :ideals, :bonds, :flaws,
                 :backstory, :allies_organizations, :additional_traits, :appearance_notes,
@@ -234,6 +237,7 @@ def create(character: Character) -> bool:
             "max_prepared_spells_override": character.max_prepared_spells_override,
             "passive_perception_override": character.passive_perception_override,
             "carry_capacity_override": character.carry_capacity_override,
+            "exhaustion_level": character.exhaustion_level,
             "created_at": character.created_at,
             "updated_at": character.updated_at,
         })
@@ -311,6 +315,7 @@ def update(character: Character) -> bool:
                 max_prepared_spells_override=:max_prepared_spells_override,
                 passive_perception_override=:passive_perception_override,
                 carry_capacity_override=:carry_capacity_override,
+                exhaustion_level=:exhaustion_level,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -376,6 +381,7 @@ def update(character: Character) -> bool:
             "max_prepared_spells_override": character.max_prepared_spells_override,
             "passive_perception_override": character.passive_perception_override,
             "carry_capacity_override": character.carry_capacity_override,
+            "exhaustion_level": character.exhaustion_level,
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -500,6 +506,14 @@ def _classify_bonus_proficiency_type(entry_name: str) -> str:
         return "weapon"
     if entry_name in SKILLS:
         return "skill"
+    # Nome di arma specifica (es. "Stocco", "Bastone Ferrato") invece di una
+    # categoria — usato da armor_proficiencies/weapon_proficiencies a
+    # livello di CLASSE BASE (es. mago.json: Pugnale/Dardo/Fionda/Bastone
+    # Ferrato/Balestra Leggera), mai da bonus_proficiencies di sottoclasse
+    # finora. Verificato che tutti i nomi usati in questo campo nei 12 file
+    # classe risolvono esattamente in equipment/weapons.json (2026-07-16).
+    if game_data.get_weapon(entry_name):
+        return "weapon"
     return "tool"
 
 
@@ -546,6 +560,191 @@ def apply_subclass_bonus_proficiencies(character_id: str, resolved_entries: list
         existing.add((ptype, entry_name))
 
 
+def apply_class_base_proficiencies(character_id: str, class_name: str) -> None:
+    """
+    Applica le competenze di armatura/arma della CLASSE BASE
+    (`armor_proficiencies`/`weapon_proficiencies` in classes/*.json) —
+    gap segnalato in CLAUDE.md ("Competenze armatura/armi base-classe mai
+    applicate"): questi due campi esistono in tutti e 12 i file classe fin
+    dalla prima trascrizione JSON, ma nessun codice li aveva mai letti né
+    salvati come `character_proficiencies` — non vanno confusi con
+    `bonus_proficiencies` di SOTTOCLASSE (già applicato da
+    apply_subclass_bonus_proficiencies(), es. armatura pesante dal Dominio
+    della Vita del Chierico), che è un campo diverso a un livello diverso
+    del JSON.
+
+    Riusa la stessa infrastruttura già scritta per le sottoclassi
+    (classify_bonus_proficiency_entries per separare eventuali entry
+    "choice" da quelle fisse, apply_subclass_bonus_proficiencies per il
+    salvataggio deduplicato) invece di reimplementare la stessa logica —
+    verificato che nei 12 file classe attuali armor_proficiencies/
+    weapon_proficiencies sono SEMPRE liste piatte di stringhe (nessuna
+    entry "choice" a questo livello, a differenza di tool_proficiencies
+    che la usa già ed è gestito a parte da _class_tool_choices() nella UI
+    di creazione) — se in futuro un file classe ne introducesse una,
+    viene ignorata con un warning invece di far fallire la creazione del
+    personaggio su un dato imprevisto.
+
+    Idempotente (via apply_subclass_bonus_proficiencies): sicura da
+    richiamare anche come self-healing ad ogni apertura di scheda, per
+    backfillare i personaggi creati prima di questo fix (2026-07-16).
+    """
+    cls_data = game_data.get_class(class_name or "")
+    if not cls_data:
+        return
+    raw_entries = list(cls_data.get("armor_proficiencies", []) or []) + \
+                  list(cls_data.get("weapon_proficiencies", []) or [])
+    fixed, choices = classify_bonus_proficiency_entries(raw_entries)
+    if choices:
+        logger.warning(
+            "apply_class_base_proficiencies: entry 'choice' inattesa in "
+            f"armor/weapon_proficiencies di '{class_name}', ignorata: {choices}"
+        )
+    apply_subclass_bonus_proficiencies(character_id, fixed)
+
+
+def resolve_feat_proficiency_choice_pool(proficiency_type: str) -> list[str]:
+    """
+    Pool di opzioni selezionabili per una entry `{"type":"choice",
+    "proficiency_type": ...}` di `proficiency_grants` in feats.json:
+
+    - "skill"         -> le 18 abilità PHB (config.settings.SKILLS)
+    - "tool"          -> tutti gli strumenti PHB (equipment/tools.json)
+    - "skill_or_tool" -> unione delle due liste sopra (es. Abile — "una
+      qualsiasi combinazione di abilità O strumenti")
+    - "weapon"        -> tutte le armi PHB (equipment/weapons.json,
+      qualunque categoria — "un'arma semplice o un'arma da guerra" del
+      PHB copre già l'intero catalogo)
+    - "language"      -> tutte le lingue PHB (config.settings.LANGUAGES)
+
+    Ritorna lista vuota per un proficiency_type non riconosciuto, mai
+    un'eccezione.
+    """
+    from config.settings import SKILLS, LANGUAGES
+    if proficiency_type == "skill":
+        return list(SKILLS.keys())
+    if proficiency_type == "tool":
+        return game_data.get_all_tool_names()
+    if proficiency_type == "skill_or_tool":
+        return list(SKILLS.keys()) + game_data.get_all_tool_names()
+    if proficiency_type == "weapon":
+        return game_data.get_weapon_names()
+    if proficiency_type == "language":
+        return list(LANGUAGES)
+    return []
+
+
+def apply_feat_proficiency_grants(
+    character_id: str,
+    feat_name: str,
+    choice_values: list[str] | None = None,
+    save_ability_key: str = "",
+) -> list[dict]:
+    """
+    Applica le competenze concesse da un talento (`proficiency_grants` in
+    feats.json) — sia fisse (armor/weapon con nome esplicito, es. Corazze
+    Leggere/Lottatore da Taverna) sia a scelta del giocatore (skill/tool/
+    weapon/language/skill_or_tool: `choice_values` contiene i valori già
+    scelti dalla UI, nello stesso ordine e stesso conteggio complessivo
+    delle entry "choice" del talento).
+
+    Applica anche la competenza nel tiro salvezza se il talento ha
+    `ability_bonus.grants_save_proficiency` (es. Resiliente) —
+    `save_ability_key` è la chiave caratteristica scelta/fissa ("str".."cha"),
+    già risolta dal chiamante.
+
+    Idempotente: non duplica competenze già possedute dal personaggio
+    (stesso controllo (proficiency_type, name) già usato da
+    apply_subclass_bonus_proficiencies()).
+
+    Ritorna la lista delle competenze EFFETTIVAMENTE aggiunte in questa
+    chiamata, come [{"type": proficiency_type, "name": nome}, ...] — da
+    salvare in bonus_data["granted_proficiencies"] del talento, così una
+    futura rimozione (remove_feat_with_bonuses()/undo_level()) sa
+    esattamente quali righe eliminare senza toccare una competenza
+    identica posseduta per un'altra ragione (es. già data dalla classe).
+    """
+    fd = game_data.get_feat(feat_name) or {}
+    grants = fd.get("proficiency_grants", []) or []
+    choice_values = list(choice_values or [])
+
+    try:
+        conn = get_connection()
+        existing = {
+            (row["proficiency_type"], row["name"])
+            for row in conn.execute(
+                "SELECT proficiency_type, name FROM character_proficiencies WHERE character_id=?",
+                (character_id,),
+            ).fetchall()
+        }
+        conn.close()
+    except Exception as e:
+        logger.error(f"Errore lettura competenze esistenti per talento '{feat_name}': {e}")
+        existing = set()
+
+    granted: list[dict] = []
+    choice_idx = 0
+
+    def _add(ptype: str, name: str) -> None:
+        if not name or (ptype, name) in existing:
+            return
+        if _save_single_proficiency(character_id, ptype, name):
+            granted.append({"type": ptype, "name": name})
+            existing.add((ptype, name))
+
+    from config.settings import SKILLS
+
+    for grant in grants:
+        gtype = grant.get("proficiency_type", "")
+        if grant.get("type") == "fixed":
+            _add(gtype, grant.get("name", ""))
+        elif grant.get("type") == "choice":
+            count = int(grant.get("count", 0) or 0)
+            for _ in range(count):
+                if choice_idx >= len(choice_values):
+                    break
+                value = choice_values[choice_idx]
+                choice_idx += 1
+                if not value:
+                    continue
+                ptype = ("skill" if value in SKILLS else "tool") if gtype == "skill_or_tool" else gtype
+                _add(ptype, value)
+
+    if save_ability_key:
+        from config.settings import ABILITY_SCORES, ABILITY_KEYS
+        try:
+            save_name = ABILITY_SCORES[ABILITY_KEYS.index(save_ability_key)]
+        except (ValueError, IndexError):
+            save_name = save_ability_key
+        _add("save", save_name)
+
+    return granted
+
+
+def get_feat_names_at_level(character_id: str, level: int) -> list[str]:
+    """
+    Nomi dei talenti (proficiency_type='feat') acquisiti esattamente al
+    livello indicato (level_obtained == level) — usato per calcolare il
+    delta PF di talenti con hp_bonus_per_level (es. Robusto) quando si
+    rimuove un livello (do_level_down), PRIMA di chiamare undo_level()
+    (che elimina la riga) — stesso pattern già in uso per il bonus PF di
+    classe (get_permanent_class_hp_bonus), calcolato in profilo_tab.py
+    nello scope che racchiude do_level_down, non dentro undo_level stesso.
+    """
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT name FROM character_proficiencies "
+            "WHERE character_id=? AND proficiency_type='feat' AND level_obtained=?",
+            (character_id, level),
+        ).fetchall()
+        conn.close()
+        return [r["name"] for r in rows]
+    except Exception as e:
+        logger.error(f"Errore get_feat_names_at_level({level}) per {character_id}: {e}")
+        return []
+
+
 def undo_level(character_id: str, level_removed: int) -> bool:
     """
     Inverte tutti i bonus (feat e ASI) acquisiti al livello `level_removed`.
@@ -553,7 +752,16 @@ def undo_level(character_id: str, level_removed: int) -> bool:
     Legge le righe con level_obtained == level_removed e proficiency_type in
     ('feat', 'asi_record'), quindi:
     - per ogni riga con bonus_data: applica l'inverso su characters
+    - rimuove le competenze concesse dal talento (bonus_data["granted_proficiencies"],
+      es. Abile/Corazze Leggere/Maestro d'Armi — 2026-07-16)
     - elimina le righe
+
+    Il bonus PF permanente per-livello di eventuali talenti con
+    hp_bonus_per_level (es. Robusto) NON è gestito qui — va calcolato dal
+    chiamante (profilo_tab.py -> do_level_down) PRIMA di questa chiamata,
+    tramite get_feat_names_at_level()+get_feats_permanent_hp_bonus(), stesso
+    identico pattern già in uso per il bonus PF di classe (calcolato nello
+    scope che racchiude do_level_down, non dentro undo_level).
 
     Usato da _on_level_down_click PRIMA di decrementare c.level.
     """
@@ -592,6 +800,17 @@ def undo_level(character_id: str, level_removed: int) -> bool:
                     set_parts.append(f"{col} = MAX({floor}, {col} - ?)")
                     params.append(val)
 
+            # Rimuove le competenze concesse dal talento (proficiency_grants),
+            # es. le 3 abilità/strumenti di Abile o le 4 armi di Maestro d'Armi.
+            for g in stored.get("granted_proficiencies", []) or []:
+                gtype, gname = g.get("type"), g.get("name")
+                if gtype and gname:
+                    conn.execute(
+                        "DELETE FROM character_proficiencies "
+                        "WHERE character_id=? AND proficiency_type=? AND name=?",
+                        (character_id, gtype, gname),
+                    )
+
         if set_parts:
             params.append(character_id)
             conn.execute(
@@ -621,11 +840,23 @@ def remove_feat_with_bonuses(character_id: str, feat_name: str) -> bool:
     registrati in bonus_data al momento del salvataggio.
 
     Struttura bonus_data attesa:
-        {"ability": {"str": 1, "cha": 1}, "other": {"initiative": 5, "speed": 3}}
+        {"ability": {"str": 1, "cha": 1}, "other": {"initiative": 5, "speed": 3},
+         "granted_proficiencies": [{"type": "armor", "name": "leggere"}, ...]}
 
     Chiavi 'other' supportate:
         "initiative" → characters.initiative_bonus
         "speed"      → characters.speed
+
+    Oltre alla ricevuta ability/other/granted_proficiencies (2026-07-16,
+    stesso schema già in uso per i talenti scelti all'ASI), rimuove anche il
+    bonus PF permanente per-livello di talenti con hp_bonus_per_level (es.
+    Robusto: 2×livello) — a differenza di undo_level() (dove questo delta è
+    calcolato dal chiamante in profilo_tab.py, perché lì serve confrontare
+    due LIVELLI diversi), qui il livello non cambia: la funzione legge da
+    sola characters.level/hp_max/hp_current e ricalcola il delta tra "prima"
+    (talento posseduto) e "dopo" (rimosso) allo stesso livello, dato che è
+    l'unico punto che tocca già la tabella characters per la reversione
+    ability/other.
     """
     try:
         conn = get_connection()
@@ -637,6 +868,7 @@ def remove_feat_with_bonuses(character_id: str, feat_name: str) -> bool:
             (character_id, feat_name),
         ).fetchone()
 
+        granted_profs: list[dict] = []
         if row and row["bonus_data"]:
             try:
                 stored = json.loads(row["bonus_data"])
@@ -645,6 +877,7 @@ def remove_feat_with_bonuses(character_id: str, feat_name: str) -> bool:
 
             ability_changes: dict = stored.get("ability", {})
             other_changes: dict  = stored.get("other", {})
+            granted_profs = stored.get("granted_proficiencies", []) or []
 
             if ability_changes or other_changes:
                 # Costruisce le colonne da aggiornare
@@ -672,6 +905,46 @@ def remove_feat_with_bonuses(character_id: str, feat_name: str) -> bool:
                         f"UPDATE characters SET {', '.join(set_parts)} WHERE id=?",
                         params,
                     )
+
+        # Rimuove le competenze concesse dal talento (proficiency_grants)
+        for g in granted_profs:
+            gtype, gname = g.get("type"), g.get("name")
+            if gtype and gname:
+                conn.execute(
+                    "DELETE FROM character_proficiencies "
+                    "WHERE character_id=? AND proficiency_type=? AND name=?",
+                    (character_id, gtype, gname),
+                )
+
+        # Bonus PF permanente per-livello (es. Robusto) — ricalcola il delta
+        # usando i talenti posseduti PRIMA e DOPO la rimozione, allo stesso
+        # livello attuale del personaggio (il livello non cambia qui).
+        char_row = conn.execute(
+            "SELECT level, hp_max, hp_current FROM characters WHERE id=?",
+            (character_id,),
+        ).fetchone()
+        if char_row:
+            lvl = char_row["level"]
+            feats_before = [
+                r["name"] for r in conn.execute(
+                    "SELECT name FROM character_proficiencies "
+                    "WHERE character_id=? AND proficiency_type='feat'",
+                    (character_id,),
+                ).fetchall()
+            ]
+            feats_after = [n for n in feats_before if n != feat_name]
+            from config.settings import get_feats_permanent_hp_bonus
+            hp_delta = (
+                get_feats_permanent_hp_bonus(feats_after, lvl)
+                - get_feats_permanent_hp_bonus(feats_before, lvl)
+            )
+            if hp_delta:
+                new_hp_max = max(1, char_row["hp_max"] + hp_delta)
+                new_hp_current = max(0, min(char_row["hp_current"], new_hp_max))
+                conn.execute(
+                    "UPDATE characters SET hp_max=?, hp_current=? WHERE id=?",
+                    (new_hp_max, new_hp_current, character_id),
+                )
 
         # Elimina il talento
         conn.execute(
@@ -1934,6 +2207,29 @@ def update_carry_capacity_override(character_id: str, value: float) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore update_carry_capacity_override: {e}")
+        return False
+
+
+def update_exhaustion_level(character_id: str, value: int) -> bool:
+    """
+    Salva il livello di Indebolimento (Exhaustion), 0-6, PHB IT — condizione
+    cumulativa (vedi config/settings.py → EXHAUSTION_LEVELS per gli effetti
+    testuali di ciascun livello). Clampato qui, non solo lato UI, per
+    proteggere anche eventuali futuri chiamanti non-UI (stesso principio già
+    applicato altrove nel repository, es. update_death_saves).
+    """
+    value = max(0, min(6, value))
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET exhaustion_level=?, updated_at=? WHERE id=?",
+            (value, datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore update_exhaustion_level: {e}")
         return False
 
 

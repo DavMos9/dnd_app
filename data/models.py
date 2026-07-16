@@ -88,6 +88,15 @@ class Character:
     # Appunti di sessione (testo libero, per note al volo durante il gioco)
     session_notes: str = ""
 
+    # Livello di Indebolimento (Exhaustion), 0-6, condizione cumulativa PHB.
+    # Effetti testuali per livello in config/settings.py → EXHAUSTION_LEVELS.
+    # Nessun effetto meccanico è applicato automaticamente (es. dimezzare la
+    # velocità o gli HP massimi): il giocatore applica a mano leggendo la
+    # sezione dedicata in Combattimento, coerente con l'approccio già usato
+    # per "Abilità di Classe"/"Tratti di Razza" (testo di riferimento, non
+    # enforcement automatico delle regole).
+    exhaustion_level: int = 0
+
     # Scelte di classe/razza che influenzano feature successive
     dragon_ancestry: str = ""       # Stregone Discendenza Draconica: tipo drago (es. "Rosso")
     fighting_style: str = ""        # Guerriero/Paladino/Ranger: stile di combattimento scelto

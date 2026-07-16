@@ -19,13 +19,14 @@ from typing import Any, Callable, cast
 import flet as ft
 import logging
 from config.settings import *
+from data.database import get_connection
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
 from ui.image_library import show_image_library_picker
 from ui.theme import section_header, muted_text, show_error_dialog
 from ui.widgets import (
-    dropdown_with_info, make_spell_describe, format_spell_body,
-    make_feat_describe, make_invocation_describe, make_named_option_describe,
+    CardPicker, spell_card_options, feat_card_options,
+    invocation_card_options, named_option_card_options, format_spell_body,
 )
 from data.game_data.game_data_loader import GameDataLoader
 from core.level_manager import get_level_up_steps, estimate_hp_loss, StepType
@@ -133,6 +134,8 @@ class ProfiloTab(ft.ListView):
         self.controls.append(self._build_storia(c))
         self.controls.append(section_header("Competenze"))
         self.controls.append(self._build_competenze(c, prof_bonus, skill_map, save_map))
+        self.controls.append(section_header("Competenze Armatura e Armi"))
+        self.controls.append(self._section_armi_armature())
         self.controls.append(section_header("Talenti"))
         self.controls.append(self._build_talenti(c))
 
@@ -719,6 +722,113 @@ class ProfiloTab(ft.ListView):
         )
 
     # ------------------------------------------------------------------
+    # Competenze Armatura e Armi — sola lettura (armor_proficiencies/
+    # weapon_proficiencies di classe, applicate automaticamente da
+    # character_repo.apply_class_base_proficiencies() alla creazione/apertura
+    # tab). Spostata qui da EsplorazioneTab il 2026-07-16 (richiesta Davide:
+    # "le competenze non le dobbiamo lasciare in esplorazione ma andrebbero
+    # messe in profilo") — stessa sezione, stesso dato, solo superficie
+    # diversa. Il "+" non c'è di proposito: sono derivate dalla classe, non
+    # scelte del giocatore come Lingue/Strumenti (quelle restano in
+    # Esplorazione) — rimovibili comunque per eventuali house rule.
+    # ------------------------------------------------------------------
+
+    _ARMOR_TOKEN_LABELS: dict[str, str] = {
+        "leggere": "Armature leggere",
+        "medie": "Armature medie",
+        "pesanti": "Armature pesanti",
+        "scudi": "Scudi",
+    }
+    _WEAPON_TOKEN_LABELS: dict[str, str] = {
+        "semplice": "Armi semplici",
+        "semplice_mischia": "Armi semplici da mischia",
+        "guerra": "Armi da guerra",
+        "guerra_mischia": "Armi da guerra da mischia",
+    }
+
+    def _section_armi_armature(self) -> ft.Container:
+        entries = [p for p in self.proficiencies if p.proficiency_type in ("armor", "weapon")]
+
+        if not entries:
+            rows: list[ft.Control] = [muted_text("Nessuna competenza registrata", 12)]
+        else:
+            rows = []
+            for p in sorted(entries, key=lambda x: (x.proficiency_type, x.name)):
+                if p.proficiency_type == "armor":
+                    label = self._ARMOR_TOKEN_LABELS.get(p.name, p.name)
+                    icon = ft.Icons.SHIELD_OUTLINED
+                else:
+                    label = self._WEAPON_TOKEN_LABELS.get(p.name, p.name)
+                    icon = ft.Icons.GAVEL
+                rows.append(
+                    ft.Row(
+                        [
+                            ft.Icon(icon, size=14, color=COLOR_TEXT_MUTED),
+                            ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.IconButton(
+                                icon=ft.Icons.CLOSE,
+                                icon_color=COLOR_TEXT_MUTED,
+                                icon_size=14,
+                                tooltip="Rimuovi",
+                                on_click=lambda e, pp=p: self._on_delete_proficiency(pp),
+                                padding=ft.Padding.all(2),
+                            ),
+                        ],
+                        spacing=6,
+                    )
+                )
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=6),
+            bgcolor=COLOR_BG_CARD,
+            padding=16,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _on_delete_proficiency(self, prof: CharacterProficiency) -> None:
+        page = self._page
+        if page is None:
+            return
+
+        _TIPO_LABELS = {"armor": "competenza", "weapon": "competenza"}
+        tipo = _TIPO_LABELS.get(prof.proficiency_type, "competenza")
+
+        def _confirm(e):
+            try:
+                with get_connection() as conn:
+                    conn.execute(
+                        "DELETE FROM character_proficiencies WHERE id = ?",
+                        (prof.id,),
+                    )
+            except Exception as ex:
+                logger.error("Errore eliminazione competenza: %s", ex)
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"Rimuovi {tipo}"),
+            content=ft.Text(f'Rimuovere "{prof.name}" dalla scheda?'),
+            actions=[
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton(
+                    "Rimuovi",
+                    on_click=_confirm,
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
+                ),
+            ],
+        )
+        page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
     # Talenti scelti
     # ------------------------------------------------------------------
 
@@ -753,10 +863,19 @@ class ProfiloTab(ft.ListView):
                     str(cb.label) for cb in feat_cbs
                     if cb.value and cb.label
                 }
-                # Rimuove i talenti deselezionati (invertendo i bonus registrati)
+                # Rimuove i talenti deselezionati (invertendo ability_bonus/
+                # other_bonuses/proficiency_grants/hp_bonus_per_level già
+                # registrati in bonus_data — remove_feat_with_bonuses() gestisce
+                # anche i talenti senza alcuna ricevuta, in tal caso è un
+                # semplice DELETE senza effetti collaterali)
                 for name in owned_names - selected:
                     character_repo.remove_feat_with_bonuses(c.id, name)
-                # Aggiunge i talenti appena spuntati (senza bonus: house rules, no UI choose_one)
+                # Aggiunge i talenti appena spuntati SENZA applicare alcun
+                # bonus/competenza/scelta (house rules: toggle rapido "hai
+                # questo talento sì/no" per sola annotazione — niente
+                # ability_bonus, niente proficiency_grants a scelta, niente
+                # hp_bonus_per_level; usare l'ASI del level-up o la Variante
+                # Umana per un'acquisizione con bonus applicati correttamente)
                 for name in selected - owned_names:
                     character_repo._save_single_proficiency(c.id, "feat", name)
                 page.pop_dialog()
@@ -1273,7 +1392,6 @@ class ProfiloTab(ft.ListView):
             for k, n in zip(ABILITY_KEYS, ABILITY_SCORES)
         ]
         feat_names = _loader.get_feat_names()
-        feat_options = [ft.DropdownOption(key=f, text=f) for f in feat_names]
 
         asi_type = ft.RadioGroup(
             content=ft.Column([
@@ -1286,17 +1404,17 @@ class ProfiloTab(ft.ListView):
         stat_dd1 = ft.Dropdown(label="Caratteristica", options=stat_options, width=280)
         stat_dd2 = ft.Dropdown(label="Seconda caratteristica (+1)", options=stat_options,
                                width=280, visible=False)
-        feat_dd  = ft.Dropdown(
-            label="Scegli talento",
-            options=feat_options if feat_options else [ft.DropdownOption(key="__none__", text="— nessun talento disponibile —")],
-            width=280,
-            visible=False,
-            bgcolor=COLOR_BG_CARD,
-            color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_BLUE,
+        # Talento all'ASI: CardPicker (lista a schede) invece di Dropdown+ⓘ —
+        # un solo click seleziona il talento e ne mostra subito la
+        # descrizione completa (redesign 2026-07-16, feedback Davide: il
+        # pattern "seleziona poi premi ⓘ" era macchinoso).
+        feat_dd = CardPicker(
+            options=feat_card_options(_loader, feat_names),
+            value=None,
+            height=260,
+            empty_text="— nessun talento disponibile —",
         )
+        feat_dd.visible = False
 
         # Dropdown bonus stat per talenti con choose_one — appare dinamicamente
         feat_bonus_dd = ft.Dropdown(
@@ -1313,38 +1431,91 @@ class ProfiloTab(ft.ListView):
 
         _stat_name_map = dict(zip(ABILITY_KEYS, ABILITY_SCORES))  # es. "str" → "Forza"
 
-        def _make_info_icon(
-            describe: Callable[[str], tuple[str, str] | None], value: str
-        ) -> ft.IconButton:
-            """
-            Icona ⓘ standalone per opzioni non-Dropdown (RadioGroup/Checkbox) —
-            stessa presentazione di `dropdown_with_info()` ma per un singolo
-            valore fisso invece di leggere `dropdown.value` dal vivo (task #24,
-            2026-07-16: Dono del Patto/Metamagia/Suppliche Occulte usano
-            RadioGroup/Checkbox, non Dropdown).
-            """
-            def _on_click(ev: Any) -> None:
-                page = self._page
-                if page is None:
-                    return
-                result = describe(value)
-                if result is None:
-                    return
-                title, body = result
-                page.show_dialog(ft.AlertDialog(
-                    title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
-                    content=ft.Container(
-                        content=ft.Column(
-                            [ft.Text(body, size=13, color=COLOR_TEXT_PRIMARY, selectable=True)],
-                            scroll=ft.ScrollMode.AUTO),
-                        width=360, height=320),
-                    actions=[ft.TextButton("Chiudi", on_click=lambda e2: page.pop_dialog())],
-                    bgcolor=COLOR_BG_CARD,
-                ))
-            return ft.IconButton(
-                ft.Icons.INFO_OUTLINE, icon_size=18, icon_color=COLOR_ACCENT_BLUE,
-                tooltip="Mostra descrizione", on_click=_on_click, padding=ft.Padding.all(2),
-            )
+        # --- Competenze concesse dal talento scelto (proficiency_grants) ---
+        # Talenti come Abile/Corazze Leggere/Maestro d'Armi/Linguista concedono
+        # competenze fisse o a scelta (feats.json -> proficiency_grants,
+        # gap fix 2026-07-16). feat_prof_col ospita N dropdown ricostruiti ad
+        # ogni cambio di talento, con esclusione reciproca tra loro e delle
+        # competenze già possedute — stesso pattern già usato altrove nel
+        # progetto per trucchetti Lv.1/strumenti di classe.
+        feat_prof_dds: list[ft.Dropdown] = []
+        feat_prof_col = ft.Column([], spacing=6, visible=False)
+        feat_prof_fixed_text = ft.Text("", size=12, color=COLOR_TEXT_SECONDARY, visible=False)
+
+        def _feat_prof_owned() -> set:
+            return {(p.proficiency_type, p.name) for p in _all_profs}
+
+        def _feat_prof_pool_excl_owned(ptype: str, owned: set) -> list[str]:
+            pool_full = character_repo.resolve_feat_proficiency_choice_pool(ptype)
+            if ptype == "skill_or_tool":
+                return [v for v in pool_full if (("skill", v) if v in SKILLS else ("tool", v)) not in owned]
+            return [v for v in pool_full if (ptype, v) not in owned]
+
+        def _refresh_feat_prof_options() -> None:
+            chosen_now = {dd.value for dd in feat_prof_dds if dd.value}
+            for dd in feat_prof_dds:
+                pool = getattr(dd, "_prof_pool", [])
+                others_chosen = chosen_now - ({dd.value} if dd.value else set())
+                dd.options = [ft.DropdownOption(key=v, text=v) for v in pool if v not in others_chosen]
+            for dd in feat_prof_dds:
+                try:
+                    dd.update()
+                except RuntimeError:
+                    pass
+
+        def _on_feat_prof_select(ev: Any) -> None:
+            _refresh_feat_prof_options()
+
+        _FEAT_PROF_LABELS = {
+            "skill": "Abilità", "tool": "Strumento", "weapon": "Arma",
+            "language": "Lingua", "skill_or_tool": "Abilità o Strumento",
+        }
+
+        def _rebuild_feat_prof_col() -> None:
+            feat_prof_dds.clear()
+            feat_prof_col.controls.clear()
+            name = feat_dd.value
+            if not name or name == "__none__":
+                feat_prof_col.visible = False
+                feat_prof_fixed_text.visible = False
+                return
+            fd = _loader.get_feat(name) or {}
+            grants = fd.get("proficiency_grants", []) or []
+            owned = _feat_prof_owned()
+            any_choice = False
+            fixed_labels: list[str] = []
+            for grant in grants:
+                if grant.get("type") == "fixed":
+                    fixed_labels.append(grant.get("name", ""))
+                    continue
+                if grant.get("type") != "choice":
+                    continue
+                any_choice = True
+                ptype = grant.get("proficiency_type", "")
+                count = int(grant.get("count", 0) or 0)
+                pool = _feat_prof_pool_excl_owned(ptype, owned)
+                label = _FEAT_PROF_LABELS.get(ptype, "Competenza")
+                for i in range(count):
+                    dd = ft.Dropdown(
+                        label=f"{label} {i + 1}/{count}",
+                        options=[ft.DropdownOption(key=v, text=v) for v in pool],
+                        width=280,
+                        on_select=_on_feat_prof_select,
+                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_BLUE,
+                    )
+                    setattr(dd, "_prof_pool", pool)
+                    feat_prof_dds.append(dd)
+                    feat_prof_col.controls.append(dd)
+            feat_prof_col.visible = any_choice
+            if fixed_labels:
+                feat_prof_fixed_text.value = "Competenza automatica: " + ", ".join(fixed_labels)
+                feat_prof_fixed_text.visible = True
+            else:
+                feat_prof_fixed_text.visible = False
+            if any_choice:
+                _refresh_feat_prof_options()
 
         def on_feat_select(ev: Any) -> None:
             """Mostra feat_bonus_dd se il talento ha choose_one, altrimenti la nasconde."""
@@ -1353,6 +1524,12 @@ class ProfiloTab(ft.ListView):
                 feat_bonus_dd.visible = False
                 try:
                     feat_bonus_dd.update()
+                except RuntimeError:
+                    pass
+                _rebuild_feat_prof_col()
+                try:
+                    feat_prof_col.update()
+                    feat_prof_fixed_text.update()
                 except RuntimeError:
                     pass
                 return
@@ -1372,30 +1549,34 @@ class ProfiloTab(ft.ListView):
                 feat_bonus_dd.update()
             except RuntimeError:
                 pass
+            _rebuild_feat_prof_col()
+            try:
+                feat_prof_col.update()
+                feat_prof_fixed_text.update()
+            except RuntimeError:
+                pass
 
         feat_dd.on_select = on_feat_select
-
-        # Widget ⓘ per la descrizione del talento selezionato (task #24) —
-        # `feat_dd_row` (non `feat_dd` da solo) va nascosto/mostrato insieme,
-        # altrimenti l'icona ⓘ resterebbe visibile anche a dropdown nascosto.
-        feat_dd_row = dropdown_with_info(lambda: self._page, feat_dd, make_feat_describe(_loader))
-        feat_dd_row.visible = False
 
         def on_asi_type_change(ev):
             val = ev.control.value
             stat_dd1.visible = val in ("two_one", "one_one")
             stat_dd2.visible = val == "one_one"
             feat_dd.visible  = val == "feat"
-            feat_dd_row.visible = val == "feat"
-            # nasconde anche la bonus_dd se si cambia modalità
+            # nasconde anche la bonus_dd/competenze concesse se si cambia modalità
             if val != "feat":
                 feat_bonus_dd.visible = False
+                feat_prof_col.visible = False
+                feat_prof_fixed_text.visible = False
+            else:
+                _rebuild_feat_prof_col()
             try:
                 stat_dd1.update()
                 stat_dd2.update()
                 feat_dd.update()
-                feat_dd_row.update()
                 feat_bonus_dd.update()
+                feat_prof_col.update()
+                feat_prof_fixed_text.update()
             except RuntimeError:
                 pass
 
@@ -1420,47 +1601,47 @@ class ProfiloTab(ft.ListView):
         # Lista di riferimenti ai Checkbox di Maestria per raccogliere le scelte
         expertise_cb_groups: list[list[ft.Checkbox]] = []
 
-        # Invocazioni: (count_to_add, list[Checkbox])
-        invocation_cb_groups: list[tuple[int, list[ft.Checkbox]]] = []
+        # Suppliche Occulte: (count_to_add, CardPicker multi-select)
+        invocation_cb_groups: list[tuple[int, CardPicker]] = []
 
-        # Metamagia: (count, list[Checkbox])
-        metamagic_cb_groups: list[tuple[int, list[ft.Checkbox]]] = []
+        # Metamagia: (count, CardPicker multi-select)
+        metamagic_cb_groups: list[tuple[int, CardPicker]] = []
 
         # Patto del Warlock
-        pact_rg_ref: list[ft.RadioGroup] = []
+        pact_rg_ref: list[CardPicker] = []
 
         # Incantesimi conosciuti (classi "know"): [(step_data, [dd, ...]), ...]
-        spell_learn_refs: list[tuple[dict, list[ft.Dropdown]]] = []
+        spell_learn_refs: list[tuple[dict, list[CardPicker]]] = []
 
         # Segreti Magici (qualsiasi classe): [(step_data, [(spell_name, class_name), ...]), ...]
         magical_secrets_refs: list[tuple[dict, list[tuple[str, str]]]] = []
 
         # Sostituzione incantesimo conosciuto (opzionale, classi "know"):
         # [(enable_checkbox, dd_remove, dd_add), ...]
-        spell_swap_refs: list[tuple[ft.Checkbox, ft.Dropdown, ft.Dropdown]] = []
+        spell_swap_refs: list[tuple[ft.Checkbox, CardPicker, CardPicker]] = []
 
-        # Nuovo trucchetto conosciuto (lv.4/10, 6 classi incantatrici): [dd, ...]
-        cantrip_learn_refs: list[ft.Dropdown] = []
+        # Nuovo trucchetto conosciuto (lv.4/10, 6 classi incantatrici): [picker, ...]
+        cantrip_learn_refs: list[CardPicker] = []
 
-        # Arcanum Mistico (Warlock, lv.11/13/15/17): [dd, ...] — un solo
-        # dropdown per level-up, livello incantesimo ESATTO (non "fino a").
-        arcanum_spell_refs: list[ft.Dropdown] = []
+        # Arcanum Mistico (Warlock, lv.11/13/15/17): [picker, ...] — un solo
+        # picker per level-up, livello incantesimo ESATTO (non "fino a").
+        arcanum_spell_refs: list[CardPicker] = []
 
         # Discipline Elementali (Monaco, Via dei Quattro Elementi, lv.6/11/17
         # — crescita successiva alla scelta iniziale di Lv.3, gestita invece
-        # nel blocco SUBCLASS_CHOICE più sotto): [dd, ...]
-        monk_discipline_refs: list[ft.Dropdown] = []
+        # nel blocco SUBCLASS_CHOICE più sotto): [picker, ...]
+        monk_discipline_refs: list[CardPicker] = []
 
         # Mistificatore Arcano (Ladro)/Cavaliere Mistico (Guerriero) — casting
         # "preso in prestito dal Mago". Apprendimento INIZIALE al 3° livello
         # (stesso livello di SUBCLASS_CHOICE, gestito con reattività live sul
         # valore scelto — vedi blocco SUBCLASS_CHOICE più sotto):
-        borrowed_initial_cantrip_refs: list[ft.Dropdown] = []
-        # [(dropdown, origin_unrestricted), ...] — 2 vincolati per scuola +
+        borrowed_initial_cantrip_refs: list[CardPicker] = []
+        # [(picker, origin_unrestricted), ...] — 2 vincolati per scuola +
         # 1 libero (libero da vincolo per lo scambio futuro solo se il 3°
         # livello è tra gli unrestricted_origin_levels della sottoclasse,
         # vedi CLAUDE.md 2026-07-15 — asimmetria reale Ladro/Guerriero)
-        borrowed_initial_spell_refs: list[tuple[ft.Dropdown, bool]] = []
+        borrowed_initial_spell_refs: list[tuple[CardPicker, bool]] = []
         # Container la cui visibilità segue il valore del dropdown sottoclasse
         borrowed_initial_container_ref: list[ft.Container] = []
         borrowed_subclass_name_ref: list[str] = []  # [0] = nome sottoclasse borrowed-caster, se applicabile
@@ -1470,14 +1651,14 @@ class ProfiloTab(ft.ListView):
         # pattern del blocco Mistificatore Arcano/Cavaliere Mistico sopra,
         # gestita con reattività live sul dropdown sottoclasse (vedi blocco
         # SUBCLASS_CHOICE più sotto). Aggiunto 2026-07-16.
-        monk_initial_discipline_refs: list[ft.Dropdown] = []
+        monk_initial_discipline_refs: list[CardPicker] = []
 
         # Crescita dal 4° livello in poi (BORROWED_CANTRIP/BORROWED_SPELL_LEARN):
-        borrowed_cantrip_dd_refs: list[ft.Dropdown] = []
-        # [(dropdown, origin_unrestricted), ...]
-        borrowed_spell_learn_refs: list[tuple[ft.Dropdown, bool]] = []
-        # Sostituzione opzionale: (checkbox, dd_remove, dd_add, restricted_schools)
-        borrowed_spell_swap_refs: list[tuple[ft.Checkbox, ft.Dropdown, ft.Dropdown, list[str]]] = []
+        borrowed_cantrip_dd_refs: list[CardPicker] = []
+        # [(picker, origin_unrestricted), ...]
+        borrowed_spell_learn_refs: list[tuple[CardPicker, bool]] = []
+        # Sostituzione opzionale: (checkbox, picker_remove, picker_add, restricted_schools)
+        borrowed_spell_swap_refs: list[tuple[ft.Checkbox, CardPicker, CardPicker, list[str]]] = []
 
         def _borrowed_eligible_mago_spells(
             max_level: int, restricted_schools: list[str], unrestricted: bool,
@@ -1595,80 +1776,53 @@ class ProfiloTab(ft.ListView):
                         _unrestricted_levels = _bc_data.get("unrestricted_origin_levels", [])
                         _lv3_is_unrestricted = 3 in _unrestricted_levels
 
-                        _bi_cantrip_dds: list[ft.Dropdown] = []
-                        _bi_spell_dds: list[ft.Dropdown] = []
+                        _bi_cantrip_dds: list[CardPicker] = []
+                        _bi_spell_dds: list[CardPicker] = []
+                        _bi_cantrip_spells = [
+                            s for s in _loader.get_spells_by_level("Mago", 0)
+                            if s.get("name") in _cantrip_pool
+                        ]
 
                         def _refresh_borrowed_initial_options(ev: Any = None) -> None:
-                            chosen_cantrips = {dd.value for dd in _bi_cantrip_dds if dd.value}
-                            for dd in _bi_cantrip_dds:
-                                excl = chosen_cantrips - ({dd.value} if dd.value else set())
-                                dd.options = [
-                                    ft.DropdownOption(key=n, text=n)
-                                    for n in _cantrip_pool if n not in excl
-                                ]
-                                try:
-                                    dd.update()
-                                except RuntimeError:
-                                    pass
-                            chosen_spells = {dd.value for dd in _bi_spell_dds if dd.value}
-                            for i, dd in enumerate(_bi_spell_dds):
-                                is_free = (i == len(_bi_spell_dds) - 1)  # ultimo dropdown = pick libero
-                                excl = chosen_spells - ({dd.value} if dd.value else set())
+                            chosen_cantrips = {p.value for p in _bi_cantrip_dds if p.value}
+                            for p in _bi_cantrip_dds:
+                                excl = chosen_cantrips - ({p.value} if p.value else set())
+                                p.options = spell_card_options(
+                                    [s for s in _bi_cantrip_spells if s.get("name") not in excl]
+                                )
+                                p.update()
+                            chosen_spells = {p.value for p in _bi_spell_dds if p.value}
+                            for i, p in enumerate(_bi_spell_dds):
+                                is_free = (i == len(_bi_spell_dds) - 1)  # ultimo picker = pick libero
+                                excl = chosen_spells - ({p.value} if p.value else set())
                                 eligible = _borrowed_eligible_mago_spells(
                                     1, _restricted_schools,
                                     unrestricted=is_free, exclude=excl,
                                 )
-                                dd.options = [
-                                    ft.DropdownOption(key=s["name"], text=s["name"])
-                                    for s in eligible
-                                ]
-                                if dd.value not in {o.key for o in dd.options}:
-                                    dd.value = None
-                                try:
-                                    dd.update()
-                                except RuntimeError:
-                                    pass
+                                p.options = spell_card_options(eligible)
+                                p.update()
 
                         for i in range(_choosable_cantrip_count):
-                            dd = ft.Dropdown(
-                                label=f"Trucchetto {i + 1}/{_choosable_cantrip_count}",
-                                options=[ft.DropdownOption(key=n, text=n) for n in _cantrip_pool],
-                                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                                border_color=COLOR_BORDER,
-                                focused_border_color=COLOR_ACCENT_BLUE,
+                            picker = CardPicker(
+                                options=spell_card_options(_bi_cantrip_spells),
                                 on_select=_refresh_borrowed_initial_options,
-                                expand=True,
+                                height=180,
                             )
-                            _bi_cantrip_dds.append(dd)
-                            borrowed_initial_cantrip_refs.append(dd)
+                            _bi_cantrip_dds.append(picker)
+                            borrowed_initial_cantrip_refs.append(picker)
 
                         _restricted_label = "/".join(_restricted_schools)
                         for i in range(2):
-                            dd = ft.Dropdown(
-                                label=f"Incantesimo {i + 1}/3 ({_restricted_label})",
-                                options=[],
-                                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                                border_color=COLOR_BORDER,
-                                focused_border_color=COLOR_ACCENT_BLUE,
-                                on_select=_refresh_borrowed_initial_options,
-                                expand=True,
+                            picker = CardPicker(
+                                options=[], on_select=_refresh_borrowed_initial_options, height=220,
                             )
-                            _bi_spell_dds.append(dd)
-                            borrowed_initial_spell_refs.append((dd, False))
-                        _dd_free = ft.Dropdown(
-                            label="Incantesimo 3/3 (qualsiasi scuola)",
-                            options=[],
-                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                            border_color=COLOR_BORDER,
-                            focused_border_color=COLOR_ACCENT_BLUE,
-                            on_select=_refresh_borrowed_initial_options,
-                            expand=True,
+                            _bi_spell_dds.append(picker)
+                            borrowed_initial_spell_refs.append((picker, False))
+                        _picker_free = CardPicker(
+                            options=[], on_select=_refresh_borrowed_initial_options, height=220,
                         )
-                        _bi_spell_dds.append(_dd_free)
-                        borrowed_initial_spell_refs.append((_dd_free, _lv3_is_unrestricted))
+                        _bi_spell_dds.append(_picker_free)
+                        borrowed_initial_spell_refs.append((_picker_free, _lv3_is_unrestricted))
                         _refresh_borrowed_initial_options()
 
                         _bi_rows: list[ft.Control] = [
@@ -1684,23 +1838,22 @@ class ProfiloTab(ft.ListView):
                             _bi_rows.append(muted_text(
                                 f"Trucchetto fisso: {_fixed_cantrip} (automatico)", size=11,
                             ))
-                        describe_bi_cantrip = make_spell_describe([
-                            s for s in _loader.get_spells_by_level("Mago", 0)
-                            if s.get("name") in _cantrip_pool
-                        ])
-                        describe_bi_spell = make_spell_describe(_loader.get_spells_by_level("Mago", 1))
-                        _bi_rows += [
-                            dropdown_with_info(lambda: self._page, dd, describe_bi_cantrip)
-                            for dd in _bi_cantrip_dds
-                        ]
+                        for i, p in enumerate(_bi_cantrip_dds):
+                            _bi_rows.append(muted_text(
+                                f"Trucchetto {i + 1}/{_choosable_cantrip_count}", size=11,
+                            ))
+                            _bi_rows.append(p.control)
                         _bi_rows.append(muted_text(
                             "2 incantesimi di 1° livello vincolati per scuola + 1 libero.",
                             size=11,
                         ))
-                        _bi_rows += [
-                            dropdown_with_info(lambda: self._page, dd, describe_bi_spell)
-                            for dd in _bi_spell_dds
-                        ]
+                        for i, p in enumerate(_bi_spell_dds):
+                            _bi_lbl = (
+                                f"Incantesimo {i + 1}/3 ({_restricted_label})" if i < 2
+                                else "Incantesimo 3/3 (qualsiasi scuola)"
+                            )
+                            _bi_rows.append(muted_text(_bi_lbl, size=11))
+                            _bi_rows.append(p.control)
 
                         _bi_container = ft.Container(
                             content=ft.Column(_bi_rows, spacing=8),
@@ -1746,17 +1899,12 @@ class ProfiloTab(ft.ListView):
                              if d.get("level") is None and d.get("name") != _mk3_fixed),
                             key=lambda d: d.get("name", ""),
                         )
-                        mk3_dd = ft.Dropdown(
-                            label="Disciplina Elementale aggiuntiva",
-                            options=[ft.DropdownOption(key=d["name"], text=d["name"])
-                                     for d in _mk3_pool],
-                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                            border_color=COLOR_BORDER,
-                            focused_border_color=COLOR_ACCENT_AMBER,
-                            expand=True,
+                        mk3_dd = CardPicker(
+                            options=named_option_card_options(
+                                [d for d in _mk3_all if d.get("name") in {p["name"] for p in _mk3_pool}]
+                            ),
+                            height=220,
                         )
-                        describe_mk3 = make_named_option_describe(_mk3_all)
                         _mk3_container = ft.Container(
                             content=ft.Column([
                                 ft.Divider(color=COLOR_BORDER),
@@ -1767,7 +1915,7 @@ class ProfiloTab(ft.ListView):
                                             expand=True),
                                 ], spacing=6),
                                 muted_text(f"Disciplina fissa: {_mk3_fixed} (automatica).", size=11),
-                                dropdown_with_info(lambda: self._page, mk3_dd, describe_mk3),
+                                mk3_dd.control,
                             ], spacing=8),
                             visible=(_sc_dd.value == _MK3_SUBCLASS),
                         )
@@ -1806,25 +1954,21 @@ class ProfiloTab(ft.ListView):
                     asi_type,
                     stat_dd1,
                     stat_dd2,
-                    feat_dd_row,
+                    feat_dd.control,
                     feat_bonus_dd,
+                    feat_prof_fixed_text,
+                    feat_prof_col,
                 ]
 
             elif step.step_type == StepType.PACT_CHOICE:
                 if not c.pact_boon:
                     pact_boons = _loader.get_pact_boons()
-                    describe_pact = make_named_option_describe(_loader.get_pact_boon_data())
-                    pact_rg = ft.RadioGroup(
-                        content=ft.Column([
-                            ft.Row(
-                                [ft.Radio(value=b, label=b), _make_info_icon(describe_pact, b)],
-                                spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            )
-                            for b in pact_boons
-                        ], spacing=4),
-                        value=pact_boons[0] if pact_boons else "",
+                    pact_picker = CardPicker(
+                        options=named_option_card_options(_loader.get_pact_boon_data()),
+                        value=pact_boons[0] if pact_boons else None,
+                        height=220,
                     )
-                    pact_rg_ref.append(pact_rg)
+                    pact_rg_ref.append(pact_picker)
                     dlg_rows += [
                         ft.Divider(color=COLOR_BORDER),
                         ft.Row([
@@ -1834,7 +1978,7 @@ class ProfiloTab(ft.ListView):
                                     color=COLOR_ACCENT_CRIMSON),
                         ], spacing=6),
                         muted_text("Determina il tipo di patto con il tuo Patrono.", size=11),
-                        pact_rg,
+                        pact_picker.control,
                     ]
                 else:
                     dlg_rows.append(ft.Container(
@@ -1857,29 +2001,15 @@ class ProfiloTab(ft.ListView):
                 to_add_mm = min(count, len(available_mm))
 
                 if available_mm:
-                    mm_cbs: list[ft.Checkbox] = []
-                    metamagic_cb_groups.append((to_add_mm, mm_cbs))
-                    describe_mm = make_named_option_describe(_loader.get_metamagic_option_data())
-
-                    def _make_mm_cb(name: str, cbs_ref: list, limit: int) -> ft.Control:
-                        def on_toggle(ev):
-                            if len([cb for cb in cbs_ref if cb.value]) > limit:
-                                ev.control.value = False
-                                try: ev.control.update()
-                                except RuntimeError: pass
-                        cb = ft.Checkbox(
-                            label=name, value=False,
-                            active_color="#7b1fa2",
-                            on_change=on_toggle,
-                        )
-                        cbs_ref.append(cb)
-                        return ft.Row([cb, _make_info_icon(describe_mm, name)],
-                                      spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER)
-
-                    mm_cb_widgets = [
-                        _make_mm_cb(name, mm_cbs, to_add_mm)
-                        for name in available_mm
-                    ]
+                    mm_picker = CardPicker(
+                        options=named_option_card_options(
+                            [o for o in _loader.get_metamagic_option_data() if o.get("name") in available_mm]
+                        ),
+                        multi=True,
+                        max_selected=to_add_mm,
+                        height=min(260, 60 + 46 * len(available_mm)),
+                    )
+                    metamagic_cb_groups.append((to_add_mm, mm_picker))
                     dlg_rows += [
                         ft.Divider(color=COLOR_BORDER),
                         ft.Row([
@@ -1890,7 +2020,7 @@ class ProfiloTab(ft.ListView):
                         muted_text(
                             f"Già note: {', '.join(known_mm) or 'nessuna'}." if known_mm
                             else "Prima scelta di Metamagia.", size=11),
-                        ft.Column(cast(list[ft.Control], mm_cb_widgets), spacing=2),
+                        mm_picker.control,
                     ]
                 else:
                     dlg_rows.append(ft.Container(
@@ -1918,60 +2048,19 @@ class ProfiloTab(ft.ListView):
                 ]
 
                 if to_add > 0:
-                    inv_cbs: list[ft.Checkbox] = []
-                    invocation_cb_groups.append((to_add, inv_cbs))
-                    describe_inv = make_invocation_describe(_loader.get_invocations(new_level))
-
-                    def _make_inv_cb(name: str, cbs_ref: list, limit: int) -> ft.Control:
-                        def on_toggle(ev):
-                            selected = [cb for cb in cbs_ref if cb.value]
-                            if len(selected) > limit:
-                                ev.control.value = False
-                                try: ev.control.update()
-                                except RuntimeError: pass
-                        cb = ft.Checkbox(
-                            label=name, value=False,
-                            active_color=COLOR_ACCENT_CRIMSON,
-                            on_change=on_toggle,
-                        )
-                        cbs_ref.append(cb)
-
-                        def _show_inv_info(ev, _name=name):
-                            page = self._page
-                            if page is None:
-                                return
-                            result = describe_inv(_name)
-                            if result is None:
-                                return
-                            title, body = result
-                            page.show_dialog(ft.AlertDialog(
-                                title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD,
-                                              color=COLOR_TEXT_TITLE),
-                                content=ft.Container(
-                                    content=ft.Column(
-                                        [ft.Text(body, size=13, color=COLOR_TEXT_PRIMARY,
-                                                 selectable=True)],
-                                        scroll=ft.ScrollMode.AUTO),
-                                    width=360, height=320),
-                                actions=[ft.TextButton("Chiudi", on_click=lambda ev2: page.pop_dialog())],
-                                bgcolor=COLOR_BG_CARD,
-                            ))
-
-                        info_btn = ft.IconButton(
-                            ft.Icons.INFO_OUTLINE, icon_size=18,
-                            icon_color=COLOR_ACCENT_BLUE,
-                            tooltip="Mostra descrizione",
-                            on_click=_show_inv_info,
-                            padding=ft.Padding.all(2),
-                        )
-                        return ft.Row([cb, info_btn], spacing=0,
-                                       vertical_alignment=ft.CrossAxisAlignment.CENTER)
-
                     if available_inv:
-                        inv_cb_widgets = [
-                            _make_inv_cb(name, inv_cbs, to_add)
-                            for name in available_inv
-                        ]
+                        inv_by_name = {
+                            i.get("name"): i for i in _loader.get_invocations(new_level)
+                        }
+                        inv_picker = CardPicker(
+                            options=invocation_card_options(
+                                [inv_by_name[n] for n in available_inv if n in inv_by_name]
+                            ),
+                            multi=True,
+                            max_selected=to_add,
+                            height=min(300, 60 + 46 * len(available_inv)),
+                        )
+                        invocation_cb_groups.append((to_add, inv_picker))
                         dlg_rows += [
                             ft.Divider(color=COLOR_BORDER),
                             ft.Row([
@@ -1986,7 +2075,7 @@ class ProfiloTab(ft.ListView):
                                 f"Totale suppliche a Lv.{new_level}: {total_inv} "
                                 f"(già note: {len(known_inv)}).",
                                 size=11),
-                            ft.Column(cast(list[ft.Control], inv_cb_widgets), spacing=2),
+                            inv_picker.control,
                         ]
                     else:
                         # JSON ancora vuoto — info generica
@@ -2433,28 +2522,13 @@ class ProfiloTab(ft.ListView):
                     eligible_spells.sort(
                         key=lambda s: (s.get("level", 0), s.get("name", ""))
                     )
-                    spell_opts = [
-                        ft.DropdownOption(
-                            key=s["name"],
-                            text=f"[Lv{s['level']}] {s['name']}",
-                        )
-                        for s in eligible_spells
-                    ]
-                    describe_learn = make_spell_describe(eligible_spells)
-                    dds: list[ft.Dropdown] = []
+                    spell_opts_cards = spell_card_options(eligible_spells)
+                    dds: list[CardPicker] = []
                     for i in range(count):
-                        dd = ft.Dropdown(
-                            label=f"Incantesimo {i + 1}/{count}",
-                            hint_text="Scegli dalla lista...",
-                            options=spell_opts,
-                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                            border_color=COLOR_BORDER,
-                            focused_border_color=COLOR_ACCENT_BLUE,
-                            expand=True,
-                        )
-                        dds.append(dd)
-                        dlg_rows.append(dropdown_with_info(lambda: self._page, dd, describe_learn))
+                        picker = CardPicker(options=spell_opts_cards, height=240)
+                        dds.append(picker)
+                        dlg_rows.append(muted_text(f"Incantesimo {i + 1}/{count}", size=11))
+                        dlg_rows.append(picker.control)
                     spell_learn_refs.append((step.data, dds))
 
             elif step.step_type == StepType.ARCANUM_SPELL:
@@ -2472,18 +2546,10 @@ class ProfiloTab(ft.ListView):
                      and s.get("name") not in _known_arcanum),
                     key=lambda s: s.get("name", ""),
                 )
-                arcanum_dd = ft.Dropdown(
-                    label=f"Arcanum Mistico ({_arcanum_lv}° livello)",
-                    hint_text="Scegli dalla lista...",
-                    options=[ft.DropdownOption(key=s["name"], text=s["name"])
-                             for s in eligible_arcanum],
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_BLUE,
-                    expand=True,
+                arcanum_dd = CardPicker(
+                    options=spell_card_options(eligible_arcanum),
+                    height=240,
                 )
-                describe_arcanum = make_spell_describe(eligible_arcanum)
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
                     ft.Row([
@@ -2491,7 +2557,8 @@ class ProfiloTab(ft.ListView):
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
                                 color=COLOR_ACCENT_BLUE, expand=True),
                     ], spacing=6),
-                    dropdown_with_info(lambda: self._page, arcanum_dd, describe_arcanum),
+                    muted_text(f"Arcanum Mistico ({_arcanum_lv}° livello)", size=11),
+                    arcanum_dd.control,
                 ]
                 arcanum_spell_refs.append(arcanum_dd)
 
@@ -2515,18 +2582,11 @@ class ProfiloTab(ft.ListView):
                      and d.get("name") not in _mk_known),
                     key=lambda d: d.get("name", ""),
                 )
-                mk_dd = ft.Dropdown(
-                    label="Nuova Disciplina Elementale",
-                    hint_text="Scegli dalla lista...",
-                    options=[ft.DropdownOption(key=d["name"], text=d["name"])
-                             for d in _mk_eligible],
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_AMBER,
-                    expand=True,
+                mk_dd = CardPicker(
+                    options=named_option_card_options(_mk_eligible),
+                    active_color=COLOR_ACCENT_AMBER,
+                    height=240,
                 )
-                describe_mk = make_named_option_describe(_mk_eligible)
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
                     ft.Row([
@@ -2534,7 +2594,7 @@ class ProfiloTab(ft.ListView):
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
                                 color=COLOR_ACCENT_AMBER, expand=True),
                     ], spacing=6),
-                    dropdown_with_info(lambda: self._page, mk_dd, describe_mk),
+                    mk_dd.control,
                 ]
                 monk_discipline_refs.append(mk_dd)
 
@@ -2574,33 +2634,20 @@ class ProfiloTab(ft.ListView):
                     label="Sostituisci un incantesimo conosciuto",
                     value=False,
                 )
-                dd_remove = ft.Dropdown(
-                    label="Incantesimo da sostituire",
-                    options=[
-                        ft.DropdownOption(key=k.name, text=f"[Lv{k.spell_level}] {k.name}")
+                dd_remove = CardPicker(
+                    options=spell_card_options([
+                        _loader.get_spell_by_name(k.name, c.class_name) or
+                        {"name": k.name, "level": k.spell_level}
                         for k in known_class_spells
-                    ],
+                    ]),
                     disabled=True,
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_BLUE,
-                    expand=True,
+                    height=200,
                 )
-                dd_add = ft.Dropdown(
-                    label="Nuovo incantesimo",
-                    options=[],
-                    disabled=True,
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_BLUE,
-                    expand=True,
-                )
+                dd_add = CardPicker(options=[], disabled=True, height=200)
 
                 def _refresh_swap_add_options(
-                    ev: Any = None, _rm: ft.Dropdown = dd_remove,
-                    _add: ft.Dropdown = dd_add, _cls: str = c.class_name or "",
+                    ev: Any = None, _rm: CardPicker = dd_remove,
+                    _add: CardPicker = dd_add, _cls: str = c.class_name or "",
                     _ml: int = max_lv, _known: set = known_names_all,
                     _expanded: list = _swap_expanded,
                 ) -> None:
@@ -2616,20 +2663,12 @@ class ProfiloTab(ft.ListView):
                          and s.get("name") not in excluded),
                         key=lambda s: (s.get("level", 0), s.get("name", "")),
                     )
-                    _add.options = [
-                        ft.DropdownOption(key=s["name"], text=f"[Lv{s['level']}] {s['name']}")
-                        for s in eligible
-                    ]
-                    if _add.value not in {o.key for o in _add.options}:
-                        _add.value = None
-                    try:
-                        _add.update()
-                    except RuntimeError:
-                        pass
+                    _add.options = spell_card_options(eligible)
+                    _add.update()
 
                 def _on_swap_toggle(
                     ev: Any, _cb: ft.Checkbox = swap_enable_cb,
-                    _rm: ft.Dropdown = dd_remove, _add: ft.Dropdown = dd_add,
+                    _rm: CardPicker = dd_remove, _add: CardPicker = dd_add,
                 ) -> None:
                     enabled = bool(_cb.value)
                     _rm.disabled = not enabled
@@ -2638,11 +2677,8 @@ class ProfiloTab(ft.ListView):
                         _rm.value = None
                         _add.value = None
                     _refresh_swap_add_options()
-                    try:
-                        _rm.update()
-                        _add.update()
-                    except RuntimeError:
-                        pass
+                    _rm.update()
+                    _add.update()
 
                 def _on_swap_remove_select(ev: Any) -> None:
                     _refresh_swap_add_options()
@@ -2655,16 +2691,6 @@ class ProfiloTab(ft.ListView):
                     swap_enable_cb.disabled = True
                     swap_enable_cb.label = "Sostituisci un incantesimo conosciuto (nessuno disponibile)"
 
-                describe_swap_remove = make_spell_describe([
-                    _loader.get_spell_by_name(k.name, c.class_name) or
-                    {"name": k.name, "level": k.spell_level}
-                    for k in known_class_spells
-                ])
-                describe_swap_add = make_spell_describe([
-                    s for s in _loader.get_spells(c.class_name or "")
-                    if 0 < s.get("level", 0) <= max_lv
-                ])
-
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
                     ft.Row([
@@ -2673,8 +2699,10 @@ class ProfiloTab(ft.ListView):
                                 color=COLOR_ACCENT_BLUE, expand=True),
                     ], spacing=6),
                     swap_enable_cb,
-                    dropdown_with_info(lambda: self._page, dd_remove, describe_swap_remove),
-                    dropdown_with_info(lambda: self._page, dd_add, describe_swap_add),
+                    muted_text("Incantesimo da sostituire", size=11),
+                    dd_remove.control,
+                    muted_text("Nuovo incantesimo", size=11),
+                    dd_add.control,
                 ]
                 spell_swap_refs.append((swap_enable_cb, dd_remove, dd_add))
 
@@ -2695,18 +2723,9 @@ class ProfiloTab(ft.ListView):
                      if s.get("level", 0) == 0 and s.get("name") not in _known_cantrips),
                     key=lambda s: s.get("name", ""),
                 )
-                cantrip_dd = ft.Dropdown(
-                    label="Nuovo trucchetto",
-                    hint_text="Scegli dalla lista...",
-                    options=[
-                        ft.DropdownOption(key=s["name"], text=s["name"])
-                        for s in _eligible_cantrips
-                    ],
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_BLUE,
-                    expand=True,
+                cantrip_dd = CardPicker(
+                    options=spell_card_options(_eligible_cantrips),
+                    height=220,
                 )
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
@@ -2715,9 +2734,7 @@ class ProfiloTab(ft.ListView):
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
                                 color=COLOR_ACCENT_BLUE, expand=True),
                     ], spacing=6),
-                    dropdown_with_info(
-                        lambda: self._page, cantrip_dd, make_spell_describe(_eligible_cantrips)
-                    ),
+                    cantrip_dd.control,
                 ]
                 cantrip_learn_refs.append(cantrip_dd)
 
@@ -2734,15 +2751,13 @@ class ProfiloTab(ft.ListView):
                     ks.name for ks in character_repo.get_known_spells(c.id) if ks.spell_level == 0
                 }
                 _eligible_bc = [n for n in _bc_pool_cl if n not in _known_borrowed_cantrips]
-                bc_cantrip_dd = ft.Dropdown(
-                    label="Nuovo trucchetto da mago",
-                    hint_text="Scegli dalla lista...",
-                    options=[ft.DropdownOption(key=n, text=n) for n in _eligible_bc],
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_BLUE,
-                    expand=True,
+                _bc_cantrip_spells = [
+                    s for s in _loader.get_spells_by_level("Mago", 0)
+                    if s.get("name") in _eligible_bc
+                ]
+                bc_cantrip_dd = CardPicker(
+                    options=spell_card_options(_bc_cantrip_spells),
+                    height=220,
                 )
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
@@ -2751,10 +2766,8 @@ class ProfiloTab(ft.ListView):
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
                                 color=COLOR_ACCENT_BLUE, expand=True),
                     ], spacing=6),
-                    dropdown_with_info(
-                        lambda: self._page, bc_cantrip_dd,
-                        make_spell_describe(_loader.get_spells_by_level("Mago", 0)),
-                    ),
+                    muted_text("Nuovo trucchetto da mago", size=11),
+                    bc_cantrip_dd.control,
                 ]
                 borrowed_cantrip_dd_refs.append(bc_cantrip_dd)
 
@@ -2773,10 +2786,7 @@ class ProfiloTab(ft.ListView):
                 _eligible_bsl = _borrowed_eligible_mago_spells(
                     _max_lv_bsl, _restricted_bsl, _unrestr_bsl, _known_bsl,
                 )
-                _opts_bsl = [
-                    ft.DropdownOption(key=s["name"], text=f"[Lv{s['level']}] {s['name']}")
-                    for s in _eligible_bsl
-                ]
+                _opts_bsl = spell_card_options(_eligible_bsl)
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
                     ft.Row([
@@ -2785,19 +2795,10 @@ class ProfiloTab(ft.ListView):
                                 color=COLOR_ACCENT_BLUE, expand=True),
                     ], spacing=6),
                 ]
-                describe_bsl = make_spell_describe(_eligible_bsl)
                 for i in range(_count_bsl):
-                    bsl_dd = ft.Dropdown(
-                        label=f"Incantesimo da mago {i + 1}/{_count_bsl}",
-                        hint_text="Scegli dalla lista...",
-                        options=_opts_bsl,
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER,
-                        focused_border_color=COLOR_ACCENT_BLUE,
-                        expand=True,
-                    )
-                    dlg_rows.append(dropdown_with_info(lambda: self._page, bsl_dd, describe_bsl))
+                    bsl_dd = CardPicker(options=_opts_bsl, height=220)
+                    dlg_rows.append(muted_text(f"Incantesimo da mago {i + 1}/{_count_bsl}", size=11))
+                    dlg_rows.append(bsl_dd.control)
                     borrowed_spell_learn_refs.append((bsl_dd, _unrestr_bsl))
 
             elif step.step_type == StepType.BORROWED_SPELL_SWAP:
@@ -2826,37 +2827,20 @@ class ProfiloTab(ft.ListView):
                     label="Sostituisci un incantesimo da mago conosciuto",
                     value=False,
                 )
-                bsw_dd_remove = ft.Dropdown(
-                    label="Incantesimo da sostituire",
-                    options=[
-                        ft.DropdownOption(
-                            key=k.name,
-                            text=f"[Lv{k.spell_level}] {k.name}"
-                            + ("  (libero da scuola)" if k.origin_unrestricted else ""),
-                        )
-                        for k in _known_borrowed_spells
-                    ],
-                    disabled=True,
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_BLUE,
-                    expand=True,
-                )
-                bsw_dd_add = ft.Dropdown(
-                    label="Nuovo incantesimo da mago",
-                    options=[],
-                    disabled=True,
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_BLUE,
-                    expand=True,
-                )
+                _bsw_remove_opts: list[dict[str, str]] = []
+                for k in _known_borrowed_spells:
+                    _sp = _loader.get_spell_by_name(k.name, "Mago") or {"name": k.name, "level": k.spell_level}
+                    _title = k.name + ("  (libero da scuola)" if k.origin_unrestricted else "")
+                    _bsw_remove_opts.append(
+                        {"key": k.name, "title": _title, "body": format_spell_body(_sp)}
+                    )
+
+                bsw_dd_remove = CardPicker(options=_bsw_remove_opts, disabled=True, height=200)
+                bsw_dd_add = CardPicker(options=[], disabled=True, height=200)
 
                 def _refresh_bsw_add_options(
-                    ev: Any = None, _rm: ft.Dropdown = bsw_dd_remove,
-                    _add: ft.Dropdown = bsw_dd_add, _ml: int = _max_lv_swap,
+                    ev: Any = None, _rm: CardPicker = bsw_dd_remove,
+                    _add: CardPicker = bsw_dd_add, _ml: int = _max_lv_swap,
                     _restricted: list = _restricted_swap,
                     _known: set = _known_borrowed_names,
                     _origin: dict = _origin_by_name,
@@ -2869,20 +2853,12 @@ class ProfiloTab(ft.ListView):
                     eligible = _borrowed_eligible_mago_spells(
                         _ml, _restricted, replaced_unrestricted, excluded,
                     )
-                    _add.options = [
-                        ft.DropdownOption(key=s["name"], text=f"[Lv{s['level']}] {s['name']}")
-                        for s in eligible
-                    ]
-                    if _add.value not in {o.key for o in _add.options}:
-                        _add.value = None
-                    try:
-                        _add.update()
-                    except RuntimeError:
-                        pass
+                    _add.options = spell_card_options(eligible)
+                    _add.update()
 
                 def _on_bsw_toggle(
                     ev: Any, _cb: ft.Checkbox = bsw_enable_cb,
-                    _rm: ft.Dropdown = bsw_dd_remove, _add: ft.Dropdown = bsw_dd_add,
+                    _rm: CardPicker = bsw_dd_remove, _add: CardPicker = bsw_dd_add,
                 ) -> None:
                     enabled = bool(_cb.value)
                     _rm.disabled = not enabled
@@ -2891,11 +2867,8 @@ class ProfiloTab(ft.ListView):
                         _rm.value = None
                         _add.value = None
                     _refresh_bsw_add_options()
-                    try:
-                        _rm.update()
-                        _add.update()
-                    except RuntimeError:
-                        pass
+                    _rm.update()
+                    _add.update()
 
                 def _on_bsw_remove_select(ev: Any) -> None:
                     _refresh_bsw_add_options()
@@ -2908,16 +2881,6 @@ class ProfiloTab(ft.ListView):
                     bsw_enable_cb.disabled = True
                     bsw_enable_cb.label = "Sostituisci un incantesimo da mago conosciuto (nessuno disponibile)"
 
-                describe_bsw_remove = make_spell_describe([
-                    _loader.get_spell_by_name(k.name, "Mago") or
-                    {"name": k.name, "level": k.spell_level}
-                    for k in _known_borrowed_spells
-                ])
-                describe_bsw_add = make_spell_describe([
-                    s for s in _loader.get_spells("Mago")
-                    if 0 < s.get("level", 0) <= _max_lv_swap
-                ])
-
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
                     ft.Row([
@@ -2926,8 +2889,10 @@ class ProfiloTab(ft.ListView):
                                 color=COLOR_ACCENT_BLUE, expand=True),
                     ], spacing=6),
                     bsw_enable_cb,
-                    dropdown_with_info(lambda: self._page, bsw_dd_remove, describe_bsw_remove),
-                    dropdown_with_info(lambda: self._page, bsw_dd_add, describe_bsw_add),
+                    muted_text("Incantesimo da sostituire", size=11),
+                    bsw_dd_remove.control,
+                    muted_text("Nuovo incantesimo da mago", size=11),
+                    bsw_dd_add.control,
                 ]
                 borrowed_spell_swap_refs.append((bsw_enable_cb, bsw_dd_remove, bsw_dd_add, _restricted_swap))
 
@@ -2944,7 +2909,7 @@ class ProfiloTab(ft.ListView):
         # ------------------------------------------------------------------
         cls_lower = (c.class_name or "").strip().lower()
 
-        fighting_style_dd_ref: list[ft.Dropdown] = []
+        fighting_style_dd_ref: list[CardPicker] = []
         totem_animal_dd_ref:   list[ft.Dropdown] = []
         land_terrain_dd_ref:   list[ft.Dropdown] = []
 
@@ -2965,9 +2930,11 @@ class ProfiloTab(ft.ListView):
         if not c.fighting_style:
             styles = _loader.get_fighting_styles(cls_lower)
             if styles and new_level == 2 and cls_lower in ("paladino", "ranger"):
-                fs_dd = _make_choice_dd("Stile di Combattimento", styles, "")
+                fs_dd = CardPicker(
+                    options=named_option_card_options(_loader.get_fighting_style_data(cls_lower)),
+                    height=260,
+                )
                 fighting_style_dd_ref.append(fs_dd)
-                describe_fs = make_named_option_describe(_loader.get_fighting_style_data(cls_lower))
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
                     ft.Row([
@@ -2975,7 +2942,7 @@ class ProfiloTab(ft.ListView):
                         ft.Text("Scegli il tuo Stile di Combattimento",
                                 size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE),
                     ], spacing=6),
-                    dropdown_with_info(lambda: self._page, fs_dd, describe_fs),
+                    fs_dd.control,
                 ]
 
         # ------------------------------------------------------------------
@@ -3277,6 +3244,12 @@ class ProfiloTab(ft.ListView):
                         _ab = _fd.get("ability_bonus") if _fd else None
                         if _ab and _ab.get("choose_one") and not feat_bonus_dd.value:
                             _errors.append("Scegli la caratteristica da aumentare con il talento")
+                        # Competenze a scelta concesse dal talento (proficiency_grants)
+                        _fp_values = [dd.value for dd in feat_prof_dds if dd.value]
+                        if len(feat_prof_dds) and len(_fp_values) < len(feat_prof_dds):
+                            _errors.append("Completa la scelta delle competenze concesse dal talento")
+                        if len(set(_fp_values)) < len(_fp_values):
+                            _errors.append("Le competenze scelte per il talento devono essere diverse tra loro")
 
             # Incantesimi conosciuti (classi "know"): tutti i dropdown devono avere un valore
             for _sd, _dds in spell_learn_refs:
@@ -3322,28 +3295,26 @@ class ProfiloTab(ft.ListView):
                     )
 
             # Metamagia: deve scegliere esattamente il numero richiesto
-            for _mm_count, _mm_cbs in metamagic_cb_groups:
-                if _mm_cbs:  # solo se i checkbox sono stati mostrati
-                    _sel_mm = sum(1 for cb in _mm_cbs if cb.value)
-                    if _sel_mm < _mm_count:
-                        _errors.append(
-                            f"Scegli {_mm_count} opzion"
-                            f"{'e' if _mm_count == 1 else 'i'} di Metamagia "
-                            f"({_sel_mm}/{_mm_count})"
-                        )
+            for _mm_count, _mm_picker in metamagic_cb_groups:
+                _sel_mm = len(_mm_picker.values)
+                if _sel_mm < _mm_count:
+                    _errors.append(
+                        f"Scegli {_mm_count} opzion"
+                        f"{'e' if _mm_count == 1 else 'i'} di Metamagia "
+                        f"({_sel_mm}/{_mm_count})"
+                    )
 
             # Suppliche Occulte: deve scegliere esattamente il numero richiesto
-            # (solo se i checkbox sono stati mostrati, cioè invocations.json non è vuoto)
-            for _inv_count, _inv_cbs in invocation_cb_groups:
-                if _inv_cbs:
-                    _sel_inv = sum(1 for cb in _inv_cbs if cb.value)
-                    if _sel_inv < _inv_count:
-                        _errors.append(
-                            f"Scegli {_inv_count} supplic"
-                            f"{'a' if _inv_count == 1 else 'he'} occult"
-                            f"{'a' if _inv_count == 1 else 'e'} "
-                            f"({_sel_inv}/{_inv_count})"
-                        )
+            # (solo se il picker è stato mostrato, cioè invocations.json non è vuoto)
+            for _inv_count, _inv_picker in invocation_cb_groups:
+                _sel_inv = len(_inv_picker.values)
+                if _sel_inv < _inv_count:
+                    _errors.append(
+                        f"Scegli {_inv_count} supplic"
+                        f"{'a' if _inv_count == 1 else 'he'} occult"
+                        f"{'a' if _inv_count == 1 else 'e'} "
+                        f"({_sel_inv}/{_inv_count})"
+                    )
 
             # Mistificatore Arcano/Cavaliere Mistico — validazione solo se la
             # sottoclasse FINALE scelta nel dropdown è quella borrowed-caster
@@ -3427,6 +3398,19 @@ class ProfiloTab(ft.ListView):
                 page.show_dialog(err_dlg)  # type: ignore[union-attr]
                 return
 
+            # Talenti già posseduti PRIMA di questo level-up + livello attuale,
+            # catturati ORA (prima di qualunque mutazione di c.level più sotto)
+            # — servono per calcolare il bonus PF permanente per-livello di
+            # talenti come Robusto (hp_bonus_per_level), che si applica ad
+            # OGNI level-up se già posseduto, indipendentemente dal fatto che
+            # in questo specifico level-up ci sia o meno uno step ASI/talento.
+            _feats_before_lu = [
+                p.name for p in character_repo.get_proficiencies(c.id)
+                if p.proficiency_type == "feat"
+            ]
+            _old_level_for_hp_feats = c.level
+            _feat_just_picked_name = ""  # valorizzato più sotto se si sceglie un talento all'ASI
+
             # HP
             choice = hp_choice.value
             if choice == "max":
@@ -3490,10 +3474,12 @@ class ProfiloTab(ft.ListView):
                     _fd = _loader.get_feat(feat_dd.value)
                     _ab = (_fd.get("ability_bonus") if _fd else None) or {}
                     _ob = (_fd.get("other_bonuses") if _fd else None) or {}
+                    _feat_just_picked_name = feat_dd.value
 
                     # Calcola i bonus effettivi applicati (per bonus_data)
                     applied_ability: dict[str, int] = {}
                     applied_other:   dict[str, int] = {}
+                    _save_ability_key = ""  # per grants_save_proficiency (Resiliente)
 
                     # ability_bonus: fisso o choose_one
                     if _ab:
@@ -3503,12 +3489,14 @@ class ProfiloTab(ft.ListView):
                                 _cur = getattr(c, f"{stat}_score", 10)
                                 setattr(c, f"{stat}_score", min(20, _cur + 1))
                                 applied_ability[stat] = 1
+                                _save_ability_key = stat
                         else:
                             for _stat, _val in _ab.items():
                                 if _stat in ABILITY_KEYS and isinstance(_val, int):
                                     _cur = getattr(c, f"{_stat}_score", 10)
                                     setattr(c, f"{_stat}_score", min(20, _cur + _val))
                                     applied_ability[_stat] = _val
+                                    _save_ability_key = _stat
 
                     # other_bonuses: initiative, speed, ecc.
                     if _ob:
@@ -3519,12 +3507,25 @@ class ProfiloTab(ft.ListView):
                             c.speed = (c.speed or 9) + _ob["speed"]
                             applied_other["speed"] = _ob["speed"]
 
+                    # Competenze concesse dal talento (proficiency_grants) —
+                    # fisse (es. Corazze Leggere) o a scelta del giocatore
+                    # (feat_prof_dds, es. Abile/Maestro d'Armi/Linguista), più
+                    # l'eventuale competenza nel tiro salvezza (Resiliente,
+                    # ability_bonus.grants_save_proficiency).
+                    _fp_choice_values = [dd.value for dd in feat_prof_dds if dd.value]
+                    _grant_save_key = _save_ability_key if _ab.get("grants_save_proficiency") else ""
+                    _granted_profs = character_repo.apply_feat_proficiency_grants(
+                        c.id, feat_dd.value, _fp_choice_values, _grant_save_key,
+                    )
+
                     # Costruisce la ricevuta da salvare
                     _bonus_data: dict = {}
                     if applied_ability:
                         _bonus_data["ability"] = applied_ability
                     if applied_other:
                         _bonus_data["other"] = applied_other
+                    if _granted_profs:
+                        _bonus_data["granted_proficiencies"] = _granted_profs
 
                     # Salva talento con ricevuta e livello di acquisizione
                     import json as _json
@@ -3556,20 +3557,14 @@ class ProfiloTab(ft.ListView):
                 c.pact_boon = pact_rg_ref[0].value
 
             # Metamagia
-            for _mm_count, mm_cbs in metamagic_cb_groups:
-                for cb in mm_cbs:
-                    if cb.value and cb.label:
-                        character_repo._save_single_proficiency(
-                            c.id, "metamagic", str(cb.label)
-                        )
+            for _mm_count, mm_picker in metamagic_cb_groups:
+                for name in mm_picker.values:
+                    character_repo._save_single_proficiency(c.id, "metamagic", name)
 
             # Invocazioni Occulte
-            for _to_add, inv_cbs in invocation_cb_groups:
-                for cb in inv_cbs:
-                    if cb.value and cb.label:
-                        character_repo._save_single_proficiency(
-                            c.id, "invocation", str(cb.label)
-                        )
+            for _to_add, inv_picker in invocation_cb_groups:
+                for name in inv_picker.values:
+                    character_repo._save_single_proficiency(c.id, "invocation", name)
 
             # Expertise (Maestria)
             for cb_group in expertise_cb_groups:
@@ -3709,6 +3704,23 @@ class ProfiloTab(ft.ListView):
                         character_repo.remove_known_spell(c.id, _old_name_bsw, _old_row_bsw.spell_level)
                     _save_known_spell(_bsw_add.value, "Mago", c, origin_unrestricted=_was_unrestricted)
 
+            # Bonus PF permanente per-livello di talenti come Robusto
+            # (hp_bonus_per_level) — si applica SEMPRE ad ogni level-up se il
+            # talento era già posseduto (non solo quando lo si sceglie ora),
+            # più l'eventuale delta pieno se scelto proprio in questo
+            # level-up. Stesso principio di hp_class_bonus più sopra:
+            # ricalcola il TOTALE prima/dopo, mai un delta accumulato a mano.
+            _feats_after_lu = list(_feats_before_lu)
+            if _feat_just_picked_name and _feat_just_picked_name not in _feats_after_lu:
+                _feats_after_lu.append(_feat_just_picked_name)
+            _hp_feat_delta = (
+                get_feats_permanent_hp_bonus(_feats_after_lu, new_level)
+                - get_feats_permanent_hp_bonus(_feats_before_lu, _old_level_for_hp_feats)
+            )
+            if _hp_feat_delta:
+                c.hp_max += _hp_feat_delta
+                c.hp_current = min(c.hp_current + _hp_feat_delta, c.hp_max)
+
             if not character_repo.update(c):
                 show_error_dialog(page)
                 return
@@ -3771,6 +3783,21 @@ class ProfiloTab(ft.ListView):
         hp_loss += (
             get_permanent_class_hp_bonus(c.class_name, c.subclass, c.level)
             - get_permanent_class_hp_bonus(c.class_name, c.subclass, new_level)
+        )
+        # Simmetrico al bonus PF permanente per-livello di talenti come
+        # Robusto (hp_bonus_per_level) — calcolato QUI, prima che
+        # undo_level() (in do_level_down) rimuova l'eventuale talento
+        # acquisito esattamente al livello che si sta togliendo, stesso
+        # principio già applicato sopra per il bonus di classe/sottoclasse.
+        _feats_now_ld = [
+            p.name for p in character_repo.get_proficiencies(c.id)
+            if p.proficiency_type == "feat"
+        ]
+        _feats_removed_ld = character_repo.get_feat_names_at_level(c.id, c.level)
+        _feats_after_ld = [f for f in _feats_now_ld if f not in _feats_removed_ld]
+        hp_loss += (
+            get_feats_permanent_hp_bonus(_feats_now_ld, c.level)
+            - get_feats_permanent_hp_bonus(_feats_after_ld, new_level)
         )
 
         def do_level_down(ev):

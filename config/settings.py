@@ -254,6 +254,32 @@ def get_permanent_class_hp_bonus(class_name: str, subclass: str, level: int) -> 
         return max(0, level)
     return 0
 
+
+def get_feats_permanent_hp_bonus(feat_names: list, level: int) -> int:
+    """
+    Bonus permanente ai PF massimi concesso da talenti con crescita per
+    livello (campo "hp_bonus_per_level" in feats.json, es. Robusto: 2 →
+    +2 PF per livello, per un totale sempre pari a 2×livello indipendente
+    da quando il talento è stato preso — testo PHB: "aumenta di un
+    ammontare pari al doppio del tuo livello quando ottieni questo
+    talento... da allora in poi +2 PF per ogni livello acquisito").
+
+    Stesso principio di get_permanent_class_hp_bonus(): restituisce il
+    TOTALE accumulato al livello indicato (non un delta) sommando su
+    TUTTI i talenti posseduti che hanno questo campo — chi chiama calcola
+    la differenza tra "prima" e "dopo" (livello e/o insieme di talenti
+    posseduti) per ottenere il PF da aggiungere/rimuovere. Import locale
+    di game_data per evitare un import circolare (game_data_loader non
+    importa da config.settings a livello di modulo).
+    """
+    from data.game_data.game_data_loader import game_data
+    total_per_level = 0
+    for name in feat_names or []:
+        fd = game_data.get_feat(name)
+        if fd:
+            total_per_level += int(fd.get("hp_bonus_per_level", 0) or 0)
+    return total_per_level * max(0, level)
+
 # Statistiche base
 ABILITY_SCORES = ["Forza", "Destrezza", "Costituzione", "Intelligenza", "Saggezza", "Carisma"]
 ABILITY_ABBR   = ["FOR",   "DES",       "COS",          "INT",          "SAG",      "CAR"]

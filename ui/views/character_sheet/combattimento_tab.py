@@ -5,6 +5,8 @@ Struttura (ListView scrollabile):
   - HP Tracker        — barra HP colorata, danno/cura, HP temp,
                         tiri salvezza morte (sempre visibili)
   - Statistiche       — CA, Velocità, Iniziativa (calcolata), Ispirazione toggle
+  - Indebolimento     — livello Exhaustion 0-6 (counter −/+), effetti
+                        cumulativi testuali PHB, nessun enforcement automatico
   - Azioni Turno      — Azione / Azione Bonus / Reazione + tracker movimento
                         Nuovo Turno (snapshot per undo) + Annulla
   - Tiri Salvezza & Abilità — riferimento rapido con competenze evidenziate
@@ -116,6 +118,8 @@ class CombattimentoTab(ft.ListView):
             self._section_hp(c),
             section_header("Statistiche di Combattimento"),
             self._section_stats(c),
+            section_header("Indebolimento"),
+            self._section_exhaustion(c),
             section_header("Azioni Turno"),
             self._section_turn(c),
             section_header("Tiri Salvezza e Abilità"),
@@ -775,6 +779,129 @@ class CombattimentoTab(ft.ListView):
             ],
             bgcolor=COLOR_BG_CARD,
         ))
+
+    # ------------------------------------------------------------------
+    # Indebolimento (Exhaustion)
+    # ------------------------------------------------------------------
+
+    def _section_exhaustion(self, c: Character) -> ft.Container:
+        """
+        Livello di Indebolimento (Exhaustion), PHB IT — condizione cumulativa
+        0 (nessuno) - 6 (morte). Nessun effetto meccanico viene applicato
+        automaticamente (non dimezza velocità/HP max da sola): la sezione
+        mostra gli effetti cumulativi attivi al livello corrente per
+        consultazione rapida, il giocatore/master li applica a mano — stesso
+        principio già usato per Abilità di Classe/Tratti di Razza (testo di
+        riferimento, non enforcement automatico delle regole).
+        """
+        level = c.exhaustion_level
+
+        if level >= 6:
+            level_color = COLOR_HP_LOW
+        elif level >= 4:
+            level_color = COLOR_HP_LOW
+        elif level >= 1:
+            level_color = COLOR_ACCENT_AMBER
+        else:
+            level_color = COLOR_TEXT_MUTED
+
+        level_text = ft.Text(
+            f"Livello {level}" if level > 0 else "Nessuno",
+            size=18, weight=ft.FontWeight.BOLD, color=level_color,
+            font_family=FONT_MONO,
+        )
+
+        counter_row = ft.Row(
+            [
+                ft.IconButton(
+                    ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                    icon_size=22,
+                    icon_color=COLOR_ACCENT_CRIMSON,
+                    on_click=self._on_exhaustion_decrement,
+                    disabled=level <= 0,
+                    tooltip="Riduci di 1 livello",
+                ),
+                ft.Container(content=level_text, width=90, alignment=ft.Alignment.CENTER),
+                ft.IconButton(
+                    ft.Icons.ADD_CIRCLE_OUTLINE,
+                    icon_size=22,
+                    icon_color=level_color if level < 6 else COLOR_TEXT_MUTED,
+                    on_click=self._on_exhaustion_increment,
+                    disabled=level >= 6,
+                    tooltip="Aumenta di 1 livello",
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=4,
+        )
+
+        effect_rows: list[ft.Control] = []
+        if level <= 0:
+            effect_rows.append(
+                ft.Text("Nessun effetto.", size=12, color=COLOR_TEXT_MUTED)
+            )
+        else:
+            for lvl in sorted(EXHAUSTION_LEVELS.keys()):
+                if lvl > level:
+                    break
+                active_color = COLOR_HP_LOW if lvl == 6 else COLOR_TEXT_PRIMARY
+                effect_rows.append(
+                    ft.Row(
+                        [
+                            ft.Text(f"{lvl}.", size=12, color=level_color,
+                                    weight=ft.FontWeight.BOLD, width=18),
+                            ft.Text(EXHAUSTION_LEVELS[lvl], size=12, color=active_color,
+                                    weight=ft.FontWeight.BOLD if lvl == 6 else ft.FontWeight.NORMAL,
+                                    expand=True),
+                        ],
+                        spacing=4,
+                    )
+                )
+
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Text("INDEBOLIMENTO", size=10, color=COLOR_TEXT_MUTED,
+                                    weight=ft.FontWeight.BOLD,
+                                    style=ft.TextStyle(letter_spacing=0.8)),
+                        ],
+                    ),
+                    counter_row,
+                    ft.Divider(color=COLOR_BORDER, height=8),
+                    ft.Column(effect_rows, spacing=4),
+                ],
+                spacing=8,
+            ),
+            bgcolor=COLOR_BG_CARD,
+            padding=14,
+            border=ft.Border(
+                top=ft.BorderSide(3, level_color),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _on_exhaustion_increment(self, e: Any) -> None:
+        c = self.character
+        new_level = min(6, c.exhaustion_level + 1)
+        if new_level == c.exhaustion_level:
+            return
+        character_repo.update_exhaustion_level(c.id, new_level)
+        c.exhaustion_level = new_level
+        self._refresh()
+
+    def _on_exhaustion_decrement(self, e: Any) -> None:
+        c = self.character
+        new_level = max(0, c.exhaustion_level - 1)
+        if new_level == c.exhaustion_level:
+            return
+        character_repo.update_exhaustion_level(c.id, new_level)
+        c.exhaustion_level = new_level
+        self._refresh()
 
     # ------------------------------------------------------------------
     # Azioni Turno

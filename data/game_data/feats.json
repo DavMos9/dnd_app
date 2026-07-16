@@ -5,15 +5,21 @@
     "name": "string — nome italiano del talento",
     "prerequisite": "string — prerequisito testuale, es. 'FOR 13' oppure null se nessuno",
     "description": "string — descrizione meccanica completa dal PHB",
-    "ability_bonus": "object — es. {'str': 1} oppure {'choose_one': true, 'options': [...]} se la scelta è del giocatore",
-    "other_bonuses": "object — bonus non-stat, es. {'initiative': 5} oppure {'speed': 3}. Chiavi supportate: initiative (INTEGER), speed (INTEGER in metri)"
+    "ability_bonus": "object — es. {'str': 1} oppure {'choose_one': true, 'options': [...]} se la scelta è del giocatore. Il flag opzionale 'grants_save_proficiency': true (Resiliente) indica che, oltre al bonus, il talento concede competenza nel tiro salvezza della caratteristica scelta/fissa.",
+    "other_bonuses": "object — bonus non-stat, es. {'initiative': 5} oppure {'speed': 3}. Chiavi supportate: initiative (INTEGER), speed (INTEGER in metri)",
+    "hp_bonus_per_level": "int opzionale — bonus PF massimo per livello attuale del personaggio (es. Robusto: 2 → il bonus totale a un dato livello è sempre 2×livello, ricalcolato sempre da zero, mai un delta accumulato — stesso principio di get_permanent_class_hp_bonus)",
+    "passive_bonuses": "object opzionale — bonus additivi a valori passivi mostrati a display, mai persistiti (stesso principio di get_effective_speed). Chiavi supportate: 'perception' (Percezione Passiva), 'investigation' (Indagare Passivo). Es. Osservatore: {'perception':5,'investigation':5}",
+    "proficiency_grants": "array opzionale di oggetti {'type':'fixed'|'choice', 'proficiency_type':'armor'|'weapon'|'skill'|'tool'|'skill_or_tool'|'language', 'name': str (solo fixed), 'count': int (solo choice)} — competenze concesse dal talento, applicate/reversibili tramite apply_feat_proficiency_grants()/remove_feat_with_bonuses() in character_repo.py. 'name' per gli oggetti fixed di tipo armor usa i token già in uso altrove nel progetto ('leggere'/'medie'/'pesanti'/'scudi'); per tipo weapon usa il nome esatto del catalogo equipment/weapons.json (o un nome esplicito non catalogato, es. 'Armi Improvvisate' per Lottatore da Taverna, che non è un'arma vera e propria)."
   },
   "feats": [
     {
       "name": "Abile",
       "prerequisite": null,
       "description": "Ottieni competenza in una qualsiasi combinazione di tre abilità o strumenti a tua scelta.",
-      "ability_bonus": null
+      "ability_bonus": null,
+      "proficiency_grants": [
+        {"type": "choice", "proficiency_type": "skill_or_tool", "count": 3}
+      ]
     },
     {
       "name": "Adepto Elementale",
@@ -92,19 +98,29 @@
       "name": "Corazze Leggere",
       "prerequisite": null,
       "description": "Ti sei addestrato per padroneggiare l'utilizzo delle armature leggere e ottieni i seguenti benefici: il tuo punteggio di Forza o di Destrezza aumenta di 1, fino a un massimo di 20; ottieni competenza nelle armature leggere.",
-      "ability_bonus": {"choose_one": true, "options": ["str", "dex"]}
+      "ability_bonus": {"choose_one": true, "options": ["str", "dex"]},
+      "proficiency_grants": [
+        {"type": "fixed", "proficiency_type": "armor", "name": "leggere"}
+      ]
     },
     {
       "name": "Corazze Medie",
       "prerequisite": "Competenza nelle armature leggere",
       "description": "Ti sei addestrato per padroneggiare l'utilizzo delle armature medie e degli scudi e ottieni i seguenti benefici: il tuo punteggio di Forza o di Destrezza aumenta di 1, fino a un massimo di 20; ottieni competenza nelle armature medie e negli scudi.",
-      "ability_bonus": {"choose_one": true, "options": ["str", "dex"]}
+      "ability_bonus": {"choose_one": true, "options": ["str", "dex"]},
+      "proficiency_grants": [
+        {"type": "fixed", "proficiency_type": "armor", "name": "medie"},
+        {"type": "fixed", "proficiency_type": "armor", "name": "scudi"}
+      ]
     },
     {
       "name": "Corazze Pesanti",
       "prerequisite": "Competenza nelle armature medie",
       "description": "Ti sei addestrato per padroneggiare l'utilizzo delle armature pesanti e ottieni i seguenti benefici: il tuo punteggio di Forza aumenta di 1, fino a un massimo di 20; ottieni competenza nelle armature pesanti.",
-      "ability_bonus": {"str": 1}
+      "ability_bonus": {"str": 1},
+      "proficiency_grants": [
+        {"type": "fixed", "proficiency_type": "armor", "name": "pesanti"}
+      ]
     },
     {
       "name": "Duellante Difensivo",
@@ -158,7 +174,10 @@
       "name": "Linguista",
       "prerequisite": null,
       "description": "Hai studiato molte lingue e codici diversi, e ottieni i seguenti benefici: il tuo punteggio di Intelligenza aumenta di 1, fino a un massimo di 20; apprendi tre linguaggi a tua scelta; sei in grado di creare codici cifrati (gli altri individui non possono decifrare il codice a meno che non vengano istruiti a farlo da te, o che non superino una prova di Intelligenza con CD pari al tuo punteggio di Intelligenza + il tuo bonus di competenza, oppure utilizzando una magia che consenta loro di decifrarli).",
-      "ability_bonus": {"int": 1}
+      "ability_bonus": {"int": 1},
+      "proficiency_grants": [
+        {"type": "choice", "proficiency_type": "language", "count": 3}
+      ]
     },
     {
       "name": "Lottatore",
@@ -170,13 +189,19 @@
       "name": "Lottatore da Taverna",
       "prerequisite": null,
       "description": "Sei abituato ai combattimenti più rozzi e diretti, dove si usa qualsiasi arma si trovi a portata di mano, e ottieni i seguenti benefici: il tuo punteggio di Forza o di Costituzione aumenta di 1, fino a un massimo di 20; sei competente nelle armi improvvisate; il tuo colpo senz'armi usa un d4 per i danni; quando colpisci una creatura con un colpo senz'armi o un'arma improvvisata nel tuo turno, puoi usare un'azione bonus per tentare di afferrare il bersaglio.",
-      "ability_bonus": {"choose_one": true, "options": ["str", "con"]}
+      "ability_bonus": {"choose_one": true, "options": ["str", "con"]},
+      "proficiency_grants": [
+        {"type": "fixed", "proficiency_type": "weapon", "name": "Armi Improvvisate"}
+      ]
     },
     {
       "name": "Maestro d'Armi",
       "prerequisite": null,
       "description": "Ti sei addestrato a lungo nell'utilizzo di molte armi e ottieni i seguenti benefici: il tuo punteggio di Forza o di Destrezza aumenta di 1, fino a un massimo di 20; ottieni competenza in quattro armi a tua scelta, ciascuna delle quali deve essere un'arma semplice o un'arma da guerra.",
-      "ability_bonus": {"choose_one": true, "options": ["str", "dex"]}
+      "ability_bonus": {"choose_one": true, "options": ["str", "dex"]},
+      "proficiency_grants": [
+        {"type": "choice", "proficiency_type": "weapon", "count": 4}
+      ]
     },
     {
       "name": "Maestro d'Armi Possenti",
@@ -225,19 +250,21 @@
       "name": "Osservatore",
       "prerequisite": null,
       "description": "Noti rapidamente i dettagli dell'ambiente circostante e ottieni i seguenti benefici: il tuo punteggio di Intelligenza o di Saggezza aumenta di 1, fino a un massimo di 20; se sei in grado di vedere la bocca di una creatura mentre questa parla un linguaggio a te conosciuto, riesci a capire cosa sta dicendo leggendo le labbra; ottieni un bonus di +5 alle tue prove passive di Saggezza (Percezione) e alle tue prove passive di Intelligenza (Indagare).",
-      "ability_bonus": {"choose_one": true, "options": ["int", "wis"]}
+      "ability_bonus": {"choose_one": true, "options": ["int", "wis"]},
+      "passive_bonuses": {"perception": 5, "investigation": 5}
     },
     {
       "name": "Resiliente",
       "prerequisite": null,
       "description": "Scegli un punteggio di caratteristica e ottieni i seguenti benefici: il punteggio della caratteristica scelta aumenta di 1, fino a un massimo di 20; ottieni competenza nei tiri salvezza che usano la caratteristica scelta.",
-      "ability_bonus": {"choose_one": true, "options": ["str", "dex", "con", "int", "wis", "cha"]}
+      "ability_bonus": {"choose_one": true, "options": ["str", "dex", "con", "int", "wis", "cha"], "grants_save_proficiency": true}
     },
     {
       "name": "Robusto",
       "prerequisite": null,
       "description": "Il massimo dei tuoi punti ferita aumenta di un ammontare pari al doppio del tuo livello quando ottieni questo talento. Da allora in poi, ogni volta che acquisisci un livello, il massimo dei tuoi punti ferita aumenta di 2 punti ferita aggiuntivi.",
-      "ability_bonus": null
+      "ability_bonus": null,
+      "hp_bonus_per_level": 2
     },
     {
       "name": "Sentinella",

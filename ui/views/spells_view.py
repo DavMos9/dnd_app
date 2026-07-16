@@ -3,22 +3,40 @@ SpellsView — Gestione incantesimi del personaggio.
 
 Struttura:
   - Header: caratteristica/CD/bonus attacco + banner "X/Y preparati"
+    (preparatori) o "X/Y conosciuti" (classi "know")
   - Lista slot per livello (read-only — modifica in Combattimento)
-  - Lista incantesimi da JSON classe, raggruppati per livello
-    · Toggle preparazione (cerchietto) — scrive in known_spells
-    · Click sul nome → dialog con descrizione completa
+  - Sezione incantesimi, con DUE modalità distinte in base alla classe
+    (task bug fix 2026-07-16, Davide: "Tutte le classi devono avere la
+    modalità coerente di incantesimi"):
+    · Full/half preparatori (Chierico, Druido, Mago, Paladino): intero
+      catalogo di classe raggruppato per livello, con toggle di
+      preparazione (cerchietto) — scrive/cancella in known_spells,
+      soggetto al limite giornaliero PHB.
+    · Classi "know" (Bardo, Ranger, Stregone, Warlock) e le sottoclassi
+      "prese in prestito dal Mago" (Mistificatore Arcano, Cavaliere
+      Mistico): SOLA LETTURA — mostra solo gli incantesimi realmente in
+      `known_spells` (scelti alla creazione, o imparati/scambiati via
+      SPELL_LEARN/SPELL_SWAP/CANTRIP_LEARN al level-up). Nessun toggle
+      sull'intero catalogo: imparare un incantesimo qualsiasi all'istante
+      da questa vista bypasserebbe il level-up, incoerente con come sono
+      già gestiti Segreti Magici/Mistificatore/Cavaliere (sempre stati
+      sola lettura).
+    · Click sul nome → dialog con descrizione completa, in entrambi i casi.
 
-Regole PHB preparazione:
+Regole PHB preparazione/conoscenza:
   - I trucchetti (livello 0) sono sempre disponibili, non contano nel limite.
   - Full caster (Chierico, Druido, Mago): mod_car + livello classe (min 1)
   - Half caster (Paladino): mod_car + metà livello arrotondato giù (min 1)
-  - Classi "know" (Bardo, Ranger, Stregone, Warlock): nessun limite, lista fissa di
-    incantesimi conosciuti (sezione "Incantesimi Conosciuti") — il Ranger NON prepara
-    ogni giorno come Chierico/Druido/Paladino, "conosce" incantesimi fissi esattamente
-    come Bardo/Stregone/Warlock (PHB IT, ranger.json → feature "Incantesimi": "Un ranger
-    conosce due incantesimi di 1° livello a sua scelta"). Corretto il 2026-07-11 — prima
-    era erroneamente incluso tra gli "half caster", vedi CLAUDE.md.
-  - Override manuale del giocatore: sovrascrive la formula se ≥ 1.
+  - Classi "know" (Bardo, Ranger, Stregone, Warlock): nessun limite/toggle,
+    lista fissa di incantesimi conosciuti (sezione "Incantesimi Conosciuti",
+    sola lettura) — il Ranger NON prepara ogni giorno come Chierico/Druido/
+    Paladino, "conosce" incantesimi fissi esattamente come Bardo/Stregone/
+    Warlock (PHB IT, ranger.json → feature "Incantesimi": "Un ranger
+    conosce due incantesimi di 1° livello a sua scelta"). Corretto il
+    2026-07-11 — prima era erroneamente incluso tra gli "half caster",
+    vedi CLAUDE.md.
+  - Override manuale del giocatore: sovrascrive la formula se ≥ 1 (solo
+    per i preparatori — non ha senso per le classi "know").
 """
 
 import flet as ft
@@ -29,8 +47,8 @@ from config.settings import get_modifier, char_prof_bonus
 from data.models import Character, KnownSpell, SpellSlot
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
-from ui.theme import section_header
-from ui.widgets import dropdown_with_info, make_spell_describe
+from ui.theme import section_header, muted_text
+from ui.widgets import CardPicker, spell_card_options
 
 logger = logging.getLogger(__name__)
 
@@ -474,22 +492,69 @@ class SpellsView(ft.ListView):
             # togglabili (molti, es. "Cura Ferite" per un Chierico, sono
             # anche parte della lista standard della classe).
             always_prep_names = {ks.name for ks in self._known.values() if ks.always_prepared}
-            by_level: dict[int, list[dict]] = {}
-            for sp in self._class_spells:
-                if sp.get("name") in always_prep_names:
-                    continue
-                by_level.setdefault(sp.get("level", 0), []).append(sp)
 
             controls += [
                 section_header("Incantesimi"),
                 self._section_prep_banner(c),
             ]
-            for lv in sorted(by_level.keys()):
-                label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
-                controls += [
-                    section_header(label),
-                    self._section_spell_list(by_level[lv]),
+
+            key = (c.class_name or "").strip().lower()
+            if key in _KNOW_CLASSES:
+                # Bug fix 2026-07-16 (Davide): Bardo/Ranger/Stregone/Warlock
+                # NON preparano ogni giorno dall'intera lista di classe come
+                # Chierico/Druido/Mago — "conoscono" un set fisso di
+                # incantesimi, scelto alla creazione e modificato SOLO tramite
+                # i meccanismi di level-up già esistenti (SPELL_LEARN,
+                # SPELL_SWAP, CANTRIP_LEARN). Mostrare qui l'intero catalogo
+                # con un toggle libero (come per i preparatori puri) permette
+                # di "imparare" all'istante un incantesimo qualsiasi,
+                # bypassando quei meccanismi — incoerente con come sono già
+                # gestiti Segreti Magici/Mistificatore Arcano/Cavaliere
+                # Mistico (sempre in sola lettura). Qui mostriamo quindi SOLO
+                # gli incantesimi realmente in `known_spells` che appartengono
+                # alla lista della classe, in sola lettura (stesso stile della
+                # sezione "Incantesimi Extra"): per imparane di nuovi si passa
+                # dal level-up (o, per aggiunte eccezionali/case, da
+                # "Incantesimi Bonus" qui sopra).
+                class_spell_names_set = {sp.get("name", "") for sp in self._class_spells}
+                known_own_list = [
+                    ks for ks in self._known.values()
+                    if ks.name in class_spell_names_set
+                    and not ks.always_prepared and not ks.is_bonus
                 ]
+                by_level_known: dict[int, list[KnownSpell]] = {}
+                for ks in known_own_list:
+                    by_level_known.setdefault(ks.spell_level, []).append(ks)
+
+                if by_level_known:
+                    for lv in sorted(by_level_known.keys()):
+                        label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
+                        controls += [
+                            section_header(label),
+                            self._section_known_class_spell_list(by_level_known[lv]),
+                        ]
+                else:
+                    controls.append(ft.Container(
+                        content=ft.Text(
+                            "Nessun incantesimo ancora conosciuto — si "
+                            "impara alla creazione del personaggio o "
+                            "salendo di livello.",
+                            size=12, color=COLOR_TEXT_MUTED, italic=True,
+                        ),
+                        padding=16,
+                    ))
+            else:
+                by_level: dict[int, list[dict]] = {}
+                for sp in self._class_spells:
+                    if sp.get("name") in always_prep_names:
+                        continue
+                    by_level.setdefault(sp.get("level", 0), []).append(sp)
+                for lv in sorted(by_level.keys()):
+                    label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
+                    controls += [
+                        section_header(label),
+                        self._section_spell_list(by_level[lv]),
+                    ]
 
         # Incantesimi "sempre pronti" da privilegio di Dominio/Giuramento/
         # Circolo della Terra (task #26, 2026-07-16) — sezione dedicata,
@@ -631,7 +696,7 @@ class SpellsView(ft.ListView):
         elif expected > 0 and count > expected:
             note = f"Hai {count - expected} incantesim{'o' if count - expected == 1 else 'i'} in più del previsto per il tuo livello — controlla se è corretto (Segreti Magici e simili contano a parte)"
         else:
-            note = "Tocca ◉ per segnare un incantesimo come conosciuto"
+            note = "Nuovi incantesimi si imparano alla creazione o al level-up"
 
         rows: list[ft.Control] = [
             ft.Row([
@@ -785,6 +850,112 @@ class SpellsView(ft.ListView):
                 ),
             )
             rows.append(row)
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=0),
+            bgcolor=COLOR_BG_CARD,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=8),
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _section_known_class_spell_list(self, spells: list[KnownSpell]) -> ft.Container:
+        """
+        Lista degli incantesimi REALMENTE conosciuti (dalla propria lista di
+        classe) per le classi "know" (Bardo/Ranger/Stregone/Warlock — task
+        bug fix 2026-07-16). Sola lettura, stesso principio di
+        `_section_extra_spell_list()`/`_section_always_prepared_list()`:
+        nessun toggle per "preparare" un incantesimo qualunque dall'intero
+        catalogo — i nuovi incantesimi si ottengono solo tramite i passi di
+        level-up dedicati (SPELL_LEARN/SPELL_SWAP/CANTRIP_LEARN) o dalla
+        creazione del personaggio, mai da questa vista.
+        """
+        rows: list[ft.Control] = []
+        sorted_spells = sorted(spells, key=lambda s: s.name)
+        for i, ks in enumerate(sorted_spells):
+            def _open(e, _ks: KnownSpell = ks) -> None:
+                if not self._page:
+                    return
+                page = self._page
+                rows_d: list[ft.Control] = [
+                    ft.Text(
+                        f"Lv{_ks.spell_level}  ·  {_ks.school or '—'}",
+                        size=11, color=COLOR_TEXT_MUTED, italic=True,
+                    ),
+                    ft.Container(height=4),
+                ]
+                for label, val in [
+                    ("Tempo:", _ks.casting_time),
+                    ("Gittata:", _ks.spell_range),
+                    ("Durata:", _ks.duration),
+                    ("Componenti:", _ks.components),
+                ]:
+                    if val:
+                        rows_d.append(ft.Row([
+                            ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                                    weight=ft.FontWeight.BOLD, width=100),
+                            ft.Text(val, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                        ], spacing=4))
+                rows_d += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Text(
+                        _ks.description or "Nessuna descrizione.",
+                        size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+                    ),
+                ]
+                if _ks.higher_levels:
+                    rows_d += [
+                        ft.Container(height=6),
+                        ft.Text("Ai livelli superiori:", size=11,
+                                color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+                        ft.Text(_ks.higher_levels, size=12, color=COLOR_TEXT_SECONDARY),
+                    ]
+                page.show_dialog(ft.AlertDialog(
+                    title=ft.Text(_ks.name, size=14, weight=ft.FontWeight.BOLD,
+                                  color=COLOR_TEXT_TITLE),
+                    content=ft.Column(
+                        rows_d, spacing=6, scroll=ft.ScrollMode.AUTO
+                    ),
+                    actions=[
+                        ft.TextButton(
+                            "Chiudi",
+                            on_click=lambda e: page.pop_dialog() if page else None,
+                        )
+                    ],
+                    bgcolor=COLOR_BG_CARD,
+                ))
+
+            rows.append(ft.Container(
+                content=ft.Row([
+                    ft.Text("●", size=18, color=COLOR_ACCENT_CRIMSON),
+                    ft.Container(width=6),
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Text(
+                                ks.name, size=13, expand=True,
+                                color=COLOR_TEXT_PRIMARY,
+                                weight=ft.FontWeight.W_600,
+                            ),
+                            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14,
+                                    color=COLOR_TEXT_MUTED),
+                        ], spacing=6,
+                           vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        on_click=_open,
+                        expand=True, ink=True, border_radius=4,
+                        padding=ft.Padding.symmetric(vertical=6, horizontal=4),
+                    ),
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
+                border=ft.Border(
+                    bottom=ft.BorderSide(1, COLOR_BORDER)
+                    if i < len(sorted_spells) - 1
+                    else ft.BorderSide(0, "transparent"),
+                ),
+            ))
 
         return ft.Container(
             content=ft.Column(rows, spacing=0),
@@ -1385,56 +1556,24 @@ class SpellsView(ft.ListView):
             border_color=COLOR_BORDER,
             focused_border_color=COLOR_ACCENT_BLUE,
         )
-        spell_dd = ft.Dropdown(
-            label="Incantesimo",
-            options=[],
-            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_BLUE,
-        )
         error_text = ft.Text("", size=12, color=COLOR_ACCENT_CRIMSON)
 
         def _spells_for(cls: str) -> list[dict[str, Any]]:
             return sorted(_loader.get_spells(cls), key=lambda s: (s.get("level", 0), s.get("name", "")))
 
+        spell_dd = CardPicker(
+            options=spell_card_options(_spells_for(default_class)),
+            height=280,
+        )
+
         def _refresh_spell_options(ev: Any = None) -> None:
             opts = _spells_for(class_dd.value or default_class)
-            new_options = []
-            for s in opts:
-                lv = s.get("level", 0)
-                lv_label = "Trucchetto" if lv == 0 else f"Lv{lv}"
-                new_options.append(ft.DropdownOption(key=s["name"], text=f"{s['name']} ({lv_label})"))
-            spell_dd.options = new_options
+            spell_dd.options = spell_card_options(opts)
             spell_dd.value = opts[0]["name"] if opts else None
-            try:
-                spell_dd.update()
-            except RuntimeError:
-                pass
+            spell_dd.update()
 
         class_dd.on_select = _refresh_spell_options
         _refresh_spell_options()
-
-        describe_spell = make_spell_describe(_spells_for(default_class))
-
-        def _rewire_describe(ev: Any = None) -> None:
-            nonlocal describe_spell
-            describe_spell = make_spell_describe(_spells_for(class_dd.value or default_class))
-
-        # `_refresh_spell_options` già ricostruisce le opzioni al cambio
-        # classe; qui incateniamo anche il ricalcolo del describe per la
-        # nuova lista, altrimenti l'icona ⓘ mostrerebbe la descrizione della
-        # classe precedente.
-        _orig_on_select = class_dd.on_select
-
-        def _on_class_select(ev: Any) -> None:
-            _orig_on_select(ev)
-            _rewire_describe(ev)
-
-        class_dd.on_select = _on_class_select
-
-        def _describe_proxy(value: str) -> tuple[str, str] | None:
-            return describe_spell(value)
 
         def save(ev: Any) -> None:
             if page is None:
@@ -1497,7 +1636,8 @@ class SpellsView(ft.ListView):
                         size=11, color=COLOR_TEXT_MUTED,
                     ),
                     class_dd,
-                    dropdown_with_info(lambda: self._page, spell_dd, _describe_proxy),
+                    muted_text("Incantesimo", size=11),
+                    spell_dd.control,
                     error_text,
                 ], spacing=10, tight=True),
                 width=340,
