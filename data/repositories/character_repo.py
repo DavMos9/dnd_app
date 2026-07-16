@@ -67,6 +67,8 @@ def _row_to_character(row) -> Character:
         proficiency_bonus_override=d.get("proficiency_bonus_override", 0) or 0,
         session_notes=d.get("session_notes", "") or "",
         max_prepared_spells_override=d.get("max_prepared_spells_override", 0) or 0,
+        passive_perception_override=d.get("passive_perception_override", 0) or 0,
+        carry_capacity_override=d.get("carry_capacity_override", 0) or 0,
         dragon_ancestry=d.get("dragon_ancestry", "") or "",
         fighting_style=d.get("fighting_style", "") or "",
         totem_animal=d.get("totem_animal", "") or "",
@@ -145,6 +147,7 @@ def create(character: Character) -> bool:
                 ca_bonus, proficiency_bonus_override, session_notes,
                 dragon_ancestry, fighting_style, totem_animal, land_terrain,
                 pact_boon, initiative_bonus, max_prepared_spells_override,
+                passive_perception_override, carry_capacity_override,
                 age, height, weight, eyes, skin, hair,
                 personality_traits, ideals, bonds, flaws,
                 backstory, allies_organizations, additional_traits, appearance_notes,
@@ -162,6 +165,7 @@ def create(character: Character) -> bool:
                 :ca_bonus, :proficiency_bonus_override, :session_notes,
                 :dragon_ancestry, :fighting_style, :totem_animal, :land_terrain,
                 :pact_boon, :initiative_bonus, :max_prepared_spells_override,
+                :passive_perception_override, :carry_capacity_override,
                 :age, :height, :weight, :eyes, :skin, :hair,
                 :personality_traits, :ideals, :bonds, :flaws,
                 :backstory, :allies_organizations, :additional_traits, :appearance_notes,
@@ -228,6 +232,8 @@ def create(character: Character) -> bool:
             "pact_boon": _s(character.pact_boon),
             "initiative_bonus": character.initiative_bonus,
             "max_prepared_spells_override": character.max_prepared_spells_override,
+            "passive_perception_override": character.passive_perception_override,
+            "carry_capacity_override": character.carry_capacity_override,
             "created_at": character.created_at,
             "updated_at": character.updated_at,
         })
@@ -303,6 +309,8 @@ def update(character: Character) -> bool:
                 pact_boon=:pact_boon,
                 initiative_bonus=:initiative_bonus,
                 max_prepared_spells_override=:max_prepared_spells_override,
+                passive_perception_override=:passive_perception_override,
+                carry_capacity_override=:carry_capacity_override,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -366,6 +374,8 @@ def update(character: Character) -> bool:
             "pact_boon": _s(character.pact_boon),
             "initiative_bonus": character.initiative_bonus,
             "max_prepared_spells_override": character.max_prepared_spells_override,
+            "passive_perception_override": character.passive_perception_override,
+            "carry_capacity_override": character.carry_capacity_override,
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -424,6 +434,116 @@ def _save_single_proficiency(
     except Exception as e:
         logger.error(f"Errore salvataggio competenza '{name}': {e}")
         return False
+
+
+# Token bare per le competenze bonus di sottoclasse ("bonus_proficiencies"
+# in classes/*.json), stessa convenzione già usata da "armor_proficiencies"/
+# "weapon_proficiencies" a livello di classe (normalizzazione del
+# 2026-07-10: "#armature_pesanti" -> "pesanti", ecc.). Aggiunte qui il
+# 2026-07-16 insieme alla normalizzazione degli stessi tag rimasti rotti
+# in chierico.json/bardo.json (vedi CLAUDE.md, TODO "bonus_proficiencies
+# nelle sottoclassi di chierico.json/bardo.json").
+_ARMOR_PROFICIENCY_TOKENS = {"leggere", "medie", "pesanti", "scudi"}
+_WEAPON_PROFICIENCY_TOKENS = {"semplice", "semplice_mischia", "guerra", "guerra_mischia"}
+
+
+def classify_bonus_proficiency_entries(entries: list) -> tuple[list[str], list[dict]]:
+    """
+    Divide una lista `bonus_proficiencies` (dal JSON di una sottoclasse) in:
+    - fixed: stringhe pronte per il salvataggio diretto (token bare
+      armatura/arma, o nome letterale di una competenza già specifica —
+      es. uno strumento, come in ladro.json -> Assassino)
+    - choices: dict `{"type":"choice","count":N,"from":[...]|"any_skill"}`
+      che richiedono una scelta del giocatore prima di poter essere
+      applicate (gestita dalla UI di creazione/level-up, vedi
+      resolve_bonus_proficiency_choice_options())
+
+    Voci di tipo non riconosciuto vengono ignorate silenziosamente (nessuna
+    sottoclasse attuale ne contiene un formato diverso, ma la funzione non
+    deve mai sollevare eccezioni su dati imprevisti).
+    """
+    fixed: list[str] = []
+    choices: list[dict] = []
+    for entry in entries or []:
+        if isinstance(entry, dict) and entry.get("type") == "choice":
+            choices.append(entry)
+        elif isinstance(entry, str):
+            fixed.append(entry)
+    return fixed, choices
+
+
+def resolve_bonus_proficiency_choice_options(entry: dict) -> list[str]:
+    """
+    Risolve il pool di opzioni selezionabili per una entry `{"type":
+    "choice", "from": ...}`: "any_skill" -> tutte le 18 abilità PHB,
+    altrimenti la lista letterale già presente nel JSON.
+    """
+    from config.settings import SKILLS
+    src = entry.get("from")
+    if src == "any_skill":
+        return list(SKILLS.keys())
+    if isinstance(src, list):
+        return list(src)
+    return []
+
+
+def _classify_bonus_proficiency_type(entry_name: str) -> str:
+    """
+    Determina il proficiency_type corretto per una singola voce già
+    risolta (token bare armatura/arma, nome di una delle 18 abilità PHB, o
+    nome libero — strumento/altra competenza specifica).
+    """
+    from config.settings import SKILLS
+    if entry_name in _ARMOR_PROFICIENCY_TOKENS:
+        return "armor"
+    if entry_name in _WEAPON_PROFICIENCY_TOKENS:
+        return "weapon"
+    if entry_name in SKILLS:
+        return "skill"
+    return "tool"
+
+
+def apply_subclass_bonus_proficiencies(character_id: str, resolved_entries: list[str]) -> None:
+    """
+    Salva le competenze bonus di una sottoclasse (`bonus_proficiencies`,
+    normalizzato in chierico.json/bardo.json il 2026-07-16 — generico per
+    qualunque sottoclasse futura con lo stesso campo, es. ladro.json ->
+    Assassino). `resolved_entries` è la lista FINALE di nomi già risolti:
+    sia le voci fisse (token armatura/arma bare o nomi letterali) sia le
+    scelte del giocatore per le entry "choice" (risolte dalla UI PRIMA di
+    questa chiamata, tramite resolve_bonus_proficiency_choice_options()).
+
+    Idempotente per contenuto: salta le voci già presenti per lo stesso
+    (character_id, proficiency_type, name) — a differenza della normale
+    _save_single_proficiency() (nessun vincolo UNIQUE sulla tabella, quindi
+    duplicherebbe silenziosamente ad ogni chiamata), qui serve perché la
+    scelta sottoclasse può essere riaperta o ripetuta (level-down e poi di
+    nuovo level-up sulla stessa sottoclasse).
+    """
+    if not resolved_entries:
+        return
+    try:
+        conn = get_connection()
+        existing = {
+            (row["proficiency_type"], row["name"])
+            for row in conn.execute(
+                "SELECT proficiency_type, name FROM character_proficiencies WHERE character_id=?",
+                (character_id,),
+            ).fetchall()
+        }
+        conn.close()
+    except Exception as e:
+        logger.error(f"Errore lettura competenze esistenti per bonus sottoclasse: {e}")
+        existing = set()
+
+    for entry_name in resolved_entries:
+        if not entry_name:
+            continue
+        ptype = _classify_bonus_proficiency_type(entry_name)
+        if (ptype, entry_name) in existing:
+            continue
+        _save_single_proficiency(character_id, ptype, entry_name)
+        existing.add((ptype, entry_name))
 
 
 def undo_level(character_id: str, level_removed: int) -> bool:
@@ -774,6 +894,222 @@ def auto_init_spell_slots(character_id: str, class_name: str, level: int) -> boo
         return False
 
 
+def init_borrowed_caster_slots(
+    character_id: str, class_name: str, subclass: str, level: int
+) -> bool:
+    """
+    Aggiorna i totali slot incantesimo per Mistificatore Arcano (Ladro) e
+    Cavaliere Mistico (Guerriero) — le uniche 2 sottoclassi PHB che
+    concedono casting a una classe senza spellcasting_ability propria.
+
+    Percorso completamente indipendente da auto_init_spell_slots() (che
+    legge caster_type da game_data.get_caster_type(class_name), sempre
+    vuoto per Ladro/Guerriero): nessun rischio per le 12 classi già
+    funzionanti. Ritorna False (no-op) se la sottoclasse non è una delle
+    2 gestite o se il personaggio non ha ancora raggiunto il 3° livello
+    (subclass_choice_level) — in quel caso non tocca gli slot esistenti.
+
+    Sicura da chiamare ad ogni level-up/level-down, stesso pattern di
+    auto_init_spell_slots: aggiorna total e clamppa used al nuovo total.
+    """
+    row = game_data.get_borrowed_caster_progression_for_level(
+        class_name, subclass, level
+    )
+    if row is None:
+        return False
+    slots = row.get("slots", {})
+    if not slots:
+        return False
+    try:
+        conn = get_connection()
+        for slot_lv_str, total in slots.items():
+            slot_lv = int(slot_lv_str)
+            conn.execute(
+                "UPDATE spell_slots SET total=?, used=MIN(used,?) "
+                "WHERE character_id=? AND slot_level=?",
+                (total, total, character_id, slot_lv),
+            )
+        conn.commit()
+        conn.close()
+        logger.info(
+            "Slot borrowed-caster auto-init: %s/%s Lv%d → %s",
+            class_name, subclass, level, slots,
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Errore init_borrowed_caster_slots {character_id}: {e}")
+        return False
+
+
+def sync_borrowed_spellcasting_ability(character: "Character") -> bool:
+    """
+    Imposta/ricalcola character.spellcasting_ability per le sottoclassi che
+    concedono casting a una classe altrimenti non incantatrice (Mistificatore
+    Arcano/Ladro, Cavaliere Mistico/Guerriero — entrambe "int" per PHB,
+    letto dal JSON di sottoclasse, mai hardcoded qui).
+
+    No-op (ritorna False, non tocca nulla) se la classe base HA GIA' una
+    propria spellcasting_ability nel JSON — questa funzione serve solo a
+    "riempire il vuoto" per le classi che altrimenti non ne avrebbero
+    nessuna, mai a sovrascrivere un incantatore vero.
+
+    Sicura da richiamare ad ogni level-up/level-down/creazione: se il
+    personaggio non ha (ancora) una delle 2 sottoclassi gestite, riporta
+    spellcasting_ability a "" (nessun incantesimo) — difensivo contro lo
+    stato residuo se in futuro venisse mai introdotto un modo di cambiare
+    sottoclasse. Aggiorna sia l'oggetto Character in memoria sia la riga DB.
+    """
+    cls_data = game_data.get_class(character.class_name or "")
+    if cls_data and (cls_data.get("spellcasting_ability") or ""):
+        return False  # la classe base ha già una propria caratteristica da incantatore
+
+    sc = game_data.get_borrowed_caster_data(character.class_name or "", character.subclass or "")
+    new_ability = (sc.get("spellcasting_ability") or "") if sc else ""
+
+    if character.spellcasting_ability == new_ability:
+        return False  # già sincronizzato, nessuna scrittura necessaria
+
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET spellcasting_ability=?, updated_at=? WHERE id=?",
+            (new_ability, datetime.now().isoformat(), character.id),
+        )
+        conn.commit()
+        conn.close()
+        character.spellcasting_ability = new_ability
+        return True
+    except Exception as e:
+        logger.error(f"Errore sync_borrowed_spellcasting_ability {character.id}: {e}")
+        return False
+
+
+def sync_bonus_domain_spells(character: "Character") -> None:
+    """
+    Sincronizza gli incantesimi "sempre pronti" concessi da un privilegio di
+    Dominio (Chierico)/Giuramento (Paladino)/Circolo della Terra (Druido) —
+    PHB: questi incantesimi si aggiungono alla lista di incantesimi preparati
+    del chierico/paladino/druido e sono SEMPRE preparati, non contano nel
+    numero di incantesimi che il personaggio può preparare.
+
+    Dati letti (nessun nuovo audit manuale, stessi JSON già verificati):
+      - chierico.json / paladino.json → subclasses[i].bonus_spells,
+        dict {"livello_soglia": [nomi]} (es. Paladino Giuramento degli
+        Antichi: {"3": ["Colpo Intrappolante", "Parlare con gli Animali"],
+        "5": ["Bagliore Lunare", "Passo Velato"], ...}).
+      - druido.json → subclasses[i].circle_spells (solo Circolo della
+        Terra), dict {terreno: {"livello_soglia": [nomi]}} — filtrato per
+        `character.land_terrain`.
+
+    Self-healing: va richiamata ad ogni apertura di SpellsView e ad ogni
+    level-up/level-down (stesso pattern di init_class_resources()) — così
+    un cambio di sottoclasse/terreno o livello riallinea sempre lo stato
+    corretto senza richiedere un'azione manuale del giocatore. Ogni
+    incantesimo atteso viene scritto/aggiornato in known_spells con
+    `always_prepared=True, is_prepared=True`; ogni riga `always_prepared=1`
+    non più valida (sottoclasse/terreno cambiati, level-down sotto la
+    soglia) viene ripulita — se quella stessa riga era ANCHE un incantesimo
+    bonus scelto manualmente dal giocatore (`is_bonus=True`, task
+    "Incantesimi bonus"), il flag `always_prepared` viene semplicemente
+    rimosso invece di cancellare l'intera riga, per non perdere la scelta
+    del giocatore.
+    """
+    cls_lower = (character.class_name or "").strip().lower()
+    level = character.level
+    subclass = character.subclass or ""
+
+    expected: dict[tuple[str, int], dict] = {}
+
+    def _collect(spells_by_level: dict, resolve_class: str) -> None:
+        for lvl_str, names in (spells_by_level or {}).items():
+            try:
+                lvl_threshold = int(lvl_str)
+            except (TypeError, ValueError):
+                continue
+            if level < lvl_threshold:
+                continue
+            for name in names:
+                resolved = game_data.get_spell_by_name(name, resolve_class)
+                key_level = resolved.get("level", 0) if resolved else 0
+                expected[(name, key_level)] = resolved or {"name": name}
+
+    if cls_lower in ("chierico", "paladino") and subclass:
+        cls_data = game_data.get_class(cls_lower)
+        sc_data = next(
+            (sc for sc in (cls_data.get("subclasses", []) if cls_data else [])
+             if sc.get("name") == subclass),
+            None,
+        )
+        if sc_data:
+            _collect(sc_data.get("bonus_spells", {}), cls_lower)
+    elif cls_lower == "druido" and character.land_terrain:
+        cls_data = game_data.get_class("druido")
+        sc_data = next(
+            (sc for sc in (cls_data.get("subclasses", []) if cls_data else [])
+             if "circle_spells" in sc),
+            None,
+        )
+        if sc_data:
+            terrain_spells = sc_data.get("circle_spells", {}).get(character.land_terrain, {})
+            _collect(terrain_spells, "druido")
+
+    for (name, lvl), spell in expected.items():
+        comps = spell.get("components", [])
+        comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
+        if spell.get("material"):
+            comp_str += f" ({spell['material']})"
+        upsert_known_spell(
+            character_id=character.id,
+            name=spell.get("name", name),
+            level=lvl,
+            is_prepared=True,
+            school=spell.get("school", ""),
+            casting_time=spell.get("casting_time", ""),
+            spell_range=spell.get("range", ""),
+            components=comp_str,
+            duration=spell.get("duration", ""),
+            description=spell.get("description", ""),
+            higher_levels=spell.get("higher_levels", "") or "",
+            class_list=character.class_name or "",
+            always_prepared=True,
+        )
+
+    expected_keys = set(expected.keys())
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT name, spell_level, is_bonus FROM known_spells "
+            "WHERE character_id=? AND always_prepared=1",
+            (character.id,),
+        ).fetchall()
+        conn.close()
+        for r in rows:
+            key = (r["name"], r["spell_level"])
+            if key in expected_keys:
+                continue
+            if r["is_bonus"]:
+                _clear_always_prepared_flag(character.id, r["name"], r["spell_level"])
+            else:
+                remove_known_spell(character.id, r["name"], r["spell_level"])
+    except Exception as e:
+        logger.error(f"Errore sync_bonus_domain_spells (cleanup) {character.id}: {e}")
+
+
+def _clear_always_prepared_flag(character_id: str, name: str, level: int) -> None:
+    """Rimuove SOLO il flag always_prepared, senza toccare il resto della riga."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE known_spells SET always_prepared=0 "
+            "WHERE character_id=? AND name=? AND spell_level=?",
+            (character_id, name, level),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Errore _clear_always_prepared_flag {character_id}/{name}: {e}")
+
+
 def update_spell_slot_total(character_id: str, slot_level: int, total: int) -> bool:
     """
     Aggiorna il totale massimo di uno slot incantesimo.
@@ -914,6 +1250,11 @@ def get_known_spells(character_id: str) -> list:
                 spell_range=r["spell_range"] or "", components=r["components"] or "",
                 duration=r["duration"] or "", description=r["description"] or "",
                 higher_levels=r["higher_levels"] or "", class_list=r["class_list"] or "",
+                origin_unrestricted=bool(r["origin_unrestricted"])
+                if "origin_unrestricted" in r.keys() else False,
+                is_bonus=bool(r["is_bonus"]) if "is_bonus" in r.keys() else False,
+                always_prepared=bool(r["always_prepared"])
+                if "always_prepared" in r.keys() else False,
             )
             for r in rows
         ]
@@ -935,34 +1276,65 @@ def upsert_known_spell(
     description: str = "",
     higher_levels: str = "",
     class_list: str = "",
+    origin_unrestricted: bool = False,
+    is_bonus: bool | None = None,
+    always_prepared: bool | None = None,
 ) -> bool:
     """
     Inserisce o aggiorna un incantesimo in known_spells.
     Identifica la riga per (character_id, name, spell_level).
+
+    origin_unrestricted: solo per Mistificatore Arcano/Cavaliere Mistico —
+    True se questo pick è "libero da vincolo di scuola" (vedi KnownSpell in
+    data/models.py). Ignorato/sempre False per tutte le altre classi.
+
+    is_bonus/always_prepared: usano `None` come sentinel "non specificato"
+    (2026-07-16, task incantesimi bonus/sempre pronti) — a differenza degli
+    altri parametri con default `False`/`""`, qui serve distinguere "il
+    chiamante non sa/non vuole toccare questo flag" da "il chiamante vuole
+    esplicitamente False". Motivo: molti punti del codice (toggle
+    preparazione normale, SPELL_LEARN, Segreti Magici, ecc.) chiamano questa
+    funzione su un incantesimo che potrebbe già esistere come bonus o
+    sempre-pronto — se questi due flag avessero un default `False` fisso,
+    ogni chiamata "innocente" li azzererebbe silenziosamente. Se `None`, il
+    valore esistente sulla riga (o `False` per una riga nuova) viene
+    preservato.
     """
     import uuid as _uuid
     try:
         conn = get_connection()
         existing = conn.execute(
-            "SELECT id FROM known_spells WHERE character_id=? AND name=? AND spell_level=?",
+            "SELECT id, is_bonus, always_prepared FROM known_spells "
+            "WHERE character_id=? AND name=? AND spell_level=?",
             (character_id, name, level),
         ).fetchone()
         if existing:
+            final_bonus = is_bonus if is_bonus is not None else bool(existing["is_bonus"])
+            final_always = (
+                always_prepared if always_prepared is not None
+                else bool(existing["always_prepared"])
+            )
             conn.execute(
                 "UPDATE known_spells SET is_prepared=?, school=?, casting_time=?, "
                 "spell_range=?, components=?, duration=?, description=?, higher_levels=?, "
-                "class_list=? WHERE id=?",
+                "class_list=?, origin_unrestricted=?, is_bonus=?, always_prepared=? WHERE id=?",
                 (int(is_prepared), school, casting_time, spell_range, components,
-                 duration, description, higher_levels, class_list, existing["id"]),
+                 duration, description, higher_levels, class_list,
+                 int(origin_unrestricted), int(final_bonus), int(final_always),
+                 existing["id"]),
             )
         else:
+            final_bonus = bool(is_bonus)
+            final_always = bool(always_prepared)
             conn.execute(
                 "INSERT INTO known_spells (id, character_id, name, spell_level, is_prepared, "
                 "school, casting_time, spell_range, components, duration, description, "
-                "higher_levels, class_list) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "higher_levels, class_list, origin_unrestricted, is_bonus, always_prepared) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (str(_uuid.uuid4()), character_id, name, level, int(is_prepared),
                  school, casting_time, spell_range, components, duration, description,
-                 higher_levels, class_list),
+                 higher_levels, class_list, int(origin_unrestricted),
+                 int(final_bonus), int(final_always)),
             )
         conn.commit()
         conn.close()
@@ -1392,6 +1764,103 @@ def delete_campaign_note(note_id: str) -> bool:
         return False
 
 
+# ---------------------------------------------------------------------------
+# Abilità Speciali custom (2026-07-16)
+# ---------------------------------------------------------------------------
+
+def get_custom_abilities(character_id: str, category: str | None = None) -> list:
+    """
+    Restituisce le abilità speciali custom del personaggio (es. concesse dal
+    master), opzionalmente filtrate per categoria ("esplorazione" |
+    "combattimento"). Ordine: created_at ASC (cronologico).
+    """
+    from data.models import CustomAbility
+    try:
+        conn = get_connection()
+        if category:
+            rows = conn.execute(
+                "SELECT * FROM custom_abilities WHERE character_id=? AND category=?"
+                " ORDER BY created_at ASC",
+                (character_id, category)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM custom_abilities WHERE character_id=?"
+                " ORDER BY category, created_at ASC",
+                (character_id,)
+            ).fetchall()
+        conn.close()
+        return [
+            CustomAbility(
+                id=r["id"],
+                character_id=r["character_id"],
+                category=r["category"],
+                name=r["name"],
+                description=r["description"] or "",
+                created_at=r["created_at"] or "",
+                updated_at=r["updated_at"] or "",
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore lettura custom_abilities per {character_id}: {e}")
+        return []
+
+
+def create_custom_ability(character_id: str, category: str, name: str,
+                           description: str = "") -> str | None:
+    """Crea una nuova abilità speciale custom. Ritorna l'id creato o None."""
+    import uuid as _uuid
+    now = datetime.now().isoformat()
+    new_id = str(_uuid.uuid4())
+    try:
+        conn = get_connection()
+        conn.execute(
+            """INSERT INTO custom_abilities
+               (id, character_id, category, name, description, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (new_id, character_id, category, name, description, now, now)
+        )
+        conn.commit()
+        conn.close()
+        return new_id
+    except Exception as e:
+        logger.error(f"Errore creazione custom_ability: {e}")
+        return None
+
+
+def update_custom_ability(ability_id: str, name: str, description: str) -> bool:
+    """Aggiorna nome/descrizione di un'abilità speciale custom esistente."""
+    now = datetime.now().isoformat()
+    try:
+        conn = get_connection()
+        conn.execute(
+            """UPDATE custom_abilities
+               SET name=?, description=?, updated_at=?
+               WHERE id=?""",
+            (name, description, now, ability_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento custom_ability {ability_id}: {e}")
+        return False
+
+
+def delete_custom_ability(ability_id: str) -> bool:
+    """Elimina un'abilità speciale custom."""
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM custom_abilities WHERE id=?", (ability_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore eliminazione custom_ability {ability_id}: {e}")
+        return False
+
+
 def update_ca_bonus(character_id: str, ca_bonus: int) -> bool:
     """Aggiorna il bonus CA temporaneo (da incantesimi, reazioni, ecc.)."""
     try:
@@ -1421,6 +1890,72 @@ def update_max_prepared_override(character_id: str, value: int) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore update_max_prepared_override: {e}")
+        return False
+
+
+def update_passive_perception_override(character_id: str, value: int) -> bool:
+    """
+    Salva l'override manuale della Percezione Passiva (0 = usa la formula PHB
+    10 + mod SAG + eventuale bonus competenza/maestria). Aggiunto 2026-07-16
+    su richiesta di Davide ("rendiamo modificabili... percezione passiva"),
+    stesso pattern di update_max_prepared_override/proficiency_bonus_override.
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET passive_perception_override=?, updated_at=? WHERE id=?",
+            (value, datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore update_passive_perception_override: {e}")
+        return False
+
+
+def update_carry_capacity_override(character_id: str, value: float) -> bool:
+    """
+    Salva l'override manuale della capacità di trasporto massima in kg
+    (0 = usa la formula standard FOR × 7,5 kg). Aggiunto 2026-07-16 su
+    richiesta di Davide ("rendiamo modificabili... il peso in Inventario")
+    — permette di riflettere talenti/tratti che alterano il carico
+    (es. "Corporatura Possente" raddoppia il carico) senza toccare la
+    formula base né inventare un talento non ancora nei dati PHB.
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET carry_capacity_override=?, updated_at=? WHERE id=?",
+            (value, datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore update_carry_capacity_override: {e}")
+        return False
+
+
+def update_speed(character_id: str, speed: float) -> bool:
+    """
+    Aggiorna solo la velocità base a piedi del personaggio (senza toccare la
+    CA, a differenza del dialog combinato "Modifica CA/Velocità" già
+    esistente in combattimento_tab.py) — usata dal punto di modifica rapida
+    aggiunto in Esplorazione (2026-07-16, richiesta Davide: "rendiamo
+    modificabili... velocità").
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET speed=?, updated_at=? WHERE id=?",
+            (speed, datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore update_speed: {e}")
         return False
 
 
@@ -1621,15 +2156,16 @@ def get_class_resources(character_id: str) -> list[ClassResource]:
         ).fetchall()
         conn.close()
         return [
-            ClassResource(
-                id=r["id"],
-                character_id=r["character_id"],
-                name=r["name"],
-                max_value=r["max_value"],
-                current_value=r["current_value"],
-                reset_on=r["reset_on"],
-                display_type=r["display_type"],
-            )
+            (lambda d: ClassResource(
+                id=d["id"],
+                character_id=d["character_id"],
+                name=d["name"],
+                max_value=d["max_value"],
+                current_value=d["current_value"],
+                reset_on=d["reset_on"],
+                display_type=d["display_type"],
+                max_value_bonus=d.get("max_value_bonus", 0) or 0,
+            ))(dict(r))
             for r in rows
         ]
     except Exception as e:
@@ -1650,6 +2186,30 @@ def update_class_resource(resource_id: str, current_value: int) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento risorsa {resource_id}: {e}")
+        return False
+
+
+def update_class_resource_bonus(resource_id: str, max_value_bonus: int) -> bool:
+    """
+    Imposta il bonus permanente additivo al massimo di una risorsa di classe
+    (2026-07-16, richiesta Davide: "rendiamo modificabili... Risorse di
+    classe"). Non tocca max_value/current_value direttamente: il chiamante
+    deve far seguire un `init_class_resources()` per ricalcolare max_value
+    = default PHB + bonus (stesso pattern già usato per sincronizzare le
+    risorse dopo un level-up), altrimenti il bonus resterebbe salvato ma
+    non ancora riflesso nel pool visibile.
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE class_resources SET max_value_bonus=? WHERE id=?",
+            (max_value_bonus, resource_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore aggiornamento bonus risorsa {resource_id}: {e}")
         return False
 
 
@@ -1714,11 +2274,19 @@ def init_class_resources(
         for d in defaults:
             if d["name"] in existing:
                 ex = existing[d["name"]]
-                new_max = d["max_value"]
+                base_max = d["max_value"]
+                if base_max < 0:
+                    # Pool illimitato (es. Furia del Barbaro al 20° livello):
+                    # il sentinel -1 non è un numero di usi reale, il bonus
+                    # additivo non si applica (non esiste "infinito+N").
+                    new_max = -1
+                else:
+                    # Bonus permanente additivo (2026-07-16, talenti/oggetti
+                    # magici che concedono usi extra a una risorsa) — deve
+                    # sopravvivere a questo stesso ri-sync, che altrimenti
+                    # sovrascriverebbe max_value col solo valore PHB.
+                    new_max = base_max + (ex.max_value_bonus or 0)
                 if new_max < 0:
-                    # Pool diventa illimitato (es. Furia del Barbaro al 20°
-                    # livello): il sentinel -1 non è un numero di usi reale,
-                    # va sempre forzato, mai clampato con min().
                     new_current = -1
                 elif ex.current_value < 0:
                     # Pool ERA illimitato (sentinel -1) e torna finito — tipicamente
@@ -1732,7 +2300,7 @@ def init_class_resources(
                     """UPDATE class_resources
                        SET max_value=?, current_value=?, reset_on=?, display_type=?
                        WHERE id=?""",
-                    (d["max_value"], new_current, d["reset_on"], d["display_type"], ex.id)
+                    (new_max, new_current, d["reset_on"], d["display_type"], ex.id)
                 )
             else:
                 conn.execute(

@@ -77,6 +77,39 @@ def get_db_path() -> str:
         return str(app_dir / "dnd_companion.db")
 
 
+def get_image_library_path() -> str:
+    """
+    Cartella "libreria immagini" server-side, gestita a mano da Davide via
+    SSH (scp/rsync) -- NON un upload dal client attraverso Flet.
+
+    Aggiunta il 2026-07-12 in sostituzione di un precedente tentativo
+    (get_upload_dir_path(), rimosso) che si basava su ft.FilePicker +
+    page.get_upload_url() per un vero upload client-server: quel
+    meccanismo si e' rivelato IRRAGGIUNGIBILE in modalita' web per un bug
+    upstream confermato di Flet (flet-dev/flet#6040, #6250, #6251 -- i
+    controlli "Service" come FilePicker sono strutturalmente rotti in web
+    mode, indipendentemente da come li si usa). Vedi CLAUDE.md per il
+    changelog completo dei tre tentativi.
+
+    Soluzione adottata: Davide carica le immagini direttamente sul
+    filesystem del server (bind mount Docker, vedi docker-compose.yml ->
+    "./dnd_image_library:/root/dnd_image_library") usando SSH/scp -- nessun
+    controllo Flet coinvolto. L'app legge questa cartella e mostra un
+    picker con le miniature (vedi ui/image_library.py).
+
+    Deliberatamente FUORI da "~/.dnd_companion/" (che resta un dotfolder
+    privato per il DB, non pensato per essere navigato a mano): questa
+    cartella e' invece pensata per essere raggiunta direttamente da
+    Davide, quindi ha un nome visibile e descrittivo. Nessuna logica
+    speciale per Android: questa funzione e' pensata per il solo deploy
+    web via Docker, dove l'app gira come root -- Path.home() risolve a
+    "/root", coerente con il path del bind mount in docker-compose.yml.
+    """
+    lib_dir = Path.home() / "dnd_image_library"
+    lib_dir.mkdir(parents=True, exist_ok=True)
+    return str(lib_dir)
+
+
 def get_connection() -> sqlite3.Connection:
     """Apre e restituisce una connessione SQLite con row_factory."""
     conn = sqlite3.connect(get_db_path())
@@ -126,7 +159,41 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "inventory_items","effects",          "TEXT DEFAULT ''")
     _add_column(cur, "game_maps",      "image_data",       "TEXT DEFAULT ''")
     _add_column(cur, "game_maps",      "notes",            "TEXT DEFAULT ''")
-    # class_resources: tabella creata da _create_tables, nessuna colonna mancante attesa
+    # Mistificatore Arcano (Ladro) / Cavaliere Mistico (Guerriero) — traccia se
+    # una riga known_spells è un pick "libero da vincolo di scuola" (8°/14°/20°
+    # livello, +3° per il Cavaliere Mistico) — necessario per sapere, in un
+    # futuro scambio, se il rimpiazzo può essere di qualsiasi scuola. Vedi
+    # CLAUDE.md 2026-07-15, fix Mistificatore Arcano/Cavaliere Mistico.
+    _add_column(cur, "known_spells",   "origin_unrestricted", "INTEGER DEFAULT 0")
+    # Override manuali (2026-07-16, richiesta Davide: "rendiamo modificabili
+    # anche i campi che non si possono modificare attualmente") — stesso
+    # pattern di proficiency_bonus_override/max_prepared_spells_override:
+    # 0 = nessun override, usa il valore calcolato dalla formula PHB.
+    _add_column(cur, "characters", "passive_perception_override", "INTEGER DEFAULT 0")
+    _add_column(cur, "characters", "carry_capacity_override",     "REAL DEFAULT 0")
+    # Bonus permanente al massimo di una risorsa di classe (es. talento o
+    # oggetto magico che concede +1 uso) — additivo rispetto al valore PHB
+    # calcolato da get_class_resource_defaults(), sopravvive al ri-sync di
+    # init_class_resources() (che altrimenti sovrascriverebbe max_value a
+    # ogni apertura tab/level-up). Vedi CLAUDE.md 2026-07-16.
+    _add_column(cur, "class_resources", "max_value_bonus", "INTEGER DEFAULT 0")
+    # Incantesimo bonus aggiunto manualmente dal giocatore (es. concesso dal
+    # master) — sezione dedicata "Incantesimi Bonus" in spells_view.py,
+    # sempre visibile anche per classi senza spellcasting_ability. Distinto
+    # dal meccanismo "extra" già esistente (Segreti Magici/Mistificatore)
+    # perché quello si basa solo sul nome non presente nella lista di classe:
+    # un incantesimo bonus scelto dalla STESSA lista della classe del
+    # personaggio andrebbe altrimenti confuso con un incantesimo normale già
+    # preparato. Vedi CLAUDE.md 2026-07-16.
+    _add_column(cur, "known_spells", "is_bonus", "INTEGER DEFAULT 0")
+    # Incantesimo sempre pronto da privilegio di Dominio/Giuramento/Circolo
+    # (es. Paladino Giuramento degli Antichi Lv.3: Colpo Intrappolante,
+    # Parlare con gli Animali) — non conta nel tetto di preparazione
+    # giornaliera e non è disattivabile dal giocatore. Sincronizzato
+    # automaticamente da character_repo.sync_bonus_domain_spells() ad ogni
+    # apertura tab/level-up/level-down (self-healing, stesso pattern delle
+    # risorse di classe). Vedi CLAUDE.md 2026-07-16.
+    _add_column(cur, "known_spells", "always_prepared", "INTEGER DEFAULT 0")
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
@@ -457,4 +524,27 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_campaign_notes_character
         ON campaign_notes(character_id, category)
+    """)
+
+    # ------------------------------------------------------------------
+    # Abilità Speciali custom (2026-07-16, richiesta Davide: abilità
+    # concesse dal master o voci aggiuntive non presenti nel PHB — non
+    # vanno mai a modificare in-place il testo ufficiale di una feature di
+    # classe/razza già rappresentata nei JSON, solo ad affiancarlo).
+    # category: "esplorazione" | "combattimento"
+    # ------------------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS custom_abilities (
+            id           TEXT PRIMARY KEY,
+            character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+            category     TEXT NOT NULL DEFAULT 'esplorazione',
+            name         TEXT NOT NULL DEFAULT '',
+            description  TEXT NOT NULL DEFAULT '',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_custom_abilities_character
+        ON custom_abilities(character_id, category)
     """)

@@ -23,6 +23,33 @@
     {
       "name": "Eredità Infernale",
       "description": "Conosci il trucchetto Taumaturgia. Quando raggiungi il 3° livello, puoi lanciare l'incantesimo Intimorire Infernale come incantesimo di 2° livello una volta con questo tratto, recuperando la capacità di farlo al completamento di un riposo lungo. Quando raggiungi il 5° livello puoi lanciare l'incantesimo Oscurità una volta con questo tratto, recuperando la capacità di farlo al completamento di un riposo lungo. Il modificatore per questi incantesimi è Carisma.",
+      "innate_spells": [
+        {
+          "name": "Taumaturgia",
+          "cast_level": 0,
+          "min_char_level": 1,
+          "uses": "at_will",
+          "ability": "cha",
+          "resource_name": ""
+        },
+        {
+          "name": "Intimorire Infernale",
+          "cast_level": 2,
+          "min_char_level": 3,
+          "uses": "1_per_long_rest",
+          "ability": "cha",
+          "resource_name": "Intimorire Infernale (razziale)",
+          "note": "Lanciato come incantesimo di 2° livello (upcast fisso dal tratto, non dal suo livello base)"
+        },
+        {
+          "name": "Oscurità",
+          "cast_level": 2,
+          "min_char_level": 5,
+          "uses": "1_per_long_rest",
+          "ability": "cha",
+          "resource_name": "Oscurità (razziale)"
+        }
+      ],
       "resources": [
         {
           "name": "Intimorire Infernale (razziale)",

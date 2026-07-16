@@ -15,11 +15,11 @@ import flet as ft
 import logging
 from typing import Any, Callable, cast
 from config.settings import *
-from data.models import Character, CharacterProficiency
+from data.models import Character, CharacterProficiency, CustomAbility
 import data.repositories.character_repo as character_repo
 from data.database import get_connection
 from data.game_data.game_data_loader import game_data
-from ui.theme import section_header, muted_text, label_text
+from ui.theme import section_header, muted_text, label_text, show_error_dialog
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,13 @@ class EsplorazioneTab(ft.ListView):
         self._on_refresh = on_refresh
         self._page: ft.Page | None = None
         self._profs: list[CharacterProficiency] = character_repo.get_proficiencies(character.id)
+        # Abilità Speciali custom di esplorazione (2026-07-16, richiesta
+        # Davide: abilità concesse dal master o annotazioni aggiuntive —
+        # puramente additivo, mai in sostituzione dei tratti razziali/PHB
+        # già mostrati sopra in "Sensi e Velocità").
+        self._custom_abilities: list[CustomAbility] = character_repo.get_custom_abilities(
+            character.id, "esplorazione"
+        )
         self._build()
 
     def did_mount(self) -> None:
@@ -77,6 +84,8 @@ class EsplorazioneTab(ft.ListView):
         self.controls.append(self._section_lingue())
         self.controls.append(self._section_strumenti_header())
         self.controls.append(self._section_strumenti())
+        self.controls.append(self._section_custom_abilities_header())
+        self.controls.append(self._section_custom_abilities())
         self.controls.append(section_header("Tiri Salvezza"))
         self.controls.append(self._section_saves(c, pb))
         self.controls.append(section_header("Abilità"))
@@ -94,7 +103,9 @@ class EsplorazioneTab(ft.ListView):
         is_expert = self._skill_profs.get("Percezione", False)
 
         bonus = pb * (2 if is_expert else 1) if has_perc else 0
-        passive = 10 + wis_mod + bonus
+        calculated = 10 + wis_mod + bonus
+        override = c.passive_perception_override or 0
+        passive = override if override > 0 else calculated
 
         if passive >= 18:
             color = COLOR_ACCENT_GREEN
@@ -109,25 +120,37 @@ class EsplorazioneTab(ft.ListView):
         elif has_perc:
             indicator = "● competente"
 
+        detail = (
+            f"Override manuale (calcolato: {calculated})"
+            if override > 0
+            else (
+                f"10 + {wis_mod:+d} SAG"
+                + (f" + {bonus} comp." if bonus else "")
+                + (f"  {indicator}" if indicator else "")
+            )
+        )
+
         return ft.Container(
             content=ft.Row(
                 [
                     ft.Column(
                         [
-                            label_text("Percezione Passiva", 9),
+                            ft.Row(
+                                [
+                                    label_text("Percezione Passiva", 9),
+                                    ft.Icon(ft.Icons.EDIT, size=11, color=COLOR_TEXT_MUTED),
+                                ],
+                                spacing=4,
+                                alignment=ft.MainAxisAlignment.CENTER,
+                            ),
                             ft.Text(
                                 str(passive),
                                 size=42,
                                 weight=ft.FontWeight.BOLD,
-                                color=color,
+                                color=COLOR_ACCENT_BLUE if override > 0 else color,
                                 font_family=FONT_MONO,
                             ),
-                            muted_text(
-                                f"10 + {wis_mod:+d} SAG"
-                                + (f" + {bonus} comp." if bonus else "")
-                                + (f"  {indicator}" if indicator else ""),
-                                size=11,
-                            ),
+                            muted_text(detail, size=11, text_align=ft.TextAlign.CENTER),
                         ],
                         spacing=2,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -144,7 +167,72 @@ class EsplorazioneTab(ft.ListView):
                 bottom=ft.BorderSide(1, COLOR_BORDER),
             ),
             border_radius=6,
+            ink=True,
+            on_click=lambda e: self._on_edit_passive_perception(calculated),
+            tooltip="Modifica Percezione Passiva",
         )
+
+    def _on_edit_passive_perception(self, calculated: int) -> None:
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+        current_override = c.passive_perception_override or 0
+
+        tf = ft.TextField(
+            label="Percezione Passiva (override)",
+            value=str(current_override) if current_override > 0 else "",
+            hint_text=f"Vuoto = calcolato automaticamente ({calculated})",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            autofocus=True,
+        )
+
+        def _save(e):
+            raw = (tf.value or "").strip()
+            if not raw:
+                value = 0
+            else:
+                try:
+                    value = max(0, int(raw))
+                except ValueError:
+                    cast(Any, tf).error_text = "Inserisci un numero intero"
+                    tf.update()
+                    return
+            if not character_repo.update_passive_perception_override(c.id, value):
+                show_error_dialog(page, "Errore nel salvataggio della Percezione Passiva.")
+                return
+            c.passive_perception_override = value
+            page.pop_dialog()
+            self._refresh()
+
+        def _reset(e):
+            if not character_repo.update_passive_perception_override(c.id, 0):
+                show_error_dialog(page, "Errore nel salvataggio della Percezione Passiva.")
+                return
+            c.passive_perception_override = 0
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Percezione Passiva"),
+            content=ft.Column(
+                [
+                    muted_text(f"Valore calcolato dal PHB: {calculated}", 12),
+                    tf,
+                ],
+                spacing=12,
+                tight=True,
+            ),
+            actions=[
+                ft.TextButton("Ripristina calcolato", on_click=_reset),
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton("Applica", on_click=_save),
+            ],
+        )
+        page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
     # Sensi e Velocità
@@ -163,18 +251,19 @@ class EsplorazioneTab(ft.ListView):
         # PHB descrive entrambe le capacità come bonus alla velocità di
         # movimento a piedi, non alle velocità speciali di razza.
         effective_walk_speed = character_repo.get_effective_speed(c)
-        speed_rows: list[tuple[str, str]] = [("Camminata", f"{effective_walk_speed:g} m")]
+        speed_note = "" if effective_walk_speed == (c.speed or 9) else f" (base {c.speed or 9:g} m)"
+        rows.append(self._editable_info_row(
+            "Camminata", f"{effective_walk_speed:g} m{speed_note}",
+            on_click=self._on_edit_speed,
+        ))
         for trait in race_info.get("traits", []):
             t_lower = (trait.get("name", "") + " " + trait.get("description", "")).lower()
             if "nuoto" in t_lower or "swim" in t_lower:
-                speed_rows.append(("Nuoto", f"{c.speed or 9:g} m"))
+                rows.append(self._info_row("Nuoto", f"{c.speed or 9:g} m"))
             elif "scalat" in t_lower or "climb" in t_lower:
-                speed_rows.append(("Scalata", f"{c.speed or 9:g} m"))
+                rows.append(self._info_row("Scalata", f"{c.speed or 9:g} m"))
             elif "volo" in t_lower or "fly" in t_lower:
-                speed_rows.append(("Volo", f"{c.speed or 9:g} m"))
-
-        for label, value in speed_rows:
-            rows.append(self._info_row(label, value))
+                rows.append(self._info_row("Volo", f"{c.speed or 9:g} m"))
 
         rows.append(ft.Container(height=8))
 
@@ -183,7 +272,68 @@ class EsplorazioneTab(ft.ListView):
         else:
             rows.append(self._info_row("Scurovisione", "Nessuna"))
 
+        rows.append(
+            muted_text(
+                "Per sensi aggiuntivi concessi dal master, usa \"Abilità Speciali\" più sotto.",
+                11,
+            )
+        )
+
         return self._compact_card(rows)
+
+    def _on_edit_speed(self) -> None:
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+
+        tf = ft.TextField(
+            label="Velocità base a piedi (metri)",
+            value=f"{c.speed or 9:g}",
+            hint_text="es. 9, 7.5, 10.5",
+            autofocus=True,
+        )
+
+        def _save(e):
+            raw = (tf.value or "").strip().replace(",", ".")
+            try:
+                value = max(0.0, float(raw))
+            except ValueError:
+                cast(Any, tf).error_text = "Inserisci un numero valido (es. 9 oppure 7.5)"
+                tf.update()
+                return
+            if not character_repo.update_speed(c.id, value):
+                from ui.theme import show_error_dialog
+                show_error_dialog(page, "Errore nel salvataggio della velocità.")
+                return
+            c.speed = value
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Modifica Velocità"),
+            content=ft.Column(
+                [
+                    muted_text(
+                        "Velocità base standard di camminata (bonus di classe come "
+                        "Movimento Veloce/Senza Armatura si applicano automaticamente sopra "
+                        "a questo valore, quando attivi).",
+                        11,
+                    ),
+                    tf,
+                ],
+                spacing=12,
+                tight=True,
+            ),
+            actions=[
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton("Applica", on_click=_save),
+            ],
+        )
+        page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
     # Lingue — header con pulsante Aggiungi
@@ -316,6 +466,168 @@ class EsplorazioneTab(ft.ListView):
                 )
 
         return self._compact_card(rows)
+
+    # ------------------------------------------------------------------
+    # Abilità Speciali custom (2026-07-16) — voci additive, es. concesse
+    # dal master; non modificano mai i tratti razziali/PHB già mostrati
+    # sopra in "Sensi e Velocità".
+    # ------------------------------------------------------------------
+
+    def _section_custom_abilities_header(self) -> ft.Container:
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Container(width=3, height=14, bgcolor=COLOR_ACCENT_CRIMSON, border_radius=1),
+                    ft.Container(width=8),
+                    ft.Text(
+                        "ABILITÀ SPECIALI",
+                        size=10, color=COLOR_TEXT_SECONDARY, weight=ft.FontWeight.BOLD,
+                        style=ft.TextStyle(letter_spacing=2),
+                    ),
+                    ft.Container(width=8),
+                    ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
+                    ft.Container(width=8),
+                    ft.TextButton(
+                        "+ Aggiungi",
+                        on_click=lambda e: self._on_add_custom_ability(),
+                        style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            margin=ft.Margin.only(bottom=0, top=4),
+        )
+
+    def _section_custom_abilities(self) -> ft.Container:
+        if not self._custom_abilities:
+            rows: list[ft.Control] = [
+                muted_text(
+                    "Nessuna abilità speciale di esplorazione registrata — usa "
+                    "«+ Aggiungi» per annotare capacità custom concesse dal master.",
+                    12,
+                )
+            ]
+        else:
+            rows = [self._custom_ability_row(ab) for ab in self._custom_abilities]
+
+        return self._compact_card(rows)
+
+    def _custom_ability_row(self, ab: CustomAbility) -> ft.Container:
+        preview = ab.description.strip().splitlines()[0] if ab.description.strip() else ""
+        if len(preview) > 90:
+            preview = preview[:87] + "…"
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Column(
+                        [
+                            ft.Text(ab.name, size=13, color=COLOR_TEXT_PRIMARY,
+                                    weight=ft.FontWeight.W_600),
+                            muted_text(preview, 11) if preview else ft.Container(height=0),
+                        ],
+                        spacing=2,
+                        expand=True,
+                    ),
+                    ft.IconButton(
+                        ft.Icons.EDIT, icon_size=16, icon_color=COLOR_TEXT_MUTED,
+                        tooltip="Modifica",
+                        on_click=lambda e, a=ab: self._on_edit_custom_ability(a),
+                        padding=ft.Padding.all(2),
+                    ),
+                    ft.IconButton(
+                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=COLOR_ACCENT_CRIMSON,
+                        tooltip="Elimina",
+                        on_click=lambda e, a=ab: self._on_delete_custom_ability(a),
+                        padding=ft.Padding.all(2),
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.START,
+                spacing=4,
+            ),
+            border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            padding=ft.Padding.only(bottom=8),
+        )
+
+    def _on_add_custom_ability(self) -> None:
+        self._open_custom_ability_dialog(None)
+
+    def _on_edit_custom_ability(self, ab: CustomAbility) -> None:
+        self._open_custom_ability_dialog(ab)
+
+    def _open_custom_ability_dialog(self, ab: CustomAbility | None) -> None:
+        page = self._page
+        if page is None:
+            return
+
+        tf_name = ft.TextField(
+            label="Nome", value=(ab.name if ab else ""), autofocus=True,
+        )
+        tf_desc = ft.TextField(
+            label="Descrizione", value=(ab.description if ab else ""),
+            multiline=True, min_lines=3, max_lines=8,
+        )
+
+        def _save(e):
+            name = (tf_name.value or "").strip()
+            if not name:
+                cast(Any, tf_name).error_text = "Inserisci il nome dell'abilità"
+                tf_name.update()
+                return
+            desc = tf_desc.value or ""
+            if ab is None:
+                new_id = character_repo.create_custom_ability(
+                    self.character.id, "esplorazione", name, desc
+                )
+                if not new_id:
+                    show_error_dialog(page, "Errore nel salvataggio dell'abilità.")
+                    return
+            else:
+                if not character_repo.update_custom_ability(ab.id, name, desc):
+                    show_error_dialog(page, "Errore nel salvataggio dell'abilità.")
+                    return
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Modifica Abilità Speciale" if ab else "Nuova Abilità Speciale"),
+            content=ft.Column([tf_name, tf_desc], spacing=12, tight=True, width=340),
+            actions=[
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton("Salva", on_click=_save),
+            ],
+        )
+        page.show_dialog(dlg)
+
+    def _on_delete_custom_ability(self, ab: CustomAbility) -> None:
+        page = self._page
+        if page is None:
+            return
+
+        def _confirm(e):
+            if not character_repo.delete_custom_ability(ab.id):
+                show_error_dialog(page, "Errore nell'eliminazione dell'abilità.")
+                return
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Elimina Abilità Speciale"),
+            content=ft.Text(f'Eliminare "{ab.name}" dalla scheda?'),
+            actions=[
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton(
+                    "Elimina", on_click=_confirm,
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
+                ),
+            ],
+        )
+        page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
     # Tiri Salvezza (griglia compatta)
@@ -624,6 +936,31 @@ class EsplorazioneTab(ft.ListView):
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
 
+    def _editable_info_row(self, label: str, value: str, on_click: Callable[[], None]) -> ft.Container:
+        """Riga info con affordance di modifica (icona matita + tap)."""
+        return ft.Container(
+            content=ft.Row(
+                [
+                    muted_text(label, 12),
+                    ft.Row(
+                        [
+                            ft.Text(
+                                value, size=13, color=COLOR_TEXT_PRIMARY,
+                                weight=ft.FontWeight.BOLD, font_family=FONT_BODY,
+                            ),
+                            ft.Icon(ft.Icons.EDIT, size=12, color=COLOR_TEXT_MUTED),
+                        ],
+                        spacing=4,
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            on_click=lambda e: on_click(),
+            ink=True,
+            border_radius=4,
+            tooltip=f"Modifica {label}",
+        )
+
     def _compact_card(self, rows: list[ft.Control]) -> ft.Container:
         return ft.Container(
             content=ft.Column(rows, spacing=6),
@@ -693,6 +1030,7 @@ class EsplorazioneTab(ft.ListView):
         if refreshed:
             self.character = refreshed
         self._profs = character_repo.get_proficiencies(self.character.id)
+        self._custom_abilities = character_repo.get_custom_abilities(self.character.id, "esplorazione")
         self._build()  # già chiama controls.clear() internamente
         try:
             self.update()

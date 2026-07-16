@@ -144,7 +144,7 @@
     {
       "name": "Dominio della Vita",
       "bonus_proficiencies": [
-        "#armature_pesanti"
+        "pesanti"
       ],
       "bonus_spells": {
         "1": [
@@ -255,7 +255,7 @@
     {
       "name": "Dominio della Natura",
       "bonus_proficiencies": [
-        "#armature_pesanti",
+        "pesanti",
         {
           "type": "choice",
           "count": 1,
@@ -326,8 +326,8 @@
     {
       "name": "Dominio della Tempesta",
       "bonus_proficiencies": [
-        "#armature_pesanti",
-        "#armi_da_guerra_mischia"
+        "pesanti",
+        "guerra_mischia"
       ],
       "bonus_spells": {
         "1": [
@@ -435,8 +435,8 @@
     {
       "name": "Dominio della Guerra",
       "bonus_proficiencies": [
-        "#armature_pesanti",
-        "#armi_da_guerra"
+        "pesanti",
+        "guerra"
       ],
       "bonus_spells": {
         "1": [

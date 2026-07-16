@@ -34,6 +34,7 @@ import flet.canvas as cv
 from config.settings import *
 from data.models import Character, GameMap
 from data.repositories import maps_repo
+from ui.image_library import show_image_library_picker
 
 logger = logging.getLogger(__name__)
 
@@ -211,10 +212,48 @@ class MapsView(ft.Column):
         self._fs_ersub_refs:   list[ft.Container] = []
         self._fs_toolbar_body: ft.Container | None = None
 
+        # FilePicker persistente (upload immagine mappa) — vedi did_mount()
+        # e _pick_mobile(); non creato al volo dentro il click handler.
+        self._file_picker: ft.FilePicker | None = None
+
         self._build()
 
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
+
+        # Registra il FilePicker SUBITO al mount, non al click — MA SOLO su
+        # mobile (Android/iOS). NOTA (2026-07-12, stesso changelog di
+        # profilo_tab.py did_mount()): ricerca diretta sulla issue tracker
+        # upstream di Flet (flet-dev/flet#6040/#6250/#6251) conferma che i
+        # controlli "Service" come FilePicker sono strutturalmente rotti in
+        # web mode (server-side rendering) a partire da Flet ^0.80.1 (qui:
+        # 0.85.3) — il solo aggiungerli a page.overlay produce "Unknown
+        # control", indipendentemente da quando/come vengono registrati o
+        # usati. Non è quindi risolvibile lato applicazione in web mode —
+        # vedi _pick_from_library() più sotto per il sostituto.
+        # FIX (2026-07-16, stesso bug segnalato da Davide su profilo_tab.py
+        # lanciando l'app nativa da terminale): la condizione `not
+        # self._page.web` usata qui fino ad ora escludeva solo il web, ma
+        # il desktop soffre ESATTAMENTE dello stesso problema (il solo
+        # registrare FilePicker in page.overlay fa comparire "Unknown
+        # control: FilePicker" già al mount, prima di ogni click) — coerente
+        # con la primissima regola scritta in cima a CLAUDE.md ("ft.FilePicker
+        # su DESKTOP Flet 0.85.3 → 'Unknown control: FilePicker' — NON
+        # usare"), mai applicata a questo did_mount() finora. Il desktop usa
+        # già un dialogo nativo via subprocess (vedi pick_image() più sotto)
+        # e non ha mai avuto bisogno di FilePicker. Fix: registrare SOLO sui
+        # platform Android/iOS, mai su desktop o web.
+        if (
+            self._file_picker is None
+            and self._page is not None
+            and self._page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS)
+        ):
+            self._file_picker = ft.FilePicker()
+            self._page.overlay.append(self._file_picker)
+            try:
+                self._page.update()  # type: ignore[unused-coroutine]
+            except RuntimeError:
+                pass
 
     # ------------------------------------------------------------------
     # Build root
@@ -1140,8 +1179,10 @@ class MapsView(ft.Column):
         error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
 
         def pick_image(ev: Any):
-            if page.web or page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
-                _pick_mobile(page, img_data, img_label, img_preview)
+            if page.web:
+                _pick_from_library(self, img_data, img_label, img_preview)
+            elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+                _pick_mobile(self, img_data, img_label, img_preview)
             else:
                 import platform as _sys
                 threading.Thread(
@@ -1251,8 +1292,10 @@ class MapsView(ft.Column):
         error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
 
         def pick_image(ev: Any):
-            if page.web or page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
-                _pick_mobile(page, img_data, img_label, img_preview)
+            if page.web:
+                _pick_from_library(self, img_data, img_label, img_preview)
+            elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+                _pick_mobile(self, img_data, img_label, img_preview)
             else:
                 import platform as _sys
                 threading.Thread(
@@ -1382,21 +1425,63 @@ def _update_preview(b64: str, label: ft.Text,
         logger.error("_update_preview: %s", exc)
 
 
-def _pick_mobile(page: ft.Page, img_data: list[str],
+def _pick_from_library(view: "MapsView", img_data: list[str],
+                       label: ft.Text, preview: ft.Container):
+    """
+    Ramo web (page.web == True): mostra il picker sulla libreria immagini
+    caricata a mano da Davide via SSH (vedi ui/image_library.py) invece di
+    ft.FilePicker — che in modalità web è strutturalmente rotto e non
+    risolvibile lato applicazione (bug upstream confermato, flet-dev/flet
+    #6040/#6250/#6251 — vedi CLAUDE.md 2026-07-12 per il changelog dei tre
+    tentativi precedenti). Selezionare un'immagine richiama la stessa
+    identica logica già usata per il path locale su mobile nativo
+    (_load_image_base64() + _update_preview()).
+    """
+    page = view._page
+    if page is None:
+        return
+
+    def on_select(path: str):
+        b64 = _load_image_base64(path)
+        if b64:
+            img_data[0] = b64
+            _update_preview(b64, label, preview, page)
+
+    show_image_library_picker(page, on_select=on_select)
+
+
+def _pick_mobile(view: "MapsView", img_data: list[str],
                  label: ft.Text, preview: ft.Container):
-    fp = ft.FilePicker()
+    """
+    Apre il file picker nativo Android/iOS. Chiamata SOLO dal ramo mobile
+    nativo di pick_image() nei due dialog crea/modifica mappa — il ramo web
+    non arriva mai qui, vedi _pick_from_library().
+
+    Riusa SEMPRE view._file_picker, registrato una sola volta in
+    MapsView.did_mount() (mai in web mode, vedi il commento lì). Ogni
+    chiamata riassegna solo on_result (diverso per ogni dialog aperto),
+    non ricrea/riaggiunge il controllo.
+    """
+    page = view._page
+    if page is None:
+        return
 
     def on_result(ev: Any):  # ft.FilePickerResultEvent non in stubs 0.85.3
-        if ev.files:
-            b64 = _load_image_base64(ev.files[0].path)
-            if b64:
-                img_data[0] = b64
-                _update_preview(b64, label, preview, page)
+        if not ev.files:
+            return
+        f = ev.files[0]
+        b64 = _load_image_base64(f.path)
+        if b64:
+            img_data[0] = b64
+            _update_preview(b64, label, preview, page)
 
-    cast(Any, fp).on_result = on_result
-    page.overlay.append(fp)
-    page.update()
-    cast(Any, fp).pick_files(  # type: ignore[unused-coroutine]
+    if view._file_picker is None:
+        # Fallback difensivo se did_mount() non l'ha ancora registrato.
+        view._file_picker = ft.FilePicker()
+        page.overlay.append(view._file_picker)
+        page.update()
+    cast(Any, view._file_picker).on_result = on_result
+    cast(Any, view._file_picker).pick_files(  # type: ignore[unused-coroutine]
         allowed_extensions=["jpg", "jpeg", "png", "gif", "webp"]
     )
 

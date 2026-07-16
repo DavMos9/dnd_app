@@ -23,6 +23,12 @@ Scelte IMPLEMENTATE:
   METAMAGIC          — scelta metamagia Stregone
   PACT_CHOICE        — scelta dono del patto Warlock
   SUBCLASS_CHOICE    — scelta sottoclasse
+  ARCANUM_SPELL      — scelta incantesimo di livello ESATTO (Warlock, Arcanum
+                        Mistico, lv.11/13/15/17 — 6°/7°/8°/9° livello)
+  MONK_DISCIPLINE    — scelta disciplina elementale aggiuntiva (Monaco, Via
+                        dei Quattro Elementi, lv.6/11/17 — la scelta iniziale
+                        di Lv.3 è gestita in profilo_tab.py insieme a
+                        SUBCLASS_CHOICE, non tramite questo step)
 
   FEATURE_AUTO       — feature automatica — solo info
 
@@ -108,6 +114,29 @@ class StepType(Enum):
     INVOCATION           = auto()  # scelta suppliche occulte (Warlock)
     METAMAGIC            = auto()  # scelta metamagia (Stregone)
     PACT_CHOICE          = auto()  # scelta dono del patto (Warlock Lv3)
+    # Mistificatore Arcano (Ladro)/Cavaliere Mistico (Guerriero) — casting
+    # "preso in prestito dal Mago". L'apprendimento INIZIALE (3° livello,
+    # stesso livello di SUBCLASS_CHOICE) è gestito direttamente in
+    # profilo_tab.py, non tramite questi step (vedi _BORROWED_CASTER_SUBCLASS
+    # più sotto per il perché) — questi 3 step coprono solo la crescita dal
+    # 4° livello in poi, quando la sottoclasse è già nota.
+    BORROWED_CANTRIP     = auto()  # nuovo trucchetto da mago (lv.10)
+    BORROWED_SPELL_LEARN = auto()  # nuovo incantesimo da mago, vincolato per scuola
+    BORROWED_SPELL_SWAP  = auto()  # scelta OPZIONALE: sostituisci un incantesimo da mago conosciuto
+    # Warlock, Arcanum Mistico (lv.11/13/15/17): scelta di un incantesimo di
+    # livello ESATTO (6°/7°/8°/9°) dalla lista del warlock, lanciabile senza
+    # slot 1/riposo lungo. A differenza di SPELL_LEARN (livello massimo, non
+    # esatto) qui il vincolo è "esattamente questo livello" — vedi CLAUDE.md
+    # 2026-07-16, fix "picker Arcanum Mistico".
+    ARCANUM_SPELL        = auto()
+    # Monaco, Via dei Quattro Elementi (lv.6/11/17): scelta di 1 disciplina
+    # elementale aggiuntiva dal pool sbloccato a quel livello (monaco.json →
+    # subclasses["Via dei Quattro Elementi"].disciplines, campo "level"). La
+    # scelta INIZIALE (Sintonia Elementale automatica + 1 a scelta, Lv.3) è
+    # gestita direttamente in profilo_tab.py insieme al dropdown
+    # SUBCLASS_CHOICE, stesso motivo/pattern di fighting_style/totem_animal/
+    # land_terrain/Mistificatore Arcano — vedi CLAUDE.md 2026-07-16.
+    MONK_DISCIPLINE      = auto()
 
 
 @dataclass
@@ -161,6 +190,17 @@ _CANTRIP_GROWTH_LEVELS: tuple[int, ...] = (4, 10)
 _CANTRIP_CLASSES: tuple[str, ...] = (
     "Bardo", "Chierico", "Druido", "Mago", "Stregone", "Warlock",
 )
+
+# Le uniche 2 sottoclassi PHB che concedono casting "preso in prestito dal
+# Mago" a una classe altrimenti non incantatrice (Ladro/Guerriero, entrambe
+# spellcasting_ability=null a livello di classe base). Vedi CLAUDE.md
+# 2026-07-15 per il fix completo — bug report di Davide: "Il mistificatore
+# arcano non riesce a visualizzare gli incantesimi, tantomeno glieli fa
+# scegliere".
+_BORROWED_CASTER_SUBCLASS: dict[str, str] = {
+    "Ladro": "Mistificatore Arcano",
+    "Guerriero": "Cavaliere Mistico",
+}
 
 
 def _max_spell_level_for(class_name: str, level: int) -> int:
@@ -234,6 +274,15 @@ def get_level_up_steps(
     """
     steps: list[LevelStep] = []
 
+    # Warlock, Arcanum Mistico: livello incantesimo ESATTO sbloccato a ogni
+    # soglia (PHB IT p.114, tabella di classe: "Arcanum Mistico (6° livello)"
+    # al lv11, "(7° livello)" al lv13, "(8° livello)" al lv15, "(9° livello)"
+    # al lv17 — 4 righe Privilegi distinte). Definito qui (non dentro il
+    # blocco 2f più sotto) perché serve anche alla sezione 2c per escludere
+    # la feature JSON "Arcanum Mistico" (registrata una sola volta al lv11)
+    # dal generico FEATURE_AUTO quando viene sostituita dal picker dedicato.
+    _ARCANUM_SPELL_LEVEL_BY_CLASS_LEVEL: dict[int, int] = {11: 6, 13: 7, 15: 8, 17: 9}
+
     # 1. HP gain — sempre primo, richiede scelta giocatore
     steps.append(LevelStep(
         step_type=StepType.HP_GAIN,
@@ -299,6 +348,87 @@ def get_level_up_steps(
             requires_player_choice=True,
             data={"max_level": _max_spell_level_for(class_name, new_level)},
         ))
+
+    # 1d. Mistificatore Arcano (Ladro)/Cavaliere Mistico (Guerriero): crescita
+    # di trucchetti/incantesimi "presi in prestito dal Mago" dal 4° livello in
+    # poi. L'apprendimento INIZIALE (3° livello, 2 incantesimi vincolati per
+    # scuola + 1 libero, trucchetti fissi+scelti) avviene allo stesso livello
+    # in cui si sceglie la sottoclasse — dato che `subclass` qui riflette
+    # sempre la sottoclasse GIA' scelta ai level-up precedenti (mai quella
+    # che il giocatore sta per scegliere in QUESTO level-up), è vuoto proprio
+    # al 3° livello, stesso limite già presente per fighting_style/
+    # totem_animal/land_terrain in questo file — quindi l'apprendimento
+    # iniziale è gestito direttamente in profilo_tab.py insieme al dropdown
+    # SUBCLASS_CHOICE (con reattività live sul valore scelto), non qui.
+    # Aggiunto 2026-07-15 — fix "Il mistificatore arcano non riesce a
+    # visualizzare gli incantesimi" (bug report di Davide), esteso anche al
+    # Cavaliere Mistico su sua conferma esplicita.
+    if (
+        class_name in _BORROWED_CASTER_SUBCLASS
+        and subclass == _BORROWED_CASTER_SUBCLASS[class_name]
+        and new_level > 3
+    ):
+        prog_now = game_data.get_borrowed_caster_progression_for_level(
+            class_name, subclass, new_level
+        )
+        prog_prev = game_data.get_borrowed_caster_progression_for_level(
+            class_name, subclass, new_level - 1
+        )
+        if prog_now:
+            cantrip_delta = prog_now.get("cantrips_known", 0) - (
+                prog_prev.get("cantrips_known", 0) if prog_prev else 0
+            )
+            spell_delta = prog_now.get("spells_known", 0) - (
+                prog_prev.get("spells_known", 0) if prog_prev else 0
+            )
+            slots_now: dict = prog_now.get("slots", {})
+            max_lv = max(
+                (int(k) for k, v in slots_now.items() if v > 0), default=1
+            )
+
+            if cantrip_delta > 0:
+                steps.append(LevelStep(
+                    step_type=StepType.BORROWED_CANTRIP,
+                    label=f"Nuovo trucchetto da mago (+{cantrip_delta})",
+                    requires_player_choice=True,
+                    data={"count": cantrip_delta},
+                ))
+
+            if spell_delta > 0:
+                sc_data = game_data.get_borrowed_caster_data(class_name, subclass) or {}
+                unrestricted_levels = sc_data.get("unrestricted_origin_levels", [])
+                restricted_schools = sc_data.get("restricted_schools", [])
+                is_unrestricted = new_level in unrestricted_levels
+                label = (
+                    f"Incantesimo da mago conosciuto (+{spell_delta}, qualsiasi scuola)"
+                    if is_unrestricted
+                    else (
+                        f"Incantesimo da mago conosciuto "
+                        f"(+{spell_delta}, {'/'.join(restricted_schools)})"
+                    )
+                )
+                steps.append(LevelStep(
+                    step_type=StepType.BORROWED_SPELL_LEARN,
+                    label=label,
+                    requires_player_choice=True,
+                    data={
+                        "count": spell_delta,
+                        "max_level": max_lv,
+                        "restricted_schools": restricted_schools,
+                        "unrestricted": is_unrestricted,
+                    },
+                ))
+
+            # Sostituzione OPZIONALE — ogni livello dal 4° in poi (stesso
+            # testo PHB delle 4 classi "know": "quando [la classe] acquisisce
+            # un livello, può sostituire uno degli incantesimi da mago che
+            # conosce con un altro"), non solo ai livelli con nuovi incantesimi.
+            steps.append(LevelStep(
+                step_type=StepType.BORROWED_SPELL_SWAP,
+                label="Sostituisci un incantesimo da mago conosciuto (opzionale)",
+                requires_player_choice=True,
+                data={"max_level": max_lv},
+            ))
 
     cls_data = game_data.get_class(class_name) or {}
     base_features: list[dict] = cls_data.get("features", [])
@@ -423,6 +553,16 @@ def get_level_up_steps(
             "maestria" in feat_lower or "perizia" in feat_lower
         ):
             continue
+        # Warlock, "Arcanum Mistico": registrata una sola volta nel JSON al
+        # lv11 (la prosa descrive già gli incrementi successivi, stessa
+        # convenzione di ASI_LEVELS), ma qui viene sostituita dal picker
+        # dedicato ARCANUM_SPELL (sezione 2f) per TUTTI e 4 i livelli in cui
+        # concede una scelta reale — va quindi esclusa dal FEATURE_AUTO
+        # generico solo al lv11 (l'unico dove esiste davvero come voce in
+        # `base_features`), non ai lv13/15/17 dove non è comunque presente.
+        if (class_name == "Warlock" and "arcanum mistico" in feat_lower
+                and new_level in _ARCANUM_SPELL_LEVEL_BY_CLASS_LEVEL):
+            continue
         if "dono del patto" in feat_lower:
             steps.append(LevelStep(
                 step_type=StepType.PACT_CHOICE,
@@ -468,15 +608,14 @@ def get_level_up_steps(
     # vive solo nell'array `disciplines` (campo `level` per disciplina), mai
     # controllato da `get_level_up_steps()`, quindi il level-up di un monaco
     # Quattro Elementi a lv6/11/17 non mostrava assolutamente nulla.
-    # Fix limitato: emette un promemoria informativo (FEATURE_AUTO), NON un
-    # picker interattivo per scegliere la disciplina — costruire quel picker
-    # richiederebbe una nuova UI dedicata in profilo_tab.py, fuori scope per
-    # un fix di audit; vedi TODO in CLAUDE.md.
+    # ✅ Picker interattivo implementato il 2026-07-16 (era rimasto solo un
+    # promemoria informativo dal 2026-07-10) — vedi CLAUDE.md.
     if class_name == "Monaco" and subclass == "Via dei Quattro Elementi" and new_level in (6, 11, 17):
         steps.append(LevelStep(
-            step_type=StepType.FEATURE_AUTO,
+            step_type=StepType.MONK_DISCIPLINE,
             label="Discepolo degli Elementi — apprendi 1 disciplina elementale aggiuntiva a scelta",
-            requires_player_choice=False,
+            requires_player_choice=True,
+            data={"unlock_level": new_level},
         ))
 
     # 2f. Warlock, "Arcanum Mistico": la tabella di classe (PHB p.114) elenca
@@ -487,21 +626,17 @@ def get_level_up_steps(
     # separate (uno spell diverso per ciascun livello di slot). La feature
     # JSON "Arcanum Mistico" è registrata una sola volta al lv11 (stessa
     # convenzione di ASI_LEVELS/Segreti Magici: la prosa descrive già i 3
-    # incrementi successivi) — senza questo blocco il level-up di un Warlock
-    # ai lv13/15/17 non mostrava assolutamente nulla oltre ai PF, nonostante
-    # il manuale conceda un nuovo incantesimo di livello via via più alto.
-    # Bug reale trovato durante l'audit Phase 3 (2026-07-10, task "Audit
-    # level-up: Warlock"). Fix limitato allo stesso scope di Monaco/Druido:
-    # promemoria informativo (FEATURE_AUTO), NON un picker interattivo per
-    # scegliere lo specifico incantesimo — richiederebbe una UI dedicata in
-    # profilo_tab.py; vedi TODO in CLAUDE.md.
-    _ARCANUM_SPELL_LEVEL_BY_CLASS_LEVEL: dict[int, int] = {13: 7, 15: 8, 17: 9}
+    # incrementi successivi). ✅ Picker interattivo implementato il
+    # 2026-07-16 (era rimasto solo un promemoria informativo dal 2026-07-10,
+    # e prima ancora il lv11 non mostrava nulla) — vedi CLAUDE.md. Include
+    # ora anche il lv11 (6° livello), non solo 13/15/17.
     if class_name == "Warlock" and new_level in _ARCANUM_SPELL_LEVEL_BY_CLASS_LEVEL:
         spell_lv = _ARCANUM_SPELL_LEVEL_BY_CLASS_LEVEL[new_level]
         steps.append(LevelStep(
-            step_type=StepType.FEATURE_AUTO,
-            label=f"Arcanum Mistico ({spell_lv}° livello) — scegli un incantesimo di {spell_lv}° livello dalla lista del warlock",
-            requires_player_choice=False,
+            step_type=StepType.ARCANUM_SPELL,
+            label=f"Arcanum Mistico — scegli un incantesimo di {spell_lv}° livello dalla lista del warlock",
+            requires_player_choice=True,
+            data={"spell_level": spell_lv},
         ))
 
     # 3. ASI — ai livelli appropriati per la classe

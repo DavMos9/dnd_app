@@ -17,6 +17,7 @@ Struttura (ListView scrollabile):
 import flet as ft
 import json
 import logging
+import re
 from typing import Any, Callable, cast
 from config.settings import *
 from data.models import Character, Currency, InventoryItem, Weapon
@@ -24,7 +25,7 @@ import data.repositories.character_repo as character_repo
 from core.equipment_manager import (
     ArmorCandidate, EquipCandidate, resolve_armor_equip, resolve_weapon_equip,
 )
-from data.game_data.game_data_loader import GameDataLoader
+from data.game_data.game_data_loader import GameDataLoader, game_data as _loader
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,83 @@ _WEAPON_PROPERTIES = [
 # _migrate_legacy_weapon_items) resta visibile e gestibile invece di
 # sparire silenziosamente dalla UI.
 _OGGETTI_CATEGORIES = ["misc", "weapon", "tool", "magic"]
+
+# --- Autofill Arma da catalogo (2026-07-16, richiesta Davide) -------------
+# equipment/weapons.json usa nomi/formati diversi dalla UI di questo dialog
+# (nomi tipo-danno minuscoli plurali italiani, proprietà con valori
+# incorporati tra parentesi es. "Versatile (1d10)"/"Munizioni (gittata
+# 24/96)") — queste tabelle traducono il dato di catalogo nel formato già
+# usato dai controlli esistenti, senza introdurre nessun campo nuovo.
+_JSON_DAMAGE_TYPE_TO_UI: dict[str, str] = {
+    "taglienti": "Taglio", "tagliente": "Taglio",
+    "contundenti": "Contundente", "contundente": "Contundente",
+    "perforanti": "Perforazione", "perforante": "Perforazione",
+}
+
+
+def _map_catalog_damage_type(raw: str) -> str:
+    """Traduce il tipo-danno di equipment/weapons.json nel valore _DAMAGE_TYPES."""
+    key = (raw or "").strip().lower()
+    if key in _JSON_DAMAGE_TYPE_TO_UI:
+        return _JSON_DAMAGE_TYPE_TO_UI[key]
+    if "tagli" in key:
+        return "Taglio"
+    if "contund" in key:
+        return "Contundente"
+    if "perfor" in key:
+        return "Perforazione"
+    return ""
+
+
+_JSON_PROPERTY_TO_UI: dict[str, str] = {
+    "due mani":  "A due mani",
+    "munizioni": "Munizioni",
+    "lancio":    "Da lancio",
+    "versatile": "Versatile",
+    "ricarica":  "Carica",
+    "accurata":  "Accurata",
+    "pesante":   "Pesante",
+    "portata":   "Portata",
+    "leggera":   "Leggera",
+    "speciale":  "Speciale",
+}
+
+
+def _resolve_catalog_weapon_properties(
+    raw_props: list[str],
+) -> tuple[set[str], str, int, int]:
+    """
+    Converte la lista di proprietà di equipment/weapons.json (es.
+    ["Due Mani", "Munizioni (gittata 24/96)"]) nel formato atteso dal
+    dialog Arma: (etichette checkbox da spuntare, dado Versatile a due
+    mani se presente, gittata normale in metri, gittata massima in metri).
+    """
+    ui_labels: set[str] = set()
+    versatile_dice = ""
+    range_normal = 0
+    range_max = 0
+    for raw in raw_props:
+        base = raw.split(" (")[0].strip().lower()
+        ui_label = _JSON_PROPERTY_TO_UI.get(base)
+        if ui_label:
+            ui_labels.add(ui_label)
+        if base == "versatile":
+            m = re.search(r"\(([^)]+)\)", raw)
+            if m:
+                versatile_dice = m.group(1).strip()
+        elif base in ("munizioni", "lancio"):
+            m = re.search(r"gittata\s+([\d,.]+)\s*/\s*([\d,.]+)", raw)
+            if m:
+                try:
+                    # Arrotondamento half-up (non round() di Python, che usa
+                    # banker's rounding e tronca 4.5 a 4): il campo DB è
+                    # INTEGER in metri, alcune armi da lancio del catalogo
+                    # (es. Rete, 1,5/4,5 m) hanno gittate frazionarie reali.
+                    range_normal = int(float(m.group(1).replace(",", ".")) + 0.5)
+                    range_max = int(float(m.group(2).replace(",", ".")) + 0.5)
+                except ValueError:
+                    pass
+    return ui_labels, versatile_dice, range_normal, range_max
 
 
 class InventarioTab(ft.ListView):
@@ -236,7 +314,9 @@ class InventarioTab(ft.ListView):
 
     def _section_peso(self) -> ft.Container:
         c = self.character
-        max_carry = c.str_score * _CARRY_PER_STR
+        calculated_carry = c.str_score * _CARRY_PER_STR
+        override_carry = c.carry_capacity_override or 0.0
+        max_carry = override_carry if override_carry > 0 else calculated_carry
         total_weight = sum(item.weight * item.quantity for item in self._items)
         pct = min(1.0, total_weight / max_carry) if max_carry > 0 else 0.0
         if pct >= 1.0:
@@ -245,6 +325,12 @@ class InventarioTab(ft.ListView):
             bar_color, status = COLOR_ACCENT_AMBER, "Carico pesante"
         else:
             bar_color, status = COLOR_ACCENT_GREEN, "Carico normale"
+
+        capacity_label = (
+            f"/ {max_carry:.0f} kg  (override manuale)"
+            if override_carry > 0
+            else f"/ {max_carry:.0f} kg  ({c.str_score} FOR × 7.5)"
+        )
 
         # La ProgressBar in Flutter richiede un vincolo di larghezza esplicito.
         # Wrapping in ft.Row(expand=True) glielo fornisce correttamente.
@@ -259,7 +345,10 @@ class InventarioTab(ft.ListView):
                     ft.Text(f"{total_weight:.1f} kg", size=22,
                             weight=ft.FontWeight.BOLD,
                             color=COLOR_TEXT_PRIMARY, font_family=FONT_MONO),
-                    muted_text(f"/ {max_carry:.0f} kg  ({c.str_score} FOR × 7.5)", 12),
+                    ft.Text(capacity_label, size=12,
+                            color=COLOR_ACCENT_BLUE if override_carry > 0 else COLOR_TEXT_MUTED,
+                            font_family=FONT_BODY),
+                    ft.Icon(ft.Icons.EDIT, size=12, color=COLOR_TEXT_MUTED),
                 ], spacing=8),
                 ft.Container(height=6),
                 bar,
@@ -275,7 +364,75 @@ class InventarioTab(ft.ListView):
                 bottom=ft.BorderSide(1, COLOR_BORDER),
             ),
             border_radius=6,
+            on_click=lambda e: self._on_edit_carry_capacity(calculated_carry),
+            ink=True,
+            tooltip="Modifica capacità massima di trasporto",
         )
+
+    def _on_edit_carry_capacity(self, calculated: float) -> None:
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+        current_override = c.carry_capacity_override or 0.0
+
+        tf = ft.TextField(
+            label="Capacità massima (kg, override)",
+            value=(f"{current_override:g}" if current_override > 0 else ""),
+            hint_text=f"Vuoto = calcolato automaticamente ({calculated:.0f} kg)",
+            autofocus=True,
+        )
+
+        def _save(e):
+            raw = (tf.value or "").strip().replace(",", ".")
+            if not raw:
+                value = 0.0
+            else:
+                try:
+                    value = max(0.0, float(raw))
+                except ValueError:
+                    cast(Any, tf).error_text = "Inserisci un numero valido (es. 112.5)"
+                    tf.update()
+                    return
+            if not character_repo.update_carry_capacity_override(c.id, value):
+                show_error_dialog(page, "Errore nel salvataggio della capacità di trasporto.")
+                return
+            c.carry_capacity_override = value
+            page.pop_dialog()
+            self._refresh()
+
+        def _reset(e):
+            if not character_repo.update_carry_capacity_override(c.id, 0.0):
+                show_error_dialog(page, "Errore nel salvataggio della capacità di trasporto.")
+                return
+            c.carry_capacity_override = 0.0
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Capacità di Trasporto"),
+            content=ft.Column(
+                [
+                    muted_text(
+                        f"Formula PHB standard: {c.str_score} FOR × 7,5 kg = {calculated:.0f} kg. "
+                        "Usa l'override per talenti/tratti che la alterano (es. Corporatura Possente).",
+                        12,
+                    ),
+                    tf,
+                ],
+                spacing=12,
+                tight=True,
+            ),
+            actions=[
+                ft.TextButton("Ripristina calcolato", on_click=_reset),
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton("Applica", on_click=_save),
+            ],
+        )
+        page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
     # Armi
@@ -416,6 +573,9 @@ class InventarioTab(ft.ListView):
                 f"{w.damage_dice or '?'} (1 mano) / {w.versatile_damage_dice} (2 mani)",
                 11,
             ))
+        _ref_line = self._catalog_ref_line(w.name, "weapon")
+        if _ref_line is not None:
+            content_rows.append(_ref_line)
 
         # Il bordo sinistro colorato sostituisce la sidebar Container (evita STRETCH)
         return ft.Container(
@@ -546,6 +706,9 @@ class InventarioTab(ft.ListView):
         ]
         if item.description:
             content_rows.append(muted_text(item.description, 11))
+        _ref_line = self._catalog_ref_line(item.name, "armor")
+        if _ref_line is not None:
+            content_rows.append(_ref_line)
 
         return ft.Container(
             content=ft.Row([
@@ -905,6 +1068,59 @@ class InventarioTab(ft.ListView):
         if versatile_cb is not None:
             versatile_cb.on_change = _on_versatile_toggle
 
+        # Autofill dal catalogo PHB (equipment/weapons.json) — 2026-07-16,
+        # richiesta Davide: scegliendo il tipo dalla tendina, la scheda si
+        # autoriempie con dado danno/tipo/proprietà/gittata di quell'arma;
+        # i campi restano comunque liberamente modificabili dopo.
+        catalog_dd = ft.Dropdown(
+            label="Tipo (autoriempi da catalogo PHB)",
+            value=None,
+            options=(
+                [ft.DropdownOption(key="", text="— nessuno, compila a mano —")]
+                + [ft.DropdownOption(key=n, text=n) for n in _loader.get_weapon_names()]
+            ),
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+        )
+
+        def on_catalog_select(ev: ft.Event[ft.Dropdown]) -> None:
+            name = catalog_dd.value or ""
+            if not name:
+                return
+            data = _loader.get_weapon(name)
+            if not data:
+                return
+            f_name.value = data.get("name") or name
+            # .get(key, "") NON copre il caso in cui la chiave esista con
+            # valore None (es. "Rete": damage_dice/damage_type sono null nel
+            # catalogo perché non infligge danno) — .get(key) or "" sì.
+            f_dice.value = data.get("damage_dice") or ""
+            mapped_type = _map_catalog_damage_type(data.get("damage_type") or "")
+            if mapped_type:
+                dtype_dd.value = mapped_type
+            ui_labels, versatile_dice, rng_n, rng_x = _resolve_catalog_weapon_properties(
+                data.get("properties", [])
+            )
+            for cb in props_checks:
+                cb.value = str(cb.label) in ui_labels
+                cb.update()
+            if versatile_dice:
+                f_vdice.value = versatile_dice
+            versatile_fields.visible = "Versatile" in ui_labels
+            if rng_n or rng_x:
+                f_rng.value = str(rng_n)
+                f_rngmax.value = str(rng_x)
+            f_name.update()
+            f_dice.update()
+            dtype_dd.update()
+            versatile_fields.update()
+            f_vdice.update()
+            f_rng.update()
+            f_rngmax.update()
+
+        catalog_dd.on_select = on_catalog_select
+
         f_rng    = _tf("Gittata normale (m, 0=mischia)",
                         "0" if is_new else str(weapon.range_normal or 0),
                         ft.KeyboardType.NUMBER)
@@ -1075,7 +1291,7 @@ class InventarioTab(ft.ListView):
             title=ft.Text("Nuova Arma" if is_new else "Modifica Arma",
                           size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Column(
-                [f_name, f_dice, dtype_dd, f_atk, f_dbonus,
+                [catalog_dd, f_name, f_dice, dtype_dd, f_atk, f_dbonus,
                  props_section, versatile_fields, f_rng, f_rngmax, f_magic,
                  magic_section, equip_cb],
                 spacing=8, scroll=ft.ScrollMode.AUTO,
@@ -1447,9 +1663,50 @@ class InventarioTab(ft.ListView):
             focused_border_color=COLOR_ACCENT_CRIMSON,
             bgcolor=COLOR_BG_CARD,
         )
+        # Autofill dal catalogo PHB (equipment/armor.json) — 2026-07-16,
+        # richiesta Davide: scegliendo il "Tipo" dalla tendina, la scheda si
+        # autoriempie con CA/tipo/peso di quell'armatura; i campi restano
+        # comunque liberamente modificabili dopo (nessun campo bloccato).
+        catalog_dd = ft.Dropdown(
+            label="Tipo (autoriempi da catalogo PHB)",
+            value=None,
+            options=(
+                [ft.DropdownOption(key="", text="— nessuno, compila a mano —")]
+                + [ft.DropdownOption(key=n, text=n) for n in _loader.get_armor_names()]
+            ),
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER,
+            focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+        )
+
+        def on_catalog_select(ev: ft.Event[ft.Dropdown]) -> None:
+            name = catalog_dd.value or ""
+            if not name:
+                return
+            data = _loader.get_armor_item(name)
+            if not data:
+                return
+            f_name.value = data.get("name", name)
+            f_ca.value = str(data.get("ca_value", 0))
+            armor_type_dd.value = data.get("armor_type", "")
+            weight = data.get("weight_kg")
+            if weight is not None:
+                f_wt.value = f"{weight:g}"
+            desc = data.get("description", "")
+            if desc:
+                f_desc.value = desc
+            f_name.update()
+            f_ca.update()
+            armor_type_dd.update()
+            f_wt.update()
+            f_desc.update()
+
+        catalog_dd.on_select = on_catalog_select
+
         armor_fields = ft.Column(
             cast(list[ft.Control], [label_text("CAMPI ARMATURA / SCUDO", 10),
-                                    f_ca, armor_type_dd]),
+                                    catalog_dd, f_ca, armor_type_dd]),
             spacing=8,
             visible=(initial_cat == "armor"),
         )
@@ -1573,6 +1830,54 @@ class InventarioTab(ft.ListView):
     # ------------------------------------------------------------------
     # Helper
     # ------------------------------------------------------------------
+
+    # Etichette abbreviate PHB per le 5 valute, stesse già usate nella
+    # sezione Monete di questo tab (MR/MA/ME/MO/MP).
+    _CURRENCY_ABBR = {
+        "copper": "mr", "silver": "ma", "electrum": "me",
+        "gold": "mo", "platinum": "mp",
+    }
+
+    def _catalog_ref_line(self, name: str, kind: str) -> ft.Text | None:
+        """
+        Riga di sola consultazione con costo/peso PHB per un'arma o
+        un'armatura, risolta dal catalogo `equipment/weapons.json`/
+        `equipment/armor.json` (task #22, 2026-07-16 — wiring read-only,
+        nessuna modifica allo schema DB o al calcolo del peso trasportato
+        già esistente, ambito confermato con Davide). Ritorna None se il
+        nome non risolve nel catalogo (es. armi/armature homebrew inserite
+        a mano, o "Abito comune" — non è un errore, è previsto).
+
+        `kind`: "weapon" o "armor".
+        """
+        entry = (
+            _loader.get_weapon(name) if kind == "weapon"
+            else _loader.get_armor_item(name)
+        )
+        if not entry:
+            return None
+        parts: list[str] = []
+        cost = entry.get("cost") or {}
+        qty = cost.get("quantity")
+        ctype = cost.get("currency_type")
+        if qty is not None and ctype:
+            abbr = self._CURRENCY_ABBR.get(ctype, ctype)
+            parts.append(f"{qty} {abbr}")
+        weight = entry.get("weight_kg")
+        if weight is not None:
+            parts.append(f"{weight:g} kg")
+        if kind == "armor":
+            str_req = entry.get("strength_requirement")
+            if str_req:
+                parts.append(f"For {str_req}")
+            stealth = entry.get("stealth")
+            if stealth:
+                parts.append(f"Furtività: {stealth}")
+        if not parts:
+            return None
+        return ft.Text(
+            f"PHB: {' · '.join(parts)}", size=10, color=COLOR_TEXT_MUTED, italic=True,
+        )
 
     def _badge(self, value: str, label: str, color: str) -> ft.Container:
         return ft.Container(

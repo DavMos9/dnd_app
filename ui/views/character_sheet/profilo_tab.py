@@ -21,7 +21,12 @@ import logging
 from config.settings import *
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
+from ui.image_library import show_image_library_picker
 from ui.theme import section_header, muted_text, show_error_dialog
+from ui.widgets import (
+    dropdown_with_info, make_spell_describe, format_spell_body,
+    make_feat_describe, make_invocation_describe, make_named_option_describe,
+)
 from data.game_data.game_data_loader import GameDataLoader
 from core.level_manager import get_level_up_steps, estimate_hp_loss, StepType
 
@@ -85,8 +90,13 @@ class ProfiloTab(ft.ListView):
         self._page: ft.Page | None = None
 
         self._xp_field: ft.TextField | None = None
-        self._level_up_btn: ft.IconButton | None = None
-        self._level_down_btn: ft.IconButton | None = None
+        self._level_up_btn: ft.Control | None = None
+        self._level_down_btn: ft.Control | None = None
+
+        # FilePicker persistente (foto profilo) — vedi did_mount() e
+        # _pick_photo_mobile() per il motivo per cui NON viene più creato
+        # al volo dentro il click handler.
+        self._file_picker: ft.FilePicker | None = None
 
         self._build()
 
@@ -129,6 +139,60 @@ class ProfiloTab(ft.ListView):
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
 
+        # Registra il FilePicker SUBITO al mount, non al click — MA SOLO su
+        # mobile (Android/iOS). Storia del fix, in quattro tempi, tutti
+        # confermati con Davide:
+        # 1) Teoria iniziale (poi confermata insufficiente): puro problema
+        #    di timing/handshake lato client (bug "noto" upstream
+        #    flet-dev/flet#6250/#6251) — fix tentato: registrare prima.
+        # 2) Davide ha segnalato che l'errore compariva "all'istante senza
+        #    nemmeno cliccare sull'immagine" — sintomo incompatibile con una
+        #    race di timing. Nuova ipotesi: serviva il vero upload
+        #    client→server (page.get_upload_url() + FilePicker.upload()),
+        #    implementato di conseguenza.
+        # 3) Ricerca diretta sulla issue tracker upstream di Flet (confermata
+        #    con Davide) ha rivelato che il problema NON è affatto risolvibile
+        #    lato applicazione in modalità WEB: flet-dev/flet#6040/#6250/#6251
+        #    documentano che, a partire da Flet ^0.80.1 (versione attuale del
+        #    progetto: 0.85.3), i controlli "Service" come FilePicker in
+        #    modalità web (server-side rendering, es. Docker) sono
+        #    strutturalmente rotti — il solo AGGIUNGERE FilePicker a
+        #    page.overlay, indipendentemente da QUANDO lo si fa, produce
+        #    "Unknown control" o TimeoutException. Fix applicato allora:
+        #    `not self._page.web` — registra ovunque TRANNE che sul web.
+        # 4) (2026-07-16) Davide ha segnalato lo STESSO identico banner rosso
+        #    "Unknown control: FilePicker" avviando l'app nativa da terminale
+        #    (desktop macOS, non web) — la condizione `not self._page.web`
+        #    del punto 3 è insufficiente: include anche il desktop, che
+        #    secondo la primissima regola scritta in cima a questo stesso
+        #    CLAUDE.md ("ft.FilePicker su DESKTOP Flet 0.85.3 → 'Unknown
+        #    control: FilePicker' — NON usare") non supporta il controllo
+        #    ESATTAMENTE come il web, per lo stesso motivo pratico (il solo
+        #    registrarlo in page.overlay basta a far comparire il banner,
+        #    prima ancora di qualunque click) — semplicemente non era mai
+        #    stato notato prima perché nessuno aveva ancora testato un lancio
+        #    nativo da terminale dopo l'introduzione di questo did_mount().
+        #    Il resto del codice (_pick_photo() sotto, `_pick_photo_desktop()`)
+        #    già instrada correttamente il desktop su un subprocess nativo
+        #    (osascript/PowerShell/zenity) e non ha MAI avuto bisogno di
+        #    FilePicker — solo did_mount() lo registrava comunque, senza
+        #    motivo, introducendo il bug. Fix definitivo: restringere la
+        #    registrazione ai soli platform Android/iOS (stessa condizione
+        #    già usata da _pick_photo() per instradare la UI), mai su
+        #    desktop o web.
+        if (
+            self._file_picker is None
+            and self._page is not None
+            and self._page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS)
+        ):
+            self._file_picker = ft.FilePicker()
+            self._file_picker.on_result = self._on_mobile_file_picked  # type: ignore[assignment]
+            self._page.overlay.append(self._file_picker)
+            try:
+                self._page.update()  # type: ignore[unused-coroutine]
+            except RuntimeError:
+                pass
+
     # ------------------------------------------------------------------
     # Header foto + XP + Level Up
     # ------------------------------------------------------------------
@@ -168,23 +232,53 @@ class ProfiloTab(ft.ListView):
             keyboard_type=ft.KeyboardType.NUMBER,
         )
 
-        self._level_up_btn = ft.IconButton(
-            icon=ft.Icons.ARROW_DROP_UP,
-            icon_size=22,
-            tooltip=f"Sali a Lv.{c.level + 1}",
+        # Pulsanti Livello Su/Giù — dimensionati tre volte lo stesso giorno
+        # su feedback diretto di Davide (2026-07-16):
+        # 1) Prima erano due IconButton da 22px (sole frecce monocolore,
+        #    senza testo), infilati nella riga "Lv.N/Comp.+N" — facili da
+        #    perdere. Fix tentato: pulsanti pieni con etichetta lunga
+        #    ("▲ Sali a Lv.9"), riga dedicata, colore pieno — troppo
+        #    ingombranti ("i tasti level up e down li volevo più visibili
+        #    ma così è troppo").
+        # 2) Via di mezzo (icone circolari 30px, nessun testo): tornato
+        #    troppo minimale — task successivo "testo + dimensione media"
+        #    chiede esplicitamente sia un'etichetta testuale sia una taglia
+        #    intermedia, non solo un'icona colorata.
+        # 3) Versione attuale: due ElevatedButton/OutlinedButton compatti con
+        #    icona + etichetta breve fissa ("Su"/"Giù", non il numero di
+        #    livello dinamico che aveva reso ingombrante il tentativo #1),
+        #    altezza 30px, font 12px — via di mezzo reale tra le due
+        #    estremità già provate. Tooltip mantiene il dettaglio testuale
+        #    completo ("Sali a Lv.9") per chi passa sopra col mouse.
+        self._level_up_btn = ft.ElevatedButton(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ARROW_UPWARD, size=14, color="#ffffff"),
+                ft.Text("Level up", size=12, weight=ft.FontWeight.BOLD, color="#ffffff"),
+            ], spacing=3, tight=True),
+            tooltip=f"Sali a Lv.{c.level + 1}" if c.level < 20 else "Livello massimo",
             on_click=self._on_level_up_click,
             disabled=(c.level >= 20),
-            icon_color=COLOR_ACCENT_CRIMSON,
-            style=ft.ButtonStyle(padding=ft.Padding.all(0)),
+            style=ft.ButtonStyle(
+                bgcolor=COLOR_ACCENT_CRIMSON,
+                shape=ft.RoundedRectangleBorder(radius=6),
+                padding=ft.Padding.symmetric(horizontal=10, vertical=0),
+            ),
+            height=30,
         )
-        self._level_down_btn = ft.IconButton(
-            icon=ft.Icons.ARROW_DROP_DOWN,
-            icon_size=22,
-            tooltip=f"Scendi a Lv.{c.level - 1}",
+        self._level_down_btn = ft.OutlinedButton(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ARROW_DOWNWARD, size=14, color=COLOR_TEXT_SECONDARY),
+                ft.Text("Level down", size=12, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_SECONDARY),
+            ], spacing=3, tight=True),
+            tooltip=f"Scendi a Lv.{c.level - 1}" if c.level > 1 else "Livello minimo",
             on_click=self._on_level_down_click,
             disabled=(c.level <= 1),
-            icon_color=COLOR_TEXT_MUTED,
-            style=ft.ButtonStyle(padding=ft.Padding.all(0)),
+            style=ft.ButtonStyle(
+                side=ft.BorderSide(1, COLOR_BORDER),
+                shape=ft.RoundedRectangleBorder(radius=6),
+                padding=ft.Padding.symmetric(horizontal=10, vertical=0),
+            ),
+            height=30,
         )
 
         return ft.Container(
@@ -201,10 +295,11 @@ class ProfiloTab(ft.ListView):
                                     ft.Text(f"Lv.{c.level}", size=11, color=COLOR_ACCENT_CRIMSON,
                                             weight=ft.FontWeight.BOLD),
                                     ft.Text(f"  Comp. +{pb}", size=11, color=COLOR_TEXT_SECONDARY),
+                                    ft.Container(width=10),
                                     self._level_up_btn,
                                     self._level_down_btn,
                                 ],
-                                spacing=0,
+                                spacing=8,
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
                             ft.Text(
@@ -768,12 +863,126 @@ class ProfiloTab(ft.ListView):
             detail = f"Tipo di danno associato: {dmg_type}" if dmg_type else ""
             class_choices.append(("Antenato Draconico", c.dragon_ancestry, detail))
 
+        # --- Modifica Scelte di Classe (2026-07-16, richiesta Davide:
+        # "rendiamo modificabili anche i campi che non si possono
+        # modificare attualmente, come le scelte di classe in profilo") ---
+        # Permette di CAMBIARE una scelta già fatta (non di anticiparne una
+        # non ancora guadagnata: il dropdown compare solo per i campi già
+        # valorizzati, esattamente come class_choices sopra) — stesse
+        # opzioni PHB già usate nel dialog di level-up, mai valori inventati.
+        def _open_class_choices_edit(ev: Any) -> None:
+            page = self._page
+            if page is None:
+                return
+            cls_lower_edit = (c.class_name or "").strip().lower()
+            dd_refs: dict[str, ft.Dropdown] = {}
+            dlg_content: list[ft.Control] = []
+
+            if c.fighting_style:
+                styles = _loader.get_fighting_styles(cls_lower_edit)
+                if styles:
+                    dd = ft.Dropdown(
+                        label="Stile di Combattimento",
+                        value=c.fighting_style if c.fighting_style in styles else styles[0],
+                        options=[ft.DropdownOption(key=o, text=o) for o in styles],
+                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                    )
+                    dd_refs["fighting_style"] = dd
+                    dlg_content.append(dd)
+
+            if c.totem_animal:
+                totems = _loader.get_totem_animals()
+                dd = ft.Dropdown(
+                    label="Animale Totem",
+                    value=c.totem_animal if c.totem_animal in totems else totems[0],
+                    options=[ft.DropdownOption(key=o, text=o) for o in totems],
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                )
+                dd_refs["totem_animal"] = dd
+                dlg_content.append(dd)
+
+            if c.land_terrain:
+                terrains = _loader.get_land_terrains()
+                dd = ft.Dropdown(
+                    label="Terreno del Cerchio",
+                    value=c.land_terrain if c.land_terrain in terrains else terrains[0],
+                    options=[ft.DropdownOption(key=o, text=o) for o in terrains],
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                )
+                dd_refs["land_terrain"] = dd
+                dlg_content.append(dd)
+
+            if c.dragon_ancestry:
+                dd = ft.Dropdown(
+                    label="Antenato Draconico",
+                    value=c.dragon_ancestry if c.dragon_ancestry in DRACONIDE_ANCESTRIES else DRACONIDE_ANCESTRIES[0],
+                    options=[ft.DropdownOption(key=o, text=o) for o in DRACONIDE_ANCESTRIES],
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                )
+                dd_refs["dragon_ancestry"] = dd
+                dlg_content.append(dd)
+
+            if not dd_refs:
+                return
+
+            def _save(ev_inner: Any) -> None:
+                if "fighting_style" in dd_refs:
+                    c.fighting_style = dd_refs["fighting_style"].value or c.fighting_style
+                if "totem_animal" in dd_refs:
+                    c.totem_animal = dd_refs["totem_animal"].value or c.totem_animal
+                if "land_terrain" in dd_refs:
+                    c.land_terrain = dd_refs["land_terrain"].value or c.land_terrain
+                if "dragon_ancestry" in dd_refs:
+                    c.dragon_ancestry = dd_refs["dragon_ancestry"].value or c.dragon_ancestry
+                if not character_repo.update(c):
+                    show_error_dialog(page, "Impossibile salvare le scelte di classe.")
+                    return
+                # Lo Stile "Difesa" (Guerriero/Paladino/Ranger) dà +1 CA solo
+                # se indossata un'armatura — cambiare stile può quindi
+                # alterare la CA, stesso ricalcolo già fatto al level-up.
+                character_repo.calculate_and_update_ca(c.id)
+                page.pop_dialog()
+                self._refresh()
+
+            page.show_dialog(ft.AlertDialog(
+                title=ft.Row([
+                    ft.Icon(ft.Icons.AUTO_AWESOME, color=COLOR_ACCENT_CRIMSON, size=16),
+                    ft.Container(width=6),
+                    ft.Text("Modifica Scelte di Classe", size=13, weight=ft.FontWeight.BOLD,
+                            color=COLOR_TEXT_TITLE),
+                ]),
+                content=ft.Column(dlg_content, spacing=12, width=320),
+                actions=[
+                    ft.TextButton("Annulla", on_click=lambda ev_inner: page.pop_dialog()),
+                    ft.ElevatedButton(
+                        "Salva", on_click=_save,
+                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                              shape=ft.RoundedRectangleBorder(radius=4)),
+                    ),
+                ],
+                bgcolor=COLOR_BG_CARD,
+            ))
+
         if class_choices:
             rows.append(ft.Divider(color=COLOR_BORDER, height=16))
-            rows.append(ft.Text(
-                "Scelte di Classe", size=13, weight=ft.FontWeight.BOLD,
-                color=COLOR_ACCENT_CRIMSON,
-            ))
+            rows.append(ft.Row([
+                ft.Text(
+                    "Scelte di Classe", size=13, weight=ft.FontWeight.BOLD,
+                    color=COLOR_ACCENT_CRIMSON, expand=True,
+                ),
+                ft.TextButton(
+                    "✎ Modifica", on_click=_open_class_choices_edit,
+                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                ),
+            ]))
             for label, value, detail in class_choices:
                 rows.append(ft.Container(
                     content=ft.Column([
@@ -818,14 +1027,116 @@ class ProfiloTab(ft.ListView):
                     size=12, color=COLOR_TEXT_MUTED, italic=True,
                 ))
 
-        # --- Invocazioni Occulte + Patto (solo se Warlock) ---
-        if (c.class_name or "").lower() == "warlock":
-            # Patto
+        # --- Discipline Elementali (solo se Monaco, Via dei Quattro Elementi) ---
+        # Aggiunto 2026-07-16 insieme al picker Lv.3/6/11/17 in
+        # _on_level_up_click — prima non c'era alcuna sezione per vedere le
+        # discipline conosciute, stesso principio del Dono del Patto/
+        # Metamagia già mostrati qui.
+        if (c.class_name or "").lower() == "monaco" and (c.subclass or "") == "Via dei Quattro Elementi":
+            disciplines_known = [p for p in all_profs if p.proficiency_type == "monk_discipline"]
+            _mk_all_data = _loader.get_subclass_data("Monaco", "Via dei Quattro Elementi") or {}
+            _mk_by_name = {d.get("name", ""): d for d in _mk_all_data.get("disciplines", [])}
             rows.append(ft.Divider(color=COLOR_BORDER, height=16))
             rows.append(ft.Text(
-                "Dono del Patto", size=13, weight=ft.FontWeight.BOLD,
-                color=COLOR_ACCENT_CRIMSON,
+                "Discipline Elementali", size=13, weight=ft.FontWeight.BOLD, color="#00838f",
             ))
+            if disciplines_known:
+                for disc in disciplines_known:
+                    disc_data = _mk_by_name.get(disc.name, {})
+                    ki_cost = disc_data.get("ki_cost", 0)
+                    ki_label = "Gratuita" if not ki_cost else f"{ki_cost} ki"
+
+                    def _open_discipline_detail(ev: Any, _name: str = disc.name,
+                                                 _desc: str = disc_data.get("description", ""),
+                                                 _ki: str = ki_label) -> None:
+                        page = self._page
+                        if page is None:
+                            return
+                        page.show_dialog(ft.AlertDialog(
+                            title=ft.Text(_name, size=14, weight=ft.FontWeight.BOLD,
+                                          color=COLOR_TEXT_TITLE),
+                            content=ft.Column([
+                                ft.Text(f"Costo: {_ki}", size=12, color=COLOR_TEXT_MUTED),
+                                ft.Text(_desc, size=13, color=COLOR_TEXT_PRIMARY),
+                            ], spacing=8, scroll=ft.ScrollMode.AUTO, width=340, height=220),
+                            actions=[ft.TextButton("Chiudi", on_click=lambda ev2: page.pop_dialog())],
+                            bgcolor=COLOR_BG_CARD,
+                        ))
+
+                    rows.append(ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color="#00838f"),
+                            ft.Text(disc.name, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Text(ki_label, size=11, color=COLOR_TEXT_MUTED),
+                        ], spacing=6),
+                        bgcolor=COLOR_BG_CARD,
+                        border=ft.Border.all(1, COLOR_BORDER),
+                        border_radius=6,
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                        on_click=_open_discipline_detail,
+                        ink=True,
+                    ))
+            else:
+                rows.append(ft.Text(
+                    "Nessuna disciplina conosciuta — disponibile dal Lv.3.",
+                    size=12, color=COLOR_TEXT_MUTED, italic=True,
+                ))
+
+        # --- Invocazioni Occulte + Patto (solo se Warlock) ---
+        if (c.class_name or "").lower() == "warlock":
+            # Patto — stessa richiesta di editabilità delle Scelte di
+            # Classe sopra (2026-07-16), qui a parte perché il Dono del
+            # Patto vive nella propria sezione dedicata invece che in
+            # class_choices (Warlock Lv3+).
+            def _open_pact_boon_edit(ev: Any) -> None:
+                page = self._page
+                if page is None or not c.pact_boon:
+                    return
+                boons = _loader.get_pact_boons()
+                dd = ft.Dropdown(
+                    label="Dono del Patto",
+                    value=c.pact_boon if c.pact_boon in boons else boons[0],
+                    options=[ft.DropdownOption(key=o, text=o) for o in boons],
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                )
+
+                def _save(ev_inner: Any) -> None:
+                    c.pact_boon = dd.value or c.pact_boon
+                    if not character_repo.update(c):
+                        show_error_dialog(page, "Impossibile salvare il Dono del Patto.")
+                        return
+                    page.pop_dialog()
+                    self._refresh()
+
+                page.show_dialog(ft.AlertDialog(
+                    title=ft.Text("Modifica Dono del Patto", size=13,
+                                  weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                    content=ft.Column([dd], spacing=8, width=280),
+                    actions=[
+                        ft.TextButton("Annulla", on_click=lambda ev_inner: page.pop_dialog()),
+                        ft.ElevatedButton(
+                            "Salva", on_click=_save,
+                            style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                                  shape=ft.RoundedRectangleBorder(radius=4)),
+                        ),
+                    ],
+                    bgcolor=COLOR_BG_CARD,
+                ))
+
+            # Patto
+            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Row([
+                ft.Text(
+                    "Dono del Patto", size=13, weight=ft.FontWeight.BOLD,
+                    color=COLOR_ACCENT_CRIMSON, expand=True,
+                ),
+                ft.TextButton(
+                    "✎ Modifica", on_click=_open_pact_boon_edit,
+                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                ) if c.pact_boon else ft.Container(width=0),
+            ]))
             if c.pact_boon:
                 rows.append(ft.Container(
                     content=ft.Row([
@@ -1002,6 +1313,39 @@ class ProfiloTab(ft.ListView):
 
         _stat_name_map = dict(zip(ABILITY_KEYS, ABILITY_SCORES))  # es. "str" → "Forza"
 
+        def _make_info_icon(
+            describe: Callable[[str], tuple[str, str] | None], value: str
+        ) -> ft.IconButton:
+            """
+            Icona ⓘ standalone per opzioni non-Dropdown (RadioGroup/Checkbox) —
+            stessa presentazione di `dropdown_with_info()` ma per un singolo
+            valore fisso invece di leggere `dropdown.value` dal vivo (task #24,
+            2026-07-16: Dono del Patto/Metamagia/Suppliche Occulte usano
+            RadioGroup/Checkbox, non Dropdown).
+            """
+            def _on_click(ev: Any) -> None:
+                page = self._page
+                if page is None:
+                    return
+                result = describe(value)
+                if result is None:
+                    return
+                title, body = result
+                page.show_dialog(ft.AlertDialog(
+                    title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                    content=ft.Container(
+                        content=ft.Column(
+                            [ft.Text(body, size=13, color=COLOR_TEXT_PRIMARY, selectable=True)],
+                            scroll=ft.ScrollMode.AUTO),
+                        width=360, height=320),
+                    actions=[ft.TextButton("Chiudi", on_click=lambda e2: page.pop_dialog())],
+                    bgcolor=COLOR_BG_CARD,
+                ))
+            return ft.IconButton(
+                ft.Icons.INFO_OUTLINE, icon_size=18, icon_color=COLOR_ACCENT_BLUE,
+                tooltip="Mostra descrizione", on_click=_on_click, padding=ft.Padding.all(2),
+            )
+
         def on_feat_select(ev: Any) -> None:
             """Mostra feat_bonus_dd se il talento ha choose_one, altrimenti la nasconde."""
             name = feat_dd.value
@@ -1031,11 +1375,18 @@ class ProfiloTab(ft.ListView):
 
         feat_dd.on_select = on_feat_select
 
+        # Widget ⓘ per la descrizione del talento selezionato (task #24) —
+        # `feat_dd_row` (non `feat_dd` da solo) va nascosto/mostrato insieme,
+        # altrimenti l'icona ⓘ resterebbe visibile anche a dropdown nascosto.
+        feat_dd_row = dropdown_with_info(lambda: self._page, feat_dd, make_feat_describe(_loader))
+        feat_dd_row.visible = False
+
         def on_asi_type_change(ev):
             val = ev.control.value
             stat_dd1.visible = val in ("two_one", "one_one")
             stat_dd2.visible = val == "one_one"
             feat_dd.visible  = val == "feat"
+            feat_dd_row.visible = val == "feat"
             # nasconde anche la bonus_dd se si cambia modalità
             if val != "feat":
                 feat_bonus_dd.visible = False
@@ -1043,6 +1394,7 @@ class ProfiloTab(ft.ListView):
                 stat_dd1.update()
                 stat_dd2.update()
                 feat_dd.update()
+                feat_dd_row.update()
                 feat_bonus_dd.update()
             except RuntimeError:
                 pass
@@ -1090,8 +1442,73 @@ class ProfiloTab(ft.ListView):
         # Nuovo trucchetto conosciuto (lv.4/10, 6 classi incantatrici): [dd, ...]
         cantrip_learn_refs: list[ft.Dropdown] = []
 
+        # Arcanum Mistico (Warlock, lv.11/13/15/17): [dd, ...] — un solo
+        # dropdown per level-up, livello incantesimo ESATTO (non "fino a").
+        arcanum_spell_refs: list[ft.Dropdown] = []
+
+        # Discipline Elementali (Monaco, Via dei Quattro Elementi, lv.6/11/17
+        # — crescita successiva alla scelta iniziale di Lv.3, gestita invece
+        # nel blocco SUBCLASS_CHOICE più sotto): [dd, ...]
+        monk_discipline_refs: list[ft.Dropdown] = []
+
+        # Mistificatore Arcano (Ladro)/Cavaliere Mistico (Guerriero) — casting
+        # "preso in prestito dal Mago". Apprendimento INIZIALE al 3° livello
+        # (stesso livello di SUBCLASS_CHOICE, gestito con reattività live sul
+        # valore scelto — vedi blocco SUBCLASS_CHOICE più sotto):
+        borrowed_initial_cantrip_refs: list[ft.Dropdown] = []
+        # [(dropdown, origin_unrestricted), ...] — 2 vincolati per scuola +
+        # 1 libero (libero da vincolo per lo scambio futuro solo se il 3°
+        # livello è tra gli unrestricted_origin_levels della sottoclasse,
+        # vedi CLAUDE.md 2026-07-15 — asimmetria reale Ladro/Guerriero)
+        borrowed_initial_spell_refs: list[tuple[ft.Dropdown, bool]] = []
+        # Container la cui visibilità segue il valore del dropdown sottoclasse
+        borrowed_initial_container_ref: list[ft.Container] = []
+        borrowed_subclass_name_ref: list[str] = []  # [0] = nome sottoclasse borrowed-caster, se applicabile
+
+        # Monaco, Via dei Quattro Elementi: scelta INIZIALE di Lv.3 (Sintonia
+        # Elementale automatica + 1 disciplina a scelta) — stesso motivo/
+        # pattern del blocco Mistificatore Arcano/Cavaliere Mistico sopra,
+        # gestita con reattività live sul dropdown sottoclasse (vedi blocco
+        # SUBCLASS_CHOICE più sotto). Aggiunto 2026-07-16.
+        monk_initial_discipline_refs: list[ft.Dropdown] = []
+
+        # Crescita dal 4° livello in poi (BORROWED_CANTRIP/BORROWED_SPELL_LEARN):
+        borrowed_cantrip_dd_refs: list[ft.Dropdown] = []
+        # [(dropdown, origin_unrestricted), ...]
+        borrowed_spell_learn_refs: list[tuple[ft.Dropdown, bool]] = []
+        # Sostituzione opzionale: (checkbox, dd_remove, dd_add, restricted_schools)
+        borrowed_spell_swap_refs: list[tuple[ft.Checkbox, ft.Dropdown, ft.Dropdown, list[str]]] = []
+
+        def _borrowed_eligible_mago_spells(
+            max_level: int, restricted_schools: list[str], unrestricted: bool,
+            exclude: set[str],
+        ) -> list[dict]:
+            """
+            Incantesimi da Mago eleggibili per Mistificatore Arcano/Cavaliere
+            Mistico: livello 1..max_level, esclusi quelli già scelti/
+            conosciuti, e se non `unrestricted` limitati a `restricted_schools`.
+            """
+            pool = _loader.get_spells("Mago")
+            return sorted(
+                (
+                    s for s in pool
+                    if 0 < s.get("level", 0) <= max_level
+                    and s.get("name") not in exclude
+                    and (unrestricted or s.get("school", "") in restricted_schools)
+                ),
+                key=lambda s: (s.get("level", 0), s.get("name", "")),
+            )
+
         has_asi = False
         subclass_dd_ref: list[ft.Dropdown] = []  # [0] = dropdown sottoclasse, se presente
+        # Inizializzato qui (non solo dentro il ramo SUBCLASS_CHOICE) così è
+        # sempre garantito bound anche nei level-up senza scelta sottoclasse
+        # — a runtime `subclasses` viene letta più avanti (riga ~3074) solo
+        # sotto `if live_subclass_dd is not None`, che è già correlato a
+        # `subclass_dd_ref` non vuoto, ma l'analisi statica di Pylance non
+        # riesce a legare i due `if` a distanza: fix difensivo, nessun
+        # comportamento cambiato.
+        subclasses: list[str] = []
         for step in steps:
             if step.step_type == StepType.HP_GAIN:
                 dlg_rows += [
@@ -1146,6 +1563,226 @@ class ProfiloTab(ft.ListView):
                         ], spacing=6),
                         _sc_dd,
                     ]
+
+                    # ------------------------------------------------------
+                    # Mistificatore Arcano (Ladro)/Cavaliere Mistico
+                    # (Guerriero): apprendimento INIZIALE di trucchetti e
+                    # incantesimi "presi in prestito dal Mago", mostrato solo
+                    # se la sottoclasse scelta nel dropdown sopra è quella
+                    # che concede casting — a differenza di stile di
+                    # combattimento/totem/terreno (che riusano c.subclass
+                    # GIA' persistito, quindi appaiono solo al level-up
+                    # successivo), qui serve reattività live sul valore del
+                    # dropdown perché la scelta va fatta nello STESSO
+                    # level-up in cui si sceglie la sottoclasse. Aggiunto
+                    # 2026-07-15, fix Mistificatore Arcano/Cavaliere Mistico.
+                    _borrowed_name = _loader.get_borrowed_caster_subclass_name(c.class_name or "")
+                    if _borrowed_name:
+                        borrowed_subclass_name_ref.append(_borrowed_name)
+                        _bc_data = _loader.get_borrowed_caster_data(c.class_name or "", _borrowed_name) or {}
+                        _bc_prog3 = next(
+                            (r for r in _bc_data.get("spell_progression", []) if r.get("level") == 3),
+                            {},
+                        )
+                        _fixed_cantrip = _bc_data.get("fixed_cantrip") or ""
+                        _cantrips_lv3 = _bc_prog3.get("cantrips_known", 0)
+                        _choosable_cantrip_count = max(0, _cantrips_lv3 - (1 if _fixed_cantrip else 0))
+                        _cantrip_pool = [
+                            n for n in _bc_data.get("cantrip_options", [])
+                            if n != _fixed_cantrip
+                        ]
+                        _restricted_schools = _bc_data.get("restricted_schools", [])
+                        _unrestricted_levels = _bc_data.get("unrestricted_origin_levels", [])
+                        _lv3_is_unrestricted = 3 in _unrestricted_levels
+
+                        _bi_cantrip_dds: list[ft.Dropdown] = []
+                        _bi_spell_dds: list[ft.Dropdown] = []
+
+                        def _refresh_borrowed_initial_options(ev: Any = None) -> None:
+                            chosen_cantrips = {dd.value for dd in _bi_cantrip_dds if dd.value}
+                            for dd in _bi_cantrip_dds:
+                                excl = chosen_cantrips - ({dd.value} if dd.value else set())
+                                dd.options = [
+                                    ft.DropdownOption(key=n, text=n)
+                                    for n in _cantrip_pool if n not in excl
+                                ]
+                                try:
+                                    dd.update()
+                                except RuntimeError:
+                                    pass
+                            chosen_spells = {dd.value for dd in _bi_spell_dds if dd.value}
+                            for i, dd in enumerate(_bi_spell_dds):
+                                is_free = (i == len(_bi_spell_dds) - 1)  # ultimo dropdown = pick libero
+                                excl = chosen_spells - ({dd.value} if dd.value else set())
+                                eligible = _borrowed_eligible_mago_spells(
+                                    1, _restricted_schools,
+                                    unrestricted=is_free, exclude=excl,
+                                )
+                                dd.options = [
+                                    ft.DropdownOption(key=s["name"], text=s["name"])
+                                    for s in eligible
+                                ]
+                                if dd.value not in {o.key for o in dd.options}:
+                                    dd.value = None
+                                try:
+                                    dd.update()
+                                except RuntimeError:
+                                    pass
+
+                        for i in range(_choosable_cantrip_count):
+                            dd = ft.Dropdown(
+                                label=f"Trucchetto {i + 1}/{_choosable_cantrip_count}",
+                                options=[ft.DropdownOption(key=n, text=n) for n in _cantrip_pool],
+                                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                                border_color=COLOR_BORDER,
+                                focused_border_color=COLOR_ACCENT_BLUE,
+                                on_select=_refresh_borrowed_initial_options,
+                                expand=True,
+                            )
+                            _bi_cantrip_dds.append(dd)
+                            borrowed_initial_cantrip_refs.append(dd)
+
+                        _restricted_label = "/".join(_restricted_schools)
+                        for i in range(2):
+                            dd = ft.Dropdown(
+                                label=f"Incantesimo {i + 1}/3 ({_restricted_label})",
+                                options=[],
+                                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                                border_color=COLOR_BORDER,
+                                focused_border_color=COLOR_ACCENT_BLUE,
+                                on_select=_refresh_borrowed_initial_options,
+                                expand=True,
+                            )
+                            _bi_spell_dds.append(dd)
+                            borrowed_initial_spell_refs.append((dd, False))
+                        _dd_free = ft.Dropdown(
+                            label="Incantesimo 3/3 (qualsiasi scuola)",
+                            options=[],
+                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                            border_color=COLOR_BORDER,
+                            focused_border_color=COLOR_ACCENT_BLUE,
+                            on_select=_refresh_borrowed_initial_options,
+                            expand=True,
+                        )
+                        _bi_spell_dds.append(_dd_free)
+                        borrowed_initial_spell_refs.append((_dd_free, _lv3_is_unrestricted))
+                        _refresh_borrowed_initial_options()
+
+                        _bi_rows: list[ft.Control] = [
+                            ft.Divider(color=COLOR_BORDER),
+                            ft.Row([
+                                ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                                ft.Text("Incantesimi da Mago (Lv.3)", size=13,
+                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE,
+                                        expand=True),
+                            ], spacing=6),
+                        ]
+                        if _fixed_cantrip:
+                            _bi_rows.append(muted_text(
+                                f"Trucchetto fisso: {_fixed_cantrip} (automatico)", size=11,
+                            ))
+                        describe_bi_cantrip = make_spell_describe([
+                            s for s in _loader.get_spells_by_level("Mago", 0)
+                            if s.get("name") in _cantrip_pool
+                        ])
+                        describe_bi_spell = make_spell_describe(_loader.get_spells_by_level("Mago", 1))
+                        _bi_rows += [
+                            dropdown_with_info(lambda: self._page, dd, describe_bi_cantrip)
+                            for dd in _bi_cantrip_dds
+                        ]
+                        _bi_rows.append(muted_text(
+                            "2 incantesimi di 1° livello vincolati per scuola + 1 libero.",
+                            size=11,
+                        ))
+                        _bi_rows += [
+                            dropdown_with_info(lambda: self._page, dd, describe_bi_spell)
+                            for dd in _bi_spell_dds
+                        ]
+
+                        _bi_container = ft.Container(
+                            content=ft.Column(_bi_rows, spacing=8),
+                            visible=(_sc_dd.value == _borrowed_name),
+                        )
+                        borrowed_initial_container_ref.append(_bi_container)
+                        dlg_rows.append(_bi_container)
+
+                        def _on_sc_select(ev: Any, _cont: ft.Container = _bi_container,
+                                          _name: str = _borrowed_name, _dd: ft.Dropdown = _sc_dd) -> None:
+                            _cont.visible = (_dd.value == _name)
+                            try:
+                                _cont.update()
+                            except RuntimeError:
+                                pass
+
+                        _sc_dd.on_select = _on_sc_select
+
+                    # ------------------------------------------------------
+                    # Monaco, Via dei Quattro Elementi: scelta INIZIALE di
+                    # Lv.3 — Sintonia Elementale automatica (sempre inclusa,
+                    # gratuita) + 1 disciplina elementale aggiuntiva a scelta
+                    # (PHB IT p.93, "Discepolo degli Elementi": "Il monaco
+                    # conosce la disciplina Sintonia Elementale e un'altra
+                    # disciplina elementale a sua scelta"). Stesso motivo del
+                    # blocco Mistificatore Arcano/Cavaliere Mistico sopra: la
+                    # scelta va fatta nello STESSO level-up in cui si sceglie
+                    # la sottoclasse, quindi la visibilità segue dal vivo il
+                    # valore del dropdown sottoclasse. Monaco non è mai una
+                    # classe "borrowed caster" (get_borrowed_caster_subclass_
+                    # name("Monaco") == ""), quindi _sc_dd.on_select non è
+                    # ancora stato impostato da nessun altro blocco a questo
+                    # punto — assegnazione diretta, nessuna composizione
+                    # necessaria. Aggiunto 2026-07-16.
+                    # ------------------------------------------------------
+                    _MK3_SUBCLASS = "Via dei Quattro Elementi"
+                    if c.class_name == "Monaco" and _MK3_SUBCLASS in subclasses:
+                        _mk3_data = _loader.get_subclass_data("Monaco", _MK3_SUBCLASS) or {}
+                        _mk3_all = _mk3_data.get("disciplines", [])
+                        _mk3_fixed = "Sintonia Elementale"
+                        _mk3_pool = sorted(
+                            (d for d in _mk3_all
+                             if d.get("level") is None and d.get("name") != _mk3_fixed),
+                            key=lambda d: d.get("name", ""),
+                        )
+                        mk3_dd = ft.Dropdown(
+                            label="Disciplina Elementale aggiuntiva",
+                            options=[ft.DropdownOption(key=d["name"], text=d["name"])
+                                     for d in _mk3_pool],
+                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                            border_color=COLOR_BORDER,
+                            focused_border_color=COLOR_ACCENT_AMBER,
+                            expand=True,
+                        )
+                        describe_mk3 = make_named_option_describe(_mk3_all)
+                        _mk3_container = ft.Container(
+                            content=ft.Column([
+                                ft.Divider(color=COLOR_BORDER),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color=COLOR_ACCENT_AMBER),
+                                    ft.Text("Discepolo degli Elementi (Lv.3)", size=13,
+                                            weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_AMBER,
+                                            expand=True),
+                                ], spacing=6),
+                                muted_text(f"Disciplina fissa: {_mk3_fixed} (automatica).", size=11),
+                                dropdown_with_info(lambda: self._page, mk3_dd, describe_mk3),
+                            ], spacing=8),
+                            visible=(_sc_dd.value == _MK3_SUBCLASS),
+                        )
+                        dlg_rows.append(_mk3_container)
+                        monk_initial_discipline_refs.append(mk3_dd)
+
+                        def _on_sc_select_monk(ev: Any, _cont: ft.Container = _mk3_container,
+                                                _dd: ft.Dropdown = _sc_dd) -> None:
+                            _cont.visible = (_dd.value == _MK3_SUBCLASS)
+                            try:
+                                _cont.update()
+                            except RuntimeError:
+                                pass
+
+                        _sc_dd.on_select = _on_sc_select_monk
                 else:
                     dlg_rows.append(ft.Container(
                         content=ft.Row([
@@ -1169,16 +1806,20 @@ class ProfiloTab(ft.ListView):
                     asi_type,
                     stat_dd1,
                     stat_dd2,
-                    feat_dd,
+                    feat_dd_row,
                     feat_bonus_dd,
                 ]
 
             elif step.step_type == StepType.PACT_CHOICE:
                 if not c.pact_boon:
                     pact_boons = _loader.get_pact_boons()
+                    describe_pact = make_named_option_describe(_loader.get_pact_boon_data())
                     pact_rg = ft.RadioGroup(
                         content=ft.Column([
-                            ft.Radio(value=b, label=b)
+                            ft.Row(
+                                [ft.Radio(value=b, label=b), _make_info_icon(describe_pact, b)],
+                                spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            )
                             for b in pact_boons
                         ], spacing=4),
                         value=pact_boons[0] if pact_boons else "",
@@ -1218,8 +1859,9 @@ class ProfiloTab(ft.ListView):
                 if available_mm:
                     mm_cbs: list[ft.Checkbox] = []
                     metamagic_cb_groups.append((to_add_mm, mm_cbs))
+                    describe_mm = make_named_option_describe(_loader.get_metamagic_option_data())
 
-                    def _make_mm_cb(name: str, cbs_ref: list, limit: int) -> ft.Checkbox:
+                    def _make_mm_cb(name: str, cbs_ref: list, limit: int) -> ft.Control:
                         def on_toggle(ev):
                             if len([cb for cb in cbs_ref if cb.value]) > limit:
                                 ev.control.value = False
@@ -1231,7 +1873,8 @@ class ProfiloTab(ft.ListView):
                             on_change=on_toggle,
                         )
                         cbs_ref.append(cb)
-                        return cb
+                        return ft.Row([cb, _make_info_icon(describe_mm, name)],
+                                      spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
                     mm_cb_widgets = [
                         _make_mm_cb(name, mm_cbs, to_add_mm)
@@ -1277,8 +1920,9 @@ class ProfiloTab(ft.ListView):
                 if to_add > 0:
                     inv_cbs: list[ft.Checkbox] = []
                     invocation_cb_groups.append((to_add, inv_cbs))
+                    describe_inv = make_invocation_describe(_loader.get_invocations(new_level))
 
-                    def _make_inv_cb(name: str, cbs_ref: list, limit: int) -> ft.Checkbox:
+                    def _make_inv_cb(name: str, cbs_ref: list, limit: int) -> ft.Control:
                         def on_toggle(ev):
                             selected = [cb for cb in cbs_ref if cb.value]
                             if len(selected) > limit:
@@ -1291,7 +1935,37 @@ class ProfiloTab(ft.ListView):
                             on_change=on_toggle,
                         )
                         cbs_ref.append(cb)
-                        return cb
+
+                        def _show_inv_info(ev, _name=name):
+                            page = self._page
+                            if page is None:
+                                return
+                            result = describe_inv(_name)
+                            if result is None:
+                                return
+                            title, body = result
+                            page.show_dialog(ft.AlertDialog(
+                                title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD,
+                                              color=COLOR_TEXT_TITLE),
+                                content=ft.Container(
+                                    content=ft.Column(
+                                        [ft.Text(body, size=13, color=COLOR_TEXT_PRIMARY,
+                                                 selectable=True)],
+                                        scroll=ft.ScrollMode.AUTO),
+                                    width=360, height=320),
+                                actions=[ft.TextButton("Chiudi", on_click=lambda ev2: page.pop_dialog())],
+                                bgcolor=COLOR_BG_CARD,
+                            ))
+
+                        info_btn = ft.IconButton(
+                            ft.Icons.INFO_OUTLINE, icon_size=18,
+                            icon_color=COLOR_ACCENT_BLUE,
+                            tooltip="Mostra descrizione",
+                            on_click=_show_inv_info,
+                            padding=ft.Padding.all(2),
+                        )
+                        return ft.Row([cb, info_btn], spacing=0,
+                                       vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
                     if available_inv:
                         inv_cb_widgets = [
@@ -1499,6 +2173,31 @@ class ProfiloTab(ft.ListView):
                                         _chosen.append((sn, cls_nm))
                                     _refresh_picker()
 
+                                def _show_spell_info(ev, spell=sp) -> None:
+                                    # ⓘ — mostra la descrizione completa dell'incantesimo
+                                    # PRIMA che il giocatore lo scelga (2026-07-16,
+                                    # richiesta Davide). Icona separata dal resto della
+                                    # riga: il tap non attiva anche _toggle.
+                                    if not _pg:
+                                        return
+                                    _pg.show_dialog(ft.AlertDialog(
+                                        title=ft.Text(spell.get("name", ""), size=14,
+                                                      weight=ft.FontWeight.BOLD,
+                                                      color=COLOR_TEXT_TITLE),
+                                        content=ft.Container(
+                                            content=ft.Column(
+                                                [ft.Text(format_spell_body(spell), size=13,
+                                                        color=COLOR_TEXT_PRIMARY, selectable=True)],
+                                                scroll=ft.ScrollMode.AUTO,
+                                            ),
+                                            width=340, height=300,
+                                        ),
+                                        actions=[ft.TextButton(
+                                            "Chiudi", on_click=lambda e: _pg.pop_dialog(),
+                                        )],
+                                        bgcolor=COLOR_BG_CARD,
+                                    ))
+
                                 rows.append(ft.Container(
                                     content=ft.Row([
                                         ft.Text(
@@ -1524,6 +2223,13 @@ class ProfiloTab(ft.ListView):
                                                 size=10, color=COLOR_TEXT_MUTED,
                                             ),
                                         ], spacing=1, expand=True),
+                                        ft.IconButton(
+                                            ft.Icons.INFO_OUTLINE, icon_size=16,
+                                            icon_color=COLOR_ACCENT_BLUE,
+                                            tooltip="Mostra descrizione",
+                                            on_click=_show_spell_info,
+                                            padding=ft.Padding.all(2),
+                                        ),
                                     ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                                     on_click=None if at_limit else _toggle,
                                     ink=not at_limit,
@@ -1708,8 +2414,19 @@ class ProfiloTab(ft.ListView):
                     _known_set: set[str] = {
                         ks.name for ks in character_repo.get_known_spells(c.id)
                     }
+                    # Lista Incantesimi Ampliata (Warlock, task #25, 2026-07-16)
+                    # — aggiunge al pool i nomi patrono-specifici (es. Il
+                    # Signore Fatato → Luminescenza/Sonno/...), MAI incantesimi
+                    # gratuiti: il giocatore deve comunque scegliere di
+                    # "spenderci" uno slot conosciuto, esattamente come per un
+                    # incantesimo della lista base. No-op per qualunque altra
+                    # classe/sottoclasse (get_expanded_spells ritorna []).
+                    _expanded = _loader.get_expanded_spells(c.class_name or "", c.subclass or "")
+                    _base_names = {s.get("name") for s in _loader.get_spells(c.class_name or "")}
                     eligible_spells = [
-                        s for s in _loader.get_spells(c.class_name or "")
+                        s for s in _loader.get_spells(c.class_name or "") + [
+                            s for s in _expanded if s.get("name") not in _base_names
+                        ]
                         if 0 < s.get("level", 0) <= max_lv
                         and s.get("name") not in _known_set
                     ]
@@ -1723,6 +2440,7 @@ class ProfiloTab(ft.ListView):
                         )
                         for s in eligible_spells
                     ]
+                    describe_learn = make_spell_describe(eligible_spells)
                     dds: list[ft.Dropdown] = []
                     for i in range(count):
                         dd = ft.Dropdown(
@@ -1736,8 +2454,89 @@ class ProfiloTab(ft.ListView):
                             expand=True,
                         )
                         dds.append(dd)
-                        dlg_rows.append(dd)
+                        dlg_rows.append(dropdown_with_info(lambda: self._page, dd, describe_learn))
                     spell_learn_refs.append((step.data, dds))
+
+            elif step.step_type == StepType.ARCANUM_SPELL:
+                # Warlock, Arcanum Mistico (lv.11/13/15/17): un incantesimo di
+                # livello ESATTO (non "fino a", a differenza di SPELL_LEARN),
+                # lanciabile senza slot 1/riposo lungo. Stesso pattern del
+                # ramo "else" di SPELL_LEARN sopra, filtro sul livello esatto.
+                _arcanum_lv = step.data.get("spell_level", 6)
+                _known_arcanum: set[str] = {
+                    ks.name for ks in character_repo.get_known_spells(c.id)
+                }
+                eligible_arcanum = sorted(
+                    (s for s in _loader.get_spells("Warlock")
+                     if s.get("level", 0) == _arcanum_lv
+                     and s.get("name") not in _known_arcanum),
+                    key=lambda s: s.get("name", ""),
+                )
+                arcanum_dd = ft.Dropdown(
+                    label=f"Arcanum Mistico ({_arcanum_lv}° livello)",
+                    hint_text="Scegli dalla lista...",
+                    options=[ft.DropdownOption(key=s["name"], text=s["name"])
+                             for s in eligible_arcanum],
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_BLUE,
+                    expand=True,
+                )
+                describe_arcanum = make_spell_describe(eligible_arcanum)
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_BLUE, expand=True),
+                    ], spacing=6),
+                    dropdown_with_info(lambda: self._page, arcanum_dd, describe_arcanum),
+                ]
+                arcanum_spell_refs.append(arcanum_dd)
+
+            elif step.step_type == StepType.MONK_DISCIPLINE:
+                # Monaco, Via dei Quattro Elementi (lv.6/11/17): 1 disciplina
+                # elementale aggiuntiva dal pool sbloccato a questo livello
+                # (monaco.json → subclasses["Via dei Quattro Elementi"].
+                # disciplines, campo "level": null = sempre disponibile da
+                # Lv.3, altrimenti soglia minima). Esclude quelle già
+                # conosciute (character_proficiencies "monk_discipline").
+                _unlock_lv = step.data.get("unlock_level", new_level)
+                _mk_subclass_data = _loader.get_subclass_data("Monaco", "Via dei Quattro Elementi") or {}
+                _mk_all_disciplines = _mk_subclass_data.get("disciplines", [])
+                _mk_known: set[str] = {
+                    p.name for p in character_repo.get_proficiencies(c.id)
+                    if p.proficiency_type == "monk_discipline"
+                }
+                _mk_eligible = sorted(
+                    (d for d in _mk_all_disciplines
+                     if (d.get("level") is None or d.get("level", 0) <= _unlock_lv)
+                     and d.get("name") not in _mk_known),
+                    key=lambda d: d.get("name", ""),
+                )
+                mk_dd = ft.Dropdown(
+                    label="Nuova Disciplina Elementale",
+                    hint_text="Scegli dalla lista...",
+                    options=[ft.DropdownOption(key=d["name"], text=d["name"])
+                             for d in _mk_eligible],
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_AMBER,
+                    expand=True,
+                )
+                describe_mk = make_named_option_describe(_mk_eligible)
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color=COLOR_ACCENT_AMBER),
+                        ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_AMBER, expand=True),
+                    ], spacing=6),
+                    dropdown_with_info(lambda: self._page, mk_dd, describe_mk),
+                ]
+                monk_discipline_refs.append(mk_dd)
 
             elif step.step_type == StepType.SPELL_SWAP:
                 # Sostituzione OPZIONALE di un incantesimo conosciuto — PHB IT,
@@ -1752,8 +2551,15 @@ class ProfiloTab(ft.ListView):
                 # esclude eventuali incantesimi noti tramite Segreti Magici
                 # del Bardo — "da qualsiasi classe", non "da bardo").
                 max_lv = step.data.get("max_level", 9)
+                # Lista Incantesimi Ampliata (Warlock, task #25, 2026-07-16) —
+                # un incantesimo appreso in precedenza da questa lista (via
+                # SPELL_LEARN, vedi sopra) deve poter essere sostituito qui
+                # come un qualunque altro incantesimo "da warlock" — PHB:
+                # "questi incantesimi sono considerati incantesimi da warlock
+                # per [il patrono]". No-op per qualunque altra classe.
+                _swap_expanded = _loader.get_expanded_spells(c.class_name or "", c.subclass or "")
                 class_spell_names = {
-                    s.get("name", "") for s in _loader.get_spells(c.class_name or "")
+                    s.get("name", "") for s in _loader.get_spells(c.class_name or "") + _swap_expanded
                 }
                 known_class_spells = sorted(
                     (
@@ -1796,11 +2602,16 @@ class ProfiloTab(ft.ListView):
                     ev: Any = None, _rm: ft.Dropdown = dd_remove,
                     _add: ft.Dropdown = dd_add, _cls: str = c.class_name or "",
                     _ml: int = max_lv, _known: set = known_names_all,
+                    _expanded: list = _swap_expanded,
                 ) -> None:
                     excluded = set(_known)
                     excluded.discard(_rm.value or "")
+                    _base_names_swap = {s.get("name") for s in _loader.get_spells(_cls)}
+                    _pool_swap = _loader.get_spells(_cls) + [
+                        s for s in _expanded if s.get("name") not in _base_names_swap
+                    ]
                     eligible = sorted(
-                        (s for s in _loader.get_spells(_cls)
+                        (s for s in _pool_swap
                          if 0 < s.get("level", 0) <= _ml
                          and s.get("name") not in excluded),
                         key=lambda s: (s.get("level", 0), s.get("name", "")),
@@ -1844,6 +2655,16 @@ class ProfiloTab(ft.ListView):
                     swap_enable_cb.disabled = True
                     swap_enable_cb.label = "Sostituisci un incantesimo conosciuto (nessuno disponibile)"
 
+                describe_swap_remove = make_spell_describe([
+                    _loader.get_spell_by_name(k.name, c.class_name) or
+                    {"name": k.name, "level": k.spell_level}
+                    for k in known_class_spells
+                ])
+                describe_swap_add = make_spell_describe([
+                    s for s in _loader.get_spells(c.class_name or "")
+                    if 0 < s.get("level", 0) <= max_lv
+                ])
+
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
                     ft.Row([
@@ -1852,8 +2673,8 @@ class ProfiloTab(ft.ListView):
                                 color=COLOR_ACCENT_BLUE, expand=True),
                     ], spacing=6),
                     swap_enable_cb,
-                    dd_remove,
-                    dd_add,
+                    dropdown_with_info(lambda: self._page, dd_remove, describe_swap_remove),
+                    dropdown_with_info(lambda: self._page, dd_add, describe_swap_add),
                 ]
                 spell_swap_refs.append((swap_enable_cb, dd_remove, dd_add))
 
@@ -1894,9 +2715,221 @@ class ProfiloTab(ft.ListView):
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
                                 color=COLOR_ACCENT_BLUE, expand=True),
                     ], spacing=6),
-                    cantrip_dd,
+                    dropdown_with_info(
+                        lambda: self._page, cantrip_dd, make_spell_describe(_eligible_cantrips)
+                    ),
                 ]
                 cantrip_learn_refs.append(cantrip_dd)
+
+            elif step.step_type == StepType.BORROWED_CANTRIP:
+                # Nuovo trucchetto da mago (Mistificatore Arcano/Cavaliere
+                # Mistico, lv.10) — stesso pattern minimale di CANTRIP_LEARN,
+                # ma il pool è cantrip_options della sottoclasse (16 nomi
+                # condivisi Ladro/Guerriero), non la lista propria di classe
+                # (che per Ladro/Guerriero è sempre vuota).
+                _bc_data_cl = _loader.get_borrowed_caster_data(c.class_name or "", c.subclass or "") or {}
+                _bc_fixed = _bc_data_cl.get("fixed_cantrip") or ""
+                _bc_pool_cl = [n for n in _bc_data_cl.get("cantrip_options", []) if n != _bc_fixed]
+                _known_borrowed_cantrips: set[str] = {
+                    ks.name for ks in character_repo.get_known_spells(c.id) if ks.spell_level == 0
+                }
+                _eligible_bc = [n for n in _bc_pool_cl if n not in _known_borrowed_cantrips]
+                bc_cantrip_dd = ft.Dropdown(
+                    label="Nuovo trucchetto da mago",
+                    hint_text="Scegli dalla lista...",
+                    options=[ft.DropdownOption(key=n, text=n) for n in _eligible_bc],
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_BLUE,
+                    expand=True,
+                )
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_BLUE, expand=True),
+                    ], spacing=6),
+                    dropdown_with_info(
+                        lambda: self._page, bc_cantrip_dd,
+                        make_spell_describe(_loader.get_spells_by_level("Mago", 0)),
+                    ),
+                ]
+                borrowed_cantrip_dd_refs.append(bc_cantrip_dd)
+
+            elif step.step_type == StepType.BORROWED_SPELL_LEARN:
+                # Nuovo incantesimo da mago (Mistificatore Arcano/Cavaliere
+                # Mistico) — vincolato per scuola tranne agli
+                # unrestricted_origin_levels (8°/14°/20°, +3° per il
+                # Cavaliere Mistico, gestito separatamente al lv3).
+                _count_bsl      = step.data.get("count", 1)
+                _max_lv_bsl     = step.data.get("max_level", 1)
+                _restricted_bsl = step.data.get("restricted_schools", [])
+                _unrestr_bsl    = step.data.get("unrestricted", False)
+                _known_bsl: set[str] = {
+                    ks.name for ks in character_repo.get_known_spells(c.id) if ks.spell_level > 0
+                }
+                _eligible_bsl = _borrowed_eligible_mago_spells(
+                    _max_lv_bsl, _restricted_bsl, _unrestr_bsl, _known_bsl,
+                )
+                _opts_bsl = [
+                    ft.DropdownOption(key=s["name"], text=f"[Lv{s['level']}] {s['name']}")
+                    for s in _eligible_bsl
+                ]
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_BLUE, expand=True),
+                    ], spacing=6),
+                ]
+                describe_bsl = make_spell_describe(_eligible_bsl)
+                for i in range(_count_bsl):
+                    bsl_dd = ft.Dropdown(
+                        label=f"Incantesimo da mago {i + 1}/{_count_bsl}",
+                        hint_text="Scegli dalla lista...",
+                        options=_opts_bsl,
+                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                        border_color=COLOR_BORDER,
+                        focused_border_color=COLOR_ACCENT_BLUE,
+                        expand=True,
+                    )
+                    dlg_rows.append(dropdown_with_info(lambda: self._page, bsl_dd, describe_bsl))
+                    borrowed_spell_learn_refs.append((bsl_dd, _unrestr_bsl))
+
+            elif step.step_type == StepType.BORROWED_SPELL_SWAP:
+                # Sostituzione OPZIONALE di un incantesimo da mago conosciuto
+                # — stesso pattern di SPELL_SWAP, ma il rimpiazzo può essere
+                # di qualsiasi scuola SOLO se l'incantesimo sostituito era
+                # esso stesso un pick "libero" (origin_unrestricted=True in
+                # known_spells) — altrimenti resta vincolato alle 2 scuole
+                # della sottoclasse. Il flag si propaga sul nuovo incantesimo
+                # (la "postazione" resta libera anche in futuro).
+                _max_lv_swap = step.data.get("max_level", 1)
+                _bc_data_swap = _loader.get_borrowed_caster_data(c.class_name or "", c.subclass or "") or {}
+                _restricted_swap = _bc_data_swap.get("restricted_schools", [])
+                _mago_names = {s.get("name", "") for s in _loader.get_spells("Mago")}
+                _known_borrowed_spells = sorted(
+                    (
+                        ks for ks in character_repo.get_known_spells(c.id)
+                        if ks.spell_level > 0 and ks.name in _mago_names
+                    ),
+                    key=lambda k: (k.spell_level, k.name),
+                )
+                _known_borrowed_names = {k.name for k in _known_borrowed_spells}
+                _origin_by_name = {k.name: k.origin_unrestricted for k in _known_borrowed_spells}
+
+                bsw_enable_cb = ft.Checkbox(
+                    label="Sostituisci un incantesimo da mago conosciuto",
+                    value=False,
+                )
+                bsw_dd_remove = ft.Dropdown(
+                    label="Incantesimo da sostituire",
+                    options=[
+                        ft.DropdownOption(
+                            key=k.name,
+                            text=f"[Lv{k.spell_level}] {k.name}"
+                            + ("  (libero da scuola)" if k.origin_unrestricted else ""),
+                        )
+                        for k in _known_borrowed_spells
+                    ],
+                    disabled=True,
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_BLUE,
+                    expand=True,
+                )
+                bsw_dd_add = ft.Dropdown(
+                    label="Nuovo incantesimo da mago",
+                    options=[],
+                    disabled=True,
+                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                    border_color=COLOR_BORDER,
+                    focused_border_color=COLOR_ACCENT_BLUE,
+                    expand=True,
+                )
+
+                def _refresh_bsw_add_options(
+                    ev: Any = None, _rm: ft.Dropdown = bsw_dd_remove,
+                    _add: ft.Dropdown = bsw_dd_add, _ml: int = _max_lv_swap,
+                    _restricted: list = _restricted_swap,
+                    _known: set = _known_borrowed_names,
+                    _origin: dict = _origin_by_name,
+                ) -> None:
+                    excluded = set(_known)
+                    excluded.discard(_rm.value or "")
+                    # Il rimpiazzo è libero da vincolo di scuola solo se
+                    # l'incantesimo sostituito lo era già.
+                    replaced_unrestricted = _origin.get(_rm.value or "", False)
+                    eligible = _borrowed_eligible_mago_spells(
+                        _ml, _restricted, replaced_unrestricted, excluded,
+                    )
+                    _add.options = [
+                        ft.DropdownOption(key=s["name"], text=f"[Lv{s['level']}] {s['name']}")
+                        for s in eligible
+                    ]
+                    if _add.value not in {o.key for o in _add.options}:
+                        _add.value = None
+                    try:
+                        _add.update()
+                    except RuntimeError:
+                        pass
+
+                def _on_bsw_toggle(
+                    ev: Any, _cb: ft.Checkbox = bsw_enable_cb,
+                    _rm: ft.Dropdown = bsw_dd_remove, _add: ft.Dropdown = bsw_dd_add,
+                ) -> None:
+                    enabled = bool(_cb.value)
+                    _rm.disabled = not enabled
+                    _add.disabled = not enabled
+                    if not enabled:
+                        _rm.value = None
+                        _add.value = None
+                    _refresh_bsw_add_options()
+                    try:
+                        _rm.update()
+                        _add.update()
+                    except RuntimeError:
+                        pass
+
+                def _on_bsw_remove_select(ev: Any) -> None:
+                    _refresh_bsw_add_options()
+
+                bsw_enable_cb.on_change = _on_bsw_toggle
+                bsw_dd_remove.on_select = _on_bsw_remove_select
+                _refresh_bsw_add_options()
+
+                if not _known_borrowed_spells:
+                    bsw_enable_cb.disabled = True
+                    bsw_enable_cb.label = "Sostituisci un incantesimo da mago conosciuto (nessuno disponibile)"
+
+                describe_bsw_remove = make_spell_describe([
+                    _loader.get_spell_by_name(k.name, "Mago") or
+                    {"name": k.name, "level": k.spell_level}
+                    for k in _known_borrowed_spells
+                ])
+                describe_bsw_add = make_spell_describe([
+                    s for s in _loader.get_spells("Mago")
+                    if 0 < s.get("level", 0) <= _max_lv_swap
+                ])
+
+                dlg_rows += [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
+                                color=COLOR_ACCENT_BLUE, expand=True),
+                    ], spacing=6),
+                    bsw_enable_cb,
+                    dropdown_with_info(lambda: self._page, bsw_dd_remove, describe_bsw_remove),
+                    dropdown_with_info(lambda: self._page, bsw_dd_add, describe_bsw_add),
+                ]
+                borrowed_spell_swap_refs.append((bsw_enable_cb, bsw_dd_remove, bsw_dd_add, _restricted_swap))
 
             elif step.step_type == StepType.PROFICIENCY_BONUS_UP:
                 dlg_rows.append(ft.Container(
@@ -1910,7 +2943,6 @@ class ProfiloTab(ft.ListView):
         # Scelte extra specifiche per classe/sottoclasse
         # ------------------------------------------------------------------
         cls_lower = (c.class_name or "").strip().lower()
-        sc_lower  = (c.subclass   or "").strip().lower()
 
         fighting_style_dd_ref: list[ft.Dropdown] = []
         totem_animal_dd_ref:   list[ft.Dropdown] = []
@@ -1935,6 +2967,7 @@ class ProfiloTab(ft.ListView):
             if styles and new_level == 2 and cls_lower in ("paladino", "ranger"):
                 fs_dd = _make_choice_dd("Stile di Combattimento", styles, "")
                 fighting_style_dd_ref.append(fs_dd)
+                describe_fs = make_named_option_describe(_loader.get_fighting_style_data(cls_lower))
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
                     ft.Row([
@@ -1942,47 +2975,248 @@ class ProfiloTab(ft.ListView):
                         ft.Text("Scegli il tuo Stile di Combattimento",
                                 size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE),
                     ], spacing=6),
-                    fs_dd,
+                    dropdown_with_info(lambda: self._page, fs_dd, describe_fs),
                 ]
 
+        # ------------------------------------------------------------------
+        # Animale Totem (Barbaro, Lv3) / Terreno (Druido, Lv2) — dipendono
+        # dalla sottoclasse. Se questo stesso level-up include anche lo step
+        # SUBCLASS_CHOICE (subclass_dd_ref popolato dal blocco sopra),
+        # c.subclass è ancora vuota in questo momento: la visibilità va
+        # agganciata dal vivo al valore corrente del dropdown sottoclasse
+        # (on_select), non al campo persistito — altrimenti la condizione
+        # "totem" in sc_lower/"terra" in sc_lower non è mai vera nello stesso
+        # level-up in cui si sceglie la sottoclasse, e al level-up
+        # successivo new_level non coincide più con la soglia richiesta.
+        # Bug latente segnalato in CLAUDE.md (2026-07-15), fix 2026-07-16.
+        # ------------------------------------------------------------------
+        live_subclass_dd = subclass_dd_ref[0] if subclass_dd_ref else None
+
+        def _compose_on_select(dd: ft.Dropdown, handler: Any) -> None:
+            """Aggiunge `handler` a on_select senza sovrascrivere uno già presente."""
+            prev = dd.on_select
+            if prev is None:
+                dd.on_select = handler
+            else:
+                def _combined(ev: Any, _prev: Any = prev, _new: Any = handler) -> None:
+                    _prev(ev)
+                    _new(ev)
+                dd.on_select = _combined
+
         # Animale Totem — Barbaro Percorso del Totem Guerriero, Lv3
-        if (not c.totem_animal and cls_lower == "barbaro"
-                and "totem" in sc_lower and new_level == 3):
-            ta_dd = _make_choice_dd("Spirito del Totem", _loader.get_totem_animals(), "")
-            totem_animal_dd_ref.append(ta_dd)
-            dlg_rows += [
-                ft.Divider(color=COLOR_BORDER),
-                ft.Row([
-                    ft.Icon(ft.Icons.PETS, size=14, color=COLOR_ACCENT_AMBER),
-                    ft.Text("Scegli il tuo Spirito Totem",
-                            size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_AMBER),
-                ], spacing=6),
-                muted_text("L'animale scelto a Lv.3 determina tutte le feature future del Percorso.", size=11),
-                ta_dd,
-            ]
+        if not c.totem_animal and cls_lower == "barbaro" and new_level == 3:
+            initial_sc = ((live_subclass_dd.value if live_subclass_dd else c.subclass) or "").strip().lower()
+            if live_subclass_dd is not None or "totem" in initial_sc:
+                ta_dd = _make_choice_dd("Spirito del Totem", _loader.get_totem_animals(), "")
+                totem_animal_dd_ref.append(ta_dd)
+                ta_container = ft.Container(
+                    content=ft.Column([
+                        ft.Divider(color=COLOR_BORDER),
+                        ft.Row([
+                            ft.Icon(ft.Icons.PETS, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Text("Scegli il tuo Spirito Totem",
+                                    size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_AMBER),
+                        ], spacing=6),
+                        muted_text("L'animale scelto a Lv.3 determina tutte le feature future del Percorso.", size=11),
+                        ta_dd,
+                    ], spacing=8),
+                    visible=("totem" in initial_sc),
+                )
+                dlg_rows.append(ta_container)
+                if live_subclass_dd is not None:
+                    def _on_sc_select_totem(ev: Any, _cont: ft.Container = ta_container,
+                                             _dd: ft.Dropdown = live_subclass_dd) -> None:
+                        _cont.visible = "totem" in (_dd.value or "").strip().lower()
+                        try:
+                            _cont.update()
+                        except RuntimeError:
+                            pass
+                    _compose_on_select(live_subclass_dd, _on_sc_select_totem)
 
         # Terreno — Druido Cerchio della Terra, Lv2
-        if (not c.land_terrain and cls_lower == "druido"
-                and "terra" in sc_lower and new_level == 2):
-            lt_dd = _make_choice_dd("Terreno del Cerchio", _loader.get_land_terrains(), "")
-            land_terrain_dd_ref.append(lt_dd)
-            dlg_rows += [
-                ft.Divider(color=COLOR_BORDER),
-                ft.Row([
-                    ft.Icon(ft.Icons.LANDSCAPE, size=14, color="#4caf50"),
-                    ft.Text("Scegli il Terreno del Cerchio della Terra",
-                            size=13, weight=ft.FontWeight.BOLD, color="#4caf50"),
-                ], spacing=6),
-                muted_text("Il terreno determina gli Incantesimi del Cerchio per ogni livello.", size=11),
-                lt_dd,
-            ]
+        if not c.land_terrain and cls_lower == "druido" and new_level == 2:
+            initial_sc = ((live_subclass_dd.value if live_subclass_dd else c.subclass) or "").strip().lower()
+            if live_subclass_dd is not None or "terra" in initial_sc:
+                lt_dd = _make_choice_dd("Terreno del Cerchio", _loader.get_land_terrains(), "")
+                land_terrain_dd_ref.append(lt_dd)
+                lt_container = ft.Container(
+                    content=ft.Column([
+                        ft.Divider(color=COLOR_BORDER),
+                        ft.Row([
+                            ft.Icon(ft.Icons.LANDSCAPE, size=14, color="#4caf50"),
+                            ft.Text("Scegli il Terreno del Cerchio della Terra",
+                                    size=13, weight=ft.FontWeight.BOLD, color="#4caf50"),
+                        ], spacing=6),
+                        muted_text("Il terreno determina gli Incantesimi del Cerchio per ogni livello.", size=11),
+                        lt_dd,
+                    ], spacing=8),
+                    visible=("terra" in initial_sc),
+                )
+                dlg_rows.append(lt_container)
+                if live_subclass_dd is not None:
+                    def _on_sc_select_terrain(ev: Any, _cont: ft.Container = lt_container,
+                                               _dd: ft.Dropdown = live_subclass_dd) -> None:
+                        _cont.visible = "terra" in (_dd.value or "").strip().lower()
+                        try:
+                            _cont.update()
+                        except RuntimeError:
+                            pass
+                    _compose_on_select(live_subclass_dd, _on_sc_select_terrain)
+
+        # ------------------------------------------------------------------
+        # Competenze bonus di sottoclasse (task #20, 2026-07-16) — es. Bardo
+        # Collegio della Conoscenza (3 abilità a scelta)/Collegio del Valore
+        # (armatura media+scudi+armi da guerra fisse), Ladro Assassino (2
+        # strumenti fissi). Stesso dato/stessa logica di wizard_view.py/
+        # manual_form.py (bonus_proficiencies in classes/*.json — vedi
+        # character_repo.classify_bonus_proficiency_entries()/
+        # apply_subclass_bonus_proficiencies()), applicata qui al level-up
+        # per le sottoclassi con subclass_choice_level != 1 (Chierico è
+        # l'unica lv1, gestita solo in creazione — vedi CLAUDE.md). A
+        # differenza di Totem/Terreno, il numero di dropdown varia per
+        # sottoclasse, quindi qui l'intero blocco (non solo la visibilità)
+        # va ricostruito ad ogni cambio del dropdown sottoclasse.
+        # ------------------------------------------------------------------
+        subclass_bonus_dd_refs: list[ft.Dropdown] = []
+        subclass_bonus_choice_values: list[str] = []
+        if live_subclass_dd is not None and subclasses:
+            _scb_owned_skills = {p.name for p in _all_profs if p.proficiency_type == "skill"}
+            _SCB_TOKEN_LABELS = {
+                "leggere": "Armature Leggere", "medie": "Armature Medie",
+                "pesanti": "Armature Pesanti", "scudi": "Scudi",
+                "semplice": "Armi Semplici", "semplice_mischia": "Armi Semplici da Mischia",
+                "guerra": "Armi da Guerra", "guerra_mischia": "Armi da Guerra da Mischia",
+            }
+            _scb_container = ft.Container(visible=False)
+
+            def _rebuild_scb_container(_dd: ft.Dropdown = live_subclass_dd) -> None:
+                subclass_bonus_dd_refs.clear()
+                sc_name = _dd.value or ""
+                entries = _loader.get_subclass_bonus_proficiencies(c.class_name or "", sc_name)
+                fixed, choices = character_repo.classify_bonus_proficiency_entries(entries)
+                total_slots = sum(int(ch.get("count", 0)) for ch in choices)
+
+                while len(subclass_bonus_choice_values) < total_slots:
+                    subclass_bonus_choice_values.append("")
+                del subclass_bonus_choice_values[total_slots:]
+
+                if not fixed and total_slots == 0:
+                    _scb_container.visible = False
+                    _scb_container.content = None
+                    try:
+                        _scb_container.update()
+                    except RuntimeError:
+                        pass
+                    return
+
+                rows: list[ft.Control] = [
+                    ft.Divider(color=COLOR_BORDER),
+                    ft.Row([
+                        ft.Icon(ft.Icons.SHIELD_MOON, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Text("Competenze Bonus di Sottoclasse", size=13,
+                                weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE, expand=True),
+                    ], spacing=6),
+                ]
+                if fixed:
+                    labels = ", ".join(_SCB_TOKEN_LABELS.get(f, f) for f in fixed)
+                    rows.append(muted_text(f"Competenze bonus automatiche: {labels}", size=11))
+
+                if total_slots > 0:
+                    already = _scb_owned_skills
+                    dds: list[ft.Dropdown] = []
+
+                    def _refresh_scb_options() -> None:
+                        for i, dd in enumerate(dds):
+                            siblings = {
+                                subclass_bonus_choice_values[j]
+                                for j in range(len(dds)) if j != i
+                            }
+                            dd.options = [
+                                ft.DropdownOption(key=p, text=p) for p in _scb_pool
+                                if p not in siblings
+                            ]
+                            try:
+                                dd.update()
+                            except RuntimeError:
+                                pass
+
+                    for choice_entry in choices:
+                        count = int(choice_entry.get("count", 0))
+                        _scb_pool = [
+                            p for p in character_repo.resolve_bonus_proficiency_choice_options(choice_entry)
+                            if p not in already
+                        ]
+                        for i in range(count):
+                            siblings = {
+                                subclass_bonus_choice_values[j]
+                                for j in range(count) if j != i
+                            }
+                            opts = [p for p in _scb_pool if p not in siblings]
+                            curr = subclass_bonus_choice_values[i] if i < len(subclass_bonus_choice_values) else ""
+                            if curr not in opts:
+                                curr = opts[0] if opts else ""
+                                subclass_bonus_choice_values[i] = curr
+
+                            def _make_scb_handler(slot_idx: int = i) -> Any:
+                                def _handler(ev: Any) -> None:
+                                    subclass_bonus_choice_values[slot_idx] = ev.control.value or ""
+                                    _refresh_scb_options()
+                                return _handler
+
+                            dd = ft.Dropdown(
+                                label=(f"Competenza bonus (scelta {i + 1})" if count > 1
+                                       else "Competenza bonus (scelta sottoclasse)"),
+                                value=curr,
+                                options=[ft.DropdownOption(key=p, text=p) for p in opts],
+                                on_select=_make_scb_handler(),
+                                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
+                                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
+                                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_BLUE,
+                                expand=True,
+                            )
+                            dds.append(dd)
+                            subclass_bonus_dd_refs.append(dd)
+                    rows.append(ft.Row(list(dds), spacing=12, wrap=True))
+
+                _scb_container.content = ft.Column(rows, spacing=8)
+                _scb_container.visible = True
+                try:
+                    _scb_container.update()
+                except RuntimeError:
+                    pass
+
+            dlg_rows.append(_scb_container)
+            _rebuild_scb_container()
+
+            def _on_sc_select_scb(ev: Any) -> None:
+                _rebuild_scb_container()
+            _compose_on_select(live_subclass_dd, _on_sc_select_scb)
 
         def _save_known_spell(
-            spell_name: str, class_name: str, char: Character
+            spell_name: str, class_name: str, char: Character,
+            origin_unrestricted: bool = False,
         ) -> None:
-            """Recupera i dettagli dello spell dal JSON e lo salva come conosciuto."""
+            """
+            Recupera i dettagli dello spell dal JSON e lo salva come conosciuto.
+
+            origin_unrestricted: solo per Mistificatore Arcano/Cavaliere
+            Mistico (class_name="Mago" in quel caso) — True se questo pick è
+            "libero da vincolo di scuola" (8°/14°/20° livello, +3° per il
+            Cavaliere Mistico — vedi CLAUDE.md 2026-07-15). Ignorato/sempre
+            False per tutte le altre chiamate esistenti.
+            """
             all_spells = _loader.get_spells(class_name)
             spell = next((s for s in all_spells if s.get("name") == spell_name), None)
+            if spell is None:
+                # Lista Incantesimi Ampliata (Warlock, task #25, 2026-07-16) —
+                # un nome scelto dal pool "ampliato" (es. Il Signore Fatato →
+                # Luminescenza) non è nella lista base della classe, va
+                # risolto qui. No-op per qualunque altra classe/sottoclasse.
+                spell = next(
+                    (s for s in _loader.get_expanded_spells(class_name, char.subclass or "")
+                     if s.get("name") == spell_name),
+                    None,
+                )
             if spell is None:
                 logger.warning("Spell '%s' non trovato per classe '%s'", spell_name, class_name)
                 return
@@ -2003,6 +3237,7 @@ class ProfiloTab(ft.ListView):
                 description=spell.get("description", ""),
                 higher_levels=spell.get("higher_levels", "") or "",
                 class_list=class_name,
+                origin_unrestricted=origin_unrestricted,
             )
 
         def do_level_up(ev):
@@ -2055,6 +3290,16 @@ class ProfiloTab(ft.ListView):
                 if not _cantrip_dd.value:
                     _errors.append("Scegli il nuovo trucchetto")
 
+            # Arcanum Mistico (Warlock) — sempre obbligatorio
+            for _arcanum_dd in arcanum_spell_refs:
+                if not _arcanum_dd.value:
+                    _errors.append("Scegli l'incantesimo per l'Arcanum Mistico")
+
+            # Discipline Elementali (Monaco) — sempre obbligatorio
+            for _mk_dd in monk_discipline_refs:
+                if not _mk_dd.value:
+                    _errors.append("Scegli la nuova Disciplina Elementale")
+
             # Sostituzione incantesimo conosciuto — OPZIONALE: se la checkbox
             # non è attiva, nessuna validazione. Se attiva, entrambi i
             # dropdown devono essere compilati (il pool di `dd_add` già
@@ -2099,6 +3344,65 @@ class ProfiloTab(ft.ListView):
                             f"{'a' if _inv_count == 1 else 'e'} "
                             f"({_sel_inv}/{_inv_count})"
                         )
+
+            # Mistificatore Arcano/Cavaliere Mistico — validazione solo se la
+            # sottoclasse FINALE scelta nel dropdown è quella borrowed-caster
+            # (i widget restano nel DOM anche se nascosti, ma non vanno
+            # validati/salvati se il giocatore ha scelto un'altra sottoclasse).
+            _final_subclass = (subclass_dd_ref[0].value if subclass_dd_ref else (c.subclass or "")) or ""
+            _is_borrowed_choice = bool(
+                borrowed_subclass_name_ref and _final_subclass == borrowed_subclass_name_ref[0]
+            )
+            if _is_borrowed_choice:
+                for _i, _dd in enumerate(borrowed_initial_cantrip_refs):
+                    if not _dd.value:
+                        _errors.append(f"Scegli il trucchetto da mago {_i + 1}/{len(borrowed_initial_cantrip_refs)}")
+                for _i, (_dd, _) in enumerate(borrowed_initial_spell_refs):
+                    if not _dd.value:
+                        _errors.append(f"Scegli l'incantesimo da mago {_i + 1}/{len(borrowed_initial_spell_refs)}")
+
+            for _dd in borrowed_cantrip_dd_refs:
+                if not _dd.value:
+                    _errors.append("Scegli il nuovo trucchetto da mago")
+
+            for _dd, _ in borrowed_spell_learn_refs:
+                if not _dd.value:
+                    _errors.append("Scegli il nuovo incantesimo da mago")
+
+            for _bsw_cb, _bsw_rm, _bsw_add, _ in borrowed_spell_swap_refs:
+                if _bsw_cb.value:
+                    if not _bsw_rm.value:
+                        _errors.append("Scegli quale incantesimo da mago sostituire")
+                    if not _bsw_add.value:
+                        _errors.append("Scegli il nuovo incantesimo da mago")
+
+            # Monaco, Via dei Quattro Elementi — scelta iniziale di Lv.3
+            # (Sintonia Elementale automatica + 1 disciplina a scelta):
+            # stesso principio del Mistificatore Arcano/Cavaliere Mistico —
+            # il dropdown resta nel DOM anche se nascosto, va validato solo
+            # se la sottoclasse FINALE scelta è davvero questa.
+            _is_monk_discipline_choice = (
+                c.class_name == "Monaco" and _final_subclass == "Via dei Quattro Elementi"
+            )
+            if _is_monk_discipline_choice:
+                for _dd in monk_initial_discipline_refs:
+                    if not _dd.value:
+                        _errors.append("Scegli la disciplina elementale aggiuntiva (Lv.3)")
+
+            # Competenze bonus di sottoclasse (task #20, 2026-07-16) —
+            # validate contro la sottoclasse FINALE scelta, non contro il
+            # numero di dropdown attualmente costruiti (già tenuti in sync
+            # da _rebuild_scb_container ad ogni cambio del dropdown, ma un
+            # doppio controllo qui evita falsi negativi se in futuro il
+            # rebuild venisse rimosso o modificato).
+            if live_subclass_dd is not None:
+                _scb_entries_final = _loader.get_subclass_bonus_proficiencies(c.class_name or "", _final_subclass)
+                _scb_fixed_final, _scb_choices_final = character_repo.classify_bonus_proficiency_entries(_scb_entries_final)
+                _scb_total_final = sum(int(ch.get("count", 0)) for ch in _scb_choices_final)
+                if _scb_total_final > 0:
+                    _scb_filled = [v for v in subclass_bonus_choice_values if v]
+                    if len(_scb_filled) != _scb_total_final or len(set(_scb_filled)) != len(_scb_filled):
+                        _errors.append("Completa la scelta delle competenze bonus di sottoclasse (nessun duplicato ammesso)")
 
             if _errors:
                 def _close_err_dlg(ev_inner: Any) -> None:
@@ -2234,6 +3538,19 @@ class ProfiloTab(ft.ListView):
             if subclass_dd_ref and subclass_dd_ref[0].value:
                 c.subclass = subclass_dd_ref[0].value
 
+            # Competenze bonus di sottoclasse (task #20, 2026-07-16) — es.
+            # Bardo Collegio della Conoscenza/Valore, Ladro Assassino. Va
+            # applicata alla sottoclasse FINALE appena scritta su c.subclass
+            # (non a subclass_bonus_choice_values "as-is" se il giocatore ha
+            # cambiato sottoclasse più volte senza che l'ultimo rebuild sia
+            # coerente — si ricalcolano fixed/choices da c.subclass per
+            # sicurezza, stesso principio già usato per Totem/Terreno sopra).
+            if live_subclass_dd is not None:
+                _scb_entries_apply = _loader.get_subclass_bonus_proficiencies(c.class_name or "", c.subclass or "")
+                _scb_fixed_apply, _scb_choices_apply = character_repo.classify_bonus_proficiency_entries(_scb_entries_apply)
+                _scb_resolved_apply = list(_scb_fixed_apply) + [v for v in subclass_bonus_choice_values if v]
+                character_repo.apply_subclass_bonus_proficiencies(c.id, _scb_resolved_apply)
+
             # Patto del Warlock
             if pact_rg_ref and pact_rg_ref[0].value:
                 c.pact_boon = pact_rg_ref[0].value
@@ -2262,12 +3579,21 @@ class ProfiloTab(ft.ListView):
                 if chosen:
                     character_repo.set_expertise(c.id, chosen)
 
-            # Scelte extra: stile di combattimento, animale totem, terreno
+            # Scelte extra: stile di combattimento, animale totem, terreno.
+            # Totem/Terreno: il dropdown viene costruito (nascosto) anche per
+            # sottoclassi che non lo richiedono quando la sottoclasse è
+            # scelta in questo stesso level-up (vedi live_subclass_dd sopra)
+            # — va salvato solo se la sottoclasse FINALE scelta corrisponde
+            # davvero, altrimenti si salverebbe sempre il primo valore di
+            # default (es. "Orso") anche per un Barbaro Berserker.
             if fighting_style_dd_ref and fighting_style_dd_ref[0].value:
                 c.fighting_style = fighting_style_dd_ref[0].value
-            if totem_animal_dd_ref and totem_animal_dd_ref[0].value:
+            _final_subclass_lower = ((live_subclass_dd.value if live_subclass_dd else c.subclass) or "").strip().lower()
+            if (totem_animal_dd_ref and totem_animal_dd_ref[0].value
+                    and "totem" in _final_subclass_lower):
                 c.totem_animal = totem_animal_dd_ref[0].value
-            if land_terrain_dd_ref and land_terrain_dd_ref[0].value:
+            if (land_terrain_dd_ref and land_terrain_dd_ref[0].value
+                    and "terra" in _final_subclass_lower):
                 c.land_terrain = land_terrain_dd_ref[0].value
 
             # Incantesimi conosciuti (classi "know")
@@ -2282,6 +3608,24 @@ class ProfiloTab(ft.ListView):
             for _cantrip_dd in cantrip_learn_refs:
                 if _cantrip_dd.value:
                     _save_known_spell(_cantrip_dd.value, c.class_name or "", c)
+
+            # Arcanum Mistico (Warlock, lv.11/13/15/17) — salvato come
+            # known_spell (is_prepared=True), stesso pattern di SPELL_LEARN/
+            # CANTRIP_LEARN. Il fatto che sia lanciabile senza slot 1/riposo
+            # lungo non è tracciato a parte in questo progetto, coerente con
+            # la semplificazione già adottata per tutti gli incantesimi
+            # conosciuti (nessun sistema di "usi speciali" per singolo spell).
+            for _arcanum_dd in arcanum_spell_refs:
+                if _arcanum_dd.value:
+                    _save_known_spell(_arcanum_dd.value, c.class_name or "", c)
+
+            # Discipline Elementali (Monaco, Via dei Quattro Elementi,
+            # lv.6/11/17) — salvate come proficiency dedicata "monk_discipline".
+            for _mk_dd in monk_discipline_refs:
+                if _mk_dd.value:
+                    character_repo._save_single_proficiency(
+                        c.id, "monk_discipline", _mk_dd.value, level_obtained=new_level,
+                    )
 
             # Sostituzione incantesimo conosciuto (opzionale) — rimuove il
             # vecchio incantesimo da known_spells e salva il nuovo con lo
@@ -2305,6 +3649,66 @@ class ProfiloTab(ft.ListView):
                 for spell_name, class_name in choices:
                     _save_known_spell(spell_name, class_name, c)
 
+            # Mistificatore Arcano/Cavaliere Mistico — apprendimento INIZIALE
+            # (3° livello), solo se la sottoclasse finale scelta è quella
+            # borrowed-caster (c.subclass è già stato aggiornato sopra).
+            if _is_borrowed_choice:
+                # Il trucchetto fisso (es. Mano Magica del Ladro) va comunque
+                # salvato come known_spell — è un trucchetto reale che il
+                # personaggio conosce e può lanciare, solo non è una scelta
+                # del giocatore. Senza questo salvataggio non comparirebbe
+                # affatto nella tab Incantesimi. Assente per il Cavaliere
+                # Mistico (fixed_cantrip="" in guerriero.json).
+                _bc_data_save = _loader.get_borrowed_caster_data(c.class_name or "", c.subclass or "") or {}
+                _fixed_cantrip_save = _bc_data_save.get("fixed_cantrip") or ""
+                if _fixed_cantrip_save:
+                    _save_known_spell(_fixed_cantrip_save, "Mago", c)
+                for _dd in borrowed_initial_cantrip_refs:
+                    if _dd.value:
+                        _save_known_spell(_dd.value, "Mago", c)
+                for _dd, _origin_unr in borrowed_initial_spell_refs:
+                    if _dd.value:
+                        _save_known_spell(_dd.value, "Mago", c, origin_unrestricted=_origin_unr)
+
+            # Monaco, Via dei Quattro Elementi — scelta iniziale di Lv.3:
+            # Sintonia Elementale (automatica, sempre inclusa) + la disciplina
+            # scelta nel dropdown, solo se la sottoclasse finale è questa.
+            if _is_monk_discipline_choice:
+                character_repo._save_single_proficiency(
+                    c.id, "monk_discipline", "Sintonia Elementale", level_obtained=new_level,
+                )
+                for _dd in monk_initial_discipline_refs:
+                    if _dd.value:
+                        character_repo._save_single_proficiency(
+                            c.id, "monk_discipline", _dd.value, level_obtained=new_level,
+                        )
+
+            # Mistificatore Arcano/Cavaliere Mistico — crescita dal 4° livello
+            # in poi (nuovo trucchetto/incantesimo da mago).
+            for _dd in borrowed_cantrip_dd_refs:
+                if _dd.value:
+                    _save_known_spell(_dd.value, "Mago", c)
+            for _dd, _origin_unr in borrowed_spell_learn_refs:
+                if _dd.value:
+                    _save_known_spell(_dd.value, "Mago", c, origin_unrestricted=_origin_unr)
+
+            # Mistificatore Arcano/Cavaliere Mistico — sostituzione opzionale.
+            # Il flag origin_unrestricted del vecchio incantesimo si propaga
+            # sul nuovo (la "postazione" resta libera da vincolo anche in
+            # futuro se lo era già — vedi CLAUDE.md 2026-07-15).
+            for _bsw_cb, _bsw_rm, _bsw_add, _ in borrowed_spell_swap_refs:
+                if _bsw_cb.value and _bsw_rm.value and _bsw_add.value:
+                    _old_name_bsw = _bsw_rm.value
+                    _old_row_bsw = next(
+                        (ks for ks in character_repo.get_known_spells(c.id)
+                         if ks.name == _old_name_bsw),
+                        None,
+                    )
+                    _was_unrestricted = _old_row_bsw.origin_unrestricted if _old_row_bsw else False
+                    if _old_row_bsw is not None:
+                        character_repo.remove_known_spell(c.id, _old_name_bsw, _old_row_bsw.spell_level)
+                    _save_known_spell(_bsw_add.value, "Mago", c, origin_unrestricted=_was_unrestricted)
+
             if not character_repo.update(c):
                 show_error_dialog(page)
                 return
@@ -2314,6 +3718,16 @@ class ProfiloTab(ft.ListView):
             # per il nuovo livello — senza questa chiamata i pool restavano
             # congelati al valore calcolato alla creazione del personaggio.
             character_repo.init_class_resources(c.id, c.class_name, new_level, c)
+            # Mistificatore Arcano/Cavaliere Mistico — spellcasting_ability e
+            # slot incantesimo "presi in prestito dal Mago". No-op per
+            # qualunque altra classe/sottoclasse (vedi character_repo.py).
+            character_repo.sync_borrowed_spellcasting_ability(c)
+            character_repo.init_borrowed_caster_slots(c.id, c.class_name or "", c.subclass or "", new_level)
+            # Incantesimi sempre pronti da Dominio/Giuramento/Circolo della
+            # Terra (es. Paladino Giuramento degli Antichi) — un level-up può
+            # sbloccare una nuova soglia (Lv.3/5/9/13/17) o, se questo
+            # level-up ha assegnato la sottoclasse, la primissima soglia.
+            character_repo.sync_bonus_domain_spells(c)
             # Ricalcola la CA — copre i casi in cui questo level-up ha assegnato
             # una sottoclasse (es. Discendenza Draconica), uno Stile di
             # Combattimento (es. Difesa) o un ASI su DES/COS/SAG.
@@ -2379,6 +3793,18 @@ class ProfiloTab(ft.ListView):
             # (altrimenti restano al valore del livello precedente più alto)
             character_repo.auto_init_spell_slots(self.character.id, self.character.class_name, new_level)
             character_repo.init_class_resources(self.character.id, self.character.class_name, new_level, self.character)
+            # Mistificatore Arcano/Cavaliere Mistico — ricalcola spellcasting_
+            # ability e slot "presi in prestito dal Mago" anche in level-down
+            # (no-op per qualunque altra classe/sottoclasse).
+            character_repo.sync_borrowed_spellcasting_ability(self.character)
+            character_repo.init_borrowed_caster_slots(
+                self.character.id, self.character.class_name or "",
+                self.character.subclass or "", new_level,
+            )
+            # Incantesimi sempre pronti da Dominio/Giuramento/Circolo della
+            # Terra — un level-down può scendere sotto una soglia (Lv.3/5/
+            # 9/13/17), la funzione ripulisce le righe non più valide.
+            character_repo.sync_bonus_domain_spells(self.character)
             # Ricalcola la CA — coerente con il ricalcolo fatto al level-up
             # (es. perdita di una sottoclasse/ASI che influenzava la CA senza armatura)
             character_repo.calculate_and_update_ca(self.character.id)
@@ -2556,14 +3982,23 @@ class ProfiloTab(ft.ListView):
     def _pick_photo(self):
         """
         Entry point: sceglie la strategia giusta per la piattaforma.
-        - Mobile (Android/iOS): ft.FilePicker nativo — funziona su Flet mobile
-        - Desktop (macOS/Windows/Linux): dialogo nativo del SO via subprocess
-          (ft.FilePicker è broken su Flet 0.85.3 desktop)
+        - Mobile (Android/iOS, build nativa): ft.FilePicker, path locale
+          letto direttamente (client e server sono lo stesso dispositivo)
+        - Web (browser, deploy Docker): NIENTE ft.FilePicker (bug upstream
+          Flet confermato, non risolvibile lato applicazione — vedi
+          CLAUDE.md 2026-07-12). Al suo posto, un picker sulla libreria
+          immagini caricata a mano da Davide via SSH (vedi
+          ui/image_library.py, data/database.py -> get_image_library_path())
+        - Desktop (macOS/Windows/Linux, app locale): dialogo nativo del SO
+          via subprocess (ft.FilePicker e' broken su Flet 0.85.3 desktop)
         """
         if self._page is None:
             return
+        if self._page.web:
+            show_image_library_picker(self._page, on_select=self._load_photo)
+            return
         platform = self._page.platform
-        if self._page.web or platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+        if platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
             self._pick_photo_mobile()
         else:
             import platform as sys_platform
@@ -2631,34 +4066,49 @@ class ProfiloTab(ft.ListView):
     def _pick_photo_mobile(self):
         """
         Apre il file picker nativo Android/iOS tramite ft.FilePicker.
-        Funziona su Flet mobile; NON usare su desktop (causa "Unknown control").
+        Funziona su Flet mobile nativo; NON usare su desktop nativo (causa
+        "Unknown control") né in web mode (stesso errore, bug upstream
+        confermato — vedi _pick_photo(), che intercetta page.web PRIMA di
+        arrivare qui e usa show_image_library_picker() al suo posto).
+
+        Riusa SEMPRE self._file_picker, già registrato in did_mount().
+        Fallback difensivo: se per qualche motivo did_mount() non l'ha
+        ancora creato (page non pronta), lo crea qui al volo — sicuro solo
+        perché questo metodo è raggiungibile esclusivamente dal ramo mobile
+        nativo di _pick_photo().
         """
         page = self._page
         if page is None:
             return
-        picker = ft.FilePicker()
-        picker.on_result = self._on_mobile_file_picked  # type: ignore[assignment]
-        page.overlay.append(picker)
-        page.update()  # type: ignore[unused-coroutine]
-        picker.pick_files(  # type: ignore[unused-coroutine]
+        if self._file_picker is None:
+            self._file_picker = ft.FilePicker()
+            self._file_picker.on_result = self._on_mobile_file_picked  # type: ignore[assignment]
+            page.overlay.append(self._file_picker)
+            page.update()  # type: ignore[unused-coroutine]
+        self._file_picker.pick_files(  # type: ignore[unused-coroutine]
             allow_multiple=False,
             file_type=ft.FilePickerFileType.CUSTOM,
             allowed_extensions=["png", "jpg", "jpeg", "gif", "webp", "bmp"],
         )
 
     def _on_mobile_file_picked(self, e):
-        """Callback del FilePicker mobile — legge il path e carica la foto."""
-        page = self._page
-        if page is None:
+        """
+        Callback di pick_files() — chiamata SOLO dal ramo mobile nativo
+        (Android/iOS) di _pick_photo(); il ramo web non arriva mai qui,
+        vedi _pick_photo() (usa show_image_library_picker() invece).
+
+        Mobile nativo (Android/iOS, build "flet build apk/ipa"): Python
+        gira SULLO STESSO dispositivo del client, quindi e.files[0].path
+        e' gia' leggibile direttamente da questo processo.
+
+        Il picker NON viene rimosso dall'overlay dopo l'uso: resta
+        registrato per essere riutilizzato alla prossima modifica foto.
+        """
+        if not e.files:
             return
-        # Rimuovi il picker dall'overlay
-        if e.control in page.overlay:
-            page.overlay.remove(e.control)
-            page.update()  # type: ignore[unused-coroutine]
-        if e.files and len(e.files) > 0:
-            path = e.files[0].path
-            if path:
-                self._load_photo(path)
+        f = e.files[0]
+        if f.path:
+            self._load_photo(f.path)
 
     def _show_path_input_dialog(self):
         """

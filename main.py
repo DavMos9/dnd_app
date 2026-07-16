@@ -116,6 +116,16 @@ _web  = os.environ.get("FLET_WEB", "").lower() in ("1", "true", "yes")
 _port = int(os.environ.get("FLET_PORT", "8000"))
 
 if _web:
+    # Nota (2026-07-12): niente piu' upload_dir/get_upload_url qui --
+    # il tentativo di vero upload client->server via ft.FilePicker.upload()
+    # e' stato abbandonato dopo aver confermato (issue tracker upstream
+    # flet-dev/flet#6040/#6250/#6251) che FilePicker e' strutturalmente
+    # rotto in web mode, indipendentemente da come lo si usa. La foto
+    # profilo/immagini mappa in modalita' web ora passano dalla libreria
+    # immagini caricata a mano da Davide via SSH (vedi
+    # data/database.py -> get_image_library_path(), ui/image_library.py) --
+    # nessun endpoint di upload Flet necessario. Vedi CLAUDE.md per il
+    # changelog completo.
     _w(f"[8] WEB mode — host=0.0.0.0 port={_port}")
     ft.run(run_app, view=ft.AppView.WEB_BROWSER, port=_port, host="0.0.0.0")
 else:

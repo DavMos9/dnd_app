@@ -299,8 +299,12 @@ class GameDataLoader:
         cls_data = self.get_class(class_name)
         if not cls_data:
             return []
-        key_to_label = dict(zip(ABILITY_KEYS, ABILITY_SCORES))
-        return [key_to_label.get(k, k.upper()) for k in cls_data.get("saving_throws", [])]
+        key_to_label: dict[str, str] = dict(zip(ABILITY_KEYS, ABILITY_SCORES))
+        result: list[str] = []
+        for raw_key in cls_data.get("saving_throws", []):
+            k = str(raw_key)
+            result.append(key_to_label.get(k, k.upper()))
+        return result
 
     def get_fighting_styles(self, class_name: str) -> list[str]:
         """
@@ -320,24 +324,65 @@ class GameDataLoader:
                 return [o.get("name", "") for o in feat["options"] if o.get("name")]
         return []
 
+    def get_fighting_style_data(self, class_name: str) -> list[dict[str, Any]]:
+        """
+        Stili di combattimento disponibili per la classe indicata, come dict
+        completi {"name","description"} — aggiunto il 2026-07-16 per il
+        widget ⓘ del level-up (task #24). Il Guerriero ha sempre la
+        descrizione completa in `fighting_style_details`; Paladino/Ranger
+        hanno solo `name` nelle proprie `options` (nessuna description propria
+        nel JSON) — in quel caso si risolve comunque la descrizione completa
+        dalla lista canonica del Guerriero, stesso identico stile PHB.
+        """
+        cls_data = self.get_class(class_name)
+        if not cls_data:
+            return []
+        if "fighting_style_details" in cls_data:
+            return cls_data["fighting_style_details"]
+        names: list[str] = []
+        for feat in cls_data.get("features", []):
+            if feat.get("name") == "Stile di Combattimento" and feat.get("options"):
+                names = [o.get("name", "") for o in feat["options"] if o.get("name")]
+                break
+        if not names:
+            return []
+        guerriero_data = self.get_class("guerriero") or {}
+        canonical = {
+            s.get("name", ""): s for s in guerriero_data.get("fighting_style_details", [])
+        }
+        return [canonical[n] for n in names if n in canonical]
+
     def get_metamagic_options(self) -> list[str]:
         """Nomi delle 8 opzioni di Metamagia dello Stregone (PHB)."""
+        return [o.get("name", "") for o in self.get_metamagic_option_data() if o.get("name")]
+
+    def get_metamagic_option_data(self) -> list[dict[str, Any]]:
+        """
+        Le 8 opzioni di Metamagia dello Stregone come dict completi
+        {"name","description"} — aggiunto il 2026-07-16 per poter mostrare la
+        descrizione nel widget ⓘ del level-up (task #24), senza scartare il
+        campo "description" come faceva `get_metamagic_options()`.
+        """
         cls_data = self.get_class("stregone")
         if not cls_data:
             return []
         for feat in cls_data.get("features", []):
             if feat.get("name") == "Metamagia" and feat.get("options"):
-                return [o.get("name", "") for o in feat["options"] if o.get("name")]
+                return feat["options"]
         return []
 
     def get_pact_boons(self) -> list[str]:
         """Nomi dei 3 Doni del Patto del Warlock (PHB)."""
+        return [o.get("name", "") for o in self.get_pact_boon_data() if o.get("name")]
+
+    def get_pact_boon_data(self) -> list[dict[str, Any]]:
+        """I 3 Doni del Patto del Warlock come dict completi {"name","description"}."""
         cls_data = self.get_class("warlock")
         if not cls_data:
             return []
         for feat in cls_data.get("features", []):
             if feat.get("name") == "Dono del Patto" and feat.get("options"):
-                return [o.get("name", "") for o in feat["options"] if o.get("name")]
+                return feat["options"]
         return []
 
     def get_totem_animals(self) -> list[str]:
@@ -379,6 +424,106 @@ class GameDataLoader:
         quel file (Checklist Revisione Dati PHB in CLAUDE.md).
         """
         return [s["name"] for s in self.get_spells_by_level("mago", 0) if s.get("name")]
+
+    def get_subclass_data(self, class_name: str, subclass_name: str) -> dict[str, Any] | None:
+        """
+        Restituisce il blocco dati di una sottoclasse (dict grezzo del JSON),
+        cercato per nome esatto (case-insensitive) dentro cls_data["subclasses"].
+        None se la classe o la sottoclasse non esistono.
+
+        Aggiunto per il fix Mistificatore Arcano (Ladro)/Cavaliere Mistico
+        (Guerriero) — 2026-07-15 — ma generico, utilizzabile per qualunque
+        altra sottoclasse in futuro.
+        """
+        cls_data = self.get_class(class_name)
+        if not cls_data:
+            return None
+        key = subclass_name.strip().lower()
+        for sc in cls_data.get("subclasses", []):
+            if sc.get("name", "").strip().lower() == key:
+                return sc
+        return None
+
+    def get_subclass_bonus_proficiencies(self, class_name: str, subclass_name: str) -> list[Any]:
+        """
+        Restituisce la lista grezza `bonus_proficiencies` di una sottoclasse
+        (dict del JSON), o [] se assente/sottoclasse non trovata. Ogni voce
+        è o una stringa (token armatura/arma bare — "leggere"/"medie"/
+        "pesanti"/"scudi"/"semplice"/"semplice_mischia"/"guerra"/
+        "guerra_mischia", stessa convenzione di `armor_proficiencies`/
+        `weapon_proficiencies` a livello di classe — oppure un nome
+        letterale di competenza, es. uno strumento) o un dict
+        `{"type":"choice","count":N,"from":[...]|"any_skill"}` che richiede
+        una scelta del giocatore prima di poter essere applicata.
+
+        Aggiunto il 2026-07-16 insieme alla normalizzazione dei vecchi tag
+        `#armature_pesanti`/ecc. in `chierico.json`/`bardo.json` — vedi
+        `character_repo.classify_bonus_proficiency_entries()` per il
+        parsing e l'applicazione effettiva al personaggio.
+        """
+        sc = self.get_subclass_data(class_name, subclass_name)
+        return list(sc.get("bonus_proficiencies", [])) if sc else []
+
+    def get_borrowed_caster_subclass_name(self, class_name: str) -> str:
+        """
+        Nome della sottoclasse che concede casting "preso in prestito dal
+        Mago" per la classe indicata (es. "Mistificatore Arcano" per
+        "Ladro"), rilevato cercando quale sottoclasse ha un campo
+        "spell_progression" — stringa vuota se la classe non ne ha nessuna.
+        Evita di duplicare in UI (profilo_tab.py) una mappa classe→
+        sottoclasse scritta a mano: unica fonte è il JSON di classe stesso.
+        """
+        cls_data = self.get_class(class_name)
+        if not cls_data:
+            return ""
+        for sc in cls_data.get("subclasses", []):
+            if "spell_progression" in sc:
+                return sc.get("name", "")
+        return ""
+
+    def get_borrowed_caster_data(self, class_name: str, subclass_name: str) -> dict[str, Any] | None:
+        """
+        Dati di "casting preso in prestito dal Mago" per Mistificatore Arcano
+        (Ladro) e Cavaliere Mistico (Guerriero) — le uniche 2 sottoclassi PHB
+        che concedono incantesimi a una classe senza spellcasting_ability
+        propria. Restituisce None per qualunque altra combinazione classe/
+        sottoclasse (nessun casting da gestire con questo meccanismo).
+
+        Il dict ritornato è il blocco sottoclasse stesso: contiene già
+        "spellcasting_ability", "cantrip_options", "spell_progression"
+        (lista {level, cantrips_known, spells_known, slots}), oltre ai 3
+        campi aggiunti il 2026-07-15 per questo fix: "fixed_cantrip" (solo
+        Ladro — "Mano Magica"), "restricted_schools" (le 2 scuole vincolate),
+        "unrestricted_origin_levels" (livelli il cui incantesimo può essere
+        di qualsiasi scuola — asimmetrico tra le due sottoclassi, vedi
+        CLAUDE.md: Ladro [8,14,20], Guerriero [3,8,14,20], verificato
+        testualmente contro il PHB IT, non un refuso di trascrizione).
+        """
+        sc = self.get_subclass_data(class_name, subclass_name)
+        if not sc or "spell_progression" not in sc:
+            return None
+        return sc
+
+    def get_borrowed_caster_progression_for_level(
+        self, class_name: str, subclass_name: str, level: int
+    ) -> dict[str, Any] | None:
+        """
+        Riga di spell_progression per il livello indicato (o l'ultima riga
+        <= level se il livello esatto non è presente — non dovrebbe succedere
+        con i dati attuali, che coprono 3-20 senza buchi, ma per sicurezza).
+        None se il personaggio non ha ancora raggiunto subclass_choice_level
+        (nessun casting) o la sottoclasse non è una delle 2 gestite.
+        """
+        sc = self.get_borrowed_caster_data(class_name, subclass_name)
+        if not sc:
+            return None
+        rows = sc.get("spell_progression", [])
+        best: dict[str, Any] | None = None
+        for row in rows:
+            if row.get("level", 0) <= level:
+                if best is None or row.get("level", 0) > best.get("level", 0):
+                    best = row
+        return best
 
     def _ensure_spell_slot_progressions(self) -> None:
         """
@@ -564,6 +709,46 @@ class GameDataLoader:
             "traits": traits,
         }
 
+    def get_racial_innate_spells(
+        self, race_name: str, subrace_name: str = ""
+    ) -> list[dict[str, Any]]:
+        """
+        Incantesimi innati concessi da un tratto di razza (es. Drow "Magia
+        Drow", Tiefling "Eredità Infernale") — PHB IT: lanciabili senza
+        preparazione, senza slot, indipendentemente dalla classe del
+        personaggio, con CD calcolata su Carisma fisso (task #15, 2026-07-16
+        — TODO storico "Incantesimi razziali di Drow/Tiefling mai realmente
+        utilizzabili").
+
+        Legge il campo strutturato `"innate_spells"` presente dentro i
+        singoli tratti in `data/game_data/races/*.json` (dato aggiunto in
+        questa sessione, non inventato: trascrive in forma di dati la stessa
+        prosa già presente e verificata nel tratto — es. "Magia Drow"/
+        "Eredità Infernale" — nessun nuovo fatto di regolamento introdotto).
+        Non tocca `traits`/`resources`, che restano l'unica fonte per la
+        descrizione testuale e per il contatore utilizzi già gestito in
+        Combattimento.
+
+        Ogni voce ritornata ha le chiavi:
+            name:          str  — nome esatto dell'incantesimo
+            cast_level:    int  — livello a cui viene lanciato (0 = trucchetto;
+                                  può differire dal livello base dell'incantesimo,
+                                  es. Intimorire Infernale del Tiefling è
+                                  lanciato come incantesimo di 2° livello)
+            min_char_level: int — livello personaggio da cui il tratto è attivo
+            uses:          str  — "at_will" oppure "1_per_long_rest"
+            ability:       str  — chiave caratteristica per la CD ("cha")
+            resource_name: str  — nome esatto della risorsa già tracciata in
+                                  class_resources (per incrociare lo stato
+                                  "disponibile/usata" mostrato in Combattimento),
+                                  vuoto per gli "at_will"
+        """
+        resolved = self.get_resolved_race(race_name, subrace_name)
+        out: list[dict[str, Any]] = []
+        for trait in resolved.get("traits", []):
+            out.extend(trait.get("innate_spells", []))
+        return out
+
     def _ensure_races(self) -> None:
         if self._races_loaded:
             return
@@ -747,6 +932,95 @@ class GameDataLoader:
                     return spell
         return None
 
+    def get_spell_master_entry(self, name: str) -> dict[str, Any] | None:
+        """
+        Cerca un incantesimo per nome ESCLUSIVAMENTE nel file master
+        `incantesimi_completi.json` (361 incantesimi PHB), a prescindere da
+        quali classi lo abbiano nella propria lista — a differenza di
+        `get_spell_by_name()`, che cerca solo tra gli incantesimi già
+        presenti nei file `classes/incantesimi_*.json`.
+
+        Usato per gli incantesimi innati di razza (Drow "Magia Drow",
+        Tiefling "Eredità Infernale" — task #15, 2026-07-16): sono
+        incantesimi noti per tratto razziale, non per lista di classe,
+        quindi il lookup deve funzionare anche se, per assurdo, nessuna
+        classe li avesse nella propria lista.
+        """
+        master = self._ensure_spell_master()
+        return master.get(name.lower())
+
+    def get_expanded_spells(self, class_name: str, subclass_name: str) -> list[dict[str, Any]]:
+        """
+        Lista Incantesimi Ampliata di una sottoclasse (Warlock: Il Signore
+        Fatato/L'Immondo/Il Grande Antico, `bonus_proficiencies`... no,
+        campo `expanded_spells` in classes/warlock.json — dict con chiavi
+        "1".."5" = livello slot, ognuna con 2 nomi incantesimo) — task #25,
+        2026-07-16. A differenza degli incantesimi sempre pronti di
+        Dominio/Giuramento/Circolo (vedi `sync_bonus_domain_spells` in
+        character_repo.py), la Lista Ampliata NON concede incantesimi
+        gratuiti: aggiunge solo nomi al POOL tra cui il Warlock può
+        scegliere quando impara un nuovo incantesimo (creazione,
+        SPELL_LEARN, SPELL_SWAP) — il giocatore deve comunque "spendere"
+        uno dei suoi incantesimi conosciuti su di essi, PHB p.114 "Lista
+        Incantesimi Ampliata: [...] questi incantesimi sono considerati
+        incantesimi da warlock per il [patrono], ma non contano ai fini del
+        numero di incantesimi da warlock che il personaggio conosce".
+
+        Risolve ogni nome contro il file master (`get_spell_master_entry`,
+        non `get_spell_by_name` — questi incantesimi per definizione NON
+        sono nella lista base del Warlock, quindi un lookup ristretto alla
+        classe non li troverebbe mai). Nomi non ancora presenti nel master
+        vengono scartati silenziosamente con un debug log, stesso
+        trattamento già riservato a `get_spells()` per una trascrizione in
+        corso — non un errore per l'utente finale.
+
+        Restituisce [] se la sottoclasse non esiste o non ha
+        `expanded_spells` (qualunque sottoclasse di qualunque classe,
+        generico — oggi solo le 3 sottoclassi Warlock lo hanno).
+        """
+        sc = self.get_subclass_data(class_name, subclass_name)
+        expanded = (sc or {}).get("expanded_spells") or {}
+        result: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for _slot_level, names in expanded.items():
+            for name in names or []:
+                if name in seen:
+                    continue
+                entry = self.get_spell_master_entry(name)
+                if entry is not None:
+                    result.append(entry)
+                    seen.add(name)
+                else:
+                    logger.debug(
+                        "Incantesimo Lista Ampliata '%s' (%s/%s) non ancora nel file master",
+                        name, class_name, subclass_name,
+                    )
+        result.sort(key=lambda s: (s.get("level", 0), s.get("name", "")))
+        return result
+
+    def get_spellcasting_class_names(self) -> list[str]:
+        """
+        Nomi (con maiuscola, es. "Bardo") delle classi che hanno una propria
+        lista di incantesimi (i file spells/incantesimi_{classe}.json
+        esistenti e non vuoti) — aggiunto il 2026-07-16 per il picker
+        "Incantesimi Bonus" di spells_view.py, che deve poter offrire la
+        scelta della lista di provenienza a QUALSIASI personaggio, anche una
+        classe non incantatrice (es. un Guerriero che riceve un incantesimo
+        bonus concesso dal master). Calcolato dinamicamente (non una lista
+        scritta a mano) per restare sempre coerente con quali file
+        spells/incantesimi_*.json esistono davvero.
+        """
+        _ALL_SPELL_CLASSES = [
+            "chierico", "bardo", "druido", "mago",
+            "paladino", "ranger", "stregone", "warlock",
+        ]
+        result: list[str] = []
+        for key in _ALL_SPELL_CLASSES:
+            if self.get_spells(key):
+                cls_data = self.get_class(key)
+                result.append(cls_data.get("name", key.capitalize()) if cls_data else key.capitalize())
+        return result
+
     # ------------------------------------------------------------------
     # Talenti (Feats)
     # ------------------------------------------------------------------
@@ -906,6 +1180,23 @@ class GameDataLoader:
                     result["ca_value"] = int(match.group(1)) if match else 0
                 return result
         return None
+
+    def get_armor_names(self) -> list[str]:
+        """
+        Nomi di tutte le armature/scudi PHB (equipment/armor.json), pronti
+        per popolare un Dropdown "Tipo" nel dialog di creazione/modifica
+        armatura — vedi `get_armor_item()` per il dettaglio risolto
+        (ca_value/armor_type) usato per l'autofill. Aggiunto 2026-07-16 su
+        richiesta di Davide ("autoriempi la scheda con le caratteristiche
+        del tipo di armatura").
+        """
+        armor = self.get_armor()
+        result: list[str] = []
+        for key in self._ARMOR_TYPE_BY_KEY:
+            for a in armor.get(key, []):
+                if a.get("name"):
+                    result.append(a["name"])
+        return result
 
     def get_adventuring_gear(self) -> dict[str, Any]:
         """Dizionario grezzo di equipment/adventuring_gear.json (items/descrizioni/dotazioni)."""

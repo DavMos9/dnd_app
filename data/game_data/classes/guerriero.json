@@ -199,6 +199,9 @@
     {
       "name": "Cavaliere Mistico",
       "spellcasting_ability": "int",
+      "fixed_cantrip": null,
+      "restricted_schools": ["Abiurazione", "Invocazione"],
+      "unrestricted_origin_levels": [3, 8, 14, 20],
       "cantrip_options": [
         "Amicizia",
         "Colpo Accurato",

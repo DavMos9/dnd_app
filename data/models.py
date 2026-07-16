@@ -77,6 +77,14 @@ class Character:
     # Override manuale del massimo incantesimi preparabili (0 = usa formula PHB)
     max_prepared_spells_override: int = 0
 
+    # Override manuale della Percezione Passiva (0 = usa 10 + mod SAG + comp.)
+    passive_perception_override: int = 0
+
+    # Override manuale della capacità di trasporto massima in kg
+    # (0 = usa FOR × 7,5 kg standard) — per talenti/razze/oggetti che la
+    # alterano, es. "Corporatura Possente" (raddoppia il carico).
+    carry_capacity_override: float = 0.0
+
     # Appunti di sessione (testo libero, per note al volo durante il gioco)
     session_notes: str = ""
 
@@ -198,6 +206,8 @@ class ClassResource:
     current_value: int = 0         # pool attuale
     reset_on: str = "long_rest"    # "short_rest" | "long_rest"
     display_type: str = "circles"  # "circles" (≤6 cerchietti) | "counter" (−/+ numerico)
+    max_value_bonus: int = 0       # bonus permanente additivo (talento/oggetto magico),
+                                    # sopravvive al ri-sync di init_class_resources()
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +239,17 @@ class KnownSpell:
     description: str = ""
     higher_levels: str = ""       # effetto ai livelli superiori
     class_list: str = ""          # classi che possono usarlo (CSV)
+    origin_unrestricted: bool = False  # Mistificatore Arcano/Cavaliere Mistico:
+                                        # True se questo pick è "libero da vincolo
+                                        # di scuola" (8°/14°/20° livello, +3° per il
+                                        # Cavaliere Mistico) — usato per gestire
+                                        # correttamente le sostituzioni future.
+    is_bonus: bool = False             # Incantesimo bonus aggiunto manualmente dal
+                                        # giocatore (es. concesso dal master) — sezione
+                                        # dedicata "Incantesimi Bonus", rimovibile.
+    always_prepared: bool = False      # Incantesimo sempre pronto da privilegio di
+                                        # Dominio/Giuramento/Circolo — non conta nel
+                                        # tetto di preparazione, non disattivabile.
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +299,32 @@ class CampaignNote:
     description: str = ""
     status: str = ""
     tags: str = ""              # tag liberi separati da virgola
+    created_at: str = ""
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Abilità Speciali custom (2026-07-16)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CustomAbility:
+    """
+    Abilità speciale aggiunta manualmente (es. concessa dal master, o un
+    tratto/feature che il giocatore vuole annotare senza modificare il testo
+    ufficiale PHB già rappresentato altrove nella scheda). Puramente
+    additiva: non sostituisce né modifica alcuna feature di classe/razza
+    già presente nei JSON di gioco.
+
+    category:
+        "esplorazione"  → mostrata nella tab Esplorazione
+        "combattimento" → mostrata nella tab Combattimento
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    character_id: str = ""
+    category: str = "esplorazione"
+    name: str = ""
+    description: str = ""
     created_at: str = ""
     updated_at: str = ""
 

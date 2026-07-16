@@ -202,6 +202,9 @@
     {
       "name": "Mistificatore Arcano",
       "spellcasting_ability": "int",
+      "fixed_cantrip": "Mano Magica",
+      "restricted_schools": ["Ammaliamento", "Illusione"],
+      "unrestricted_origin_levels": [8, 14, 20],
       "cantrip_options": [
         "Amicizia",
         "Colpo Accurato",

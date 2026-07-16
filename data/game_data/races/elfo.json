@@ -84,6 +84,32 @@
         {
           "name": "Magia Drow",
           "description": "Conosci il trucchetto Luci Danzanti. Quando raggiungi il 3° livello puoi lanciare l'incantesimo Luminescenza una volta con questo tratto, recuperando la capacità di farlo al completamento di un riposo lungo. Quando raggiungi il 5° livello puoi lanciare l'incantesimo Oscurità una volta con questo tratto, recuperando la capacità di farlo al completamento di un riposo lungo. Il modificatore per questi incantesimi è Carisma.",
+          "innate_spells": [
+            {
+              "name": "Luci Danzanti",
+              "cast_level": 0,
+              "min_char_level": 1,
+              "uses": "at_will",
+              "ability": "cha",
+              "resource_name": ""
+            },
+            {
+              "name": "Luminescenza",
+              "cast_level": 1,
+              "min_char_level": 3,
+              "uses": "1_per_long_rest",
+              "ability": "cha",
+              "resource_name": "Luminescenza (drow)"
+            },
+            {
+              "name": "Oscurità",
+              "cast_level": 2,
+              "min_char_level": 5,
+              "uses": "1_per_long_rest",
+              "ability": "cha",
+              "resource_name": "Oscurità (drow)"
+            }
+          ],
           "resources": [
             {
               "name": "Luminescenza (drow)",

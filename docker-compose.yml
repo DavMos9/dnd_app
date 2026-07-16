@@ -6,6 +6,14 @@ services:
       - "8000:8000"
     volumes:
       - dnd_data:/root/.dnd_companion
+      # Libreria immagini — cartella reale sull'host (bind mount, non un
+      # volume Docker gestito): Davide ci copia dentro le foto via SSH
+      # (scp/rsync) dalla macchina che esegue `docker compose`. Creata
+      # automaticamente da Docker Compose al primo avvio se non esiste.
+      # Vedi data/database.py → get_image_library_path() e
+      # ui/image_library.py (bug FilePicker in web mode non risolvibile
+      # lato applicazione, vedi CLAUDE.md 2026-07-12).
+      - ./dnd_image_library:/root/dnd_image_library
     environment:
       - FLET_WEB=true
       - FLET_PORT=8000

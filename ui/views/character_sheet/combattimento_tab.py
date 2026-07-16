@@ -23,7 +23,7 @@ import logging
 from typing import Any, Callable, cast
 from config.settings import *
 from config.settings import get_race_display_traits
-from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource, CreatureEntry
+from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource, CreatureEntry, CustomAbility
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text, show_error_dialog
@@ -52,6 +52,17 @@ class CombattimentoTab(ft.ListView):
         self.character = character
         self._on_refresh = on_refresh
         self._page: ft.Page | None = None
+        # Mistificatore Arcano (Ladro)/Cavaliere Mistico (Guerriero): sync
+        # difensivo ad ogni apertura tab, stesso principio di
+        # init_class_resources() più sotto — no-op per qualunque altra
+        # classe/sottoclasse. Necessario anche per personaggi la cui
+        # sottoclasse era già stata scelta PRIMA di questo fix (2026-07-15):
+        # senza questa chiamata resterebbero con spellcasting_ability/slot
+        # vuoti finché non affrontano un level-up/level-down.
+        character_repo.sync_borrowed_spellcasting_ability(character)
+        character_repo.init_borrowed_caster_slots(
+            character.id, character.class_name or "", character.subclass or "", character.level
+        )
         self._slots: list[SpellSlot] = character_repo.get_spell_slots(character.id)
         # Auto-init slot PHB se il personaggio è un incantatore e non ha ancora slot configurati
         if character.spellcasting_ability and all(s.total == 0 for s in self._slots):
@@ -82,6 +93,13 @@ class CombattimentoTab(ft.ListView):
         )
         self._evocazioni: list[CreatureEntry] = character_repo.get_creature_entries(
             character.id, entry_type="evocazione"
+        )
+        # Abilità Speciali custom di combattimento (2026-07-16, richiesta
+        # Davide: abilità concesse dal master o annotazioni aggiuntive —
+        # puramente additivo, mai in sostituzione delle feature JSON ufficiali
+        # già mostrate sopra in "Abilità di Classe"/"Tratti di Razza").
+        self._custom_abilities: list[CustomAbility] = character_repo.get_custom_abilities(
+            character.id, "combattimento"
         )
         self._build()
 
@@ -123,6 +141,10 @@ class CombattimentoTab(ft.ListView):
                 section_header("Tratti di Razza"),
                 self._section_racial_traits(),
             ]
+        controls += [
+            self._section_custom_abilities_header(),
+            self._section_custom_abilities(),
+        ]
         # Forme selvatiche — solo Druido
         if (c.class_name or "").lower() == "druido":
             controls += [
@@ -163,19 +185,26 @@ class CombattimentoTab(ft.ListView):
                 ft.Text(f" / {c.hp_max}", size=18, color=COLOR_TEXT_MUTED,
                         font_family=FONT_MONO),
                 ft.Container(expand=True),
-                ft.Column(
-                    [
-                        ft.Text("HP TEMP", size=9, color=COLOR_TEXT_MUTED,
-                                weight=ft.FontWeight.BOLD),
-                        ft.Text(
-                            f"+{c.hp_temp}" if c.hp_temp else "—",
-                            size=14, font_family=FONT_MONO,
-                            color=COLOR_ACCENT_BLUE if c.hp_temp else COLOR_TEXT_MUTED,
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                    ],
-                    spacing=1,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Text("HP TEMP", size=9, color=COLOR_TEXT_MUTED,
+                                    weight=ft.FontWeight.BOLD),
+                            ft.Text(
+                                f"+{c.hp_temp}" if c.hp_temp else "—",
+                                size=14, font_family=FONT_MONO,
+                                color=COLOR_ACCENT_BLUE if c.hp_temp else COLOR_TEXT_MUTED,
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                        ],
+                        spacing=1,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    on_click=self._on_edit_temp_hp_click,
+                    tooltip="Modifica HP Temporanei",
+                    ink=True,
+                    border_radius=6,
+                    padding=ft.Padding.symmetric(horizontal=6, vertical=2),
                 ),
             ],
             vertical_alignment=ft.CrossAxisAlignment.END,
@@ -381,6 +410,67 @@ class CombattimentoTab(ft.ListView):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Cura", on_click=apply,
                                   style=ft.ButtonStyle(bgcolor=COLOR_HP_FULL, color="#ffffff",
+                                                       shape=ft.RoundedRectangleBorder(radius=4))),
+            ],
+            bgcolor=COLOR_BG_CARD,
+        ))
+
+    def _on_edit_temp_hp_click(self, e: Any) -> None:
+        """
+        Click diretto sul box "HP TEMP" — imposta i punti ferita temporanei
+        senza passare dal dialog combinato "✎ HP Max / Temp" (che tocca
+        anche HP Max e HP Attuali). Bug report Davide (2026-07-16): "poter
+        aggiungere hp temporanei cliccando direttamente su hp temporanei
+        senza cliccare sulla matita del modifica che usiamo anche per la
+        vita." Il pulsante "✎ HP Max / Temp" resta invariato per quando
+        serve modificare più campi insieme.
+        """
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+
+        field = ft.TextField(
+            label="HP Temporanei", value=str(c.hp_temp or 0),
+            keyboard_type=ft.KeyboardType.NUMBER, autofocus=True,
+            text_align=ft.TextAlign.CENTER,
+            text_style=ft.TextStyle(size=16, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_BLUE,
+            bgcolor=COLOR_BG_CARD,
+        )
+
+        def apply(ev: Any) -> None:
+            if page is None:
+                return
+            try:
+                c.hp_temp = max(0, int(field.value or 0))
+            except ValueError:
+                return
+            if not character_repo.update_hp(c.id, c.hp_current, c.hp_temp):
+                show_error_dialog(page, "Impossibile salvare gli HP temporanei.")
+                return
+            page.pop_dialog()
+            self._refresh()
+
+        def reset(ev: Any) -> None:
+            if page is None:
+                return
+            c.hp_temp = 0
+            if not character_repo.update_hp(c.id, c.hp_current, c.hp_temp):
+                show_error_dialog(page, "Impossibile salvare gli HP temporanei.")
+                return
+            page.pop_dialog()
+            self._refresh()
+
+        page.show_dialog(ft.AlertDialog(
+            title=ft.Text("HP Temporanei", size=14, weight=ft.FontWeight.BOLD,
+                          color=COLOR_ACCENT_BLUE),
+            content=ft.Column([field], width=240, spacing=0),
+            actions=[
+                ft.TextButton("Azzera", on_click=reset),
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
+                ft.ElevatedButton("Applica", on_click=apply,
+                                  style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -1696,6 +1786,14 @@ class CombattimentoTab(ft.ListView):
                 ft.Container(width=4),
                 ft.Text(f"{res.current_value}/{res.max_value}", size=11,
                         color=COLOR_TEXT_MUTED, font_family=FONT_MONO),
+                ft.IconButton(
+                    ft.Icons.EDIT,
+                    icon_size=14,
+                    icon_color=COLOR_ACCENT_BLUE if res.max_value_bonus else COLOR_TEXT_MUTED,
+                    tooltip="Modifica bonus massimo",
+                    on_click=lambda e, r=res: self._on_edit_resource_bonus(r),
+                    padding=ft.Padding.all(2),
+                ),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=4,
@@ -1739,6 +1837,14 @@ class CombattimentoTab(ft.ListView):
                         disabled=res.current_value >= res.max_value,
                         tooltip="Recupera 1",
                     ),
+                    ft.IconButton(
+                        ft.Icons.EDIT,
+                        icon_size=14,
+                        icon_color=COLOR_ACCENT_BLUE if res.max_value_bonus else COLOR_TEXT_MUTED,
+                        tooltip="Modifica bonus massimo",
+                        on_click=lambda e, r=res: self._on_edit_resource_bonus(r),
+                        padding=ft.Padding.all(2),
+                    ),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=0,
@@ -1749,6 +1855,82 @@ class CombattimentoTab(ft.ListView):
                 border_radius=3, expand=True,
             )]),
         ], spacing=4)
+
+    def _on_edit_resource_bonus(self, res: ClassResource) -> None:
+        """
+        Dialog per impostare un bonus permanente additivo al massimo di una
+        risorsa di classe (2026-07-16, richiesta Davide: "rendiamo
+        modificabili... Risorse di classe") — es. un talento/oggetto magico
+        che concede +1 uso. Il bonus si somma al valore PHB calcolato e
+        sopravvive al ri-sync di init_class_resources() (chiamato ad ogni
+        apertura tab/level-up), a differenza di un override assoluto che
+        verrebbe sovrascritto.
+        """
+        page = self._page
+        if page is None:
+            return
+        base_max = res.max_value - (res.max_value_bonus or 0)
+
+        tf = ft.TextField(
+            label="Bonus permanente al massimo",
+            value=str(res.max_value_bonus or 0),
+            hint_text="es. +1 (può essere anche negativo)",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            autofocus=True,
+        )
+
+        def _save(e):
+            raw = (tf.value or "").strip()
+            try:
+                bonus = int(raw) if raw else 0
+            except ValueError:
+                cast(Any, tf).error_text = "Inserisci un numero intero"
+                tf.update()
+                return
+            if not character_repo.update_class_resource_bonus(res.id, bonus):
+                show_error_dialog(page, "Errore nel salvataggio del bonus risorsa.")
+                return
+            # Il bonus da solo non basta: serve un ri-sync per applicarlo al
+            # max_value effettivo del pool (stesso passaggio già eseguito ad
+            # ogni level-up/apertura tab).
+            character_repo.init_class_resources(
+                self.character.id, self.character.class_name, self.character.level,
+                character=self.character,
+            )
+            page.pop_dialog()
+            self._refresh()
+
+        def _reset(e):
+            if not character_repo.update_class_resource_bonus(res.id, 0):
+                show_error_dialog(page, "Errore nel salvataggio del bonus risorsa.")
+                return
+            character_repo.init_class_resources(
+                self.character.id, self.character.class_name, self.character.level,
+                character=self.character,
+            )
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"Bonus — {res.name}"),
+            content=ft.Column(
+                [
+                    muted_text(f"Massimo calcolato dal PHB: {base_max}", 12),
+                    tf,
+                ],
+                spacing=12,
+                tight=True,
+            ),
+            actions=[
+                ft.TextButton("Rimuovi bonus", on_click=_reset),
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton("Applica", on_click=_save),
+            ],
+        )
+        page.show_dialog(dlg)
 
     def _toggle_resource(self, res: ClassResource, use: bool):
         """Click su cerchietto: usa (●→○) o recupera (○→●)."""
@@ -1840,6 +2022,180 @@ class CombattimentoTab(ft.ListView):
             ),
             border_radius=6,
         )
+
+    # ------------------------------------------------------------------
+    # Abilità Speciali custom (2026-07-16) — voci additive, es. concesse
+    # dal master; non modificano mai il testo ufficiale delle feature di
+    # classe/razza mostrate sopra.
+    # ------------------------------------------------------------------
+
+    def _section_custom_abilities_header(self) -> ft.Container:
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Container(width=3, height=14, bgcolor=COLOR_ACCENT_CRIMSON, border_radius=1),
+                    ft.Container(width=8),
+                    ft.Text(
+                        "ABILITÀ SPECIALI",
+                        size=10, color=COLOR_TEXT_SECONDARY, weight=ft.FontWeight.BOLD,
+                        style=ft.TextStyle(letter_spacing=2),
+                    ),
+                    ft.Container(width=8),
+                    ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
+                    ft.Container(width=8),
+                    ft.TextButton(
+                        "+ Aggiungi",
+                        on_click=lambda e: self._on_add_custom_ability(),
+                        style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            margin=ft.Margin.only(bottom=0, top=4),
+        )
+
+    def _section_custom_abilities(self) -> ft.Container:
+        if not self._custom_abilities:
+            content: ft.Control = muted_text(
+                "Nessuna abilità speciale di combattimento registrata — usa "
+                "«+ Aggiungi» per annotare capacità custom concesse dal master.",
+                12,
+            )
+        else:
+            rows: list[ft.Control] = []
+            for ab in self._custom_abilities:
+                rows.append(self._custom_ability_row(ab))
+            content = ft.Column(rows, spacing=8)
+
+        return ft.Container(
+            content=content,
+            bgcolor=COLOR_BG_CARD,
+            padding=ft.Padding.symmetric(horizontal=12, vertical=12),
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _custom_ability_row(self, ab: CustomAbility) -> ft.Container:
+        preview = ab.description.strip().splitlines()[0] if ab.description.strip() else ""
+        if len(preview) > 90:
+            preview = preview[:87] + "…"
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Column(
+                        [
+                            ft.Text(ab.name, size=13, color=COLOR_TEXT_PRIMARY,
+                                    weight=ft.FontWeight.W_600),
+                            muted_text(preview, 11) if preview else ft.Container(height=0),
+                        ],
+                        spacing=2,
+                        expand=True,
+                    ),
+                    ft.IconButton(
+                        ft.Icons.EDIT, icon_size=16, icon_color=COLOR_TEXT_MUTED,
+                        tooltip="Modifica",
+                        on_click=lambda e, a=ab: self._on_edit_custom_ability(a),
+                        padding=ft.Padding.all(2),
+                    ),
+                    ft.IconButton(
+                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=COLOR_ACCENT_CRIMSON,
+                        tooltip="Elimina",
+                        on_click=lambda e, a=ab: self._on_delete_custom_ability(a),
+                        padding=ft.Padding.all(2),
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.START,
+                spacing=4,
+            ),
+            border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            padding=ft.Padding.only(bottom=8),
+        )
+
+    def _on_add_custom_ability(self) -> None:
+        self._open_custom_ability_dialog(None)
+
+    def _on_edit_custom_ability(self, ab: CustomAbility) -> None:
+        self._open_custom_ability_dialog(ab)
+
+    def _open_custom_ability_dialog(self, ab: CustomAbility | None) -> None:
+        page = self._page
+        if page is None:
+            return
+
+        tf_name = ft.TextField(
+            label="Nome", value=(ab.name if ab else ""), autofocus=True,
+        )
+        tf_desc = ft.TextField(
+            label="Descrizione", value=(ab.description if ab else ""),
+            multiline=True, min_lines=3, max_lines=8,
+        )
+
+        def _save(e):
+            name = (tf_name.value or "").strip()
+            if not name:
+                cast(Any, tf_name).error_text = "Inserisci il nome dell'abilità"
+                tf_name.update()
+                return
+            desc = tf_desc.value or ""
+            if ab is None:
+                new_id = character_repo.create_custom_ability(
+                    self.character.id, "combattimento", name, desc
+                )
+                if not new_id:
+                    show_error_dialog(page, "Errore nel salvataggio dell'abilità.")
+                    return
+            else:
+                if not character_repo.update_custom_ability(ab.id, name, desc):
+                    show_error_dialog(page, "Errore nel salvataggio dell'abilità.")
+                    return
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Modifica Abilità Speciale" if ab else "Nuova Abilità Speciale"),
+            content=ft.Column([tf_name, tf_desc], spacing=12, tight=True, width=340),
+            actions=[
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton("Salva", on_click=_save),
+            ],
+        )
+        page.show_dialog(dlg)
+
+    def _on_delete_custom_ability(self, ab: CustomAbility) -> None:
+        page = self._page
+        if page is None:
+            return
+
+        def _confirm(e):
+            if not character_repo.delete_custom_ability(ab.id):
+                show_error_dialog(page, "Errore nell'eliminazione dell'abilità.")
+                return
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Elimina Abilità Speciale"),
+            content=ft.Text(f'Eliminare "{ab.name}" dalla scheda?'),
+            actions=[
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton(
+                    "Elimina", on_click=_confirm,
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
+                ),
+            ],
+        )
+        page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
     # Abilità di Classe
@@ -3446,6 +3802,7 @@ class CombattimentoTab(ft.ListView):
         )
         self._forme = character_repo.get_creature_entries(self.character.id, entry_type="forma")
         self._evocazioni = character_repo.get_creature_entries(self.character.id, entry_type="evocazione")
+        self._custom_abilities = character_repo.get_custom_abilities(self.character.id, "combattimento")
         self.controls.clear()
         self._build()
         try:
