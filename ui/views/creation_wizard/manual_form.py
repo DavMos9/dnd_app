@@ -1199,7 +1199,6 @@ class ManualCreationForm(ft.Column):
                     options=spell_card_options(_loader.get_spells_by_level("Mago", 0)),
                     value=self._review_elf_cantrip,
                     on_select=_on_elf_cantrip_select,
-                    height=240,
                 )
                 race_extras_col.controls.append(
                     muted_text("Trucchetto del Mago (tratto Elfo Alto)", size=11)
@@ -1412,7 +1411,6 @@ class ManualCreationForm(ft.Column):
                         options=feat_card_options(_loader, feat_names_u),
                         value=self._review_umano_variant_feat,
                         on_select=_on_uv_feat_select,
-                        height=260,
                     )
                     race_extras_col.controls.append(
                         muted_text("Talento a scelta (Variante Umana)", size=11)
@@ -1995,7 +1993,6 @@ class ManualCreationForm(ft.Column):
                         ),
                         value=current if current in cantrip_pool else (cantrip_pool[0] if cantrip_pool else None),
                         on_select=lambda e, idx=i: _set_cantrip(idx, e.control.value or ""),
-                        height=220,
                     )
                     cantrip_dds.append(dd)
                     spells_init_col.controls.append(muted_text(f"Trucchetto {i + 1}", size=11))
@@ -2016,7 +2013,6 @@ class ManualCreationForm(ft.Column):
                         ),
                         value=current if current in spell_names else (spell_names[0] if spell_names else None),
                         on_select=lambda e, idx=i: _set_spell(idx, e.control.value or ""),
-                        height=260,
                     )
                     spell_dds.append(dd)
                     spells_init_col.controls.append(muted_text(f"Incantesimo {i + 1}", size=11))
@@ -2044,7 +2040,6 @@ class ManualCreationForm(ft.Column):
                         ),
                         value=current if current in spell_names else (spell_names[0] if spell_names else None),
                         on_select=lambda e, idx=i: _set_prepared(idx, e.control.value or ""),
-                        height=260,
                     )
                     prepared_dds.append(dd)
                     spells_init_col.controls.append(muted_text(f"Incantesimo preparato {i + 1}", size=11))
@@ -2074,7 +2069,6 @@ class ManualCreationForm(ft.Column):
                         ),
                         value=current if current in spell_names else (spell_names[0] if spell_names else None),
                         on_select=lambda e, idx=i: _set_spellbook(idx, e.control.value or ""),
-                        height=260,
                     )
                     spellbook_dds.append(dd)
                     spells_init_col.controls.append(muted_text(f"Incantesimo del libro {i + 1}", size=11))

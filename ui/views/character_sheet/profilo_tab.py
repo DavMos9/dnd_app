@@ -1411,7 +1411,6 @@ class ProfiloTab(ft.ListView):
         feat_dd = CardPicker(
             options=feat_card_options(_loader, feat_names),
             value=None,
-            height=260,
             empty_text="— nessun talento disponibile —",
         )
         feat_dd.visible = False
@@ -1806,7 +1805,6 @@ class ProfiloTab(ft.ListView):
                             picker = CardPicker(
                                 options=spell_card_options(_bi_cantrip_spells),
                                 on_select=_refresh_borrowed_initial_options,
-                                height=180,
                             )
                             _bi_cantrip_dds.append(picker)
                             borrowed_initial_cantrip_refs.append(picker)
@@ -1814,13 +1812,11 @@ class ProfiloTab(ft.ListView):
                         _restricted_label = "/".join(_restricted_schools)
                         for i in range(2):
                             picker = CardPicker(
-                                options=[], on_select=_refresh_borrowed_initial_options, height=220,
-                            )
+                                options=[], on_select=_refresh_borrowed_initial_options,                            )
                             _bi_spell_dds.append(picker)
                             borrowed_initial_spell_refs.append((picker, False))
                         _picker_free = CardPicker(
-                            options=[], on_select=_refresh_borrowed_initial_options, height=220,
-                        )
+                            options=[], on_select=_refresh_borrowed_initial_options,                        )
                         _bi_spell_dds.append(_picker_free)
                         borrowed_initial_spell_refs.append((_picker_free, _lv3_is_unrestricted))
                         _refresh_borrowed_initial_options()
@@ -1903,7 +1899,6 @@ class ProfiloTab(ft.ListView):
                             options=named_option_card_options(
                                 [d for d in _mk3_all if d.get("name") in {p["name"] for p in _mk3_pool}]
                             ),
-                            height=220,
                         )
                         _mk3_container = ft.Container(
                             content=ft.Column([
@@ -1966,7 +1961,6 @@ class ProfiloTab(ft.ListView):
                     pact_picker = CardPicker(
                         options=named_option_card_options(_loader.get_pact_boon_data()),
                         value=pact_boons[0] if pact_boons else None,
-                        height=220,
                     )
                     pact_rg_ref.append(pact_picker)
                     dlg_rows += [
@@ -2007,7 +2001,6 @@ class ProfiloTab(ft.ListView):
                         ),
                         multi=True,
                         max_selected=to_add_mm,
-                        height=min(260, 60 + 46 * len(available_mm)),
                     )
                     metamagic_cb_groups.append((to_add_mm, mm_picker))
                     dlg_rows += [
@@ -2058,7 +2051,6 @@ class ProfiloTab(ft.ListView):
                             ),
                             multi=True,
                             max_selected=to_add,
-                            height=min(300, 60 + 46 * len(available_inv)),
                         )
                         invocation_cb_groups.append((to_add, inv_picker))
                         dlg_rows += [
@@ -2525,7 +2517,7 @@ class ProfiloTab(ft.ListView):
                     spell_opts_cards = spell_card_options(eligible_spells)
                     dds: list[CardPicker] = []
                     for i in range(count):
-                        picker = CardPicker(options=spell_opts_cards, height=240)
+                        picker = CardPicker(options=spell_opts_cards)
                         dds.append(picker)
                         dlg_rows.append(muted_text(f"Incantesimo {i + 1}/{count}", size=11))
                         dlg_rows.append(picker.control)
@@ -2548,7 +2540,6 @@ class ProfiloTab(ft.ListView):
                 )
                 arcanum_dd = CardPicker(
                     options=spell_card_options(eligible_arcanum),
-                    height=240,
                 )
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
@@ -2585,7 +2576,6 @@ class ProfiloTab(ft.ListView):
                 mk_dd = CardPicker(
                     options=named_option_card_options(_mk_eligible),
                     active_color=COLOR_ACCENT_AMBER,
-                    height=240,
                 )
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
@@ -2641,9 +2631,8 @@ class ProfiloTab(ft.ListView):
                         for k in known_class_spells
                     ]),
                     disabled=True,
-                    height=200,
                 )
-                dd_add = CardPicker(options=[], disabled=True, height=200)
+                dd_add = CardPicker(options=[], disabled=True)
 
                 def _refresh_swap_add_options(
                     ev: Any = None, _rm: CardPicker = dd_remove,
@@ -2725,7 +2714,6 @@ class ProfiloTab(ft.ListView):
                 )
                 cantrip_dd = CardPicker(
                     options=spell_card_options(_eligible_cantrips),
-                    height=220,
                 )
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
@@ -2757,7 +2745,6 @@ class ProfiloTab(ft.ListView):
                 ]
                 bc_cantrip_dd = CardPicker(
                     options=spell_card_options(_bc_cantrip_spells),
-                    height=220,
                 )
                 dlg_rows += [
                     ft.Divider(color=COLOR_BORDER),
@@ -2796,7 +2783,7 @@ class ProfiloTab(ft.ListView):
                     ], spacing=6),
                 ]
                 for i in range(_count_bsl):
-                    bsl_dd = CardPicker(options=_opts_bsl, height=220)
+                    bsl_dd = CardPicker(options=_opts_bsl)
                     dlg_rows.append(muted_text(f"Incantesimo da mago {i + 1}/{_count_bsl}", size=11))
                     dlg_rows.append(bsl_dd.control)
                     borrowed_spell_learn_refs.append((bsl_dd, _unrestr_bsl))
@@ -2835,8 +2822,8 @@ class ProfiloTab(ft.ListView):
                         {"key": k.name, "title": _title, "body": format_spell_body(_sp)}
                     )
 
-                bsw_dd_remove = CardPicker(options=_bsw_remove_opts, disabled=True, height=200)
-                bsw_dd_add = CardPicker(options=[], disabled=True, height=200)
+                bsw_dd_remove = CardPicker(options=_bsw_remove_opts, disabled=True)
+                bsw_dd_add = CardPicker(options=[], disabled=True)
 
                 def _refresh_bsw_add_options(
                     ev: Any = None, _rm: CardPicker = bsw_dd_remove,
@@ -2932,7 +2919,6 @@ class ProfiloTab(ft.ListView):
             if styles and new_level == 2 and cls_lower in ("paladino", "ranger"):
                 fs_dd = CardPicker(
                     options=named_option_card_options(_loader.get_fighting_style_data(cls_lower)),
-                    height=260,
                 )
                 fighting_style_dd_ref.append(fs_dd)
                 dlg_rows += [

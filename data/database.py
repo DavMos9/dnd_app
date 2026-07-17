@@ -195,6 +195,28 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # apertura tab/level-up/level-down (self-healing, stesso pattern delle
     # risorse di classe). Vedi CLAUDE.md 2026-07-16.
     _add_column(cur, "known_spells", "always_prepared", "INTEGER DEFAULT 0")
+    # Bug reale trovato il 2026-07-17: il campo "reactions" esiste in
+    # monsters.json ed è già letto/scritto da un mostro all'altro nel bestiary
+    # picker, ma creature_entries non aveva MAI una colonna per riceverlo —
+    # le Reazioni di un mostro (es. Parata) sparivano silenziosamente quando
+    # il personaggio/master lo aggiungeva a Forma Selvatica/Evocazione. Vedi
+    # CLAUDE.md 2026-07-17.
+    _add_column(cur, "creature_entries", "reactions", "TEXT DEFAULT '[]'")
+    # Azioni di Tana / Effetti Regionali (o "Tratti della Tana", stesso
+    # concetto con nome diverso per il Demilich) — presenti solo per una
+    # manciata di mostri con una tana propria (Kraken, Lich, Signore delle
+    # Mummie, Sfinge, Unicorno, Vampiro, Demilich). Campi sempre vuoti per
+    # tutti gli altri mostri. Vedi CLAUDE.md 2026-07-17.
+    _add_column(cur, "creature_entries", "lair_actions_intro", "TEXT DEFAULT ''")
+    _add_column(cur, "creature_entries", "lair_actions", "TEXT DEFAULT '[]'")
+    _add_column(cur, "creature_entries", "regional_effects_label", "TEXT DEFAULT ''")
+    _add_column(cur, "creature_entries", "regional_effects_intro", "TEXT DEFAULT ''")
+    _add_column(cur, "creature_entries", "regional_effects", "TEXT DEFAULT '[]'")
+    # Varianti opzionali "sidebar" del manuale (es. "Arma su Asta del Diavolo
+    # d'Ossa", "Congreghe di Megere") — regole facoltative legate a un mostro
+    # specifico, non un mostro a sé. Sola consultazione, il master decide se
+    # applicarle. Vedi CLAUDE.md 2026-07-17.
+    _add_column(cur, "creature_entries", "variant_rules", "TEXT DEFAULT '[]'")
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:

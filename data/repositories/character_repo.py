@@ -2654,7 +2654,14 @@ def _row_to_creature(row) -> CreatureEntry:
         languages=d.get("languages", ""),
         traits=d.get("traits", "[]"),
         actions=d.get("actions", "[]"),
+        reactions=d.get("reactions", "[]"),
         legendary_actions=d.get("legendary_actions", "[]"),
+        lair_actions_intro=d.get("lair_actions_intro", ""),
+        lair_actions=d.get("lair_actions", "[]"),
+        regional_effects_label=d.get("regional_effects_label", ""),
+        regional_effects_intro=d.get("regional_effects_intro", ""),
+        regional_effects=d.get("regional_effects", "[]"),
+        variant_rules=d.get("variant_rules", "[]"),
         is_active=bool(d.get("is_active", 0)),
         notes=d.get("notes", ""),
         source_page=d.get("source_page", 0),
@@ -2721,7 +2728,14 @@ def create_creature_entry(
     languages: str = "",
     traits: str = "[]",
     actions: str = "[]",
+    reactions: str = "[]",
     legendary_actions: str = "[]",
+    lair_actions_intro: str = "",
+    lair_actions: str = "[]",
+    regional_effects_label: str = "",
+    regional_effects_intro: str = "",
+    regional_effects: str = "[]",
+    variant_rules: str = "[]",
     notes: str = "",
     source_page: int = 0,
 ) -> CreatureEntry | None:
@@ -2741,16 +2755,22 @@ def create_creature_entry(
                 str_score, dex_score, con_score, int_score, wis_score, cha_score,
                 saving_throws, skills,
                 damage_vulnerabilities, damage_resistances, damage_immunities, condition_immunities,
-                senses, languages, traits, actions, legendary_actions,
+                senses, languages, traits, actions, reactions, legendary_actions,
+                lair_actions_intro, lair_actions,
+                regional_effects_label, regional_effects_intro, regional_effects,
+                variant_rules,
                 is_active, notes, source_page, created_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             entry_id, character_id, entry_type, name, creature_type, alignment, cr,
             ac, ac_note, hp_max, hp_formula, hp_max,  # hp_current = hp_max inizialmente
             speed, str_score, dex_score, con_score, int_score, wis_score, cha_score,
             saving_throws, skills,
             damage_vulnerabilities, damage_resistances, damage_immunities, condition_immunities,
-            senses, languages, traits, actions, legendary_actions,
+            senses, languages, traits, actions, reactions, legendary_actions,
+            lair_actions_intro, lair_actions,
+            regional_effects_label, regional_effects_intro, regional_effects,
+            variant_rules,
             0, notes, source_page, now, now,
         ))
         conn.commit()

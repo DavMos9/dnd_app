@@ -397,7 +397,25 @@ class CreatureEntry:
     # Feature narrative
     traits: str = "[]"              # JSON: [{"name":"...", "text":"..."}]
     actions: str = "[]"             # JSON: [{"name":"...", "text":"..."}]
+    reactions: str = "[]"           # JSON: [{"name":"...", "text":"..."}]
     legendary_actions: str = "[]"   # JSON: [{"name":"...", "text":"..."}]
+
+    # Azioni di Tana / Effetti Regionali — solo per i pochi mostri con una
+    # tana propria (Kraken, Lich, Signore delle Mummie, Sfinge, Unicorno,
+    # Vampiro, Demilich). Vuoti per tutti gli altri. "regional_effects_label"
+    # è di norma "Effetti Regionali", ma per il Demilich il manuale usa
+    # "Tratti della Tana" — stesso concetto, nome diverso, tenuto nel dato
+    # per mostrare l'intestazione esatta del libro invece di una generica.
+    lair_actions_intro: str = ""
+    lair_actions: str = "[]"          # JSON: ["testo effetto 1", "testo effetto 2", ...]
+    regional_effects_label: str = ""  # "Effetti Regionali" o "Tratti della Tana"
+    regional_effects_intro: str = ""
+    regional_effects: str = "[]"      # JSON: ["testo effetto 1", ...]
+
+    # Varianti opzionali "sidebar" del manuale legate a questo mostro
+    # specifico (es. "Arma su Asta del Diavolo d'Ossa", "Congreghe di
+    # Megere") — sola consultazione, il master decide se applicarle.
+    variant_rules: str = "[]"       # JSON: [{"name":"...", "description":"..."}]
 
     # Stato in-session
     is_active: bool = False          # True = attualmente in forma / evocata in campo

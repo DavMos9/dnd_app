@@ -31,13 +31,46 @@ duplicazione di logica di formattazione tra il vecchio e il nuovo widget.
 conversione, ma resta qui (non rimosso) come helper generico riutilizzabile
 per un futuro Dropdown "semplice" che non necessiti della lista a schede
 (es. poche opzioni senza descrizione lunga).
+
+**Bug fix 2026-07-16, stesso giorno, feedback diretto di Davide dopo aver
+provato il redesign sopra**: "lo scorrimento è difficoltoso, se scelgo
+l'incantesimo e poi voglio scorrere alle sezioni sotto ho difficoltà a
+scorrere la finestra perché mi scorre la lista degli incantesimi... viene
+usata pure da tablet". Causa: `CardPicker.control` era una `ft.Column` a
+ALTEZZA FISSA con `scroll=ft.ScrollMode.AUTO` propria — sempre annidata
+dentro un contenitore GIÀ scrollabile (il content Column del dialog di
+level-up in `profilo_tab.py`, o il Column dell'intera fase in
+`wizard_view.py`/`manual_form.py`, entrambi già `scroll=ft.ScrollMode.AUTO`).
+Due regioni scrollabili annidate = il trascinamento sopra la card list viene
+sempre catturato dalla lista (la più vicina al dito), mai dal contenitore
+esterno — un problema di "nested scroll" classico, particolarmente fastidioso
+su touch/tablet perché non c'è una scrollbar visibile da afferrare fuori
+dalla lista per "bucare" verso lo scroll esterno. Flet 0.85.3 non espone un
+equivalente del "NestedScrollView" nativo (nessuna fisica "scrolla la lista
+solo se non è già al suo limite, altrimenti passa lo scroll al genitore") —
+l'unica soluzione robusta con i controlli disponibili è eliminare la seconda
+regione scrollabile: `CardPicker.control` ora è una `ft.Column` SENZA scroll
+proprio e SENZA altezza fissa (si dimensiona naturalmente al contenuto,
+esattamente come qualunque altra sezione di lista già presente nel progetto,
+es. `_section_spell_list`/`_section_extra_spell_list` in `spells_view.py` —
+mai scroll annidato lì, sempre stato così) — diventa così parte della stessa,
+unica regione scrollabile del contenitore che la ospita. Il parametro
+`height` è stato rimosso dalla firma (e da tutte le ~24 chiamate nel
+progetto): non serve più, dato che non c'è più nulla da "tagliare" a una
+finestra fissa. **Unico punto che richiedeva una modifica aggiuntiva**: il
+dialog "Aggiungi Incantesimo Bonus" in `spells_view.py`, dove il CardPicker
+era l'UNICA regione scrollabile (il Column del dialog non scrollava affatto,
+`tight=True`) — lì lo scroll è stato spostato sul Column del dialog stesso
+(stesso pattern già in uso in tutti gli altri dialog del progetto), così la
+regola resta universale e senza eccezioni: **CardPicker non scrolla mai se
+stesso, è sempre il contenitore che lo ospita a scrollare**.
 """
 
 import flet as ft
 from typing import Any, Callable
 from config.settings import (
     COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_MUTED, COLOR_ACCENT_BLUE,
-    COLOR_BG_CARD, COLOR_BORDER, ABILITY_KEYS, ABILITY_SCORES,
+    COLOR_ACCENT_CRIMSON, COLOR_BG_CARD, COLOR_BORDER, ABILITY_KEYS, ABILITY_SCORES,
 )
 
 _ABILITY_KEY_TO_LABEL: dict[str, str] = dict(zip(ABILITY_KEYS, ABILITY_SCORES))
@@ -56,6 +89,12 @@ class CardPicker:
     (stesso principio già in uso ovunque nel progetto: mutare lo stato e
     richiamare `.update()` con guard `try/except RuntimeError`, mai
     riassegnare `.controls` — vedi CLAUDE.md).
+
+    **Nessuno scroll proprio** (fix 2026-07-16, vedi nota di modulo più
+    sopra): `.control` si dimensiona sempre al proprio contenuto — il
+    contenitore che lo ospita è SEMPRE responsabile dello scroll (dialog di
+    level-up, fase di creazione, ecc., già tutti scrollabili). Non annidare
+    mai un secondo `scroll=ft.ScrollMode.AUTO` intorno a `.control`.
 
     Modalità:
       - single-select (`multi=False`, default): al massimo una card attiva
@@ -79,14 +118,17 @@ class CardPicker:
                             reale lo fa, stesso comportamento di
                             `Dropdown.value = ...`.
       .options            — settable: lista di dict `{"key","title","body"}`
-                            (vedi gli helper `*_card_options()` sotto per
-                            costruirla dagli stessi dati già usati da
-                            `make_*_describe()`). Riassegnarla ricostruisce
-                            la lista e rimuove dalla selezione corrente le
-                            key non più presenti (stesso comportamento del
-                            pattern di esclusione reciproca già in uso per i
-                            Dropdown: la selezione va validata di nuovo ad
-                            ogni cambio di opzioni disponibili).
+                            (+ `"badge"`/`"badge_color"` opzionali — un
+                            piccolo chip mostrato accanto al titolo, es. il
+                            livello di un incantesimo; vedi gli helper
+                            `*_card_options()` sotto per costruirla dagli
+                            stessi dati già usati da `make_*_describe()`).
+                            Riassegnarla ricostruisce la lista e rimuove
+                            dalla selezione corrente le key non più presenti
+                            (stesso comportamento del pattern di esclusione
+                            reciproca già in uso per i Dropdown: la
+                            selezione va validata di nuovo ad ogni cambio di
+                            opzioni disponibili).
       .disabled           — settable, disabilita il click su tutte le card.
       .on_select          — `Callable[[Any], None] | None`, invocato con un
                             oggetto `ev` tale che `ev.control is self` dopo
@@ -111,14 +153,12 @@ class CardPicker:
         multi: bool = False,
         max_selected: int | None = None,
         disabled: bool = False,
-        height: int = 220,
         empty_text: str = "Nessuna opzione disponibile.",
         active_color: str = COLOR_ACCENT_BLUE,
         on_select: Callable[[Any], None] | None = None,
     ) -> None:
         self.multi = multi
         self.max_selected = max_selected
-        self.height = height
         self.empty_text = empty_text
         self.active_color = active_color
         self.on_select = on_select
@@ -130,7 +170,10 @@ class CardPicker:
         )
         self._disabled = disabled
 
-        self.control = ft.Column(height=height, scroll=ft.ScrollMode.AUTO, spacing=4)
+        # Nessuno scroll/altezza fissa propria — vedi nota di modulo e
+        # docstring di classe (fix 2026-07-16): il contenitore che ospita
+        # `.control` è sempre responsabile dello scroll.
+        self.control = ft.Column(spacing=4)
         self.options = options  # invoca il setter -> costruisce le card iniziali
 
     # -- value / values --------------------------------------------------
@@ -238,24 +281,35 @@ class CardPicker:
             key = opt.get("key", "")
             title = opt.get("title", key)
             body = opt.get("body", "")
+            badge = opt.get("badge", "")
+            badge_color = opt.get("badge_color") or COLOR_ACCENT_BLUE
             selected = self._is_selected(key)
             icon_name = (
                 (ft.Icons.CHECK_BOX if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK)
                 if self.multi else
                 (ft.Icons.RADIO_BUTTON_CHECKED if selected else ft.Icons.RADIO_BUTTON_UNCHECKED)
             )
+            header_children: list[ft.Control] = [
+                ft.Icon(
+                    icon_name, size=18,
+                    color=self.active_color if selected else COLOR_TEXT_MUTED,
+                ),
+                ft.Text(
+                    title, size=13, weight=ft.FontWeight.W_600,
+                    color=COLOR_TEXT_TITLE if selected else COLOR_TEXT_PRIMARY,
+                    expand=True,
+                ),
+            ]
+            if badge:
+                header_children.append(ft.Container(
+                    content=ft.Text(badge, size=10, color="#ffffff",
+                                     weight=ft.FontWeight.BOLD),
+                    bgcolor=badge_color,
+                    padding=ft.Padding.symmetric(horizontal=6, vertical=2),
+                    border_radius=4,
+                ))
             header = ft.Row(
-                [
-                    ft.Icon(
-                        icon_name, size=18,
-                        color=self.active_color if selected else COLOR_TEXT_MUTED,
-                    ),
-                    ft.Text(
-                        title, size=13, weight=ft.FontWeight.W_600,
-                        color=COLOR_TEXT_TITLE if selected else COLOR_TEXT_PRIMARY,
-                        expand=True,
-                    ),
-                ],
+                header_children,
                 spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER,
             )
             card_children: list[ft.Control] = [header]
@@ -288,11 +342,28 @@ def spell_card_options(spells: list[dict]) -> list[dict[str, str]]:
     """
     Opzioni CardPicker da una lista di dict incantesimo/trucchetto (stesso
     input di `make_spell_describe`, es. `_loader.get_spells(classe)`).
+
+    Ogni card mostra anche un badge col livello (fix 2026-07-16, richiesta
+    Davide: "affianco [al titolo] sia indicato anche il livello
+    dell'incantesimo" — utile soprattutto per i picker che mescolano più
+    livelli nella stessa lista, es. SPELL_LEARN al level-up o "Incantesimi
+    Bonus", dove non è ovvio a colpo d'occhio il livello di ogni voce).
+    Stessa convenzione testo/colore già usata nei dialog di dettaglio di
+    `spells_view.py` ("0" blu per i trucchetti, "Lv{N}" crimson per gli
+    incantesimi) — coerenza visiva tra la lista di scelta e i dialog.
     """
-    return [
-        {"key": s.get("name", ""), "title": s.get("name", ""), "body": format_spell_body(s)}
-        for s in spells if s.get("name")
-    ]
+    opts: list[dict[str, str]] = []
+    for s in spells:
+        name = s.get("name", "")
+        if not name:
+            continue
+        level = s.get("level", 0)
+        opts.append({
+            "key": name, "title": name, "body": format_spell_body(s),
+            "badge": "0" if level == 0 else f"Lv{level}",
+            "badge_color": COLOR_ACCENT_BLUE if level == 0 else COLOR_ACCENT_CRIMSON,
+        })
+    return opts
 
 
 def feat_card_options(loader: Any, names: list[str]) -> list[dict[str, str]]:

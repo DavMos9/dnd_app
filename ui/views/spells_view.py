@@ -90,6 +90,26 @@ def _expected_known_spell_count(c: Character) -> int:
     return total
 
 
+def _max_preparable_spell_level(slots: list[SpellSlot]) -> int:
+    """
+    Livello massimo di incantesimo che un preparatore (Chierico/Druido/Mago/
+    Paladino) può preparare, in base agli slot incantesimo realmente
+    posseduti — PHB: "ogni incantesimo [...] deve essere di un livello per
+    cui il personaggio possiede uno slot incantesimo". I trucchetti
+    (livello 0) non hanno questo vincolo (nessuno slot richiesto), gestiti
+    a parte dal chiamante.
+
+    Bug fix 2026-07-16 (Davide): "L'aumento del livello mi mostra tutti gli
+    incantesimi, invece [...] il livello massimo degli incantesimi imparati
+    corrisponde al livello dello slot incantesimo più alto posseduto
+    dall'incantatore" — la sezione "Incantesimi" per i preparatori mostrava
+    l'intero catalogo di classe (fino al 9° livello) senza alcun filtro
+    basato sugli slot realmente posseduti, permettendo di "preparare" un
+    incantesimo di livello superiore a quanto il personaggio può lanciare.
+    """
+    return max((s.slot_level for s in slots if s.total > 0), default=0)
+
+
 def _calc_max_prepared(c: Character) -> int | None:
     """
     Calcola il massimo di incantesimi preparabili secondo le regole PHB.
@@ -544,11 +564,25 @@ class SpellsView(ft.ListView):
                         padding=16,
                     ))
             else:
+                max_prep_level = _max_preparable_spell_level(self._slots)
                 by_level: dict[int, list[dict]] = {}
                 for sp in self._class_spells:
                     if sp.get("name") in always_prep_names:
                         continue
-                    by_level.setdefault(sp.get("level", 0), []).append(sp)
+                    lvl = sp.get("level", 0)
+                    # PHB: un incantesimo di livello > 0 è preparabile solo
+                    # se il personaggio possiede almeno uno slot di quel
+                    # livello — eccezione per un incantesimo già preparato
+                    # in precedenza (es. dopo un level-down, o un vecchio
+                    # stato salvato prima di questo fix), che resta visibile
+                    # per poterlo comunque togliere dal giocatore.
+                    if (
+                        lvl > 0
+                        and lvl > max_prep_level
+                        and not self._is_prepared(sp.get("name", ""), lvl)
+                    ):
+                        continue
+                    by_level.setdefault(lvl, []).append(sp)
                 for lv in sorted(by_level.keys()):
                     label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
                     controls += [
@@ -692,7 +726,9 @@ class SpellsView(ft.ListView):
             ratio      = min(1.0, count / max_prep) if max_prep > 0 else 0.0
 
         if max_prep is not None:
-            note = "I trucchetti (0°) non contano nel limite  ·  ✎ per modificare manuale"
+            max_lv = _max_preparable_spell_level(self._slots)
+            lvl_note = f"Lv. max preparabile: {max_lv}°" if max_lv > 0 else "Nessuno slot incantesimo disponibile"
+            note = f"I trucchetti (0°) non contano nel limite  ·  {lvl_note}  ·  ✎ per modificare manuale"
         elif expected > 0 and count > expected:
             note = f"Hai {count - expected} incantesim{'o' if count - expected == 1 else 'i'} in più del previsto per il tuo livello — controlla se è corretto (Segreti Magici e simili contano a parte)"
         else:
@@ -1563,7 +1599,6 @@ class SpellsView(ft.ListView):
 
         spell_dd = CardPicker(
             options=spell_card_options(_spells_for(default_class)),
-            height=280,
         )
 
         def _refresh_spell_options(ev: Any = None) -> None:
@@ -1628,6 +1663,11 @@ class SpellsView(ft.ListView):
             title=ft.Text("Aggiungi Incantesimo Bonus", size=14,
                           weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Container(
+                # scroll + altezza fissa spostati QUI (2026-07-16, fix
+                # scorrimento annidato — vedi ui/widgets.py): CardPicker non
+                # scrolla più se stesso, quindi il contenitore del dialog
+                # deve farlo — stesso ruolo già svolto dal content Column del
+                # dialog di level-up in profilo_tab.py.
                 content=ft.Column([
                     ft.Text(
                         "Scegli da quale lista e quale incantesimo aggiungere "
@@ -1639,8 +1679,9 @@ class SpellsView(ft.ListView):
                     muted_text("Incantesimo", size=11),
                     spell_dd.control,
                     error_text,
-                ], spacing=10, tight=True),
+                ], spacing=10, scroll=ft.ScrollMode.AUTO),
                 width=340,
+                height=460,
             ),
             actions=[
                 ft.TextButton("Annulla",

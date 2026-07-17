@@ -3529,26 +3529,67 @@ class CombattimentoTab(ft.ListView):
                         return []
                 return raw if isinstance(raw, list) else []
 
+            def _desc(d: dict) -> str:
+                # Bug reale corretto il 2026-07-17: monsters.json usa la chiave
+                # "description" per traits/actions/reactions/legendary_actions,
+                # non "text" — nessun writer ha mai prodotto "text", quindi le
+                # descrizioni non sono mai state mostrate. Supporta entrambe
+                # per compatibilità futura.
+                return d.get("description", "") or d.get("text", "")
+
             traits_l  = _parse_list("traits")
             actions_l = _parse_list("actions")
+            react_l   = _parse_list("reactions")
             leg_l     = _parse_list("legendary_actions")
+            lair_l    = m.get("lair_actions", []) if isinstance(m.get("lair_actions", []), list) else []
+            regional_l = m.get("regional_effects", []) if isinstance(m.get("regional_effects", []), list) else []
+            variants_l = _parse_list("variant_rules")
 
             features: list[ft.Control] = []
             if traits_l:
                 features.append(ft.Text("Tratti", size=12, weight=ft.FontWeight.BOLD,
                                         color=COLOR_ACCENT_CRIMSON))
                 for t in traits_l:
-                    features.append(feat_tile(t.get("name", ""), t.get("text", "")))
+                    features.append(feat_tile(t.get("name", ""), _desc(t)))
             if actions_l:
                 features.append(ft.Text("Azioni", size=12, weight=ft.FontWeight.BOLD,
                                         color=COLOR_ACCENT_CRIMSON))
                 for a in actions_l:
-                    features.append(feat_tile(a.get("name", ""), a.get("text", "")))
+                    features.append(feat_tile(a.get("name", ""), _desc(a)))
+            if react_l:
+                features.append(ft.Text("Reazioni", size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_CRIMSON))
+                for r in react_l:
+                    features.append(feat_tile(r.get("name", ""), _desc(r)))
             if leg_l:
                 features.append(ft.Text("Azioni Leggendarie", size=12,
                                         weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
                 for la in leg_l:
-                    features.append(feat_tile(la.get("name", ""), la.get("text", "")))
+                    features.append(feat_tile(la.get("name", ""), _desc(la)))
+            if lair_l:
+                features.append(ft.Text("Azioni di Tana", size=12,
+                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
+                lair_intro = m.get("lair_actions_intro", "")
+                if lair_intro:
+                    features.append(ft.Text(lair_intro, size=11, color=COLOR_TEXT_SECONDARY,
+                                            italic=True))
+                for eff in lair_l:
+                    features.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
+            if regional_l:
+                reg_label = m.get("regional_effects_label", "") or "Effetti Regionali"
+                features.append(ft.Text(reg_label, size=12,
+                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
+                reg_intro = m.get("regional_effects_intro", "")
+                if reg_intro:
+                    features.append(ft.Text(reg_intro, size=11, color=COLOR_TEXT_SECONDARY,
+                                            italic=True))
+                for eff in regional_l:
+                    features.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
+            if variants_l:
+                features.append(ft.Text("Varianti Opzionali", size=12,
+                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE))
+                for v in variants_l:
+                    features.append(feat_tile(v.get("name", ""), _desc(v)))
 
             items: list[ft.Control] = cast(list[ft.Control], [
                 ft.Text(
@@ -3655,7 +3696,14 @@ class CombattimentoTab(ft.ListView):
                 languages=m.get("languages", ""),
                 traits=_json.dumps(m.get("traits", [])),
                 actions=_json.dumps(m.get("actions", [])),
+                reactions=_json.dumps(m.get("reactions", [])),
                 legendary_actions=_json.dumps(m.get("legendary_actions", [])),
+                lair_actions_intro=m.get("lair_actions_intro", ""),
+                lair_actions=_json.dumps(m.get("lair_actions", [])),
+                regional_effects_label=m.get("regional_effects_label", ""),
+                regional_effects_intro=m.get("regional_effects_intro", ""),
+                regional_effects=_json.dumps(m.get("regional_effects", [])),
+                variant_rules=_json.dumps(m.get("variant_rules", [])),
                 source_page=int(m.get("source_page", 0)),
             )
             if entry:
@@ -3853,35 +3901,77 @@ class CombattimentoTab(ft.ListView):
                 info_items.append(r)
 
         # Tratti e azioni
-        try:
-            traits: list[dict] = _json.loads(c.traits) if isinstance(c.traits, str) else c.traits
-        except Exception:
-            traits = []
-        try:
-            actions: list[dict] = _json.loads(c.actions) if isinstance(c.actions, str) else c.actions
-        except Exception:
-            actions = []
-        try:
-            leg_actions: list[dict] = _json.loads(c.legendary_actions) if isinstance(c.legendary_actions, str) else c.legendary_actions
-        except Exception:
-            leg_actions = []
+        def _load_list(raw: Any) -> list[Any]:
+            # list[Any] perché il contenuto varia: liste di dict (tratti/azioni/
+            # reazioni/leggendarie/varianti) o liste di stringhe (azioni di tana/
+            # effetti regionali) — un tipo unico più stretto (es. list[dict])
+            # farebbe fallire l'assegnazione alle variabili list[str] sottostanti.
+            try:
+                return _json.loads(raw) if isinstance(raw, str) else (raw or [])
+            except Exception:
+                return []
+
+        def _desc(d: dict) -> str:
+            # Bug reale corretto il 2026-07-17: monsters.json usa la chiave
+            # "description" per traits/actions/reactions/legendary_actions,
+            # non "text" — nessun writer ha mai prodotto "text", quindi le
+            # descrizioni non sono mai state mostrate. Supporta entrambe
+            # per compatibilità futura.
+            return d.get("description", "") or d.get("text", "")
+
+        traits: list[dict] = _load_list(c.traits)
+        actions: list[dict] = _load_list(c.actions)
+        reactions: list[dict] = _load_list(getattr(c, "reactions", "[]"))
+        leg_actions: list[dict] = _load_list(c.legendary_actions)
+        lair_actions: list[str] = _load_list(getattr(c, "lair_actions", "[]"))
+        regional_effects: list[str] = _load_list(getattr(c, "regional_effects", "[]"))
+        variant_rules: list[dict] = _load_list(getattr(c, "variant_rules", "[]"))
 
         features_col: list[ft.Control] = []
         if traits:
             features_col.append(ft.Text("Tratti", size=12, weight=ft.FontWeight.BOLD,
                                         color=COLOR_ACCENT_CRIMSON))
             for t in traits:
-                features_col.append(feature_tile(t.get("name", ""), t.get("text", "")))
+                features_col.append(feature_tile(t.get("name", ""), _desc(t)))
         if actions:
             features_col.append(ft.Text("Azioni", size=12, weight=ft.FontWeight.BOLD,
                                         color=COLOR_ACCENT_CRIMSON))
             for a in actions:
-                features_col.append(feature_tile(a.get("name", ""), a.get("text", "")))
+                features_col.append(feature_tile(a.get("name", ""), _desc(a)))
+        if reactions:
+            features_col.append(ft.Text("Reazioni", size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_CRIMSON))
+            for r in reactions:
+                features_col.append(feature_tile(r.get("name", ""), _desc(r)))
         if leg_actions:
             features_col.append(ft.Text("Azioni Leggendarie", size=12, weight=ft.FontWeight.BOLD,
                                         color=COLOR_ACCENT_CRIMSON))
             for la in leg_actions:
-                features_col.append(feature_tile(la.get("name", ""), la.get("text", "")))
+                features_col.append(feature_tile(la.get("name", ""), _desc(la)))
+        if lair_actions:
+            features_col.append(ft.Text("Azioni di Tana", size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_CRIMSON))
+            lair_intro = getattr(c, "lair_actions_intro", "")
+            if lair_intro:
+                features_col.append(ft.Text(lair_intro, size=11, color=COLOR_TEXT_SECONDARY,
+                                            italic=True))
+            for eff in lair_actions:
+                features_col.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
+        if regional_effects:
+            reg_label = getattr(c, "regional_effects_label", "") or "Effetti Regionali"
+            features_col.append(ft.Text(reg_label, size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_CRIMSON))
+            reg_intro = getattr(c, "regional_effects_intro", "")
+            if reg_intro:
+                features_col.append(ft.Text(reg_intro, size=11, color=COLOR_TEXT_SECONDARY,
+                                            italic=True))
+            for eff in regional_effects:
+                features_col.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
+        if variant_rules:
+            features_col.append(ft.Text("Varianti Opzionali", size=12, weight=ft.FontWeight.BOLD,
+                                        color=COLOR_ACCENT_BLUE))
+            for v in variant_rules:
+                features_col.append(feature_tile(v.get("name", ""), _desc(v)))
 
         content = ft.Column(
             [
