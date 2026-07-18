@@ -41,7 +41,10 @@ from ui.theme import (
     body_text, fantasy_card, ghost_button, label_text, muted_text,
     primary_button, section_header, title_text,
 )
-from ui.widgets import CardPicker, spell_card_options, feat_card_options
+from ui.widgets import (
+    CardPicker, spell_card_options, feat_card_options,
+    format_equipment_item_body, equipment_option_card_options,
+)
 
 logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
@@ -2538,69 +2541,80 @@ class ManualCreationForm(ft.Column):
                 else:
                     qty   = item.get("quantity", 1)
                     label = item["name"] + (f" ×{qty}" if qty > 1 else "")
-                    fixed_checks.append(ft.Row([
+                    fixed_row = ft.Row([
                         ft.Icon(ft.Icons.CHECK_BOX, color=COLOR_ACCENT_CRIMSON, size=20),
                         ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY),
-                    ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                    ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                    # Se l'oggetto è una Dotazione, mostra sempre il suo
+                    # contenuto (nessun "scegliere" qui — è già garantita —
+                    # ma il giocatore deve comunque vedere cosa riceve).
+                    pack_body = format_equipment_item_body(item, _loader)
+                    if pack_body:
+                        fixed_checks.append(ft.Column([
+                            fixed_row,
+                            ft.Container(
+                                content=ft.Text(pack_body, size=11,
+                                                 color=COLOR_TEXT_SECONDARY, selectable=True),
+                                padding=ft.Padding.only(left=28, top=2, bottom=4),
+                            ),
+                        ], spacing=2))
+                    else:
+                        fixed_checks.append(fixed_row)
             rows.append(fantasy_card(ft.Column([
                 section_header("Oggetti garantiti"),
                 ft.Column(fixed_checks, spacing=6),
             ], spacing=12), padding=20))
             rows.append(ft.Container(height=16))
 
+        # CardPicker invece di RadioGroup (2026-07-17, richiesta Davide:
+        # "rendere come la scelta degli incantesimi... quando scelgo voglio
+        # vedere cosa mi dà la dotazione scelta") — un click seleziona
+        # l'opzione E mostra subito il contenuto espanso di ogni eventuale
+        # Dotazione inclusa, senza bisogno di un secondo gesto.
+        #
+        # IMPORTANTE (fix 2026-07-17, feedback Davide: "strano effetto... mi
+        # porta in cima alla scheda"): il vecchio `_make_radio_change`
+        # richiamava sempre `self._render_equipment()` — ricostruiva l'INTERA
+        # fase (tutte le card, monete iniziali, ecc.) tramite `_set_content`,
+        # che resetta lo scroll in cima. La reveal della card stessa è già
+        # locale (CardPicker si aggiorna da sé, vedi ui/widgets.py), quindi
+        # qui rebuilda SOLO i Dropdown arma della scelta toccata (l'unica
+        # cosa che dipende davvero da `chosen_idx`), stesso pattern
+        # `.controls.clear()+extend()+update()` già in uso in questo file
+        # (vedi `_rebuild_subrace_picker`/`_rebuild_lang_tool_col` ecc.).
         for ci, choice in enumerate(self._equip_choices):
             opts = choice["options"]
             if not opts:
                 continue
 
-            def _fmt(pkg: list[dict]) -> str:
-                parts = []
-                for it in pkg:
-                    if it.get("item_type") == "weapon_choice":
-                        cat = it.get("category", "semplice").replace("_", " ")
-                        cnt = it.get("count", 1)
-                        parts.append(f"Qualsiasi arma {cat}" + (f" ×{cnt}" if cnt > 1 else ""))
-                    else:
-                        qty = it.get("quantity", 1)
-                        parts.append(it["name"] + (f" ×{qty}" if qty > 1 else ""))
-                return "  +  ".join(parts)
+            card_opts = equipment_option_card_options(opts, _loader)
+            weapon_pickers_col = ft.Column(spacing=8)
 
-            def _make_radio_change(c: dict) -> Any:
-                def _on_change(e: Any) -> None:
-                    c["chosen_idx"] = int(e.control.value or 0)
-                    self._render_equipment()
-                return _on_change
-
-            radio_group = ft.RadioGroup(
-                content=ft.Column(
-                    [ft.Radio(value=str(i), label=_fmt(opts[i])) for i in range(len(opts))],
-                    spacing=4,
-                ),
-                value=str(choice["chosen_idx"]),
-                on_change=_make_radio_change(choice),
-            )
-
-            chosen_opt = opts[choice["chosen_idx"]] if 0 <= choice["chosen_idx"] < len(opts) else []
-            weapon_pickers: list[ft.Control] = []
-            for item in chosen_opt:
-                if item.get("item_type") == "weapon_choice":
+            def _build_weapon_pickers(c: dict) -> list[ft.Control]:
+                c_opts = c["options"]
+                idx = c["chosen_idx"]
+                chosen_opt = c_opts[idx] if 0 <= idx < len(c_opts) else []
+                pickers: list[ft.Control] = []
+                for item in chosen_opt:
+                    if item.get("item_type") != "weapon_choice":
+                        continue
                     cat = item.get("category", "semplice")
                     weapons = WEAPONS_BY_CATEGORY.get(cat, [])
                     count = item.get("count", 1)
                     if count > 1:
                         chosen_ws = item.setdefault("chosen_weapons", [weapons[0]] * count if weapons else [])
-                        weapon_pickers.append(label_text(f"Scegli {count} armi ({cat.replace('_', ' ')}):", size=12))
+                        pickers.append(label_text(f"Scegli {count} armi ({cat.replace('_', ' ')}):", size=12))
                         for wi in range(count):
                             def _on_wc(e: Any, it=item, idx=wi) -> None:
                                 it["chosen_weapons"][idx] = e.control.value or ""
-                            weapon_pickers.append(ft.Dropdown(
+                            pickers.append(ft.Dropdown(
                                 value=chosen_ws[wi] if wi < len(chosen_ws) else (weapons[0] if weapons else ""),
                                 options=[ft.DropdownOption(key=w, text=w) for w in weapons],
                                 width=220, text_size=13, on_select=_on_wc,
                             ))
                     else:
                         chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
-                        weapon_pickers.append(ft.Row([
+                        pickers.append(ft.Row([
                             label_text(f"Arma ({cat.replace('_', ' ')}):", size=12),
                             ft.Dropdown(
                                 value=chosen_w,
@@ -2609,14 +2623,35 @@ class ManualCreationForm(ft.Column):
                                 on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
                             ),
                         ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                return pickers
+
+            def _make_picker_select(c: dict, col: ft.Column) -> Any:
+                def _on_select(ev: Any) -> None:
+                    try:
+                        c["chosen_idx"] = int(getattr(ev.control, "value", 0) or 0)
+                    except (TypeError, ValueError):
+                        c["chosen_idx"] = 0
+                    col.controls.clear()
+                    col.controls.extend(_build_weapon_pickers(c))
+                    try:
+                        col.update()
+                    except RuntimeError:
+                        pass
+                return _on_select
+
+            picker = CardPicker(
+                options=card_opts,
+                value=str(choice["chosen_idx"]),
+                on_select=_make_picker_select(choice, weapon_pickers_col),
+            )
+            weapon_pickers_col.controls.extend(_build_weapon_pickers(choice))
 
             card_children: list[ft.Control] = [
                 section_header(f"Scelta {ci + 1}"),
-                radio_group,
+                picker.control,
+                ft.Container(height=8),
+                weapon_pickers_col,
             ]
-            if weapon_pickers:
-                card_children.append(ft.Container(height=8))
-                card_children.extend(weapon_pickers)
 
             rows.append(fantasy_card(ft.Column(card_children, spacing=8), padding=20))
             rows.append(ft.Container(height=16))
@@ -2646,10 +2681,6 @@ class ManualCreationForm(ft.Column):
             if dice_str:
                 formula = f"{dice_str} × {mult} mo" if mult > 1 else f"{dice_str} mo"
 
-                def _on_mode_change(ev: Any) -> None:
-                    self._gold_mode = (getattr(ev.control, "value", "") == "gold")
-                    self._render_equipment()
-
                 gold_field = ft.TextField(
                     label=f"Somma ottenuta ({formula})",
                     value=self._gold_amount,
@@ -2666,13 +2697,34 @@ class ManualCreationForm(ft.Column):
                     bgcolor=COLOR_BG_CARD,
                 )
 
-                rg_gold = ft.RadioGroup(
+                # CardPicker invece di RadioGroup (2026-07-17, feedback Davide:
+                # "la selezione dell'oro è brutta da vedere perché è rimasta
+                # del vecchio stile") — stessa card cliccabile già usata per
+                # incantesimi/dotazioni, per coerenza visiva. `on_select` NON
+                # richiama `self._render_equipment()` (stesso motivo del fix
+                # sopra sulle Scelte A/B): mostra/nasconde solo `gold_field`
+                # in-place, nessun jump-to-top.
+                def _on_gold_select(ev: Any) -> None:
+                    self._gold_mode = (getattr(ev.control, "value", "") == "gold")
+                    gold_field.visible = self._gold_mode
+                    try:
+                        gold_field.update()
+                    except RuntimeError:
+                        pass
+
+                gold_picker = CardPicker(
+                    options=[
+                        {"key": "equip", "title": "Equipaggiamento standard", "body": ""},
+                        {
+                            "key": "gold",
+                            "title": f"Oro iniziale — tira {formula}",
+                            "body": "Tira il dado indicato e inserisci il risultato "
+                                    "nel campo qui sotto: potrai spendere l'oro "
+                                    "liberamente per il tuo equipaggiamento.",
+                        },
+                    ],
                     value="gold" if self._gold_mode else "equip",
-                    content=ft.Column([
-                        ft.Radio(value="equip", label="Equipaggiamento standard"),
-                        ft.Radio(value="gold",  label=f"Oro iniziale — tira {formula}"),
-                    ], spacing=4),
-                    on_change=_on_mode_change,
+                    on_select=_on_gold_select,
                 )
 
                 rows.append(fantasy_card(ft.Column([
@@ -2683,7 +2735,7 @@ class ManualCreationForm(ft.Column):
                         size=11,
                     ),
                     ft.Container(height=4),
-                    rg_gold,
+                    gold_picker.control,
                     gold_field,
                 ], spacing=8), padding=20))
                 rows.append(ft.Container(height=16))

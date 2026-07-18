@@ -5,11 +5,11 @@ Struttura (ListView scrollabile):
   - Percezione Passiva   — valore calcolato (10 + mod SAG + eventuale competenza)
   - Sensi                — scurovisione, altri sensi speciali da razza
   - Velocità             — base + nuoto / scalata / volo (se presenti)
-  - Lingue               — dalla scheda proficiencies (type="language"), CRUD
-  - Strumenti            — dalla scheda proficiencies (type="tool"), CRUD
-  - Competenze Armatura e Armi — sola lettura, da armor_proficiencies/
-                        weapon_proficiencies di classe (type="armor"/"weapon"),
-                        applicate automaticamente, rimovibili per house rule
+  - Lingue               — dalla scheda proficiencies (type="language"), sola
+                        lettura (editing centralizzato in ProfiloTab dal
+                        2026-07-17, vedi ProfiloTab._section_altre_competenze)
+  - Strumenti            — dalla scheda proficiencies (type="tool"), sola
+                        lettura, stesso motivo di Lingue
   - Tiri Salvezza        — griglia compatta 6 valori con indicatore competenza
   - Abilità              — griglia compatta 18 abilità con modificatore calcolato
 """
@@ -20,7 +20,6 @@ from typing import Any, Callable, cast
 from config.settings import *
 from data.models import Character, CharacterProficiency, CustomAbility
 import data.repositories.character_repo as character_repo
-from data.database import get_connection
 from data.game_data.game_data_loader import game_data
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
 
@@ -430,7 +429,9 @@ class EsplorazioneTab(ft.ListView):
         page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
-    # Lingue — header con pulsante Aggiungi
+    # Lingue — sola lettura (editing centralizzato in ProfiloTab, vedi
+    # ProfiloTab._section_altre_competenze — decisione Davide 2026-07-17:
+    # "Tutto in Profilo")
     # ------------------------------------------------------------------
 
     def _section_lingue_header(self) -> ft.Container:
@@ -448,12 +449,6 @@ class EsplorazioneTab(ft.ListView):
                     ),
                     ft.Container(width=8),
                     ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
-                    ft.Container(width=8),
-                    ft.TextButton(
-                        "+ Aggiungi",
-                        on_click=lambda e: self._on_add_lingua(),
-                        style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
-                    ),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -478,14 +473,6 @@ class EsplorazioneTab(ft.ListView):
                                 color=COLOR_TEXT_PRIMARY,
                                 expand=True,
                             ),
-                            ft.IconButton(
-                                icon=ft.Icons.CLOSE,
-                                icon_color=COLOR_TEXT_MUTED,
-                                icon_size=14,
-                                tooltip="Rimuovi",
-                                on_click=lambda e, pp=p: self._on_delete_proficiency(pp),
-                                padding=ft.Padding.all(2),
-                            ),
                         ],
                         spacing=6,
                     )
@@ -494,7 +481,8 @@ class EsplorazioneTab(ft.ListView):
         return self._compact_card(rows)
 
     # ------------------------------------------------------------------
-    # Strumenti — header con pulsante Aggiungi
+    # Strumenti — sola lettura (editing centralizzato in ProfiloTab, vedi
+    # ProfiloTab._section_altre_competenze — decisione Davide 2026-07-17)
     # ------------------------------------------------------------------
 
     def _section_strumenti_header(self) -> ft.Container:
@@ -512,12 +500,6 @@ class EsplorazioneTab(ft.ListView):
                     ),
                     ft.Container(width=8),
                     ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
-                    ft.Container(width=8),
-                    ft.TextButton(
-                        "+ Aggiungi",
-                        on_click=lambda e: self._on_add_strumento(),
-                        style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
-                    ),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -546,14 +528,6 @@ class EsplorazioneTab(ft.ListView):
                                 expand=True,
                             ),
                             muted_text(lvl_text, 11),
-                            ft.IconButton(
-                                icon=ft.Icons.CLOSE,
-                                icon_color=COLOR_TEXT_MUTED,
-                                icon_size=14,
-                                tooltip="Rimuovi",
-                                on_click=lambda e, pp=s: self._on_delete_proficiency(pp),
-                                padding=ft.Padding.all(2),
-                            ),
                         ],
                         spacing=6,
                     )
@@ -607,9 +581,9 @@ class EsplorazioneTab(ft.ListView):
         return self._compact_card(rows)
 
     def _custom_ability_row(self, ab: CustomAbility) -> ft.Container:
-        preview = ab.description.strip().splitlines()[0] if ab.description.strip() else ""
-        if len(preview) > 90:
-            preview = preview[:87] + "…"
+        # 2026-07-17, bug report Davide (punto 1, stesso fix gemello di
+        # combattimento_tab.py): mostrata per intero, non più troncata.
+        full_desc = ab.description.strip()
         return ft.Container(
             content=ft.Row(
                 [
@@ -617,7 +591,7 @@ class EsplorazioneTab(ft.ListView):
                         [
                             ft.Text(ab.name, size=13, color=COLOR_TEXT_PRIMARY,
                                     weight=ft.FontWeight.W_600),
-                            muted_text(preview, 11) if preview else ft.Container(height=0),
+                            muted_text(full_desc, 11) if full_desc else ft.Container(height=0),
                         ],
                         spacing=2,
                         expand=True,
@@ -881,139 +855,12 @@ class EsplorazioneTab(ft.ListView):
             border_radius=6,
         )
 
-    # ------------------------------------------------------------------
-    # Dialog: Aggiungi Lingua
-    # ------------------------------------------------------------------
-
-    def _on_add_lingua(self) -> None:
-        page = self._page
-        if page is None:
-            return
-
-        tf_nome = ft.TextField(
-            label="Lingua",
-            hint_text="es. Comune, Elfico, Nanico, Draconico…",
-            autofocus=True,
-        )
-
-        def _save(e):
-            nome = tf_nome.value.strip() if tf_nome.value else ""
-            if not nome:
-                cast(Any, tf_nome).error_text = "Inserisci il nome della lingua"
-                tf_nome.update()
-                return
-            # Evita duplicati
-            existing = {p.name.lower() for p in self._profs if p.proficiency_type == "language"}
-            if nome.lower() in existing:
-                cast(Any, tf_nome).error_text = "Lingua già presente"
-                tf_nome.update()
-                return
-            character_repo._save_single_proficiency(
-                self.character.id, "language", nome, is_expert=False
-            )
-            page.pop_dialog()
-            self._refresh()
-
-        def _cancel(e):
-            page.pop_dialog()
-
-        dlg = ft.AlertDialog(
-            title=ft.Text("Aggiungi Lingua"),
-            content=ft.Column([tf_nome], spacing=12, tight=True),
-            actions=[
-                ft.TextButton("Annulla", on_click=_cancel),
-                ft.ElevatedButton("Aggiungi", on_click=_save),
-            ],
-        )
-        page.show_dialog(dlg)
-
-    # ------------------------------------------------------------------
-    # Dialog: Aggiungi Strumento
-    # ------------------------------------------------------------------
-
-    def _on_add_strumento(self) -> None:
-        page = self._page
-        if page is None:
-            return
-
-        tf_nome = ft.TextField(
-            label="Strumento / Veicolo / Gioco",
-            hint_text="es. Strumenti da ladro, Flauto, Carte da gioco, Carro…",
-            autofocus=True,
-        )
-        cb_maestria = ft.Checkbox(label="Maestria (invece di semplice competenza)", value=False)
-
-        def _save(e):
-            nome = tf_nome.value.strip() if tf_nome.value else ""
-            if not nome:
-                cast(Any, tf_nome).error_text = "Inserisci il nome dello strumento"
-                tf_nome.update()
-                return
-            existing = {p.name.lower() for p in self._profs if p.proficiency_type == "tool"}
-            if nome.lower() in existing:
-                cast(Any, tf_nome).error_text = "Strumento già presente"
-                tf_nome.update()
-                return
-            is_expert = bool(cb_maestria.value)
-            character_repo._save_single_proficiency(
-                self.character.id, "tool", nome, is_expert=is_expert
-            )
-            page.pop_dialog()
-            self._refresh()
-
-        def _cancel(e):
-            page.pop_dialog()
-
-        dlg = ft.AlertDialog(
-            title=ft.Text("Aggiungi Strumento"),
-            content=ft.Column([tf_nome, cb_maestria], spacing=12, tight=True),
-            actions=[
-                ft.TextButton("Annulla", on_click=_cancel),
-                ft.ElevatedButton("Aggiungi", on_click=_save),
-            ],
-        )
-        page.show_dialog(dlg)
-
-    # ------------------------------------------------------------------
-    # Elimina competenza (lingua o strumento)
-    # ------------------------------------------------------------------
-
-    def _on_delete_proficiency(self, prof: CharacterProficiency) -> None:
-        page = self._page
-        if page is None:
-            return
-
-        _TIPO_LABELS = {"language": "lingua", "tool": "strumento", "armor": "competenza", "weapon": "competenza"}
-        tipo = _TIPO_LABELS.get(prof.proficiency_type, "strumento")
-
-        def _confirm(e):
-            try:
-                with get_connection() as conn:
-                    conn.execute(
-                        "DELETE FROM character_proficiencies WHERE id = ?",
-                        (prof.id,),
-                    )
-            except Exception as ex:
-                logger.error("Errore eliminazione competenza: %s", ex)
-            page.pop_dialog()
-            self._refresh()
-
-        def _cancel(e):
-            page.pop_dialog()
-
-        dlg = ft.AlertDialog(
-            title=ft.Text(f"Rimuovi {tipo}"),
-            content=ft.Text(f'Rimuovere "{prof.name}" dalla scheda?'),
-            actions=[
-                ft.TextButton("Annulla", on_click=_cancel),
-                ft.ElevatedButton(
-                    "Rimuovi",
-                    on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
-                ),
-            ],
-        )
-        page.show_dialog(dlg)
+    # NOTA: Lingue/Strumenti sono sola lettura da qui (2026-07-17) —
+    # l'editing (aggiunta con autofill da catalogo, rimozione) vive ora in
+    # ProfiloTab._open_add_competenza_dialog() / ProfiloTab._on_delete_
+    # proficiency(), decisione di Davide "Tutto in Profilo". Il metodo
+    # _on_delete_proficiency che viveva qui è stato rimosso (nessun
+    # chiamante residuo in questo file).
 
     # ------------------------------------------------------------------
     # Helper

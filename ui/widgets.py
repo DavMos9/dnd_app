@@ -622,6 +622,73 @@ def make_named_option_describe(options: list[dict]) -> Callable[[str], tuple[str
     return _describe
 
 
+def format_equipment_item_body(item: dict, loader: Any) -> str:
+    """
+    Corpo descrittivo per una singola voce di equipaggiamento iniziale —
+    espande il contenuto di una Dotazione ("Dotazione da Avventuriero" ecc.)
+    nei singoli oggetti che contiene, via `loader.get_pack_contents(name)`
+    (2026-07-11, dato già strutturato in adventuring_gear.json). Richiesta
+    di Davide (2026-07-17): "rendere come la scelta degli incantesimi...
+    quando scelgo voglio vedere cosa mi dà la dotazione scelta" — stesso
+    principio dei formatter `format_*_body` sopra, applicato qui alle
+    dotazioni invece che a incantesimi/talenti.
+
+    Ritorna stringa vuota per un oggetto che non è una dotazione nota (nulla
+    da espandere, il solo nome nel titolo della card è già sufficiente) o
+    per una voce "weapon_choice" (la scelta dell'arma specifica avviene già
+    nei Dropdown dedicati mostrati sotto la card, non richiede un corpo).
+    """
+    if item.get("item_type") == "weapon_choice":
+        return ""
+    name = item.get("name", "")
+    if not name:
+        return ""
+    contents = loader.get_pack_contents(name)
+    if not contents:
+        return ""
+    lines = [f'Contenuto di "{name}":']
+    for c in contents:
+        cname = c.get("name", "")
+        if not cname:
+            continue
+        cqty = c.get("quantity", 1)
+        lines.append("• " + cname + (f" ×{cqty}" if cqty and cqty > 1 else ""))
+    return "\n".join(lines)
+
+
+def equipment_option_card_options(options: list[list[dict]], loader: Any) -> list[dict[str, str]]:
+    """
+    Opzioni CardPicker per una scelta A/B di equipaggiamento iniziale
+    (`starting_equipment` → entry `"type": "choice"` → `"options"`, ognuna
+    una lista di 1+ voci che compongono un unico "pacchetto" alternativo,
+    es. arma+scudo OPPURE un'arma a due mani). Il titolo di ogni card resta
+    il riepilogo già in uso (`"Ascia  +  Scudo"`); il corpo, mostrato solo
+    quando la card è selezionata (comportamento nativo di `CardPicker`),
+    espande il contenuto di ogni eventuale Dotazione presente nel pacchetto.
+    """
+    opts: list[dict[str, str]] = []
+    for i, pkg in enumerate(options):
+        parts: list[str] = []
+        bodies: list[str] = []
+        for it in pkg:
+            if it.get("item_type") == "weapon_choice":
+                cat = it.get("category", "semplice").replace("_", " ")
+                cnt = it.get("count", 1)
+                parts.append(f"Qualsiasi arma {cat}" + (f" ×{cnt}" if cnt > 1 else ""))
+            else:
+                qty = it.get("quantity", 1)
+                parts.append(it.get("name", "") + (f" ×{qty}" if qty > 1 else ""))
+            body = format_equipment_item_body(it, loader)
+            if body:
+                bodies.append(body)
+        opts.append({
+            "key": str(i),
+            "title": "  +  ".join(parts),
+            "body": "\n\n".join(bodies),
+        })
+    return opts
+
+
 def make_invocation_describe(invocations: list[dict]) -> Callable[[str], tuple[str, str] | None]:
     """
     Costruisce una funzione `describe` a partire da una lista di dict

@@ -25,10 +25,11 @@ import logging
 from typing import Any, Callable, cast
 from config.settings import *
 from config.settings import get_race_display_traits
-from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource, CreatureEntry, CustomAbility
+from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource, CreatureEntry, CustomAbility, InventoryItem
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text, show_error_dialog
+from core.weapon_calculator import AttackContext, compute_attack_total, compute_damage_formula
 
 _loader = GameDataLoader()
 
@@ -74,6 +75,13 @@ class CombattimentoTab(ft.ListView):
             self._slots = character_repo.get_spell_slots(character.id)
         self._profs: list[CharacterProficiency] = character_repo.get_proficiencies(character.id)
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id)
+        # Armature/scudi equipaggiati (2026-07-17, bug report Davide punto 2:
+        # gli effetti magici di armature/scudi non erano mai leggibili in
+        # Combattimento — solo le armi avevano una sezione dedicata).
+        self._armor_items: list[InventoryItem] = [
+            it for it in character_repo.get_inventory(character.id)
+            if it.category == "armor" and it.is_equipped
+        ]
         self._prepared: list[KnownSpell] = character_repo.get_prepared_spells(character.id)
         self._resources: list[ClassResource] = character_repo.get_class_resources(character.id)
         # Sync automatico a ogni apertura della tab: aggiunge risorse nuove, aggiorna
@@ -126,6 +134,8 @@ class CombattimentoTab(ft.ListView):
             self._section_saves_skills(c),
             section_header("Armi Equipaggiate"),
             self._section_weapons(),
+            section_header("Armatura e Scudo Equipaggiati"),
+            self._section_armor(),
             section_header("Magia"),
             self._section_spell_slots(c),
         ]
@@ -1206,20 +1216,68 @@ class CombattimentoTab(ft.ListView):
     # ------------------------------------------------------------------
 
     def _section_weapons(self) -> ft.Container:
-        """Armi is_equipped=True con bonus attacco, danno, proprietà."""
+        """Armi is_equipped=True con bonus attacco, danno, proprietà.
 
-        def _atk_str(w: Weapon) -> str:
-            return f"+{w.attack_bonus}" if w.attack_bonus >= 0 else str(w.attack_bonus)
+        Calcolo automatico del tiro per colpire/danno (2026-07-17, bug
+        report Davide punti 3+4): il totale mostrato è mod. caratteristica
+        (Forza/Destrezza, automatico o scelto dal giocatore) + bonus
+        competenza (solo se competente con quest'arma, dedotto da
+        Weapon.weapon_category/proficiency_override contro le competenze
+        arma del personaggio) + bonus magico dell'arma (attack_bonus, può
+        essere negativo) — sovrascrivibile con un totale manuale
+        (attack_total_override). Vedi core/weapon_calculator.py.
+        """
+        weapon_prof_names = {
+            p.name.strip().lower()
+            for p in self._profs
+            if p.proficiency_type == "weapon" and p.name
+        }
+        c = self.character
+
+        def _ctx(w: Weapon) -> AttackContext:
+            return AttackContext(
+                properties=w.properties or "",
+                range_normal=w.range_normal or 0,
+                weapon_category=w.weapon_category or "",
+                proficiency_override=w.proficiency_override,
+                finesse_ability=w.finesse_ability or "",
+                attack_bonus=w.attack_bonus or 0,
+                damage_bonus=w.damage_bonus or 0,
+                attack_total_override=w.attack_total_override,
+                attack_override_value=w.attack_override_value or 0,
+            )
+
+        def _atk_str(w: Weapon) -> tuple[str, str]:
+            """Ritorna (totale mostrato, tooltip con il breakdown)."""
+            ctx = _ctx(w)
+            total, proficient, ability_key, breakdown = compute_attack_total(
+                ctx, w.name, c.str_score, c.dex_score,
+                char_prof_bonus(c), weapon_prof_names,
+            )
+            s = f"+{total}" if total >= 0 else str(total)
+            ability_label = "Forza" if ability_key == "str" else "Destrezza"
+            if w.attack_total_override:
+                tooltip = f"Totale manuale: {s} (override del giocatore)"
+            else:
+                prof_txt = (f"+{breakdown['prof_bonus']} comp." if proficient
+                            else "non competente")
+                magic = breakdown["magic_bonus"]
+                magic_txt = f" {'+' if magic >= 0 else ''}{magic} magico" if magic else ""
+                tooltip = (
+                    f"{ability_label} {'+' if breakdown['ability_mod'] >= 0 else ''}"
+                    f"{breakdown['ability_mod']} {prof_txt}{magic_txt} = {s}"
+                )
+            return s, tooltip
 
         def _dmg_str(w: Weapon) -> str:
-            s = w.damage_dice or "—"
-            if w.damage_bonus > 0:
-                s += f"+{w.damage_bonus}"
-            elif w.damage_bonus < 0:
-                s += str(w.damage_bonus)
-            if w.damage_type:
-                s += f"  {w.damage_type}"
-            return s
+            ctx = _ctx(w)
+            is_versatile = "versatile" in (w.properties or "").lower()
+            dice = w.damage_dice or ""
+            if is_versatile and w.grip_two_handed and w.versatile_damage_dice:
+                dice = w.versatile_damage_dice
+            if not dice:
+                return "—"
+            return compute_damage_formula(dice, w.damage_type or "", ctx, c.str_score, c.dex_score)
 
         def _range_str(w: Weapon) -> str:
             if w.range_normal and w.range_normal > 0:
@@ -1264,6 +1322,7 @@ class CombattimentoTab(ft.ListView):
             except (json.JSONDecodeError, AttributeError):
                 pass
 
+            atk_display, atk_tooltip = _atk_str(w)
             rows: list[ft.Control] = [
                 ft.Row([
                     ft.Text(w.name, size=14, weight=ft.FontWeight.BOLD,
@@ -1281,7 +1340,7 @@ class CombattimentoTab(ft.ListView):
                             ft.Text("ATT", size=9, color=COLOR_TEXT_MUTED,
                                     weight=ft.FontWeight.BOLD,
                                     text_align=ft.TextAlign.CENTER),
-                            ft.Text(_atk_str(w), size=16, color=COLOR_ACCENT_CRIMSON,
+                            ft.Text(atk_display, size=16, color=COLOR_ACCENT_CRIMSON,
                                     weight=ft.FontWeight.BOLD, font_family=FONT_MONO,
                                     text_align=ft.TextAlign.CENTER),
                         ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -1289,6 +1348,7 @@ class CombattimentoTab(ft.ListView):
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                         border_radius=6,
                         width=58,
+                        tooltip=atk_tooltip,
                     ),
                     ft.Container(
                         content=ft.Column([
@@ -1329,6 +1389,93 @@ class CombattimentoTab(ft.ListView):
         else:
             body = ft.Column(
                 [_weapon_card(w) for w in self._weapons], spacing=8
+            )
+
+        return ft.Container(
+            content=body,
+            bgcolor=COLOR_BG_CARD,
+            padding=14,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    # ------------------------------------------------------------------
+    # Armatura e Scudo Equipaggiati (2026-07-17)
+    # ------------------------------------------------------------------
+
+    _ARMOR_TYPE_LABELS = {
+        "leggera": "Armatura leggera",
+        "media": "Armatura media",
+        "pesante": "Armatura pesante",
+        "scudo": "Scudo",
+        "": "Indumento (nessun bonus CA)",
+    }
+
+    def _section_armor(self) -> ft.Container:
+        """Armatura corporea + scudo equipaggiati, con CA ed effetti magici
+        mostrati per intero (bug report Davide, punto 2: prima solo un badge
+        a stella segnalava la presenza di effetti, senza mai mostrarne il
+        testo)."""
+
+        def _armor_card(it: InventoryItem) -> ft.Container:
+            type_label = self._ARMOR_TYPE_LABELS.get(it.armor_type, it.armor_type or "—")
+            rows: list[ft.Control] = [
+                ft.Row([
+                    ft.Text(it.name, size=14, weight=ft.FontWeight.BOLD,
+                            color=COLOR_TEXT_TITLE, expand=True),
+                    ft.Container(
+                        content=ft.Text(type_label, size=10, color=COLOR_TEXT_MUTED),
+                        padding=ft.Padding.symmetric(horizontal=6, vertical=2),
+                        border=ft.Border.all(1, COLOR_BORDER),
+                        border_radius=4,
+                    ),
+                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ]
+            if it.ca_value:
+                rows.append(ft.Container(
+                    content=ft.Column([
+                        ft.Text("CA", size=9, color=COLOR_TEXT_MUTED,
+                                weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                        ft.Text(str(it.ca_value), size=16, color=COLOR_ACCENT_BLUE,
+                                weight=ft.FontWeight.BOLD, font_family=FONT_MONO,
+                                text_align=ft.TextAlign.CENTER),
+                    ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    bgcolor=COLOR_BG_SECONDARY,
+                    padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                    border_radius=6,
+                    width=58,
+                ))
+            if it.effects and it.effects.strip():
+                rows.append(ft.Row([
+                    ft.Icon(ft.Icons.AUTO_AWESOME, size=12, color=COLOR_ACCENT_AMBER),
+                    ft.Text(it.effects.strip(), size=12, color=COLOR_ACCENT_AMBER,
+                            expand=True),
+                ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.START))
+            if it.description and it.description.strip():
+                rows.append(muted_text(it.description.strip(), 11))
+            return ft.Container(
+                content=ft.Column(rows, spacing=6),
+                bgcolor=COLOR_BG_SECONDARY,
+                padding=10,
+                border_radius=6,
+                border=ft.Border.all(1, COLOR_BORDER),
+            )
+
+        if not self._armor_items:
+            body: ft.Control = ft.Column([
+                ft.Text("Nessuna armatura o scudo equipaggiato.", size=12,
+                        color=COLOR_TEXT_MUTED),
+                ft.Text("Aggiungi/equipaggia un'armatura dalla scheda Inventario.",
+                        size=11, color=COLOR_TEXT_MUTED),
+            ], spacing=4)
+        else:
+            body = ft.Column(
+                [_armor_card(it) for it in self._armor_items], spacing=8
             )
 
         return ft.Container(
@@ -2208,9 +2355,11 @@ class CombattimentoTab(ft.ListView):
         )
 
     def _custom_ability_row(self, ab: CustomAbility) -> ft.Container:
-        preview = ab.description.strip().splitlines()[0] if ab.description.strip() else ""
-        if len(preview) > 90:
-            preview = preview[:87] + "…"
+        # 2026-07-17, bug report Davide (punto 1): la descrizione veniva
+        # troncata alla prima riga + 90 caratteri, rendendo illeggibili
+        # abilità speciali con testo lungo (es. "Punizione Glaciale").
+        # Mostrata ora per intero, andando a capo liberamente.
+        full_desc = ab.description.strip()
         return ft.Container(
             content=ft.Row(
                 [
@@ -2218,7 +2367,7 @@ class CombattimentoTab(ft.ListView):
                         [
                             ft.Text(ab.name, size=13, color=COLOR_TEXT_PRIMARY,
                                     weight=ft.FontWeight.W_600),
-                            muted_text(preview, 11) if preview else ft.Container(height=0),
+                            muted_text(full_desc, 11) if full_desc else ft.Container(height=0),
                         ],
                         spacing=2,
                         expand=True,
@@ -4011,6 +4160,10 @@ class CombattimentoTab(ft.ListView):
         self._slots     = character_repo.get_spell_slots(self.character.id)
         self._profs     = character_repo.get_proficiencies(self.character.id)
         self._weapons   = character_repo.get_weapons(self.character.id)
+        self._armor_items = [
+            it for it in character_repo.get_inventory(self.character.id)
+            if it.category == "armor" and it.is_equipped
+        ]
         self._prepared  = character_repo.get_prepared_spells(self.character.id)
         self._resources = character_repo.get_class_resources(self.character.id)
         self._features     = self._load_class_features(self.character)

@@ -136,6 +136,8 @@ class ProfiloTab(ft.ListView):
         self.controls.append(self._build_competenze(c, prof_bonus, skill_map, save_map))
         self.controls.append(section_header("Competenze Armatura e Armi"))
         self.controls.append(self._section_armi_armature())
+        self.controls.append(section_header("Altre Competenze"))
+        self.controls.append(self._section_altre_competenze())
         self.controls.append(section_header("Talenti"))
         self.controls.append(self._build_talenti(c))
 
@@ -749,10 +751,25 @@ class ProfiloTab(ft.ListView):
     def _section_armi_armature(self) -> ft.Container:
         entries = [p for p in self.proficiencies if p.proficiency_type in ("armor", "weapon")]
 
+        header_row = ft.Row(
+            [
+                ft.ElevatedButton(
+                    "+ Aggiungi", icon=ft.Icons.ADD,
+                    on_click=lambda e: self._open_add_competenza_dialog("weapon"),
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        shape=ft.RoundedRectangleBorder(radius=4),
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=4),
+                    ),
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.END,
+        )
+
         if not entries:
-            rows: list[ft.Control] = [muted_text("Nessuna competenza registrata", 12)]
+            rows: list[ft.Control] = [header_row, muted_text("Nessuna competenza registrata", 12)]
         else:
-            rows = []
+            rows = [header_row]
             for p in sorted(entries, key=lambda x: (x.proficiency_type, x.name)):
                 if p.proficiency_type == "armor":
                     label = self._ARMOR_TOKEN_LABELS.get(p.name, p.name)
@@ -791,12 +808,228 @@ class ProfiloTab(ft.ListView):
             border_radius=6,
         )
 
+    # ------------------------------------------------------------------
+    # Altre Competenze — Lingue, Strumenti, Veicoli, Giochi (2026-07-17,
+    # bug report Davide punti 5+6). Spostata qui da EsplorazioneTab
+    # (risposta di Davide alla domanda "dove vivono le competenze": "Tutto
+    # in Profilo") — stesso dato (proficiency_type "language"/"tool"),
+    # Esplorazione ora le mostra solo in sola lettura.
+    # ------------------------------------------------------------------
+
+    def _section_altre_competenze(self) -> ft.Container:
+        entries = [p for p in self.proficiencies if p.proficiency_type in ("language", "tool")]
+
+        header_row = ft.Row(
+            [
+                ft.ElevatedButton(
+                    "+ Aggiungi", icon=ft.Icons.ADD,
+                    on_click=lambda e: self._open_add_competenza_dialog("language"),
+                    style=ft.ButtonStyle(
+                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        shape=ft.RoundedRectangleBorder(radius=4),
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=4),
+                    ),
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.END,
+        )
+
+        if not entries:
+            rows: list[ft.Control] = [header_row, muted_text(
+                "Nessuna lingua, strumento, veicolo o gioco registrato", 12)]
+        else:
+            rows = [header_row]
+            for p in sorted(entries, key=lambda x: (x.proficiency_type, x.name)):
+                icon = ft.Icons.TRANSLATE if p.proficiency_type == "language" else ft.Icons.BUILD
+                label = p.name + ("  (Maestria)" if p.is_expert else "")
+                rows.append(
+                    ft.Row(
+                        [
+                            ft.Icon(icon, size=14, color=COLOR_TEXT_MUTED),
+                            ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.IconButton(
+                                icon=ft.Icons.CLOSE,
+                                icon_color=COLOR_TEXT_MUTED,
+                                icon_size=14,
+                                tooltip="Rimuovi",
+                                on_click=lambda e, pp=p: self._on_delete_proficiency(pp),
+                                padding=ft.Padding.all(2),
+                            ),
+                        ],
+                        spacing=6,
+                    )
+                )
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=6),
+            bgcolor=COLOR_BG_CARD,
+            padding=16,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    # Tipi di competenza gestibili dal dialog generico "+ Aggiungi
+    # Competenza" — skill/save/feat/metamagic/invocation/cantrip/
+    # asi_record/monk_discipline restano gestiti dai loro flussi dedicati
+    # (level-up, sezione Talenti, editor abilità/TS), non da qui.
+    _COMPETENZA_TIPI: list[tuple[str, str]] = [
+        ("language", "Lingua"),
+        ("tool", "Strumento / Veicolo / Gioco"),
+        ("weapon", "Arma"),
+        ("armor", "Armatura"),
+    ]
+
+    def _competenza_catalog_options(self, tipo: str) -> list[tuple[str, str]]:
+        """Ritorna [(valore_salvato, etichetta)] per la tendina di
+        autofill, in base al tipo di competenza selezionato — stesso
+        principio del dropdown "Tipo (autoriempi da catalogo PHB)" già
+        usato per armi/armature in Inventario: il valore scelto riempie il
+        campo Nome, che resta comunque liberamente modificabile."""
+        if tipo == "language":
+            return [(n, n) for n in LANGUAGES]
+        if tipo == "tool":
+            opts = [(n, n) for n in _loader.get_all_tool_names()]
+            # Veicoli: il PHB concede competenza per categoria ampia
+            # ("veicoli terrestri" o "acquatici"), non per singolo modello
+            # — vedi equipment/mounts_and_vehicles.json → rules →
+            # "competenza_in_un_veicolo".
+            opts += [
+                ("Veicoli (terrestri)", "Veicoli (terrestri)"),
+                ("Veicoli (acquatici)", "Veicoli (acquatici)"),
+            ]
+            return opts
+        if tipo == "weapon":
+            opts = [
+                ("semplice", "Armi semplici (categoria)"),
+                ("guerra", "Armi da guerra (categoria)"),
+            ]
+            opts += [(n, n) for n in _loader.get_weapon_names()]
+            return opts
+        if tipo == "armor":
+            return list(self._ARMOR_TOKEN_LABELS.items())
+        return []
+
+    def _open_add_competenza_dialog(self, default_type: str = "language") -> None:
+        page = self._page
+        if page is None:
+            return
+
+        type_dd = ft.Dropdown(
+            label="Tipo",
+            value=default_type,
+            options=[ft.DropdownOption(key=k, text=lbl) for k, lbl in self._COMPETENZA_TIPI],
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+        )
+        catalog_dd = ft.Dropdown(
+            label="Suggerimenti dal catalogo",
+            value=None,
+            options=[],
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+        )
+        f_name = ft.TextField(
+            label="Nome *", value="",
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+        )
+        expert_cb = ft.Checkbox(label="Maestria (raddoppia il bonus competenza)", value=False)
+        error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
+
+        def _rebuild_catalog() -> None:
+            opts = self._competenza_catalog_options(type_dd.value or "language")
+            catalog_dd.options = [
+                ft.DropdownOption(key="", text="— nessuno, compila a mano —")
+            ] + [ft.DropdownOption(key=val, text=lbl) for val, lbl in opts]
+            catalog_dd.value = None
+            expert_cb.visible = (type_dd.value == "tool")
+            try:
+                catalog_dd.update()
+                expert_cb.update()
+            except RuntimeError:
+                pass
+
+        def on_type_select(ev: ft.Event[ft.Dropdown]) -> None:
+            _rebuild_catalog()
+
+        def on_catalog_select(ev: ft.Event[ft.Dropdown]) -> None:
+            val = catalog_dd.value or ""
+            if val:
+                f_name.value = val
+                try:
+                    f_name.update()
+                except RuntimeError:
+                    pass
+
+        type_dd.on_select = on_type_select
+        catalog_dd.on_select = on_catalog_select
+        _rebuild_catalog()
+
+        def _set_error(msg: str) -> None:
+            error_text.value = msg
+            try:
+                error_text.update()
+            except RuntimeError:
+                pass
+
+        def save(ev: Any) -> None:
+            name = (f_name.value or "").strip()
+            if not name:
+                _set_error("Il nome è obbligatorio.")
+                return
+            ptype = type_dd.value or "language"
+            duplicate = any(
+                p.proficiency_type == ptype and p.name.strip().lower() == name.lower()
+                for p in self.proficiencies
+            )
+            if duplicate:
+                _set_error("Questa competenza è già presente sulla scheda.")
+                return
+            is_expert = bool(expert_cb.value) if ptype == "tool" else False
+            ok = character_repo._save_single_proficiency(
+                self.character.id, ptype, name, is_expert=is_expert
+            )
+            if not ok:
+                show_error_dialog(page)
+                return
+            page.pop_dialog()
+            self._refresh()
+
+        page.show_dialog(ft.AlertDialog(
+            title=ft.Text("Aggiungi Competenza", size=14,
+                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            content=ft.Column(
+                [type_dd, catalog_dd, f_name, expert_cb, error_text],
+                spacing=10, scroll=ft.ScrollMode.AUTO,
+            ),
+            actions=[
+                ft.TextButton("Annulla",
+                              on_click=lambda ev: page.pop_dialog() if page else None),
+                ft.ElevatedButton("Salva", on_click=save,
+                                  style=ft.ButtonStyle(
+                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                      shape=ft.RoundedRectangleBorder(radius=4))),
+            ],
+            bgcolor=COLOR_BG_CARD,
+        ))
+
     def _on_delete_proficiency(self, prof: CharacterProficiency) -> None:
         page = self._page
         if page is None:
             return
 
-        _TIPO_LABELS = {"armor": "competenza", "weapon": "competenza"}
+        _TIPO_LABELS = {
+            "armor": "competenza", "weapon": "competenza",
+            "language": "lingua", "tool": "competenza",
+        }
         tipo = _TIPO_LABELS.get(prof.proficiency_type, "competenza")
 
         def _confirm(e):

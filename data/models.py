@@ -169,6 +169,30 @@ class Weapon:
     # core/equipment_manager.py.
     grip_two_handed: bool = False
 
+    # --- Calcolo automatico tiro per colpire (2026-07-17) ---------------
+    # Categoria PHB dell'arma, usata per determinare la competenza per
+    # confronto con character_proficiencies (proficiency_type="weapon"):
+    # "semplice" | "guerra" | "" (sconosciuta — trattata come non competente
+    # salvo proficiency_override). Sempre richiesta in creazione (autoriempita
+    # dal catalogo se l'arma vi corrisponde, altrimenti scelta a mano — anche
+    # un'arma homebrew "è comunque di un certo tipo", istruzione di Davide).
+    weapon_category: str = ""
+    # Competenza garantita da QUESTA specifica arma indipendentemente dalle
+    # competenze generali del personaggio (es. arma magica che concede
+    # automaticamente competenza a chi la impugna).
+    proficiency_override: bool = False
+    # Caratteristica usata per il tiro per colpire/danno: "" = automatico
+    # (Forza in mischia, Destrezza a distanza, il più alto tra i due se
+    # l'arma ha la proprietà Accurata) | "str" | "dex" — scelta esplicita
+    # del giocatore, sempre disponibile ma pensata soprattutto per le armi
+    # Accurate (dove il PHB lascia scegliere).
+    finesse_ability: str = ""
+    # Override manuale del TOTALE del tiro per colpire: se True, il totale
+    # mostrato è attack_override_value invece del calcolo automatico
+    # (mod. caratteristica + bonus competenza + attack_bonus).
+    attack_total_override: bool = False
+    attack_override_value: int = 0
+
 
 # ---------------------------------------------------------------------------
 # Inventario

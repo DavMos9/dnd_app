@@ -1464,6 +1464,11 @@ def get_weapons(character_id: str, equipped_only: bool = True) -> list:
                 magic_damages=r["magic_damages"] or "[]",
                 versatile_damage_dice=r["versatile_damage_dice"] or "",
                 grip_two_handed=bool(r["grip_two_handed"]),
+                weapon_category=r["weapon_category"] or "" if "weapon_category" in r.keys() else "",
+                proficiency_override=bool(r["proficiency_override"]) if "proficiency_override" in r.keys() else False,
+                finesse_ability=r["finesse_ability"] or "" if "finesse_ability" in r.keys() else "",
+                attack_total_override=bool(r["attack_total_override"]) if "attack_total_override" in r.keys() else False,
+                attack_override_value=r["attack_override_value"] or 0 if "attack_override_value" in r.keys() else 0,
             )
             for r in rows
         ]
@@ -1671,12 +1676,22 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
                   magic_description: str = "", range_normal: int = 0,
                   range_max: int = 0, magic_damages: str = "[]",
                   versatile_damage_dice: str = "",
-                  grip_two_handed: bool = False) -> bool:
+                  grip_two_handed: bool = False,
+                  weapon_category: str = "",
+                  proficiency_override: bool = False,
+                  finesse_ability: str = "",
+                  attack_total_override: bool = False,
+                  attack_override_value: int = 0) -> bool:
     """Crea una nuova arma per il personaggio.
 
     versatile_damage_dice/grip_two_handed: dado danno a due mani e stato
     dell'impugnatura per le armi con proprietà "Versatile" (PHB p.149) —
     vedi il docstring di core/equipment_manager.py per i dettagli meccanici.
+
+    weapon_category/proficiency_override/finesse_ability/
+    attack_total_override/attack_override_value: calcolo automatico del
+    tiro per colpire (2026-07-17) — vedi core/weapon_calculator.py e
+    CLAUDE.md.
     """
     import uuid as _uuid
     try:
@@ -1686,12 +1701,16 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
                (id, character_id, name, damage_dice, damage_type, attack_bonus,
                 damage_bonus, properties, is_magical, magic_description,
                 is_equipped, range_normal, range_max, magic_damages,
-                versatile_damage_dice, grip_two_handed)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                versatile_damage_dice, grip_two_handed, weapon_category,
+                proficiency_override, finesse_ability, attack_total_override,
+                attack_override_value)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (str(_uuid.uuid4()), character_id, name, damage_dice, damage_type,
              attack_bonus, damage_bonus, properties, int(is_magical),
              magic_description, int(is_equipped), range_normal, range_max, magic_damages,
-             versatile_damage_dice, int(grip_two_handed))
+             versatile_damage_dice, int(grip_two_handed), weapon_category,
+             int(proficiency_override), finesse_ability, int(attack_total_override),
+             attack_override_value)
         )
         conn.commit()
         conn.close()
@@ -1707,7 +1726,12 @@ def update_weapon(weapon_id: str, name: str, damage_dice: str, damage_type: str,
                   range_normal: int, range_max: int,
                   magic_damages: str = "[]",
                   versatile_damage_dice: str = "",
-                  grip_two_handed: bool = False) -> bool:
+                  grip_two_handed: bool = False,
+                  weapon_category: str = "",
+                  proficiency_override: bool = False,
+                  finesse_ability: str = "",
+                  attack_total_override: bool = False,
+                  attack_override_value: int = 0) -> bool:
     """Aggiorna un'arma esistente."""
     try:
         conn = get_connection()
@@ -1715,12 +1739,16 @@ def update_weapon(weapon_id: str, name: str, damage_dice: str, damage_type: str,
             """UPDATE weapons SET name=?, damage_dice=?, damage_type=?,
                attack_bonus=?, damage_bonus=?, properties=?, is_equipped=?,
                is_magical=?, magic_description=?, range_normal=?, range_max=?,
-               magic_damages=?, versatile_damage_dice=?, grip_two_handed=?
+               magic_damages=?, versatile_damage_dice=?, grip_two_handed=?,
+               weapon_category=?, proficiency_override=?, finesse_ability=?,
+               attack_total_override=?, attack_override_value=?
                WHERE id=?""",
             (name, damage_dice, damage_type, attack_bonus, damage_bonus,
              properties, int(is_equipped), int(is_magical), magic_description,
              range_normal, range_max, magic_damages,
-             versatile_damage_dice, int(grip_two_handed), weapon_id)
+             versatile_damage_dice, int(grip_two_handed), weapon_category,
+             int(proficiency_override), finesse_ability, int(attack_total_override),
+             attack_override_value, weapon_id)
         )
         conn.commit()
         conn.close()

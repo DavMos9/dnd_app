@@ -217,6 +217,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # specifico, non un mostro a sé. Sola consultazione, il master decide se
     # applicarle. Vedi CLAUDE.md 2026-07-17.
     _add_column(cur, "creature_entries", "variant_rules", "TEXT DEFAULT '[]'")
+    # Calcolo automatico tiro per colpire (2026-07-17, vedi CLAUDE.md) —
+    # categoria PHB per il match di competenza (character_proficiencies),
+    # override esplicito di competenza/caratteristica/totale attacco.
+    _add_column(cur, "weapons", "weapon_category",        "TEXT DEFAULT ''")
+    _add_column(cur, "weapons", "proficiency_override",   "INTEGER DEFAULT 0")
+    _add_column(cur, "weapons", "finesse_ability",        "TEXT DEFAULT ''")
+    _add_column(cur, "weapons", "attack_total_override",  "INTEGER DEFAULT 0")
+    _add_column(cur, "weapons", "attack_override_value",  "INTEGER DEFAULT 0")
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:

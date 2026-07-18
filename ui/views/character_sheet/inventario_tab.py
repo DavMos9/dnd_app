@@ -495,9 +495,14 @@ class InventarioTab(ft.ListView):
         equip_color = COLOR_ACCENT_CRIMSON if w.is_equipped else COLOR_BORDER
 
         # Riga badge magica (opzionale)
+        # Nota: questi badge mostrano SOLO i bonus magici/manuali inseriti
+        # qui (attack_bonus/damage_bonus), non il tiro totale — il totale
+        # calcolato (mod. caratteristica + competenza + questo bonus) è
+        # mostrato nella tab Combattimento, unica sede pensata per l'uso
+        # in gioco del valore finale (vedi core/weapon_calculator.py).
         badge_items: list[ft.Control] = [
-            self._badge(att_str, "ATT", COLOR_ACCENT_BLUE),
-            self._badge(dmg_str, "DANNO", COLOR_ACCENT_CRIMSON),
+            self._badge(att_str, "BONUS ATT.", COLOR_ACCENT_BLUE),
+            self._badge(dmg_str, "BONUS DANNO", COLOR_ACCENT_CRIMSON),
         ]
         if w.is_magical:
             badge_items.append(ft.Container(
@@ -573,14 +578,26 @@ class InventarioTab(ft.ListView):
                 f"{w.damage_dice or '?'} (1 mano) / {w.versatile_damage_dice} (2 mani)",
                 11,
             ))
+        # 2026-07-17, bug report Davide (punto 2, esteso per coerenza anche
+        # qui — prima solo la card Combattimento mostrava il testo, qui
+        # c'era solo il badge "magica" senza descrizione).
+        if w.is_magical and w.magic_description and w.magic_description.strip():
+            content_rows.append(ft.Row([
+                ft.Icon(ft.Icons.AUTO_AWESOME, size=11, color=COLOR_ACCENT_AMBER),
+                ft.Text(w.magic_description.strip(), size=11, color=COLOR_ACCENT_AMBER,
+                        expand=True),
+            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.START))
         _ref_line = self._catalog_ref_line(w.name, "weapon")
         if _ref_line is not None:
             content_rows.append(_ref_line)
 
         # Il bordo sinistro colorato sostituisce la sidebar Container (evita STRETCH)
+        # 2026-07-17: Container(expand=True) invece di Column(expand=True) —
+        # stesso fix/motivazione di _armor_card più sotto (bug overflow
+        # orizzontale web, punto 7 del bug report Davide).
         return ft.Container(
             content=ft.Row([
-                ft.Column(content_rows, spacing=4),
+                ft.Container(content=ft.Column(content_rows, spacing=4), expand=True),
                 action_col,
             ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -704,15 +721,36 @@ class InventarioTab(ft.ListView):
             ], spacing=6),
             ft.Row(badge_items, spacing=6, wrap=True),
         ]
+        # 2026-07-17, bug report Davide (punto 2): il badge "effetti" era
+        # solo un'icona a stella, il testo vero non compariva mai in
+        # nessuna vista — mostrato ora per intero.
+        if item.effects and item.effects.strip():
+            content_rows.append(ft.Row([
+                ft.Icon(ft.Icons.AUTO_AWESOME, size=11, color=COLOR_ACCENT_AMBER),
+                ft.Text(item.effects.strip(), size=11, color=COLOR_ACCENT_AMBER,
+                        expand=True),
+            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.START))
         if item.description:
             content_rows.append(muted_text(item.description, 11))
         _ref_line = self._catalog_ref_line(item.name, "armor")
         if _ref_line is not None:
             content_rows.append(_ref_line)
 
+        # 2026-07-17, bug report Davide (punto 7): un ft.Column senza
+        # vincoli di larghezza dentro un Row non va mai a capo — con un
+        # testo lungo (es. descrizione magica) il Row si allarga oltre i
+        # margini della finestra invece di avvolgere il testo, forzando un
+        # ridimensionamento manuale in web. Fix: la Column che contiene il
+        # testo viene avvolta in un ft.Container(expand=True) — MAI
+        # Column(expand=True) direttamente, che in questo progetto ha già
+        # causato un crash silenzioso di rendering in contesti ListView
+        # (vedi CLAUDE.md, "EXPAND=True su Column dentro Row..."). Il
+        # Container(expand=True) è invece il workaround già stabilito per
+        # ottenere lo stesso risultato (colonna che riempie lo spazio
+        # residuo del Row, testo che va a capo) senza quel rischio.
         return ft.Container(
             content=ft.Row([
-                ft.Column(content_rows, spacing=4),
+                ft.Container(content=ft.Column(content_rows, spacing=4), expand=True),
                 action_col,
             ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -1016,10 +1054,65 @@ class InventarioTab(ft.ListView):
             bgcolor=COLOR_BG_CARD,
         )
 
-        f_atk    = _tf("Bonus attacco",    "0" if is_new else str(weapon.attack_bonus),
+        f_atk    = _tf("Bonus attacco (magico, può essere negativo)",
+                        "0" if is_new else str(weapon.attack_bonus),
                         ft.KeyboardType.NUMBER)
-        f_dbonus = _tf("Bonus danno",      "0" if is_new else str(weapon.damage_bonus),
+        f_dbonus = _tf("Bonus danno (magico, può essere negativo)",
+                        "0" if is_new else str(weapon.damage_bonus),
                         ft.KeyboardType.NUMBER)
+
+        # Categoria PHB dell'arma (2026-07-17) — usata per determinare la
+        # competenza confrontandola con le competenze arma del personaggio
+        # (proficiency_type="weapon"). Richiesta anche per armi homebrew:
+        # "l'arma anche creata a mano è comunque di un certo tipo" (Davide).
+        category_dd = ft.Dropdown(
+            label="Categoria (per calcolo competenza)",
+            value=(weapon.weapon_category or None) if not is_new else None,
+            options=[
+                ft.DropdownOption(key="", text="— non specificata —"),
+                ft.DropdownOption(key="semplice", text="Arma semplice"),
+                ft.DropdownOption(key="guerra", text="Arma da guerra"),
+            ],
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+        )
+        prof_override_cb = ft.Checkbox(
+            label="Competenza garantita da quest'arma (es. arma magica senziente)",
+            value=False if is_new else weapon.proficiency_override,
+        )
+
+        # Caratteristica usata per attacco/danno — automatica salvo override
+        # esplicito del giocatore, mostrata sempre ma particolarmente
+        # rilevante per le armi con proprietà "Accurata".
+        ability_dd = ft.Dropdown(
+            label="Caratteristica per attacco/danno",
+            value=(weapon.finesse_ability or "") if not is_new else "",
+            options=[
+                ft.DropdownOption(key="", text="Automatico (più alto tra For/Des se Accurata)"),
+                ft.DropdownOption(key="str", text="Forza"),
+                ft.DropdownOption(key="dex", text="Destrezza"),
+            ],
+            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=COLOR_BG_CARD,
+        )
+
+        # Override manuale del totale del tiro per colpire — per casi
+        # eccezionali non coperti dal calcolo automatico.
+        atk_override_cb = ft.Checkbox(
+            label="Sovrascrivi il totale del tiro per colpire",
+            value=False if is_new else weapon.attack_total_override,
+        )
+        f_atk_override_val = _tf(
+            "Totale manuale tiro per colpire",
+            "0" if is_new else str(weapon.attack_override_value),
+            ft.KeyboardType.NUMBER,
+        )
+        atk_override_row = ft.Row(
+            cast(list[ft.Control], [atk_override_cb, f_atk_override_val]),
+            spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
 
         # Proprietà — checkbox multi-select
         existing_props: set[str] = set()
@@ -1111,6 +1204,9 @@ class InventarioTab(ft.ListView):
             if rng_n or rng_x:
                 f_rng.value = str(rng_n)
                 f_rngmax.value = str(rng_x)
+            catalog_category = data.get("category") or ""
+            if catalog_category in ("semplice", "guerra"):
+                category_dd.value = catalog_category
             f_name.update()
             f_dice.update()
             dtype_dd.update()
@@ -1118,6 +1214,7 @@ class InventarioTab(ft.ListView):
             f_vdice.update()
             f_rng.update()
             f_rngmax.update()
+            category_dd.update()
 
         catalog_dd.on_select = on_catalog_select
 
@@ -1220,8 +1317,16 @@ class InventarioTab(ft.ListView):
                 rngmax = int(f_rngmax.value or 0)
             except ValueError:
                 atk = dbonus = rng = rngmax = 0
+            try:
+                atk_override_val = int(f_atk_override_val.value or 0)
+            except ValueError:
+                atk_override_val = 0
             magic_desc = (f_magic.value or "").strip()
             equipped   = bool(equip_cb.value)
+            weapon_category = category_dd.value or ""
+            proficiency_override = bool(prof_override_cb.value)
+            finesse_ability = ability_dd.value or ""
+            attack_total_override = bool(atk_override_cb.value)
 
             # Proprietà selezionate (cb.label è StrOrControl nei type stub → str() safe)
             selected_props_list = [
@@ -1265,6 +1370,11 @@ class InventarioTab(ft.ListView):
                     magic_damages=magic_damages_str,
                     versatile_damage_dice=versatile_dice,
                     grip_two_handed=grip_two_handed,
+                    weapon_category=weapon_category,
+                    proficiency_override=proficiency_override,
+                    finesse_ability=finesse_ability,
+                    attack_total_override=attack_total_override,
+                    attack_override_value=atk_override_val,
                 )
             else:
                 assert weapon is not None
@@ -1280,6 +1390,11 @@ class InventarioTab(ft.ListView):
                     magic_damages=magic_damages_str,
                     versatile_damage_dice=versatile_dice,
                     grip_two_handed=grip_two_handed,
+                    weapon_category=weapon_category,
+                    proficiency_override=proficiency_override,
+                    finesse_ability=finesse_ability,
+                    attack_total_override=attack_total_override,
+                    attack_override_value=atk_override_val,
                 )
             if not ok:
                 show_error_dialog(page)
@@ -1292,6 +1407,7 @@ class InventarioTab(ft.ListView):
                           size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Column(
                 [catalog_dd, f_name, f_dice, dtype_dd, f_atk, f_dbonus,
+                 category_dd, prof_override_cb, ability_dd, atk_override_row,
                  props_section, versatile_fields, f_rng, f_rngmax, f_magic,
                  magic_section, equip_cb],
                 spacing=8, scroll=ft.ScrollMode.AUTO,
