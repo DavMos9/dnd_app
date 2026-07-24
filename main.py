@@ -68,7 +68,7 @@ except Exception as e:
 # import data.database
 # ---------------------------------------------------------------------------
 try:
-    from data.database import init_db
+    from data.database import init_db, get_character_exports_path
     _w("[4] data.database imported OK")
 except Exception as e:
     _w(f"[4] data.database import FAILED: {e}")
@@ -126,7 +126,29 @@ if _web:
     # data/database.py -> get_image_library_path(), ui/image_library.py) --
     # nessun endpoint di upload Flet necessario. Vedi CLAUDE.md per il
     # changelog completo.
-    _w(f"[8] WEB mode — host=0.0.0.0 port={_port}")
-    ft.run(run_app, view=ft.AppView.WEB_BROWSER, port=_port, host="0.0.0.0")
+    #
+    # Nota (2026-07-24): assets_dir = get_character_exports_path() serve
+    # invece per la direzione OPPOSTA (server->client, non client->server) --
+    # Flet monta staticamente questa cartella alla radice dell'app, così un
+    # file .dndchar appena esportato (scritto lì da home_view.py) è
+    # raggiungibile a un URL tipo "/Nome_Lv5_20260724.dndchar" e il pulsante
+    # "Scarica" (Button(url=...), NON un FilePicker/UrlLauncher — quei
+    # Service control restano rotti in web mode) lo apre in una nuova scheda,
+    # innescando il download standard del browser (.dndchar non è
+    # un'estensione riconosciuta → Content-Type application/octet-stream →
+    # il browser lo scarica invece di provare a renderizzarlo). Questo NON
+    # soffre del bug FilePicker perché non è mai coinvolto alcun controllo
+    # Service: è overlapping solo di nome con get_image_library_path(), la
+    # cartella e lo scopo sono diversi. L'IMPORT web resta invece bloccato
+    # dallo stesso identico bug upstream (nessun modo di scegliere un file
+    # dal browser senza FilePicker) — vedi CLAUDE.md.
+    _w(f"[8] WEB mode — host=0.0.0.0 port={_port}, assets_dir=exports")
+    ft.run(
+        run_app,
+        view=ft.AppView.WEB_BROWSER,
+        port=_port,
+        host="0.0.0.0",
+        assets_dir=str(get_character_exports_path()),
+    )
 else:
     ft.run(run_app)

@@ -613,33 +613,45 @@ class DiaryView(ft.Column):
         action_bar = ft.Container(
             content=ft.Row(
                 [
-                    ft.TextButton(
-                        "← Precedente",
-                        on_click=lambda e: self._on_prev(),
-                        disabled=(idx <= 0),
-                        style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY),
-                    ),
-                    ft.Container(expand=True),
-                    ft.OutlinedButton(
-                        "Modifica", icon=ft.Icons.EDIT_OUTLINED,
-                        on_click=lambda e: self._on_diary_start_edit(),
-                    ),
-                    ft.Container(width=6),
                     ft.IconButton(
-                        icon=ft.Icons.DELETE_OUTLINE,
-                        icon_color=COLOR_ACCENT_CRIMSON, icon_size=18,
-                        tooltip="Elimina voce",
-                        on_click=lambda e: self._on_diary_delete(),
+                        icon=ft.Icons.ARROW_BACK,
+                        icon_color=COLOR_TEXT_SECONDARY,
+                        tooltip="Voce precedente",
+                        disabled=(idx <= 0),
+                        on_click=lambda e: self._on_prev(),
                     ),
-                    ft.Container(expand=True),
-                    ft.TextButton(
-                        "Successiva →",
-                        on_click=lambda e: self._on_next(),
+                    ft.Row(
+                        [
+                            ft.OutlinedButton(
+                                "Modifica", icon=ft.Icons.EDIT_OUTLINED,
+                                on_click=lambda e: self._on_diary_start_edit(),
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.DELETE_OUTLINE,
+                                icon_color=COLOR_ACCENT_CRIMSON, icon_size=18,
+                                tooltip="Elimina voce",
+                                on_click=lambda e: self._on_diary_delete(),
+                            ),
+                        ],
+                        spacing=6,
+                        tight=True,
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.ARROW_FORWARD,
+                        icon_color=COLOR_TEXT_SECONDARY,
+                        tooltip="Voce successiva",
                         disabled=(idx >= len(self._diary_entries) - 1),
-                        style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY),
+                        on_click=lambda e: self._on_next(),
                     ),
                 ],
+                # niente più spacer expand=True tra i 3 gruppi (bug report Davide,
+                # 2026-07-24: non si adattava a finestre strette/smartphone) —
+                # SPACE_BETWEEN ottiene lo stesso effetto visivo "ai bordi" senza
+                # bisogno di expand, e wrap=True fa scendere il gruppo centrale
+                # su una riga propria se davvero non c'è spazio.
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                wrap=True,
             ),
             bgcolor=COLOR_BG_CARD,
             padding=ft.Padding.symmetric(horizontal=16, vertical=8),

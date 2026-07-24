@@ -14,6 +14,13 @@ services:
       # ui/image_library.py (bug FilePicker in web mode non risolvibile
       # lato applicazione, vedi CLAUDE.md 2026-07-12).
       - ./dnd_image_library:/root/dnd_image_library
+      # Export/Import personaggi — stesso principio del bind mount sopra
+      # (cartella reale sull'host, non un volume Docker gestito): l'app
+      # scrive qui i file .dndchar esportati in modalità web, e mostra un
+      # picker per importarne uno da questa stessa cartella. Davide preleva/
+      # deposita i file via SSH (scp/rsync). Vedi data/database.py →
+      # get_character_exports_path() e ui/character_transfer.py.
+      - ./dnd_character_exports:/root/dnd_character_exports
     environment:
       - FLET_WEB=true
       - FLET_PORT=8000

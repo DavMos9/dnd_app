@@ -581,6 +581,7 @@ class ManualCreationForm(ft.Column):
                     ],
                     alignment=ft.MainAxisAlignment.END,
                     spacing=12,
+                    wrap=True,
                 ),
             ],
             scroll=ft.ScrollMode.AUTO,
@@ -778,6 +779,7 @@ class ManualCreationForm(ft.Column):
                     ],
                     alignment=ft.MainAxisAlignment.END,
                     spacing=12,
+                    wrap=True,
                 ),
             ],
             scroll=ft.ScrollMode.AUTO,
@@ -2444,6 +2446,7 @@ class ManualCreationForm(ft.Column):
                     ],
                     alignment=ft.MainAxisAlignment.END,
                     spacing=12,
+                    wrap=True,
                 ),
             ],
             scroll=ft.ScrollMode.AUTO,
@@ -2748,6 +2751,7 @@ class ManualCreationForm(ft.Column):
             ],
             alignment=ft.MainAxisAlignment.END,
             spacing=12,
+            wrap=True,
         ))
 
         content = ft.Column(rows, scroll=ft.ScrollMode.AUTO, expand=True)
@@ -3600,6 +3604,7 @@ class ManualCreationForm(ft.Column):
                     ],
                     alignment=ft.MainAxisAlignment.END,
                     spacing=12,
+                    wrap=True,
                 ),
             ],
             scroll=ft.ScrollMode.AUTO,

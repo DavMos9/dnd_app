@@ -29,7 +29,14 @@ from data.models import Character, SpellSlot, CharacterProficiency, Weapon, Know
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text, show_error_dialog
+from ui.widgets import wrap_dialog_actions
 from core.weapon_calculator import AttackContext, compute_attack_total, compute_damage_formula
+from ui.components.monster_picker import (
+    load_monsters,
+    show_monster_picker,
+    creature_entry_dict,
+    show_stat_block_dialog,
+)
 
 _loader = GameDataLoader()
 
@@ -37,11 +44,6 @@ logger = logging.getLogger(__name__)
 
 # Nomi ordinali per i livelli slot
 _SLOT_NAMES = ["1°", "2°", "3°", "4°", "5°", "6°", "7°", "8°", "9°"]
-
-
-def monster_display_name(raw_name: str) -> str:
-    """Converte il nome in MAIUSCOLO del bestiary in title case leggibile."""
-    return raw_name.title()
 
 
 class CombattimentoTab(ft.ListView):
@@ -154,6 +156,21 @@ class CombattimentoTab(ft.ListView):
             controls += [
                 section_header("Tratti di Razza"),
                 self._section_racial_traits(),
+            ]
+        # Stile di Combattimento — sola consultazione (2026-07-19, richiesta
+        # Davide: visibile anche in Combattimento pur restando scelto in
+        # Profilo, stesso principio già usato per Abilità di Classe/Tratti
+        # di Razza — nessuna duplicazione della scelta, solo lettura).
+        if (self.character.fighting_style or "").strip():
+            controls += [
+                section_header("Stile di Combattimento"),
+                self._section_fighting_style(),
+            ]
+        # Suppliche Occulte (Warlock) — stesso principio di sola lettura.
+        if any(p.proficiency_type == "invocation" for p in self._profs):
+            controls += [
+                section_header("Suppliche Occulte"),
+                self._section_invocations(),
             ]
         controls += [
             self._section_custom_abilities_header(),
@@ -778,7 +795,7 @@ class CombattimentoTab(ft.ListView):
                     size=11, color=COLOR_TEXT_MUTED,
                 ),
             ], spacing=8),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.TextButton("Reset a 0", on_click=reset,
                               style=ft.ButtonStyle(color=COLOR_TEXT_MUTED)),
@@ -786,7 +803,7 @@ class CombattimentoTab(ft.ListView):
                                   style=ft.ButtonStyle(
                                       bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
                                       shape=ft.RoundedRectangleBorder(radius=4))),
-            ],
+            ]),
             bgcolor=COLOR_BG_CARD,
         ))
 
@@ -1006,6 +1023,10 @@ class CombattimentoTab(ft.ListView):
                     spacing=4,
                 ),
                 move_bar,
+                # wrap=True: su finestre strette/smartphone i 7 pulsanti vanno a capo su
+                # più righe invece di uscire dal bordo destro (bug report Davide,
+                # 2026-07-24). Niente più spacer expand=True (non compatibile con una Row
+                # che va a capo) — "↩ Reset" resta semplicemente in fondo alla fila.
                 ft.Row(
                     [
                         ft.TextButton("−0,5m", on_click=lambda e: use_movement(0.5),
@@ -1020,11 +1041,11 @@ class CombattimentoTab(ft.ListView):
                                       style=ft.ButtonStyle(color=COLOR_ACCENT_AMBER)),
                         ft.TextButton("−6m", on_click=lambda e: use_movement(6),
                                       style=ft.ButtonStyle(color=COLOR_ACCENT_AMBER)),
-                        ft.Container(expand=True),
                         ft.TextButton("↩ Reset", on_click=lambda e: use_movement(-used_m),
                                       style=ft.ButtonStyle(color=COLOR_TEXT_MUTED)),
                     ],
                     spacing=0,
+                    wrap=True,
                 ),
             ],
             spacing=4,
@@ -1877,6 +1898,15 @@ class CombattimentoTab(ft.ListView):
             rows.append(ft.Divider(color=COLOR_BORDER, height=16))
             rows.append(self._section_flexible_casting(sp_res))
 
+        # Frenesia (Barbaro, Cammino del Berserker) — 2026-07-19, vedi
+        # CLAUDE.md per il changelog completo. "berserker" in sottoclasse è
+        # lo stesso pattern già usato altrove nel progetto (es. Totem/Terreno)
+        # per riconoscere una sottoclasse via substring case-insensitive.
+        if (self.character.class_name or "").strip().lower() == "barbaro" \
+                and "berserker" in (self.character.subclass or "").lower():
+            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(self._section_frenzy())
+
         return ft.Container(
             content=ft.Column(rows, spacing=10),
             bgcolor=COLOR_BG_CARD,
@@ -1995,6 +2025,102 @@ class CombattimentoTab(ft.ListView):
             actions=[ft.TextButton("OK", on_click=lambda ev: page.pop_dialog() if page else None)],
             bgcolor=COLOR_BG_CARD,
         ))
+
+    def _section_frenzy(self) -> ft.Column:
+        """
+        Frenesia (Barbaro, Cammino del Berserker), PHB IT: "Il barbaro può
+        entrare in frenesia quando entra in ira. Se lo fa... Quando la sua
+        ira termina, il barbaro subisce un livello di indebolimento."
+
+        L'Indebolimento NON è automatico ad ogni uso di Furia — solo se la
+        Frenesia è stata dichiarata per l'ira in corso. Due passaggi
+        distinti, entrambi in un solo click ciascuno:
+          1. "Dichiara Frenesia" all'inizio dell'ira in frenesia — nessun
+             effetto immediato, segna solo lo stato (persistito, per
+             sopravvivere a un cambio tab/riavvio dell'app).
+          2. "Termina Ira (Frenesia)" quando quell'ira finisce — applica
+             automaticamente +1 Indebolimento (character_repo.end_frenzy_rage,
+             scrittura atomica) senza dover aprire la sezione Indebolimento e
+             incrementarla a mano.
+        Un "Annulla dichiarazione" permette di correggere un click
+        accidentale sul passo 1 senza subire l'Indebolimento.
+        """
+        c = self.character
+
+        if not c.frenzy_active:
+            chip = ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.BOLT_OUTLINED, size=16, color=COLOR_TEXT_MUTED),
+                        ft.Text("Frenesia: dichiara per questa Ira", size=12,
+                                color=COLOR_TEXT_MUTED, weight=ft.FontWeight.W_600,
+                                expand=True),
+                    ],
+                    spacing=6,
+                ),
+                bgcolor=COLOR_BG_SECONDARY,
+                padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+                border=ft.Border.all(1, COLOR_BORDER),
+                border_radius=6,
+                on_click=self._on_declare_frenzy,
+                ink=True,
+                tooltip="PHB: il barbaro può entrare in frenesia quando entra in ira",
+            )
+            return ft.Column([chip], spacing=4)
+
+        chip = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.BOLT, size=16, color=COLOR_ACCENT_CRIMSON),
+                    ft.Text("Frenesia attiva — Termina Ira (+1 Indebolimento)", size=12,
+                            color=COLOR_ACCENT_CRIMSON, weight=ft.FontWeight.BOLD,
+                            expand=True),
+                ],
+                spacing=6,
+            ),
+            bgcolor=COLOR_BG_CARD,
+            padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+            border=ft.Border.all(2, COLOR_ACCENT_CRIMSON),
+            border_radius=6,
+            on_click=self._on_end_frenzy,
+            ink=True,
+            tooltip="Quando l'ira in frenesia termina: applica automaticamente 1 livello di Indebolimento",
+        )
+        cancel_btn = ft.TextButton(
+            "Annulla dichiarazione (senza Indebolimento)",
+            on_click=self._on_cancel_frenzy,
+            style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+        )
+        return ft.Column(
+            [chip, ft.Row([cancel_btn], alignment=ft.MainAxisAlignment.END)],
+            spacing=0,
+        )
+
+    def _on_declare_frenzy(self, e: Any) -> None:
+        c = self.character
+        if not character_repo.update_frenzy_state(c.id, True):
+            show_error_dialog(self._page, "Impossibile dichiarare la Frenesia.")
+            return
+        c.frenzy_active = True
+        self._refresh()
+
+    def _on_cancel_frenzy(self, e: Any) -> None:
+        c = self.character
+        if not character_repo.update_frenzy_state(c.id, False):
+            show_error_dialog(self._page, "Impossibile annullare la dichiarazione di Frenesia.")
+            return
+        c.frenzy_active = False
+        self._refresh()
+
+    def _on_end_frenzy(self, e: Any) -> None:
+        c = self.character
+        new_level = character_repo.end_frenzy_rage(c.id, c.exhaustion_level)
+        if new_level is None:
+            show_error_dialog(self._page, "Impossibile terminare la Frenesia.")
+            return
+        c.frenzy_active = False
+        c.exhaustion_level = new_level
+        self._refresh()
 
     def _resource_unlimited_row(self, res: ClassResource) -> ft.Row:
         """Riga per risorse senza limite di utilizzi (es. Furia del Barbaro al 20° livello)."""
@@ -2286,6 +2412,131 @@ class CombattimentoTab(ft.ListView):
 
         return ft.Container(
             content=ft.Column(rows, spacing=6),
+            bgcolor=COLOR_BG_CARD,
+            padding=14,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_BLUE),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    # ------------------------------------------------------------------
+    # Stile di Combattimento / Suppliche Occulte — sola consultazione
+    # (2026-07-19). La scelta resta unicamente in Profilo (dove viene
+    # assegnata al level-up: character.fighting_style, e le righe
+    # character_proficiencies proficiency_type="invocation") — qui si legge
+    # lo stesso dato per mostrarlo dove ha effetto in combattimento, senza
+    # introdurre una seconda fonte di verità. Stesso pattern click-per-
+    # descrizione già usato in _section_class_features().
+    # ------------------------------------------------------------------
+
+    def _section_fighting_style(self) -> ft.Container:
+        style_name = (self.character.fighting_style or "").strip()
+        style_data = next(
+            (s for s in _loader.get_fighting_style_data(self.character.class_name or "")
+             if s.get("name", "").strip().lower() == style_name.lower()),
+            None,
+        )
+        description = (style_data or {}).get("description", "")
+
+        def _open_dialog(e=None):
+            if not self._page:
+                return
+            page = self._page
+            page.show_dialog(ft.AlertDialog(
+                title=ft.Text(style_name, size=14, weight=ft.FontWeight.BOLD,
+                              color=COLOR_TEXT_TITLE),
+                content=ft.Column([
+                    ft.Text(
+                        description or "Nessuna descrizione disponibile.",
+                        size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+                    ),
+                ], spacing=10, scroll=ft.ScrollMode.AUTO),
+                actions=[
+                    ft.TextButton("Chiudi",
+                                  on_click=lambda ev: page.pop_dialog() if page else None),
+                ],
+                bgcolor=COLOR_BG_CARD,
+            ))
+
+        row = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.SPORTS_MARTIAL_ARTS, size=18, color=COLOR_ACCENT_CRIMSON),
+                ft.Container(width=8),
+                ft.Text(style_name, size=13, color=COLOR_TEXT_PRIMARY,
+                        weight=ft.FontWeight.W_600, expand=True),
+                ft.Icon(ft.Icons.CHEVRON_RIGHT, size=16, color=COLOR_TEXT_MUTED),
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
+            on_click=_open_dialog,
+            ink=True,
+            border_radius=4,
+            padding=ft.Padding.symmetric(vertical=6, horizontal=4),
+        )
+
+        return ft.Container(
+            content=row,
+            bgcolor=COLOR_BG_CARD,
+            padding=14,
+            border=ft.Border(
+                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
+                left=ft.BorderSide(1, COLOR_BORDER),
+                right=ft.BorderSide(1, COLOR_BORDER),
+                bottom=ft.BorderSide(1, COLOR_BORDER),
+            ),
+            border_radius=6,
+        )
+
+    def _section_invocations(self) -> ft.Container:
+        names = sorted({
+            p.name for p in self._profs
+            if p.proficiency_type == "invocation" and p.name
+        })
+
+        def _open_dialog(inv: dict, e=None):
+            if not self._page:
+                return
+            page = self._page
+            page.show_dialog(ft.AlertDialog(
+                title=ft.Text(inv.get("name", ""), size=14, weight=ft.FontWeight.BOLD,
+                              color=COLOR_TEXT_TITLE),
+                content=ft.Column([
+                    ft.Text(
+                        inv.get("description", "") or "Nessuna descrizione disponibile.",
+                        size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+                    ),
+                ], spacing=10, scroll=ft.ScrollMode.AUTO),
+                actions=[
+                    ft.TextButton("Chiudi",
+                                  on_click=lambda ev: page.pop_dialog() if page else None),
+                ],
+                bgcolor=COLOR_BG_CARD,
+            ))
+
+        rows: list[ft.Control] = []
+        for name in names:
+            inv = _loader.get_invocation(name) or {"name": name, "description": ""}
+            rows.append(ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=16, color=COLOR_ACCENT_BLUE),
+                    ft.Container(width=8),
+                    ft.Text(inv.get("name") or name, size=13, color=COLOR_TEXT_PRIMARY,
+                            weight=ft.FontWeight.W_600, expand=True),
+                    ft.Icon(ft.Icons.CHEVRON_RIGHT, size=16, color=COLOR_TEXT_MUTED),
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
+                on_click=lambda e, i=inv: _open_dialog(i),
+                ink=True,
+                border_radius=4,
+                padding=ft.Padding.symmetric(vertical=6, horizontal=4),
+            ))
+
+        if not rows:
+            rows.append(muted_text("Nessuna Supplica Occulta ancora appresa.", 12))
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=2),
             bgcolor=COLOR_BG_CARD,
             padding=14,
             border=ft.Border(
@@ -3422,400 +3673,34 @@ class CombattimentoTab(ft.ListView):
 
     def _open_creature_search(self, entry_type: str) -> None:
         """
-        Dialog di ricerca nel bestiary con filtri tipo/GS e vista dettaglio inline.
-        Due stati nella stessa AlertDialog (no dialog annidati):
-          - LIST  : filtri + lista scrollabile; click riga → DETAIL
-          - DETAIL: scheda completa; ← torna lista; bottone evoca/aggiungi
+        Dialog di ricerca nel bestiario con filtri tipo/GS e vista dettaglio
+        inline. Delega interamente a `show_monster_picker`
+        (ui/components/monster_picker.py, estratto da qui il 2026-07-24 per
+        essere riusato anche dalla Sezione Master) — nessuna modifica di
+        comportamento rispetto a prima del refactoring, solo il salvataggio
+        su `creature_entries` (specifico del personaggio) resta locale qui.
         entry_type = "forma"      → filtra solo Bestie
                    = "evocazione" → tutte le creature
         """
         if not self._page:
             return
         page = self._page
-        import json as _json
-        from pathlib import Path
 
-        # ── Carica monsters.json ──────────────────────────────────────────
-        monsters_path = (
-            Path(__file__).parent.parent.parent.parent / "data" / "game_data" / "monsters.json"
+        all_monsters = load_monsters()
+        pool = (
+            [m for m in all_monsters if m.get("type") == "Bestia"]
+            if entry_type == "forma" else all_monsters
         )
-        try:
-            all_monsters: list[dict] = _json.loads(monsters_path.read_text(encoding="utf-8"))
-        except Exception:
-            all_monsters = []
-
-        # Forma Selvatica → solo Bestie; Evocazione → tutto
-        if entry_type == "forma":
-            pool = [m for m in all_monsters if m.get("type") == "Bestia"]
-        else:
-            pool = all_monsters
 
         title_label = "Aggiungi Forma Selvatica" if entry_type == "forma" else "Evoca Creatura"
         existing_names = {
             e.name.upper()
             for e in (self._forme if entry_type == "forma" else self._evocazioni)
         }
+        select_label = "✔ Aggiungi al Bestiary" if entry_type == "forma" else "✔ Evoca"
+        select_color = COLOR_ACCENT_CRIMSON if entry_type == "forma" else COLOR_ACCENT_BLUE
 
-        # ── Helper CR ────────────────────────────────────────────────────
-        def cr_to_float(cr: Any) -> float:
-            if not cr or cr in ("—", ""):
-                return 9999.0
-            s = str(cr)
-            if "/" in s:
-                try:
-                    a, b = s.split("/")
-                    return int(a) / int(b)
-                except Exception:
-                    return 9999.0
-            try:
-                return float(s)
-            except Exception:
-                return 9999.0
-
-        # ── Opzioni filtri ───────────────────────────────────────────────
-        all_types = sorted({m.get("type", "") for m in pool if m.get("type")})
-        cr_vals_raw = sorted(
-            {m.get("cr", "") for m in pool if m.get("cr")},
-            key=cr_to_float,
-        )
-
-        # ── Stato mutabile condiviso tra chiusure ────────────────────────
-        state: dict[str, Any] = {
-            "mode": "list",     # "list" | "detail"
-            "type_filter": "",
-            "cr_max": "",
-            "query": "",
-        }
-        # Placeholder per il dialog (assegnato più avanti)
-        dlg: Any = None
-
-        # ── Widget lista persistenti tra ri-render ────────────────────────
-        type_dd = ft.Dropdown(
-            label="Tipo",
-            options=[
-                ft.DropdownOption(key="", text="Tutti"),
-            ] + [ft.DropdownOption(key=t, text=t) for t in all_types],
-            value="",
-            width=148,
-            dense=True,
-            text_size=12,
-            border_radius=6,
-        )
-        cr_dd = ft.Dropdown(
-            label="GS max",
-            options=[
-                ft.DropdownOption(key="", text="Tutti"),
-            ] + [ft.DropdownOption(key=str(v), text=f"GS {v}") for v in cr_vals_raw],
-            value="",
-            width=112,
-            dense=True,
-            text_size=12,
-            border_radius=6,
-        )
-        search_tf = ft.TextField(
-            label="Cerca per nome...",
-            prefix_icon=ft.Icons.SEARCH,
-            autofocus=True,
-            border_radius=8,
-            dense=True,
-            text_size=13,
-        )
-        results_col = ft.Column([], spacing=3, scroll=ft.ScrollMode.AUTO, height=270)
-
-        # ── Filtra pool ──────────────────────────────────────────────────
-        def _filtered_pool() -> list[dict]:
-            q = state["query"].strip().upper()
-            tf = state["type_filter"]
-            cm = state["cr_max"]
-            cr_limit = cr_to_float(cm) if cm else 9999.0
-            out: list[dict] = []
-            for m in pool:
-                if tf and m.get("type", "") != tf:
-                    continue
-                if cr_to_float(m.get("cr", "")) > cr_limit + 1e-9:
-                    continue
-                if q and q not in m["name"].upper():
-                    continue
-                out.append(m)
-            return out[:60]
-
-        # ── Popola lista ─────────────────────────────────────────────────
-        def _populate_list() -> None:
-            filtered = _filtered_pool()
-            results_col.controls.clear()
-            for m in filtered:
-                already = m["name"].upper() in existing_names
-                cr_str = f"GS {m['cr']}" if m.get("cr") else "GS —"
-                type_str = m.get("type", "")
-                subtitle = f"{type_str} · {cr_str} · {m.get('hp_max', '?')} PF"
-                if already:
-                    subtitle += " · Già aggiunta"
-
-                def _go_detail(_e: Any, mon: dict = m) -> None:
-                    _show_detail(mon)
-
-                results_col.controls.append(ft.Container(
-                    content=ft.Row([
-                        ft.Column([
-                            ft.Text(
-                                monster_display_name(m["name"]),
-                                size=13,
-                                weight=ft.FontWeight.W_600,
-                                color=COLOR_TEXT_MUTED if already else COLOR_TEXT_PRIMARY,
-                            ),
-                            ft.Text(
-                                subtitle,
-                                size=11,
-                                color=COLOR_ACCENT_CRIMSON if already else COLOR_TEXT_MUTED,
-                            ),
-                        ], spacing=1, expand=True),
-                        ft.Icon(
-                            ft.Icons.CHECK_CIRCLE if already else ft.Icons.CHEVRON_RIGHT,
-                            color=COLOR_ACCENT_CRIMSON if already else COLOR_TEXT_MUTED,
-                            size=18,
-                        ),
-                    ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                    padding=ft.Padding.symmetric(vertical=6, horizontal=4),
-                    border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),
-                    on_click=_go_detail,
-                    ink=True,
-                ))
-            try:
-                results_col.update()
-            except RuntimeError:
-                pass
-
-        # ── Costruisce contenuto stato LISTA ─────────────────────────────
-        def _list_content() -> ft.Column:
-            return ft.Column(
-                cast(list[ft.Control], [
-                    ft.Row([type_dd, cr_dd], spacing=8),
-                    ft.Container(height=4),
-                    search_tf,
-                    ft.Container(height=6),
-                    results_col,
-                    ft.Container(height=4),
-                    ft.TextButton(
-                        "Inserimento manuale (creatura non trovata)",
-                        icon=ft.Icons.EDIT,
-                        on_click=_manual_entry,
-                        style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
-                    ),
-                ]),
-                spacing=4,
-                tight=True,
-            )
-
-        # ── Costruisce contenuto stato DETTAGLIO (da dict JSON) ───────────
-        def _detail_content(m: dict) -> ft.Column:
-            def stat_col_d(abbr: str, score: int) -> ft.Column:
-                mod = (score - 10) // 2
-                sign = "+" if mod >= 0 else ""
-                return ft.Column([
-                    ft.Text(abbr, size=10, color=COLOR_TEXT_MUTED,
-                            weight=ft.FontWeight.W_600,
-                            text_align=ft.TextAlign.CENTER),
-                    ft.Text(str(score), size=16, weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_PRIMARY,
-                            text_align=ft.TextAlign.CENTER),
-                    ft.Text(f"{sign}{mod}", size=11, color=COLOR_TEXT_MUTED,
-                            text_align=ft.TextAlign.CENTER),
-                ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-
-            def feat_tile(name: str, text: str) -> ft.Container:
-                return ft.Container(
-                    content=ft.Column([
-                        ft.Text(name, size=12, weight=ft.FontWeight.BOLD,
-                                color=COLOR_TEXT_PRIMARY, italic=True),
-                        ft.Text(text, size=11, color=COLOR_TEXT_SECONDARY),
-                    ], spacing=2),
-                    padding=ft.Padding.only(bottom=6),
-                )
-
-            def info_r(label: str, value: str) -> ft.Row | None:
-                if not value:
-                    return None
-                return ft.Row([
-                    ft.Text(label + ":", size=11, color=COLOR_TEXT_MUTED,
-                            weight=ft.FontWeight.W_600),
-                    ft.Container(width=4),
-                    ft.Text(value, size=11, color=COLOR_TEXT_PRIMARY, expand=True),
-                ])
-
-            stats_row = ft.Row([
-                stat_col_d("FOR", int(m.get("str_score", 10))),
-                stat_col_d("DES", int(m.get("dex_score", 10))),
-                stat_col_d("COS", int(m.get("con_score", 10))),
-                stat_col_d("INT", int(m.get("int_score", 10))),
-                stat_col_d("SAG", int(m.get("wis_score", 10))),
-                stat_col_d("CAR", int(m.get("cha_score", 10))),
-            ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
-
-            info_items: list[ft.Control] = []
-            ac_note = m.get("ac_note", "")
-            for lbl, val in [
-                ("CA",     f"{m.get('ac', 10)}{' (' + ac_note + ')' if ac_note else ''}"),
-                ("PF",     str(m.get("hp_max", "—"))),
-                ("Velocità", str(m.get("speed", ""))),
-                ("GS",     str(m.get("cr", "—"))),
-                ("Allineamento", m.get("alignment", "")),
-                ("Sensi",  m.get("senses", "")),
-                ("Linguaggi", m.get("languages", "")),
-                ("Resistenze", m.get("damage_resistances", "")),
-                ("Immunità danni", m.get("damage_immunities", "")),
-                ("Immunità condizioni", m.get("condition_immunities", "")),
-            ]:
-                r = info_r(lbl, val)
-                if r:
-                    info_items.append(r)
-
-            def _parse_list(field: str) -> list[dict]:
-                raw = m.get(field, [])
-                if isinstance(raw, str):
-                    try:
-                        return _json.loads(raw)
-                    except Exception:
-                        return []
-                return raw if isinstance(raw, list) else []
-
-            def _desc(d: dict) -> str:
-                # Bug reale corretto il 2026-07-17: monsters.json usa la chiave
-                # "description" per traits/actions/reactions/legendary_actions,
-                # non "text" — nessun writer ha mai prodotto "text", quindi le
-                # descrizioni non sono mai state mostrate. Supporta entrambe
-                # per compatibilità futura.
-                return d.get("description", "") or d.get("text", "")
-
-            traits_l  = _parse_list("traits")
-            actions_l = _parse_list("actions")
-            react_l   = _parse_list("reactions")
-            leg_l     = _parse_list("legendary_actions")
-            lair_l    = m.get("lair_actions", []) if isinstance(m.get("lair_actions", []), list) else []
-            regional_l = m.get("regional_effects", []) if isinstance(m.get("regional_effects", []), list) else []
-            variants_l = _parse_list("variant_rules")
-
-            features: list[ft.Control] = []
-            if traits_l:
-                features.append(ft.Text("Tratti", size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_CRIMSON))
-                for t in traits_l:
-                    features.append(feat_tile(t.get("name", ""), _desc(t)))
-            if actions_l:
-                features.append(ft.Text("Azioni", size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_CRIMSON))
-                for a in actions_l:
-                    features.append(feat_tile(a.get("name", ""), _desc(a)))
-            if react_l:
-                features.append(ft.Text("Reazioni", size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_CRIMSON))
-                for r in react_l:
-                    features.append(feat_tile(r.get("name", ""), _desc(r)))
-            if leg_l:
-                features.append(ft.Text("Azioni Leggendarie", size=12,
-                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
-                for la in leg_l:
-                    features.append(feat_tile(la.get("name", ""), _desc(la)))
-            if lair_l:
-                features.append(ft.Text("Azioni di Tana", size=12,
-                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
-                lair_intro = m.get("lair_actions_intro", "")
-                if lair_intro:
-                    features.append(ft.Text(lair_intro, size=11, color=COLOR_TEXT_SECONDARY,
-                                            italic=True))
-                for eff in lair_l:
-                    features.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
-            if regional_l:
-                reg_label = m.get("regional_effects_label", "") or "Effetti Regionali"
-                features.append(ft.Text(reg_label, size=12,
-                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
-                reg_intro = m.get("regional_effects_intro", "")
-                if reg_intro:
-                    features.append(ft.Text(reg_intro, size=11, color=COLOR_TEXT_SECONDARY,
-                                            italic=True))
-                for eff in regional_l:
-                    features.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
-            if variants_l:
-                features.append(ft.Text("Varianti Opzionali", size=12,
-                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE))
-                for v in variants_l:
-                    features.append(feat_tile(v.get("name", ""), _desc(v)))
-
-            items: list[ft.Control] = cast(list[ft.Control], [
-                ft.Text(
-                    f"{m.get('type', '?')} · {m.get('alignment', '—')}",
-                    size=11, color=COLOR_TEXT_MUTED, italic=True,
-                ),
-                ft.Divider(height=10, color=COLOR_BORDER),
-                stats_row,
-                ft.Divider(height=10, color=COLOR_BORDER),
-                *info_items,
-            ])
-            if features:
-                items.append(ft.Divider(height=10, color=COLOR_BORDER))
-                items.extend(features)
-
-            return ft.Column(items, spacing=6, scroll=ft.ScrollMode.AUTO)
-
-        # ── Transizione a DETTAGLIO ──────────────────────────────────────
-        def _show_detail(m: dict) -> None:
-            already = m["name"].upper() in existing_names
-            btn_label = (
-                "✓ Già presente" if already
-                else ("✔ Aggiungi al Bestiary" if entry_type == "forma" else "✔ Evoca")
-            )
-            btn_color = COLOR_ACCENT_CRIMSON if entry_type == "forma" else COLOR_ACCENT_BLUE
-
-            def _do_add(_e: Any) -> None:
-                _save_creature(m)
-
-            def _go_back(_e: Any) -> None:
-                state["mode"] = "list"
-                dlg.content = ft.Container(content=_list_content(), height=480)
-                dlg.title = ft.Text(title_label)
-                dlg.actions = cast(list[ft.Control], [
-                    ft.TextButton("Chiudi", on_click=lambda _: page.pop_dialog()),
-                ])
-                try:
-                    page.update()
-                except RuntimeError:
-                    pass
-
-            add_btn = ft.ElevatedButton(
-                btn_label,
-                icon=ft.Icons.CHECK if already else ft.Icons.ADD,
-                disabled=already,
-                on_click=_do_add,
-                style=ft.ButtonStyle(
-                    bgcolor=btn_color if not already else None,
-                    color="#ffffff" if not already else COLOR_TEXT_MUTED,
-                ),
-            )
-
-            dlg.content = ft.Container(content=_detail_content(m), height=480)
-            dlg.title = ft.Row([
-                ft.IconButton(
-                    ft.Icons.ARROW_BACK,
-                    on_click=_go_back,
-                    tooltip="Torna alla lista",
-                    icon_color=COLOR_TEXT_SECONDARY,
-                ),
-                ft.Text(
-                    monster_display_name(m["name"]),
-                    size=15,
-                    weight=ft.FontWeight.BOLD,
-                    expand=True,
-                ),
-            ])
-            dlg.actions = cast(list[ft.Control], [
-                add_btn,
-                ft.TextButton("Chiudi", on_click=lambda _: page.pop_dialog()),
-            ])
-            try:
-                page.update()
-            except RuntimeError:
-                pass
-
-        # ── Salva nel DB e chiude ────────────────────────────────────────
+        # ── Salva nel DB e chiude (specifico del personaggio, resta locale) ──
         def _save_creature(m: dict) -> None:
             entry = character_repo.create_creature_entry(
                 character_id=self.character.id,
@@ -3835,24 +3720,24 @@ class CombattimentoTab(ft.ListView):
                 int_score=int(m.get("int_score", 10)),
                 wis_score=int(m.get("wis_score", 10)),
                 cha_score=int(m.get("cha_score", 10)),
-                saving_throws=_json.dumps(m.get("saving_throws", {})),
-                skills=_json.dumps(m.get("skills", {})),
+                saving_throws=json.dumps(m.get("saving_throws", {})),
+                skills=json.dumps(m.get("skills", {})),
                 damage_vulnerabilities=m.get("damage_vulnerabilities", ""),
                 damage_resistances=m.get("damage_resistances", ""),
                 damage_immunities=m.get("damage_immunities", ""),
                 condition_immunities=m.get("condition_immunities", ""),
                 senses=m.get("senses", ""),
                 languages=m.get("languages", ""),
-                traits=_json.dumps(m.get("traits", [])),
-                actions=_json.dumps(m.get("actions", [])),
-                reactions=_json.dumps(m.get("reactions", [])),
-                legendary_actions=_json.dumps(m.get("legendary_actions", [])),
+                traits=json.dumps(m.get("traits", [])),
+                actions=json.dumps(m.get("actions", [])),
+                reactions=json.dumps(m.get("reactions", [])),
+                legendary_actions=json.dumps(m.get("legendary_actions", [])),
                 lair_actions_intro=m.get("lair_actions_intro", ""),
-                lair_actions=_json.dumps(m.get("lair_actions", [])),
+                lair_actions=json.dumps(m.get("lair_actions", [])),
                 regional_effects_label=m.get("regional_effects_label", ""),
                 regional_effects_intro=m.get("regional_effects_intro", ""),
-                regional_effects=_json.dumps(m.get("regional_effects", [])),
-                variant_rules=_json.dumps(m.get("variant_rules", [])),
+                regional_effects=json.dumps(m.get("regional_effects", [])),
+                variant_rules=json.dumps(m.get("variant_rules", [])),
                 source_page=int(m.get("source_page", 0)),
             )
             if entry:
@@ -3861,38 +3746,16 @@ class CombattimentoTab(ft.ListView):
                 page.pop_dialog()
                 self._refresh()
 
-        # ── Apertura dialog manuale ──────────────────────────────────────
-        def _manual_entry(_e: Any) -> None:
-            page.pop_dialog()
-            self._open_manual_creature_dialog(entry_type)
-
-        # ── Handler filtri ───────────────────────────────────────────────
-        def _on_type_select(_e: Any) -> None:
-            state["type_filter"] = type_dd.value or ""
-            _populate_list()
-
-        def _on_cr_select(_e: Any) -> None:
-            state["cr_max"] = cr_dd.value or ""
-            _populate_list()
-
-        def _on_search_change(_e: Any) -> None:
-            state["query"] = search_tf.value or ""
-            _populate_list()
-
-        cast(Any, type_dd).on_select = _on_type_select
-        cast(Any, cr_dd).on_select = _on_cr_select
-        cast(Any, search_tf).on_change = _on_search_change
-
-        _populate_list()
-
-        dlg = ft.AlertDialog(
-            title=ft.Text(title_label),
-            content=ft.Container(content=_list_content(), height=480),
-            actions=cast(list[ft.Control], [
-                ft.TextButton("Chiudi", on_click=lambda _: page.pop_dialog()),
-            ]),
+        show_monster_picker(
+            page,
+            title_label,
+            pool,
+            existing_names=existing_names,
+            on_select=_save_creature,
+            select_label=select_label,
+            select_color=select_color,
+            on_manual=lambda: self._open_manual_creature_dialog(entry_type),
         )
-        page.show_dialog(dlg)
 
     def _open_manual_creature_dialog(self, entry_type: str) -> None:
         """Dialog per inserire manualmente una creatura non presente nel bestiary."""
@@ -3952,202 +3815,16 @@ class CombattimentoTab(ft.ListView):
 
     def _show_creature_sheet(self, c: CreatureEntry) -> None:
         """
-        AlertDialog con scheda completa della creatura:
-        CA, HP, velocità, 6 stat, TS, skill, resistenze, sensi, lingue, CR,
-        tratti e azioni (scrollabile).
+        AlertDialog con scheda completa della creatura: CA, HP, velocità,
+        6 stat, TS, skill, resistenze, sensi, lingue, CR, tratti/azioni
+        (scrollabile). Delega a `show_stat_block_dialog`/`creature_entry_dict`
+        (ui/components/monster_picker.py, estratto da qui il 2026-07-24) —
+        stesso identico rendering di prima, solo non più duplicato riga per
+        riga rispetto a `_open_creature_search`.
         """
         if not self._page:
             return
-        page = self._page
-        import json as _json
-
-        def stat_col(abbr: str, score: int) -> ft.Column:
-            mod = (score - 10) // 2
-            sign = "+" if mod >= 0 else ""
-            return ft.Column([
-                ft.Text(abbr, size=10, color=COLOR_TEXT_MUTED,
-                        weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER),
-                ft.Text(str(score), size=16, weight=ft.FontWeight.BOLD,
-                        color=COLOR_TEXT_PRIMARY, text_align=ft.TextAlign.CENTER),
-                ft.Text(f"{sign}{mod}", size=11, color=COLOR_TEXT_MUTED,
-                        text_align=ft.TextAlign.CENTER),
-            ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-
-        def feature_tile(name: str, text: str) -> ft.Container:
-            return ft.Container(
-                content=ft.Column([
-                    ft.Text(name, size=12, weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_PRIMARY, italic=True),
-                    ft.Text(text, size=11, color=COLOR_TEXT_SECONDARY),
-                ], spacing=2),
-                padding=ft.Padding.only(bottom=8),
-            )
-
-        def info_row(label: str, value: str) -> ft.Row | None:
-            if not value:
-                return None
-            return ft.Row([
-                ft.Text(label + ":", size=11, color=COLOR_TEXT_MUTED,
-                        weight=ft.FontWeight.W_600),
-                ft.Container(width=4),
-                ft.Text(value, size=11, color=COLOR_TEXT_PRIMARY, expand=True),
-            ])
-
-        # Stat block
-        stats_row = ft.Row([
-            stat_col("FOR", c.str_score),
-            stat_col("DES", c.dex_score),
-            stat_col("COS", c.con_score),
-            stat_col("INT", c.int_score),
-            stat_col("SAG", c.wis_score),
-            stat_col("CAR", c.cha_score),
-        ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
-
-        # Info block
-        info_items: list[ft.Control] = []
-        for lbl, val in [
-            ("CA", f"{c.ac}{' (' + c.ac_note + ')' if c.ac_note else ''}"),
-            ("PF", f"{c.hp_max}" + (f" ({c.hp_formula})" if c.hp_formula else "")),
-            ("Velocità", c.speed),
-            ("GS", c.cr or "—"),
-            ("Allineamento", c.alignment),
-        ]:
-            row = info_row(lbl, val)
-            if row:
-                info_items.append(row)
-
-        # TS e skill
-        try:
-            ts_dict: dict = _json.loads(c.saving_throws)
-        except Exception:
-            ts_dict = {}
-        try:
-            sk_dict: dict = _json.loads(c.skills)
-        except Exception:
-            sk_dict = {}
-
-        if ts_dict:
-            ts_str = ", ".join(f"{k} {v}" for k, v in ts_dict.items())
-            r = info_row("Tiri Salvezza", ts_str)
-            if r:
-                info_items.append(r)
-        if sk_dict:
-            sk_str = ", ".join(f"{k} {v}" for k, v in sk_dict.items())
-            r = info_row("Abilità", sk_str)
-            if r:
-                info_items.append(r)
-
-        for lbl, val in [
-            ("Vulnerabilità", c.damage_vulnerabilities),
-            ("Resistenze",    c.damage_resistances),
-            ("Immunità danni", c.damage_immunities),
-            ("Immunità condizioni", c.condition_immunities),
-            ("Sensi", c.senses),
-            ("Linguaggi", c.languages),
-        ]:
-            r = info_row(lbl, val)
-            if r:
-                info_items.append(r)
-
-        # Tratti e azioni
-        def _load_list(raw: Any) -> list[Any]:
-            # list[Any] perché il contenuto varia: liste di dict (tratti/azioni/
-            # reazioni/leggendarie/varianti) o liste di stringhe (azioni di tana/
-            # effetti regionali) — un tipo unico più stretto (es. list[dict])
-            # farebbe fallire l'assegnazione alle variabili list[str] sottostanti.
-            try:
-                return _json.loads(raw) if isinstance(raw, str) else (raw or [])
-            except Exception:
-                return []
-
-        def _desc(d: dict) -> str:
-            # Bug reale corretto il 2026-07-17: monsters.json usa la chiave
-            # "description" per traits/actions/reactions/legendary_actions,
-            # non "text" — nessun writer ha mai prodotto "text", quindi le
-            # descrizioni non sono mai state mostrate. Supporta entrambe
-            # per compatibilità futura.
-            return d.get("description", "") or d.get("text", "")
-
-        traits: list[dict] = _load_list(c.traits)
-        actions: list[dict] = _load_list(c.actions)
-        reactions: list[dict] = _load_list(getattr(c, "reactions", "[]"))
-        leg_actions: list[dict] = _load_list(c.legendary_actions)
-        lair_actions: list[str] = _load_list(getattr(c, "lair_actions", "[]"))
-        regional_effects: list[str] = _load_list(getattr(c, "regional_effects", "[]"))
-        variant_rules: list[dict] = _load_list(getattr(c, "variant_rules", "[]"))
-
-        features_col: list[ft.Control] = []
-        if traits:
-            features_col.append(ft.Text("Tratti", size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_CRIMSON))
-            for t in traits:
-                features_col.append(feature_tile(t.get("name", ""), _desc(t)))
-        if actions:
-            features_col.append(ft.Text("Azioni", size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_CRIMSON))
-            for a in actions:
-                features_col.append(feature_tile(a.get("name", ""), _desc(a)))
-        if reactions:
-            features_col.append(ft.Text("Reazioni", size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_CRIMSON))
-            for r in reactions:
-                features_col.append(feature_tile(r.get("name", ""), _desc(r)))
-        if leg_actions:
-            features_col.append(ft.Text("Azioni Leggendarie", size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_CRIMSON))
-            for la in leg_actions:
-                features_col.append(feature_tile(la.get("name", ""), _desc(la)))
-        if lair_actions:
-            features_col.append(ft.Text("Azioni di Tana", size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_CRIMSON))
-            lair_intro = getattr(c, "lair_actions_intro", "")
-            if lair_intro:
-                features_col.append(ft.Text(lair_intro, size=11, color=COLOR_TEXT_SECONDARY,
-                                            italic=True))
-            for eff in lair_actions:
-                features_col.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
-        if regional_effects:
-            reg_label = getattr(c, "regional_effects_label", "") or "Effetti Regionali"
-            features_col.append(ft.Text(reg_label, size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_CRIMSON))
-            reg_intro = getattr(c, "regional_effects_intro", "")
-            if reg_intro:
-                features_col.append(ft.Text(reg_intro, size=11, color=COLOR_TEXT_SECONDARY,
-                                            italic=True))
-            for eff in regional_effects:
-                features_col.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
-        if variant_rules:
-            features_col.append(ft.Text("Varianti Opzionali", size=12, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_ACCENT_BLUE))
-            for v in variant_rules:
-                features_col.append(feature_tile(v.get("name", ""), _desc(v)))
-
-        content = ft.Column(
-            [
-                # Tipo e taglia
-                ft.Text(
-                    f"{c.creature_type or '?'} · {c.alignment or '—'}",
-                    size=11, color=COLOR_TEXT_MUTED, italic=True,
-                ),
-                ft.Divider(height=10, color=COLOR_BORDER),
-                stats_row,
-                ft.Divider(height=10, color=COLOR_BORDER),
-                *info_items,
-            ] + ([ft.Divider(height=10, color=COLOR_BORDER)] if features_col else [])
-              + features_col,
-            spacing=6,
-            scroll=ft.ScrollMode.AUTO,
-        )
-
-        dlg = ft.AlertDialog(
-            title=ft.Text(monster_display_name(c.name), size=16,
-                          weight=ft.FontWeight.BOLD),
-            content=ft.Container(content=content, height=480),
-            actions=cast(list[ft.Control], [
-                ft.TextButton("Chiudi", on_click=lambda _: page.pop_dialog()),
-            ]),
-        )
-        page.show_dialog(dlg)
+        show_stat_block_dialog(self._page, c.name, creature_entry_dict(c))
 
     # ------------------------------------------------------------------
     # Refresh

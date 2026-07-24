@@ -95,9 +95,19 @@ class DnDApp:
             on_select=self._on_character_selected,
             on_create_wizard=self._show_wizard,
             on_create_manual=self._show_manual_form,
+            on_open_master=self._show_master_view,
         )
         self._home_view = home
         self.page.add(home)
+        self.page.update()
+
+    def _show_master_view(self):
+        """Mostra la Modalità Master — indipendente da ogni personaggio giocante."""
+        from ui.views.master.master_view import MasterView
+        self._stop_home_polling()
+        self.page.controls.clear()
+        master = MasterView(on_back_to_home=self._show_home)
+        self.page.add(master)
         self.page.update()
 
     def _show_manual_form(self):

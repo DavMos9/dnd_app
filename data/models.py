@@ -97,6 +97,16 @@ class Character:
     # enforcement automatico delle regole).
     exhaustion_level: int = 0
 
+    # Barbaro, Cammino del Berserker — Frenesia (PHB IT): "Il barbaro può
+    # entrare in frenesia quando entra in ira... Quando la sua ira termina,
+    # il barbaro subisce un livello di indebolimento." L'Indebolimento è
+    # condizionato all'aver dichiarato la Frenesia per QUELLA ira, non
+    # automatico ad ogni uso di Furia — questo flag traccia se la frenesia è
+    # stata dichiarata per l'ira in corso, in attesa che il giocatore segnali
+    # la fine dell'ira (vedi combattimento_tab.py, sezione Risorse di Classe:
+    # "Termina Ira" applica +1 Indebolimento in automatico e azzera il flag).
+    frenzy_active: bool = False
+
     # Scelte di classe/razza che influenzano feature successive
     dragon_ancestry: str = ""       # Stregone Discendenza Draconica: tipo drago (es. "Rosso")
     fighting_style: str = ""        # Guerriero/Paladino/Ranger: stile di combattimento scelto
@@ -468,5 +478,131 @@ class GameMap:
     image_data: str = ""           # immagine base64 (stessa convenzione di Character)
     annotations: str = "[]"        # JSON list di annotazioni testuali
     notes: str = ""                # testo libero associato alla mappa
+    created_at: str = ""
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Sezione Master — NPC/mostri, incontri, membri d'incontro (2026-07-24)
+#
+# Deliberatamente indipendenti da `Character`/`CreatureEntry`: vedi
+# dnd_app/docs/master_section_design.md per il ragionamento completo
+# ("Perché NON riusare creature_entries"). Stesso principio "solo lettura
+# dei PG": MasterEncounterMember non duplica mai gli HP di un personaggio
+# giocante — hp_current/hp_max qui sono significativi solo per
+# kind="npc"/"adhoc", per kind="character" si legge sempre live da
+# `characters.hp_current`/`hp_max`.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class MasterNpc:
+    """
+    Voce di rubrica del Master: un NPC può essere puro ruolo (has_stat_block
+    = False, solo name/role/notes/tags) oppure avere anche uno stat block
+    completo (has_stat_block = True, stessa forma di CreatureEntry/i dict
+    grezzi di monsters.json — risolvibile con `creature_entry_dict()` per il
+    rendering condiviso via `ui/components/monster_picker.py`).
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
+    role: str = ""                    # es. "Alleato", "Antagonista", "Comune" — testo libero
+    notes: str = ""                   # note di ruolo/backstory, sempre presenti
+    tags: str = ""                    # CSV libero per filtro/ricerca nella rubrica
+    has_stat_block: bool = False
+
+    # Campi stat block, stessa forma di CreatureEntry — tutti opzionali
+    creature_type: str = ""
+    size: str = ""
+    alignment: str = ""
+    ac: int = 10
+    ac_note: str = ""
+    hp_max: int = 1
+    hp_formula: str = ""
+    speed: str = ""
+    str_score: int = 10
+    dex_score: int = 10
+    con_score: int = 10
+    int_score: int = 10
+    wis_score: int = 10
+    cha_score: int = 10
+    saving_throws: str = "{}"
+    skills: str = "{}"
+    damage_vulnerabilities: str = ""
+    damage_resistances: str = ""
+    damage_immunities: str = ""
+    condition_immunities: str = ""
+    senses: str = ""
+    languages: str = ""
+    cr: str = ""
+    xp: int = 0                        # Punti Esperienza — per il Calcolatore Difficoltà Incontro (Sezione Master)
+    traits: str = "[]"
+    actions: str = "[]"
+    reactions: str = "[]"
+    legendary_actions: str = "[]"
+    source_page: str = ""              # es. "da Bestiario: Goblin (p.167)" — testo libero, non un numero
+
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class MasterEncounter:
+    """Un incontro (sessione di combattimento) gestito dal Master."""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
+    notes: str = ""
+    round_number: int = 1
+    current_turn_index: int = 0
+    is_archived: bool = False
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class MasterEncounterMember:
+    """
+    Un partecipante a un incontro: un personaggio giocante (kind="character",
+    letto in sola lettura da `characters`), un NPC di rubrica (kind="npc",
+    `npc_id` verso `master_npcs`), o un combattente estemporaneo creato al
+    volo per quell'incontro (kind="adhoc", nessuna riga in nessun'altra
+    tabella — solo display_name/ac/hp_max/hp_current qui).
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    encounter_id: str = ""
+    kind: str = "adhoc"                # "character" | "npc" | "adhoc"
+    character_id: str = ""             # valorizzato solo se kind="character"
+    npc_id: str = ""                   # valorizzato solo se kind="npc"
+    display_name: str = ""             # nome mostrato per adhoc; override opzionale per character/npc
+    ac: int = 0                        # cache per npc/adhoc; per "character" si legge live da characters.ac
+    hp_current: int = 0                # tracciato solo per npc/adhoc
+    hp_max: int = 0
+    xp: int = 0                        # PE del mostro/NPC (0 per kind="character") — Calcolatore Difficoltà
+    initiative: int = 0
+    order_index: int = 0               # per pareggi/riordino manuale
+    is_active: bool = True              # False = rimosso dall'incontro senza cancellare la riga (storico)
+    notes: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class MasterCampaignNote:
+    """
+    Nota di campagna del Master — stessa forma di `CampaignNote` (usata da
+    `DiaryView`, per-personaggio) ma SENZA `character_id`: vive solo nella
+    Sezione Master, indipendente da ogni scheda giocante. `category`:
+    "npc" | "npc_todo" | "place" | "place_todo" | "quest" | "faction" |
+    "event" | "secret" (le prime 6 condivise con CampaignNote, le ultime 2
+    nuove). `linked_npc_id` collega opzionalmente la nota a una voce della
+    Rubrica NPC (`master_npcs`) — puramente organizzativo, nessuna fonte
+    DMG coinvolta.
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    category: str = "npc"
+    name: str = ""
+    description: str = ""
+    status: str = ""
+    tags: str = ""
+    linked_npc_id: str = ""
     created_at: str = ""
     updated_at: str = ""

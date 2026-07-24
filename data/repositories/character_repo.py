@@ -70,6 +70,7 @@ def _row_to_character(row) -> Character:
         passive_perception_override=d.get("passive_perception_override", 0) or 0,
         carry_capacity_override=d.get("carry_capacity_override", 0) or 0,
         exhaustion_level=d.get("exhaustion_level", 0) or 0,
+        frenzy_active=bool(d.get("frenzy_active", 0) or 0),
         dragon_ancestry=d.get("dragon_ancestry", "") or "",
         fighting_style=d.get("fighting_style", "") or "",
         totem_animal=d.get("totem_animal", "") or "",
@@ -149,7 +150,7 @@ def create(character: Character) -> bool:
                 dragon_ancestry, fighting_style, totem_animal, land_terrain,
                 pact_boon, initiative_bonus, max_prepared_spells_override,
                 passive_perception_override, carry_capacity_override,
-                exhaustion_level,
+                exhaustion_level, frenzy_active,
                 age, height, weight, eyes, skin, hair,
                 personality_traits, ideals, bonds, flaws,
                 backstory, allies_organizations, additional_traits, appearance_notes,
@@ -168,7 +169,7 @@ def create(character: Character) -> bool:
                 :dragon_ancestry, :fighting_style, :totem_animal, :land_terrain,
                 :pact_boon, :initiative_bonus, :max_prepared_spells_override,
                 :passive_perception_override, :carry_capacity_override,
-                :exhaustion_level,
+                :exhaustion_level, :frenzy_active,
                 :age, :height, :weight, :eyes, :skin, :hair,
                 :personality_traits, :ideals, :bonds, :flaws,
                 :backstory, :allies_organizations, :additional_traits, :appearance_notes,
@@ -238,6 +239,7 @@ def create(character: Character) -> bool:
             "passive_perception_override": character.passive_perception_override,
             "carry_capacity_override": character.carry_capacity_override,
             "exhaustion_level": character.exhaustion_level,
+            "frenzy_active": int(character.frenzy_active),
             "created_at": character.created_at,
             "updated_at": character.updated_at,
         })
@@ -316,6 +318,7 @@ def update(character: Character) -> bool:
                 passive_perception_override=:passive_perception_override,
                 carry_capacity_override=:carry_capacity_override,
                 exhaustion_level=:exhaustion_level,
+                frenzy_active=:frenzy_active,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -382,6 +385,7 @@ def update(character: Character) -> bool:
             "passive_perception_override": character.passive_perception_override,
             "carry_capacity_override": character.carry_capacity_override,
             "exhaustion_level": character.exhaustion_level,
+            "frenzy_active": int(character.frenzy_active),
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -2259,6 +2263,55 @@ def update_exhaustion_level(character_id: str, value: int) -> bool:
     except Exception as e:
         logger.error(f"Errore update_exhaustion_level: {e}")
         return False
+
+
+def update_frenzy_state(character_id: str, active: bool) -> bool:
+    """
+    Dichiara (o annulla) la Frenesia per l'ira in corso (Barbaro, Cammino del
+    Berserker) — non applica di per sé alcun effetto: solo la fine dell'ira
+    frenetica infligge Indebolimento (vedi end_frenzy_rage() sotto). Usata sia
+    per "Dichiara Frenesia" (active=True) sia per "Annulla dichiarazione"
+    (active=False, es. per correggere un click accidentale senza subire il
+    livello di Indebolimento).
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET frenzy_active=?, updated_at=? WHERE id=?",
+            (int(active), datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore update_frenzy_state: {e}")
+        return False
+
+
+def end_frenzy_rage(character_id: str, current_exhaustion: int) -> int | None:
+    """
+    Termina un'ira in Frenesia (Barbaro, Cammino del Berserker): azzera il
+    flag frenzy_active e applica automaticamente +1 Indebolimento (clampato a
+    6), PHB IT — "Quando la sua ira termina, il barbaro subisce un livello
+    di indebolimento." Operazione atomica (unica connessione/commit): un
+    fallimento a metà lascerebbe il personaggio con la frenesia già "chiusa"
+    ma senza il livello di Indebolimento corrispondente, o viceversa.
+    Restituisce il nuovo livello di Indebolimento, o None in caso di errore
+    (nessuna scrittura viene applicata).
+    """
+    new_level = max(0, min(6, current_exhaustion + 1))
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET frenzy_active=0, exhaustion_level=?, updated_at=? WHERE id=?",
+            (new_level, datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        conn.close()
+        return new_level
+    except Exception as e:
+        logger.error(f"Errore end_frenzy_rage: {e}")
+        return None
 
 
 def update_speed(character_id: str, speed: float) -> bool:

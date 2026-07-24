@@ -703,3 +703,51 @@ def make_invocation_describe(invocations: list[dict]) -> Callable[[str], tuple[s
         return inv.get("name", value), format_invocation_body(inv)
 
     return _describe
+
+
+def wrap_dialog_actions(buttons: list[ft.Control]) -> list[ft.Control]:
+    """
+    Avvolge una lista di pulsanti da usare in `ft.AlertDialog(actions=...)`
+    in un'unica `ft.Row` con `wrap=True`.
+
+    Aggiunto il 2026-07-24 (bug report Davide: "l'interfaccia si deve sempre
+    adattare alla finestra, conta che deve essere usato anche per
+    smartphone"). `AlertDialog.actions` in Flet è renderizzato come una Row
+    che NON va mai a capo da sola — con 3+ pulsanti (es. "Annulla" / "Reset"
+    / "Applica") su una finestra stretta o su smartphone i pulsanti in più
+    escono dal bordo del dialog invece di diventare una seconda riga.
+
+    Usare così: `actions=wrap_dialog_actions([btn1, btn2, btn3])` al posto
+    di `actions=[btn1, btn2, btn3]` — su schermi larghi il risultato visivo
+    è identico (un'unica riga allineata a destra), su schermi stretti i
+    pulsanti in eccesso vanno semplicemente a capo invece di essere tagliati.
+    Con 1-2 pulsanti il comportamento è invariato (mai vanno a capo).
+    """
+    return [ft.Row(buttons, wrap=True, alignment=ft.MainAxisAlignment.END, spacing=8)]
+
+
+def responsive_dialog_width(page: Any, base_width: int, margin: int = 32, min_width: int = 260) -> int:
+    """
+    Calcola una larghezza sicura per il content di un `ft.AlertDialog`, che
+    non superi mai lo spazio disponibile della finestra/schermo.
+
+    Aggiunto il 2026-07-24 (stesso bug report "l'interfaccia si deve sempre
+    adattare alla finestra... anche per smartphone" già alla base di
+    `wrap_dialog_actions`): diversi dialog della Sezione Master (Genera
+    Tesoro/Trappola, Malattie e Veleni, Incontri per Ambiente) avevano un
+    `width=` fisso (420-440px) sul `ft.Column` di contenuto — su uno
+    smartphone più stretto di quel valore (es. iPhone SE, ~375px di
+    viewport) il dialog stesso va in overflow orizzontale, indipendentemente
+    da quanto siano responsive i pulsanti al suo interno.
+
+    Uso: `width=responsive_dialog_width(page, 420)` al posto di `width=420`
+    — su schermi larghi il risultato è identico al valore fisso originale
+    (`base_width`), su schermi più stretti si riduce fino a `min_width`
+    (mai sotto, per non produrre un dialog illeggibile) lasciando `margin`
+    px di rispetto ai bordi. Se `page.width` non è ancora disponibile
+    (`None`, prima del primo layout) ricade su `base_width` invariato.
+    """
+    page_width = getattr(page, "width", None)
+    if not page_width:
+        return base_width
+    return max(min_width, min(base_width, int(page_width) - margin))

@@ -1,0 +1,75 @@
+{
+  "_source": "Guida del Dungeon Master (DMG) IT, Capitolo 5 \"Ambienti delle Avventure\", sezione \"Trappole\" (p.120-124)",
+  "_source_note": "Trascritto il 2026-07-24 leggendo visivamente le pagine 120-124 del PDF renderizzate come immagini (pdftoppm -r 150), mai pdftotext/OCR per il contenuto (usato solo per navigare/individuare i confini di pagina, mai per trascrivere valori). Sezione 'Trappole' completa: meccaniche generali (innesco, individuazione, disinnesco, trappole complesse), le 2 tabelle numeriche 'Bonus di Attacco e CD dei Tiri Salvezza delle Trappole' e 'Gravità dei Danni per Livello' (p.121), e la sezione 'Esempi di Trappole' (p.121-124) trascritta per intero in ordine alfabetico: Ago Avvelenato, Crollo del Tetto, Dardi Avvelenati, Fosse (4 varianti: Semplice/Nascosta/Richiudibile/con Spuntoni), Rete in Caduta, Sfera Annientatrice, Sfera Rotolante, Statua del Soffio di Fuoco — confermato che questo è l'elenco COMPLETO: la pagina successiva (124 stampata, PDF pag.123) è un'illustrazione a piena pagina senza testo, e il Capitolo 6 'Tra le Avventure' inizia subito dopo (125 stampata, PDF pag.124) — nessuna voce alfabetica oltre 'S' esiste in questa sezione del manuale.",
+  "danger_table": [
+    {"level": "Imprevisto", "save_dc": "10-11", "attack_bonus": "da +3 a +5"},
+    {"level": "Pericoloso", "save_dc": "12-15", "attack_bonus": "da +6 a +8"},
+    {"level": "Letale", "save_dc": "16-20", "attack_bonus": "da +9 a +12"}
+  ],
+  "damage_by_level": [
+    {"char_level_range": "1-4", "imprevisto": "1d10", "pericoloso": "2d10", "letale": "4d10"},
+    {"char_level_range": "5-10", "imprevisto": "2d10", "pericoloso": "4d10", "letale": "10d10"},
+    {"char_level_range": "11-16", "imprevisto": "4d10", "pericoloso": "10d10", "letale": "18d10"},
+    {"char_level_range": "17-20", "imprevisto": "10d10", "pericoloso": "18d10", "letale": "24d10"}
+  ],
+  "example_traps": [
+    {
+      "name": "Ago Avvelenato",
+      "type": "meccanica",
+      "description": "Un ago avvelenato è nascosto nella serratura di un forziere del tesoro o in qualcos'altro che una creatura potrebbe decidere di aprire. Chi apre il forziere senza la chiave giusta fa scattare l'ago, che trasmette una dose di veleno.\n\nQuando la trappola si innesca, l'ago si estende per 7,5 cm dalla serratura. Una creatura entro gittata subisce 1 danno perforante e 11 (2d10) danni da veleno, e deve superare un tiro salvezza su Costituzione con CD 15, altrimenti è avvelenata per 1 ora.\n\nUna prova di Intelligenza (Indagare) con CD 20 effettuata con successo consente a un personaggio di dedurre la presenza della trappola dalle alterazioni apportate alla serratura per ospitare l'ago. Una prova di Destrezza con CD 15 effettuata con successo usando gli arnesi da scasso disattiva la trappola, rimuovendo l'ago dalla serratura. Un tentativo fallito di scassinare la serratura fa scattare la trappola."
+    },
+    {
+      "name": "Crollo del Tetto",
+      "type": "meccanica",
+      "description": "Questa trappola utilizza un cavo teso per far crollare i sostegni che mantengono una sezione instabile del soffitto al suo posto.\n\nIl cavo teso si trova a 7,5 cm dal terreno ed è collegato a due travi di sostegno. Si usa CD 10 per avvistare il cavo teso. Una prova di Destrezza con CD 15 effettuata con successo usando gli arnesi da scasso consente di disinnescare il cavo teso senza subire danni. Un personaggio privo di arnesi da scasso può tentare di effettuare questa prova con svantaggio, usando una qualsiasi arma affilata o strumento appuntito. Se la prova fallisce, la trappola si innesca.\n\nChiunque ispezioni le travi può facilmente notare che sono semplicemente incastrate in quella posizione. Con un'azione, un personaggio può scalzare una trave, innescando la trappola.\n\nIl tratto di soffitto al di sopra del cavo teso è in pessime condizioni e chiunque lo veda è in grado di capire che rischia di crollare.\n\nQuando la trappola è innescata, il soffitto instabile crolla. Ogni creatura nell'area sotto la sezione instabile deve effettuare un tiro salvezza su Destrezza con CD 15; se fallisce, subisce 22 (4d10) danni contundenti, mentre se lo supera, subisce la metà di quei danni. Una volta innescata la trappola, il pavimento dell'area si riempie di detriti e diventa terreno difficile."
+    },
+    {
+      "name": "Dardi Avvelenati",
+      "type": "meccanica",
+      "description": "Quando una creatura calpesta una piastra a pressione nascosta, alcuni dardi dalla punta avvelenata vengono scagliati da una serie di tubi caricati a molla o pressurizzati e ingegnosamente nascosti nelle pareti circostanti. Un'area potrebbe includere più piastre a pressione, ognuna collegata a una serie diversa di dardi.\n\nI minuscoli fori nelle pareti sono oscurati dalla polvere e dalle ragnatele o astutamente nascosti tra i bassorilievi, dipinti murari o affreschi che decorano le pareti. Si usa CD 15 per avvistarli. Con una prova di Intelligenza (Indagare) con CD 15 effettuata con successo, un personaggio può dedurre la presenza della piastra a pressione dalle variazioni nella malta e nella pietra usate per crearla in confronto al pavimento circostante. Uno spuntone di ferro o un oggetto analogo infilato sotto la piastra a pressione impedisce alla trappola di attivarsi. Riempiendo i fori con pezzi di stoffa o cera, i dardi all'interno non potranno essere lanciati.\n\nLa trappola si attiva quando più di 10 kg di peso si trovano sulla piastra a pressione, nel qual caso vengono scagliati quattro dardi. Ogni dardo effettua un attacco a distanza con un bonus di +8 contro un bersaglio casuale situato entro 3 metri dalla piastra a pressione (la visione è irrilevante per questo tiro per colpire; se non ci sono bersagli nell'area, i dardi non colpiscono nulla). Un bersaglio colpito subisce 2 (1d4) danni perforanti e deve superare un tiro salvezza su Costituzione con CD 15; se lo fallisce, subisce 11 (2d10) danni da veleno, mentre se lo supera, subisce la metà di quei danni."
+    },
+    {
+      "name": "Fosse",
+      "type": "meccanica",
+      "description": "Di seguito sono descritte quattro trappole base che fanno uso di una fossa.",
+      "variants": [
+        {
+          "name": "Fossa Semplice",
+          "description": "Una fossa semplice è un buco scavato nel terreno. Il buco viene poi coperto con un grosso telo fissato ai margini della fossa e ricoperto di terriccio e detriti.\n\nSi usa CD 10 per avvistare la fossa. Chiunque metta piede sul telo cade di sotto e trascina il telo nella fossa, subendo un ammontare di danni basato sulla profondità della fossa (solitamente 3 metri, ma esistono fosse più profonde)."
+        },
+        {
+          "name": "Fossa Nascosta",
+          "description": "Questa fossa possiede una copertura fatta dello stesso materiale del pavimento circostante. Una prova di Saggezza (Percezione) con CD 15 effettuata con successo rivela l'assenza di impronte sulla sezione di pavimento che forma la copertura della fossa. Una prova di Intelligenza (Indagare) con CD 15 effettuata con successo conferma che la sezione di pavimento che forma la trappola è in realtà la copertura di una fossa.\n\nQuando una creatura mette piede sulla copertura, essa si spalanca come una botola, facendo cadere l'intruso nella fossa sottostante. La fossa solitamente è profonda 3 o 6 metri, ma ne esistono anche di più profonde.\n\nUna volta che la fossa è stata individuata, è possibile infilare uno spuntone di ferro o un oggetto analogo tra la copertura della fossa e il pavimento circostante per evitare che la copertura si apra, consentendo di attraversare la trappola senza correre rischi. La copertura può anche essere mantenuta chiusa magicamente tramite l'incantesimo serratura arcana o una magia analoga."
+        },
+        {
+          "name": "Fossa Richiudibile",
+          "description": "Questa trappola è identica a una fossa nascosta, con una sola eccezione degna di nota: la botola che copre la fossa è una botola a molla. Dopo che una creatura è caduta nella fossa, la copertura si richiude di scatto per intrappolare la vittima all'interno.\n\nÈ necessario effettuare con successo una prova di Forza con CD 20 per aprire la copertura forzandola. La copertura può anche essere sfondata (si determinano le sue statistiche usando le indicazioni nel capitolo 8). Un personaggio nella fossa può anche tentare di disinnescare il meccanismo a molla dall'interno, con una prova di Destrezza con CD 15 e usando gli arnesi da scasso, purché riesca a raggiungere il meccanismo e a vederlo. In certi casi esiste un meccanismo (solitamente nascosto dietro una porta segreta nelle vicinanze) che apre la fossa."
+        },
+        {
+          "name": "Fossa con Spuntoni",
+          "description": "Questa trappola è una fossa semplice, nascosta o richiudibile sul cui fondo sono stati piantati dei pali acuminati di legno o di ferro. Una creatura che cade nella fossa subisce 11 (2d10) danni perforanti dagli spuntoni, oltre agli eventuali danni da caduta. Le versioni più crudeli di questa trappola hanno gli spuntoni ricoperti di veleno. In quel caso, chiunque subisca danni perforanti dagli spuntoni deve anche effettuare un tiro salvezza su Costituzione con CD 13; se lo fallisce, subisce 22 (4d10) danni da veleno, mentre se lo supera, subisce la metà di quei danni."
+        }
+      ]
+    },
+    {
+      "name": "Rete in Caduta",
+      "type": "meccanica",
+      "description": "Questa trappola utilizza un cavo teso per liberare una rete appesa al soffitto.\n\nIl cavo si trova a 7,5 cm dal terreno ed è teso tra due colonne o alberi. La rete è nascosta dalle ragnatele o dal fogliame. Si usa CD 10 per avvistare il cavo teso e la rete. Una prova di Destrezza con CD 15 effettuata con successo usando gli arnesi da scasso consente di disinnescare il cavo teso senza subire danni. Un personaggio privo di arnesi da scasso può tentare di effettuare questa prova con svantaggio, usando una qualsiasi arma affilata o strumento appuntito. Se la prova fallisce, la trappola si innesca.\n\nQuando la trappola è innescata, la rete si sgancia e copre un'area quadrata con lato di 3 metri. Chi si trova in quell'area è intrappolato nella rete ed è trattenuto; chi fallisce un tiro salvezza su Forza con CD 10 cade anche a terra prono. Una creatura può usare la sua azione per effettuare una prova di Forza con CD 10, liberando se stessa o un'altra creatura entro portata in caso di successo. La rete ha CA 10 e 20 punti ferita. Infliggendo 5 danni taglienti alla rete (CA 10) si distrugge una sezione quadrata con lato di 1,5 metri, liberando le eventuali creature intrappolate in quella sezione."
+    },
+    {
+      "name": "Sfera Annientatrice",
+      "type": "magica",
+      "description": "Una forma di oscurità magica e impenetrabile riempie la bocca spalancata di un volto di pietra scolpito su un muro. La bocca ha un diametro di 60 cm ed è grossomodo circolare. Dalla bocca non proviene alcun suono e nessuna luce può illuminare il suo interno; inoltre, qualsiasi materia finisca all'interno viene istantaneamente annientata.\n\nUna prova di Intelligenza (Arcano) con CD 20 effettuata con successo rivela che la bocca contiene una sfera annientatrice che non può essere controllata o mossa. Sotto ogni altro aspetto, la sfera è identica a una normale sfera annientatrice, come descritta nel capitolo 7, \"Tesori\".\n\nAlcune versioni di questa trappola includono un ammaliamento posto sul volto di pietra che genera in certe creature specifiche un impulso irresistibile ad avvicinarsi e a strisciare all'interno della bocca. Per il resto, questo effetto funziona come l'aspetto simpatia dell'incantesimo antipatia/simpatia. Un dissolvi magie (CD 18) lanciato con successo rimuove questo ammaliamento."
+    },
+    {
+      "name": "Sfera Rotolante",
+      "type": "meccanica",
+      "description": "Quando 10 o più kg di peso si trovano sulla piastra a pressione di questa trappola, una botola nascosta sul soffitto si apre, lasciando cadere una sfera di solida pietra del diametro di 3 metri che inizia a rotolare.\n\nUna prova di Saggezza (Percezione) con CD 15 effettuata con successo consente a un personaggio di avvistare la botola e la piastra a pressione. Ispezionando il pavimento ed effettuando con successo una prova di Intelligenza (Indagare) con CD 15, un personaggio nota alcune variazioni nella malta e nella pietra che rivelano la presenza della piastra a pressione. La stessa prova effettuata ispezionando il soffitto rivela alcune variazioni nelle pietre lavorate e la presenza della botola. Uno spuntone di ferro o un oggetto analogo infilato sotto la piastra a pressione impedisce alla trappola di attivarsi.\n\nL'attivazione della sfera richiede a tutte le creature presenti di tirare per l'iniziativa. La sfera tira per l'iniziativa con un bonus di +8. Al suo turno, si muove di 18 metri in linea retta. La sfera può muoversi attraverso gli spazi delle creature e le creature possono muoversi attraverso il suo spazio, considerandolo terreno difficile. Ogni volta che la sfera entra nello spazio di una creatura o una creatura entra nel suo spazio mentre la sfera rotola, quella creatura deve superare un tiro salvezza su Destrezza con CD 15, altrimenti subisce 55 (10d10) danni contundenti e cade a terra prona.\n\nLa sfera si ferma quando colpisce una parete o una barriera simile. Non può svoltare gli angoli, ma i costruttori di dungeon più intelligenti includono delle curve graduali nei passaggi vicini per consentire alla sfera di continuare a muoversi.\n\nUna creatura situata entro 1,5 metri dalla sfera può tentare di rallentarla con un'azione, effettuando una prova di Forza con CD 20. Se la prova ha successo, la velocità della sfera è ridotta di 4,5 metri. Se la velocità della sfera scende a 0, smette di muoversi e non costituisce più una minaccia."
+    },
+    {
+      "name": "Statua del Soffio di Fuoco",
+      "type": "magica",
+      "description": "Questa trappola si attiva quando un intruso calpesta una piastra a pressione nascosta, diffondendo un getto magico di fiamme da una statua vicina. La statua può avere qualsiasi forma, da quella di un drago a quella di un mago nell'atto di lanciare un incantesimo.\n\nSi usa CD 15 per avvistare la piastra a pressione o i deboli segni di bruciature presenti sul pavimento e sulle pareti. Un incantesimo o un altro effetto in grado di percepire la presenza della magia, come individuazione del magico, rivela un'aura di magia di invocazione attorno alla statua.\n\nLa trappola si attiva quando più di 10 kg di peso si trovano sulla piastra a pressione, cosa che fa sprigionare un cono di fuoco di 9 metri dalla statua. Ogni creatura entro il cono deve effettuare un tiro salvezza su Destrezza con CD 13; se lo fallisce, subisce 22 (4d10) danni da fuoco, mentre se lo supera, subisce la metà di quei danni.\n\nUno spuntone di ferro o un oggetto analogo infilato sotto la piastra a pressione impedisce alla trappola di attivarsi. Un dissolvi magie (CD 13) lanciato con successo sulla statua distrugge la trappola."
+    }
+  ]
+}

@@ -306,6 +306,10 @@ class ProfiloTab(ft.ListView):
                                 ],
                                 spacing=8,
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                # su schermi stretti/smartphone i due pulsanti vanno a capo
+                                # invece di uscire dal bordo destro insieme ad avatar+nome
+                                # (bug report Davide, 2026-07-24).
+                                wrap=True,
                             ),
                             ft.Text(
                                 (c.class_name or "—")

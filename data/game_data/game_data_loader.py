@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import re
 from pathlib import Path
 from typing import Any
@@ -76,6 +77,14 @@ class GameDataLoader:
         self._equipment: dict[str, dict[str, Any]] = {}
         # progressioni slot incantesimo (full/half/pact caster) + mappa classe→tipo
         self._spell_slot_progressions: dict[str, Any] | None = None
+        # tabelle tesori DMG (Sezione Master → Generatore Tesori Casuali)
+        self._treasure: dict[str, Any] | None = None
+        # tabelle trappole DMG (Sezione Master → Generatore Trappole)
+        self._traps: dict[str, Any] | None = None
+        # malattie/veleni/follia DMG (Sezione Master → Riferimento Malattie/Veleni/Follia)
+        self._health_hazards: dict[str, Any] | None = None
+        # incontri casuali per ambiente (Sezione Master → Generatore Incontri per Ambiente)
+        self._forest_encounters: dict[str, Any] | None = None
 
         self._classes_loaded     = False
         self._races_loaded       = False
@@ -1061,6 +1070,20 @@ class GameDataLoader:
         """Nomi delle invocazioni disponibili a quel livello, ordinati."""
         return sorted(i["name"] for i in self.get_invocations(warlock_level) if i.get("name"))
 
+    def get_invocation(self, name: str) -> dict[str, Any] | None:
+        """
+        Risolve una singola Supplica Occulta per nome esatto (case-insensitive),
+        senza filtro di livello — usata per mostrare la descrizione completa di
+        una supplica già posseduta dal personaggio (2026-07-19, sezione di sola
+        lettura in Combattimento). Stesso pattern di get_weapon()/get_armor_item().
+        """
+        self._ensure_invocations()
+        target = name.strip().lower()
+        for inv in self._invocations:
+            if inv.get("name", "").strip().lower() == target:
+                return inv
+        return None
+
     def _ensure_invocations(self) -> None:
         if self._invocations_loaded:
             return
@@ -1255,6 +1278,27 @@ class GameDataLoader:
             self._ensure_equipment_file(section)
         return dict(self._equipment)
 
+    def get_trinkets(self) -> list[dict[str, Any]]:
+        """
+        Le 100 voci della tabella d100 "Oggetti Insoliti" (PHB IT p.160-161,
+        equipment/trinkets.json — trascritta il 2026-07-24, esclusa a suo
+        tempo da adventuring_gear.json su scelta di Davide perché priva di
+        effetto meccanico, ora recuperata per la Sezione Master: generatore
+        di cimeli/loot flavor). Ogni voce è {"roll": int, "description": str}.
+        """
+        self._ensure_equipment_file("trinkets")
+        return self._equipment["trinkets"].get("trinkets", [])
+
+    def get_trinket_by_roll(self, roll: int) -> str | None:
+        """
+        Descrizione del cimelio corrispondente a un tiro 1-100 sulla tabella
+        "Oggetti Insoliti", o None se roll è fuori range 1-100.
+        """
+        for entry in self.get_trinkets():
+            if entry.get("roll") == roll:
+                return entry.get("description")
+        return None
+
     def get_tool_names(self, category: str) -> list[str]:
         """
         Nomi degli strumenti di una categoria, letti da equipment/tools.json →
@@ -1332,6 +1376,321 @@ class GameDataLoader:
         except Exception as exc:
             logger.error("Errore caricamento equipment/%s.json: %s", section, exc)
             self._equipment[section] = {}
+
+    # ------------------------------------------------------------------
+    # Tesori (DMG IT Cap.7 — Sezione Master, Generatore Tesori Casuali)
+    # ------------------------------------------------------------------
+
+    def _ensure_treasure(self) -> None:
+        if self._treasure is not None:
+            return
+        path = _DATA_DIR / "treasure_tables.json"
+        try:
+            self._treasure = _load_json(path)
+            logger.debug("Tabelle tesori caricate")
+        except Exception as exc:
+            logger.error("Errore caricamento treasure_tables.json: %s", exc)
+            self._treasure = {}
+
+    def get_treasure_tables(self) -> dict[str, Any]:
+        """Dizionario grezzo completo di treasure_tables.json (tutte le sezioni)."""
+        self._ensure_treasure()
+        return self._treasure or {}
+
+    def get_individual_treasure_table(self, cr_band: str) -> list[dict[str, Any]]:
+        """
+        Righe della tabella "Tesoro Singolo" per la fascia di CR indicata
+        ("0-4"|"5-10"|"11-16"|"17+"), DMG IT p.136. Ogni riga è
+        {"range": [lo, hi], "drops": [{"currency","dice","mult","avg"}, ...]}
+        — "drops" può contenere più di una valuta nella stessa riga (fasce
+        alte del manuale concedono più monete insieme). Lista vuota se la
+        fascia non esiste.
+        """
+        return self.get_treasure_tables().get("individual_by_cr", {}).get(cr_band, [])
+
+    def get_hoard_treasure_table(self, cr_band: str) -> dict[str, Any]:
+        """
+        Dati della tabella "Cumulo di Tesori" per la fascia di CR indicata,
+        DMG IT p.137-139: {"coins": [...formula fissa...], "rows": [...righe
+        d100...]}. Ogni riga in "rows" ha {"range", "gems_art", "magic"} —
+        "gems_art" è None oppure {"type":"gems"|"art","value":N,"dice","avg"}
+        (il valore/tipo NON è fisso per l'intera fascia di CR: alterna riga
+        per riga secondo la tabella reale del manuale); "magic" è una lista
+        di {"table":"A".."I","rolls":"1d6"|"1d4"|"1"} (può contenere più di
+        una tabella nella stessa riga). Dizionario vuoto se la fascia non esiste.
+        """
+        return self.get_treasure_tables().get("hoard_by_cr", {}).get(cr_band, {})
+
+    def get_gems_by_value(self, value: int) -> dict[str, Any]:
+        """
+        Tabella gemme per fascia di valore (10|50|100|500|1000|5000 mo),
+        DMG IT p.134: {"dice": "dN", "items": [nomi con descrizione]}.
+        Dizionario vuoto se la fascia non esiste.
+        """
+        return self.get_treasure_tables().get("gems_by_value", {}).get(str(value), {})
+
+    def get_art_by_value(self, value: int) -> dict[str, Any]:
+        """
+        Tabella oggetti d'arte per fascia di valore (25|250|750|2500|7500 mo),
+        DMG IT p.134-135: {"dice": "dN", "items": [nomi]}. Dizionario vuoto
+        se la fascia non esiste.
+        """
+        return self.get_treasure_tables().get("art_by_value", {}).get(str(value), {})
+
+    def get_magic_item_table(self, letter: str) -> list[dict[str, Any]]:
+        """
+        Righe della Tabella degli Oggetti Magici indicata ("A".."I"), DMG IT
+        p.143-149 — solo nome + range di tiro (nessuna descrizione completa,
+        quella appartiene al Compendio Oggetti Magici, deliberatamente
+        rimandato, vedi CLAUDE.md). Alcune righe hanno anche "sub_table"
+        (es. G "Statuina del potere meraviglioso", I "Armatura magica") con
+        {"dice","items"} — items indicizzata per risultato del sotto-tiro
+        (indice 0 = risultato 1). Lista vuota se la lettera non esiste.
+        """
+        return self.get_treasure_tables().get("magic_item_tables", {}).get(letter.upper(), [])
+
+    # ------------------------------------------------------------------
+    # Trappole (DMG IT Cap.5 p.120-124 — Sezione Master, Generatore Trappole)
+    # ------------------------------------------------------------------
+
+    def _ensure_traps(self) -> None:
+        if self._traps is not None:
+            return
+        path = _DATA_DIR / "traps.json"
+        try:
+            self._traps = _load_json(path)
+            logger.debug("Tabelle trappole caricate")
+        except Exception as exc:
+            logger.error("Errore caricamento traps.json: %s", exc)
+            self._traps = {}
+
+    def get_traps_data(self) -> dict[str, Any]:
+        """Dizionario grezzo completo di traps.json (tutte le sezioni)."""
+        self._ensure_traps()
+        return self._traps or {}
+
+    def get_trap_danger_table(self) -> list[dict[str, Any]]:
+        """
+        Tabella "Bonus di Attacco e CD dei Tiri Salvezza delle Trappole",
+        DMG IT p.121 — 3 righe {"level":"Imprevisto"|"Pericoloso"|"Letale",
+        "save_dc","attack_bonus"}.
+        """
+        return self.get_traps_data().get("danger_table", [])
+
+    def get_trap_damage_table(self) -> list[dict[str, Any]]:
+        """
+        Tabella "Gravità dei Danni per Livello", DMG IT p.121 — 4 righe
+        {"char_level_range","imprevisto","pericoloso","letale"} (dado danno
+        come stringa "NdM").
+        """
+        return self.get_traps_data().get("damage_by_level", [])
+
+    def get_trap_damage_dice(self, char_level: int, severity: str) -> str:
+        """
+        Risolve il dado danno suggerito per un personaggio di un certo
+        livello e una gravità ("imprevisto"|"pericoloso"|"letale" —
+        case-insensitive), leggendo la fascia di livello corretta da
+        `get_trap_damage_table()`. Stringa vuota se livello/gravità non
+        risolvono a nulla.
+        """
+        severity = (severity or "").strip().lower()
+        for row in self.get_trap_damage_table():
+            lo_str, _, hi_str = row.get("char_level_range", "").partition("-")
+            try:
+                lo, hi = int(lo_str), int(hi_str)
+            except ValueError:
+                continue
+            if lo <= char_level <= hi:
+                return row.get(severity, "")
+        return ""
+
+    def get_example_traps(self) -> list[dict[str, Any]]:
+        """
+        Le trappole nominate del manuale (DMG IT p.121-124), in ordine
+        alfabetico: {"name","type":"meccanica"|"magica","description",
+        "variants": [{"name","description"}, ...] (solo per "Fosse", le sue
+        4 varianti — assente per tutte le altre voci)}.
+        """
+        return self.get_traps_data().get("example_traps", [])
+
+    def get_example_trap(self, name: str) -> dict[str, Any] | None:
+        """Cerca una trappola nominata per nome esatto (case-insensitive)."""
+        target = (name or "").strip().lower()
+        for t in self.get_example_traps():
+            if t.get("name", "").strip().lower() == target:
+                return t
+        return None
+
+    # ------------------------------------------------------------------
+    # Malattie / Veleni / Follia (DMG IT Cap.8 p.256-260 — Sezione Master,
+    # Riferimento Malattie/Veleni/Follia)
+    # ------------------------------------------------------------------
+
+    def _ensure_health_hazards(self) -> None:
+        if self._health_hazards is not None:
+            return
+        path = _DATA_DIR / "diseases_poisons_madness.json"
+        try:
+            self._health_hazards = _load_json(path)
+            logger.debug("Malattie/Veleni/Follia caricati")
+        except Exception as exc:
+            logger.error("Errore caricamento diseases_poisons_madness.json: %s", exc)
+            self._health_hazards = {}
+
+    def get_health_hazards_data(self) -> dict[str, Any]:
+        """Dizionario grezzo completo di diseases_poisons_madness.json."""
+        self._ensure_health_hazards()
+        return self._health_hazards or {}
+
+    def get_diseases(self) -> list[dict[str, Any]]:
+        """
+        Le 3 malattie di esempio del DMG IT (p.256): {"name","description"}.
+        """
+        return self.get_health_hazards_data().get("diseases", [])
+
+    def get_disease(self, name: str) -> dict[str, Any] | None:
+        """Cerca una malattia per nome esatto (case-insensitive)."""
+        target = (name or "").strip().lower()
+        for d in self.get_diseases():
+            if d.get("name", "").strip().lower() == target:
+                return d
+        return None
+
+    def get_poisons(self) -> list[dict[str, Any]]:
+        """
+        I 14 veleni della tabella "Veleni" del DMG IT (p.257-258):
+        {"name","type":"Contatto"|"Ferimento"|"Inalazione"|"Ingestione",
+        "price","description"}.
+        """
+        return self.get_health_hazards_data().get("poisons", [])
+
+    def get_poison(self, name: str) -> dict[str, Any] | None:
+        """Cerca un veleno per nome esatto (case-insensitive)."""
+        target = (name or "").strip().lower()
+        for p in self.get_poisons():
+            if p.get("name", "").strip().lower() == target:
+                return p
+        return None
+
+    def get_poison_types_intro(self) -> str:
+        """Testo introduttivo sui 4 tipi di veleno (Contatto/Ferimento/
+        Inalazione/Ingestione), DMG IT p.257."""
+        return self.get_health_hazards_data().get("poison_types_intro", "")
+
+    def get_poison_acquiring_text(self) -> str:
+        """Testo "Acquistare i Veleni", DMG IT p.258."""
+        return self.get_health_hazards_data().get("poison_acquiring", "")
+
+    def get_poison_crafting_text(self) -> str:
+        """Testo "Fabbricare ed Estrarre i Veleni", DMG IT p.258."""
+        return self.get_health_hazards_data().get("poison_crafting", "")
+
+    def get_madness_intro_text(self) -> str:
+        """Testo introduttivo della sezione "Follia", DMG IT p.258."""
+        return self.get_health_hazards_data().get("madness_intro", "")
+
+    def get_madness_inducing_text(self) -> str:
+        """Testo "Impazzire" (come indurre la follia), DMG IT p.259."""
+        return self.get_health_hazards_data().get("madness_inducing", "")
+
+    def get_madness_effects_intro_text(self) -> str:
+        """Testo "Effetti della Follia", DMG IT p.259."""
+        return self.get_health_hazards_data().get("madness_effects_intro", "")
+
+    def get_madness_curing_text(self) -> str:
+        """Testo "Curare la Follia", DMG IT p.260."""
+        return self.get_health_hazards_data().get("madness_curing", "")
+
+    def get_madness_table(self, kind: str) -> dict[str, Any]:
+        """
+        Una delle 3 tabelle di Follia del DMG IT (p.259-260):
+        `kind` = "temporanea"|"duratura"|"indeterminata" (case-insensitive).
+        Ritorna {"label","duration","entries":[{"range","effect"}, ...]}
+        oppure {} se `kind` non risolve.
+        """
+        kind = (kind or "").strip().lower()
+        return self.get_health_hazards_data().get("madness_tables", {}).get(kind, {})
+
+    def roll_madness_effect(self, kind: str) -> dict[str, Any] | None:
+        """
+        Tira 1d100 sulla tabella di Follia indicata e ritorna la riga
+        corrispondente ({"range","effect"}), o `None` se `kind` non
+        risolve. Il tiro vero e proprio (random) vive qui perché è
+        un'operazione a sola lettura senza stato — nessun modulo `core/`
+        dedicato è necessario per una tabella di lookup così semplice
+        (a differenza di `trap_generator.py`/`treasure_generator.py`, che
+        combinano più tabelle e un calcolo — qui è un singolo tiro 1d100
+        su una lista di range già pronta).
+        """
+        table = self.get_madness_table(kind)
+        entries = table.get("entries", [])
+        if not entries:
+            return None
+        roll = random.randint(1, 100)
+        for e in entries:
+            lo_str, _, hi_str = e.get("range", "").partition("-")
+            try:
+                lo = int(lo_str)
+                hi = 100 if hi_str == "00" else int(hi_str)
+            except ValueError:
+                continue
+            if lo <= roll <= hi:
+                return {**e, "roll": roll}
+        return None
+
+    # ------------------------------------------------------------------
+    # Incontri Casuali per Ambiente (DMG IT Cap.3 p.87 — Sezione Master,
+    # Generatore Incontri per Ambiente, v1 ridotta: solo "Foresta Silvana")
+    # ------------------------------------------------------------------
+
+    def _ensure_forest_encounters(self) -> None:
+        if self._forest_encounters is not None:
+            return
+        path = _DATA_DIR / "forest_encounters.json"
+        try:
+            self._forest_encounters = _load_json(path)
+            logger.debug("Incontri per Ambiente caricati")
+        except Exception as exc:
+            logger.error("Errore caricamento forest_encounters.json: %s", exc)
+            self._forest_encounters = {}
+
+    def get_forest_encounters_data(self) -> dict[str, Any]:
+        """Dizionario grezzo completo di forest_encounters.json."""
+        self._ensure_forest_encounters()
+        return self._forest_encounters or {}
+
+    def get_environment_names(self) -> list[str]:
+        """Chiavi ambiente disponibili (v1: solo `"foresta_silvana"`)."""
+        return list(self.get_forest_encounters_data().get("environments", {}).keys())
+
+    def get_environment_table(self, env_key: str) -> dict[str, Any]:
+        """
+        Una tabella ambiente ({"label","entries":[{"roll","text","creatures",
+        "note"?}, ...]}) oppure {} se `env_key` non risolve.
+        """
+        return self.get_forest_encounters_data().get("environments", {}).get(env_key, {})
+
+    def roll_environment_encounter(self, env_key: str) -> dict[str, Any] | None:
+        """
+        Tira 1d12+1d8 (range 2-20, la stessa meccanica a curva del manuale —
+        non un d20 piatto: privilegia i risultati centrali) sulla tabella
+        ambiente indicata e ritorna la riga corrispondente ({"roll","text",
+        "creatures","note"?, "d12","d8"}), o `None` se `env_key` non risolve.
+        Nessun modulo `core/` dedicato: stesso principio già stabilito per
+        `roll_madness_effect()`, un singolo tiro su una lista di righe già
+        pronta non giustifica un modulo a parte.
+        """
+        table = self.get_environment_table(env_key)
+        entries = table.get("entries", [])
+        if not entries:
+            return None
+        d12 = random.randint(1, 12)
+        d8 = random.randint(1, 8)
+        roll = d12 + d8
+        for e in entries:
+            if e.get("roll") == roll:
+                return {**e, "roll": roll, "d12": d12, "d8": d8}
+        return None
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,4976 @@
+{
+  "_source": "DMG IT (Guida del Dungeon Master), Capitolo 7 'Tesori', p.133-149",
+  "_source_note": "Tabelle trascritte leggendo visivamente le pagine del PDF renderizzate come immagini (pdftoppm -r 150), mai tramite estrazione testo OCR (pdftotext) — stesso metodo gia' consolidato nel progetto per talenti/incantesimi/mostri, necessario perche' pdftotext corrompe le cifre e confonde il layout a due colonne su queste tabelle dense (verificato con un dump di controllo usato solo per la navigazione, mai per il contenuto). Trascritto il 2026-07-24 per il Generatore Tesori Casuali della Sezione Master (vedi dnd_app/docs/master_section_design.md sezione '6.'). Valuta: mr=rame, ma=argento, me=electrum, mo=oro, mp=platino (stessa convenzione gia' in uso in tutto il progetto per currencies/Currency). Le 'Tabelle degli Oggetti Magici A-I' contengono SOLO nome+range di tiro, non la descrizione completa dell'oggetto — quella appartiene al Compendio Oggetti Magici (punto 7 del design Master), deliberatamente rimandato a una sessione dedicata separata (vedi CLAUDE.md, stesso principio gia' applicato al bestiario).",
+  "individual_by_cr": {
+    "0-4": [
+      {
+        "range": [
+          1,
+          30
+        ],
+        "drops": [
+          {
+            "currency": "mr",
+            "dice": "5d6",
+            "mult": 1,
+            "avg": 17
+          }
+        ]
+      },
+      {
+        "range": [
+          31,
+          60
+        ],
+        "drops": [
+          {
+            "currency": "ma",
+            "dice": "4d6",
+            "mult": 1,
+            "avg": 14
+          }
+        ]
+      },
+      {
+        "range": [
+          61,
+          70
+        ],
+        "drops": [
+          {
+            "currency": "me",
+            "dice": "3d6",
+            "mult": 1,
+            "avg": 10
+          }
+        ]
+      },
+      {
+        "range": [
+          71,
+          95
+        ],
+        "drops": [
+          {
+            "currency": "mo",
+            "dice": "3d6",
+            "mult": 1,
+            "avg": 10
+          }
+        ]
+      },
+      {
+        "range": [
+          96,
+          100
+        ],
+        "drops": [
+          {
+            "currency": "mp",
+            "dice": "1d6",
+            "mult": 1,
+            "avg": 3
+          }
+        ]
+      }
+    ],
+    "5-10": [
+      {
+        "range": [
+          1,
+          30
+        ],
+        "drops": [
+          {
+            "currency": "mr",
+            "dice": "4d6",
+            "mult": 100,
+            "avg": 1400
+          },
+          {
+            "currency": "me",
+            "dice": "1d6",
+            "mult": 10,
+            "avg": 35
+          }
+        ]
+      },
+      {
+        "range": [
+          31,
+          60
+        ],
+        "drops": [
+          {
+            "currency": "ma",
+            "dice": "6d6",
+            "mult": 10,
+            "avg": 210
+          },
+          {
+            "currency": "mo",
+            "dice": "2d6",
+            "mult": 10,
+            "avg": 70
+          }
+        ]
+      },
+      {
+        "range": [
+          61,
+          70
+        ],
+        "drops": [
+          {
+            "currency": "me",
+            "dice": "3d6",
+            "mult": 10,
+            "avg": 105
+          },
+          {
+            "currency": "mo",
+            "dice": "2d6",
+            "mult": 10,
+            "avg": 70
+          }
+        ]
+      },
+      {
+        "range": [
+          71,
+          95
+        ],
+        "drops": [
+          {
+            "currency": "mo",
+            "dice": "4d6",
+            "mult": 10,
+            "avg": 140
+          }
+        ]
+      },
+      {
+        "range": [
+          96,
+          100
+        ],
+        "drops": [
+          {
+            "currency": "mo",
+            "dice": "2d6",
+            "mult": 10,
+            "avg": 70
+          },
+          {
+            "currency": "mp",
+            "dice": "3d6",
+            "mult": 1,
+            "avg": 10
+          }
+        ]
+      }
+    ],
+    "11-16": [
+      {
+        "range": [
+          1,
+          20
+        ],
+        "drops": [
+          {
+            "currency": "ma",
+            "dice": "4d6",
+            "mult": 100,
+            "avg": 1400
+          },
+          {
+            "currency": "mo",
+            "dice": "1d6",
+            "mult": 100,
+            "avg": 350
+          }
+        ]
+      },
+      {
+        "range": [
+          21,
+          35
+        ],
+        "drops": [
+          {
+            "currency": "me",
+            "dice": "1d6",
+            "mult": 100,
+            "avg": 350
+          },
+          {
+            "currency": "mo",
+            "dice": "1d6",
+            "mult": 100,
+            "avg": 350
+          }
+        ]
+      },
+      {
+        "range": [
+          36,
+          75
+        ],
+        "drops": [
+          {
+            "currency": "mo",
+            "dice": "2d6",
+            "mult": 100,
+            "avg": 700
+          },
+          {
+            "currency": "mp",
+            "dice": "1d6",
+            "mult": 10,
+            "avg": 35
+          }
+        ]
+      },
+      {
+        "range": [
+          76,
+          100
+        ],
+        "drops": [
+          {
+            "currency": "mo",
+            "dice": "2d6",
+            "mult": 100,
+            "avg": 700
+          },
+          {
+            "currency": "mp",
+            "dice": "2d6",
+            "mult": 10,
+            "avg": 70
+          }
+        ]
+      }
+    ],
+    "17+": [
+      {
+        "range": [
+          1,
+          15
+        ],
+        "drops": [
+          {
+            "currency": "me",
+            "dice": "2d6",
+            "mult": 1000,
+            "avg": 7000
+          },
+          {
+            "currency": "mo",
+            "dice": "8d6",
+            "mult": 100,
+            "avg": 2800
+          }
+        ]
+      },
+      {
+        "range": [
+          16,
+          55
+        ],
+        "drops": [
+          {
+            "currency": "mo",
+            "dice": "1d6",
+            "mult": 1000,
+            "avg": 3500
+          },
+          {
+            "currency": "mp",
+            "dice": "1d6",
+            "mult": 100,
+            "avg": 350
+          }
+        ]
+      },
+      {
+        "range": [
+          56,
+          100
+        ],
+        "drops": [
+          {
+            "currency": "mo",
+            "dice": "1d6",
+            "mult": 1000,
+            "avg": 3500
+          },
+          {
+            "currency": "mp",
+            "dice": "2d6",
+            "mult": 100,
+            "avg": 700
+          }
+        ]
+      }
+    ]
+  },
+  "hoard_by_cr": {
+    "0-4": {
+      "coins": [
+        {
+          "currency": "mr",
+          "dice": "6d6",
+          "mult": 100,
+          "avg": 2100
+        },
+        {
+          "currency": "ma",
+          "dice": "3d6",
+          "mult": 100,
+          "avg": 1050
+        },
+        {
+          "currency": "mo",
+          "dice": "2d6",
+          "mult": 10,
+          "avg": 70
+        }
+      ],
+      "rows": [
+        {
+          "range": [
+            1,
+            6
+          ],
+          "gems_art": null,
+          "magic": []
+        },
+        {
+          "range": [
+            7,
+            16
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 10,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            17,
+            26
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            27,
+            36
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            37,
+            44
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 10,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            45,
+            52
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            53,
+            60
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            61,
+            65
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 10,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": [
+            {
+              "table": "B",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            66,
+            70
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "B",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            71,
+            75
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": [
+            {
+              "table": "B",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            76,
+            78
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 10,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            79,
+            80
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            81,
+            85
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            86,
+            92
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            93,
+            97
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            98,
+            99
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "G",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            100,
+            100
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "2d6",
+            "avg": 7
+          },
+          "magic": [
+            {
+              "table": "G",
+              "rolls": "1"
+            }
+          ]
+        }
+      ]
+    },
+    "5-10": {
+      "coins": [
+        {
+          "currency": "mr",
+          "dice": "2d6",
+          "mult": 100,
+          "avg": 700
+        },
+        {
+          "currency": "ma",
+          "dice": "2d6",
+          "mult": 1000,
+          "avg": 7000
+        },
+        {
+          "currency": "mo",
+          "dice": "6d6",
+          "mult": 100,
+          "avg": 2100
+        },
+        {
+          "currency": "mp",
+          "dice": "3d6",
+          "mult": 10,
+          "avg": 105
+        }
+      ],
+      "rows": [
+        {
+          "range": [
+            1,
+            4
+          ],
+          "gems_art": null,
+          "magic": []
+        },
+        {
+          "range": [
+            5,
+            10
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            11,
+            16
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            17,
+            22
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 100,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            23,
+            28
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            29,
+            32
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            33,
+            36
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            37,
+            40
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 100,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            41,
+            44
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            45,
+            49
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "B",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            50,
+            54
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "B",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            55,
+            59
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 100,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "B",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            60,
+            63
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "B",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            64,
+            66
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            67,
+            69
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            70,
+            72
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 100,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            73,
+            74
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            75,
+            76
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            77,
+            78
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            79,
+            79
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 100,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            80,
+            80
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            81,
+            84
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 25,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            85,
+            88
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 50,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            89,
+            91
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 100,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            92,
+            94
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            95,
+            96
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 100,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            97,
+            98
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            99,
+            99
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 100,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            100,
+            100
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1"
+            }
+          ]
+        }
+      ]
+    },
+    "11-16": {
+      "coins": [
+        {
+          "currency": "mo",
+          "dice": "4d6",
+          "mult": 1000,
+          "avg": 14000
+        },
+        {
+          "currency": "mp",
+          "dice": "5d6",
+          "mult": 100,
+          "avg": 1750
+        }
+      ],
+      "rows": [
+        {
+          "range": [
+            1,
+            3
+          ],
+          "gems_art": null,
+          "magic": []
+        },
+        {
+          "range": [
+            4,
+            6
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            7,
+            9
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 750,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            10,
+            12
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 500,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            13,
+            15
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": []
+        },
+        {
+          "range": [
+            16,
+            19
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d4"
+            },
+            {
+              "table": "B",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            20,
+            23
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 750,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d4"
+            },
+            {
+              "table": "B",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            24,
+            26
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 500,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d4"
+            },
+            {
+              "table": "B",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            27,
+            29
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "A",
+              "rolls": "1d4"
+            },
+            {
+              "table": "B",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            30,
+            35
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            36,
+            40
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 750,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            41,
+            45
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 500,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            46,
+            50
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            51,
+            54
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            55,
+            58
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 750,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            59,
+            62
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 500,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            63,
+            66
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            67,
+            68
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "E",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            69,
+            70
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 750,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "E",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            71,
+            72
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 500,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "E",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            73,
+            74
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "E",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            75,
+            76
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1"
+            },
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            77,
+            78
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 750,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1"
+            },
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            79,
+            80
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 500,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1"
+            },
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            81,
+            82
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "F",
+              "rolls": "1"
+            },
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            83,
+            85
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            86,
+            88
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 750,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            89,
+            90
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 500,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            91,
+            92
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            93,
+            94
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 250,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "I",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            95,
+            96
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 750,
+            "dice": "2d4",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "I",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            97,
+            98
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 500,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "I",
+              "rolls": "1"
+            }
+          ]
+        },
+        {
+          "range": [
+            99,
+            100
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "I",
+              "rolls": "1"
+            }
+          ]
+        }
+      ]
+    },
+    "17+": {
+      "coins": [
+        {
+          "currency": "mo",
+          "dice": "12d6",
+          "mult": 1000,
+          "avg": 42000
+        },
+        {
+          "currency": "mp",
+          "dice": "8d6",
+          "mult": 1000,
+          "avg": 28000
+        }
+      ],
+      "rows": [
+        {
+          "range": [
+            1,
+            2
+          ],
+          "gems_art": null,
+          "magic": []
+        },
+        {
+          "range": [
+            3,
+            5
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d8"
+            }
+          ]
+        },
+        {
+          "range": [
+            6,
+            8
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 2500,
+            "dice": "1d10",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d8"
+            }
+          ]
+        },
+        {
+          "range": [
+            9,
+            11
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 7500,
+            "dice": "1d4",
+            "avg": 2
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d8"
+            }
+          ]
+        },
+        {
+          "range": [
+            12,
+            14
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 5000,
+            "dice": "1d8",
+            "avg": 4
+          },
+          "magic": [
+            {
+              "table": "C",
+              "rolls": "1d8"
+            }
+          ]
+        },
+        {
+          "range": [
+            15,
+            22
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            23,
+            30
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 2500,
+            "dice": "1d10",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            31,
+            38
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 7500,
+            "dice": "1d4",
+            "avg": 2
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            39,
+            46
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 5000,
+            "dice": "1d8",
+            "avg": 4
+          },
+          "magic": [
+            {
+              "table": "D",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            47,
+            52
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "E",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            53,
+            58
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 2500,
+            "dice": "1d10",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "E",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            59,
+            63
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 7500,
+            "dice": "1d4",
+            "avg": 2
+          },
+          "magic": [
+            {
+              "table": "E",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            64,
+            68
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 5000,
+            "dice": "1d8",
+            "avg": 4
+          },
+          "magic": [
+            {
+              "table": "E",
+              "rolls": "1d6"
+            }
+          ]
+        },
+        {
+          "range": [
+            69,
+            69
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            70,
+            70
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 2500,
+            "dice": "1d10",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            71,
+            71
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 7500,
+            "dice": "1d4",
+            "avg": 2
+          },
+          "magic": [
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            72,
+            72
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 5000,
+            "dice": "1d8",
+            "avg": 4
+          },
+          "magic": [
+            {
+              "table": "G",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            73,
+            74
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            75,
+            76
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 2500,
+            "dice": "1d10",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            77,
+            78
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 7500,
+            "dice": "1d4",
+            "avg": 2
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            79,
+            80
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 5000,
+            "dice": "1d8",
+            "avg": 4
+          },
+          "magic": [
+            {
+              "table": "H",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            81,
+            85
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 1000,
+            "dice": "3d6",
+            "avg": 10
+          },
+          "magic": [
+            {
+              "table": "I",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            86,
+            90
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 2500,
+            "dice": "1d10",
+            "avg": 5
+          },
+          "magic": [
+            {
+              "table": "I",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            91,
+            95
+          ],
+          "gems_art": {
+            "type": "art",
+            "value": 7500,
+            "dice": "1d4",
+            "avg": 2
+          },
+          "magic": [
+            {
+              "table": "I",
+              "rolls": "1d4"
+            }
+          ]
+        },
+        {
+          "range": [
+            96,
+            100
+          ],
+          "gems_art": {
+            "type": "gems",
+            "value": 5000,
+            "dice": "1d8",
+            "avg": 4
+          },
+          "magic": [
+            {
+              "table": "I",
+              "rolls": "1d4"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "gems_by_value": {
+    "10": {
+      "dice": "d12",
+      "items": [
+        "Agata ad occhio (cerchi grigi, bianchi, marroni, blu o verdi traslucidi)",
+        "Agata muschiata (rosa o giallo-bianco traslucido con chiazze grigie muschio o verdi)",
+        "Agata striata (marrone, blu, bianco o rosso traslucido e striato)",
+        "Azzurrite (blu scuro opaco e maculato)",
+        "Ematite (nero-grigio opaco)",
+        "Lapislazzuli (blu o azzurro opaco con pagliuzze gialle)",
+        "Malachite (verde chiaro o scuro opaco e striato)",
+        "Occhio di tigre (marrone traslucido con un centro dorato)",
+        "Ossidiana (nero opaco)",
+        "Quarzo blu (azzurro trasparente)",
+        "Rodocrosite (rosa chiaro opaco)",
+        "Turchese (verde-azzurro chiaro opaco)"
+      ]
+    },
+    "50": {
+      "dice": "d12",
+      "items": [
+        "Calcedonio (bianco opaco)",
+        "Citrino (giallo-marrone chiaro trasparente)",
+        "Corniola (arancione o rosso-marrone opaco)",
+        "Crisoprasio (verde traslucido)",
+        "Diaspro (blu, nero o marrone opaco)",
+        "Eliotropia (grigio scuro opaco con pagliuzze rosse)",
+        "Onice (bande opache bianche e nere, oppure nero o bianco puro)",
+        "Quarzo (bianco, grigio fumo o giallo trasparente)",
+        "Quarzo rosa di stella (pietra rosea traslucida con un centro bianco a forma di stella)",
+        "Sardonice (bande opache rosse e bianche)",
+        "Selenite (bianco traslucido con un bagliore azzurro pallido)",
+        "Zircone (blu-verde pallido trasparente)"
+      ]
+    },
+    "100": {
+      "dice": "d10",
+      "items": [
+        "Ambra (dall'oro diluito trasparente all'oro intenso)",
+        "Ametista (viola scuro trasparente)",
+        "Corallo (cremisi opaco)",
+        "Crisoberillo (da giallo-verde a verde chiaro trasparente)",
+        "Giada (verde chiaro, verde intenso o bianco traslucido)",
+        "Giaietto (nero intenso opaco)",
+        "Granato (rosso, marrone-verde o viola trasparente)",
+        "Perla (bianco, giallo o rosa opaco brillante)",
+        "Spinello (rosso, rosso-marrone o verde scuro trasparente)",
+        "Tormalina (verde pallido, blu, marrone o rosso trasparente)"
+      ]
+    },
+    "500": {
+      "dice": "d6",
+      "items": [
+        "Acquamarina (blu-verde pallido trasparente)",
+        "Alessandrite (verde scuro trasparente)",
+        "Peridoto (verde oliva intenso trasparente)",
+        "Perla nera (nero opaco puro)",
+        "Spinello blu (blu intenso trasparente)",
+        "Topazio (giallo dorato trasparente)"
+      ]
+    },
+    "1000": {
+      "dice": "d8",
+      "items": [
+        "Opale (blu pallido traslucido con chiazze verdi e dorate)",
+        "Opale di fuoco (rosso infuocato traslucido)",
+        "Opale nero (verde scuro traslucido con chiazze nere e pagliuzze dorate)",
+        "Rubino stellato (rubino traslucido con un centro bianco a forma di stella)",
+        "Smeraldo (verde intenso trasparente)",
+        "Zaffiro blu (da blu-bianco a blu medio trasparente)",
+        "Zaffiro giallo (giallo infuocato o giallo verde trasparente)",
+        "Zaffiro stellato (zaffiro blu traslucido con un centro bianco a forma di stella)"
+      ]
+    },
+    "5000": {
+      "dice": "d4",
+      "items": [
+        "Diamante (blu-bianco, canarino, rosa, marrone o blu trasparente)",
+        "Giacinto (arancione infuocato trasparente)",
+        "Rubino (da rosso chiaro a rosso cremisi trasparente)",
+        "Zaffiro nero (nero traslucido con riflessi luminosi)"
+      ]
+    }
+  },
+  "art_by_value": {
+    "25": {
+      "dice": "d10",
+      "items": [
+        "Brocca d'argento",
+        "Statuetta d'osso intagliato",
+        "Braccialetto d'oro piccolo",
+        "Abiti d'oro",
+        "Maschera di velluto nero con ricami d'argento",
+        "Calice in rame con filigrana in argento",
+        "Coppia di dadi in osso incisi",
+        "Piccolo specchio incastonato in una cornice in legno dipinto",
+        "Fazzoletto di seta ricamato",
+        "Medaglione d'oro con un ritratto dipinto all'interno"
+      ]
+    },
+    "250": {
+      "dice": "d10",
+      "items": [
+        "Anello d'oro con eliotropie",
+        "Statuetta d'avorio intagliato",
+        "Braccialetto d'oro grande",
+        "Collana d'argento con pietra preziosa come pendente",
+        "Corona di bronzo",
+        "Veste di seta con ricami dorati",
+        "Grande arazzo pregiato",
+        "Boccale in ottone con intarsi di giada",
+        "Scatola di statuette di animali in pietra turchese",
+        "Gabbia dorata per uccelli con filigrana in electrum"
+      ]
+    },
+    "750": {
+      "dice": "d10",
+      "items": [
+        "Calice d'argento incastonato di seleniti",
+        "Spada lunga d'acciaio placcato in argento e con giaietto nell'elsa",
+        "Arpa intagliata in legno esotico con intarsi in avorio e di zirconi",
+        "Piccolo idolo d'oro massiccio",
+        "Pettine d'oro a forma di drago con occhi di granato rosso",
+        "Tappo di bottiglia con foglie d'oro in rilievo e incastonato di ametiste",
+        "Pugnale da cerimonia in electrum con una perla nera sul pomello",
+        "Spilla in argento e oro",
+        "Statuetta di ossidiana con piedistallo e intarsi in oro",
+        "Maschera da guerra d'oro dipinta"
+      ]
+    },
+    "2500": {
+      "dice": "d10",
+      "items": [
+        "Catenina d'oro con opale di fuoco",
+        "Antico dipinto d'ottima fattura",
+        "Mantello in velluto e seta ricamato con numerose seleniti",
+        "Bracciale in platino con uno zaffiro incastonato",
+        "Guanti ricamati con schegge di gemme",
+        "Cavigliera decorata con pietre preziose",
+        "Carillon d'oro",
+        "Diadema in oro con quattro acquemarine",
+        "Benda per occhio con finto occhio in zaffiro e selenite",
+        "Collana formata da una fila di perline rosa"
+      ]
+    },
+    "7500": {
+      "dice": "d8",
+      "items": [
+        "Corona d'oro con gemme",
+        "Anello in platino con pietre preziose",
+        "Statuetta d'oro incastonata di rubini",
+        "Coppa d'oro incastonata di smeraldi",
+        "Portagioie in oro con filigrana di platino",
+        "Sarcofago da bambino in oro dipinto",
+        "Tabellone da gioco in giada con pedine d'oro massiccio",
+        "Corno da banchetto d'avorio ingioiellato con filigrana dorata"
+      ]
+    }
+  },
+  "magic_item_tables": {
+    "A": [
+      {
+        "range": [
+          1,
+          50
+        ],
+        "name": "Pozione di guarigione"
+      },
+      {
+        "range": [
+          51,
+          60
+        ],
+        "name": "Pergamena magica (trucchetto)"
+      },
+      {
+        "range": [
+          61,
+          70
+        ],
+        "name": "Pozione di scalare"
+      },
+      {
+        "range": [
+          71,
+          90
+        ],
+        "name": "Pergamena magica (1° livello)"
+      },
+      {
+        "range": [
+          91,
+          94
+        ],
+        "name": "Pergamena magica (2° livello)"
+      },
+      {
+        "range": [
+          95,
+          98
+        ],
+        "name": "Pozione di guarigione maggiore"
+      },
+      {
+        "range": [
+          99,
+          99
+        ],
+        "name": "Borsa conservante"
+      },
+      {
+        "range": [
+          100,
+          100
+        ],
+        "name": "Globo fluttuante"
+      }
+    ],
+    "B": [
+      {
+        "range": [
+          1,
+          15
+        ],
+        "name": "Pozione di guarigione maggiore"
+      },
+      {
+        "range": [
+          16,
+          22
+        ],
+        "name": "Pozione del soffio di fuoco"
+      },
+      {
+        "range": [
+          23,
+          29
+        ],
+        "name": "Pozione di resistenza"
+      },
+      {
+        "range": [
+          30,
+          34
+        ],
+        "name": "Munizione +1"
+      },
+      {
+        "range": [
+          35,
+          39
+        ],
+        "name": "Pozione di amicizia con gli animali"
+      },
+      {
+        "range": [
+          40,
+          44
+        ],
+        "name": "Pozione della forza dei giganti delle colline"
+      },
+      {
+        "range": [
+          45,
+          49
+        ],
+        "name": "Pozione di crescita"
+      },
+      {
+        "range": [
+          50,
+          54
+        ],
+        "name": "Pozione del respirare sott'acqua"
+      },
+      {
+        "range": [
+          55,
+          59
+        ],
+        "name": "Pergamena magica (2° livello)"
+      },
+      {
+        "range": [
+          60,
+          64
+        ],
+        "name": "Pergamena magica (3° livello)"
+      },
+      {
+        "range": [
+          65,
+          67
+        ],
+        "name": "Borsa conservante"
+      },
+      {
+        "range": [
+          68,
+          70
+        ],
+        "name": "Unguento di Keoghtom"
+      },
+      {
+        "range": [
+          71,
+          73
+        ],
+        "name": "Olio della scivolosità"
+      },
+      {
+        "range": [
+          74,
+          75
+        ],
+        "name": "Polvere della sparizione"
+      },
+      {
+        "range": [
+          76,
+          77
+        ],
+        "name": "Polvere dello starnuto e del soffocamento"
+      },
+      {
+        "range": [
+          78,
+          79
+        ],
+        "name": "Polvere prosciugante"
+      },
+      {
+        "range": [
+          80,
+          81
+        ],
+        "name": "Gemma elementale"
+      },
+      {
+        "range": [
+          82,
+          83
+        ],
+        "name": "Filtro d'amore"
+      },
+      {
+        "range": [
+          84,
+          84
+        ],
+        "name": "Anello del nuotare"
+      },
+      {
+        "range": [
+          85,
+          85
+        ],
+        "name": "Armatura del marinaio"
+      },
+      {
+        "range": [
+          86,
+          86
+        ],
+        "name": "Armatura in mithral"
+      },
+      {
+        "range": [
+          87,
+          87
+        ],
+        "name": "Bacchetta dei segreti"
+      },
+      {
+        "range": [
+          88,
+          88
+        ],
+        "name": "Bacchetta di individuazione del magico"
+      },
+      {
+        "range": [
+          89,
+          89
+        ],
+        "name": "Copricapo del respirare sott'acqua"
+      },
+      {
+        "range": [
+          90,
+          90
+        ],
+        "name": "Corda per scalare"
+      },
+      {
+        "range": [
+          91,
+          91
+        ],
+        "name": "Elmo della comprensione dei linguaggi"
+      },
+      {
+        "range": [
+          92,
+          92
+        ],
+        "name": "Giara alchemica"
+      },
+      {
+        "range": [
+          93,
+          93
+        ],
+        "name": "Globo fluttuante"
+      },
+      {
+        "range": [
+          94,
+          94
+        ],
+        "name": "Lanterna della rivelazione"
+      },
+      {
+        "range": [
+          95,
+          95
+        ],
+        "name": "Mantello della manta"
+      },
+      {
+        "range": [
+          96,
+          96
+        ],
+        "name": "Occhiali della notte"
+      },
+      {
+        "range": [
+          97,
+          97
+        ],
+        "name": "Pozione velenosa"
+      },
+      {
+        "range": [
+          98,
+          98
+        ],
+        "name": "Sella del cavaliere"
+      },
+      {
+        "range": [
+          99,
+          99
+        ],
+        "name": "Tunica degli oggetti utili"
+      },
+      {
+        "range": [
+          100,
+          100
+        ],
+        "name": "Verga inamovibile"
+      }
+    ],
+    "C": [
+      {
+        "range": [
+          1,
+          15
+        ],
+        "name": "Pozione di guarigione superiore"
+      },
+      {
+        "range": [
+          16,
+          22
+        ],
+        "name": "Pergamena magica (4° livello)"
+      },
+      {
+        "range": [
+          23,
+          27
+        ],
+        "name": "Munizione +2"
+      },
+      {
+        "range": [
+          28,
+          32
+        ],
+        "name": "Pozione di chiaroveggenza"
+      },
+      {
+        "range": [
+          33,
+          37
+        ],
+        "name": "Pozione di diminuzione"
+      },
+      {
+        "range": [
+          38,
+          42
+        ],
+        "name": "Pozione della forma gassosa"
+      },
+      {
+        "range": [
+          43,
+          47
+        ],
+        "name": "Pozione della forza dei giganti del gelo"
+      },
+      {
+        "range": [
+          48,
+          52
+        ],
+        "name": "Pozione della forza dei giganti delle pietre"
+      },
+      {
+        "range": [
+          53,
+          57
+        ],
+        "name": "Pozione di eroismo"
+      },
+      {
+        "range": [
+          58,
+          62
+        ],
+        "name": "Pozione di invulnerabilità"
+      },
+      {
+        "range": [
+          63,
+          67
+        ],
+        "name": "Pozione di lettura della mente"
+      },
+      {
+        "range": [
+          68,
+          72
+        ],
+        "name": "Pergamena magica (5° livello)"
+      },
+      {
+        "range": [
+          73,
+          75
+        ],
+        "name": "Elisir della salute"
+      },
+      {
+        "range": [
+          76,
+          78
+        ],
+        "name": "Olio della forma eterea"
+      },
+      {
+        "range": [
+          79,
+          81
+        ],
+        "name": "Pozione della forza dei giganti del fuoco"
+      },
+      {
+        "range": [
+          82,
+          84
+        ],
+        "name": "Piume di Quaal"
+      },
+      {
+        "range": [
+          85,
+          87
+        ],
+        "name": "Pergamena di protezione"
+      },
+      {
+        "range": [
+          88,
+          89
+        ],
+        "name": "Borsa dei fagioli magici"
+      },
+      {
+        "range": [
+          90,
+          91
+        ],
+        "name": "Biglia di forza"
+      },
+      {
+        "range": [
+          92,
+          92
+        ],
+        "name": "Barca pieghevole"
+      },
+      {
+        "range": [
+          93,
+          93
+        ],
+        "name": "Campana dell'apertura"
+      },
+      {
+        "range": [
+          94,
+          94
+        ],
+        "name": "Caraffa dell'acqua eterna"
+      },
+      {
+        "range": [
+          95,
+          95
+        ],
+        "name": "Collana delle palle di fuoco"
+      },
+      {
+        "range": [
+          96,
+          96
+        ],
+        "name": "Ferri della velocità"
+      },
+      {
+        "range": [
+          97,
+          97
+        ],
+        "name": "Lenti della visione dettagliata"
+      },
+      {
+        "range": [
+          98,
+          98
+        ],
+        "name": "Pietre parlanti"
+      },
+      {
+        "range": [
+          99,
+          99
+        ],
+        "name": "Talismano della salute"
+      },
+      {
+        "range": [
+          100,
+          100
+        ],
+        "name": "Zainetto pratico di Heward"
+      }
+    ],
+    "D": [
+      {
+        "range": [
+          1,
+          20
+        ],
+        "name": "Pozione di guarigione suprema"
+      },
+      {
+        "range": [
+          21,
+          30
+        ],
+        "name": "Pozione di invisibilità"
+      },
+      {
+        "range": [
+          31,
+          40
+        ],
+        "name": "Pozione di velocità"
+      },
+      {
+        "range": [
+          41,
+          50
+        ],
+        "name": "Pergamena magica (6° livello)"
+      },
+      {
+        "range": [
+          51,
+          57
+        ],
+        "name": "Pergamena magica (7° livello)"
+      },
+      {
+        "range": [
+          58,
+          62
+        ],
+        "name": "Munizione +3"
+      },
+      {
+        "range": [
+          63,
+          67
+        ],
+        "name": "Olio dell'affilatura"
+      },
+      {
+        "range": [
+          68,
+          72
+        ],
+        "name": "Pozione di volare"
+      },
+      {
+        "range": [
+          73,
+          77
+        ],
+        "name": "Pozione della forza dei giganti delle nuvole"
+      },
+      {
+        "range": [
+          78,
+          82
+        ],
+        "name": "Pozione di longevità"
+      },
+      {
+        "range": [
+          83,
+          87
+        ],
+        "name": "Pozione di vitalità"
+      },
+      {
+        "range": [
+          88,
+          92
+        ],
+        "name": "Pergamena magica (8° livello)"
+      },
+      {
+        "range": [
+          93,
+          95
+        ],
+        "name": "Ferri dello zefiro"
+      },
+      {
+        "range": [
+          96,
+          98
+        ],
+        "name": "Pigmenti meravigliosi di Nolzur"
+      },
+      {
+        "range": [
+          99,
+          99
+        ],
+        "name": "Borsa divorante"
+      },
+      {
+        "range": [
+          100,
+          100
+        ],
+        "name": "Buco portatile"
+      }
+    ],
+    "E": [
+      {
+        "range": [
+          1,
+          30
+        ],
+        "name": "Pergamena magica (8° livello)"
+      },
+      {
+        "range": [
+          31,
+          55
+        ],
+        "name": "Pozione della forza dei giganti delle tempeste"
+      },
+      {
+        "range": [
+          56,
+          70
+        ],
+        "name": "Pozione di guarigione suprema"
+      },
+      {
+        "range": [
+          71,
+          85
+        ],
+        "name": "Pergamena magica (9° livello)"
+      },
+      {
+        "range": [
+          86,
+          93
+        ],
+        "name": "Solvente universale"
+      },
+      {
+        "range": [
+          94,
+          98
+        ],
+        "name": "Freccia assassina"
+      },
+      {
+        "range": [
+          99,
+          100
+        ],
+        "name": "Colla meravigliosa"
+      }
+    ],
+    "F": [
+      {
+        "range": [
+          1,
+          15
+        ],
+        "name": "Arma +1"
+      },
+      {
+        "range": [
+          16,
+          18
+        ],
+        "name": "Scudo +1"
+      },
+      {
+        "range": [
+          19,
+          21
+        ],
+        "name": "Scudo sentinella"
+      },
+      {
+        "range": [
+          22,
+          23
+        ],
+        "name": "Amuleto anti-individuazione e localizzazione"
+      },
+      {
+        "range": [
+          24,
+          25
+        ],
+        "name": "Arma dell'avvertimento"
+      },
+      {
+        "range": [
+          26,
+          27
+        ],
+        "name": "Bacchetta dei dardi incantati"
+      },
+      {
+        "range": [
+          28,
+          29
+        ],
+        "name": "Bacchetta del mago da guerra +1"
+      },
+      {
+        "range": [
+          30,
+          31
+        ],
+        "name": "Bacchetta della ragnatela"
+      },
+      {
+        "range": [
+          32,
+          33
+        ],
+        "name": "Bastone del pitone"
+      },
+      {
+        "range": [
+          34,
+          35
+        ],
+        "name": "Bastone della vipera"
+      },
+      {
+        "range": [
+          36,
+          37
+        ],
+        "name": "Bracciali dell'arciere"
+      },
+      {
+        "range": [
+          38,
+          39
+        ],
+        "name": "Cappello del camuffamento"
+      },
+      {
+        "range": [
+          40,
+          41
+        ],
+        "name": "Fermaglio dello scudo"
+      },
+      {
+        "range": [
+          42,
+          43
+        ],
+        "name": "Giavellotto del fulmine"
+      },
+      {
+        "range": [
+          44,
+          45
+        ],
+        "name": "Guanti del potere orchesco"
+      },
+      {
+        "range": [
+          46,
+          47
+        ],
+        "name": "Mantello della protezione"
+      },
+      {
+        "range": [
+          48,
+          49
+        ],
+        "name": "Mantello elfico"
+      },
+      {
+        "range": [
+          50,
+          51
+        ],
+        "name": "Pantofole del ragno"
+      },
+      {
+        "range": [
+          52,
+          53
+        ],
+        "name": "Perla del potere"
+      },
+      {
+        "range": [
+          54,
+          55
+        ],
+        "name": "Scopa volante"
+      },
+      {
+        "range": [
+          56,
+          57
+        ],
+        "name": "Spada della vendetta"
+      },
+      {
+        "range": [
+          58,
+          59
+        ],
+        "name": "Stivali elfici"
+      },
+      {
+        "range": [
+          60,
+          61
+        ],
+        "name": "Stivali molleggiati"
+      },
+      {
+        "range": [
+          62,
+          63
+        ],
+        "name": "Tridente del comando dei pesci"
+      },
+      {
+        "range": [
+          64,
+          65
+        ],
+        "name": "Verga del patto rispettato +1"
+      },
+      {
+        "range": [
+          66,
+          66
+        ],
+        "name": "Anello del calore"
+      },
+      {
+        "range": [
+          67,
+          67
+        ],
+        "name": "Anello del camminare sull'acqua"
+      },
+      {
+        "range": [
+          68,
+          68
+        ],
+        "name": "Anello del saltare"
+      },
+      {
+        "range": [
+          69,
+          69
+        ],
+        "name": "Anello di scudo mentale"
+      },
+      {
+        "range": [
+          70,
+          70
+        ],
+        "name": "Armatura adamantina (corazza di scaglie)"
+      },
+      {
+        "range": [
+          71,
+          71
+        ],
+        "name": "Armatura adamantina (cotta di maglia)"
+      },
+      {
+        "range": [
+          72,
+          72
+        ],
+        "name": "Armatura adamantina (giaco di maglia)"
+      },
+      {
+        "range": [
+          73,
+          73
+        ],
+        "name": "Borsa dei trucchi (grigia)"
+      },
+      {
+        "range": [
+          74,
+          74
+        ],
+        "name": "Borsa dei trucchi (marrone)"
+      },
+      {
+        "range": [
+          75,
+          75
+        ],
+        "name": "Borsa dei trucchi (ruggine)"
+      },
+      {
+        "range": [
+          76,
+          76
+        ],
+        "name": "Bottiglia del fumo perenne"
+      },
+      {
+        "range": [
+          77,
+          77
+        ],
+        "name": "Collana dell'adattamento"
+      },
+      {
+        "range": [
+          78,
+          78
+        ],
+        "name": "Diadema incandescente"
+      },
+      {
+        "range": [
+          79,
+          79
+        ],
+        "name": "Elmo della telepatia"
+      },
+      {
+        "range": [
+          80,
+          80
+        ],
+        "name": "Faretra di Ehlonna"
+      },
+      {
+        "range": [
+          81,
+          81
+        ],
+        "name": "Fascia dell'intelletto"
+      },
+      {
+        "range": [
+          82,
+          82
+        ],
+        "name": "Flauto dei topi"
+      },
+      {
+        "range": [
+          83,
+          83
+        ],
+        "name": "Flauto incantatore"
+      },
+      {
+        "range": [
+          84,
+          84
+        ],
+        "name": "Gemma della luminosità"
+      },
+      {
+        "range": [
+          85,
+          85
+        ],
+        "name": "Guanti catturaproiettili"
+      },
+      {
+        "range": [
+          86,
+          86
+        ],
+        "name": "Guanti del nuotare e scalare"
+      },
+      {
+        "range": [
+          87,
+          87
+        ],
+        "name": "Guanti ladreschi"
+      },
+      {
+        "range": [
+          88,
+          88
+        ],
+        "name": "Lenti dell'aquila"
+      },
+      {
+        "range": [
+          89,
+          89
+        ],
+        "name": "Lenti dello charme"
+      },
+      {
+        "range": [
+          90,
+          90
+        ],
+        "name": "Mazzo delle illusioni"
+      },
+      {
+        "range": [
+          91,
+          91
+        ],
+        "name": "Medaglione dei pensieri"
+      },
+      {
+        "range": [
+          92,
+          92
+        ],
+        "name": "Pietra della buona fortuna"
+      },
+      {
+        "range": [
+          93,
+          93
+        ],
+        "name": "Statuina del potere meraviglioso (corvo d'argento)"
+      },
+      {
+        "range": [
+          94,
+          94
+        ],
+        "name": "Stivali alati"
+      },
+      {
+        "range": [
+          95,
+          95
+        ],
+        "name": "Stivali dell'inverno"
+      },
+      {
+        "range": [
+          96,
+          96
+        ],
+        "name": "Strumento dei bardi (bandura di Fochlucan)"
+      },
+      {
+        "range": [
+          97,
+          97
+        ],
+        "name": "Strumento dei bardi (cetera di Mac-Fuimidh)"
+      },
+      {
+        "range": [
+          98,
+          98
+        ],
+        "name": "Strumento dei bardi (liuto di Doss)"
+      },
+      {
+        "range": [
+          99,
+          99
+        ],
+        "name": "Talismano della rimarginazione"
+      },
+      {
+        "range": [
+          100,
+          100
+        ],
+        "name": "Ventaglio"
+      }
+    ],
+    "G": [
+      {
+        "range": [
+          1,
+          11
+        ],
+        "name": "Arma +2"
+      },
+      {
+        "range": [
+          12,
+          14
+        ],
+        "name": "Statuina del potere meraviglioso",
+        "sub_table": {
+          "dice": "d8",
+          "items": [
+            "Cane d'onice",
+            "Cane d'onice",
+            "Capre d'avorio",
+            "Elefante di marmo",
+            "Grifone di bronzo",
+            "Gufo di serpentino",
+            "Leoni d'oro",
+            "Mosca d'ebano"
+          ]
+        }
+      },
+      {
+        "range": [
+          15,
+          15
+        ],
+        "name": "Ali del volo"
+      },
+      {
+        "range": [
+          16,
+          16
+        ],
+        "name": "Ammazzadraghi"
+      },
+      {
+        "range": [
+          17,
+          17
+        ],
+        "name": "Ammazzagiganti"
+      },
+      {
+        "range": [
+          18,
+          18
+        ],
+        "name": "Amuleto della salute"
+      },
+      {
+        "range": [
+          19,
+          19
+        ],
+        "name": "Anello accumula incantesimi"
+      },
+      {
+        "range": [
+          20,
+          20
+        ],
+        "name": "Anello dell'ariete"
+      },
+      {
+        "range": [
+          21,
+          21
+        ],
+        "name": "Anello della caduta morbida"
+      },
+      {
+        "range": [
+          22,
+          22
+        ],
+        "name": "Anello della libertà di azione"
+      },
+      {
+        "range": [
+          23,
+          23
+        ],
+        "name": "Anello della vista a raggi X"
+      },
+      {
+        "range": [
+          24,
+          24
+        ],
+        "name": "Anello di eludere"
+      },
+      {
+        "range": [
+          25,
+          25
+        ],
+        "name": "Anello di influenza sugli animali"
+      },
+      {
+        "range": [
+          26,
+          26
+        ],
+        "name": "Anello di protezione"
+      },
+      {
+        "range": [
+          27,
+          27
+        ],
+        "name": "Anello di resistenza"
+      },
+      {
+        "range": [
+          28,
+          28
+        ],
+        "name": "Arma spietata"
+      },
+      {
+        "range": [
+          29,
+          29
+        ],
+        "name": "Armatura adamantina (corazza a strisce)"
+      },
+      {
+        "range": [
+          30,
+          30
+        ],
+        "name": "Armatura adamantina (corazza di piastre)"
+      },
+      {
+        "range": [
+          31,
+          31
+        ],
+        "name": "Armatura, cotta di maglia +1"
+      },
+      {
+        "range": [
+          32,
+          32
+        ],
+        "name": "Armatura della resistenza (cotta di maglia)"
+      },
+      {
+        "range": [
+          33,
+          33
+        ],
+        "name": "Armatura, giaco di maglia +1"
+      },
+      {
+        "range": [
+          34,
+          34
+        ],
+        "name": "Armatura della resistenza (giaco di maglia)"
+      },
+      {
+        "range": [
+          35,
+          35
+        ],
+        "name": "Armatura della vulnerabilità"
+      },
+      {
+        "range": [
+          36,
+          36
+        ],
+        "name": "Armatura di cuoio borchiato incantata"
+      },
+      {
+        "range": [
+          37,
+          37
+        ],
+        "name": "Ascia del berserker"
+      },
+      {
+        "range": [
+          38,
+          38
+        ],
+        "name": "Bacchetta dei fulmini"
+      },
+      {
+        "range": [
+          39,
+          39
+        ],
+        "name": "Bacchetta del legame"
+      },
+      {
+        "range": [
+          40,
+          40
+        ],
+        "name": "Bacchetta del mago da guerra +2"
+      },
+      {
+        "range": [
+          41,
+          41
+        ],
+        "name": "Bacchetta della paralisi"
+      },
+      {
+        "range": [
+          42,
+          42
+        ],
+        "name": "Bacchetta della paura"
+      },
+      {
+        "range": [
+          43,
+          43
+        ],
+        "name": "Bacchetta delle meraviglie"
+      },
+      {
+        "range": [
+          44,
+          44
+        ],
+        "name": "Bacchetta delle palle di fuoco"
+      },
+      {
+        "range": [
+          45,
+          45
+        ],
+        "name": "Bacchetta di individuazione dei nemici"
+      },
+      {
+        "range": [
+          46,
+          46
+        ],
+        "name": "Bastone dei boschi"
+      },
+      {
+        "range": [
+          47,
+          47
+        ],
+        "name": "Bastone del deperimento"
+      },
+      {
+        "range": [
+          48,
+          48
+        ],
+        "name": "Bastone della guarigione"
+      },
+      {
+        "range": [
+          49,
+          49
+        ],
+        "name": "Bastone dello charme"
+      },
+      {
+        "range": [
+          50,
+          50
+        ],
+        "name": "Bastone dello sciame di insetti"
+      },
+      {
+        "range": [
+          51,
+          51
+        ],
+        "name": "Boccia del comando degli elementali dell'acqua"
+      },
+      {
+        "range": [
+          52,
+          52
+        ],
+        "name": "Bracciali della difesa"
+      },
+      {
+        "range": [
+          53,
+          53
+        ],
+        "name": "Braciere del comando degli elementali del fuoco"
+      },
+      {
+        "range": [
+          54,
+          54
+        ],
+        "name": "Cappa del saltimbanco"
+      },
+      {
+        "range": [
+          55,
+          55
+        ],
+        "name": "Cintura della forza dei giganti delle colline"
+      },
+      {
+        "range": [
+          56,
+          56
+        ],
+        "name": "Cintura nanica"
+      },
+      {
+        "range": [
+          57,
+          57
+        ],
+        "name": "Armatura, cuoio +1"
+      },
+      {
+        "range": [
+          58,
+          58
+        ],
+        "name": "Armatura della resistenza (cuoio)"
+      },
+      {
+        "range": [
+          59,
+          59
+        ],
+        "name": "Collana del rosario"
+      },
+      {
+        "range": [
+          60,
+          60
+        ],
+        "name": "Corda intralciante"
+      },
+      {
+        "range": [
+          61,
+          61
+        ],
+        "name": "Corno del Valhalla (argento o ottone)"
+      },
+      {
+        "range": [
+          62,
+          62
+        ],
+        "name": "Corno della distruzione"
+      },
+      {
+        "range": [
+          63,
+          63
+        ],
+        "name": "Cubo di forza"
+      },
+      {
+        "range": [
+          64,
+          64
+        ],
+        "name": "Elmo del teletrasporto"
+      },
+      {
+        "range": [
+          65,
+          65
+        ],
+        "name": "Fasce metalliche di Bilarro"
+      },
+      {
+        "range": [
+          66,
+          66
+        ],
+        "name": "Fortezza istantanea di Daern"
+      },
+      {
+        "range": [
+          67,
+          67
+        ],
+        "name": "Gemma della visione"
+      },
+      {
+        "range": [
+          68,
+          68
+        ],
+        "name": "Giaco di maglia elfico"
+      },
+      {
+        "range": [
+          69,
+          69
+        ],
+        "name": "Incensiere del controllo degli elementali dell'aria"
+      },
+      {
+        "range": [
+          70,
+          70
+        ],
+        "name": "Lama del sole"
+      },
+      {
+        "range": [
+          71,
+          71
+        ],
+        "name": "Lingua di fiamme"
+      },
+      {
+        "range": [
+          72,
+          72
+        ],
+        "name": "Manette dimensionali"
+      },
+      {
+        "range": [
+          73,
+          73
+        ],
+        "name": "Mantello del pipistrello"
+      },
+      {
+        "range": [
+          74,
+          74
+        ],
+        "name": "Mantello distorcente"
+      },
+      {
+        "range": [
+          75,
+          75
+        ],
+        "name": "Manto della resistenza agli incantesimi"
+      },
+      {
+        "range": [
+          76,
+          76
+        ],
+        "name": "Armatura, corazza di scaglie +1"
+      },
+      {
+        "range": [
+          77,
+          77
+        ],
+        "name": "Armatura della resistenza (corazza di scaglie)"
+      },
+      {
+        "range": [
+          78,
+          78
+        ],
+        "name": "Mazza del terrore"
+      },
+      {
+        "range": [
+          79,
+          79
+        ],
+        "name": "Mazza della distruzione"
+      },
+      {
+        "range": [
+          80,
+          80
+        ],
+        "name": "Mazza della punizione"
+      },
+      {
+        "range": [
+          81,
+          81
+        ],
+        "name": "Pietra del controllo degli elementali della terra"
+      },
+      {
+        "range": [
+          82,
+          82
+        ],
+        "name": "Pietra di Ioun (consapevolezza)"
+      },
+      {
+        "range": [
+          83,
+          83
+        ],
+        "name": "Pietra di Ioun (protezione)"
+      },
+      {
+        "range": [
+          84,
+          84
+        ],
+        "name": "Pietra di Ioun (riserva)"
+      },
+      {
+        "range": [
+          85,
+          85
+        ],
+        "name": "Pietra di Ioun (sostentamento)"
+      },
+      {
+        "range": [
+          86,
+          86
+        ],
+        "name": "Pugnale avvelenato"
+      },
+      {
+        "range": [
+          87,
+          87
+        ],
+        "name": "Scudo +2"
+      },
+      {
+        "range": [
+          88,
+          88
+        ],
+        "name": "Scudo attiraproiettili"
+      },
+      {
+        "range": [
+          89,
+          89
+        ],
+        "name": "Scudo catturafrecce"
+      },
+      {
+        "range": [
+          90,
+          90
+        ],
+        "name": "Spada del ferimento"
+      },
+      {
+        "range": [
+          91,
+          91
+        ],
+        "name": "Spada del furto vitale"
+      },
+      {
+        "range": [
+          92,
+          92
+        ],
+        "name": "Stivali della levitazione"
+      },
+      {
+        "range": [
+          93,
+          93
+        ],
+        "name": "Stivali della velocità"
+      },
+      {
+        "range": [
+          94,
+          94
+        ],
+        "name": "Strumento dei bardi (lira di Cli)"
+      },
+      {
+        "range": [
+          95,
+          95
+        ],
+        "name": "Strumento dei bardi (mandolino di Canaith)"
+      },
+      {
+        "range": [
+          96,
+          96
+        ],
+        "name": "Talismano anti-veleno"
+      },
+      {
+        "range": [
+          97,
+          97
+        ],
+        "name": "Tunica degli occhi"
+      },
+      {
+        "range": [
+          98,
+          98
+        ],
+        "name": "Verga dei tentacoli"
+      },
+      {
+        "range": [
+          99,
+          99
+        ],
+        "name": "Verga del patto rispettato +2"
+      },
+      {
+        "range": [
+          100,
+          100
+        ],
+        "name": "Verga della sovranità"
+      }
+    ],
+    "H": [
+      {
+        "range": [
+          1,
+          10
+        ],
+        "name": "Arma +3"
+      },
+      {
+        "range": [
+          11,
+          12
+        ],
+        "name": "Amuleto dei piani"
+      },
+      {
+        "range": [
+          13,
+          14
+        ],
+        "name": "Anello delle stelle cadenti"
+      },
+      {
+        "range": [
+          15,
+          16
+        ],
+        "name": "Anello di rigenerazione"
+      },
+      {
+        "range": [
+          17,
+          18
+        ],
+        "name": "Anello di telecinesi"
+      },
+      {
+        "range": [
+          19,
+          20
+        ],
+        "name": "Bacchetta del mago da guerra +3"
+      },
+      {
+        "range": [
+          21,
+          22
+        ],
+        "name": "Bacchetta della metamorfosi"
+      },
+      {
+        "range": [
+          23,
+          24
+        ],
+        "name": "Bastone dei tuoni e fulmini"
+      },
+      {
+        "range": [
+          25,
+          26
+        ],
+        "name": "Bastone del colpo possente"
+      },
+      {
+        "range": [
+          27,
+          28
+        ],
+        "name": "Bastone del fuoco"
+      },
+      {
+        "range": [
+          29,
+          30
+        ],
+        "name": "Bastone del gelo"
+      },
+      {
+        "range": [
+          31,
+          32
+        ],
+        "name": "Bastone del potere"
+      },
+      {
+        "range": [
+          33,
+          34
+        ],
+        "name": "Scimitarra della velocità"
+      },
+      {
+        "range": [
+          35,
+          36
+        ],
+        "name": "Scudo +3"
+      },
+      {
+        "range": [
+          37,
+          38
+        ],
+        "name": "Sfera di cristallo (versione molto rara)"
+      },
+      {
+        "range": [
+          39,
+          40
+        ],
+        "name": "Spada affilata"
+      },
+      {
+        "range": [
+          41,
+          42
+        ],
+        "name": "Tappeto volante"
+      },
+      {
+        "range": [
+          43,
+          44
+        ],
+        "name": "Tunica dei colori scintillanti"
+      },
+      {
+        "range": [
+          45,
+          46
+        ],
+        "name": "Tunica delle stelle"
+      },
+      {
+        "range": [
+          47,
+          48
+        ],
+        "name": "Verga del patto rispettato +3"
+      },
+      {
+        "range": [
+          49,
+          50
+        ],
+        "name": "Verga dell'allerta"
+      },
+      {
+        "range": [
+          51,
+          52
+        ],
+        "name": "Verga dell'assorbimento"
+      },
+      {
+        "range": [
+          53,
+          54
+        ],
+        "name": "Verga della sicurezza"
+      },
+      {
+        "range": [
+          55,
+          55
+        ],
+        "name": "Arco del giuramento"
+      },
+      {
+        "range": [
+          56,
+          56
+        ],
+        "name": "Armatura adamantina (armatura completa)"
+      },
+      {
+        "range": [
+          57,
+          57
+        ],
+        "name": "Armatura adamantina (mezza armatura)"
+      },
+      {
+        "range": [
+          58,
+          58
+        ],
+        "name": "Armatura completa nanica"
+      },
+      {
+        "range": [
+          59,
+          59
+        ],
+        "name": "Armatura demoniaca"
+      },
+      {
+        "range": [
+          60,
+          60
+        ],
+        "name": "Armatura, corazza di piastre +1"
+      },
+      {
+        "range": [
+          61,
+          61
+        ],
+        "name": "Armatura della resistenza (corazza di piastre)"
+      },
+      {
+        "range": [
+          62,
+          62
+        ],
+        "name": "Bottiglia dell'efreeti"
+      },
+      {
+        "range": [
+          63,
+          63
+        ],
+        "name": "Armatura, cotta di maglia +2"
+      },
+      {
+        "range": [
+          64,
+          64
+        ],
+        "name": "Armatura, giaco di maglia +2"
+      },
+      {
+        "range": [
+          65,
+          65
+        ],
+        "name": "Candela dell'invocazione"
+      },
+      {
+        "range": [
+          66,
+          66
+        ],
+        "name": "Cintura della forza dei giganti del fuoco"
+      },
+      {
+        "range": [
+          67,
+          67
+        ],
+        "name": "Cintura della forza dei giganti del gelo (o delle pietre)"
+      },
+      {
+        "range": [
+          68,
+          68
+        ],
+        "name": "Corazza di scaglie di drago"
+      },
+      {
+        "range": [
+          69,
+          69
+        ],
+        "name": "Corno del Valhalla (bronzo)"
+      },
+      {
+        "range": [
+          70,
+          70
+        ],
+        "name": "Elmo della luminosità"
+      },
+      {
+        "range": [
+          71,
+          71
+        ],
+        "name": "Mantello dell'aracnide"
+      },
+      {
+        "range": [
+          72,
+          72
+        ],
+        "name": "Manuale dei golem"
+      },
+      {
+        "range": [
+          73,
+          73
+        ],
+        "name": "Manuale dell'esercizio fisico"
+      },
+      {
+        "range": [
+          74,
+          74
+        ],
+        "name": "Manuale della salute"
+      },
+      {
+        "range": [
+          75,
+          75
+        ],
+        "name": "Manuale della velocità di azione"
+      },
+      {
+        "range": [
+          76,
+          76
+        ],
+        "name": "Martello nanico da lancio"
+      },
+      {
+        "range": [
+          77,
+          77
+        ],
+        "name": "Pietra di Ioun (agilità)"
+      },
+      {
+        "range": [
+          78,
+          78
+        ],
+        "name": "Pietra di Ioun (assorbimento)"
+      },
+      {
+        "range": [
+          79,
+          79
+        ],
+        "name": "Pietra di Ioun (autorità)"
+      },
+      {
+        "range": [
+          80,
+          80
+        ],
+        "name": "Pietra di Ioun (forza)"
+      },
+      {
+        "range": [
+          81,
+          81
+        ],
+        "name": "Pietra di Ioun (intelletto)"
+      },
+      {
+        "range": [
+          82,
+          82
+        ],
+        "name": "Pietra di Ioun (intuizione)"
+      },
+      {
+        "range": [
+          83,
+          83
+        ],
+        "name": "Pietra di Ioun (tempra)"
+      },
+      {
+        "range": [
+          84,
+          84
+        ],
+        "name": "Armatura, cuoio +2"
+      },
+      {
+        "range": [
+          85,
+          85
+        ],
+        "name": "Scudo animato"
+      },
+      {
+        "range": [
+          86,
+          86
+        ],
+        "name": "Scudo anti-incantesimi"
+      },
+      {
+        "range": [
+          87,
+          87
+        ],
+        "name": "Spada danzante"
+      },
+      {
+        "range": [
+          88,
+          88
+        ],
+        "name": "Spada ruba nove vite"
+      },
+      {
+        "range": [
+          89,
+          89
+        ],
+        "name": "Spadone del gelo"
+      },
+      {
+        "range": [
+          90,
+          90
+        ],
+        "name": "Specchio imprigionante"
+      },
+      {
+        "range": [
+          91,
+          91
+        ],
+        "name": "Statuina del potere meraviglioso (stallone d'ossidiana)"
+      },
+      {
+        "range": [
+          92,
+          92
+        ],
+        "name": "Armatura, corazza di scaglie +2"
+      },
+      {
+        "range": [
+          93,
+          93
+        ],
+        "name": "Strumento dei bardi (arpa di Anstruth)"
+      },
+      {
+        "range": [
+          94,
+          94
+        ],
+        "name": "Armatura, corazza a strisce +1"
+      },
+      {
+        "range": [
+          95,
+          95
+        ],
+        "name": "Armatura della resistenza (corazza a strisce)"
+      },
+      {
+        "range": [
+          96,
+          96
+        ],
+        "name": "Armatura, cuoio borchiato +1"
+      },
+      {
+        "range": [
+          97,
+          97
+        ],
+        "name": "Armatura della resistenza (cuoio borchiato)"
+      },
+      {
+        "range": [
+          98,
+          98
+        ],
+        "name": "Tomo del comando e dell'influenza"
+      },
+      {
+        "range": [
+          99,
+          99
+        ],
+        "name": "Tomo del nitido pensiero"
+      },
+      {
+        "range": [
+          100,
+          100
+        ],
+        "name": "Tomo della comprensione"
+      }
+    ],
+    "I": [
+      {
+        "range": [
+          1,
+          5
+        ],
+        "name": "Difensiva"
+      },
+      {
+        "range": [
+          6,
+          10
+        ],
+        "name": "Lama della fortuna"
+      },
+      {
+        "range": [
+          11,
+          15
+        ],
+        "name": "Martello dei fulmini"
+      },
+      {
+        "range": [
+          16,
+          20
+        ],
+        "name": "Spada delle risposte"
+      },
+      {
+        "range": [
+          21,
+          23
+        ],
+        "name": "Anello di evocazione del djinni"
+      },
+      {
+        "range": [
+          24,
+          26
+        ],
+        "name": "Anello di invisibilità"
+      },
+      {
+        "range": [
+          27,
+          29
+        ],
+        "name": "Anello rifletti incantesimo"
+      },
+      {
+        "range": [
+          30,
+          32
+        ],
+        "name": "Bastone dei magi"
+      },
+      {
+        "range": [
+          33,
+          35
+        ],
+        "name": "Sacro vendicatore"
+      },
+      {
+        "range": [
+          36,
+          38
+        ],
+        "name": "Spada vorpal"
+      },
+      {
+        "range": [
+          39,
+          41
+        ],
+        "name": "Verga della potenza divina"
+      },
+      {
+        "range": [
+          42,
+          43
+        ],
+        "name": "Ampolla di ferro"
+      },
+      {
+        "range": [
+          44,
+          45
+        ],
+        "name": "Armatura, corazza di piastre +2"
+      },
+      {
+        "range": [
+          46,
+          47
+        ],
+        "name": "Armatura, cotta di maglia +3"
+      },
+      {
+        "range": [
+          48,
+          49
+        ],
+        "name": "Armatura, giaco di maglia +3"
+      },
+      {
+        "range": [
+          50,
+          51
+        ],
+        "name": "Cintura della forza dei giganti delle nuvole"
+      },
+      {
+        "range": [
+          52,
+          53
+        ],
+        "name": "Mantello dell'invisibilità"
+      },
+      {
+        "range": [
+          54,
+          55
+        ],
+        "name": "Armatura, mezza armatura +1"
+      },
+      {
+        "range": [
+          56,
+          57
+        ],
+        "name": "Pozzo dei mondi"
+      },
+      {
+        "range": [
+          58,
+          59
+        ],
+        "name": "Armatura, cuoio +3"
+      },
+      {
+        "range": [
+          60,
+          61
+        ],
+        "name": "Armatura, armatura completa +1"
+      },
+      {
+        "range": [
+          62,
+          63
+        ],
+        "name": "Scarabeo di protezione"
+      },
+      {
+        "range": [
+          64,
+          65
+        ],
+        "name": "Sfera di cristallo (versione leggendaria)"
+      },
+      {
+        "range": [
+          66,
+          67
+        ],
+        "name": "Armatura, corazza di scaglie +1"
+      },
+      {
+        "range": [
+          68,
+          69
+        ],
+        "name": "Tunica dell'arcimago"
+      },
+      {
+        "range": [
+          70,
+          71
+        ],
+        "name": "Armatura, corazza a strisce +2"
+      },
+      {
+        "range": [
+          72,
+          73
+        ],
+        "name": "Armatura, cuoio borchiato +2"
+      },
+      {
+        "range": [
+          74,
+          75
+        ],
+        "name": "Verga della resurrezione"
+      },
+      {
+        "range": [
+          76,
+          76
+        ],
+        "name": "Armatura magica",
+        "sub_table": {
+          "dice": "d12",
+          "items": [
+            "armatura, mezza armatura +2",
+            "armatura, mezza armatura +2",
+            "armatura, armatura completa +2",
+            "armatura, armatura completa +2",
+            "armatura, cuoio borchiato +3",
+            "armatura, cuoio borchiato +3",
+            "armatura, corazza di piastre +3",
+            "armatura, corazza di piastre +3",
+            "armatura, corazza a strisce +3",
+            "armatura, corazza a strisce +3",
+            "armatura, mezza armatura +3",
+            "armatura, armatura completa +3"
+          ]
+        }
+      },
+      {
+        "range": [
+          77,
+          77
+        ],
+        "name": "Anello dei tre desideri"
+      },
+      {
+        "range": [
+          78,
+          78
+        ],
+        "name": "Anello del comando degli elementali del fuoco"
+      },
+      {
+        "range": [
+          79,
+          79
+        ],
+        "name": "Anello del comando degli elementali dell'acqua"
+      },
+      {
+        "range": [
+          80,
+          80
+        ],
+        "name": "Anello del comando degli elementali dell'aria"
+      },
+      {
+        "range": [
+          81,
+          81
+        ],
+        "name": "Anello del comando degli elementali della terra"
+      },
+      {
+        "range": [
+          82,
+          82
+        ],
+        "name": "Apparato di Kwalish"
+      },
+      {
+        "range": [
+          83,
+          83
+        ],
+        "name": "Armatura della resistenza (mezza armatura)"
+      },
+      {
+        "range": [
+          84,
+          84
+        ],
+        "name": "Armatura completa della forma eterea"
+      },
+      {
+        "range": [
+          85,
+          85
+        ],
+        "name": "Armatura completa della resistenza"
+      },
+      {
+        "range": [
+          86,
+          86
+        ],
+        "name": "Armatura dell'invulnerabilità"
+      },
+      {
+        "range": [
+          87,
+          87
+        ],
+        "name": "Cintura della forza dei giganti delle tempeste"
+      },
+      {
+        "range": [
+          88,
+          88
+        ],
+        "name": "Corno del Valhalla (ferro)"
+      },
+      {
+        "range": [
+          89,
+          89
+        ],
+        "name": "Cotta di maglia dell'efreeti"
+      },
+      {
+        "range": [
+          90,
+          90
+        ],
+        "name": "Cubo dei portali"
+      },
+      {
+        "range": [
+          91,
+          91
+        ],
+        "name": "Mazzo delle meraviglie"
+      },
+      {
+        "range": [
+          92,
+          92
+        ],
+        "name": "Pietra di Ioun (assorbimento superiore)"
+      },
+      {
+        "range": [
+          93,
+          93
+        ],
+        "name": "Pietra di Ioun (maestria)"
+      },
+      {
+        "range": [
+          94,
+          94
+        ],
+        "name": "Pietra di Ioun (rigenerazione)"
+      },
+      {
+        "range": [
+          95,
+          95
+        ],
+        "name": "Sfera annientatrice"
+      },
+      {
+        "range": [
+          96,
+          96
+        ],
+        "name": "Strumento dei bardi (arpa di Ollamh)"
+      },
+      {
+        "range": [
+          97,
+          97
+        ],
+        "name": "Talismano del bene puro"
+      },
+      {
+        "range": [
+          98,
+          98
+        ],
+        "name": "Talismano del male estremo"
+      },
+      {
+        "range": [
+          99,
+          99
+        ],
+        "name": "Talismano della sfera"
+      },
+      {
+        "range": [
+          100,
+          100
+        ],
+        "name": "Tomo della lingua essiccata"
+      }
+    ]
+  }
+}

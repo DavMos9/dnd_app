@@ -648,6 +648,7 @@ class WizardView(ft.Column):
                     ],
                     alignment=ft.MainAxisAlignment.END,
                     spacing=12,
+                    wrap=True,
                 ),
             ],
             scroll=ft.ScrollMode.AUTO,
@@ -2840,6 +2841,7 @@ class WizardView(ft.Column):
                 ],
                 alignment=ft.MainAxisAlignment.END,
                 spacing=12,
+                wrap=True,
             ),
         ]
 
@@ -3154,6 +3156,7 @@ class WizardView(ft.Column):
             ],
             alignment=ft.MainAxisAlignment.END,
             spacing=12,
+            wrap=True,
         ))
 
         content = ft.Column(rows, scroll=ft.ScrollMode.AUTO, expand=True)
@@ -4067,6 +4070,7 @@ class WizardView(ft.Column):
                     ],
                     alignment=ft.MainAxisAlignment.END,
                     spacing=12,
+                    wrap=True,
                 ),
             ],
             scroll=ft.ScrollMode.AUTO,

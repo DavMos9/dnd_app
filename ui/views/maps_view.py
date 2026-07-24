@@ -437,7 +437,8 @@ class MapsView(ft.Column):
                               on_click=lambda e: self._back_to_list(),
                               icon_color=COLOR_TEXT_SECONDARY),
                 ft.Text(gm.name or "Mappa", size=15, weight=ft.FontWeight.BOLD,
-                        color=COLOR_TEXT_TITLE, expand=True),
+                        color=COLOR_TEXT_TITLE, expand=True,
+                        no_wrap=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                 ft.IconButton(ft.Icons.FULLSCREEN, tooltip="Schermo intero",
                               on_click=lambda e: self._open_fullscreen(gm),
                               icon_color=COLOR_TEXT_SECONDARY),
@@ -1114,7 +1115,8 @@ class MapsView(ft.Column):
             content=ft.Row(
                 [
                     ft.Text(gm.name or "Mappa", size=16, color="#ffffff",
-                            weight=ft.FontWeight.BOLD, expand=True),
+                            weight=ft.FontWeight.BOLD, expand=True,
+                            no_wrap=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                     ft.IconButton(ft.Icons.FULLSCREEN_EXIT, icon_color="#ffffff",
                                   on_click=close_fs),
                 ],

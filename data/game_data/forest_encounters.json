@@ -1,0 +1,31 @@
+{
+  "_source": "Guida del Dungeon Master (DMG) IT, Capitolo 3 \"Creare le Avventure\", sezione \"Creare le Tabelle degli Incontri Casuali\", tabella d'esempio \"Incontri nella Foresta Silvana\" (p.87)",
+  "_source_note": "Trascritta il 2026-07-24 leggendo visivamente (pdftoppm -r 150, poi ricontrollata con crop mirati a 300dpi per le righe di lettura incerta) la pagina 86 del PDF (fisica) / 87 (numero di pagina stampato in calce — stesso scarto di un'unità già confermato per il resto di questa sessione) — mai pdftotext/OCR per il contenuto, solo per la navigazione preliminare. Il testo del dump pdftotext usato da master_section_design.md per localizzare la sezione è stato trattato solo come indizio di navigazione, mai come fonte: ogni valore qui presente è stato riverificato in modo indipendente sull'immagine della pagina prima di essere scritto. Il manuale usa un tiro combinato 1d12+1d8 (range 2-20, non un d20 piatto) per privilegiare i risultati centrali della tabella — vedi 'roll_note'. Le creature scritte in **grassetto** nel manuale possiedono una scheda delle statistiche nel Manuale dei Mostri (già trascritto in monsters.json): elencate nel campo 'creatures' di ogni riga per permettere un link opzionale alla scheda, quando il nome risolve nel bestiario. Nessun'altra tabella ambiente→mostro esiste ancora in questo file: il resto del Capitolo 3 fornisce solo una guida metodologica in prosa (nessun'altra tabella pronta), e il tagging sistematico dei 444 mostri per ambiente resta un'estensione futura separata, esplicitamente rimandata (vedi docs/master_section_design.md sezione '10.').",
+  "roll_note": "1d12 + 1d8 (range 2-20)",
+  "environments": {
+    "foresta_silvana": {
+      "label": "Foresta Silvana",
+      "entries": [
+        {"roll": 2, "text": "1 belva distorcente", "creatures": ["Belva Distorcente"]},
+        {"roll": 3, "text": "1 gnoll signore del branco e 2d4 gnoll", "creatures": ["Gnoll Signore del Branco", "Gnoll"]},
+        {"roll": 4, "text": "1d4 gnoll and 2d4 iene", "creatures": ["Gnoll", "Iena"], "note": "Refuso originale del manuale italiano: la parola \"and\" è stampata così com'è, in inglese, al posto di \"e\" — trascritta verbatim, non corretta."},
+        {"roll": 5, "text": "Un boschetto di alberi bruciati. Se i personaggi setacciano l'area e superano una prova di Saggezza (Sopravvivenza) con CD 10, trovano una serie di tracce lasciate dagli gnoll. Seguendo le tracce per 1d4 ore arrivano a un incontro con gli gnoll oppure trovano i cadaveri pulciosi degli gnoll trafitti da frecce elfiche.", "creatures": []},
+        {"roll": 6, "text": "1 gufo gigante", "creatures": ["Gufo Gigante"]},
+        {"roll": 7, "text": "Una statua ricoperta d'edera che raffigura una divinità o un eroe elfico.", "creatures": []},
+        {"roll": 8, "text": "1 driade (50%) o 1d4 satiri (50%)", "creatures": ["Driade", "Satiro"]},
+        {"roll": 9, "text": "1d4 centauri", "creatures": ["Centauro"]},
+        {"roll": 10, "text": "2d4 esploratori (elfi). Un esploratore porta un corno e può usare la sua azione per suonarlo. Se l'elfo suona il corno all'interno della foresta, si tira di nuovo su questa tabella. Se il risultato indica un incontro con mostri, il mostro o i mostri indicati arrivano entro 1d4 minuti. I nuovi arrivati, ad eccezione di gnoll, iene, orsigufo e belve distorcenti, sono amichevoli nei confronti degli esploratori.", "creatures": ["Esploratore"]},
+        {"roll": 11, "text": "2d4 pixie (50%) o 2d4 spiritelli (50%)", "creatures": ["Pixie", "Spiritello"]},
+        {"roll": 12, "text": "1 orsogufo", "creatures": ["Orsogufo"]},
+        {"roll": 13, "text": "1d4 alci (75%) o 1 alce gigante (25%)", "creatures": ["Alce", "Alce Gigante"]},
+        {"roll": 14, "text": "1d4 cani intermittenti", "creatures": ["Cane Intermittente"]},
+        {"roll": 15, "text": "Una pianta magica con 2d4 bacche luminose. Una creatura che mangia una bacca diventa invisibile per 1 ora, o finché non attacca o lancia un incantesimo. Una volta raccolta, una bacca perde la sua magia dopo 12 ore. Le bacche ricrescono a mezzanotte, ma se tutte le bacche della pianta vengono raccolte, la pianta diventa una pianta comune e non produce più bacche.", "creatures": []},
+        {"roll": 16, "text": "Una melodia elfica trasportata da una dolce brezza.", "creatures": []},
+        {"roll": 17, "text": "1d4 draghi fatati arancioni (75%) o blu (25%)", "creatures": ["Drago Fatato"]},
+        {"roll": 18, "text": "1 druido (elfo). Il druido è inizialmente indifferente nei confronti del gruppo, ma diventa amichevole se i personaggi acconsentano a disinfestare la foresta dagli gnoll.", "creatures": ["Druido"]},
+        {"roll": 19, "text": "1 treant. Il treant è amichevole se il gruppo include uno o più elfi o è accompagnato da una creatura fatata visibile. Il treant è ostile se i personaggi portano con loro una fiamma libera. Altrimenti è indifferente e non rivela la sua presenza al passaggio dei personaggi.", "creatures": ["Treant"]},
+        {"roll": 20, "text": "1 unicorno", "creatures": ["Unicorno"]}
+      ]
+    }
+  }
+}

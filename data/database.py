@@ -110,6 +110,40 @@ def get_image_library_path() -> str:
     return str(lib_dir)
 
 
+def get_character_exports_path() -> str:
+    """
+    Cartella condivisa per l'export/import di personaggi in modalità web —
+    doppio ruolo, entrambi introdotti il 2026-07-24:
+
+    1. IMPORT (stesso identico principio di get_image_library_path(),
+       2026-07-12): ft.FilePicker è strutturalmente non utilizzabile in web
+       mode (bug upstream Flet confermato flet-dev/flet#6040/#6250/#6251),
+       quindi l'import mostra un picker con l'elenco dei file .dndchar già
+       presenti qui — Davide li carica a mano via SSH/scp (vedi
+       ui/character_transfer.py). Questo lato resta bloccato in web mode,
+       nessun modo per farlo funzionare lato applicazione.
+
+    2. EXPORT (aggiunto in un secondo momento, stessa data): questa cartella
+       è anche passata come assets_dir a ft.run() in modalità web (vedi
+       main.py) — Flet la monta staticamente alla radice dell'app. L'export
+       web scrive qui il file .dndchar e lo apre con
+       Button(url="/nomefile.dndchar", target=BLANK), che NON è un
+       controllo Service (a differenza di FilePicker/UrlLauncher) e quindi
+       non soffre dello stesso bug: il browser scarica il file con la sua
+       UI standard di download, senza bisogno di alcun accesso SSH.
+
+    Su desktop nativo questa funzione non viene usata: export/import
+    passano dai dialoghi nativi del SO (vedi home_view.py), che lasciano
+    scegliere liberamente il percorso — nessuna cartella fissa necessaria.
+
+    Vedi CLAUDE.md per il changelog completo della feature Import/Export
+    personaggio.
+    """
+    exports_dir = Path.home() / "dnd_character_exports"
+    exports_dir.mkdir(parents=True, exist_ok=True)
+    return str(exports_dir)
+
+
 def get_connection() -> sqlite3.Connection:
     """Apre e restituisce una connessione SQLite con row_factory."""
     conn = sqlite3.connect(get_db_path())
@@ -225,6 +259,18 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "weapons", "finesse_ability",        "TEXT DEFAULT ''")
     _add_column(cur, "weapons", "attack_total_override",  "INTEGER DEFAULT 0")
     _add_column(cur, "weapons", "attack_override_value",  "INTEGER DEFAULT 0")
+    # Barbaro Cammino del Berserker — Frenesia dichiarata per l'ira in corso
+    # (0/1). Vedi data/models.py → Character.frenzy_active e CLAUDE.md
+    # 2026-07-19 per il changelog completo.
+    _add_column(cur, "characters", "frenzy_active", "INTEGER DEFAULT 0")
+    # Sezione Master — Calcolatore Difficoltà Incontro (2026-07-24): PE del
+    # mostro/NPC, per sommarli senza dover ricalcolare da un grado di sfida
+    # (monsters.json ha già xp per ognuno dei 444 mostri auditati; per un NPC
+    # "Nuovo Manuale" senza stat block il Master può valorizzarlo a mano).
+    # Idempotente anche per chi ha già le 3 tabelle Master da prima di questa
+    # colonna (create_table_if_not_exists non la aggiungerebbe da sola).
+    _add_column(cur, "master_npcs", "xp", "INTEGER DEFAULT 0")
+    _add_column(cur, "master_encounter_members", "xp", "INTEGER DEFAULT 0")
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
@@ -578,4 +624,129 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_custom_abilities_character
         ON custom_abilities(character_id, category)
+    """)
+
+    # ------------------------------------------------------------------
+    # Sezione Master — rubrica NPC/mostri, incontri, membri d'incontro
+    # (2026-07-24). Deliberatamente INDIPENDENTI da `characters`/
+    # `creature_entries`: quest'ultima ha character_id NOT NULL CASCADE,
+    # semantica "creatura temporanea di UN personaggio" — renderla nullable
+    # per riusarla anche qui avrebbe rischiato regressioni su Forma
+    # Selvatica/Evocazioni già in produzione. Vedi
+    # dnd_app/docs/master_section_design.md per il design completo.
+    # ------------------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS master_npcs (
+            id                     TEXT PRIMARY KEY,
+            name                   TEXT NOT NULL DEFAULT '',
+            role                   TEXT NOT NULL DEFAULT '',
+            notes                  TEXT NOT NULL DEFAULT '',
+            tags                   TEXT NOT NULL DEFAULT '',
+            has_stat_block         INTEGER NOT NULL DEFAULT 0,
+            creature_type          TEXT NOT NULL DEFAULT '',
+            size                   TEXT NOT NULL DEFAULT '',
+            alignment              TEXT NOT NULL DEFAULT '',
+            ac                     INTEGER NOT NULL DEFAULT 10,
+            ac_note                TEXT NOT NULL DEFAULT '',
+            hp_max                 INTEGER NOT NULL DEFAULT 1,
+            hp_formula             TEXT NOT NULL DEFAULT '',
+            speed                  TEXT NOT NULL DEFAULT '',
+            str_score              INTEGER NOT NULL DEFAULT 10,
+            dex_score              INTEGER NOT NULL DEFAULT 10,
+            con_score              INTEGER NOT NULL DEFAULT 10,
+            int_score              INTEGER NOT NULL DEFAULT 10,
+            wis_score              INTEGER NOT NULL DEFAULT 10,
+            cha_score              INTEGER NOT NULL DEFAULT 10,
+            saving_throws          TEXT NOT NULL DEFAULT '{}',
+            skills                 TEXT NOT NULL DEFAULT '{}',
+            damage_vulnerabilities TEXT NOT NULL DEFAULT '',
+            damage_resistances     TEXT NOT NULL DEFAULT '',
+            damage_immunities      TEXT NOT NULL DEFAULT '',
+            condition_immunities   TEXT NOT NULL DEFAULT '',
+            senses                 TEXT NOT NULL DEFAULT '',
+            languages              TEXT NOT NULL DEFAULT '',
+            cr                     TEXT NOT NULL DEFAULT '',
+            xp                     INTEGER NOT NULL DEFAULT 0,
+            traits                 TEXT NOT NULL DEFAULT '[]',
+            actions                TEXT NOT NULL DEFAULT '[]',
+            reactions              TEXT NOT NULL DEFAULT '[]',
+            legendary_actions      TEXT NOT NULL DEFAULT '[]',
+            source_page            TEXT NOT NULL DEFAULT '',
+            created_at             TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_master_npcs_name
+        ON master_npcs(name)
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS master_encounters (
+            id                  TEXT PRIMARY KEY,
+            name                TEXT NOT NULL DEFAULT '',
+            notes               TEXT NOT NULL DEFAULT '',
+            round_number        INTEGER NOT NULL DEFAULT 1,
+            current_turn_index  INTEGER NOT NULL DEFAULT 0,
+            is_archived         INTEGER NOT NULL DEFAULT 0,
+            created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_master_encounters_archived
+        ON master_encounters(is_archived)
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS master_encounter_members (
+            id            TEXT PRIMARY KEY,
+            encounter_id  TEXT NOT NULL REFERENCES master_encounters(id) ON DELETE CASCADE,
+            kind          TEXT NOT NULL DEFAULT 'adhoc',
+            character_id  TEXT REFERENCES characters(id) ON DELETE CASCADE,
+            npc_id        TEXT REFERENCES master_npcs(id) ON DELETE SET NULL,
+            display_name  TEXT NOT NULL DEFAULT '',
+            ac            INTEGER NOT NULL DEFAULT 0,
+            hp_current    INTEGER NOT NULL DEFAULT 0,
+            hp_max        INTEGER NOT NULL DEFAULT 0,
+            xp            INTEGER NOT NULL DEFAULT 0,
+            initiative    INTEGER NOT NULL DEFAULT 0,
+            order_index   INTEGER NOT NULL DEFAULT 0,
+            is_active     INTEGER NOT NULL DEFAULT 1,
+            notes         TEXT NOT NULL DEFAULT '',
+            created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_master_encounter_members_encounter
+        ON master_encounter_members(encounter_id)
+    """)
+
+    # ------------------------------------------------------------------
+    # master_campaign_notes (2026-07-24) — Note di Campagna del Master,
+    # stessa forma di `campaign_notes` (già esistente per DiaryView) ma
+    # SENZA character_id: indipendente da ogni personaggio, vive solo nella
+    # Sezione Master. 8 categorie: le 6 già condivise con campaign_notes
+    # ("npc"/"npc_todo"/"place"/"place_todo"/"quest"/"faction") più due
+    # nuove ("event"/"secret"). Nessuna fonte DMG da citare — puro
+    # strumento organizzativo, non regolamento. Vedi
+    # dnd_app/docs/master_section_design.md sezione "5.".
+    # ------------------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS master_campaign_notes (
+            id             TEXT PRIMARY KEY,
+            category       TEXT NOT NULL DEFAULT 'npc',
+            name           TEXT NOT NULL DEFAULT '',
+            description    TEXT NOT NULL DEFAULT '',
+            status         TEXT NOT NULL DEFAULT '',
+            tags           TEXT NOT NULL DEFAULT '',
+            linked_npc_id  TEXT REFERENCES master_npcs(id) ON DELETE SET NULL,
+            created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_master_campaign_notes_category
+        ON master_campaign_notes(category)
     """)

@@ -94,6 +94,7 @@ class DiceView(ft.Column):
             adv_controls,
             alignment=ft.MainAxisAlignment.CENTER,
             visible=(self._selected_die == 20),
+            wrap=True,
         )
 
         # --- Layout principale ---
@@ -117,19 +118,21 @@ class DiceView(ft.Column):
                         ft.Row(die_row_controls, wrap=True, spacing=8),
                         ft.Container(height=20),
 
-                        # Numero dadi + modificatore
+                        # Numero dadi + modificatore — wrap=True: su schermi stretti/
+                        # smartphone i due blocchi vanno a capo invece di uscire dal
+                        # bordo della finestra (bug report Davide, 2026-07-24).
                         ft.Row(
                             [
                                 self._spinner_block("Numero Dadi", self._count_label,
                                                     lambda e: self._change_count(-1),
                                                     lambda e: self._change_count(1)),
-                                ft.VerticalDivider(width=1, color=COLOR_BORDER),
                                 self._spinner_block("Modificatore", self._mod_label,
                                                     lambda e: self._change_mod(-1),
                                                     lambda e: self._change_mod(1)),
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
                             spacing=32,
+                            wrap=True,
                         ),
                         ft.Container(height=12),
 

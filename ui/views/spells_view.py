@@ -48,7 +48,7 @@ from data.models import Character, KnownSpell, SpellSlot
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text
-from ui.widgets import CardPicker, spell_card_options
+from ui.widgets import CardPicker, spell_card_options, wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +332,7 @@ class SpellsView(ft.ListView):
                     size=11, color=COLOR_TEXT_MUTED,
                 ),
             ], spacing=8),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.TextButton("Reset PHB", on_click=reset,
@@ -344,7 +344,7 @@ class SpellsView(ft.ListView):
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
-            ],
+            ]),
             bgcolor=COLOR_BG_CARD,
         ))
 

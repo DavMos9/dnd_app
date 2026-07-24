@@ -22,6 +22,7 @@ from data.models import Character, CharacterProficiency, CustomAbility
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import game_data
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -256,11 +257,11 @@ class EsplorazioneTab(ft.ListView):
                 spacing=12,
                 tight=True,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Ripristina calcolato", on_click=_reset),
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton("Applica", on_click=_save),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
