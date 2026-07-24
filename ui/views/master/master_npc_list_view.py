@@ -267,13 +267,13 @@ class MasterNpcListView(ft.Column):
                 "salvato, il suo nome/CA/PF restano comunque nello storico di quell'incontro.",
                 size=12, color=COLOR_TEXT_SECONDARY,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=_do_delete,
                     style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_RED, color="#ffffff"),
                 ),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -319,13 +319,13 @@ class MasterNpcListView(ft.Column):
                 content=ft.Column([enc_dd, ft.Container(height=8), init_tf], tight=True),
                 width=300,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
                     style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff"),
                 ),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -635,12 +635,12 @@ class MasterNpcListView(ft.Column):
                 ),
                 width=340, height=480,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Salva" if is_edit else "Crea NPC", icon=ft.Icons.SAVE, on_click=_do_save,
                     style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
                 ),
-            ],
+            ]),
         )
         page.show_dialog(dlg)

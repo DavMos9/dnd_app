@@ -60,13 +60,12 @@ class MasterView(ft.Column):
                     ft.Icon(ft.Icons.CASTLE_OUTLINED, color=COLOR_ACCENT_CRIMSON, size=22),
                     ft.Container(width=8),
                     # expand=True + no_wrap: il titolo si tronca con "..." invece di
-                    # spingere il menu "Strumenti" fuori dalla finestra su schermi stretti
-                    # (smartphone) — stesso principio di adattamento applicato sotto.
+                    # spingere il resto dell'header fuori dalla finestra su schermi
+                    # stretti (smartphone).
                     ft.Container(
                         content=title_text("Modalità Master", size=20),
                         expand=True,
                     ),
-                    self._build_tools_menu(),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -78,58 +77,48 @@ class MasterView(ft.Column):
         self._content_area.content = self._get_tab_content(self.active_tab)
 
         self.controls.append(header)
+        self.controls.append(self._build_tools_row())
         self.controls.append(self._build_tab_bar())
         self.controls.append(self._content_area)
 
-    def _build_tools_menu(self) -> ft.Control:
-        """Menu compatto "Strumenti" — sostituisce la vecchia fila di 4
-        OutlinedButton nell'header (2026-07-24, bug report Davide: la fila
-        non si adattava a finestre strette/smartphone, i pulsanti finivano
-        tagliati fuori dal bordo destro invece di andare a capo o restare
-        raggiungibili). Un singolo controllo a larghezza fissa non può mai
-        traboccare, e scala automaticamente se in futuro si aggiungono altri
-        generatori (nessun nuovo pulsante da far stare nell'header)."""
-        return ft.PopupMenuButton(
-            content=ft.Container(
-                content=ft.Row(
-                    [
-                        ft.Icon(ft.Icons.BUILD_OUTLINED, size=16, color=COLOR_ACCENT_CRIMSON),
-                        ft.Container(width=6),
-                        ft.Text("Strumenti", size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON),
-                    ],
-                    tight=True,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-                border=ft.Border.all(1, COLOR_ACCENT_CRIMSON),
-                border_radius=6,
-            ),
-            tooltip="Strumenti del Master",
-            items=cast(list[ft.PopupMenuItem], [
-                ft.PopupMenuItem(
-                    content=self._menu_row(ft.Icons.DIAMOND_OUTLINED, "Genera Tesoro"),
-                    on_click=lambda e: self._open_treasure_dialog(),
-                ),
-                ft.PopupMenuItem(
-                    content=self._menu_row(ft.Icons.WARNING_AMBER_OUTLINED, "Genera Trappola"),
-                    on_click=lambda e: self._open_traps_dialog(),
-                ),
-                ft.PopupMenuItem(
-                    content=self._menu_row(ft.Icons.SICK_OUTLINED, "Malattie e Veleni"),
-                    on_click=lambda e: self._open_health_hazards_dialog(),
-                ),
-                ft.PopupMenuItem(
-                    content=self._menu_row(ft.Icons.FOREST_OUTLINED, "Incontri per Ambiente"),
-                    on_click=lambda e: self._open_forest_encounters_dialog(),
-                ),
-            ]),
+    def _build_tools_row(self) -> ft.Container:
+        """Barra di pillole sempre visibili per i 4 generatori/riferimenti del
+        Master (2026-07-24, redesign su richiesta di Davide: il menu a tre
+        puntini/"Strumenti" nascondeva le azioni dietro un click in più — qui
+        sono tutte visibili subito). `wrap=True` sulla Row: su schermi stretti
+        (smartphone) le pillole vanno semplicemente a capo su più righe invece
+        di traboccare o restare irraggiungibili."""
+        pills = [
+            self._tool_pill(ft.Icons.DIAMOND_OUTLINED, "Tesoro", self._open_treasure_dialog),
+            self._tool_pill(ft.Icons.WARNING_AMBER_OUTLINED, "Trappola", self._open_traps_dialog),
+            self._tool_pill(ft.Icons.SICK_OUTLINED, "Veleni", self._open_health_hazards_dialog),
+            self._tool_pill(ft.Icons.FOREST_OUTLINED, "Ambiente", self._open_forest_encounters_dialog),
+        ]
+        return ft.Container(
+            content=ft.Row(cast(list[ft.Control], pills), spacing=8, wrap=True),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+            bgcolor=COLOR_BG_PRIMARY,
+            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
         )
 
     @staticmethod
-    def _menu_row(icon, label: str) -> ft.Control:
-        return ft.Row(
-            [ft.Icon(icon, size=16, color=COLOR_TEXT_SECONDARY), ft.Container(width=8), ft.Text(label, size=13)],
-            tight=True,
+    def _tool_pill(icon, label: str, on_click) -> ft.Control:
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(icon, size=15, color=COLOR_ACCENT_CRIMSON),
+                    ft.Container(width=6),
+                    ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON),
+                ],
+                tight=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=7),
+            bgcolor=COLOR_BG_TAB_ACTIVE,
+            border=ft.Border.all(1, COLOR_ACCENT_CRIMSON),
+            border_radius=16,
+            on_click=lambda e: on_click(),
+            ink=True,
         )
 
     def _build_tab_bar(self) -> ft.Container:

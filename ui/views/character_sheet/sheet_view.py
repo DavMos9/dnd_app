@@ -81,9 +81,21 @@ class SheetView(ft.Column):
                 ft.Container(
                     content=ft.Column(
                         [
-                            ft.Text(abbr, size=9, color=COLOR_TEXT_SECONDARY,
-                                    weight=ft.FontWeight.BOLD,
-                                    text_align=ft.TextAlign.CENTER),
+                            # Icona matita (2026-07-24, fix affordance "nulla di
+                            # nascosto": prima solo tooltip+bordo, nessuna icona
+                            # visibile a colpo d'occhio come le altre sezioni
+                            # editabili dell'app — stessa convenzione "✎" già
+                            # usata ovunque)
+                            ft.Row(
+                                [
+                                    ft.Text(abbr, size=9, color=COLOR_TEXT_SECONDARY,
+                                            weight=ft.FontWeight.BOLD),
+                                    ft.Icon(ft.Icons.EDIT, size=9, color=COLOR_TEXT_MUTED),
+                                ],
+                                spacing=2, tight=True,
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
                             ft.Text(str(score), size=17, color=COLOR_TEXT_PRIMARY,
                                     weight=ft.FontWeight.BOLD,
                                     text_align=ft.TextAlign.CENTER,
@@ -123,11 +135,26 @@ class SheetView(ft.Column):
         is_override = (c.proficiency_bonus_override or 0) > 0
 
         # Testo bonus competenza — cliccabile per override
-        pb_label = ft.Text(
-            f"+{pb} comp." + (" ✎" if is_override else ""),
-            size=11,
-            color=COLOR_ACCENT_BLUE if is_override else COLOR_TEXT_SECONDARY,
-            weight=ft.FontWeight.BOLD if is_override else ft.FontWeight.NORMAL,
+        # Icona matita sempre presente (2026-07-24, fix affordance "nulla di
+        # nascosto"): prima l'unico indizio che fosse cliccabile era il
+        # tooltip (visibile solo passandoci sopra) più il "✎" mostrato SOLO
+        # quando già in override — un personaggio senza override non aveva
+        # alcun indizio visivo.
+        pb_label = ft.Row(
+            [
+                ft.Text(
+                    f"+{pb} comp.",
+                    size=11,
+                    color=COLOR_ACCENT_BLUE if is_override else COLOR_TEXT_SECONDARY,
+                    weight=ft.FontWeight.BOLD if is_override else ft.FontWeight.NORMAL,
+                ),
+                ft.Icon(
+                    ft.Icons.EDIT, size=10,
+                    color=COLOR_ACCENT_BLUE if is_override else COLOR_TEXT_MUTED,
+                ),
+            ],
+            spacing=3, tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
         pb_btn = ft.Container(
             content=pb_label,

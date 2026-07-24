@@ -14,7 +14,7 @@ incontro — non gestisce da sola la navigazione verso la lista, delega a
 """
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 import flet as ft
 
@@ -126,49 +126,57 @@ class MasterEncounterView(ft.Column):
                                 ],
                                 spacing=0,
                             ),
-                            ft.Container(expand=True),
-                            # Solo "Prossimo Turno" resta un pulsante inline (l'azione usata
-                            # continuamente durante il combattimento) — Difficoltà/Termina
-                            # Incontro (meno frequenti) vanno in un menu compatto che non
-                            # può mai traboccare fuori dalla finestra su schermi stretti
-                            # (smartphone) — stesso bug/fix già applicato in master_view.py.
-                            ft.PopupMenuButton(
-                                icon=ft.Icons.MORE_VERT, icon_color=COLOR_TEXT_SECONDARY,
-                                tooltip="Altre azioni",
-                                items=cast(list[ft.PopupMenuItem], [
-                                    ft.PopupMenuItem(
-                                        content=ft.Row(
-                                            [ft.Icon(ft.Icons.ANALYTICS_OUTLINED, size=16, color=COLOR_ACCENT_BLUE),
-                                             ft.Container(width=8), ft.Text("Difficoltà", size=13)],
-                                            tight=True,
-                                        ),
-                                        on_click=self._on_difficulty_click,
-                                    ),
-                                    ft.PopupMenuItem(
-                                        content=ft.Row(
-                                            [ft.Icon(ft.Icons.FLAG_OUTLINED, size=16, color=COLOR_TEXT_MUTED),
-                                             ft.Container(width=8), ft.Text("Termina Incontro", size=13)],
-                                            tight=True,
-                                        ),
-                                        on_click=self._on_end_encounter_click,
-                                    ),
-                                ]),
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    # Azioni sempre visibili come pillole con etichetta, non più
+                    # nascoste dietro un'icona MORE_VERT (2026-07-24, redesign su
+                    # richiesta di Davide, stesso pattern di master_view.py).
+                    # `wrap=True`: su schermi stretti (smartphone) vanno a capo
+                    # invece di traboccare fuori dalla finestra.
+                    ft.Row(
+                        [
+                            self._action_pill(
+                                ft.Icons.ANALYTICS_OUTLINED, "Difficoltà", COLOR_ACCENT_BLUE,
+                                self._on_difficulty_click,
                             ),
-                            ft.Container(width=8),
+                            self._action_pill(
+                                ft.Icons.FLAG_OUTLINED, "Termina Incontro", COLOR_TEXT_SECONDARY,
+                                self._on_end_encounter_click,
+                            ),
                             ft.ElevatedButton(
                                 "Prossimo Turno", icon=ft.Icons.SKIP_NEXT,
                                 on_click=self._on_next_turn_click,
                                 style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
                             ),
                         ],
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=8, wrap=True,
                     ),
                 ],
-                spacing=4,
+                spacing=8,
             ),
             padding=ft.Padding.symmetric(horizontal=16, vertical=12),
             bgcolor=COLOR_BG_SECONDARY,
             border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+        )
+
+    @staticmethod
+    def _action_pill(icon, label: str, color: str, on_click) -> ft.Control:
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(icon, size=15, color=color),
+                    ft.Container(width=6),
+                    ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=color),
+                ],
+                tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=7),
+            bgcolor=COLOR_BG_CARD,
+            border=ft.Border.all(1, color),
+            border_radius=16,
+            on_click=on_click,
+            ink=True,
         )
 
     def _populate_list(self):

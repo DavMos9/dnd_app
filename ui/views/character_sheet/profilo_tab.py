@@ -419,6 +419,11 @@ class ProfiloTab(ft.ListView):
                 border_radius=4,
                 on_click=cycle,
                 ink=True,
+                # Tooltip per-riga (2026-07-24, fix affordance "nulla di
+                # nascosto"): la legenda in cima al dialog spiega già il
+                # ciclo, ma qui rende esplicita anche la singola riga senza
+                # dover ricordare la legenda mentre si scorre l'elenco.
+                tooltip="Clicca per ciclare: ○ nessuna → ● competente → ★ maestria",
             )
 
         save_rows: list[ft.Control] = []

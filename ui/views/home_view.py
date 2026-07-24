@@ -113,19 +113,21 @@ class HomeView(ft.Column):
         header = ft.Container(
             content=ft.Column(
                 [
+                    ft.Row([logo_widget], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    ft.Container(height=4),
+                    # Azioni sempre visibili come pillole invece del vecchio menu a tre
+                    # puntini "Altro" (2026-07-24, redesign su richiesta di Davide: lo
+                    # stesso trattamento già applicato a master_view.py/
+                    # master_encounter_view.py, non solo alla Sezione Master come inteso
+                    # inizialmente — Davide ha chiarito che valeva anche per questa
+                    # Home). `wrap=True`: su schermi stretti (smartphone) le pillole e il
+                    # bottone "Nuovo Personaggio" vanno a capo su più righe invece di
+                    # traboccare — niente `Container(expand=True)` in questa Row, per lo
+                    # stesso motivo già documentato altrove nel progetto (incompatibile
+                    # con `wrap=True`): il logo vive in una riga separata sopra.
                     ft.Row(
-                        [
-                            logo_widget,
-                            ft.Container(expand=True),
-                            # Solo "Nuovo Personaggio" (la CTA primaria) resta un pulsante
-                            # inline — Modalità Master/Importa (meno frequenti) vanno in un
-                            # menu compatto che non può mai traboccare fuori dalla finestra
-                            # su schermi stretti (smartphone). Stesso bug/fix già applicato
-                            # in master_view.py (2026-07-24, bug report Davide).
-                            self._more_menu(),
-                            ft.Container(width=8),
-                            self._new_character_button(),
-                        ],
+                        self._header_actions(),
+                        spacing=8, wrap=True,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     muted_text("Seleziona un personaggio o creane uno nuovo", size=13),
@@ -163,41 +165,50 @@ class HomeView(ft.Column):
             ),
         )
 
-    def _more_menu(self) -> ft.Control:
-        """Menu compatto "Altro" — sostituisce i vecchi pulsanti "Modalità Master"/
-        "Importa" nell'header (2026-07-24, bug report Davide: la fila di 3
-        pulsanti non si adattava a finestre strette/smartphone). Un singolo
-        controllo a larghezza fissa non può mai traboccare. "Modalità Master"
-        è incluso solo se `on_open_master` è stato passato (stesso comportamento
-        "nascosto se assente" del vecchio bottone dedicato, per non rompere
-        eventuali chiamate legacy a HomeView)."""
-        items: list[ft.PopupMenuItem] = []
+    def _header_actions(self) -> list[ft.Control]:
+        """Azioni header sempre visibili — pillole "Modalità Master"/"Importa
+        personaggio" + il pulsante primario "Nuovo Personaggio", tutte nella
+        stessa Row `wrap=True` (2026-07-24, redesign: sostituisce il vecchio
+        `_more_menu()` a tre puntini, stesso trattamento "pillole sempre
+        visibili" scelto da Davide per la Sezione Master — qui esteso alla
+        Home su sua esplicita richiesta). "Modalità Master" compare solo se
+        `on_open_master` è stato passato (stesso comportamento "nascosto se
+        assente" del vecchio menu, per non rompere chiamate legacy a
+        `HomeView`)."""
+        actions: list[ft.Control] = []
         if self.on_open_master is not None:
-            items.append(
-                ft.PopupMenuItem(
-                    content=ft.Row(
-                        [ft.Icon(ft.Icons.CASTLE_OUTLINED, size=16, color=COLOR_ACCENT_BLUE),
-                         ft.Container(width=8), ft.Text("Modalità Master", size=13)],
-                        tight=True,
-                    ),
-                    on_click=lambda e: self.on_open_master(),
+            actions.append(
+                self._action_pill(
+                    ft.Icons.CASTLE_OUTLINED, "Modalità Master", COLOR_ACCENT_BLUE,
+                    lambda e: self.on_open_master(),
                 )
             )
-        items.append(
-            ft.PopupMenuItem(
-                content=ft.Row(
-                    [ft.Icon(ft.Icons.UPLOAD_FILE, size=16, color=COLOR_ACCENT_GOLD),
-                     ft.Container(width=8), ft.Text("Importa personaggio", size=13)],
-                    tight=True,
-                ),
-                on_click=self._on_import_click,
+        actions.append(
+            self._action_pill(
+                ft.Icons.UPLOAD_FILE, "Importa personaggio", COLOR_ACCENT_GOLD,
+                self._on_import_click,
             )
         )
-        return ft.PopupMenuButton(
-            icon=ft.Icons.MORE_VERT,
-            icon_color=COLOR_TEXT_SECONDARY,
-            tooltip="Altre azioni",
-            items=cast(list[ft.PopupMenuItem], items),
+        actions.append(self._new_character_button())
+        return actions
+
+    @staticmethod
+    def _action_pill(icon, label: str, color: str, on_click) -> ft.Control:
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(icon, size=15, color=color),
+                    ft.Container(width=6),
+                    ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=color),
+                ],
+                tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=7),
+            bgcolor=COLOR_BG_CARD,
+            border=ft.Border.all(1, color),
+            border_radius=16,
+            on_click=on_click,
+            ink=True,
         )
 
     # ------------------------------------------------------------------

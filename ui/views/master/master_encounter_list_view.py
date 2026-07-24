@@ -25,6 +25,7 @@ from data.models import MasterEncounter
 from data.repositories import master_repo
 from ui.theme import title_text, muted_text, primary_button
 from ui.views.master.master_encounter_view import MasterEncounterView
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -164,13 +165,13 @@ class MasterEncounterListView(ft.Column):
                 f"\"{enc.name}\" e tutti i suoi combattenti verranno eliminati definitivamente.",
                 size=12, color=COLOR_TEXT_SECONDARY,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=_do_delete,
                     style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_RED, color="#ffffff"),
                 ),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -196,13 +197,13 @@ class MasterEncounterListView(ft.Column):
                 content=ft.Column([name_tf, notes_tf], spacing=8, tight=True),
                 width=320,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=_do_create,
                     style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff"),
                 ),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 

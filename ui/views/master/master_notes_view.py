@@ -30,6 +30,7 @@ from config.settings import (
 )
 from data.models import MasterCampaignNote, MasterNpc
 from data.repositories import master_repo
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -672,7 +673,7 @@ class MasterNotesView(ft.Column):
                 f"Eliminare «{note.name or 'Senza nome'}»?\nL'azione non è reversibile.",
                 size=13, color=COLOR_TEXT_PRIMARY,
             ),
-            actions=cast(list[ft.Control], [
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
@@ -745,7 +746,7 @@ class MasterNotesView(ft.Column):
         page.show_dialog(ft.AlertDialog(
             title=ft.Text(meta["add_label"], size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
             content=ft.Column(fields, spacing=10, scroll=ft.ScrollMode.AUTO, width=400),
-            actions=cast(list[ft.Control], [
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=save,

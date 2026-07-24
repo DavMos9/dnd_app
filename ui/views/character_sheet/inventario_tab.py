@@ -282,6 +282,13 @@ class InventarioTab(ft.ListView):
             "MR": "#b87333", "MA": "#a0a0b0", "ME": "#6a9060",
             "MO": "#c8a000", "MP": "#a0c8d0",
         }
+        # Etichette leggibili per il tooltip (2026-07-24, fix affordance "nulla di
+        # nascosto" — questi cerchi erano cliccabili con solo `ink=True`, nessun
+        # indizio testuale che spiegasse cosa avrebbe fatto il click)
+        names = {
+            "MR": "Monete di Rame", "MA": "Monete d'Argento", "ME": "Monete di Electrum",
+            "MO": "Monete d'Oro", "MP": "Monete di Platino",
+        }
         cells: list[ft.Control] = []
         for abbr in ["MR", "MA", "ME", "MO", "MP"]:
             cells.append(ft.Container(
@@ -302,6 +309,7 @@ class InventarioTab(ft.ListView):
                 expand=True,
                 on_click=lambda e, a=abbr: self._on_edit_currency(a),
                 ink=True,
+                tooltip=f"Modifica {names[abbr]}",
                 padding=ft.Padding.symmetric(horizontal=4, vertical=10),
                 border=ft.Border.all(1, COLOR_BORDER),
                 border_radius=6,
