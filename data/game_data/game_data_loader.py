@@ -85,6 +85,8 @@ class GameDataLoader:
         self._health_hazards: dict[str, Any] | None = None
         # incontri casuali per ambiente (Sezione Master → Generatore Incontri per Ambiente)
         self._forest_encounters: dict[str, Any] | None = None
+        # compendio oggetti magici A-Z DMG IT p.150-214 (Sezione Master → Compendio Oggetti Magici)
+        self._magic_items: list[dict[str, Any]] | None = None
 
         self._classes_loaded     = False
         self._races_loaded       = False
@@ -1691,6 +1693,59 @@ class GameDataLoader:
             if e.get("roll") == roll:
                 return {**e, "roll": roll, "d12": d12, "d8": d8}
         return None
+
+    # ------------------------------------------------------------------
+    # Compendio Oggetti Magici (DMG IT Cap.7 "Oggetti Magici A-Z",
+    # p.150-214 — Sezione Master, Compendio Oggetti Magici). Esclusi
+    # deliberatamente "Oggetti Magici Senzienti" (solo regole, non voci di
+    # compendio) e "Artefatti" (struttura diversa — tabelle di proprietà
+    # casuali dedicate — rimandato a un mini-task separato, vedi CLAUDE.md).
+    # ------------------------------------------------------------------
+
+    def _ensure_magic_items(self) -> None:
+        if self._magic_items is not None:
+            return
+        path = _DATA_DIR / "magic_items.json"
+        try:
+            data = _load_json(path)
+            self._magic_items = data.get("items", []) if isinstance(data, dict) else []
+            logger.debug("Compendio Oggetti Magici caricato (%d voci)", len(self._magic_items))
+        except Exception as exc:
+            logger.error("Errore caricamento magic_items.json: %s", exc)
+            self._magic_items = []
+
+    def get_magic_items(self) -> list[dict[str, Any]]:
+        """
+        Lista completa e grezza del Compendio Oggetti Magici A-Z, ognuna
+        {"name","category","rarity","requires_attunement",
+        "attunement_restriction","description","source_page"}.
+        """
+        self._ensure_magic_items()
+        return self._magic_items or []
+
+    def get_magic_item(self, name: str) -> dict[str, Any] | None:
+        """Cerca un oggetto magico per nome esatto (case-insensitive)."""
+        target = (name or "").strip().lower()
+        for item in self.get_magic_items():
+            if item.get("name", "").strip().lower() == target:
+                return item
+        return None
+
+    def get_magic_item_names(
+        self, rarity: str | None = None, category: str | None = None
+    ) -> list[str]:
+        """
+        Nomi filtrabili per rarità e/o categoria (entrambi case-insensitive,
+        confronto esatto — non substring). Nessun filtro → tutti i nomi.
+        """
+        items = self.get_magic_items()
+        if rarity:
+            r = rarity.strip().lower()
+            items = [i for i in items if i.get("rarity", "").strip().lower() == r]
+        if category:
+            c = category.strip().lower()
+            items = [i for i in items if i.get("category", "").strip().lower() == c]
+        return [i.get("name", "") for i in items]
 
 
 # ---------------------------------------------------------------------------

@@ -41,13 +41,13 @@
         "description": "Attacco con Arma da Mischia: +3 al tiro per colpire, portata 1,5 m, un bersaglio. Colpito: 3 (ld4 + l) danni contundenti."
       },
       {
-        "name": "Ciavellotto",
+        "name": "Giavellotto",
         "description": "Attacco con Arma da Mischia o a Distanza: +3 al tiro per colpire, portata 1,5 mo gittata 9/36 m, un bersaglio. Colpito: 4 (ld6 + l) danni perforanti. MODRO"
       }
     ],
     "reactions": [],
     "legendary_actions": [],
-    "name": "'TRIDRONE",
+    "name": "TRIDRONE",
     "creature_type": "Costrutto",
     "size": "Medio",
     "alignment": "legale neutrale",
