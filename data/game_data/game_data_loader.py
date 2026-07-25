@@ -37,6 +37,105 @@ def _load_json(path: Path) -> Any:
         return json.load(fh)
 
 
+def cr_to_float(cr: Any) -> float:
+    """Converte un Grado di Sfida ("1/4", "5", "—") in float per ordinamento/
+    confronto. Valore fuori scala (9999.0) per GS assente/non parsabile, così
+    finisce sempre in fondo a un ordinamento crescente senza sollevare
+    errori. Spostata qui da `ui/components/monster_picker.py` il 2026-07-25
+    (mantenuta come re-export in quel modulo per compatibilità) perché
+    `core/encounter_generator.py` — un modulo `core/` che per convenzione di
+    progetto non deve mai dipendere da Flet — ne aveva bisogno: importarla
+    da `monster_picker.py` avrebbe trascinato `import flet as ft` anche nel
+    layer `core/`, violazione della stessa regola già scritta nel docstring
+    di quel file. `data/game_data/game_data_loader.py` non ha invece alcuna
+    dipendenza Flet/DB ed è già importato sia da `core/` sia da `ui/`."""
+    if not cr or cr in ("—", ""):
+        return 9999.0
+    s = str(cr)
+    if "/" in s:
+        try:
+            a, b = s.split("/")
+            return int(a) / int(b)
+        except Exception:
+            return 9999.0
+    try:
+        return float(s)
+    except Exception:
+        return 9999.0
+
+
+def parse_monster_xp(raw: Any) -> int:
+    """Converte il campo `xp` grezzo di un mostro (`monsters.json`) in un
+    intero, tollerante ai formati misti realmente presenti nel dataset —
+    dato mai normalizzato durante le sessioni di trascrizione del bestiario,
+    innocuo finché nessun codice aveva mai provato a fare `int()` su OGNI
+    singola voce (bug reale trovato il 2026-07-25 costruendo il Generatore
+    di Incontri Casuali, che itera l'intero bestiario): intero puro, stringa
+    di sole cifre ("100"), stringa con il punto come separatore delle
+    migliaia in stile italiano ("1.800" → 1800, "25.000" → 25000 — 68 voci,
+    tutte draghi/giganti/elementali/golem di alto livello), stringa vuota
+    (9 mostri senza PE trascritto, es. WRAITH/ZOMBI) → 0. Mai solleva
+    un'eccezione, a differenza di un semplice `int(x)`."""
+    if raw is None:
+        return 0
+    if isinstance(raw, (int, float)):
+        return int(raw)
+    s = str(raw).strip()
+    if not s:
+        return 0
+    if re.fullmatch(r"\d{1,3}(\.\d{3})+", s):
+        s = s.replace(".", "")
+    try:
+        return int(float(s))
+    except ValueError:
+        return 0
+
+
+def magic_item_category_base(category: str) -> str:
+    """'Arma (qualsiasi spada)' -> 'Arma' — raggruppa una categoria di
+    oggetto magico (`magic_items.json`) alla sua base, ignorando il
+    qualificatore tra parentesi. Spostata qui da
+    `ui/views/master/master_magic_items_view.py` il 2026-07-25 (mantenuta
+    come re-export in quel modulo) perché serve anche a
+    `core/magic_item_generator.py` — un modulo `core/` che, per la stessa
+    regola già applicata a `cr_to_float`/`parse_monster_xp`, non deve mai
+    dipendere da Flet."""
+    return (category or "").split("(")[0].strip()
+
+
+def magic_item_rarity_bucket(raw: str) -> str:
+    """
+    Normalizza il campo `rarity` di un oggetto magico (testo libero, spesso
+    multi-rarità — es. "non comune (+1), rara (+2) o molto rara (+3)") in
+    una delle 6 fasce filtrabili (comune/non comune/raro/molto
+    raro/leggendario/variabile). Se il testo menziona più di una fascia
+    distinta, ricade su "variabile" invece di sceglierne una
+    arbitrariamente — stessa scelta di trascrizione già documentata in
+    CLAUDE.md per le voci multi-rarità (es. Cintura della Forza dei
+    Giganti, Pietra di Ioun). Stessa provenienza/motivo dello spostamento
+    di `magic_item_category_base` sopra.
+    """
+    r = (raw or "").strip().lower()
+    if not r:
+        return "variabile"
+    found: set[str] = set()
+    if "leggendari" in r:
+        found.add("leggendario")
+    if "molto" in r:
+        found.add("molto raro")
+    if "non comune" in r:
+        found.add("non comune")
+    if ("raro" in r or "rara" in r) and "molto" not in r:
+        found.add("raro")
+    if "comune" in r and "non comune" not in r:
+        found.add("comune")
+    if "variabile" in r:
+        found.add("variabile")
+    if len(found) == 1:
+        return next(iter(found))
+    return "variabile"
+
+
 # ---------------------------------------------------------------------------
 # Loader
 # ---------------------------------------------------------------------------
@@ -87,6 +186,13 @@ class GameDataLoader:
         self._forest_encounters: dict[str, Any] | None = None
         # compendio oggetti magici A-Z DMG IT p.150-214 (Sezione Master → Compendio Oggetti Magici)
         self._magic_items: list[dict[str, Any]] | None = None
+        # liste nomi NPC per razza/genere, stile fantasy generico non ufficiale
+        # (Sezione Master → Generatore Rapido NPC, vedi npc_names.json)
+        self._npc_names: dict[str, Any] | None = None
+        # bestiario completo (444 mostri, incluse le 21 voci Appendice B) —
+        # lazy-load separato da tutto il resto, usato SOLO da
+        # `get_appendix_b_stat_block()` (Sezione Master → Generatore Rapido NPC)
+        self._monsters: list[dict[str, Any]] | None = None
 
         self._classes_loaded     = False
         self._races_loaded       = False
@@ -1746,6 +1852,102 @@ class GameDataLoader:
             c = category.strip().lower()
             items = [i for i in items if i.get("category", "").strip().lower() == c]
         return [i.get("name", "") for i in items]
+
+    # ------------------------------------------------------------------
+    # Liste nomi NPC per razza/genere (Sezione Master → Generatore Rapido
+    # NPC) — `npc_names.json`, stile fantasy generico inventato per questo
+    # progetto, NON trascritto dalle tabelle nomi del PHB/altre opere
+    # pubblicate (scelta di design deliberata, vedi CLAUDE.md). Le 9 chiavi
+    # razza usano esattamente la stessa capitalizzazione di `RACES_BASE`/
+    # `character.race` in tutto il progetto (Dragonide/Elfo/Gnomo/Halfling/
+    # Mezzelfo/Mezzorco/Nano/Tiefling/Umano).
+    # ------------------------------------------------------------------
+
+    def _ensure_npc_names(self) -> None:
+        if self._npc_names is not None:
+            return
+        path = _DATA_DIR / "npc_names.json"
+        try:
+            data = _load_json(path)
+            self._npc_names = data.get("races", {}) if isinstance(data, dict) else {}
+            logger.debug("Liste nomi NPC caricate (%d razze)", len(self._npc_names))
+        except Exception as exc:
+            logger.error("Errore caricamento npc_names.json: %s", exc)
+            self._npc_names = {}
+
+    def get_npc_name_races(self) -> list[str]:
+        """Elenco delle razze con liste nomi disponibili (chiavi esatte di
+        `RACES_BASE`/`character.race`)."""
+        self._ensure_npc_names()
+        return list((self._npc_names or {}).keys())
+
+    def get_npc_names(self, race: str, gender: str) -> list[str]:
+        """
+        Lista nomi per una razza (chiave esatta, es. "Umano"/"Elfo") e un
+        genere ("male"/"female"). Ritorna lista vuota per razza/genere
+        sconosciuti — nessuna eccezione, il chiamante (`core/npc_generator.py`)
+        decide il fallback (es. razza generica "Umano").
+        """
+        self._ensure_npc_names()
+        race_data = (self._npc_names or {}).get(race, {})
+        if not isinstance(race_data, dict):
+            return []
+        names = race_data.get((gender or "").strip().lower(), [])
+        return list(names) if isinstance(names, list) else []
+
+    # ------------------------------------------------------------------
+    # Appendice B "Personaggi Non Giocanti" (Manuale dei Mostri) — usata dal
+    # Generatore Rapido NPC (Sezione Master) per agganciare uno stat block
+    # di combattimento completo quando il "ruolo" scelto dal Master
+    # corrisponde a una di queste 21 voci. Casistica italiana corretta
+    # scritta a mano (non un banale `.title()`, che produrrebbe "Capo Dei
+    # Banditi" invece di "Capo dei Banditi").
+    # ------------------------------------------------------------------
+
+    _APPENDIX_B_ROLES: tuple[str, ...] = (
+        "Accolito", "Arcimago", "Assassino", "Bandito", "Berserker",
+        "Capo dei Banditi", "Cavaliere", "Combattente Tribale", "Cultista",
+        "Cultista Fanatico", "Druido", "Esploratore", "Gladiatore", "Guardia",
+        "Mago", "Malvivente", "Nobile", "Popolano", "Sacerdote", "Spia", "Veterano",
+    )
+
+    def get_appendix_b_role_names(self) -> list[str]:
+        """Le 21 voci dell'Appendice B, in ordine e con la casistica
+        italiana corretta."""
+        return list(self._APPENDIX_B_ROLES)
+
+    def _ensure_monsters(self) -> None:
+        if self._monsters is not None:
+            return
+        path = _DATA_DIR / "monsters.json"
+        try:
+            data = _load_json(path)
+            self._monsters = data if isinstance(data, list) else []
+            logger.debug("Bestiario caricato (%d mostri)", len(self._monsters))
+        except Exception as exc:
+            logger.error("Errore caricamento monsters.json: %s", exc)
+            self._monsters = []
+
+    def get_appendix_b_stat_block(self, role: str) -> dict[str, Any] | None:
+        """
+        Ritorna lo stat block di `monsters.json` per `role` SOLO se `role`
+        (case-insensitive, spazi normalizzati) è una delle 21 voci
+        dell'Appendice B — mai un mostro qualsiasi degli altri 423 del
+        bestiario, per restare fedeli alla regola del Generatore Rapido NPC
+        ("scheda di combattimento solo se il ruolo è una voce di Appendice
+        B", non un lookup generico su tutto il bestiario). Ritorna `None`
+        per qualunque ruolo che non combaci esattamente (dopo normalizzazione
+        di case/spazi) con una delle 21 voci.
+        """
+        target = " ".join((role or "").strip().split()).lower()
+        if not target or target not in {r.lower() for r in self._APPENDIX_B_ROLES}:
+            return None
+        self._ensure_monsters()
+        target_upper = target.upper()
+        for m in self._monsters or []:
+            if (m.get("name") or "").strip().upper() == target_upper:
+                return m
+        return None
 
 
 # ---------------------------------------------------------------------------

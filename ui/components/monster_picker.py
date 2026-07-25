@@ -32,6 +32,12 @@ from config.settings import (
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
 )
+# cr_to_float vive ora in data/game_data/game_data_loader.py (2026-07-25,
+# serviva a core/encounter_generator.py, che per convenzione di progetto
+# non può dipendere da Flet) — re-esportata qui per compatibilità con
+# tutto il codice già esistente che fa `from ui.components.monster_picker
+# import cr_to_float`, comportamento identico a prima.
+from data.game_data.game_data_loader import cr_to_float  # noqa: F401
 
 _MONSTERS_PATH = (
     Path(__file__).parent.parent.parent / "data" / "game_data" / "monsters.json"
@@ -50,25 +56,6 @@ def load_monsters() -> list[dict]:
         return _json.loads(_MONSTERS_PATH.read_text(encoding="utf-8"))
     except Exception:
         return []
-
-
-def cr_to_float(cr: Any) -> float:
-    """Converte un Grado di Sfida ("1/4", "5", "—") in float per ordinamento/
-    confronto. Valore fuori scala (9999.0) per GS assente/non parsabile, così
-    finisce sempre in fondo a un ordinamento crescente senza sollevare errori."""
-    if not cr or cr in ("—", ""):
-        return 9999.0
-    s = str(cr)
-    if "/" in s:
-        try:
-            a, b = s.split("/")
-            return int(a) / int(b)
-        except Exception:
-            return 9999.0
-    try:
-        return float(s)
-    except Exception:
-        return 9999.0
 
 
 def _desc(d: dict) -> str:

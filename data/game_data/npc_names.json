@@ -1,0 +1,41 @@
+{
+  "_note": "Liste di nomi NPC per il Generatore Rapido NPC (Sezione Master, task #4). Nomi in stile fantasy generico, inventati appositamente per questo progetto — NON trascritti dalle tabelle nomi del Manuale del Giocatore (che pure esistono per alcune razze, es. Elfo/Nano/Halfling/Gnomo/Mezzorco/Dragonide) né da alcuna altra opera pubblicata: scelta di design deliberata (2026-07-25), per restare distinti dal materiale ufficiale/di terze parti mentre si offre comunque un pool di nomi pronubile per un NPC generato al volo. Ogni razza usa esattamente le stesse chiavi (maiuscole) di `RACES_BASE`/`character.race` in tutto il progetto (Dragonide/Elfo/Gnomo/Halfling/Mezzelfo/Mezzorco/Nano/Tiefling/Umano), cosi' `core/npc_generator.py` puo' risolvere la lista con un semplice lookup diretto, senza normalizzazione di stringa.",
+  "races": {
+    "Umano": {
+      "male": ["Aldric", "Bramwell", "Corvin", "Dathan", "Edrick", "Fenwick", "Gavric", "Harlin", "Joslen", "Kendrick", "Norwin", "Oswald", "Perrick", "Roderin", "Tavish", "Wystan"],
+      "female": ["Adelina", "Cassandry", "Delphine", "Emberlyn", "Fenella", "Gwynneth", "Helsabeth", "Isolde", "Jessamy", "Liora", "Maribel", "Nerissa", "Oleander", "Perpetua", "Rosalind", "Talwyn"]
+    },
+    "Elfo": {
+      "male": ["Aerendil", "Beliador", "Caelethir", "Drannor", "Elandir", "Faelar", "Galinor", "Haldrin", "Ilyndar", "Jorildan", "Keldrin", "Lorindel", "Miraldor", "Nimrion", "Orindal", "Pelendir"],
+      "female": ["Aelith", "Belaria", "Caeliss", "Dornae", "Elowyn", "Faelynn", "Galathiel", "Haldris", "Ilyndria", "Jonalis", "Keryndra", "Loralei", "Miraveth", "Nienelle", "Orianthe", "Peliadra"]
+    },
+    "Nano": {
+      "male": ["Baldrek", "Brogan", "Durnak", "Eldrim", "Fendrik", "Garrok", "Harnik", "Ivorn", "Jorund", "Karrek", "Lundrik", "Morgrim", "Norvald", "Ragnvor", "Thrundar", "Ulfrik"],
+      "female": ["Astra", "Brenna", "Dagna", "Elvra", "Frida", "Grelka", "Hilda", "Ingrid", "Jorda", "Karla", "Liesel", "Morga", "Norra", "Runa", "Sigrid", "Thyra"]
+    },
+    "Halfling": {
+      "male": ["Brambly", "Dobbin", "Elmo", "Ferris", "Gadfry", "Hobb", "Jorrick", "Larkin", "Norbert", "Othby", "Quill", "Rollo", "Sammel", "Tobin", "Vester", "Wilkie"],
+      "female": ["Amaryllis", "Ester", "Fennwyn", "Ferngale", "Goldie", "Hazel", "Ivy", "Jessamine", "Lily", "Nora", "Quenna", "Sabina", "Tansy", "Vinca", "Willa", "Zinnia"]
+    },
+    "Gnomo": {
+      "male": ["Bettelin", "Corvish", "Drindle", "Effnick", "Frizzlebit", "Gribbon", "Hobnick", "Ickspar", "Nibblewick", "Ollowick", "Pemberwix", "Quizzle", "Rindlethorn", "Snickerbolt", "Tobbin", "Wickery"],
+      "female": ["Cindralin", "Dabberly", "Enniver", "Fizzlewhim", "Grindelle", "Hattafin", "Ickle", "Jenspar", "Kettlewink", "Loobell", "Mizzy", "Nettlebine", "Ottervine", "Pipperly", "Quinnick", "Sprocketta"]
+    },
+    "Mezzelfo": {
+      "male": ["Aeron", "Bellamir", "Corvain", "Daelen", "Emrik", "Fendral", "Garrow", "Halvard", "Iolen", "Joran", "Kestrel", "Lorne", "Maurik", "Nesric", "Ondrick", "Selwyn"],
+      "female": ["Aerwen", "Cerys", "Dorielle", "Elumiel", "Fenwyn", "Galewyn", "Halora", "Ilvana", "Jorelle", "Keshara", "Lorwen", "Maelis", "Norienne", "Orlaith", "Selwen", "Talwen"]
+    },
+    "Mezzorco": {
+      "male": ["Grukk", "Hargath", "Mogrun", "Norg", "Oth", "Ugrik", "Vrogun", "Wregar", "Yagrim", "Zorgath", "Karg", "Morg", "Draggor", "Skarn", "Ulgath", "Bruzk"],
+      "female": ["Ghara", "Ruta", "Sarga", "Tova", "Zora", "Ilsha", "Krenna", "Morza", "Nashka", "Orgra", "Prusha", "Quolga", "Rakja", "Ushka", "Vandra", "Yorsha"]
+    },
+    "Tiefling": {
+      "male": ["Baraz", "Cazriel", "Dreth", "Furio", "Grix", "Harkos", "Ixis", "Jarek", "Lezaan", "Mordant", "Orvex", "Pyros", "Quorix", "Rezvath", "Sythrak", "Torvid"],
+      "female": ["Caiara", "Damara", "Ekliss", "Fyrra", "Gethra", "Havryn", "Ishara", "Jezmara", "Kesra", "Lilivere", "Morwenna", "Pyrene", "Quessa", "Rhaevin", "Sithra", "Vesparia"]
+    },
+    "Dragonide": {
+      "male": ["Vrenak", "Kaldrex", "Drommar", "Ashketh", "Braxu", "Cinvarr", "Draketh", "Ferrhox", "Grimshar", "Havrok", "Ixarion", "Korvath", "Molrik", "Nashkar", "Ovrenn", "Vorkath"],
+      "female": ["Ashra", "Belkiri", "Drasha", "Emberra", "Ghezara", "Halkis", "Ivrenna", "Karshi", "Meraxi", "Nirshan", "Ophaen", "Praxil", "Quenari", "Ravashi", "Skovara", "Vethara"]
+    }
+  }
+}

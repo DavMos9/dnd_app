@@ -16,10 +16,11 @@ from typing import Any
 import flet as ft
 
 from config.settings import (
-    COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_RED,
+    COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_GOLD, COLOR_ACCENT_RED,
     COLOR_BG_CARD, COLOR_BORDER,
     COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
 )
+from data.game_data.game_data_loader import parse_monster_xp
 from data.models import MasterNpc
 from data.repositories import master_repo
 from ui.components.monster_picker import (
@@ -346,6 +347,11 @@ class MasterNpcListView(ft.Column):
             page.pop_dialog()
             self._open_npc_form(npc=None, prefill_monster=None)
 
+        def _generate(_e: Any):
+            page.pop_dialog()
+            from ui.views.master.master_npc_generator_dialog import show_npc_generator_dialog
+            show_npc_generator_dialog(page, on_saved=self.refresh)
+
         dlg = ft.AlertDialog(
             title=ft.Text("Nuovo NPC", size=16, weight=ft.FontWeight.BOLD),
             content=ft.Column(
@@ -364,6 +370,13 @@ class MasterNpcListView(ft.Column):
                         on_click=_manual,
                         style=ft.ButtonStyle(color=COLOR_ACCENT_BLUE,
                                              side=ft.BorderSide(1, COLOR_ACCENT_BLUE)),
+                    ),
+                    ft.Container(height=8),
+                    ft.OutlinedButton(
+                        "Genera Casuale", icon=ft.Icons.AUTO_AWESOME,
+                        on_click=_generate,
+                        style=ft.ButtonStyle(color=COLOR_ACCENT_GOLD,
+                                             side=ft.BorderSide(1, COLOR_ACCENT_GOLD)),
                     ),
                 ],
                 tight=True,
@@ -449,7 +462,7 @@ class MasterNpcListView(ft.Column):
                 "damage_immunities": m.get("damage_immunities", ""),
                 "condition_immunities": m.get("condition_immunities", ""),
                 "senses": m.get("senses", ""), "languages": m.get("languages", ""),
-                "cr": str(m.get("cr", "")), "xp": int(m.get("xp", 0) or 0),
+                "cr": str(m.get("cr", "")), "xp": parse_monster_xp(m.get("xp", 0)),
                 "saving_throws": _json.dumps(m.get("saving_throws", {})),
                 "skills": _json.dumps(m.get("skills", {})),
                 "traits": _json.dumps(m.get("traits", [])),

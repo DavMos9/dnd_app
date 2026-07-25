@@ -24,6 +24,7 @@ from config.settings import (
     COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
 )
 from core.encounter_calculator import calculate_difficulty, DIFFICULTY_LABELS
+from data.game_data.game_data_loader import parse_monster_xp
 from data.models import MasterEncounter
 from data.repositories import character_repo, master_repo
 from ui.components.monster_picker import load_monsters, show_monster_picker, monster_display_name
@@ -681,7 +682,7 @@ class MasterEncounterView(ft.Column):
                         encounter_id=self.encounter_id, kind="adhoc",
                         display_name=name, ac=int(m.get("ac", 10)),
                         hp_current=int(m.get("hp_max", 1)), hp_max=int(m.get("hp_max", 1)),
-                        xp=int(m.get("xp", 0) or 0), initiative=init_val, order_index=base_idx + i,
+                        xp=parse_monster_xp(m.get("xp", 0)), initiative=init_val, order_index=base_idx + i,
                     )
                 if save_cb.value:
                     master_repo.create_npc_from_monster(m)

@@ -28,6 +28,7 @@ _TABS: list[dict[str, Any]] = [
     {"key": "npcs", "label": "Rubrica NPC", "icon": ft.Icons.GROUPS_OUTLINED},
     {"key": "encounters", "label": "Incontri", "icon": ft.Icons.SHIELD_OUTLINED},
     {"key": "notes", "label": "Note di Campagna", "icon": ft.Icons.MENU_BOOK_OUTLINED},
+    {"key": "magic_items", "label": "Oggetti Magici", "icon": ft.Icons.AUTO_AWESOME},
 ]
 
 
@@ -90,6 +91,7 @@ class MasterView(ft.Column):
         di traboccare o restare irraggiungibili."""
         pills = [
             self._tool_pill(ft.Icons.DIAMOND_OUTLINED, "Tesoro", self._open_treasure_dialog),
+            self._tool_pill(ft.Icons.AUTO_AWESOME, "Oggetto Magico", self._open_magic_item_generator_dialog),
             self._tool_pill(ft.Icons.WARNING_AMBER_OUTLINED, "Trappola", self._open_traps_dialog),
             self._tool_pill(ft.Icons.SICK_OUTLINED, "Veleni", self._open_health_hazards_dialog),
             self._tool_pill(ft.Icons.FOREST_OUTLINED, "Ambiente", self._open_forest_encounters_dialog),
@@ -161,6 +163,13 @@ class MasterView(ft.Column):
         from ui.views.master.master_treasure_dialog import show_treasure_generator_dialog
         show_treasure_generator_dialog(cast(ft.Page, page))
 
+    def _open_magic_item_generator_dialog(self) -> None:
+        page = self.page
+        if page is None:
+            return
+        from ui.views.master.master_magic_item_generator_dialog import show_magic_item_generator_dialog
+        show_magic_item_generator_dialog(cast(ft.Page, page))
+
     def _open_traps_dialog(self) -> None:
         page = self.page
         if page is None:
@@ -223,6 +232,15 @@ class MasterView(ft.Column):
                 return self._placeholder(
                     ft.Icons.MENU_BOOK_OUTLINED, "Note di Campagna",
                     "In costruzione — presto potrai tenere qui gli appunti della campagna.",
+                )
+        elif key == "magic_items":
+            try:
+                from ui.views.master.master_magic_items_view import MasterMagicItemsView
+                return MasterMagicItemsView()
+            except ImportError:
+                return self._placeholder(
+                    ft.Icons.AUTO_AWESOME, "Oggetti Magici",
+                    "In costruzione — presto potrai consultare qui il compendio.",
                 )
         return ft.Container()
 

@@ -16,6 +16,7 @@ import logging
 from datetime import datetime
 
 from data.database import get_connection
+from data.game_data.game_data_loader import parse_monster_xp
 from data.models import MasterNpc, MasterEncounter, MasterEncounterMember, MasterCampaignNote
 
 logger = logging.getLogger(__name__)
@@ -227,7 +228,7 @@ def create_npc_from_monster(
         senses=monster.get("senses", ""),
         languages=monster.get("languages", ""),
         cr=str(monster.get("cr", "")),
-        xp=int(monster.get("xp", 0) or 0),
+        xp=parse_monster_xp(monster.get("xp", 0)),
         traits=json.dumps(monster.get("traits", [])),
         actions=json.dumps(monster.get("actions", [])),
         reactions=json.dumps(monster.get("reactions", [])),

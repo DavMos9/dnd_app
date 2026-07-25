@@ -62,13 +62,29 @@ class MasterEncounterListView(ft.Column):
             return
 
         header = ft.Container(
-            content=ft.Row(
+            content=ft.Column(
                 [
                     title_text("Incontri", size=18),
-                    ft.Container(expand=True),
-                    primary_button("+ Nuovo Incontro", on_click=self._on_new_click),
+                    # wrap=True: su schermi stretti (smartphone) i due pulsanti
+                    # vanno a capo invece di traboccare — stessa convenzione
+                    # ormai stabilita in tutta la Sezione Master.
+                    ft.Row(
+                        [
+                            ft.OutlinedButton(
+                                "Genera Incontro Casuale",
+                                icon=ft.Icons.CASINO,
+                                on_click=self._on_generate_click,
+                                style=ft.ButtonStyle(
+                                    color=COLOR_ACCENT_BLUE,
+                                    side=ft.BorderSide(1, COLOR_ACCENT_BLUE),
+                                ),
+                            ),
+                            primary_button("+ Nuovo Incontro", on_click=self._on_new_click),
+                        ],
+                        spacing=8, wrap=True,
+                    ),
                 ],
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
             ),
             padding=ft.Padding.all(16),
         )
@@ -174,6 +190,18 @@ class MasterEncounterListView(ft.Column):
             ]),
         )
         page.show_dialog(dlg)
+
+    def _on_generate_click(self, e: Any):
+        if not self._page:
+            return
+        page = self._page
+        from ui.views.master.master_encounter_generator_dialog import show_encounter_generator_dialog
+
+        def _on_created(encounter_id: str):
+            self.refresh()
+            self._open_encounter(encounter_id)
+
+        show_encounter_generator_dialog(page, _on_created)
 
     def _on_new_click(self, e: Any):
         if not self._page:
