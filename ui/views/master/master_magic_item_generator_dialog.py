@@ -41,6 +41,7 @@ from ui.views.master.master_magic_items_view import (
     _RARITY_COLORS, _RARITY_LABELS, _RARITY_ORDER, _category_icon,
 )
 from ui.widgets import responsive_dialog_width, wrap_dialog_actions
+from ui import design
 
 logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
@@ -230,7 +231,7 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
             pool_hint,
             ft.ElevatedButton(
                 "Genera", icon=ft.Icons.AUTO_AWESOME, on_click=_on_generate,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=4)),
             ),
             ft.Divider(height=1, color=COLOR_BORDER),
@@ -240,7 +241,7 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
             ft.ElevatedButton(
                 "Aggiungi all'inventario", icon=ft.Icons.ADD_SHOPPING_CART,
                 on_click=_on_add_to_inventory, disabled=not characters,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                                       shape=ft.RoundedRectangleBorder(radius=4)),
             ),
             feedback_text,

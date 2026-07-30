@@ -42,6 +42,8 @@ from data.game_data.wizard_data import (
 )
 from data.game_data.game_data_loader import GameDataLoader
 from data.repositories import character_repo
+from ui.views.creation_wizard.creation_shared import CreationSharedMixin
+from ui import design
 
 logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
@@ -59,7 +61,8 @@ _loader = GameDataLoader()
 # Bardo/Stregone/Warlock), quindi va escluso da questa lista — i suoi
 # incantesimi iniziali arrivano dal 2° livello via lo step SPELL_LEARN del
 # level-up, già esistente.
-_PREPARED_CASTER_CLASSES: set[str] = {"chierico", "druido", "paladino"}
+# _PREPARED_CASTER_CLASSES vive ora in creation_shared.py insieme ai metodi
+# che la usano (_compute_prepared_spell_count).
 
 # ------------------------------------------------------------------
 # Icone sicure (presenti in Flet 0.85.3)
@@ -108,7 +111,7 @@ def _icon(name: str, color: str = COLOR_TEXT_SECONDARY, size: int = 28) -> ft.Ic
     return ft.Icon(_ICON_MAP.get(name, ft.Icons.HELP_OUTLINE), color=color, size=size)
 
 
-class WizardView(ft.Column):
+class WizardView(CreationSharedMixin, ft.Column):
     """
     View principale del wizard.
     Gestisce la navigazione tra le 4 fasi e lo stato globale.
@@ -243,13 +246,6 @@ class WizardView(ft.Column):
         self._progress_bar.value = done / total if total > 0 else 0
         try:
             self._progress_bar.update()
-        except RuntimeError:
-            pass  # non ancora montato sulla page
-
-    def _set_content(self, control: ft.Control):
-        self._content.content = control
-        try:
-            self._content.update()
         except RuntimeError:
             pass  # non ancora montato sulla page
 
@@ -695,61 +691,6 @@ class WizardView(ft.Column):
     # Helper: costruisce le sezioni dinamiche della Review
     # ------------------------------------------------------------------
 
-    def _bg_skill_proficiencies(self) -> list[str]:
-        """Abilità fisse concesse dal background corrente."""
-        bg_data = _loader.get_background(self._review_bg)
-        return bg_data.get("skill_proficiencies", []) if bg_data else []
-
-    def _class_skill_options(self) -> tuple[int, list[str]]:
-        """
-        (count, options) per le abilità di classe. Esclude le abilità già
-        concesse dal background (fisse) e quelle già scelte tramite il
-        tratto razziale Mezzelfo (Versatilità nelle Abilità) — altrimenti
-        lo stesso personaggio potrebbe ottenere due volte la competenza
-        nella stessa abilità, una da classe e una da razza.
-        """
-        cls_data = _loader.get_class(self._review_class)
-        if not cls_data:
-            return 0, []
-        sc = cls_data.get("skill_choices", {})
-        count = sc.get("count", 0)
-        opts = sc.get("options", [])
-        if opts == "any":
-            opts = list(SKILLS.keys())
-        excluded = set(self._bg_skill_proficiencies()) | set(self._review_mezzelf_skills)
-        if self._review_umano_variant_skill:
-            excluded.add(self._review_umano_variant_skill)
-        return count, [o for o in opts if o not in excluded]
-
-    def _bg_language_choices(self) -> tuple[int, str]:
-        """(count, from) per le lingue a scelta del background, o (0,'') se nessuna."""
-        bg_data = _loader.get_background(self._review_bg)
-        if not bg_data:
-            return 0, ""
-        for entry in bg_data.get("languages", []):
-            if isinstance(entry, dict) and entry.get("type") == "choice":
-                return entry.get("count", 1), entry.get("from", "any")
-        return 0, ""
-
-    def _race_language_choice_count(self) -> int:
-        """
-        Numero totale di lingue "a scelta libera" concesse dalla RAZZA (non
-        dal background) — somma di tutte le entry {"type":"choice","count":N}
-        in get_resolved_race(...)["languages"]. Generalizza il vecchio
-        special-case hardcoded solo su "Umano" (2026-07-16, task Mezzelfo,
-        CLAUDE.md TODO "Mezzelfo non riceve mai la scelta della terza lingua
-        libera"): Umano e Mezzelfo hanno la stessa identica struttura dati,
-        leggerla qui copre entrambi (e razze future) senza duplicare logica.
-        """
-        if not self._review_race:
-            return 0
-        resolved = _loader.get_resolved_race(self._review_race, self._review_subrace)
-        total = 0
-        for entry in resolved.get("languages", []):
-            if isinstance(entry, dict) and entry.get("type") == "choice":
-                total += int(entry.get("count", 1))
-        return total
-
     def _bg_tool_choices(self) -> list[tuple[int, list[str]]]:
         """Lista di (count, opzioni) per gli strumenti a scelta del background."""
         bg_data = _loader.get_background(self._review_bg)
@@ -811,64 +752,6 @@ class WizardView(ft.Column):
                     opts = tool_categories.get(frm, [])
                 result.append((count, opts))
         return result
-
-    def _prepared_spell_ability_score(self) -> int:
-        """
-        Punteggio finale (Standard Array + bonus razziali) della
-        caratteristica da incantatore della classe corrente, usato per
-        calcolare quanti incantesimi preparati iniziali offrire a
-        Chierico/Druido/Paladino (task #99, 2026-07-11). Replica la stessa
-        risoluzione bonus già applicata a `char` in fase di salvataggio
-        (razza base + sottorazza via get_resolved_race, + il flex Mezzelfo
-        se applicabile) — non un'approssimazione diversa.
-        """
-        cls_data = _loader.get_class(self._review_class) or {}
-        ability_key = cls_data.get("spellcasting_ability", "")
-        if not ability_key:
-            return 10
-        base = self._review_stats.get(ability_key, 10)
-        race_bonus = 0
-        if self._review_race:
-            resolved_race = _loader.get_resolved_race(self._review_race, self._review_subrace)
-            race_bonus = resolved_race.get("ability_bonuses", {}).get(ability_key, 0)
-        mezzelf_bonus = 1 if (
-            self._review_race == "Mezzelfo" and ability_key in self._review_mezzelf_flex
-        ) else 0
-        return min(20, base + race_bonus + mezzelf_bonus)
-
-    def _compute_prepared_spell_count(self) -> int:
-        """
-        Numero di incantesimi preparati iniziali da offrire alla creazione
-        per Chierico/Druido/Paladino (0 per tutte le altre classi). Stessa
-        formula PHB già usata da `spells_view.py._calc_max_prepared()` per
-        i "full preparatori" (mod. caratteristica + livello, min 1) — al
-        Lv.1 la formula per mezzo-preparatore (Paladino) produce lo stesso
-        risultato (mod + max(1, 1//2) = mod + 1), quindi un'unica formula
-        basta per questa fase di creazione (sempre Lv.1).
-        """
-        key = (self._review_class or "").strip().lower()
-        if key not in _PREPARED_CASTER_CLASSES:
-            return 0
-        score = self._prepared_spell_ability_score()
-        return max(1, get_modifier(score) + 1)
-
-    def _compute_mago_max_prepared(self) -> int:
-        """
-        Quanti dei 6 incantesimi iniziali del libro del Mago (task #100)
-        possono essere già "preparati" al Lv.1, secondo la stessa formula
-        del "full caster" (mod. Intelligenza + livello, min 1) già usata da
-        `spells_view.py._calc_max_prepared()` — il Mago è in `_PREP_FULL`
-        lì. Serve a non violare quel limite già applicato dalla tab
-        Incantesimi: se salvassimo tutti e 6 come `is_prepared=True` a
-        prescindere dal modificatore, un Mago con INT bassa nascerebbe già
-        "sopra al limite" di preparazione, uno stato incoerente che la UI
-        di SpellsView non corregge mai automaticamente (blocca solo NUOVE
-        preparazioni oltre il limite, non quelle già presenti).
-        """
-        if (self._review_class or "").strip().lower() != "mago":
-            return 0
-        score = self._prepared_spell_ability_score()
-        return max(1, get_modifier(score) + 1)
 
     # ------------------------------------------------------------------
     # FASE 3: Revisione (modifica suggerimento + statistiche + scelte)
@@ -1435,7 +1318,7 @@ class WizardView(ft.Column):
                         label=sk,
                         value=sk in self._review_mezzelf_skills,
                         fill_color=COLOR_ACCENT_GOLD,
-                        check_color="#ffffff",
+                        check_color=design.T().on_accent,
                         label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
                         on_change=lambda e, s=sk: _on_mez_skill(s, bool(e.control.value)),
                     )
@@ -1923,7 +1806,7 @@ class WizardView(ft.Column):
                     label=skill,
                     value=skill in self._review_expertise,
                     fill_color=COLOR_ACCENT_BLUE,
-                    check_color="#ffffff",
+                    check_color=design.T().on_accent,
                     label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
                     on_change=lambda e, s=skill: _on_expertise_toggle(s, bool(e.control.value)),
                 )
@@ -2020,7 +1903,7 @@ class WizardView(ft.Column):
                     label=skill,
                     value=skill in self._review_skills,
                     fill_color=COLOR_ACCENT_CRIMSON,
-                    check_color="#ffffff",
+                    check_color=design.T().on_primary,
                     label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
                     on_change=lambda e, s=skill: _on_skill_toggle(s, bool(e.control.value)),
                 )
@@ -2057,7 +1940,7 @@ class WizardView(ft.Column):
             has_content = False
 
             # Lingue
-            lang_count, lang_from = self._bg_language_choices()
+            lang_count, _lang_from = self._bg_language_choices()
             if lang_count > 0:
                 has_content = True
                 # Esclude le lingue già conosciute di base — fisse di razza
@@ -2118,7 +2001,7 @@ class WizardView(ft.Column):
                         label=lang,
                         value=lang in self._review_languages,
                         fill_color=COLOR_ACCENT_GOLD,
-                        check_color="#ffffff",
+                        check_color=design.T().on_accent,
                         label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
                         on_change=lambda e, lg=lang: _on_lang_toggle(lg, bool(e.control.value)),
                     )
@@ -2135,7 +2018,7 @@ class WizardView(ft.Column):
 
             # Strumenti
             tool_choices = self._bg_tool_choices()
-            for tc_idx, (tc_count, tc_opts) in enumerate(tool_choices):
+            for tc_idx, (_tc_count, tc_opts) in enumerate(tool_choices):
                 if not tc_opts:
                     continue
                 has_content = True
@@ -2855,19 +2738,6 @@ class WizardView(ft.Column):
     # FASE 4: Equipaggiamento iniziale
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _init_weapon_choice(item: dict) -> dict:
-        """Inizializza chosen_weapon su un item weapon_choice."""
-        if item.get("item_type") == "weapon_choice":
-            cat = item.get("category", "semplice")
-            weapons = WEAPONS_BY_CATEGORY.get(cat, [])
-            count = item.get("count", 1)
-            if count > 1:
-                item["chosen_weapons"] = [weapons[0]] * count if weapons else []
-            else:
-                item["chosen_weapon"] = weapons[0] if weapons else ""
-        return item
-
     def _goto_equipment(self):
         self._phase = "equipment"
         # Reset stato monete iniziali
@@ -2948,7 +2818,7 @@ class WizardView(ft.Column):
                         label=label,
                         value=item["selected"],
                         fill_color=COLOR_ACCENT_CRIMSON,
-                        check_color="#ffffff",
+                        check_color=design.T().on_primary,
                         label_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
                         on_change=lambda e, it=item: it.update({"selected": bool(e.control.value)}),
                     )

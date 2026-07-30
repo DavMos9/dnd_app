@@ -30,6 +30,7 @@ from config.settings import (
 )
 from data.game_data.game_data_loader import game_data
 from ui.widgets import responsive_dialog_width
+from ui import design
 
 
 _MADNESS_KIND_LABELS = {
@@ -211,7 +212,7 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
             madness_dd,
             ft.ElevatedButton(
                 "Tira 1d100", icon=ft.Icons.CASINO, on_click=_on_madness_roll,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=4)),
             ),
             ft.Container(

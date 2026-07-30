@@ -35,7 +35,6 @@ from data.game_data.game_data_loader import game_data
 
 _DICE_RE = re.compile(r"^\s*(\d*)\s*[dD]\s*(\d+)\s*$")
 
-SEVERITY_LEVELS = ["imprevisto", "pericoloso", "letale"]
 SEVERITY_LABELS = {"imprevisto": "Imprevisto", "pericoloso": "Pericoloso", "letale": "Letale"}
 
 

@@ -131,6 +131,12 @@ def _split_stroke_by_circle(pts: list, cx: float, cy: float,
 
 
 # ── Palette ────────────────────────────────────────────────────────────────
+# ⚠️ Questi NON sono token di tema e non vanno migrati a `ui/design.py`
+# (Fase B.2 del restyle, 2026-07-30): sono i colori del PENNARELLO scelti dal
+# giocatore e vengono **persistiti** dentro `game_maps.annotations` come valore
+# di ogni tratto. Cambiarli o renderli dipendenti dal tema romperebbe le
+# annotazioni già salvate (un tratto rosso diventerebbe di un altro colore, o
+# cambierebbe colore accendendo il tema scuro).
 _PEN_COLORS = [
     "#e53935",  # rosso
     "#1e88e5",  # blu
@@ -140,6 +146,29 @@ _PEN_COLORS = [
     "#ffffff",  # bianco
     "#212121",  # nero
 ]
+
+# Chrome dell'editor di mappe: volutamente SCURA in entrambi i temi, perché è
+# un pannello di strumenti sovrapposto a un'immagine — se seguisse la palette
+# chiara competerebbe con la mappa. Prima erano ~40 hex inline sparsi nel file.
+_CHROME = {
+    "bar_bg":        "#2a2a2a",   # sfondo barra strumenti
+    "bar_border":    "#444444",
+    "panel_bg":      "#222222",   # pannello secondario (slider)
+    "btn_bg":        "#3a3a3a",   # bottone non selezionato
+    "btn_border":    "#555555",
+    "btn_border_2":  "#666666",
+    "danger_bg":     "#7b0000",   # "Cancella tutto"
+    "text":          "#ffffff",
+    "text_muted":    "#bbbbbb",
+    "text_dim":      "#aaaaaa",
+    "text_dark":     "#111111",   # su swatch chiaro selezionato
+    "neutral":       "#777777",
+    "slider_active": "#888888",
+    "fullscreen_bg": "#111111",
+    "canvas_bg":     "#000000",
+    "shadow_text":   "#ffffffdd",  # etichette sopra la mappa
+    "shadow_dim":    "#00000066",
+}
 
 # ── Data URI helper ────────────────────────────────────────────────────────
 def _data_uri(b64: str) -> str:
@@ -275,7 +304,7 @@ class MapsView(ft.Column):
                         "＋ Nuova Mappa", icon=ft.Icons.MAP,
                         on_click=lambda e: self._open_create_dialog(),
                         style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                            bgcolor=COLOR_ACCENT_CRIMSON, color=_CHROME["text"],
                             shape=ft.RoundedRectangleBorder(radius=6),
                         ),
                     ),
@@ -317,7 +346,7 @@ class MapsView(ft.Column):
                         "Carica prima mappa", icon=ft.Icons.ADD_PHOTO_ALTERNATE,
                         on_click=lambda e: self._open_create_dialog(),
                         style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                            bgcolor=COLOR_ACCENT_CRIMSON, color=_CHROME["text"],
                             shape=ft.RoundedRectangleBorder(radius=6),
                         ),
                     ),
@@ -458,8 +487,8 @@ class MapsView(ft.Column):
                 ft.Container(expand=True, content=draw_stack),
                 ft.Container(
                     content=ft.Column([toolbar_row, toolbar_body], spacing=0),
-                    bgcolor="#2a2a2a",
-                    border=ft.Border.only(top=ft.BorderSide(1, "#444444")),
+                    bgcolor=_CHROME["bar_bg"],
+                    border=ft.Border.only(top=ft.BorderSide(1, _CHROME["bar_border"])),
                 ),
                 ft.Container(
                     content=ft.Column(
@@ -471,7 +500,7 @@ class MapsView(ft.Column):
                             ft.Row([ft.ElevatedButton(
                                 "Salva note", on_click=save_notes,
                                 style=ft.ButtonStyle(
-                                    bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                    bgcolor=COLOR_ACCENT_CRIMSON, color=_CHROME["text"],
                                     shape=ft.RoundedRectangleBorder(radius=4),
                                 ),
                             )], alignment=ft.MainAxisAlignment.END),
@@ -563,7 +592,7 @@ class MapsView(ft.Column):
             shapes.append(cv.Path(
                 elements=elems,
                 paint=ft.Paint(
-                    color=stroke.get("color", "#e53935"),
+                    color=stroke.get("color", _PEN_COLORS[0]),
                     stroke_width=stroke.get("width", 5.0),
                     style=ft.PaintingStyle.STROKE,
                     stroke_cap=ft.StrokeCap.ROUND,
@@ -593,7 +622,7 @@ class MapsView(ft.Column):
             shapes.append(cv.Circle(
                 cx, cy, r,
                 paint=ft.Paint(
-                    color="#ffffffdd",
+                    color=_CHROME["shadow_text"],
                     stroke_width=1.5,
                     style=ft.PaintingStyle.STROKE,
                 ),
@@ -602,7 +631,7 @@ class MapsView(ft.Column):
             shapes.append(cv.Circle(
                 cx, cy, r,
                 paint=ft.Paint(
-                    color="#00000066",
+                    color=_CHROME["shadow_dim"],
                     stroke_width=0.8,
                     style=ft.PaintingStyle.STROKE,
                 ),
@@ -726,7 +755,7 @@ class MapsView(ft.Column):
                 continue
 
             pts = stroke.get("points", [])
-            color = stroke.get("color", "#e53935")
+            color = stroke.get("color", _PEN_COLORS[0])
             width_s = stroke.get("width", 5.0)
 
             if not pts:
@@ -805,13 +834,13 @@ class MapsView(ft.Column):
             sel = key == self._draw_mode
             c = ft.Container(
                 content=ft.Column(
-                    [ft.Icon(icon, size=14, color="#ffffff" if sel else "#bbbbbb"),
-                     ft.Text(label, size=9, color="#ffffff" if sel else "#bbbbbb")],
+                    [ft.Icon(icon, size=14, color=_CHROME["text"] if sel else _CHROME["text_muted"]),
+                     ft.Text(label, size=9, color=_CHROME["text"] if sel else _CHROME["text_muted"])],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=1,
                 ),
                 width=46, height=42, border_radius=6,
-                bgcolor="#c0182c" if sel else "#3a3a3a",
-                border=ft.Border.all(1, "#c0182c" if sel else "#555555"),
+                bgcolor=COLOR_ACCENT_CRIMSON if sel else _CHROME["btn_bg"],
+                border=ft.Border.all(1, COLOR_ACCENT_CRIMSON if sel else _CHROME["btn_border"]),
                 alignment=ft.Alignment.CENTER,
                 on_click=lambda e, k=key, ml=mode_list, sl=swatch_list, el=ersub_list:
                     self._select_mode(k, ml, sl, el, gm, is_fs),
@@ -831,7 +860,7 @@ class MapsView(ft.Column):
             c = ft.Container(
                 width=22, height=22, bgcolor=_PEN_COLORS[idx], border_radius=11,
                 border=ft.Border.all(3 if sel else 1.5,
-                                     "#ffffff" if sel else "#00000066"),
+                                     _CHROME["text"] if sel else _CHROME["shadow_dim"]),
                 on_click=lambda e, i=idx, sl=swatch_list:
                     self._select_color(i, sl),
                 ink=True,
@@ -846,8 +875,8 @@ class MapsView(ft.Column):
                         border: str, fn: Any) -> ft.Container:
             return ft.Container(
                 content=ft.Row(
-                    [ft.Icon(icon, size=13, color="#ffffff"),
-                     ft.Text(label, size=10, color="#ffffff")],
+                    [ft.Icon(icon, size=13, color=_CHROME["text"]),
+                     ft.Text(label, size=10, color=_CHROME["text"])],
                     spacing=3,
                 ),
                 padding=ft.Padding.symmetric(horizontal=8, vertical=5),
@@ -856,14 +885,14 @@ class MapsView(ft.Column):
                 on_click=fn, ink=True,
             )
 
-        undo_btn     = _action_btn(ft.Icons.UNDO, "Annulla", "#3a3a3a", "#777777",
+        undo_btn     = _action_btn(ft.Icons.UNDO, "Annulla", _CHROME["btn_bg"], _CHROME["neutral"],
                                    lambda e: self._undo_stroke(gm))
         clearall_btn = _action_btn(ft.Icons.DELETE_FOREVER_OUTLINED, "Cancella tutto",
-                                   "#7b0000", "#c0182c",
+                                   _CHROME["danger_bg"], COLOR_ACCENT_CRIMSON,
                                    lambda e: self._clear_all(gm))
 
         def _sep():
-            return ft.Container(width=1, height=30, bgcolor="#555555",
+            return ft.Container(width=1, height=30, bgcolor=_CHROME["btn_border"],
                                 margin=ft.Margin.only(left=2, right=2))
 
         top_row = ft.Row(
@@ -877,7 +906,7 @@ class MapsView(ft.Column):
         toolbar_body = ft.Container(
             content=body_content,
             padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-            bgcolor="#222222",
+            bgcolor=_CHROME["panel_bg"],
         )
 
         if is_fs:
@@ -901,14 +930,14 @@ class MapsView(ft.Column):
         if mode == "pen":
             return ft.Row(
                 [
-                    ft.Text("Larghezza:", size=10, color="#aaaaaa"),
+                    ft.Text("Larghezza:", size=10, color=_CHROME["text_dim"]),
                     ft.Slider(
                         min=1, max=30, value=self._pen_width, divisions=29,
-                        active_color=COLOR_ACCENT_CRIMSON, thumb_color="#ffffff",
-                        inactive_color="#555555", expand=True, height=32,
+                        active_color=COLOR_ACCENT_CRIMSON, thumb_color=_CHROME["text"],
+                        inactive_color=_CHROME["btn_border"], expand=True, height=32,
                         on_change=lambda e: self._on_pen_width_change(e, gm),
                     ),
-                    ft.Text(f"{self._pen_width:.0f}px", size=10, color="#aaaaaa",
+                    ft.Text(f"{self._pen_width:.0f}px", size=10, color=_CHROME["text_dim"],
                             width=34),
                 ],
                 spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -921,12 +950,12 @@ class MapsView(ft.Column):
                 sel = key == self._eraser_sub
                 c = ft.Container(
                     content=ft.Text(label, size=10,
-                                    color="#111111" if sel else "#ffffff",
+                                    color=_CHROME["text_dark"] if sel else _CHROME["text"],
                                     weight=ft.FontWeight.W_600),
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                     border_radius=4,
-                    bgcolor="#ffffff" if sel else "#3a3a3a",
-                    border=ft.Border.all(1, "#ffffff" if sel else "#666666"),
+                    bgcolor=_CHROME["text"] if sel else _CHROME["btn_bg"],
+                    border=ft.Border.all(1, _CHROME["text"] if sel else _CHROME["btn_border_2"]),
                     on_click=lambda e, k=key, el=ersub_list:
                         self._select_eraser_sub(k, el, gm, is_fs),
                     ink=True,
@@ -939,14 +968,14 @@ class MapsView(ft.Column):
                     _esbtn("stroke", "Tratto"),
                     _esbtn("pixel", "Libera"),
                     ft.Container(width=8),
-                    ft.Text("Dimensione:", size=10, color="#aaaaaa"),
+                    ft.Text("Dimensione:", size=10, color=_CHROME["text_dim"]),
                     ft.Slider(
                         min=5, max=60, value=self._eraser_size, divisions=55,
-                        active_color="#888888", thumb_color="#ffffff",
-                        inactive_color="#444444", expand=True, height=32,
+                        active_color=_CHROME["slider_active"], thumb_color=_CHROME["text"],
+                        inactive_color=_CHROME["bar_border"], expand=True, height=32,
                         on_change=lambda e: self._on_eraser_size_change(e, gm),
                     ),
-                    ft.Text(f"{self._eraser_size:.0f}px", size=10, color="#aaaaaa",
+                    ft.Text(f"{self._eraser_size:.0f}px", size=10, color=_CHROME["text_dim"],
                             width=34),
                 ],
                 spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -993,12 +1022,12 @@ class MapsView(ft.Column):
             if i >= len(mode_list):
                 break
             sel = k == key
-            mode_list[i].bgcolor = "#c0182c" if sel else "#3a3a3a"
-            mode_list[i].border = ft.Border.all(1, "#c0182c" if sel else "#555555")
+            mode_list[i].bgcolor = COLOR_ACCENT_CRIMSON if sel else _CHROME["btn_bg"]
+            mode_list[i].border = ft.Border.all(1, COLOR_ACCENT_CRIMSON if sel else _CHROME["btn_border"])
             ctrls = getattr(mode_list[i].content, "controls", [])
             if len(ctrls) >= 2:
-                ctrls[0].color = "#ffffff" if sel else "#bbbbbb"
-                ctrls[1].color = "#ffffff" if sel else "#bbbbbb"
+                ctrls[0].color = _CHROME["text"] if sel else _CHROME["text_muted"]
+                ctrls[1].color = _CHROME["text"] if sel else _CHROME["text_muted"]
             try:
                 mode_list[i].update()
             except RuntimeError:
@@ -1023,12 +1052,12 @@ class MapsView(ft.Column):
                 if i >= len(other_mode):
                     break
                 sel = k == key
-                other_mode[i].bgcolor = "#c0182c" if sel else "#3a3a3a"
-                other_mode[i].border = ft.Border.all(1, "#c0182c" if sel else "#555555")
+                other_mode[i].bgcolor = COLOR_ACCENT_CRIMSON if sel else _CHROME["btn_bg"]
+                other_mode[i].border = ft.Border.all(1, COLOR_ACCENT_CRIMSON if sel else _CHROME["btn_border"])
                 ctrls = getattr(other_mode[i].content, "controls", [])
                 if len(ctrls) >= 2:
-                    ctrls[0].color = "#ffffff" if sel else "#bbbbbb"
-                    ctrls[1].color = "#ffffff" if sel else "#bbbbbb"
+                    ctrls[0].color = _CHROME["text"] if sel else _CHROME["text_muted"]
+                    ctrls[1].color = _CHROME["text"] if sel else _CHROME["text_muted"]
                 try:
                     other_mode[i].update()
                 except RuntimeError:
@@ -1046,7 +1075,7 @@ class MapsView(ft.Column):
         for i, s in enumerate(swatch_list):
             sel = i == idx
             s.border = ft.Border.all(3 if sel else 1.5,
-                                     "#ffffff" if sel else "#00000066")
+                                     _CHROME["text"] if sel else _CHROME["shadow_dim"])
             try:
                 s.update()
             except RuntimeError:
@@ -1056,7 +1085,7 @@ class MapsView(ft.Column):
         for i, s in enumerate(other):
             sel = i == idx
             s.border = ft.Border.all(3 if sel else 1.5,
-                                     "#ffffff" if sel else "#00000066")
+                                     _CHROME["text"] if sel else _CHROME["shadow_dim"])
             try:
                 s.update()
             except RuntimeError:
@@ -1067,10 +1096,10 @@ class MapsView(ft.Column):
         self._eraser_sub = key
         for i, btn in enumerate(ersub_list):
             sel = (i == 0 and key == "stroke") or (i == 1 and key == "pixel")
-            btn.bgcolor = "#ffffff" if sel else "#3a3a3a"
-            btn.border = ft.Border.all(1, "#ffffff" if sel else "#666666")
+            btn.bgcolor = _CHROME["text"] if sel else _CHROME["btn_bg"]
+            btn.border = ft.Border.all(1, _CHROME["text"] if sel else _CHROME["btn_border_2"])
             if btn.content:
-                cast(ft.Text, btn.content).color = "#111111" if sel else "#ffffff"
+                cast(ft.Text, btn.content).color = _CHROME["text_dark"] if sel else _CHROME["text"]
             try:
                 btn.update()
             except RuntimeError:
@@ -1114,20 +1143,20 @@ class MapsView(ft.Column):
         header = ft.Container(
             content=ft.Row(
                 [
-                    ft.Text(gm.name or "Mappa", size=16, color="#ffffff",
+                    ft.Text(gm.name or "Mappa", size=16, color=_CHROME["text"],
                             weight=ft.FontWeight.BOLD, expand=True,
                             no_wrap=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
-                    ft.IconButton(ft.Icons.FULLSCREEN_EXIT, icon_color="#ffffff",
+                    ft.IconButton(ft.Icons.FULLSCREEN_EXIT, icon_color=_CHROME["text"],
                                   on_click=close_fs),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.symmetric(horizontal=16, vertical=8),
-            bgcolor="#111111",
+            bgcolor=_CHROME["fullscreen_bg"],
         )
 
         overlay = ft.Container(
-            expand=True, bgcolor="#000000",
+            expand=True, bgcolor=_CHROME["canvas_bg"],
             content=ft.Column(
                 [
                     header,
@@ -1135,8 +1164,8 @@ class MapsView(ft.Column):
                     ft.Container(
                         content=ft.Column(
                             [fs_toolbar_row, fs_toolbar_body], spacing=0),
-                        bgcolor="#2a2a2a",
-                        border=ft.Border.only(top=ft.BorderSide(1, "#444444")),
+                        bgcolor=_CHROME["bar_bg"],
+                        border=ft.Border.only(top=ft.BorderSide(1, _CHROME["bar_border"])),
                     ),
                 ],
                 spacing=0, expand=True,
@@ -1242,7 +1271,7 @@ class MapsView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Salva", on_click=on_save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                      bgcolor=COLOR_ACCENT_CRIMSON, color=_CHROME["text"],
                                       shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -1356,7 +1385,7 @@ class MapsView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Salva", on_click=on_save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                      bgcolor=COLOR_ACCENT_CRIMSON, color=_CHROME["text"],
                                       shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -1387,7 +1416,7 @@ class MapsView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                      bgcolor=COLOR_ACCENT_CRIMSON, color=_CHROME["text"],
                                       shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,

@@ -30,7 +30,7 @@ from typing import Any, Callable, cast
 import flet as ft
 
 from config.settings import (
-    COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_RED,
+    COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON,
     COLOR_BG_CARD, COLOR_BG_PRIMARY, COLOR_BORDER,
     COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
 )
@@ -40,17 +40,10 @@ from data.game_data.game_data_loader import parse_monster_xp
 from data.repositories import character_repo, master_repo
 from ui.components.monster_picker import load_monsters, monster_display_name
 from ui.widgets import responsive_dialog_width, wrap_dialog_actions
+from ui import design
 
 logger = logging.getLogger(__name__)
 
-_DIFFICULTY_COLORS = {
-    "trascurabile": COLOR_TEXT_MUTED,
-    "facile": COLOR_ACCENT_BLUE,
-    "medio": "#b8860b",
-    "difficile": "#d2691e",
-    "letale": COLOR_ACCENT_RED,
-    "indeterminato": COLOR_TEXT_MUTED,
-}
 
 
 def _int_or(text: str | None, default: int) -> int:
@@ -226,13 +219,13 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
                 res = calculate_difficulty([parse_monster_xp(m.get("xp", 0)) for m in generated], levels)
                 diff_key = res["difficulty"]
                 diff_label = DIFFICULTY_LABELS.get(diff_key, diff_key)
-                diff_color = _DIFFICULTY_COLORS.get(diff_key, COLOR_TEXT_MUTED)
+                diff_color = design.difficulty_color(diff_key)
                 result_col.controls.append(
                     ft.Container(
                         content=ft.Text(
                             f"Difficoltà risultante: {diff_label.upper()}  "
                             f"(PE modificato {res['adjusted_xp']} su bersaglio {DIFFICULTY_LABELS.get(state.get('target_difficulty', ''), '')})",
-                            size=12, weight=ft.FontWeight.BOLD, color="#ffffff", text_align=ft.TextAlign.CENTER,
+                            size=12, weight=ft.FontWeight.BOLD, color=design.T().on_primary, text_align=ft.TextAlign.CENTER,
                         ),
                         bgcolor=diff_color, border_radius=6, padding=ft.Padding.symmetric(vertical=8),
                         alignment=ft.Alignment.CENTER,
@@ -390,7 +383,7 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
             party_col,
             ft.ElevatedButton(
                 "Genera", icon=ft.Icons.CASINO, on_click=_on_generate,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=4)),
             ),
             ft.Divider(height=1, color=COLOR_BORDER),
@@ -401,7 +394,7 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
             name_tf,
             ft.ElevatedButton(
                 "Crea Nuovo Incontro con questi Mostri", icon=ft.Icons.ADD, on_click=_on_create,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                                       shape=ft.RoundedRectangleBorder(radius=4)),
             ),
             feedback_text,

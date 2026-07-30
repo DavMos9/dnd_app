@@ -15,7 +15,8 @@ import threading
 import webbrowser
 from typing import Any
 from config.settings import *
-from ui.theme import get_theme, title_text, muted_text
+from ui import design
+from ui.theme import get_theme, get_dark_theme, title_text, muted_text
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,19 @@ class DnDApp:
 
     def _setup_page(self):
         self.page.title = APP_NAME
-        self.page.theme_mode = ft.ThemeMode.LIGHT   # tema marmo chiaro
+        # Font custom self-hosted (Fase B.1 del restyle, 2026-07-30).
+        # Va impostato PRIMA del tema: `get_theme()` referenzia già le famiglie
+        # `d.Font.*`, che senza questa registrazione non esisterebbero e
+        # ricadrebbero silenziosamente sul font di sistema.
+        # I file vivono in `assets/fonts/` e sono raggiungibili perché la Fase A
+        # ha collegato `assets_dir` su tutte le piattaforme (vedi main.py).
+        self.page.fonts = dict(design.FONT_FILES)
+        # Entrambi i temi sono registrati fin da subito (Fase A del restyle):
+        # il toggle chiaro/scuro della Fase D dovrà solo cambiare
+        # `page.theme_mode` e chiamare `design.set_mode()` + un rebuild.
+        self.page.theme_mode = ft.ThemeMode.LIGHT
         self.page.theme = get_theme()
+        self.page.dark_theme = get_dark_theme()
         self.page.bgcolor = COLOR_BG_PRIMARY
         self.page.padding = 0
 
@@ -191,6 +203,7 @@ class DnDApp:
     def _build_char_avatar(self) -> ft.Control:
         """Icona del personaggio corrente per la sidebar."""
         from data.repositories import character_repo
+        p = design.T()
         char = character_repo.get_by_id(self.current_character_id) if self.current_character_id else None
 
         if char and char.image_data:
@@ -217,11 +230,11 @@ class DnDApp:
         return ft.Container(
             content=ft.Text(
                 initials, size=18, weight=ft.FontWeight.BOLD,
-                color="#ffffff", text_align=ft.TextAlign.CENTER,
+                color=p.nav_text, text_align=ft.TextAlign.CENTER,
             ),
             width=56, height=56,
-            bgcolor="#3a1010",
-            border=ft.Border.all(2, COLOR_ACCENT_CRIMSON),
+            bgcolor=p.nav_bg_alt,
+            border=ft.Border.all(2, p.nav_accent),
             border_radius=28,
             alignment=ft.Alignment.CENTER,
         )
@@ -229,8 +242,13 @@ class DnDApp:
     def _build_nav_rail(self) -> ft.Container:
         """
         Sidebar custom (Column) invece di NavigationRail — controllo totale sui colori.
-        Sfondo scuro COLOR_NAV_BG, icone e testo bianchi/grigi.
+
+        La chrome della navigazione è volutamente scura in ENTRAMBI i temi (è
+        cuoio, non una superficie): usa i token `nav_*` di `ui/design.py`, non
+        `surface`/`text`. L'accento delle voci non selezionate passa da
+        `primary` a `nav_accent` perché `primary` su `nav_bg` dà solo 2.45:1.
         """
+        p = design.T()
 
         char_avatar = self._build_char_avatar()
 
@@ -243,12 +261,12 @@ class DnDApp:
                         [
                             ft.Icon(
                                 s["icon_on"] if is_sel else s["icon_off"],
-                                color="#ffffff" if is_sel else "#9a8888",
+                                color=p.on_primary if is_sel else p.nav_muted,
                                 size=22,
                             ),
                             ft.Text(
                                 s["label"], size=10,
-                                color="#ffffff" if is_sel else "#9a8888",
+                                color=p.on_primary if is_sel else p.nav_muted,
                                 text_align=ft.TextAlign.CENTER,
                                 weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
                             ),
@@ -257,7 +275,7 @@ class DnDApp:
                         spacing=3,
                     ),
                     padding=ft.Padding.symmetric(horizontal=6, vertical=10),
-                    bgcolor=COLOR_ACCENT_CRIMSON if is_sel else "transparent",
+                    bgcolor=p.primary if is_sel else "transparent",
                     border_radius=8,
                     width=80,
                     on_click=lambda e, k=s["key"]: self._on_nav_click(k),
@@ -268,8 +286,8 @@ class DnDApp:
         switch_btn = ft.Container(
             content=ft.Column(
                 [
-                    ft.Icon(ft.Icons.SWAP_HORIZ, color="#9a8888", size=22),
-                    ft.Text("Cambia", size=10, color="#9a8888",
+                    ft.Icon(ft.Icons.SWAP_HORIZ, color=p.nav_muted, size=22),
+                    ft.Text("Cambia", size=10, color=p.nav_muted,
                             text_align=ft.TextAlign.CENTER),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -287,11 +305,11 @@ class DnDApp:
                 ft.Container(height=14),
                 char_avatar,
                 ft.Container(height=10),
-                ft.Divider(color="#3a2828", height=1),
+                ft.Divider(color=p.nav_border, height=1),
                 ft.Container(height=4),
                 *nav_items,
                 ft.Container(expand=True),   # spazio flessibile
-                ft.Divider(color="#3a2828", height=1),
+                ft.Divider(color=p.nav_border, height=1),
                 switch_btn,
                 ft.Container(height=8),
             ],
@@ -302,12 +320,13 @@ class DnDApp:
 
         return ft.Container(
             content=sidebar_col,
-            bgcolor=COLOR_NAV_BG,
+            bgcolor=p.nav_bg,
             width=82,
         )
 
     def _build_bottom_nav(self) -> ft.Container:
         """Bottom navigation bar per schermi mobili (<600px)."""
+        p = design.T()
         switch = {
             "key": "__home__",
             "label": "Cambia",
@@ -330,12 +349,12 @@ class DnDApp:
                         [
                             ft.Icon(
                                 s["icon_on"] if is_sel else s["icon_off"],
-                                color=COLOR_ACCENT_CRIMSON if is_sel else "#9a8888",
+                                color=p.nav_accent if is_sel else p.nav_muted,
                                 size=22,
                             ),
                             ft.Text(
                                 s["label"], size=9,
-                                color=COLOR_ACCENT_CRIMSON if is_sel else "#9a8888",
+                                color=p.nav_accent if is_sel else p.nav_muted,
                                 text_align=ft.TextAlign.CENTER,
                                 weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
                             ),
@@ -352,9 +371,9 @@ class DnDApp:
 
         return ft.Container(
             content=ft.Row(items, spacing=0),
-            bgcolor=COLOR_NAV_BG,
+            bgcolor=p.nav_bg,
             height=64,
-            border=ft.Border.only(top=ft.BorderSide(1, "#3a2828")),
+            border=ft.Border.only(top=ft.BorderSide(1, p.nav_border)),
         )
 
     def _on_nav_click(self, key: str):
@@ -434,15 +453,26 @@ class DnDApp:
             try:
                 from core.update_checker import check_for_updates
                 has_update, version, url = check_for_updates()
-                if has_update:
-                    self._show_update_banner(version, url)
-                else:
+                if not has_update:
                     logger.info("Nessun aggiornamento disponibile.")
+                    return
+                # Il dialog NON va aperto da questo thread: mutare l'albero dei
+                # controlli fuori dal thread della UI è una race. `page.run_task`
+                # usa asyncio.run_coroutine_threadsafe sul loop della sessione,
+                # quindi è il modo corretto di rientrare nel thread della UI.
+                try:
+                    self.page.run_task(self._show_update_banner_async, version, url)
+                except Exception as e:
+                    logger.debug(f"Impossibile pianificare il dialog aggiornamento: {e}")
             except Exception as e:
                 logger.debug(f"Update check fallito: {e}")
 
         t = threading.Thread(target=_check, daemon=True, name="update-check")
         t.start()
+
+    async def _show_update_banner_async(self, version: str, url: str):
+        """Wrapper coroutine: esegue `_show_update_banner` sul loop della UI."""
+        self._show_update_banner(version, url)
 
     def _show_update_banner(self, version: str, url: str):
         """Mostra dialog di aggiornamento disponibile."""
@@ -467,7 +497,7 @@ class DnDApp:
                     ft.ElevatedButton(
                         "Scarica", icon=ft.Icons.DOWNLOAD,
                         on_click=_open,
-                        bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                     ),
                 ],
                 bgcolor=COLOR_BG_CARD,

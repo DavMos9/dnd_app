@@ -27,7 +27,8 @@ from core.equipment_manager import (
 )
 from data.game_data.game_data_loader import GameDataLoader, game_data as _loader
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +151,7 @@ def _resolve_catalog_weapon_properties(
     return ui_labels, versatile_dice, range_normal, range_max
 
 
-class InventarioTab(ft.ListView):
+class InventarioTab(ScrollMemoryListView):
     """
     Tab inventario: monete, peso, armi (CRUD), oggetti (CRUD).
     """
@@ -278,10 +279,9 @@ class InventarioTab(ft.ListView):
             "MO": cur.gold     if cur else 0,
             "MP": cur.platinum if cur else 0,
         }
-        colors = {
-            "MR": "#b87333", "MA": "#a0a0b0", "ME": "#6a9060",
-            "MO": "#c8a000", "MP": "#a0c8d0",
-        }
+        # Colori dei metalli: vivono in `ui/design.py → CURRENCY_COLORS` perché
+        # non sono colori di UI (il rame è rame anche in tema scuro).
+        colors = design.CURRENCY_COLORS
         # Etichette leggibili per il tooltip (2026-07-24, fix affordance "nulla di
         # nascosto" — questi cerchi erano cliccabili con solo `ink=True`, nessun
         # indizio testuale che spiegasse cosa avrebbe fatto il click)
@@ -296,7 +296,7 @@ class InventarioTab(ft.ListView):
                     [
                         ft.Container(width=20, height=20, bgcolor=colors[abbr],
                                      border_radius=10,
-                                     border=ft.Border.all(1, "#00000030")),
+                                     border=ft.Border.all(1, ft.Colors.with_opacity(0.19, design.T().shadow))),
                         ft.Text(str(values[abbr]), size=18,
                                 weight=ft.FontWeight.BOLD,
                                 color=COLOR_TEXT_PRIMARY, font_family=FONT_MONO,
@@ -456,7 +456,7 @@ class InventarioTab(ft.ListView):
                 "Aggiungi Arma", icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_add_weapon(),
                 style=ft.ButtonStyle(
-                    bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                    bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                     shape=ft.RoundedRectangleBorder(radius=4),
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                 ),
@@ -519,7 +519,7 @@ class InventarioTab(ft.ListView):
                     ft.Icon(ft.Icons.STAR, size=10, color=COLOR_ACCENT_AMBER),
                     ft.Text("magica", size=10, color=COLOR_ACCENT_AMBER),
                 ], spacing=2),
-                bgcolor="#fef9ec",
+                bgcolor=design.T().note_bg,
                 padding=ft.Padding.symmetric(horizontal=6, vertical=3),
                 border_radius=4,
                 border=ft.Border.all(1, COLOR_ACCENT_AMBER),
@@ -639,7 +639,7 @@ class InventarioTab(ft.ListView):
                 "Aggiungi Armatura", icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_add_armor(),
                 style=ft.ButtonStyle(
-                    bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                    bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                     shape=ft.RoundedRectangleBorder(radius=4),
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                 ),
@@ -691,7 +691,7 @@ class InventarioTab(ft.ListView):
                     ft.Icon(ft.Icons.STAR, size=10, color=COLOR_ACCENT_AMBER),
                     ft.Text("effetti", size=10, color=COLOR_ACCENT_AMBER),
                 ], spacing=2),
-                bgcolor="#fef9ec",
+                bgcolor=design.T().note_bg,
                 padding=ft.Padding.symmetric(horizontal=6, vertical=3),
                 border_radius=4,
                 border=ft.Border.all(1, COLOR_ACCENT_AMBER),
@@ -795,7 +795,7 @@ class InventarioTab(ft.ListView):
                 "Aggiungi Oggetto", icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_add_item(),
                 style=ft.ButtonStyle(
-                    bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                    bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                     shape=ft.RoundedRectangleBorder(radius=4),
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                 ),
@@ -970,7 +970,7 @@ class InventarioTab(ft.ListView):
             text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
         )
         btn_style_add = ft.ButtonStyle(
-            bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+            bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
             shape=ft.RoundedRectangleBorder(radius=8),
             text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
         )
@@ -1426,7 +1426,7 @@ class InventarioTab(ft.ListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -1454,7 +1454,7 @@ class InventarioTab(ft.ListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -1918,7 +1918,7 @@ class InventarioTab(ft.ListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -1946,7 +1946,7 @@ class InventarioTab(ft.ListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -2059,5 +2059,9 @@ class InventarioTab(ft.ListView):
                 self.update()
         except RuntimeError:
             pass
+        # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
+        # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
+        # singola azione (bug B10, revisione 2026-07-26).
+        self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

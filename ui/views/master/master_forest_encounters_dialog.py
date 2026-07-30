@@ -1,10 +1,15 @@
 """
 Dialog "Genera Incontro per Ambiente" — Sezione Master, punto 10 del design
-(`dnd_app/docs/master_section_design.md`). v1 ridotta, come da design:
-solo l'ambiente "Foresta Silvana" (l'unico esempio completamente lavorato
-nella DMG, Cap.3 p.87 — nessun'altra tabella ambiente→mostro pronta esiste
-nel manuale, vedi il design doc per l'analisi completa del gap e la
-raccomandazione di limitare questa v1 a un solo ambiente dimostrativo).
+(`dnd_app/docs/master_section_design.md`). Copre 4 ambienti, tutti trascritti
+dalla DMG con la stessa meccanica 1d12+1d8: Foresta Silvana (Cap.3, p.87,
+2026-07-24), Incontri Urbani/Sott'Acqua/In Mare (Cap.5, p.114-118,
+aggiunti il 2026-07-26 — una revisione precedente aveva concluso per errore
+che non esistesse altro materiale pronto nel manuale, vedi
+`data/game_data/forest_encounters.json` per il changelog completo e le
+2 voci "Drago di bronzo" che non risolvono una scheda per scelta deliberata,
+essendo l'età del drago non specificata dal manuale). Il Dropdown ambiente è
+generico (`game_data.get_environment_names()`): nuovi ambienti aggiunti solo
+al JSON compaiono qui automaticamente, senza altre modifiche di codice.
 
 Meccanica di tiro: 1d12+1d8 (range 2-20), non un d20 piatto — privilegia i
 risultati centrali della tabella, esattamente come stampato nel manuale.
@@ -31,6 +36,7 @@ from config.settings import (
 from data.game_data.game_data_loader import game_data
 from ui.components.monster_picker import load_monsters, show_stat_block_dialog
 from ui.widgets import responsive_dialog_width
+from ui import design
 
 
 def _resolve_creature(name: str) -> dict[str, Any] | None:
@@ -137,7 +143,7 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
                 env_dd,
                 ft.ElevatedButton(
                     "Tira 1d12+1d8", icon=ft.Icons.CASINO, on_click=_on_roll,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                           shape=ft.RoundedRectangleBorder(radius=4)),
                 ),
                 ft.Divider(height=1, color=COLOR_BORDER),

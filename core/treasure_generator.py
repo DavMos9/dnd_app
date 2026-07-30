@@ -40,7 +40,6 @@ from data.game_data.game_data_loader import game_data
 
 _DICE_RE = re.compile(r"^\s*(\d*)\s*[dD]\s*(\d+)\s*$")
 
-CR_BANDS = ["0-4", "5-10", "11-16", "17+"]
 
 CURRENCY_LABELS = {
     "mr": "Monete di Rame",
@@ -86,8 +85,9 @@ def _row_for_roll(rows: list[dict[str, Any]], roll: int) -> dict[str, Any] | Non
 
 def generate_individual_treasure(cr_band: str) -> dict[str, Any]:
     """
-    Tira il Tesoro Singolo per la fascia di CR indicata (una delle
-    `CR_BANDS`). Ritorna {"cr_band", "roll", "coins": [{"currency","amount"}]}
+    Tira il Tesoro Singolo per la fascia di CR indicata
+    ("0-4" | "5-10" | "11-16" | "17+").
+    Ritorna {"cr_band", "roll", "coins": [{"currency","amount"}]}
     — "coins" può contenere più di una valuta (fasce 5-10/11-16/17+).
     Lista vuota se il tiro cade su una riga "niente" (fascia 0-4, 01-30 = MR
     puro comunque presente — verificato che nel manuale nessuna riga di
@@ -199,7 +199,3 @@ def roll_trinket() -> tuple[int, str]:
     return roll, description
 
 
-def format_coins(coins: list[dict[str, Any]]) -> str:
-    """Formatta una lista di {"currency","amount"} come "N MO, N MP, ..."."""
-    parts = [f"{c['amount']} {CURRENCY_LABELS.get(c['currency'], c['currency'].upper())}" for c in coins if c.get("amount")]
-    return ", ".join(parts) if parts else "Nessuna moneta"

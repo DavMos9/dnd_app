@@ -50,20 +50,6 @@ def get_maps(character_id: str) -> list[GameMap]:
         return []
 
 
-def get_map(map_id: str) -> GameMap | None:
-    """Restituisce una singola mappa per ID."""
-    try:
-        conn = get_connection()
-        row = conn.execute(
-            "SELECT * FROM game_maps WHERE id=?", (map_id,)
-        ).fetchone()
-        conn.close()
-        return _row_to_map(row) if row else None
-    except Exception as e:
-        logger.error("get_map(%s): %s", map_id, e)
-        return None
-
-
 def create_map(
     character_id: str,
     name: str,

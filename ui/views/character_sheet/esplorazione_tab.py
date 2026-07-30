@@ -22,7 +22,8 @@ from data.models import Character, CharacterProficiency, CustomAbility
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import game_data
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ _STAT_LABEL: dict[str, str] = {
 }
 
 
-class EsplorazioneTab(ft.ListView):
+class EsplorazioneTab(ScrollMemoryListView):
     """
     Tab esplorazione: sensi, velocità, lingue (CRUD), strumenti (CRUD),
     tiri salvezza compatti, abilità compatte.
@@ -692,7 +693,7 @@ class EsplorazioneTab(ft.ListView):
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
                     "Elimina", on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary),
                 ),
             ],
         )
@@ -981,5 +982,9 @@ class EsplorazioneTab(ft.ListView):
             self.update()
         except RuntimeError:
             pass
+        # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
+        # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
+        # singola azione (bug B10, revisione 2026-07-26).
+        self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

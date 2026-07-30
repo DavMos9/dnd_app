@@ -23,14 +23,13 @@ un'icona ⓘ standalone: incantesimi/trucchetti (creazione e level-up),
 talento all'ASI, Metamagia, Suppliche Occulte, Discipline Elementali, Dono
 del Patto, Stile di Combattimento.
 
-`dropdown_with_info` e le funzioni `format_*_body`/`make_*_describe` restano
-in questo modulo: i formatter di testo (puri, nessuna dipendenza Flet) sono
-riusati direttamente dai nuovi helper `*_card_options()` sotto — nessuna
-duplicazione di logica di formattazione tra il vecchio e il nuovo widget.
-`dropdown_with_info` stesso non ha più chiamanti nel progetto dopo la
-conversione, ma resta qui (non rimosso) come helper generico riutilizzabile
-per un futuro Dropdown "semplice" che non necessiti della lista a schede
-(es. poche opzioni senza descrizione lunga).
+**Pulizia 2026-07-26 (Fase 2 della revisione)**: `dropdown_with_info()` e le
+quattro `make_*_describe()` sono state **rimosse**. Erano rimaste in questo
+modulo "come helper generico riutilizzabile" dopo la conversione al
+`CardPicker`, ma non hanno mai più avuto un solo chiamante: erano dead code a
+tutti gli effetti (~200 righe). Le funzioni `format_*_body()` restano e sono
+tuttora usate dagli helper `*_card_options()` qui sotto — nessuna duplicazione
+di logica di formattazione.
 
 **Bug fix 2026-07-16, stesso giorno, feedback diretto di Davide dopo aver
 provato il redesign sopra**: "lo scorrimento è difficoltoso, se scelgo
@@ -72,9 +71,88 @@ from config.settings import (
     COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_MUTED, COLOR_ACCENT_BLUE,
     COLOR_ACCENT_CRIMSON, COLOR_BG_CARD, COLOR_BORDER, ABILITY_KEYS, ABILITY_SCORES,
 )
+from ui import design
 
 _ABILITY_KEY_TO_LABEL: dict[str, str] = dict(zip(ABILITY_KEYS, ABILITY_SCORES))
 
+
+class ScrollMemoryListView(ft.ListView):
+    """
+    `ft.ListView` che ricorda la posizione di scroll e la ripristina dopo un
+    rebuild dei propri `controls`.
+
+    Perché serve (bug B10 della revisione 2026-07-26): tutti i tab della scheda
+    personaggio si aggiornano con lo stesso pattern
+    `self.controls.clear(); self._build(); self.update()`, cioè ricostruendo
+    l'intero contenuto ad OGNI singola interazione — anche un semplice "−1 HP".
+    Dato che i controlli sono oggetti nuovi, Flutter riparte da capo e **lo
+    scroll torna in cima**: su un tab con 21 sezioni (Combattimento) applicare
+    un danno rimandava il giocatore all'inizio della pagina ogni volta. Era il
+    difetto UX più fastidioso dell'app.
+
+    Come funziona: si aggancia a `on_scroll` (evento già esposto da
+    `ft.ListView` in Flet 0.85.3, con il campo `pixels`) per tenere traccia
+    dell'ultimo offset noto, e `restore_scroll()` lo riapplica con
+    `scroll_to(offset=..., duration=0)` — nessuna animazione, il ripristino
+    deve essere invisibile. Se il contenuto si è accorciato, Flutter clampa
+    l'offset da solo al massimo disponibile.
+
+    Uso: sostituire `ft.ListView` come classe base e chiamare
+    `self.restore_scroll()` in fondo al proprio `_refresh()`, subito dopo
+    `self.update()`.
+
+    Un eventuale `on_scroll` passato dal chiamante viene comunque invocato
+    (non sovrascritto), così la classe resta trasparente.
+    """
+
+    # Intervallo di notifica dell'evento scroll. Il default di Flet (10 ms) è
+    # inutilmente fitto per il solo scopo di ricordare un offset e in modalità
+    # web produrrebbe traffico websocket a ogni frame di scorrimento.
+    _SCROLL_INTERVAL_MS = 100
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        user_on_scroll = kwargs.pop("on_scroll", None)
+        kwargs.setdefault("scroll_interval", self._SCROLL_INTERVAL_MS)
+        super().__init__(*args, **kwargs)
+        self._scroll_offset: float = 0.0
+        self._user_on_scroll = user_on_scroll
+        self.on_scroll = self._track_scroll
+
+    def _track_scroll(self, e: Any) -> None:
+        try:
+            px = getattr(e, "pixels", None)
+            if px is not None:
+                self._scroll_offset = float(px)
+        except (TypeError, ValueError):
+            pass
+        if self._user_on_scroll is not None:
+            self._user_on_scroll(e)
+
+    def restore_scroll(self) -> None:
+        """
+        Riapplica l'ultimo offset noto (no-op se siamo già in cima).
+
+        ⚠️ `ScrollableControl.scroll_to()` in Flet 0.85.3 è una **coroutine**
+        (`async def`, verificato con `inspect.iscoroutinefunction`): chiamarla
+        senza await non fa assolutamente nulla e produce solo un
+        `RuntimeWarning: coroutine was never awaited`. Va quindi pianificata
+        sul loop della sessione con `page.run_task()`, che è anche il modo
+        corretto di rientrare nel thread della UI.
+        """
+        if self._scroll_offset <= 0:
+            return
+        try:
+            page = self.page
+        except (RuntimeError, AssertionError):
+            return               # controllo non montato: nulla da ripristinare
+        if page is None:
+            return
+        try:
+            page.run_task(self.scroll_to, offset=self._scroll_offset, duration=0)
+        except Exception:
+            # Sessione non ancora connessa / loop non disponibile: il mancato
+            # ripristino dello scroll non deve mai far fallire un refresh.
+            pass
 
 class CardPicker:
     """
@@ -302,7 +380,7 @@ class CardPicker:
             ]
             if badge:
                 header_children.append(ft.Container(
-                    content=ft.Text(badge, size=10, color="#ffffff",
+                    content=ft.Text(badge, size=10, color=design.T().on_primary,
                                      weight=ft.FontWeight.BOLD),
                     bgcolor=badge_color,
                     padding=ft.Padding.symmetric(horizontal=6, vertical=2),
@@ -321,7 +399,7 @@ class CardPicker:
             rows.append(ft.Container(
                 content=ft.Column(card_children, spacing=2),
                 on_click=(None if self._disabled else (lambda e, k=key: self._toggle(k))),
-                bgcolor="#eef4ff" if selected else COLOR_BG_CARD,
+                bgcolor=design.T().info_bg if selected else COLOR_BG_CARD,
                 border=ft.Border.all(
                     1.5 if selected else 1,
                     self.active_color if selected else COLOR_BORDER,
@@ -394,80 +472,6 @@ def named_option_card_options(options: list[dict]) -> list[dict[str, str]]:
     ]
 
 
-def dropdown_with_info(
-    page_getter: Callable[[], ft.Page | ft.BasePage | None],
-    dropdown: ft.Dropdown,
-    describe: Callable[[str], tuple[str, str] | None],
-    tooltip: str = "Mostra descrizione",
-) -> ft.Row:
-    """
-    Affianca un IconButton "ⓘ" a un Dropdown già costruito.
-
-    Args:
-        page_getter: funzione che restituisce la pagina corrente — sia
-            `lambda: self._page` (attributo custom, tipizzato `ft.Page |
-            None` in profilo_tab.py) sia `lambda: self.page` (il property
-            nativo Flet `Control.page`, tipizzato dagli stub `ft.Page |
-            ft.BasePage`, mai `None` a runtime dopo il mount — usato da
-            wizard_view.py/manual_form.py). Entrambe le forme sono valide:
-            `ft.Page` eredita da `ft.BasePage`, che espone già
-            `show_dialog()`/`pop_dialog()`, le uniche API usate qui sotto —
-            un riferimento diretto non basta perché in alcuni contesti
-            (wizard/manual_form) la pagina viene risolta solo in
-            `did_mount()`, dopo la costruzione del widget.
-        dropdown: il Dropdown già configurato (opzioni/on_select/valore
-            iniziale restano intatti e continuano a funzionare normalmente).
-        describe: funzione che, dato il valore CORRENTE del dropdown
-            (`dropdown.value`), restituisce `(titolo, corpo)` da mostrare
-            nel dialog, oppure `None` se quel valore non è descrivibile
-            (es. un placeholder tipo "" o "— nessuno —").
-        tooltip: testo del tooltip sull'icona ⓘ.
-
-    Returns:
-        Una `ft.Row` con [dropdown (expand), IconButton ⓘ] — da usare al
-        posto del solo `dropdown` ovunque nella UI.
-    """
-
-    def _on_info_click(e: Any) -> None:
-        page = page_getter()
-        if page is None:
-            return
-        value = dropdown.value
-        if not value:
-            return
-        result = describe(value)
-        if result is None:
-            return
-        title, body = result
-        page.show_dialog(ft.AlertDialog(
-            title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
-            content=ft.Container(
-                content=ft.Column(
-                    [ft.Text(body, size=13, color=COLOR_TEXT_PRIMARY, selectable=True)],
-                    scroll=ft.ScrollMode.AUTO,
-                ),
-                width=360,
-                height=320,
-            ),
-            actions=[ft.TextButton("Chiudi", on_click=lambda ev: page.pop_dialog())],
-            bgcolor=COLOR_BG_CARD,
-        ))
-
-    info_btn = ft.IconButton(
-        ft.Icons.INFO_OUTLINE,
-        icon_size=20,
-        icon_color=COLOR_ACCENT_BLUE,
-        tooltip=tooltip,
-        on_click=_on_info_click,
-        padding=ft.Padding.all(2),
-    )
-    return ft.Row(
-        [dropdown, info_btn],
-        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=2,
-    )
-
-
 # ---------------------------------------------------------------------------
 # Formattazione testo (pure, nessuna dipendenza da Flet) — un formatter per
 # ogni tipo di dato già presente nel progetto che il giocatore può dover
@@ -516,23 +520,6 @@ def format_spell_body(spell: dict) -> str:
     return "\n".join(lines).strip()
 
 
-def make_spell_describe(spells: list[dict]) -> Callable[[str], tuple[str, str] | None]:
-    """
-    Costruisce una funzione `describe` per `dropdown_with_info()` a partire
-    da una lista di dict incantesimo (es. `_loader.get_spells(classe)`),
-    cercando per nome esatto (case-insensitive).
-    """
-    by_name = {s.get("name", "").lower(): s for s in spells if s.get("name")}
-
-    def _describe(value: str) -> tuple[str, str] | None:
-        spell = by_name.get(value.strip().lower())
-        if spell is None:
-            return None
-        return spell.get("name", value), format_spell_body(spell)
-
-    return _describe
-
-
 def format_feat_body(feat: dict) -> str:
     """Corpo descrittivo per un talento (dict da feats.json via get_feat())."""
     lines: list[str] = []
@@ -560,18 +547,6 @@ def format_feat_body(feat: dict) -> str:
     if feat.get("description"):
         lines.append(feat["description"])
     return "\n".join(lines).strip()
-
-
-def make_feat_describe(loader) -> Callable[[str], tuple[str, str] | None]:
-    """Costruisce una funzione `describe` che cerca i talenti via GameDataLoader.get_feat()."""
-
-    def _describe(value: str) -> tuple[str, str] | None:
-        feat = loader.get_feat(value)
-        if feat is None:
-            return None
-        return feat.get("name", value), format_feat_body(feat)
-
-    return _describe
 
 
 def format_invocation_body(inv: dict) -> str:
@@ -603,23 +578,6 @@ def format_named_option_body(opt: dict) -> str:
     strutturato oltre al testo PHB per queste opzioni).
     """
     return (opt.get("description") or "").strip()
-
-
-def make_named_option_describe(options: list[dict]) -> Callable[[str], tuple[str, str] | None]:
-    """
-    Costruisce una funzione `describe` per opzioni semplici {"name",
-    "description"} (Metamagia/Dono del Patto/Stile di Combattimento),
-    cercando per nome esatto (case-insensitive).
-    """
-    by_name = {o.get("name", "").lower(): o for o in options if o.get("name")}
-
-    def _describe(value: str) -> tuple[str, str] | None:
-        opt = by_name.get(value.strip().lower())
-        if opt is None:
-            return None
-        return opt.get("name", value), format_named_option_body(opt)
-
-    return _describe
 
 
 def format_equipment_item_body(item: dict, loader: Any) -> str:
@@ -687,22 +645,6 @@ def equipment_option_card_options(options: list[list[dict]], loader: Any) -> lis
             "body": "\n\n".join(bodies),
         })
     return opts
-
-
-def make_invocation_describe(invocations: list[dict]) -> Callable[[str], tuple[str, str] | None]:
-    """
-    Costruisce una funzione `describe` a partire da una lista di dict
-    Supplica Occulta (es. `_loader.get_invocations(warlock_level)`).
-    """
-    by_name = {i.get("name", "").lower(): i for i in invocations if i.get("name")}
-
-    def _describe(value: str) -> tuple[str, str] | None:
-        inv = by_name.get(value.strip().lower())
-        if inv is None:
-            return None
-        return inv.get("name", value), format_invocation_body(inv)
-
-    return _describe
 
 
 def wrap_dialog_actions(buttons: list[ft.Control]) -> list[ft.Control]:

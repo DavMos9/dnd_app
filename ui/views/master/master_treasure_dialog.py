@@ -32,6 +32,7 @@ from config.settings import (
 from core import treasure_generator as tg
 from data.repositories import character_repo
 from ui.widgets import responsive_dialog_width
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +222,7 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
         "Aggiungi all'inventario", icon=ft.Icons.ADD_SHOPPING_CART,
         on_click=_on_add_to_inventory,
         disabled=not characters,
-        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                               shape=ft.RoundedRectangleBorder(radius=4)),
     )
     add_btn_ref.append(add_btn)
@@ -239,7 +240,7 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
                 [
                     ft.ElevatedButton(
                         "Tira", icon=ft.Icons.CASINO, on_click=_on_roll,
-                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                               shape=ft.RoundedRectangleBorder(radius=4)),
                     ),
                     ft.OutlinedButton("+ Cimelio", icon=ft.Icons.AUTO_AWESOME, on_click=_on_trinket),

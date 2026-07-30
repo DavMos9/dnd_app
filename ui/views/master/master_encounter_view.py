@@ -29,17 +29,10 @@ from data.models import MasterEncounter
 from data.repositories import character_repo, master_repo
 from ui.components.monster_picker import load_monsters, show_monster_picker, monster_display_name
 from ui.theme import title_text, muted_text, primary_button
+from ui import design
 
 logger = logging.getLogger(__name__)
 
-_DIFFICULTY_COLORS = {
-    "trascurabile": COLOR_TEXT_MUTED,
-    "facile": COLOR_ACCENT_BLUE,
-    "medio": "#b8860b",
-    "difficile": "#d2691e",
-    "letale": COLOR_ACCENT_RED,
-    "indeterminato": COLOR_TEXT_MUTED,
-}
 
 
 def _int_or(text: str | None, default: int) -> int:
@@ -148,7 +141,7 @@ class MasterEncounterView(ft.Column):
                             ft.ElevatedButton(
                                 "Prossimo Turno", icon=ft.Icons.SKIP_NEXT,
                                 on_click=self._on_next_turn_click,
-                                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
+                                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary),
                             ),
                         ],
                         spacing=8, wrap=True,
@@ -233,7 +226,7 @@ class MasterEncounterView(ft.Column):
             if hp_ratio <= 0:
                 hp_color = COLOR_ACCENT_RED
             elif hp_ratio < 0.5:
-                hp_color = "#d2691e"
+                hp_color = design.T().alert
 
         stats_row: list[ft.Control] = [
             ft.Text(f"CA {ac}", size=11, color=COLOR_TEXT_MUTED),
@@ -263,7 +256,7 @@ class MasterEncounterView(ft.Column):
                 [
                     ft.Container(
                         content=ft.Text(str(m.initiative), size=15, weight=ft.FontWeight.BOLD,
-                                         color="#ffffff" if is_current else COLOR_TEXT_PRIMARY,
+                                         color=design.T().on_primary if is_current else COLOR_TEXT_PRIMARY,
                                          text_align=ft.TextAlign.CENTER),
                         width=34, height=34, alignment=ft.Alignment.CENTER,
                         bgcolor=COLOR_ACCENT_CRIMSON if is_current else COLOR_BG_SECONDARY,
@@ -325,7 +318,7 @@ class MasterEncounterView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Termina", icon=ft.Icons.FLAG, on_click=_do_end,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary),
                 ),
             ],
         )
@@ -365,7 +358,7 @@ class MasterEncounterView(ft.Column):
             res = calculate_difficulty(monster_xp, levels)
             diff_key = res["difficulty"]
             diff_label = DIFFICULTY_LABELS.get(diff_key, diff_key)
-            diff_color = _DIFFICULTY_COLORS.get(diff_key, COLOR_TEXT_MUTED)
+            diff_color = design.difficulty_color(diff_key)
             thr = res["thresholds"]
             result_col.controls.clear()
             result_col.controls.extend([
@@ -380,7 +373,7 @@ class MasterEncounterView(ft.Column):
                 ),
                 ft.Container(height=6),
                 ft.Container(
-                    content=ft.Text(diff_label.upper(), size=16, weight=ft.FontWeight.BOLD, color="#ffffff",
+                    content=ft.Text(diff_label.upper(), size=16, weight=ft.FontWeight.BOLD, color=design.T().on_primary,
                                      text_align=ft.TextAlign.CENTER),
                     bgcolor=diff_color, border_radius=6, padding=ft.Padding.symmetric(vertical=8),
                     alignment=ft.Alignment.CENTER,
@@ -483,7 +476,7 @@ class MasterEncounterView(ft.Column):
             actions=[
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Salva", icon=ft.Icons.SAVE, on_click=_do_save,
-                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff")),
+                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary)),
             ],
         )
         page.show_dialog(dlg)
@@ -595,7 +588,7 @@ class MasterEncounterView(ft.Column):
             actions=[
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
-                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff")),
+                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent)),
             ],
         )
         page.show_dialog(dlg)
@@ -651,7 +644,7 @@ class MasterEncounterView(ft.Column):
             actions=[
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
-                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff")),
+                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary)),
             ],
         )
         page.show_dialog(dlg)
@@ -710,7 +703,7 @@ class MasterEncounterView(ft.Column):
             actions=[
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Scegli Mostro...", icon=ft.Icons.MENU_BOOK_OUTLINED, on_click=_open_picker,
-                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff")),
+                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary)),
             ],
         )
         page.show_dialog(dlg)
@@ -761,7 +754,7 @@ class MasterEncounterView(ft.Column):
             actions=[
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
-                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff")),
+                                   style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary)),
             ],
         )
         page.show_dialog(dlg)

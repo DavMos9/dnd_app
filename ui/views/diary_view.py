@@ -39,19 +39,13 @@ from config.settings import (
 )
 from data.models import Character, DiaryEntry, CampaignNote
 import data.repositories.character_repo as character_repo
+from ui import design
 
 logger = logging.getLogger(__name__)
 
 # ── Costanti visive ────────────────────────────────────────────────────────────
-_PARCHMENT  = "#fffef6"   # sfondo pagina lettura / editor
-_LIST_BG    = "#f7f2e8"   # sfondo pannello sinistro
-_NAV_SEL_BG = COLOR_ACCENT_CRIMSON + "1a"  # rosso 10% opacità per item selezionato
 
 # Colori badge stato
-_STATUS_GREEN  = "#2e7d32"
-_STATUS_ORANGE = "#e65100"
-_STATUS_RED    = COLOR_ACCENT_CRIMSON
-_STATUS_GRAY   = COLOR_TEXT_MUTED
 
 # ── Definizioni categorie ──────────────────────────────────────────────────────
 CATEGORIES: list[dict[str, Any]] = [
@@ -129,17 +123,17 @@ STATUS_OPTIONS: dict[str, list[str]] = {
     "faction":    ["alleata", "neutrale", "ostile", "sconosciuta"],
 }
 
-_STATUS_COLOR_MAP: dict[str, str] = {
-    "alleato": _STATUS_GREEN, "esplorato": _STATUS_GREEN,
-    "completata": _STATUS_GREEN, "alleata": _STATUS_GREEN,
-    "neutrale": _STATUS_ORANGE, "parzialmente esplorato": _STATUS_ORANGE,
-    "in pausa": _STATUS_ORANGE, "cercato": _STATUS_ORANGE,
-    "ostile": _STATUS_RED, "fallita": _STATUS_RED,
+_STATUS_TONES: dict[str, str] = {
+    "alleato": "success", "esplorato": "success",
+    "completata": "success", "alleata": "success",
+    "neutrale": "warning", "parzialmente esplorato": "warning",
+    "in pausa": "warning", "cercato": "warning",
+    "ostile": "danger", "fallita": "danger",
 }
 
 
 def _status_color(status: str) -> str:
-    return _STATUS_COLOR_MAP.get(status, _STATUS_GRAY)
+    return getattr(design.T(), _STATUS_TONES.get(status, "text_3"))
 
 
 def _cat_meta(key: str) -> dict[str, Any]:
@@ -297,7 +291,7 @@ class DiaryView(ft.Column):
                         on_click=lambda e: self._on_add(),
                         style=ft.ButtonStyle(
                             bgcolor=COLOR_ACCENT_CRIMSON,
-                            color="#ffffff",
+                            color=design.T().on_primary,
                             shape=ft.RoundedRectangleBorder(radius=4),
                             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
                         ),
@@ -368,7 +362,7 @@ class DiaryView(ft.Column):
                 spacing=0,
             ),
             width=200,
-            bgcolor=_LIST_BG,
+            bgcolor=design.T().parchment_alt,
         )
 
     def _cat_button(self, cat: dict[str, Any]) -> ft.Container:
@@ -379,12 +373,12 @@ class DiaryView(ft.Column):
                     ft.Icon(
                         cat["icon_on"] if is_sel else cat["icon_off"],
                         size=16,
-                        color="#ffffff" if is_sel else COLOR_TEXT_SECONDARY,
+                        color=design.T().on_primary if is_sel else COLOR_TEXT_SECONDARY,
                     ),
                     ft.Container(width=8),
                     ft.Text(
                         cat["label"], size=12,
-                        color="#ffffff" if is_sel else COLOR_TEXT_PRIMARY,
+                        color=design.T().on_primary if is_sel else COLOR_TEXT_PRIMARY,
                         weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
                         expand=True,
                     ),
@@ -441,7 +435,7 @@ class DiaryView(ft.Column):
         badge = ft.Container(
             content=ft.Text(
                 str(number), size=9, weight=ft.FontWeight.BOLD,
-                color="#ffffff" if is_sel else COLOR_ACCENT_CRIMSON,
+                color=design.T().on_primary if is_sel else COLOR_ACCENT_CRIMSON,
                 text_align=ft.TextAlign.CENTER,
             ),
             width=22, height=22,
@@ -475,7 +469,7 @@ class DiaryView(ft.Column):
         return ft.Container(
             content=ft.Column(rows, spacing=3),
             padding=ft.Padding.symmetric(horizontal=8, vertical=8),
-            bgcolor=_NAV_SEL_BG if is_sel else "transparent",
+            bgcolor=ft.Colors.with_opacity(0.10, design.T().primary) if is_sel else "transparent",
             border_radius=6,
             border=ft.Border.all(1, COLOR_ACCENT_CRIMSON) if is_sel else None,
             on_click=lambda e, eid=entry.id: self._on_sel_diary(eid),
@@ -497,7 +491,7 @@ class DiaryView(ft.Column):
 
         status_chip = ft.Container(
             content=ft.Text(
-                note.status or "—", size=9, color="#ffffff",
+                note.status or "—", size=9, color=design.T().on_primary,
                 weight=ft.FontWeight.BOLD,
             ),
             bgcolor=sc,
@@ -527,7 +521,7 @@ class DiaryView(ft.Column):
                 spacing=3,
             ),
             padding=ft.Padding.symmetric(horizontal=8, vertical=8),
-            bgcolor=_NAV_SEL_BG if is_sel else "transparent",
+            bgcolor=ft.Colors.with_opacity(0.10, design.T().primary) if is_sel else "transparent",
             border_radius=6,
             border=ft.Border.all(1, COLOR_ACCENT_CRIMSON) if is_sel else None,
             on_click=lambda e, nid=note.id: self._on_sel_note(nid),
@@ -662,7 +656,7 @@ class DiaryView(ft.Column):
             [
                 ft.Container(
                     content=page_content, expand=True,
-                    bgcolor=_PARCHMENT,
+                    bgcolor=design.T().parchment,
                     padding=ft.Padding.symmetric(horizontal=56, vertical=32),
                 ),
                 action_bar,
@@ -710,7 +704,7 @@ class DiaryView(ft.Column):
                         "Salva", icon=ft.Icons.SAVE_OUTLINED,
                         on_click=lambda e: self._on_diary_save_edit(entry),
                         style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                            bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                             shape=ft.RoundedRectangleBorder(radius=4),
                         ),
                     ),
@@ -729,7 +723,7 @@ class DiaryView(ft.Column):
                         [self._ef_title, self._ef_date, self._ef_content],
                         spacing=14, scroll=ft.ScrollMode.AUTO,
                     ),
-                    expand=True, bgcolor=_PARCHMENT,
+                    expand=True, bgcolor=design.T().parchment,
                     padding=ft.Padding.symmetric(horizontal=48, vertical=28),
                 ),
                 action_bar,
@@ -761,7 +755,7 @@ class DiaryView(ft.Column):
             status_row.append(
                 ft.Container(
                     content=ft.Text(
-                        note.status, size=11, color="#ffffff",
+                        note.status, size=11, color=design.T().on_primary,
                         weight=ft.FontWeight.BOLD,
                     ),
                     bgcolor=sc, border_radius=12,
@@ -861,7 +855,7 @@ class DiaryView(ft.Column):
             [
                 ft.Container(
                     content=page_content, expand=True,
-                    bgcolor=_PARCHMENT,
+                    bgcolor=design.T().parchment,
                     padding=ft.Padding.symmetric(horizontal=56, vertical=32),
                 ),
                 action_bar,
@@ -919,7 +913,7 @@ class DiaryView(ft.Column):
                         "Salva", icon=ft.Icons.SAVE_OUTLINED,
                         on_click=lambda e: self._on_note_save_edit(note),
                         style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                            bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                             shape=ft.RoundedRectangleBorder(radius=4),
                         ),
                     ),
@@ -939,7 +933,7 @@ class DiaryView(ft.Column):
                          self._nf_tags, self._nf_desc],
                         spacing=14, scroll=ft.ScrollMode.AUTO,
                     ),
-                    expand=True, bgcolor=_PARCHMENT,
+                    expand=True, bgcolor=design.T().parchment,
                     padding=ft.Padding.symmetric(horizontal=48, vertical=28),
                 ),
                 action_bar,
@@ -951,7 +945,7 @@ class DiaryView(ft.Column):
 
     def _full_empty_state(self, icon: Any, title: str, msg: str) -> ft.Container:
         return ft.Container(
-            expand=True, bgcolor=_PARCHMENT,
+            expand=True, bgcolor=design.T().parchment,
             content=ft.Column(
                 [
                     ft.Icon(icon, size=64, color=COLOR_BORDER),
@@ -1086,7 +1080,7 @@ class DiaryView(ft.Column):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                          shape=ft.RoundedRectangleBorder(radius=4)),
                 ),
             ]),
@@ -1154,7 +1148,7 @@ class DiaryView(ft.Column):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                          shape=ft.RoundedRectangleBorder(radius=4)),
                 ),
             ]),
@@ -1225,7 +1219,7 @@ class DiaryView(ft.Column):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=save,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                          shape=ft.RoundedRectangleBorder(radius=4)),
                 ),
             ]),
@@ -1298,7 +1292,7 @@ class DiaryView(ft.Column):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=save,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                          shape=ft.RoundedRectangleBorder(radius=4)),
                 ),
             ]),

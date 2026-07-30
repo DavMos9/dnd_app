@@ -17,6 +17,7 @@ from config.settings import *
 from data.models import Character, CharacterProficiency
 from ui.theme import show_error_dialog
 import data.repositories.character_repo as character_repo
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +307,7 @@ class SheetView(ft.Column):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -406,7 +407,7 @@ class SheetView(ft.Column):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),

@@ -98,17 +98,6 @@ def get_npcs(query: str = "") -> list[MasterNpc]:
         return []
 
 
-def get_npc_by_id(npc_id: str) -> MasterNpc | None:
-    try:
-        conn = get_connection()
-        row = conn.execute("SELECT * FROM master_npcs WHERE id=?", (npc_id,)).fetchone()
-        conn.close()
-        return _row_to_npc(row) if row else None
-    except Exception as e:
-        logger.error(f"Errore get_npc_by_id: {e}")
-        return None
-
-
 def create_npc(
     name: str,
     role: str = "",
@@ -362,21 +351,6 @@ def create_encounter(name: str, notes: str = "") -> MasterEncounter | None:
     except Exception as e:
         logger.error(f"Errore create_encounter: {e}")
         return None
-
-
-def update_encounter_notes(encounter_id: str, name: str, notes: str) -> bool:
-    try:
-        conn = get_connection()
-        conn.execute(
-            "UPDATE master_encounters SET name=?, notes=?, updated_at=? WHERE id=?",
-            (_s(name), _s(notes), datetime.now().isoformat(), encounter_id),
-        )
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        logger.error(f"Errore update_encounter_notes: {e}")
-        return False
 
 
 def archive_encounter(encounter_id: str, archived: bool = True) -> bool:
@@ -690,20 +664,6 @@ def remove_member(member_id: str) -> bool:
         return False
 
 
-def delete_member(member_id: str) -> bool:
-    """Eliminazione definitiva (per correggere un'aggiunta per errore, non
-    per la normale rimozione da combattimento — usare `remove_member`)."""
-    try:
-        conn = get_connection()
-        conn.execute("DELETE FROM master_encounter_members WHERE id=?", (member_id,))
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        logger.error(f"Errore delete_member: {e}")
-        return False
-
-
 # ---------------------------------------------------------------------------
 # master_campaign_notes
 # ---------------------------------------------------------------------------
@@ -745,19 +705,6 @@ def get_master_campaign_notes(category: str = "") -> list[MasterCampaignNote]:
     except Exception as e:
         logger.error(f"Errore get_master_campaign_notes: {e}")
         return []
-
-
-def get_master_campaign_note_by_id(note_id: str) -> MasterCampaignNote | None:
-    try:
-        conn = get_connection()
-        row = conn.execute(
-            "SELECT * FROM master_campaign_notes WHERE id=?", (note_id,)
-        ).fetchone()
-        conn.close()
-        return _row_to_campaign_note(row) if row else None
-    except Exception as e:
-        logger.error(f"Errore get_master_campaign_note_by_id: {e}")
-        return None
 
 
 def create_master_campaign_note(

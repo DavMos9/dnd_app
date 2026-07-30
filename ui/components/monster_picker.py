@@ -38,6 +38,7 @@ from config.settings import (
 # tutto il codice già esistente che fa `from ui.components.monster_picker
 # import cr_to_float`, comportamento identico a prima.
 from data.game_data.game_data_loader import cr_to_float  # noqa: F401
+from ui import design
 
 _MONSTERS_PATH = (
     Path(__file__).parent.parent.parent / "data" / "game_data" / "monsters.json"
@@ -451,7 +452,7 @@ def show_monster_picker(
             on_click=_do_select,
             style=ft.ButtonStyle(
                 bgcolor=select_color if not already else None,
-                color="#ffffff" if not already else COLOR_TEXT_MUTED,
+                color=design.T().on_primary if not already else COLOR_TEXT_MUTED,
             ),
         )
         dlg.content = ft.Container(content=build_stat_block_column(m), height=480)

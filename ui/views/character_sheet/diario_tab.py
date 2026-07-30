@@ -14,11 +14,13 @@ from config.settings import *
 from data.models import Character, DiaryEntry
 import data.repositories.character_repo as character_repo
 from ui.theme import muted_text
+from ui.widgets import ScrollMemoryListView
+from ui import design
 
 logger = logging.getLogger(__name__)
 
 
-class DiarioTab(ft.ListView):
+class DiarioTab(ScrollMemoryListView):
     """
     Tab diario: voci di sessione con creazione, lettura, modifica, eliminazione.
     Eredita da ft.ListView per scroll corretto in Flet 0.85.3.
@@ -54,7 +56,7 @@ class DiarioTab(ft.ListView):
                 on_click=lambda e: self._on_new_entry(),
                 style=ft.ButtonStyle(
                     bgcolor=COLOR_ACCENT_CRIMSON,
-                    color="#ffffff",
+                    color=design.T().on_primary,
                     shape=ft.RoundedRectangleBorder(radius=4),
                 ),
             ),
@@ -277,7 +279,7 @@ class DiarioTab(ft.ListView):
                     on_click=save,
                     style=ft.ButtonStyle(
                         bgcolor=COLOR_ACCENT_CRIMSON,
-                        color="#ffffff",
+                        color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -319,7 +321,7 @@ class DiarioTab(ft.ListView):
                     on_click=do_delete,
                     style=ft.ButtonStyle(
                         bgcolor=COLOR_ACCENT_CRIMSON,
-                        color="#ffffff",
+                        color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -339,5 +341,9 @@ class DiarioTab(ft.ListView):
             self.update()
         except RuntimeError:
             pass
+        # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
+        # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
+        # singola azione (bug B10, revisione 2026-07-26).
+        self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

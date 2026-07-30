@@ -205,11 +205,6 @@ class GameDataLoader:
     # Classi
     # ------------------------------------------------------------------
 
-    def get_all_classes(self) -> list[dict[str, Any]]:
-        """Tutti i dati di classe, ordinati per nome file."""
-        self._ensure_classes()
-        return list(self._classes.values())
-
     def get_class(self, name: str) -> dict[str, Any] | None:
         """
         Restituisce i dati della classe indicata o None.
@@ -703,11 +698,6 @@ class GameDataLoader:
     # Razze
     # ------------------------------------------------------------------
 
-    def get_all_races(self) -> list[dict[str, Any]]:
-        """Tutti i dati di razza, ordinati per nome file."""
-        self._ensure_races()
-        return list(self._races.values())
-
     def get_race(self, name: str) -> dict[str, Any] | None:
         """
         Restituisce i dati della razza indicata o None.
@@ -721,11 +711,6 @@ class GameDataLoader:
             if data.get("name", "").lower() == key:
                 return data
         return None
-
-    def get_race_names(self) -> list[str]:
-        """Nomi leggibili di tutte le razze."""
-        self._ensure_races()
-        return [d.get("name", k.capitalize()) for k, d in self._races.items()]
 
     def get_resolved_race(
         self, race_name: str, subrace_name: str = ""
@@ -884,11 +869,6 @@ class GameDataLoader:
     # ------------------------------------------------------------------
     # Background
     # ------------------------------------------------------------------
-
-    def get_all_backgrounds(self) -> list[dict[str, Any]]:
-        """Tutti i dati di background, ordinati per nome file."""
-        self._ensure_backgrounds()
-        return list(self._backgrounds.values())
 
     def get_background(self, name: str) -> dict[str, Any] | None:
         """
@@ -1365,27 +1345,6 @@ class GameDataLoader:
         self._ensure_equipment_file("tools")
         return self._equipment["tools"]
 
-    def get_mounts_and_vehicles(self) -> dict[str, Any]:
-        """Dizionario grezzo di equipment/mounts_and_vehicles.json."""
-        self._ensure_equipment_file("mounts_and_vehicles")
-        return self._equipment["mounts_and_vehicles"]
-
-    def get_economy(self) -> dict[str, Any]:
-        """Dizionario grezzo di equipment/economy.json (ricchezza/valuta/merci/stile di vita)."""
-        self._ensure_equipment_file("economy")
-        return self._equipment["economy"]
-
-    def get_equipment(self) -> dict[str, Any]:
-        """
-        Dizionario con tutte e 6 le sezioni di equipaggiamento unite (chiavi:
-        weapons/armor/adventuring_gear/tools/mounts_and_vehicles/economy).
-        Comodo per ispezione rapida; per uso normale preferire i getter
-        specifici (get_weapons(), get_armor(), ecc.), più leggeri da caricare.
-        """
-        for section in ("weapons", "armor", "adventuring_gear", "tools", "mounts_and_vehicles", "economy"):
-            self._ensure_equipment_file(section)
-        return dict(self._equipment)
-
     def get_trinkets(self) -> list[dict[str, Any]]:
         """
         Le 100 voci della tabella d100 "Oggetti Insoliti" (PHB IT p.160-161,
@@ -1593,25 +1552,6 @@ class GameDataLoader:
         """
         return self.get_traps_data().get("damage_by_level", [])
 
-    def get_trap_damage_dice(self, char_level: int, severity: str) -> str:
-        """
-        Risolve il dado danno suggerito per un personaggio di un certo
-        livello e una gravità ("imprevisto"|"pericoloso"|"letale" —
-        case-insensitive), leggendo la fascia di livello corretta da
-        `get_trap_damage_table()`. Stringa vuota se livello/gravità non
-        risolvono a nulla.
-        """
-        severity = (severity or "").strip().lower()
-        for row in self.get_trap_damage_table():
-            lo_str, _, hi_str = row.get("char_level_range", "").partition("-")
-            try:
-                lo, hi = int(lo_str), int(hi_str)
-            except ValueError:
-                continue
-            if lo <= char_level <= hi:
-                return row.get(severity, "")
-        return ""
-
     def get_example_traps(self) -> list[dict[str, Any]]:
         """
         Le trappole nominate del manuale (DMG IT p.121-124), in ordine
@@ -1620,14 +1560,6 @@ class GameDataLoader:
         4 varianti — assente per tutte le altre voci)}.
         """
         return self.get_traps_data().get("example_traps", [])
-
-    def get_example_trap(self, name: str) -> dict[str, Any] | None:
-        """Cerca una trappola nominata per nome esatto (case-insensitive)."""
-        target = (name or "").strip().lower()
-        for t in self.get_example_traps():
-            if t.get("name", "").strip().lower() == target:
-                return t
-        return None
 
     # ------------------------------------------------------------------
     # Malattie / Veleni / Follia (DMG IT Cap.8 p.256-260 — Sezione Master,
@@ -1656,14 +1588,6 @@ class GameDataLoader:
         """
         return self.get_health_hazards_data().get("diseases", [])
 
-    def get_disease(self, name: str) -> dict[str, Any] | None:
-        """Cerca una malattia per nome esatto (case-insensitive)."""
-        target = (name or "").strip().lower()
-        for d in self.get_diseases():
-            if d.get("name", "").strip().lower() == target:
-                return d
-        return None
-
     def get_poisons(self) -> list[dict[str, Any]]:
         """
         I 14 veleni della tabella "Veleni" del DMG IT (p.257-258):
@@ -1671,14 +1595,6 @@ class GameDataLoader:
         "price","description"}.
         """
         return self.get_health_hazards_data().get("poisons", [])
-
-    def get_poison(self, name: str) -> dict[str, Any] | None:
-        """Cerca un veleno per nome esatto (case-insensitive)."""
-        target = (name or "").strip().lower()
-        for p in self.get_poisons():
-            if p.get("name", "").strip().lower() == target:
-                return p
-        return None
 
     def get_poison_types_intro(self) -> str:
         """Testo introduttivo sui 4 tipi di veleno (Contatto/Ferimento/
@@ -1692,10 +1608,6 @@ class GameDataLoader:
     def get_poison_crafting_text(self) -> str:
         """Testo "Fabbricare ed Estrarre i Veleni", DMG IT p.258."""
         return self.get_health_hazards_data().get("poison_crafting", "")
-
-    def get_madness_intro_text(self) -> str:
-        """Testo introduttivo della sezione "Follia", DMG IT p.258."""
-        return self.get_health_hazards_data().get("madness_intro", "")
 
     def get_madness_inducing_text(self) -> str:
         """Testo "Impazzire" (come indurre la follia), DMG IT p.259."""
@@ -1829,30 +1741,6 @@ class GameDataLoader:
         self._ensure_magic_items()
         return self._magic_items or []
 
-    def get_magic_item(self, name: str) -> dict[str, Any] | None:
-        """Cerca un oggetto magico per nome esatto (case-insensitive)."""
-        target = (name or "").strip().lower()
-        for item in self.get_magic_items():
-            if item.get("name", "").strip().lower() == target:
-                return item
-        return None
-
-    def get_magic_item_names(
-        self, rarity: str | None = None, category: str | None = None
-    ) -> list[str]:
-        """
-        Nomi filtrabili per rarità e/o categoria (entrambi case-insensitive,
-        confronto esatto — non substring). Nessun filtro → tutti i nomi.
-        """
-        items = self.get_magic_items()
-        if rarity:
-            r = rarity.strip().lower()
-            items = [i for i in items if i.get("rarity", "").strip().lower() == r]
-        if category:
-            c = category.strip().lower()
-            items = [i for i in items if i.get("category", "").strip().lower() == c]
-        return [i.get("name", "") for i in items]
-
     # ------------------------------------------------------------------
     # Liste nomi NPC per razza/genere (Sezione Master → Generatore Rapido
     # NPC) — `npc_names.json`, stile fantasy generico inventato per questo
@@ -1874,12 +1762,6 @@ class GameDataLoader:
         except Exception as exc:
             logger.error("Errore caricamento npc_names.json: %s", exc)
             self._npc_names = {}
-
-    def get_npc_name_races(self) -> list[str]:
-        """Elenco delle razze con liste nomi disponibili (chiavi esatte di
-        `RACES_BASE`/`character.race`)."""
-        self._ensure_npc_names()
-        return list((self._npc_names or {}).keys())
 
     def get_npc_names(self, race: str, gender: str) -> list[str]:
         """

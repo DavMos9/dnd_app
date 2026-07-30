@@ -34,6 +34,7 @@ from data.models import MasterNpc
 from data.repositories import master_repo
 from ui.components.monster_picker import show_stat_block_dialog
 from ui.widgets import responsive_dialog_width, wrap_dialog_actions
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ def show_npc_generator_dialog(page: ft.Page, on_saved: Callable[[], None] | None
             icon=ft.Icons.CHECK if already_saved else ft.Icons.PERSON_ADD_ALT_1,
             disabled=already_saved,
             on_click=lambda e, i=idx: _on_save_one(i),
-            style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+            style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                                   shape=ft.RoundedRectangleBorder(radius=4)),
         )
 
@@ -287,7 +288,7 @@ def show_npc_generator_dialog(page: ft.Page, on_saved: Callable[[], None] | None
             ft.Row([count_tf], spacing=10),
             ft.ElevatedButton(
                 "Genera", icon=ft.Icons.AUTO_AWESOME, on_click=_on_generate,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=4)),
             ),
             ft.Divider(height=1, color=COLOR_BORDER),

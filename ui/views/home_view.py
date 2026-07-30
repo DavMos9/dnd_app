@@ -9,14 +9,12 @@ import os
 import threading
 from typing import cast
 from config.settings import *
-from data.database import get_character_exports_path
+from data.database import get_character_exports_path, get_web_export_staging_path
 from data.models import Character
 from data.repositories import character_repo, character_export
 from ui.character_transfer import show_character_import_picker
-from ui.theme import (
-    title_text, body_text, muted_text,
-    primary_button, ghost_button,
-)
+from ui.theme import muted_text, primary_button, ghost_button
+from ui import design as d
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +57,21 @@ class HomeView(ft.Column):
 
         self._char_list_column = ft.Column(spacing=12, scroll=ft.ScrollMode.AUTO)
         self._stop_event = threading.Event()
+        # Il polling di sincronizzazione gira su un thread separato e tocca gli
+        # stessi controlli del thread della UI (eliminazione/import personaggio):
+        # il lock serializza le due ricostruzioni della lista.
+        self._refresh_lock = threading.RLock()
+        self._last_signature: str | None = None
+        self._poll_thread: threading.Thread | None = None
         # FilePicker persistente per Export/Import su mobile nativo
         # (Android/iOS) — registrato in did_mount(), MAI su desktop/web
         # (vedi _ensure_file_picker() e nota 2026-07-24 più sotto).
         self._file_picker: ft.FilePicker | None = None
         self._build()
         self.refresh()
-        # Polling per sincronizzare più sessioni web sullo stesso DB
-        t = threading.Thread(target=self._poll_loop, daemon=True)
-        t.start()
+        # Il polling parte in did_mount(), non qui: serve `self.page` per sapere
+        # se siamo in modalità web (unico caso in cui più sessioni condividono
+        # lo stesso DB e la sincronizzazione ha senso).
 
     def did_mount(self):
         """
@@ -81,40 +85,80 @@ class HomeView(ft.Column):
         page = self.page
         if page is not None and page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
             self._ensure_file_picker()
+        self._start_polling()
+
+    def _start_polling(self):
+        """
+        Avvia il polling di sincronizzazione — SOLO in modalità web, dove più
+        sessioni browser condividono lo stesso DB sul server. Su desktop e
+        mobile la sessione è unica: il polling sarebbe puro spreco (una lettura
+        del DB e una potenziale ricostruzione della lista ogni 5 secondi).
+        """
+        page = self.page
+        if page is None or not page.web:
+            return
+        if self._poll_thread is not None and self._poll_thread.is_alive():
+            return
+        self._stop_event.clear()
+        self._poll_thread = threading.Thread(
+            target=self._poll_loop, daemon=True, name="home-sync-poll",
+        )
+        self._poll_thread.start()
 
     def stop_polling(self):
         """Ferma il polling di sincronizzazione (chiamare prima di navigare via)."""
         self._stop_event.set()
 
     def _poll_loop(self):
-        """Aggiorna la lista personaggi ogni 5 s per sincronizzare sessioni web diverse."""
+        """
+        Sincronizza la lista personaggi tra sessioni web diverse.
+
+        `refresh(force=False)` ricostruisce le card solo se la firma della lista
+        è cambiata, e `page.update()` viene chiamato solo in quel caso: prima di
+        questo fix l'intera lista veniva ricostruita ogni 5 secondi a vuoto.
+        Un'eccezione transitoria (es. DB momentaneamente bloccato) viene
+        loggata e il ciclo continua: prima faceva `break`, quindi la
+        sincronizzazione moriva per sempre al primo errore, in silenzio.
+        """
         while not self._stop_event.wait(5):
-            try:
-                if self.page is None:
-                    break
-                self.refresh()
-                self.page.update()
-            except Exception:
+            if self._stop_event.is_set():
                 break
+            page = self.page
+            if page is None:
+                break            # vista smontata: qui il break è corretto
+            try:
+                if self.refresh(force=False):
+                    page.update()
+            except RuntimeError:
+                # Controllo non più montato tra il check e l'update
+                break
+            except Exception as e:
+                logger.debug("Polling sincronizzazione: errore transitorio (%s)", e)
 
     # ------------------------------------------------------------------
     # Build layout
     # ------------------------------------------------------------------
 
     def _build(self):
-        # Logo D&D come widget Flet — testo bold rosso, nessuna immagine
-        logo_widget = ft.Text(
-            "D&D",
-            size=52,
-            weight=ft.FontWeight.BOLD,
-            color=COLOR_ACCENT_CRIMSON,
+        p = d.T()
+        # Logo: il testo "D&D" con un sottotitolo, non un'immagine (il PNG in
+        # assets/icons non è mai stato usato e il testo scala meglio).
+        logo_widget = ft.Column(
+            [
+                ft.Text("D&D", size=48, weight=ft.FontWeight.BOLD,
+                        color=p.primary, font_family=d.Font.DISPLAY),
+                ft.Text("COMPANION", size=d.Size.LABEL, weight=ft.FontWeight.BOLD,
+                        color=p.text_3, font_family=d.Font.BODY,
+                        style=ft.TextStyle(letter_spacing=4)),
+            ],
+            spacing=0, tight=True,
         )
 
         header = ft.Container(
             content=ft.Column(
                 [
                     ft.Row([logo_widget], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                    ft.Container(height=4),
+                    ft.Container(height=d.Space.MD),
                     # Azioni sempre visibili come pillole invece del vecchio menu a tre
                     # puntini "Altro" (2026-07-24, redesign su richiesta di Davide: lo
                     # stesso trattamento già applicato a master_view.py/
@@ -127,17 +171,19 @@ class HomeView(ft.Column):
                     # con `wrap=True`): il logo vive in una riga separata sopra.
                     ft.Row(
                         self._header_actions(),
-                        spacing=8, wrap=True,
+                        spacing=d.Space.SM, wrap=True,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    muted_text("Seleziona un personaggio o creane uno nuovo", size=13),
+                    ft.Container(height=d.Space.XS),
+                    d.muted("Seleziona un personaggio o creane uno nuovo"),
                 ],
-                spacing=6,
+                spacing=d.Space.SM,
                 tight=True,
             ),
-            padding=ft.Padding.symmetric(horizontal=16, vertical=16),
-            bgcolor=COLOR_BG_SECONDARY,
-            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            padding=ft.Padding.symmetric(horizontal=d.Space.XL, vertical=d.Space.XL),
+            # Header su superficie elevata invece del vecchio bordo 1px
+            bgcolor=p.surface,
+            shadow=d.elevation(2),
         )
 
         body = ft.Container(
@@ -147,21 +193,26 @@ class HomeView(ft.Column):
                 expand=True,
             ),
             expand=True,
-            padding=ft.Padding.all(32),
+            padding=ft.Padding.symmetric(horizontal=d.Space.XL, vertical=d.Space.XL),
+            # Pergamena: gradiente a contrasto minimo, nessuna immagine
+            gradient=d.page_gradient(),
         )
 
         self.controls = [header, body]
 
     def _new_character_button(self) -> ft.Control:
         """Bottone '+' che apre il dialog per scegliere wizard o manuale."""
+        p = d.T()
         return ft.ElevatedButton(
             "Nuovo Personaggio",
             icon=ft.Icons.ADD,
             on_click=self._on_new_click,
             style=ft.ButtonStyle(
-                bgcolor=COLOR_ACCENT_GOLD,
-                color=COLOR_BG_PRIMARY,
-                shape=ft.RoundedRectangleBorder(radius=6),
+                bgcolor=p.primary,
+                color=p.on_primary,
+                shape=ft.RoundedRectangleBorder(radius=d.Radius.PILL),
+                padding=ft.Padding.symmetric(horizontal=d.Space.LG,
+                                             vertical=d.Space.MD),
             ),
         )
 
@@ -174,182 +225,156 @@ class HomeView(ft.Column):
         Home su sua esplicita richiesta). "Modalità Master" compare solo se
         `on_open_master` è stato passato (stesso comportamento "nascosto se
         assente" del vecchio menu, per non rompere chiamate legacy a
-        `HomeView`)."""
+        `HomeView`).
+
+        Dalla Fase E del restyle (2026-07-26) le pillole usano la primitiva
+        condivisa `design.pill()`: la copia locale `_action_pill` è stata
+        rimossa (era una delle 3 copie identiche sparse tra questo file,
+        `master_view.py` e `master_encounter_view.py`)."""
+        p = d.T()
         actions: list[ft.Control] = []
         if self.on_open_master is not None:
-            actions.append(
-                self._action_pill(
-                    ft.Icons.CASTLE_OUTLINED, "Modalità Master", COLOR_ACCENT_BLUE,
-                    lambda e: self.on_open_master(),
-                )
-            )
-        actions.append(
-            self._action_pill(
-                ft.Icons.UPLOAD_FILE, "Importa personaggio", COLOR_ACCENT_GOLD,
-                self._on_import_click,
-            )
-        )
+            actions.append(d.pill(ft.Icons.CASTLE_OUTLINED, "Modalità Master",
+                                  color=p.magic,
+                                  on_click=lambda e: self.on_open_master()))
+        actions.append(d.pill(ft.Icons.UPLOAD_FILE, "Importa personaggio",
+                              color=p.text_2, on_click=self._on_import_click))
         actions.append(self._new_character_button())
         return actions
-
-    @staticmethod
-    def _action_pill(icon, label: str, color: str, on_click) -> ft.Control:
-        return ft.Container(
-            content=ft.Row(
-                [
-                    ft.Icon(icon, size=15, color=color),
-                    ft.Container(width=6),
-                    ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=color),
-                ],
-                tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.Padding.symmetric(horizontal=12, vertical=7),
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.all(1, color),
-            border_radius=16,
-            on_click=on_click,
-            ink=True,
-        )
 
     # ------------------------------------------------------------------
     # Dati
     # ------------------------------------------------------------------
 
-    def refresh(self):
-        """Ricarica la lista personaggi dal database."""
-        characters = character_repo.get_all()
-        self._char_list_column.controls.clear()
+    @staticmethod
+    def _list_signature(characters: list[Character]) -> str:
+        """
+        Firma sintetica della lista personaggi, per capire se è cambiato
+        qualcosa senza ricostruire le card. Include `updated_at` così una
+        modifica fatta in un'altra sessione web viene comunque rilevata.
+        """
+        return "|".join(f"{c.id}:{c.updated_at}" for c in characters)
 
-        if not characters:
-            self._char_list_column.controls.append(self._empty_state())
-        else:
-            for char in characters:
-                self._char_list_column.controls.append(
-                    self._character_card(char)
-                )
+    def refresh(self, force: bool = True):
+        """
+        Ricarica la lista personaggi dal database.
 
-        # update() è valido solo dopo il mount sulla page
-        try:
-            self._char_list_column.update()
-        except RuntimeError:
-            pass  # chiamata da __init__, il render avviene con page.add()
+        `force=False` (usato dal polling di sincronizzazione) ricostruisce le
+        card SOLO se la firma della lista è cambiata: prima di questo controllo
+        il polling ricostruiva l'intera lista ogni 5 secondi anche quando nulla
+        era cambiato, sprecando lavoro e potendo interrompere l'interazione
+        dell'utente a metà.
+        """
+        with self._refresh_lock:
+            characters = character_repo.get_all()
+            signature = self._list_signature(characters)
+            if not force and signature == self._last_signature:
+                return False
+            self._last_signature = signature
+
+            self._char_list_column.controls.clear()
+
+            if not characters:
+                self._char_list_column.controls.append(self._empty_state())
+            else:
+                for char in characters:
+                    self._char_list_column.controls.append(
+                        self._character_card(char)
+                    )
+
+            # update() è valido solo dopo il mount sulla page
+            try:
+                self._char_list_column.update()
+            except RuntimeError:
+                pass  # chiamata da __init__, il render avviene con page.add()
+            return True
 
     # ------------------------------------------------------------------
     # Card personaggio
     # ------------------------------------------------------------------
 
     def _character_card(self, char: Character) -> ft.Container:
-        """Card con info essenziali del personaggio e azioni."""
+        """
+        Card personaggio — riscritta nella Fase E del restyle (2026-07-26)
+        usando le primitive di `ui/design.py`: ritratto più grande e
+        arrotondato, ombra al posto del bordo 1px, chip semantici per
+        livello/classe/razza, accento crimson sul bordo sinistro.
+        """
+        p = d.T()
+        AV = 76
 
-        # Foto o placeholder (priorità: base64 in DB > percorso file > icona)
+        # Ritratto (priorità: base64 in DB > percorso file > iniziali)
         if char.image_data:
-            avatar = ft.Container(
-                content=ft.Image(
-                    src=_data_uri(char.image_data),
-                    width=72, height=72,
-                    fit=ft.BoxFit.COVER,
-                ),
-                width=72, height=72,
-                border_radius=6,
+            avatar: ft.Control = ft.Container(
+                content=ft.Image(src=_data_uri(char.image_data),
+                                 width=AV, height=AV, fit=ft.BoxFit.COVER),
+                width=AV, height=AV, border_radius=d.Radius.MD,
                 clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                shadow=d.elevation(1),
             )
         elif char.image_path:
-            avatar = ft.Image(
-                src=char.image_path,
-                width=72, height=72,
-                fit=ft.BoxFit.COVER,
-                border_radius=ft.BorderRadius.all(6),
+            avatar = ft.Container(
+                content=ft.Image(src=char.image_path, width=AV, height=AV,
+                                 fit=ft.BoxFit.COVER),
+                width=AV, height=AV, border_radius=d.Radius.MD,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                shadow=d.elevation(1),
             )
         else:
+            initials = "".join(w[0] for w in (char.name or "?").split()[:2]).upper() or "?"
             avatar = ft.Container(
-                width=72, height=72,
-                bgcolor=COLOR_BG_SECONDARY,
-                border_radius=6,
-                border=ft.Border.all(1, COLOR_BORDER),
-                content=ft.Icon(ft.Icons.PERSON, color=COLOR_TEXT_MUTED, size=36),
+                width=AV, height=AV,
+                gradient=ft.LinearGradient(
+                    begin=ft.Alignment.TOP_LEFT, end=ft.Alignment.BOTTOM_RIGHT,
+                    colors=[p.surface_alt, p.bg_alt],
+                ),
+                border_radius=d.Radius.MD,
+                content=ft.Text(initials, size=26, weight=ft.FontWeight.BOLD,
+                                color=p.text_3, font_family=d.Font.DISPLAY),
                 alignment=ft.Alignment.CENTER,
+                shadow=d.elevation(1),
             )
 
-        # Badge livello
-        level_badge = ft.Container(
-            content=ft.Text(
-                f"Liv. {char.level}",
-                size=11,
-                weight=ft.FontWeight.BOLD,
-                color=COLOR_BG_PRIMARY,
-            ),
-            bgcolor=COLOR_ACCENT_GOLD,
-            border_radius=4,
-            padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-        )
+        meta: list[ft.Control] = [d.chip(f"Liv. {char.level}", "primary", filled=True)]
+        if char.class_name:
+            meta.append(d.chip(char.class_name, "magic"))
+        if char.race:
+            meta.append(d.chip(char.race, "neutral"))
 
         info = ft.Column(
             [
-                ft.Row(
-                    [
-                        ft.Text(
-                            char.name or "Senza nome",
-                            size=18,
-                            weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_PRIMARY,
-                        ),
-                        level_badge,
-                    ],
-                    spacing=8,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                body_text(
-                    f"{char.class_name}  ·  {char.race}",
-                    size=13,
-                    color=COLOR_TEXT_SECONDARY,
-                ),
-                muted_text(
-                    char.background or "Nessun background",
-                    size=12,
-                ),
+                ft.Text(char.name or "Senza nome", size=d.Size.SUBTITLE + 2,
+                        weight=ft.FontWeight.BOLD, color=p.text,
+                        font_family=d.Font.DISPLAY,
+                        max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                ft.Row(meta, spacing=d.Space.XS, wrap=True),
+                d.muted(char.background or "Nessun background"),
             ],
-            spacing=4,
+            spacing=d.Space.XS,
             expand=True,
         )
 
         actions = ft.Row(
             [
-                ft.IconButton(
-                    icon=ft.Icons.PLAY_CIRCLE_OUTLINE,
-                    icon_color=COLOR_ACCENT_GOLD,
-                    tooltip="Gioca con questo personaggio",
-                    on_click=lambda e, cid=char.id: self.on_select(cid),
-                ),
-                ft.IconButton(
-                    icon=ft.Icons.IOS_SHARE,
-                    icon_color=COLOR_TEXT_SECONDARY,
-                    tooltip="Esporta personaggio (file .dndchar)",
-                    on_click=lambda e, c=char: self._on_export_click(c),
-                ),
-                ft.IconButton(
-                    icon=ft.Icons.DELETE_OUTLINE,
-                    icon_color=COLOR_ACCENT_RED,
-                    tooltip="Elimina personaggio",
-                    on_click=lambda e, c=char: self._confirm_delete(c),
-                ),
+                ft.IconButton(icon=ft.Icons.PLAY_CIRCLE_FILL, icon_color=p.primary,
+                              icon_size=30, tooltip="Gioca con questo personaggio",
+                              on_click=lambda e, cid=char.id: self.on_select(cid)),
+                ft.IconButton(icon=ft.Icons.IOS_SHARE, icon_color=p.text_3,
+                              tooltip="Esporta personaggio (file .dndchar)",
+                              on_click=lambda e, c=char: self._on_export_click(c)),
+                ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=p.danger,
+                              tooltip="Elimina personaggio",
+                              on_click=lambda e, c=char: self._confirm_delete(c)),
             ],
             spacing=0,
         )
 
-        card_content = ft.Row(
-            [avatar, ft.Container(width=16), info, actions],
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        )
-
-        return ft.Container(
-            content=card_content,
-            padding=16,
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.all(1, COLOR_BORDER),
-            border_radius=8,
+        return d.card(
+            ft.Row([avatar, ft.Container(width=d.Space.LG), info, actions],
+                   vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            accent=p.primary,
             on_click=lambda e, cid=char.id: self.on_select(cid),
-            ink=True,
-            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            tooltip="Apri la scheda",
         )
 
     # ------------------------------------------------------------------
@@ -357,50 +382,24 @@ class HomeView(ft.Column):
     # ------------------------------------------------------------------
 
     def _empty_state(self) -> ft.Container:
-        return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Icon(ft.Icons.SHIELD_OUTLINED, size=80, color=COLOR_BORDER),
-                    ft.Container(height=16),
-                    title_text("Nessun personaggio", size=20),
-                    ft.Container(height=8),
-                    muted_text(
-                        "Crea il tuo primo personaggio per iniziare l'avventura.",
-                        size=14,
-                    ),
-                    ft.Container(height=24),
-                    ft.Column(
-                        controls=cast(list[ft.Control], [
-                            primary_button(
-                                "Wizard guidato",
-                                on_click=lambda e: self.on_create_wizard(),
-                                icon=ft.Icons.AUTO_FIX_HIGH,
-                            ),
-                            ghost_button(
-                                "Creazione manuale",
-                                on_click=lambda e: self.on_create_manual(),
-                            ),
-                            ft.OutlinedButton(
-                                "Importa personaggio",
-                                icon=ft.Icons.UPLOAD_FILE,
-                                on_click=self._on_import_click,
-                                style=ft.ButtonStyle(
-                                    color=COLOR_TEXT_SECONDARY,
-                                    side=ft.BorderSide(1, COLOR_BORDER),
-                                    shape=ft.RoundedRectangleBorder(radius=4),
-                                ),
-                            ),
-                        ]),
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        spacing=10,
-                    ),
-                ],
+        """Stato vuoto — primitiva condivisa `design.empty_state()`."""
+        return d.empty_state(
+            ft.Icons.SHIELD_OUTLINED,
+            "Nessun personaggio",
+            "Crea il tuo primo personaggio per iniziare l'avventura.",
+            action=ft.Column(
+                controls=cast(list[ft.Control], [
+                    primary_button("Wizard guidato",
+                                   on_click=lambda e: self.on_create_wizard(),
+                                   icon=ft.Icons.AUTO_FIX_HIGH),
+                    ghost_button("Creazione manuale",
+                                 on_click=lambda e: self.on_create_manual()),
+                    d.pill(ft.Icons.UPLOAD_FILE, "Importa personaggio",
+                           color=d.T().magic, on_click=self._on_import_click),
+                ]),
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=d.Space.MD,
             ),
-            expand=True,
-            alignment=ft.Alignment.CENTER,
-            padding=64,
         )
 
     # ------------------------------------------------------------------
@@ -629,12 +628,15 @@ class HomeView(ft.Column):
 
     def _export_web(self, char: Character):
         """
-        Modalità web: scrive il file nella cartella condivisa
-        (get_character_exports_path()) — Davide può ancora prelevarlo a
-        mano via SSH/scp come prima, ma dal 2026-07-24 questa stessa
-        cartella è ANCHE la assets_dir servita staticamente da Flet in
-        modalità web (vedi main.py) — il file diventa quindi raggiungibile
-        a un vero URL HTTP (`/<filename>`), permettendo un download reale
+        Modalità web: scrive il file in DUE posti — la cartella condivisa
+        (`get_character_exports_path()`), che Davide può prelevare via
+        SSH/scp come sempre, e la sottocartella servita staticamente
+        (`assets/exports/`, vedi `get_web_export_staging_path()`).
+        Fino al 2026-07-26 le due coincidevano, perché `assets_dir` puntava
+        direttamente alla cartella degli export; ora `assets_dir` è
+        `dnd_app/assets/` (necessario per i font custom della Fase B del
+        restyle), quindi il file scaricabile va messo lì sotto — l'URL è
+        `/exports/<filename>`, permettendo un download reale
         da browser con un solo click (bottone "Scarica" nel dialog di
         conferma, vedi _show_export_success_dialog). Nessun controllo
         FilePicker/UrlLauncher coinvolto in questo meccanismo — è pura
@@ -646,16 +648,29 @@ class HomeView(ft.Column):
             self._show_error("Errore durante l'esportazione del personaggio.")
             return
         filename = character_export.suggested_export_filename(char.id)
+        # Due destinazioni, due scopi diversi (Fase A del restyle, 2026-07-26):
+        #  1. la cartella condivisa (bind mount Docker) resta la copia
+        #     persistente che Davide può prelevare via SSH, come sempre;
+        #  2. la sottocartella servita staticamente è ciò che rende possibile
+        #     il download reale dal browser. Prima coincidevano, perché
+        #     `assets_dir` puntava direttamente alla cartella degli export;
+        #     ora `assets_dir` è `dnd_app/assets/` (serve ai font custom),
+        #     quindi il file da scaricare va messo lì sotto.
         full_path = os.path.join(get_character_exports_path(), filename)
-        try:
-            with open(full_path, "w", encoding="utf-8") as f:
-                f.write(json_text)
-        except OSError as exc:
-            logger.error(f"Errore scrittura file export ({full_path}): {exc}")
+        staging_path = os.path.join(get_web_export_staging_path(), filename)
+        written = False
+        for path in (full_path, staging_path):
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(json_text)
+                written = True
+            except OSError as exc:
+                logger.error(f"Errore scrittura file export ({path}): {exc}")
+        if not written:
             self._show_error("Errore durante il salvataggio del file esportato.")
             return
         self._show_export_success_dialog(
-            filename, full_path, system=None, download_url=f"/{filename}",
+            filename, full_path, system=None, download_url=f"/exports/{filename}",
         )
 
     def _export_desktop(self, char: Character, system: str):

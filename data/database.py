@@ -144,6 +144,44 @@ def get_character_exports_path() -> str:
     return str(exports_dir)
 
 
+def get_assets_path() -> str:
+    """
+    Cartella `dnd_app/assets/` — passata come `assets_dir` a `ft.run()` su
+    TUTTE le piattaforme (Fase A del restyle, 2026-07-26).
+
+    Prima di questa modifica `assets_dir` non era impostata affatto su
+    desktop/mobile, ed era occupata dalla cartella degli export in web mode:
+    era quindi tecnicamente impossibile caricare un font custom, che è il
+    prerequisito della Fase B del restyle (`ft.Page.fonts` legge da qui).
+
+    L'export web continua a funzionare: scrive in una sottocartella servita
+    (`assets/exports/`, vedi `get_web_export_staging_path()`), quindi l'URL
+    di download passa da `/<file>.dndchar` a `/exports/<file>.dndchar`.
+    L'IMPORT web resta invece su `get_character_exports_path()`
+    (`~/dnd_character_exports`, il bind mount Docker che Davide popola via
+    SSH): quel percorso NON cambia, nessuna modifica a docker-compose.yml.
+    """
+    assets_dir = Path(__file__).resolve().parent.parent / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    return str(assets_dir)
+
+
+def get_web_export_staging_path() -> str:
+    """
+    Sottocartella servita staticamente da cui il browser scarica un
+    `.dndchar` appena esportato (solo modalità web).
+
+    È un'area di transito: in Docker vive nel filesystem del container, quindi
+    il contenuto si perde al riavvio. Va bene — il file viene scaricato subito
+    dopo l'export. La copia "persistente" che Davide preleva via SSH resta
+    quella di `get_character_exports_path()`, dove l'export continua a
+    scrivere in parallelo.
+    """
+    staging = Path(get_assets_path()) / "exports"
+    staging.mkdir(parents=True, exist_ok=True)
+    return str(staging)
+
+
 def get_connection() -> sqlite3.Connection:
     """Apre e restituisce una connessione SQLite con row_factory."""
     conn = sqlite3.connect(get_db_path())

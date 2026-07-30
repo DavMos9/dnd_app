@@ -68,7 +68,7 @@ except Exception as e:
 # import data.database
 # ---------------------------------------------------------------------------
 try:
-    from data.database import init_db, get_character_exports_path
+    from data.database import init_db, get_assets_path
     _w("[4] data.database imported OK")
 except Exception as e:
     _w(f"[4] data.database import FAILED: {e}")
@@ -127,28 +127,36 @@ if _web:
     # nessun endpoint di upload Flet necessario. Vedi CLAUDE.md per il
     # changelog completo.
     #
-    # Nota (2026-07-24): assets_dir = get_character_exports_path() serve
-    # invece per la direzione OPPOSTA (server->client, non client->server) --
-    # Flet monta staticamente questa cartella alla radice dell'app, così un
-    # file .dndchar appena esportato (scritto lì da home_view.py) è
-    # raggiungibile a un URL tipo "/Nome_Lv5_20260724.dndchar" e il pulsante
+    # Nota (2026-07-24, aggiornata 2026-07-26): assets_dir serve per la
+    # direzione OPPOSTA (server->client, non client->server) -- Flet monta
+    # staticamente questa cartella alla radice dell'app, così un file
+    # .dndchar appena esportato è raggiungibile a un URL HTTP e il pulsante
     # "Scarica" (Button(url=...), NON un FilePicker/UrlLauncher — quei
     # Service control restano rotti in web mode) lo apre in una nuova scheda,
     # innescando il download standard del browser (.dndchar non è
     # un'estensione riconosciuta → Content-Type application/octet-stream →
-    # il browser lo scarica invece di provare a renderizzarlo). Questo NON
+    # il browser lo scarica invece di provare a renderizzarlo).
+    # Dalla Fase A del restyle assets_dir è `dnd_app/assets/` (serve ai font
+    # custom): l'export scrive quindi ANCHE in `assets/exports/` e l'URL di
+    # download è `/exports/<file>.dndchar`. La cartella condivisa via SSH
+    # (`~/dnd_character_exports`, bind mount Docker) resta invariata e
+    # continua a ricevere la sua copia — docker-compose.yml non cambia.
+    # Questo NON
     # soffre del bug FilePicker perché non è mai coinvolto alcun controllo
     # Service: è overlapping solo di nome con get_image_library_path(), la
     # cartella e lo scopo sono diversi. L'IMPORT web resta invece bloccato
     # dallo stesso identico bug upstream (nessun modo di scegliere un file
     # dal browser senza FilePicker) — vedi CLAUDE.md.
-    _w(f"[8] WEB mode — host=0.0.0.0 port={_port}, assets_dir=exports")
+    _w(f"[8] WEB mode — host=0.0.0.0 port={_port}, assets_dir={get_assets_path()}")
     ft.run(
         run_app,
         view=ft.AppView.WEB_BROWSER,
         port=_port,
         host="0.0.0.0",
-        assets_dir=str(get_character_exports_path()),
+        assets_dir=get_assets_path(),
     )
 else:
-    ft.run(run_app)
+    # assets_dir anche su desktop/mobile (Fase A del restyle, 2026-07-26):
+    # senza di essa `ft.Page.fonts` non può caricare i font custom della
+    # Fase B, ed era semplicemente assente qui.
+    ft.run(run_app, assets_dir=get_assets_path())

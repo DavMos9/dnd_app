@@ -36,8 +36,8 @@ Flusso atteso:
   profilo_tab._on_level_up_click
     → get_level_up_steps(class_name, new_level, old_pb, new_pb, subclass)
     → itera steps e costruisce dialog dinamico
-    → per step.requires_player_choice == True: mostra widget di scelta
-    → per step.requires_player_choice == False: mostra solo etichetta info
+    → il tipo di step (`StepType`) determina da solo se serve un widget di
+      scelta o solo un'etichetta informativa
 
 Fonte dati (2026-07-10): i nomi e le descrizioni delle feature vengono letti
 SEMPRE da data/game_data/classes/*.json tramite GameDataLoader — mai da una
@@ -143,7 +143,6 @@ class StepType(Enum):
 class LevelStep:
     step_type: StepType
     label: str
-    requires_player_choice: bool = False
     # Metadati aggiuntivi per la UI futura
     # (es. {"spell_level": 3, "count": 1} per SPELL_LEARN)
     data: dict = field(default_factory=dict)
@@ -287,7 +286,6 @@ def get_level_up_steps(
     steps.append(LevelStep(
         step_type=StepType.HP_GAIN,
         label="Punti Ferita",
-        requires_player_choice=True,
     ))
 
     # 1b. SPELL_LEARN per classi "know": emesso subito dopo HP
@@ -302,7 +300,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.SPELL_LEARN,
             label=label,
-            requires_player_choice=True,
             data={"count": spell_delta, "max_level": max_lv, "any_class": False},
         ))
 
@@ -318,7 +315,6 @@ def get_level_up_steps(
             steps.append(LevelStep(
                 step_type=StepType.CANTRIP_LEARN,
                 label="Nuovo trucchetto conosciuto (+1)",
-                requires_player_choice=True,
                 data={"count": 1},
             ))
 
@@ -345,7 +341,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.SPELL_SWAP,
             label="Sostituisci un incantesimo conosciuto (opzionale)",
-            requires_player_choice=True,
             data={"max_level": _max_spell_level_for(class_name, new_level)},
         ))
 
@@ -390,7 +385,6 @@ def get_level_up_steps(
                 steps.append(LevelStep(
                     step_type=StepType.BORROWED_CANTRIP,
                     label=f"Nuovo trucchetto da mago (+{cantrip_delta})",
-                    requires_player_choice=True,
                     data={"count": cantrip_delta},
                 ))
 
@@ -410,7 +404,6 @@ def get_level_up_steps(
                 steps.append(LevelStep(
                     step_type=StepType.BORROWED_SPELL_LEARN,
                     label=label,
-                    requires_player_choice=True,
                     data={
                         "count": spell_delta,
                         "max_level": max_lv,
@@ -426,7 +419,6 @@ def get_level_up_steps(
             steps.append(LevelStep(
                 step_type=StepType.BORROWED_SPELL_SWAP,
                 label="Sostituisci un incantesimo da mago conosciuto (opzionale)",
-                requires_player_choice=True,
                 data={"max_level": max_lv},
             ))
 
@@ -448,7 +440,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.METAMAGIC,
             label=f"{name} ({count} opzion{'e' if count == 1 else 'i'})",
-            requires_player_choice=True,
             data={"count": count},
         ))
 
@@ -459,7 +450,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.INVOCATION,
             label=f"{name} ({total})",
-            requires_player_choice=True,
             data={"total": total},
         ))
 
@@ -483,7 +473,6 @@ def get_level_up_steps(
             steps.append(LevelStep(
                 step_type=StepType.SPELL_LEARN,
                 label=f"{name} (2 incantesimi)",
-                requires_player_choice=True,
                 data={
                     "count": 2,
                     "max_level": _max_spell_level_for(class_name, new_level),
@@ -496,7 +485,6 @@ def get_level_up_steps(
                     steps.append(LevelStep(
                         step_type=StepType.SPELL_LEARN,
                         label=f"{feat['name']} (2 incantesimi)",
-                        requires_player_choice=True,
                         data={
                             "count": 2,
                             "max_level": _max_spell_level_for(class_name, new_level),
@@ -514,7 +502,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.EXPERTISE,
             label=f"{name} (2 abilità)",
-            requires_player_choice=True,
             data={"count": 2},
         ))
 
@@ -525,7 +512,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.SUBCLASS_CHOICE,
             label=f"{subclass_label} — scegli la sottoclasse",
-            requires_player_choice=True,
             data={"future": True},
         ))
 
@@ -567,13 +553,11 @@ def get_level_up_steps(
             steps.append(LevelStep(
                 step_type=StepType.PACT_CHOICE,
                 label=feat_name,
-                requires_player_choice=True,
             ))
             continue
         steps.append(LevelStep(
             step_type=StepType.FEATURE_AUTO,
             label=feat_name,
-            requires_player_choice=False,
         ))
 
     # 2d. Druido, "Forma Selvatica Migliorata" (PHB p.65): NON è una feature
@@ -595,7 +579,6 @@ def get_level_up_steps(
                 steps.append(LevelStep(
                     step_type=StepType.FEATURE_AUTO,
                     label=f"Forma Selvatica Migliorata (GS max {cr}{extra})",
-                    requires_player_choice=False,
                 ))
 
     # 2e. Monaco, Via dei Quattro Elementi: apprende una disciplina elementale
@@ -614,7 +597,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.MONK_DISCIPLINE,
             label="Discepolo degli Elementi — apprendi 1 disciplina elementale aggiuntiva a scelta",
-            requires_player_choice=True,
             data={"unlock_level": new_level},
         ))
 
@@ -635,7 +617,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.ARCANUM_SPELL,
             label=f"Arcanum Mistico — scegli un incantesimo di {spell_lv}° livello dalla lista del warlock",
-            requires_player_choice=True,
             data={"spell_level": spell_lv},
         ))
 
@@ -645,7 +626,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.ASI,
             label="Miglioramento Caratteristiche",
-            requires_player_choice=True,
         ))
 
     # 4. Bonus competenza — automatico, solo quando aumenta
@@ -653,7 +633,6 @@ def get_level_up_steps(
         steps.append(LevelStep(
             step_type=StepType.PROFICIENCY_BONUS_UP,
             label=f"Bonus Competenza: +{old_pb} → +{new_pb}",
-            requires_player_choice=False,
         ))
 
     return steps

@@ -2933,22 +2933,6 @@ def deactivate_all_creatures(character_id: str, entry_type: str | None = None) -
         return False
 
 
-def update_creature_notes(creature_id: str, notes: str) -> bool:
-    """Aggiorna le note libere di una voce bestiary."""
-    try:
-        conn = get_connection()
-        conn.execute(
-            "UPDATE creature_entries SET notes=?, updated_at=? WHERE id=?",
-            (notes, datetime.now().isoformat(), creature_id),
-        )
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        logger.error(f"Errore update_creature_notes: {e}")
-        return False
-
-
 def delete_creature_entry(creature_id: str) -> bool:
     """Elimina definitivamente una voce dal bestiary personale."""
     try:

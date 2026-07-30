@@ -29,7 +29,7 @@ from data.models import Character, SpellSlot, CharacterProficiency, Weapon, Know
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text, show_error_dialog
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
 from core.weapon_calculator import AttackContext, compute_attack_total, compute_damage_formula
 from ui.components.monster_picker import (
     load_monsters,
@@ -37,6 +37,7 @@ from ui.components.monster_picker import (
     creature_entry_dict,
     show_stat_block_dialog,
 )
+from ui import design
 
 _loader = GameDataLoader()
 
@@ -46,7 +47,7 @@ logger = logging.getLogger(__name__)
 _SLOT_NAMES = ["1°", "2°", "3°", "4°", "5°", "6°", "7°", "8°", "9°"]
 
 
-class CombattimentoTab(ft.ListView):
+class CombattimentoTab(ScrollMemoryListView):
     """
     Tab combattimento: HP, azioni turno, slot, dadi vita, riposi.
     Eredita da ft.ListView per scroll corretto in Flet 0.85.3.
@@ -256,7 +257,7 @@ class CombattimentoTab(ft.ListView):
             on_click=self._on_damage_click,
             expand=True,
             style=ft.ButtonStyle(
-                bgcolor=COLOR_HP_LOW, color="#ffffff",
+                bgcolor=COLOR_HP_LOW, color=design.T().on_primary,
                 shape=ft.RoundedRectangleBorder(radius=6),
             ),
         )
@@ -266,7 +267,7 @@ class CombattimentoTab(ft.ListView):
             on_click=self._on_heal_click,
             expand=True,
             style=ft.ButtonStyle(
-                bgcolor=COLOR_HP_FULL, color="#ffffff",
+                bgcolor=COLOR_HP_FULL, color=design.T().on_primary,
                 shape=ft.RoundedRectangleBorder(radius=6),
             ),
         )
@@ -365,6 +366,24 @@ class CombattimentoTab(ft.ListView):
     # HP dialogs
     # ------------------------------------------------------------------
 
+    def _show_rule_notice(self, title: str, message: str,
+                          accent: str = COLOR_ACCENT_BLUE) -> None:
+        """
+        Avviso informativo su una regola applicata automaticamente dall'app
+        (es. tiri salvezza contro morte, morte istantanea, indebolimento al
+        riposo lungo). Sempre esplicito: l'app non deve mai modificare la
+        scheda in silenzio.
+        """
+        page = self._page
+        if page is None:
+            return
+        page.show_dialog(ft.AlertDialog(
+            title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=accent),
+            content=ft.Text(message, size=13, color=COLOR_TEXT_PRIMARY),
+            actions=[ft.TextButton("OK", on_click=lambda ev: page.pop_dialog())],
+            bgcolor=COLOR_BG_CARD,
+        ))
+
     def _on_damage_click(self, e):
         if not self._page:
             return
@@ -375,6 +394,14 @@ class CombattimentoTab(ft.ListView):
             text_style=ft.TextStyle(size=16, color=COLOR_TEXT_PRIMARY),
             border_color=COLOR_BORDER, focused_border_color=COLOR_HP_LOW,
             bgcolor=COLOR_BG_CARD,
+        )
+        # PHB p.197 "Danni a 0 punti ferita": un colpo critico subito a 0 PF
+        # equivale a DUE tiri salvezza contro morte falliti invece di uno.
+        crit_cb = ft.Checkbox(
+            label="Colpo critico",
+            value=False,
+            label_style=ft.TextStyle(size=12, color=COLOR_TEXT_SECONDARY),
+            active_color=COLOR_HP_LOW,
         )
 
         def apply(ev):
@@ -390,19 +417,66 @@ class CombattimentoTab(ft.ListView):
                 absorbed = min(c.hp_temp, amt)
                 c.hp_temp -= absorbed
                 amt -= absorbed
+
+            was_at_zero = c.hp_current <= 0
+            # Danno che eccede i PF attuali (PHB p.197, "Morte Istantanea":
+            # "Quando un ammontare di danni porta il personaggio a 0 punti
+            # ferita e restano ancora dei danni da applicare, il personaggio
+            # muore se i danni rimanenti sono pari o superiori al suo massimo
+            # dei punti ferita"). A 0 PF il danno residuo è il danno intero.
+            residual = amt if was_at_zero else max(0, amt - max(0, c.hp_current))
+            instant_death = amt > 0 and c.hp_max > 0 and residual >= c.hp_max
+
             c.hp_current = max(0, c.hp_current - amt)
+
+            death_note = ""
+            if instant_death:
+                # Nessun campo "morto" nello schema: 3 fallimenti = morte, la
+                # stessa condizione che la UI dei TS contro morte già mostra.
+                c.death_saves_success = 0
+                c.death_saves_failure = 3
+                death_note = (
+                    f"Morte istantanea: i {residual} danni residui sono pari o "
+                    f"superiori al massimo dei punti ferita ({c.hp_max}).\n"
+                    "PHB p.197 — «Morte Istantanea»."
+                )
+            elif was_at_zero and amt > 0:
+                # PHB p.197: danno subito a 0 PF = 1 TS contro morte fallito
+                # (2 se da colpo critico).
+                add = 2 if crit_cb.value else 1
+                c.death_saves_failure = min(3, (c.death_saves_failure or 0) + add)
+                if c.death_saves_failure >= 3:
+                    death_note = (
+                        "Terzo tiro salvezza contro morte fallito: il "
+                        "personaggio muore.\nPHB p.197."
+                    )
+                else:
+                    death_note = (
+                        f"Danno subito a 0 PF: {add} tiro salvezza contro morte "
+                        f"fallito{'i' if add > 1 else ''} "
+                        f"({c.death_saves_failure}/3).\nPHB p.197."
+                    )
+
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
+            if death_note:
+                character_repo.update_death_saves(
+                    c.id, c.death_saves_success, c.death_saves_failure
+                )
             page.pop_dialog()
             self._refresh()
+            if death_note:
+                self._show_rule_notice(
+                    "Tiri Salvezza contro Morte", death_note, COLOR_HP_LOW
+                )
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Applica Danno", size=14, weight=ft.FontWeight.BOLD,
                           color=COLOR_HP_LOW),
-            content=ft.Column([field], width=240, spacing=0),
+            content=ft.Column([field, crit_cb], width=240, spacing=4, tight=True),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Applica", on_click=apply,
-                                  style=ft.ButtonStyle(bgcolor=COLOR_HP_LOW, color="#ffffff",
+                                  style=ft.ButtonStyle(bgcolor=COLOR_HP_LOW, color=design.T().on_primary,
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -428,8 +502,18 @@ class CombattimentoTab(ft.ListView):
             except ValueError:
                 return
             c = self.character
+            was_at_zero = c.hp_current <= 0
             c.hp_current = min(c.hp_max, c.hp_current + amt)
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
+            # PHB p.197: "Il numero di entrambi i tipi torna a zero quando il
+            # personaggio recupera dei punti ferita o diventa stabile" — e
+            # "Il personaggio riprende i sensi se recupera un qualsiasi
+            # ammontare di punti ferita". Prima di questo fix i pallini dei
+            # tiri salvezza contro morte restavano segnati dopo la cura.
+            if was_at_zero and amt > 0 and c.hp_current > 0:
+                c.death_saves_success = 0
+                c.death_saves_failure = 0
+                character_repo.update_death_saves(c.id, 0, 0)
             page.pop_dialog()
             self._refresh()
 
@@ -440,7 +524,7 @@ class CombattimentoTab(ft.ListView):
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Cura", on_click=apply,
-                                  style=ft.ButtonStyle(bgcolor=COLOR_HP_FULL, color="#ffffff",
+                                  style=ft.ButtonStyle(bgcolor=COLOR_HP_FULL, color=design.T().on_primary,
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -501,7 +585,7 @@ class CombattimentoTab(ft.ListView):
                 ft.TextButton("Azzera", on_click=reset),
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Applica", on_click=apply,
-                                  style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                                  style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -549,7 +633,7 @@ class CombattimentoTab(ft.ListView):
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
-                                  style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                  style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -732,7 +816,7 @@ class CombattimentoTab(ft.ListView):
             actions=[
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
-                                  style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                  style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                                        shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -801,7 +885,7 @@ class CombattimentoTab(ft.ListView):
                               style=ft.ButtonStyle(color=COLOR_TEXT_MUTED)),
                 ft.ElevatedButton("Applica", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                                      bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                                       shape=ft.RoundedRectangleBorder(radius=4))),
             ]),
             bgcolor=COLOR_BG_CARD,
@@ -944,11 +1028,13 @@ class CombattimentoTab(ft.ListView):
                         ft.Icon(
                             ft.Icons.CHECK_CIRCLE if not used else ft.Icons.CANCEL,
                             size=20,
-                            color="#ffffff" if not used else "#ffffff60",
+                            color=design.T().on_primary if not used
+                            else ft.Colors.with_opacity(0.38, design.T().on_primary),
                         ),
                         ft.Text(
                             label, size=10, text_align=ft.TextAlign.CENTER,
-                            color="#ffffff" if not used else "#ffffff60",
+                            color=design.T().on_primary if not used
+                            else ft.Colors.with_opacity(0.38, design.T().on_primary),
                             weight=ft.FontWeight.BOLD,
                         ),
                     ],
@@ -1103,7 +1189,7 @@ class CombattimentoTab(ft.ListView):
                                 "↺ Nuovo Turno", on_click=nuovo_turno,
                                 expand=True,
                                 style=ft.ButtonStyle(
-                                    bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                                    bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                                     shape=ft.RoundedRectangleBorder(radius=6),
                                 ),
                             ),
@@ -1865,7 +1951,7 @@ class CombattimentoTab(ft.ListView):
                 ft.ElevatedButton(
                     "Salva", on_click=save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -2718,7 +2804,7 @@ class CombattimentoTab(ft.ListView):
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
                     "Elimina", on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary),
                 ),
             ],
         )
@@ -2792,7 +2878,7 @@ class CombattimentoTab(ft.ListView):
                     ft.Container(
                         content=ft.Text(
                             f"Lv {feat['level']}",
-                            size=10, color="#ffffff",
+                            size=10, color=design.T().on_primary,
                             weight=ft.FontWeight.BOLD,
                         ),
                         bgcolor=COLOR_ACCENT_CRIMSON,
@@ -2849,7 +2935,7 @@ class CombattimentoTab(ft.ListView):
                     ft.Container(
                         content=ft.Text(
                             f"Lv{feat['level']}",
-                            size=9, color="#ffffff",
+                            size=9, color=design.T().on_primary,
                             weight=ft.FontWeight.BOLD,
                         ),
                         bgcolor=badge_color,
@@ -2950,7 +3036,7 @@ class CombattimentoTab(ft.ListView):
                         disabled=(remaining == 0),
                         expand=True,
                         style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_AMBER, color="#ffffff",
+                            bgcolor=COLOR_ACCENT_AMBER, color=design.T().on_primary,
                             shape=ft.RoundedRectangleBorder(radius=6),
                         ),
                     ),
@@ -2986,7 +3072,7 @@ class CombattimentoTab(ft.ListView):
             bgcolor=COLOR_BG_CARD,
         )
         f_roll = ft.TextField(
-            label=f"Totale dadi tirati (escluso CON)",
+            label="Totale dadi tirati (escluso CON)",
             hint_text=f"es. {die // 2} per un dado",
             keyboard_type=ft.KeyboardType.NUMBER,
             text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
@@ -3002,7 +3088,10 @@ class CombattimentoTab(ft.ListView):
                 roll = max(n, int(f_roll.value or n))
             except ValueError:
                 return
-            recovered = max(1, roll + con_mod * n)
+            # PHB p.186: "Il personaggio recupera un numero di punti ferita pari
+            # al totale (fino a un minimo di 0)" — il minimo è ZERO sul totale,
+            # non 1 (rilevante con modificatore di Costituzione negativo).
+            recovered = max(0, roll + con_mod * n)
             c.hp_current = min(c.hp_max, c.hp_current + recovered)
             c.hit_dice_remaining = max(0, remaining - n)
             character_repo.update_hp(c.id, c.hp_current)
@@ -3052,7 +3141,7 @@ class CombattimentoTab(ft.ListView):
                 ft.ElevatedButton(
                     "Applica Riposo", on_click=apply,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_AMBER, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_AMBER, color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -3065,6 +3154,18 @@ class CombattimentoTab(ft.ListView):
     # ------------------------------------------------------------------
 
     def _section_riposo_lungo(self, c: Character) -> ft.Container:
+
+        # PHB p.291 (Appendice A): "Completando un riposo lungo, una creatura
+        # riduce di 1 il suo livello di indebolimento, purché abbia anche avuto
+        # modo di mangiare e bere qualcosa." La clausola su cibo e bevande è una
+        # condizione reale del manuale, quindi è una scelta del giocatore, non
+        # un automatismo dell'app.
+        food_cb = ft.Checkbox(
+            label="Ha mangiato e bevuto (riduce l'Indebolimento di 1)",
+            value=True,
+            label_style=ft.TextStyle(size=12, color=COLOR_TEXT_SECONDARY),
+            active_color=COLOR_ACCENT_BLUE,
+        )
 
         def do_rest(ev):
             page = self._page
@@ -3088,6 +3189,15 @@ class CombattimentoTab(ft.ListView):
             c.previous_turn_state = ""
             c.death_saves_success = 0
             c.death_saves_failure = 0
+            # Indebolimento: -1 se il personaggio ha mangiato e bevuto (PHB p.291)
+            exh_before = c.exhaustion_level or 0
+            if food_cb.value and exh_before > 0:
+                c.exhaustion_level = exh_before - 1
+            # Un bonus CA temporaneo (incantesimo/reazione) non sopravvive alla
+            # notte, e un'ira — quindi la Frenesia dichiarata per quell'ira —
+            # non può attraversare un riposo lungo.
+            c.ca_bonus = 0
+            c.frenzy_active = False
             # Ripristina tutti gli slot incantesimo (usato=0)
             character_repo.reset_all_spell_slots(c.id)
             # Ricalcola i totali PHB — rimuove eventuali slot temporanei creati
@@ -3096,6 +3206,10 @@ class CombattimentoTab(ft.ListView):
             # Ripristina tutte le risorse di classe (short_rest e long_rest)
             character_repo.reset_class_resources(c.id, "short_rest")
             character_repo.reset_class_resources(c.id, "long_rest")
+            # Forme selvatiche ed evocazioni attive terminano: nessuna dura 8 ore
+            # (unico caso limite teorico: Forma Selvatica di un druido di 20°
+            # livello, che durerebbe 10 ore — resta riattivabile con un click).
+            character_repo.deactivate_all_creatures(c.id)
             # Salva tutto
             if not character_repo.update(c):
                 show_error_dialog(page)
@@ -3103,33 +3217,67 @@ class CombattimentoTab(ft.ListView):
             character_repo.update_hp(c.id, c.hp_max, 0)
             page.pop_dialog()
             self._refresh()
+            if food_cb.value and exh_before > 0:
+                self._show_rule_notice(
+                    "Indebolimento",
+                    f"Livello di Indebolimento ridotto da {exh_before} a "
+                    f"{exh_before - 1}.\nPHB p.291 — riposo lungo con cibo e bevande.",
+                )
 
         def confirm(e):
             page = self._page
             if page is None:
                 return
+
+            # PHB p.186: "deve possedere almeno 1 punto ferita all'inizio del
+            # riposo per ottenerne i benefici".
+            if c.hp_current <= 0:
+                page.show_dialog(ft.AlertDialog(
+                    title=ft.Text("Riposo Lungo non possibile", size=14,
+                                  weight=ft.FontWeight.BOLD, color=COLOR_HP_LOW),
+                    content=ft.Text(
+                        "Il personaggio è a 0 punti ferita.\n\n"
+                        "PHB p.186: un personaggio «deve possedere almeno 1 punto "
+                        "ferita all'inizio del riposo per ottenerne i benefici».\n\n"
+                        "Va prima stabilizzato o curato.",
+                        size=13, color=COLOR_TEXT_PRIMARY,
+                    ),
+                    actions=[ft.TextButton("OK", on_click=lambda ev: page.pop_dialog())],
+                    bgcolor=COLOR_BG_CARD,
+                ))
+                return
+
             total = c.hit_dice_total or c.level
             recovered = max(1, total // 2)
-            page.show_dialog(ft.AlertDialog(
-                title=ft.Text("Riposo Lungo", size=14, weight=ft.FontWeight.BOLD,
-                              color=COLOR_TEXT_TITLE),
-                content=ft.Text(
+            exh = c.exhaustion_level or 0
+            rows: list[ft.Control] = [
+                ft.Text(
                     f"Effettuare un riposo lungo?\n\n"
                     f"  ❤  HP ripristinati ({c.hp_current} → {c.hp_max})\n"
                     f"  ◆  Dadi vita recuperati (+{recovered})\n"
                     f"  ●  Slot incantesimo ripristinati\n"
                     f"  ⚡  Risorse di classe ripristinate\n"
                     f"  ↺  Azioni turno azzerate\n"
-                    f"  ☠  Tiri salvezza morte azzerati",
+                    f"  ☠  Tiri salvezza morte azzerati\n"
+                    f"  ⛨  Bonus CA temporaneo azzerato\n"
+                    f"  ✦  Forme/evocazioni attive terminate",
                     size=13, color=COLOR_TEXT_PRIMARY,
                 ),
+            ]
+            if exh > 0:
+                rows.append(ft.Container(height=4))
+                rows.append(food_cb)
+            page.show_dialog(ft.AlertDialog(
+                title=ft.Text("Riposo Lungo", size=14, weight=ft.FontWeight.BOLD,
+                              color=COLOR_TEXT_TITLE),
+                content=ft.Column(rows, spacing=2, tight=True),
                 actions=[
                     ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                     ft.ElevatedButton(
                         "Riposa",
                         on_click=do_rest,
                         style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                            bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                             shape=ft.RoundedRectangleBorder(radius=4),
                         ),
                     ),
@@ -3144,7 +3292,7 @@ class CombattimentoTab(ft.ListView):
                 on_click=confirm,
                 expand=True,
                 style=ft.ButtonStyle(
-                    bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                    bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                     shape=ft.RoundedRectangleBorder(radius=6),
                     padding=ft.Padding.symmetric(vertical=14, horizontal=20),
                 ),
@@ -3371,7 +3519,7 @@ class CombattimentoTab(ft.ListView):
                     disabled=is_active or (active is not None and not is_active),
                     style=ft.ButtonStyle(
                         bgcolor=COLOR_ACCENT_CRIMSON if not (active and not is_active) else COLOR_BG_SECONDARY,
-                        color="#ffffff" if not (active and not is_active) else COLOR_TEXT_MUTED,
+                        color=design.T().on_primary if not (active and not is_active) else COLOR_TEXT_MUTED,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                     ),
                 ),
@@ -3651,7 +3799,7 @@ class CombattimentoTab(ft.ListView):
                     on_click=evoca,
                     style=ft.ButtonStyle(
                         bgcolor=COLOR_ACCENT_BLUE,
-                        color="#ffffff",
+                        color=design.T().on_accent,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                     ),
                 ),
@@ -3856,5 +4004,9 @@ class CombattimentoTab(ft.ListView):
             self.update()
         except RuntimeError:
             pass
+        # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
+        # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
+        # singola azione (bug B10, revisione 2026-07-26).
+        self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

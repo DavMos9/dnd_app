@@ -37,6 +37,7 @@ from core.wizard_engine import WizardEngine
 from core.equipment_manager import ArmorCandidate, resolve_armor_equip
 from data.game_data.game_data_loader import GameDataLoader
 from data.repositories import character_repo
+from ui.views.creation_wizard.creation_shared import CreationSharedMixin
 from ui.theme import (
     body_text, fantasy_card, ghost_button, label_text, muted_text,
     primary_button, section_header, title_text,
@@ -45,6 +46,7 @@ from ui.widgets import (
     CardPicker, spell_card_options, feat_card_options,
     format_equipment_item_body, equipment_option_card_options,
 )
+from ui import design
 
 logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
@@ -62,7 +64,8 @@ _stat_engine = WizardEngine()
 # (stessa meccanica di Bardo/Stregone/Warlock) — i suoi incantesimi
 # iniziali arrivano dal 2° livello via lo step SPELL_LEARN del level-up,
 # già esistente.
-_PREPARED_CASTER_CLASSES: set[str] = {"chierico", "druido", "paladino"}
+# _PREPARED_CASTER_CLASSES vive ora in creation_shared.py insieme ai metodi
+# che la usano (_compute_prepared_spell_count).
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +76,7 @@ _PHASES = ["identity", "stats", "choices", "equipment", "confirm"]
 _PROGRESS = {"identity": 0.2, "stats": 0.4, "choices": 0.6, "equipment": 0.8, "confirm": 1.0}
 
 
-class ManualCreationForm(ft.Column):
+class ManualCreationForm(CreationSharedMixin, ft.Column):
     """
     Form di creazione manuale in 5 fasi.
 
@@ -222,13 +225,6 @@ class ManualCreationForm(ft.Column):
         except RuntimeError:
             pass
 
-    def _set_content(self, control: ft.Control) -> None:
-        self._content.content = control
-        try:
-            self._content.update()
-        except RuntimeError:
-            pass
-
     def _on_back(self, e=None) -> None:
         idx = _PHASES.index(self._phase)
         if idx == 0:
@@ -242,119 +238,6 @@ class ManualCreationForm(ft.Column):
     # -----------------------------------------------------------------------
     # Helpers — dati background / classe
     # -----------------------------------------------------------------------
-
-    def _bg_skill_proficiencies(self) -> list[str]:
-        bg_data = _loader.get_background(self._review_bg)
-        return bg_data.get("skill_proficiencies", []) if bg_data else []
-
-    def _class_skill_options(self) -> tuple[int, list[str]]:
-        """
-        (count, options) per le abilità di classe. Esclude le abilità già
-        concesse dal background (fisse), quelle già scelte tramite il
-        tratto razziale Mezzelfo (Versatilità nelle Abilità) e quella scelta
-        con la Variante Umana (task #17, 2026-07-16) — altrimenti lo stesso
-        personaggio potrebbe ottenere due volte la competenza nella stessa
-        abilità, una da classe e una da razza.
-        """
-        cls_data = _loader.get_class(self._review_class)
-        if not cls_data:
-            return 0, []
-        sc    = cls_data.get("skill_choices", {})
-        count = sc.get("count", 0)
-        opts  = sc.get("options", [])
-        if opts == "any":
-            opts = list(SKILLS.keys())
-        excluded = set(self._bg_skill_proficiencies()) | set(self._review_mezzelf_skills)
-        if self._review_umano_variant_skill:
-            excluded.add(self._review_umano_variant_skill)
-        return count, [o for o in opts if o not in excluded]
-
-    def _bg_language_choices(self) -> tuple[int, str]:
-        bg_data = _loader.get_background(self._review_bg)
-        if not bg_data:
-            return 0, ""
-        for entry in bg_data.get("languages", []):
-            if isinstance(entry, dict) and entry.get("type") == "choice":
-                return entry.get("count", 1), entry.get("from", "any")
-        return 0, ""
-
-    def _race_language_choice_count(self) -> int:
-        """
-        Numero totale di lingue "a scelta libera" concesse dalla RAZZA
-        (non dal background) al livello attuale di razza/sottorazza —
-        somma di tutte le entry {"type":"choice","count":N,...} in
-        get_resolved_race(...)["languages"]. Generalizza il vecchio
-        special-case hardcoded solo per "Umano" (2026-07-16, task Mezzelfo,
-        CLAUDE.md TODO "Mezzelfo non riceve mai la scelta della terza
-        lingua libera"): sia Umano sia Mezzelfo hanno nel proprio JSON la
-        stessa identica struttura ["Comune", "Elfico"/..., {"type":"choice",
-        "count":1,"from":"any"}] — leggerla qui invece che sul nome razza
-        copre entrambe (ed eventuali razze future) senza duplicare logica.
-        """
-        if not self._review_race:
-            return 0
-        resolved = _loader.get_resolved_race(self._review_race, self._review_subrace)
-        total = 0
-        for entry in resolved.get("languages", []):
-            if isinstance(entry, dict) and entry.get("type") == "choice":
-                total += int(entry.get("count", 1))
-        return total
-
-    def _prepared_spell_ability_score(self) -> int:
-        """
-        Punteggio finale (Standard Array + bonus razziali) della
-        caratteristica da incantatore della classe corrente, usato per
-        calcolare quanti incantesimi preparati iniziali offrire a
-        Chierico/Druido/Paladino (task #99, 2026-07-11). A questo punto del
-        form (fase Scelte) self._review_stats è già definitivo — la
-        sottorazza si sceglie nella fase precedente Punteggi (task #76).
-        """
-        cls_data = _loader.get_class(self._review_class) or {}
-        ability_key = cls_data.get("spellcasting_ability", "")
-        if not ability_key:
-            return 10
-        base = self._review_stats.get(ability_key, 10)
-        race_bonus = 0
-        if self._review_race:
-            resolved_race = _loader.get_resolved_race(self._review_race, self._review_subrace)
-            race_bonus = resolved_race.get("ability_bonuses", {}).get(ability_key, 0)
-        mezzelf_bonus = 1 if (
-            self._review_race == "Mezzelfo" and ability_key in self._review_mezzelf_flex
-        ) else 0
-        return min(20, base + race_bonus + mezzelf_bonus)
-
-    def _compute_prepared_spell_count(self) -> int:
-        """
-        Numero di incantesimi preparati iniziali da offrire alla creazione
-        per Chierico/Druido/Paladino (0 per tutte le altre classi). Stessa
-        formula PHB già usata da `spells_view.py._calc_max_prepared()` per
-        i "full preparatori" (mod. caratteristica + livello, min 1) — al
-        Lv.1 la formula per mezzo-preparatore (Paladino) produce lo stesso
-        risultato (mod + max(1, 1//2) = mod + 1), quindi un'unica formula
-        basta per questa fase di creazione (sempre Lv.1).
-        """
-        key = (self._review_class or "").strip().lower()
-        if key not in _PREPARED_CASTER_CLASSES:
-            return 0
-        score = self._prepared_spell_ability_score()
-        return max(1, get_modifier(score) + 1)
-
-    def _compute_mago_max_prepared(self) -> int:
-        """
-        Quanti dei 6 incantesimi iniziali del libro del Mago (task #100)
-        possono essere già "preparati" al Lv.1, stessa formula "full caster"
-        (mod. Intelligenza + livello, min 1) già usata da
-        `spells_view.py._calc_max_prepared()` — il Mago è in `_PREP_FULL`
-        lì. Serve a non violare quel limite: se salvassimo tutti e 6 come
-        `is_prepared=True` a prescindere dal modificatore, un Mago con INT
-        bassa nascerebbe già "sopra al limite" di preparazione (SpellsView
-        blocca solo NUOVE preparazioni oltre il limite, non corregge mai
-        uno stato preesistente).
-        """
-        if (self._review_class or "").strip().lower() != "mago":
-            return 0
-        score = self._prepared_spell_ability_score()
-        return max(1, get_modifier(score) + 1)
 
     def _bg_tool_choices(self) -> list[tuple[int, list[str]]]:
         bg_data = _loader.get_background(self._review_bg)
@@ -1170,7 +1053,7 @@ class ManualCreationForm(ft.Column):
                 for i, sk in enumerate(all_skills):
                     cb = ft.Checkbox(
                         label=sk, value=sk in self._review_mezzelf_skills,
-                        fill_color=COLOR_ACCENT_GOLD, check_color="#ffffff",
+                        fill_color=COLOR_ACCENT_GOLD, check_color=design.T().on_accent,
                         label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
                         on_change=lambda e, s=sk: _on_mez_skill(s, bool(e.control.value)),
                     )
@@ -1654,7 +1537,7 @@ class ManualCreationForm(ft.Column):
             for i, skill in enumerate(opts):
                 cb = ft.Checkbox(
                     label=skill, value=skill in self._review_skills,
-                    fill_color=COLOR_ACCENT_CRIMSON, check_color="#ffffff",
+                    fill_color=COLOR_ACCENT_CRIMSON, check_color=design.T().on_primary,
                     label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
                     on_change=lambda e, s=skill: _on_skill_toggle(s, bool(e.control.value)),
                 )
@@ -1739,7 +1622,7 @@ class ManualCreationForm(ft.Column):
             for i, skill in enumerate(pool):
                 cb = ft.Checkbox(
                     label=skill, value=skill in self._review_expertise,
-                    fill_color=COLOR_ACCENT_BLUE, check_color="#ffffff",
+                    fill_color=COLOR_ACCENT_BLUE, check_color=design.T().on_accent,
                     label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
                     on_change=lambda e, s=skill: _on_expertise_toggle(s, bool(e.control.value)),
                 )
@@ -2145,7 +2028,7 @@ class ManualCreationForm(ft.Column):
                 for i, lang in enumerate(avail_langs):
                     cb = ft.Checkbox(
                         label=lang, value=lang in self._review_languages,
-                        fill_color=COLOR_ACCENT_GOLD, check_color="#ffffff",
+                        fill_color=COLOR_ACCENT_GOLD, check_color=design.T().on_accent,
                         label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
                         on_change=lambda e, lg=lang: _on_lang_toggle(lg, bool(e.control.value)),
                     )
@@ -2157,7 +2040,7 @@ class ManualCreationForm(ft.Column):
                     spacing=8,
                 ))
 
-            for tc_idx, (tc_count, tc_opts) in enumerate(self._bg_tool_choices()):
+            for tc_idx, (_tc_count, tc_opts) in enumerate(self._bg_tool_choices()):
                 if not tc_opts:
                     continue
                 has_content = True
@@ -2460,18 +2343,6 @@ class ManualCreationForm(ft.Column):
     # -----------------------------------------------------------------------
     # FASE 4 — Equipaggiamento
     # -----------------------------------------------------------------------
-
-    @staticmethod
-    def _init_weapon_choice(item: dict) -> dict:
-        if item.get("item_type") == "weapon_choice":
-            cat = item.get("category", "semplice")
-            weapons = WEAPONS_BY_CATEGORY.get(cat, [])
-            count = item.get("count", 1)
-            if count > 1:
-                item["chosen_weapons"] = [weapons[0]] * count if weapons else []
-            else:
-                item["chosen_weapon"] = weapons[0] if weapons else ""
-        return item
 
     def _goto_equipment(self) -> None:
         self._phase = "equipment"

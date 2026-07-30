@@ -25,11 +25,12 @@ import data.repositories.character_repo as character_repo
 from ui.image_library import show_image_library_picker
 from ui.theme import section_header, muted_text, show_error_dialog
 from ui.widgets import (
-    CardPicker, spell_card_options, feat_card_options,
+    CardPicker, ScrollMemoryListView, spell_card_options, feat_card_options,
     invocation_card_options, named_option_card_options, format_spell_body,
 )
 from data.game_data.game_data_loader import GameDataLoader
 from core.level_manager import get_level_up_steps, estimate_hp_loss, StepType
+from ui import design
 
 _loader = GameDataLoader()
 
@@ -59,20 +60,7 @@ def _data_uri(b64: str) -> str:
         mime = "image/jpeg"
     return f"data:{mime};base64,{b64}"
 
-def _is_asi_level(class_name: str, level: int) -> bool:
-    """
-    Livelli ASI per classe — letti da GameDataLoader.get_asi_levels(), che
-    legge il campo "asi_levels" dal JSON di classe per le 2 eccezioni
-    (Guerriero, Ladro) e la progressione standard PHB {4,8,12,16,19} per
-    tutte le altre. Prima del 2026-07-10 questa era una copia locale
-    duplicata di ASI_LEVELS/ASI_LEVELS_DEFAULT (config/settings.py) — stesso
-    dato scritto a mano in due posti indipendenti, stesso tipo di rischio già
-    eliminato altrove nel progetto (RACE_DATA, CLASS_FEATURES, ecc.).
-    """
-    return level in _loader.get_asi_levels(class_name)
-
-
-class ProfiloTab(ft.ListView):
+class ProfiloTab(ScrollMemoryListView):
     """
     Tab profilo: lista scrollabile di sezioni con edit inline.
     Eredita da ft.ListView per garantire scroll corretto in Flet 0.85.3.
@@ -257,8 +245,8 @@ class ProfiloTab(ft.ListView):
         #    completo ("Sali a Lv.9") per chi passa sopra col mouse.
         self._level_up_btn = ft.ElevatedButton(
             content=ft.Row([
-                ft.Icon(ft.Icons.ARROW_UPWARD, size=14, color="#ffffff"),
-                ft.Text("Level up", size=12, weight=ft.FontWeight.BOLD, color="#ffffff"),
+                ft.Icon(ft.Icons.ARROW_UPWARD, size=14, color=design.T().on_primary),
+                ft.Text("Level up", size=12, weight=ft.FontWeight.BOLD, color=design.T().on_primary),
             ], spacing=3, tight=True),
             tooltip=f"Sali a Lv.{c.level + 1}" if c.level < 20 else "Livello massimo",
             on_click=self._on_level_up_click,
@@ -494,7 +482,7 @@ class ProfiloTab(ft.ListView):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -766,7 +754,7 @@ class ProfiloTab(ft.ListView):
                     "+ Aggiungi", icon=ft.Icons.ADD,
                     on_click=lambda e: self._open_add_competenza_dialog("weapon"),
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                         padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                     ),
@@ -834,7 +822,7 @@ class ProfiloTab(ft.ListView):
                     "+ Aggiungi", icon=ft.Icons.ADD,
                     on_click=lambda e: self._open_add_competenza_dialog("language"),
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                         padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                     ),
@@ -1024,7 +1012,7 @@ class ProfiloTab(ft.ListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=4))),
             ],
             bgcolor=COLOR_BG_CARD,
@@ -1064,7 +1052,7 @@ class ProfiloTab(ft.ListView):
                 ft.ElevatedButton(
                     "Rimuovi",
                     on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary),
                 ),
             ],
         )
@@ -1145,7 +1133,7 @@ class ProfiloTab(ft.ListView):
                         "Salva",
                         on_click=_save_feats,
                         style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                            bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                             shape=ft.RoundedRectangleBorder(radius=4),
                         ),
                     ),
@@ -1325,7 +1313,7 @@ class ProfiloTab(ft.ListView):
                     ft.TextButton("Annulla", on_click=lambda ev_inner: page.pop_dialog()),
                     ft.ElevatedButton(
                         "Salva", on_click=_save,
-                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                               shape=ft.RoundedRectangleBorder(radius=4)),
                     ),
                 ],
@@ -1368,13 +1356,13 @@ class ProfiloTab(ft.ListView):
             metamagic = [p for p in all_profs if p.proficiency_type == "metamagic"]
             rows.append(ft.Divider(color=COLOR_BORDER, height=16))
             rows.append(ft.Text(
-                "Metamagia", size=13, weight=ft.FontWeight.BOLD, color="#7b1fa2",
+                "Metamagia", size=13, weight=ft.FontWeight.BOLD, color=design.T().magic,
             ))
             if metamagic:
                 for mm in metamagic:
                     rows.append(ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.BOLT, size=14, color="#7b1fa2"),
+                            ft.Icon(ft.Icons.BOLT, size=14, color=design.T().magic),
                             ft.Text(mm.name, size=12, color=COLOR_TEXT_PRIMARY),
                         ], spacing=6),
                         bgcolor=COLOR_BG_CARD,
@@ -1399,7 +1387,7 @@ class ProfiloTab(ft.ListView):
             _mk_by_name = {d.get("name", ""): d for d in _mk_all_data.get("disciplines", [])}
             rows.append(ft.Divider(color=COLOR_BORDER, height=16))
             rows.append(ft.Text(
-                "Discipline Elementali", size=13, weight=ft.FontWeight.BOLD, color="#00838f",
+                "Discipline Elementali", size=13, weight=ft.FontWeight.BOLD, color=design.T().magic,
             ))
             if disciplines_known:
                 for disc in disciplines_known:
@@ -1426,7 +1414,7 @@ class ProfiloTab(ft.ListView):
 
                     rows.append(ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color="#00838f"),
+                            ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color=design.T().magic),
                             ft.Text(disc.name, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
                             ft.Text(ki_label, size=11, color=COLOR_TEXT_MUTED),
                         ], spacing=6),
@@ -1479,7 +1467,7 @@ class ProfiloTab(ft.ListView):
                         ft.TextButton("Annulla", on_click=lambda ev_inner: page.pop_dialog()),
                         ft.ElevatedButton(
                             "Salva", on_click=_save,
-                            style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                            style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                                   shape=ft.RoundedRectangleBorder(radius=4)),
                         ),
                     ],
@@ -1563,12 +1551,6 @@ class ProfiloTab(ft.ListView):
     # ------------------------------------------------------------------
     # XP
     # ------------------------------------------------------------------
-
-    def _can_level_up(self, c: Character) -> bool:
-        if c.level >= 20:
-            return False
-        next_xp = LEVEL_PROGRESSION.get(c.level + 1, (999999, 0))[0]
-        return (c.xp or 0) >= next_xp
 
     def _on_save_xp(self, e):
         if self._xp_field is None:
@@ -2174,7 +2156,7 @@ class ProfiloTab(ft.ListView):
                             ft.Icon(ft.Icons.STAR, size=14, color=COLOR_ACCENT_AMBER),
                             ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
                         ], spacing=6),
-                        bgcolor="#fef9ec",
+                        bgcolor=design.T().note_bg,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                         border_radius=4,
                         border=ft.Border.all(1, COLOR_ACCENT_AMBER),
@@ -2248,9 +2230,9 @@ class ProfiloTab(ft.ListView):
                     dlg_rows += [
                         ft.Divider(color=COLOR_BORDER),
                         ft.Row([
-                            ft.Icon(ft.Icons.BOLT, size=14, color="#7b1fa2"),
+                            ft.Icon(ft.Icons.BOLT, size=14, color=design.T().magic),
                             ft.Text(f"Metamagia — scegli {to_add_mm} opzion{'e' if to_add_mm == 1 else 'i'}",
-                                    size=13, weight=ft.FontWeight.BOLD, color="#7b1fa2"),
+                                    size=13, weight=ft.FontWeight.BOLD, color=design.T().magic),
                         ], spacing=6),
                         muted_text(
                             f"Già note: {', '.join(known_mm) or 'nessuna'}." if known_mm
@@ -2260,7 +2242,7 @@ class ProfiloTab(ft.ListView):
                 else:
                     dlg_rows.append(ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.BOLT, size=14, color="#7b1fa2"),
+                            ft.Icon(ft.Icons.BOLT, size=14, color=design.T().magic),
                             ft.Text(f"{step.label} — tutte le opzioni già note",
                                     size=12, color=COLOR_TEXT_PRIMARY, expand=True),
                         ], spacing=6),
@@ -2598,12 +2580,12 @@ class ProfiloTab(ft.ListView):
                                 has_picks = cls_counts.get(cls_name, 0) > 0
                                 chip.bgcolor = (
                                     COLOR_ACCENT_BLUE if is_active
-                                    else ("#d4edda" if has_picks else COLOR_BG_SECONDARY)
+                                    else (design.T().success_bg if has_picks else COLOR_BG_SECONDARY)
                                 )
                                 chip.border = ft.Border.all(
                                     2 if has_picks else 1,
                                     COLOR_ACCENT_BLUE if is_active
-                                    else ("#2e7d32" if has_picks else COLOR_BORDER),
+                                    else (design.T().success if has_picks else COLOR_BORDER),
                                 )
                             _rebuild_spell_list()
                             try:
@@ -2626,7 +2608,7 @@ class ProfiloTab(ft.ListView):
                             chip = ft.Container(
                                 content=ft.Text(
                                     cls_n, size=11,
-                                    color="#ffffff" if is_active else COLOR_TEXT_SECONDARY,
+                                    color=design.T().on_primary if is_active else COLOR_TEXT_SECONDARY,
                                     weight=ft.FontWeight.BOLD,
                                     text_align=ft.TextAlign.CENTER,
                                 ),
@@ -2656,8 +2638,8 @@ class ProfiloTab(ft.ListView):
                             for sn, cn in _chosen:
                                 _br.controls.append(ft.Container(
                                     content=ft.Row([
-                                        ft.Text(sn, size=11, color="#ffffff", expand=True),
-                                        ft.Text(f"({cn[:4]})", size=10, color="#aaccff"),
+                                        ft.Text(sn, size=11, color=design.T().on_accent, expand=True),
+                                        ft.Text(f"({cn[:4]})", size=10, color=ft.Colors.with_opacity(0.75, design.T().on_accent)),
                                     ], spacing=4),
                                     bgcolor=COLOR_ACCENT_BLUE,
                                     padding=ft.Padding.symmetric(horizontal=8, vertical=4),
@@ -2675,7 +2657,7 @@ class ProfiloTab(ft.ListView):
                             disabled=len(_chosen) != _cnt,
                             on_click=_confirm,
                             style=ft.ButtonStyle(
-                                bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                                bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                                 shape=ft.RoundedRectangleBorder(radius=4),
                             ),
                         )
@@ -3129,7 +3111,7 @@ class ProfiloTab(ft.ListView):
                 dlg_rows.append(ft.Container(
                     content=ft.Text(f"⬆ {step.label}", size=12,
                                     color=COLOR_ACCENT_BLUE, weight=ft.FontWeight.BOLD),
-                    bgcolor="#e8eef8", padding=8, border_radius=4,
+                    bgcolor=design.T().info_bg, padding=8, border_radius=4,
                     border=ft.Border.all(1, COLOR_ACCENT_BLUE),
                 ))
 
@@ -3238,9 +3220,9 @@ class ProfiloTab(ft.ListView):
                     content=ft.Column([
                         ft.Divider(color=COLOR_BORDER),
                         ft.Row([
-                            ft.Icon(ft.Icons.LANDSCAPE, size=14, color="#4caf50"),
+                            ft.Icon(ft.Icons.LANDSCAPE, size=14, color=design.T().success),
                             ft.Text("Scegli il Terreno del Cerchio della Terra",
-                                    size=13, weight=ft.FontWeight.BOLD, color="#4caf50"),
+                                    size=13, weight=ft.FontWeight.BOLD, color=design.T().success),
                         ], spacing=6),
                         muted_text("Il terreno determina gli Incantesimi del Cerchio per ogni livello.", size=11),
                         lt_dd,
@@ -3986,7 +3968,7 @@ class ProfiloTab(ft.ListView):
                     f"Sali a Lv.{new_level}",
                     on_click=do_level_up,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -4087,7 +4069,7 @@ class ProfiloTab(ft.ListView):
                         "non vengono ripristinate automaticamente.",
                         size=11, color=COLOR_ACCENT_AMBER,
                     ),
-                    bgcolor="#fef9ec", padding=8, border_radius=4,
+                    bgcolor=design.T().note_bg, padding=8, border_radius=4,
                     border=ft.Border.all(1, COLOR_ACCENT_AMBER),
                 ),
             ], spacing=4),
@@ -4097,7 +4079,7 @@ class ProfiloTab(ft.ListView):
                     f"Scendi a Lv.{new_level}",
                     on_click=do_level_down,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_AMBER, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_AMBER, color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -4218,7 +4200,7 @@ class ProfiloTab(ft.ListView):
                     on_click=on_save,
                     style=ft.ButtonStyle(
                         bgcolor=COLOR_ACCENT_CRIMSON,
-                        color="#ffffff",
+                        color=design.T().on_primary,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -4413,7 +4395,7 @@ class ProfiloTab(ft.ListView):
                                   on_click=_confirm,
                                   style=ft.ButtonStyle(
                                       bgcolor=COLOR_ACCENT_CRIMSON,
-                                      color="#ffffff",
+                                      color=design.T().on_primary,
                                       shape=ft.RoundedRectangleBorder(radius=6),
                                   )),
             ],
@@ -4465,5 +4447,9 @@ class ProfiloTab(ft.ListView):
             self.update()
         except RuntimeError:
             pass
+        # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
+        # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
+        # singola azione (bug B10, revisione 2026-07-26).
+        self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

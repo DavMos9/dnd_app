@@ -27,6 +27,7 @@ from config.settings import (
 from core import trap_generator as tg
 from data.game_data.game_data_loader import game_data
 from ui.widgets import responsive_dialog_width
+from ui import design
 
 
 def show_traps_dialog(page: ft.Page) -> None:
@@ -110,7 +111,7 @@ def show_traps_dialog(page: ft.Page) -> None:
                 [
                     ft.ElevatedButton(
                         "Suggerisci", icon=ft.Icons.CALCULATE, on_click=_on_suggest,
-                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff",
+                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
                                               shape=ft.RoundedRectangleBorder(radius=4)),
                     ),
                     ft.OutlinedButton("Tira Danno", icon=ft.Icons.CASINO, on_click=_on_roll_damage),

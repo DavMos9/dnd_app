@@ -12,7 +12,7 @@ from config.settings import RACES, ALIGNMENTS, STANDARD_ARRAY, get_modifier
 from data.models import Character
 from data.game_data.wizard_data import (
     WIZARD_QUESTIONS,
-    CLASS_PRIMARY_STATS, CLASS_SUGGESTED_RACES, CLASS_DESCRIPTIONS,
+    CLASS_PRIMARY_STATS, CLASS_SUGGESTED_RACES,
 )
 from data.game_data.game_data_loader import game_data
 
@@ -103,9 +103,6 @@ class WizardEngine:
         """Restituisce le n classi con il punteggio più alto."""
         return sorted(self.class_scores.items(), key=lambda x: x[1], reverse=True)[:n]
 
-    def get_recommended_class(self) -> str:
-        return self.get_top_classes(1)[0][0]
-
     def get_recommended_background(self) -> str:
         """Background con il punteggio più alto; fallback a 'Soldato'."""
         if not any(v > 0 for v in self.bg_scores.values()):
@@ -144,9 +141,6 @@ class WizardEngine:
         if result in ALIGNMENTS:
             return result
         return "Neutrale"
-
-    def get_class_description(self, class_name: str) -> str:
-        return CLASS_DESCRIPTIONS.get(class_name, "")
 
     # ------------------------------------------------------------------
     # Distribuzione statistiche

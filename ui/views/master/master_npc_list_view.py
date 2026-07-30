@@ -29,6 +29,7 @@ from ui.components.monster_picker import (
 )
 from ui.theme import title_text, body_text, muted_text, primary_button
 from ui.widgets import wrap_dialog_actions
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -272,7 +273,7 @@ class MasterNpcListView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=_do_delete,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_RED, color="#ffffff"),
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_RED, color=design.T().on_primary),
                 ),
             ]),
         )
@@ -324,7 +325,7 @@ class MasterNpcListView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color="#ffffff"),
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent),
                 ),
             ]),
         )
@@ -652,7 +653,7 @@ class MasterNpcListView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Salva" if is_edit else "Crea NPC", icon=ft.Icons.SAVE, on_click=_do_save,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color="#ffffff"),
+                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary),
                 ),
             ]),
         )

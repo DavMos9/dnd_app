@@ -48,7 +48,9 @@ from data.models import Character, KnownSpell, SpellSlot
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text
-from ui.widgets import CardPicker, spell_card_options, wrap_dialog_actions
+from ui.widgets import (CardPicker, ScrollMemoryListView,
+                        spell_card_options, wrap_dialog_actions)
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +140,7 @@ def _calc_max_prepared(c: Character) -> int | None:
     return None
 
 
-class SpellsView(ft.ListView):
+class SpellsView(ScrollMemoryListView):
     """Vista incantesimi: preparazione e consultazione."""
 
     def __init__(self, character: Character) -> None:
@@ -340,7 +342,7 @@ class SpellsView(ft.ListView):
                 ft.ElevatedButton(
                     "Salva", on_click=save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -405,7 +407,7 @@ class SpellsView(ft.ListView):
                 ft.Container(
                     content=ft.Text(
                         f"Lv{level}" if level > 0 else "0",
-                        size=10, color="#ffffff", weight=ft.FontWeight.BOLD,
+                        size=10, color=design.T().on_accent, weight=ft.FontWeight.BOLD,
                     ),
                     bgcolor=COLOR_ACCENT_BLUE if level == 0 else COLOR_ACCENT_CRIMSON,
                     padding=ft.Padding.symmetric(horizontal=6, vertical=3),
@@ -1018,7 +1020,7 @@ class SpellsView(ft.ListView):
             origin_badge = ft.Container(
                 content=ft.Text(
                     (ks.class_list or "?")[:4], size=9,
-                    color="#ffffff", weight=ft.FontWeight.BOLD,
+                    color=design.T().on_primary, weight=ft.FontWeight.BOLD,
                 ),
                 bgcolor=COLOR_ACCENT_AMBER,
                 padding=ft.Padding.symmetric(horizontal=5, vertical=2),
@@ -1221,7 +1223,7 @@ class SpellsView(ft.ListView):
             bgcolor=COLOR_BG_CARD,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
             border=ft.Border(
-                top=ft.BorderSide(3, "#7b1fa2"),
+                top=ft.BorderSide(3, design.T().magic),
                 left=ft.BorderSide(1, COLOR_BORDER),
                 right=ft.BorderSide(1, COLOR_BORDER),
                 bottom=ft.BorderSide(1, COLOR_BORDER),
@@ -1274,7 +1276,7 @@ class SpellsView(ft.ListView):
             origin_badge = ft.Container(
                 content=ft.Text(
                     (ks.class_list or "?")[:4], size=9,
-                    color="#ffffff", weight=ft.FontWeight.BOLD,
+                    color=design.T().on_accent, weight=ft.FontWeight.BOLD,
                 ),
                 bgcolor=COLOR_ACCENT_BLUE,
                 padding=ft.Padding.symmetric(horizontal=5, vertical=2),
@@ -1437,7 +1439,7 @@ class SpellsView(ft.ListView):
 
             if entry.get("uses") == "at_will":
                 usage_chip = ft.Container(
-                    content=ft.Text("A volontà", size=10, color="#ffffff",
+                    content=ft.Text("A volontà", size=10, color=design.T().on_accent,
                                      weight=ft.FontWeight.BOLD),
                     bgcolor=COLOR_ACCENT_BLUE,
                     padding=ft.Padding.symmetric(horizontal=6, vertical=2),
@@ -1449,7 +1451,7 @@ class SpellsView(ft.ListView):
                 usage_chip = ft.Container(
                     content=ft.Text(
                         "Disponibile" if available else "Usato (riposo lungo)",
-                        size=10, color="#ffffff", weight=ft.FontWeight.BOLD,
+                        size=10, color=design.T().on_accent, weight=ft.FontWeight.BOLD,
                     ),
                     bgcolor=(COLOR_ACCENT_BLUE if available else COLOR_TEXT_MUTED),
                     padding=ft.Padding.symmetric(horizontal=6, vertical=2),
@@ -1689,7 +1691,7 @@ class SpellsView(ft.ListView):
                 ft.ElevatedButton(
                     "Aggiungi", on_click=save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_BLUE, color="#ffffff",
+                        bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
                         shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
@@ -1712,3 +1714,7 @@ class SpellsView(ft.ListView):
             self.update()
         except RuntimeError:
             pass
+        # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
+        # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
+        # singola azione (bug B10, revisione 2026-07-26).
+        self.restore_scroll()

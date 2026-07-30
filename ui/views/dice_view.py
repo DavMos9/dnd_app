@@ -19,6 +19,7 @@ from config.settings import (
     COLOR_BORDER,
 )
 from ui.theme import title_text, label_text, section_header
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ class DiceView(ft.Column):
                                     on_click=self._roll,
                                     style=ft.ButtonStyle(
                                         bgcolor=COLOR_ACCENT_CRIMSON,
-                                        color="#ffffff",
+                                        color=design.T().on_primary,
                                         shape=ft.RoundedRectangleBorder(radius=8),
                                         padding=ft.Padding.symmetric(horizontal=48, vertical=18),
                                     ),
@@ -349,7 +350,7 @@ class DiceView(ft.Column):
         active = (d == self._selected_die)
         return ft.ButtonStyle(
             bgcolor=COLOR_ACCENT_CRIMSON if active else COLOR_BG_CARD,
-            color="#ffffff" if active else COLOR_TEXT_PRIMARY,
+            color=design.T().on_primary if active else COLOR_TEXT_PRIMARY,
             shape=ft.RoundedRectangleBorder(radius=6),
             side=ft.BorderSide(1 if not active else 0, COLOR_BORDER),
             padding=ft.Padding.symmetric(horizontal=14, vertical=10),

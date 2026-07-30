@@ -4,7 +4,8 @@ Configurazione globale dell'app: colori, font, costanti di gioco.
 
 APP_NAME = "D&D Companion"
 APP_VERSION = "0.1.0"
-DB_NAME = "dnd_companion.db"
+# DB_NAME rimosso (2026-07-26, pulizia Fase 2): mai letto da nessun modulo —
+# il nome del file è deciso da data/database.py -> get_db_path().
 
 # ---------------------------------------------------------------------------
 # Palette Pergamena & Avventura — sfondo pergamena, rosso D&D + blu reale
@@ -31,26 +32,33 @@ COLOR_TEXT_TITLE       = "#0a0c1c"   # nero profondo – nomi e titoli
 
 COLOR_BORDER           = "#c8c0b0"   # bordo pergamena dorata
 COLOR_BORDER_ACCENT    = "#1848a0"   # bordo blu – evidenziato
-COLOR_BORDER_STRONG    = "#c0182c"   # bordo rosso – elementi importanti
 
 COLOR_HP_FULL          = "#186030"   # verde vitale scuro
 COLOR_HP_MID           = "#b86800"   # ambra attenzione
 COLOR_HP_LOW           = "#c0182c"   # rosso pericolo
 
 COLOR_SLOT_FULL        = "#1848a0"   # slot incantesimo disponibile (blu)
-COLOR_SLOT_USED        = "#e8e1d4"   # slot incantesimo usato
 
 # Sidebar (nav rail) — scura per contrasto, stile cuoio scuro D&D
 COLOR_NAV_BG           = "#1a0808"   # rosso-nero quasi nero (sidebar)
-COLOR_NAV_TEXT         = "#f0e8e0"   # testo chiaro nella sidebar
 COLOR_NAV_MUTED        = "#806878"   # testo secondario sidebar
 
 # ---------------------------------------------------------------------------
 # Font
 # ---------------------------------------------------------------------------
-FONT_TITLE  = "Georgia"    # titoli e intestazioni
-FONT_BODY   = "Arial"      # corpo testo
-FONT_MONO   = "Courier New" # valori numerici
+# ⚠️ Alias legacy (Fase B.1 del restyle, 2026-07-30). La fonte di verità delle
+# famiglie tipografiche è `ui/design.py → Font`, che le registra anche in
+# `page.fonts`. Qui restano solo come alias perché ~60 punti nelle view non
+# ancora migrate leggono `FONT_TITLE`/`FONT_BODY`/`FONT_MONO`: aggiornare questi
+# 3 valori applica i font nuovi anche a quelle view senza toccarle una per una.
+# È l'unico caso di duplicazione di stringa accettato nel progetto, e c'è un
+# test che verifica che i 3 valori combacino con `ui.design.Font`. Vanno rimossi
+# a fine Fase E, quando ogni view userà i token direttamente.
+# NON importare `ui.design` da qui: `config/settings.py` è importato anche da
+# `core/`, che per regola di progetto non deve dipendere da Flet.
+FONT_TITLE  = "Cinzel"         # titoli e intestazioni  (= design.Font.DISPLAY)
+FONT_BODY   = "Inter"          # corpo testo            (= design.Font.BODY)
+FONT_MONO   = "JetBrains Mono" # valori numerici        (= design.Font.MONO)
 
 # ---------------------------------------------------------------------------
 # Costanti D&D 5e
@@ -113,17 +121,6 @@ def char_prof_bonus(character) -> int:
     if override > 0:
         return override
     return get_proficiency_bonus(character.level)
-
-def get_xp_for_level(level: int) -> int:
-    return LEVEL_PROGRESSION.get(level, (0, 2))[0]
-
-def get_level_from_xp(xp: int) -> int:
-    level = 1
-    for lvl, (req_xp, _) in LEVEL_PROGRESSION.items():
-        if xp >= req_xp:
-            level = lvl
-    return level
-
 
 def get_class_resource_defaults(
     class_name: str,
@@ -468,15 +465,10 @@ WEAPONS_BY_CATEGORY: dict[str, list[str]] = {
 # spellcasting_ability) e `GameDataLoader.get_class_names()` (elenco nomi,
 # per i dropdown "Classe").
 
-# Valute (ordine crescente di valore)
-CURRENCIES = ["MR", "MA", "ME", "MO", "MP"]
-CURRENCY_NAMES = {
-    "MR": "Monete di Rame",
-    "MA": "Monete d'Argento",
-    "ME": "Monete di Elettro",
-    "MO": "Monete d'Oro",
-    "MP": "Monete di Platino",
-}
+# CURRENCIES / CURRENCY_NAMES rimosse (2026-07-26, pulizia Fase 2): nessun
+# chiamante. Le etichette delle valute sono definite dove servono davvero
+# (inventario_tab.py, che le mostra come cerchi MR/MA/ME/MO/MP) e le colonne
+# reali stanno su `currencies` nel DB.
 
 
 # Livelli ASI (Ability Score Improvement) per classe — RIMOSSO (2026-07-10),
@@ -496,9 +488,9 @@ CURRENCY_NAMES = {
 # Standard array D&D 5e
 STANDARD_ARRAY = [15, 14, 13, 12, 10, 8]
 
-# Point buy: costo per punteggio
-POINT_BUY_COSTS = {8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
-POINT_BUY_BUDGET = 27
+# POINT_BUY_COSTS / POINT_BUY_BUDGET rimosse (2026-07-26, pulizia Fase 2):
+# il point buy non è mai stato implementato — la creazione usa solo lo
+# Standard Array. Vanno reintrodotte insieme alla feature, se mai la si farà.
 
 # ---------------------------------------------------------------------------
 # Dati Razziali — RIMOSSI (2026-07-09).
