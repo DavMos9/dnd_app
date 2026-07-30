@@ -17,6 +17,7 @@ from typing import Any
 from config.settings import *
 from ui import design
 from ui.theme import get_theme, get_dark_theme, title_text, muted_text
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -492,15 +493,14 @@ class DnDApp:
                     f"È disponibile la versione {version}.\nVuoi scaricarla?",
                     size=13, color=design.T().text,
                 ),
-                actions=[
+                actions=wrap_dialog_actions([
                     ft.TextButton("Più tardi", on_click=lambda e: self.page.pop_dialog()),
                     ft.ElevatedButton(
                         "Scarica", icon=ft.Icons.DOWNLOAD,
                         on_click=_open,
                         bgcolor=design.T().magic, color=design.T().on_accent,
                     ),
-                ],
-                bgcolor=design.T().surface,
+                ]),
             )
             self.page.show_dialog(dlg)
             logger.info(f"Dialog aggiornamento mostrato per versione {version}")

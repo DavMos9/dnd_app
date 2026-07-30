@@ -41,7 +41,7 @@ def show_traps_dialog(page: ft.Page) -> None:
         options=[ft.DropdownOption(key=str(n), text=f"Livello {n}") for n in range(1, 21)],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
     severity_group = ft.RadioGroup(
         value="imprevisto",
         content=ft.Row(
@@ -140,11 +140,10 @@ def show_traps_dialog(page: ft.Page) -> None:
             page.pop_dialog()
 
         detail_dlg = ft.AlertDialog(
-            title=ft.Text(trap.get("name", ""), size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title(trap.get("name", "")),
             content=ft.Column(rows, width=responsive_dialog_width(page, 380), height=420,
                               scroll=ft.ScrollMode.AUTO, tight=True),
             actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close_detail)]),
-            bgcolor=design.T().surface,
         )
         page.show_dialog(detail_dlg)
 
@@ -222,9 +221,8 @@ def show_traps_dialog(page: ft.Page) -> None:
     )
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Generatore Trappole", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+        title=design.dialog_title("Generatore Trappole"),
         content=content,
         actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
-        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

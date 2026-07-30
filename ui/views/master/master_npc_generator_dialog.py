@@ -48,45 +48,45 @@ def show_npc_generator_dialog(page: ft.Page, on_saved: Callable[[], None] | None
     saved_ids: set[int] = set()  # indice nella lista result_state["npcs"] già salvato
 
     race_dd = ft.Dropdown(
-        label="Razza", value=_ANY, dense=True, border_radius=6,
+        label="Razza", value=_ANY, dense=True, border_radius=design.Radius.SM,
         options=[ft.DropdownOption(key=_ANY, text="Qualsiasi")]
         + [ft.DropdownOption(key=r, text=r) for r in ng.get_race_options()],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        text_style=design.field_style()['text_style'])
     gender_dd = ft.Dropdown(
-        label="Genere", value=_ANY, dense=True, border_radius=6,
+        label="Genere", value=_ANY, dense=True, border_radius=design.Radius.SM,
         options=[ft.DropdownOption(key=_ANY, text="Qualsiasi")]
         + [ft.DropdownOption(key=k, text=v) for k, v in ng.get_gender_options()],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        text_style=design.field_style()['text_style'])
     alignment_dd = ft.Dropdown(
-        label="Allineamento", value=_ANY, dense=True, border_radius=6,
+        label="Allineamento", value=_ANY, dense=True, border_radius=design.Radius.SM,
         options=[ft.DropdownOption(key=_ANY, text="Qualsiasi")]
         + [ft.DropdownOption(key=a, text=a) for a in ng.get_alignment_options()],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        text_style=design.field_style()['text_style'])
     role_dd = ft.Dropdown(
-        label="Ruolo (Appendice B)", value=_NO_ROLE, dense=True, border_radius=6,
+        label="Ruolo (Appendice B)", value=_NO_ROLE, dense=True, border_radius=design.Radius.SM,
         options=[ft.DropdownOption(key=_NO_ROLE, text="Nessuno / Generico")]
         + [ft.DropdownOption(key=r, text=f"{r} (scheda combattimento)") for r in ng.get_appendix_b_role_options()],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        text_style=design.field_style()['text_style'])
     custom_role_tf = ft.TextField(
         label="Ruolo personalizzato (sovrascrive la scelta sopra)",
-        value="", dense=True, border_radius=6,
+        value="", dense=True, border_radius=design.Radius.SM,
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        text_style=design.field_style()['text_style'])
     count_tf = ft.TextField(
-        label="Quanti NPC", value="1", dense=True, border_radius=6,
+        label="Quanti NPC", value="1", dense=True, border_radius=design.Radius.SM,
         keyboard_type=ft.KeyboardType.NUMBER, width=140,
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        text_style=design.field_style()['text_style'])
     result_col = ft.Column(spacing=8)
     feedback_text = ft.Text("", size=11, color=design.T().magic)
 
@@ -297,9 +297,8 @@ def show_npc_generator_dialog(page: ft.Page, on_saved: Callable[[], None] | None
         page.pop_dialog()
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Genera NPC", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+        title=design.dialog_title("Genera NPC"),
         content=content,
         actions=wrap_dialog_actions([ft.TextButton("Chiudi", on_click=_close)]),
-        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

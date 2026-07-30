@@ -35,6 +35,7 @@ from typing import Any, cast
 from data.models import Character, DiaryEntry, CampaignNote
 import data.repositories.character_repo as character_repo
 from ui import design
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -161,19 +162,19 @@ class DiaryView(ft.Column):
         self._sel_diary_id: str | None = None
         self._diary_edit: bool = False
         # campi editor diario (impostati in _build_diary_edit_panel)
-        self._ef_title:   ft.TextField = ft.TextField()
-        self._ef_date:    ft.TextField = ft.TextField()
-        self._ef_content: ft.TextField = ft.TextField()
+        self._ef_title:   ft.TextField = ft.TextField(**design.field_style())
+        self._ef_date:    ft.TextField = ft.TextField(**design.field_style())
+        self._ef_content: ft.TextField = ft.TextField(**design.field_style())
 
         # ── Stato Note di Campagna ─────────────────────────────────────────
         self._notes: dict[str, list[CampaignNote]] = {}
         self._sel_note_id: str | None = None
         self._note_edit: bool = False
         # campi editor nota (impostati in _build_note_edit_panel)
-        self._nf_name:   ft.TextField = ft.TextField()
-        self._nf_status: ft.Dropdown = ft.Dropdown()
-        self._nf_tags:   ft.TextField = ft.TextField()
-        self._nf_desc:   ft.TextField = ft.TextField()
+        self._nf_name:   ft.TextField = ft.TextField(**design.field_style())
+        self._nf_status: ft.Dropdown = ft.Dropdown(**design.field_style())
+        self._nf_tags:   ft.TextField = ft.TextField(**design.field_style())
+        self._nf_desc:   ft.TextField = ft.TextField(**design.field_style())
 
         # ── Container riferimenti aggiornabili ────────────────────────────
         self._detail_container: ft.Container = ft.Container(expand=True)
@@ -381,10 +382,13 @@ class DiaryView(ft.Column):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.symmetric(horizontal=10, vertical=7),
+            padding=ft.Padding.symmetric(horizontal=design.Space.MD,
+                                         vertical=design.Space.SM),
             bgcolor=design.T().primary if is_sel else "transparent",
-            border_radius=design.Radius.MD,
+            border_radius=design.Radius.PILL,
+            shadow=design.elevation(1) if is_sel else None,
             margin=ft.Margin.only(left=6, right=6),
+            animate=ft.Animation(design.Duration.FAST, design.CURVE),
             on_click=lambda e, k=cat["key"]: self._on_cat_click(k),
             ink=True,
         )
@@ -465,7 +469,8 @@ class DiaryView(ft.Column):
             padding=ft.Padding.symmetric(horizontal=8, vertical=8),
             bgcolor=ft.Colors.with_opacity(0.10, design.T().primary) if is_sel else "transparent",
             border_radius=design.Radius.MD,
-            border=ft.Border.all(1, design.T().primary) if is_sel else None,
+            border=(ft.Border.only(left=ft.BorderSide(3, design.T().primary))
+                    if is_sel else None),
             on_click=lambda e, eid=entry.id: self._on_sel_diary(eid),
             ink=True,
         )
@@ -517,7 +522,8 @@ class DiaryView(ft.Column):
             padding=ft.Padding.symmetric(horizontal=8, vertical=8),
             bgcolor=ft.Colors.with_opacity(0.10, design.T().primary) if is_sel else "transparent",
             border_radius=design.Radius.MD,
-            border=ft.Border.all(1, design.T().primary) if is_sel else None,
+            border=(ft.Border.only(left=ft.BorderSide(3, design.T().primary))
+                    if is_sel else None),
             on_click=lambda e, nid=note.id: self._on_sel_note(nid),
             ink=True,
         )
@@ -666,7 +672,7 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent",
             label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'])
         self._ef_date = ft.TextField(
             value=entry.session_date or "",
             label="Data / Sessione  (es. «Sessione 3»  ·  «15 Kythorn 1492»)",
@@ -674,7 +680,7 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent",
             label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'])
         self._ef_content = ft.TextField(
             value=entry.content or "",
             label="Scrivi qui la tua storia…",
@@ -683,7 +689,7 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent",
             label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'])
 
         action_bar = ft.Container(
             content=ft.Row(
@@ -865,7 +871,7 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent",
             label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'])
         self._nf_status = ft.Dropdown(
             label="Stato",
             value=note.status or (opts[0] if opts else ""),
@@ -874,7 +880,7 @@ class DiaryView(ft.Column):
             focused_border_color=design.T().primary,
             bgcolor="transparent",
             label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         self._nf_tags = ft.TextField(
             value=note.tags or "",
             label="Tag (separati da virgola — es. mago, waterdeep, alleanza)",
@@ -882,7 +888,7 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent",
             label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'])
         self._nf_desc = ft.TextField(
             value=note.description or "",
             label="Descrizione / Note",
@@ -891,7 +897,7 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent",
             label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'])
 
         action_bar = ft.Container(
             content=ft.Row(
@@ -1061,21 +1067,19 @@ class DiaryView(ft.Column):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Elimina voce", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Elimina voce"),
             content=ft.Text(
                 f"Eliminare «{entry.title or 'Senza titolo'}»?\nL'azione non è reversibile.",
                 size=13, color=design.T().text,
             ),
-            actions=cast(list[ft.Control], [
+            actions=cast(list[ft.Control], wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
                     style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
-            ]),
-            bgcolor=design.T().surface,
+            ])),
         ))
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -1128,21 +1132,19 @@ class DiaryView(ft.Column):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Elimina voce", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Elimina voce"),
             content=ft.Text(
                 f"Eliminare «{note.name or 'Senza nome'}»?\nL'azione non è reversibile.",
                 size=13, color=design.T().text,
             ),
-            actions=cast(list[ft.Control], [
+            actions=cast(list[ft.Control], wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
                     style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
-            ]),
-            bgcolor=design.T().surface,
+            ])),
         ))
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -1166,14 +1168,14 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         f_date = ft.TextField(
             label="Data / Sessione  (es. «Sessione 3»  ·  «15 Kythorn 1492»)",
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         f_content = ft.TextField(
             label="Contenuto (puoi ampliarlo in seguito)",
             multiline=True, min_lines=4, max_lines=10,
@@ -1181,7 +1183,7 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def save(ev: Any) -> None:
             if page is None:
@@ -1198,21 +1200,19 @@ class DiaryView(ft.Column):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Nuova Voce di Diario", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Nuova Voce di Diario"),
             content=ft.Column(
                 [f_title, f_date, f_content],
                 spacing=10, scroll=ft.ScrollMode.AUTO, width=400,
             ),
-            actions=cast(list[ft.Control], [
+            actions=cast(list[ft.Control], wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=save,
                     style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
-            ]),
-            bgcolor=design.T().surface,
+            ])),
         ))
 
     def _open_new_note_dialog(self) -> None:
@@ -1229,7 +1229,7 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         f_status = ft.Dropdown(
             label="Stato",
             value=opts[0] if opts else "",
@@ -1238,7 +1238,7 @@ class DiaryView(ft.Column):
             focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         f_desc = ft.TextField(
             label="Descrizione / Note",
             multiline=True, min_lines=3, max_lines=8,
@@ -1246,7 +1246,7 @@ class DiaryView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def save(ev: Any) -> None:
             if page is None:
@@ -1271,20 +1271,18 @@ class DiaryView(ft.Column):
         fields.append(f_desc)
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text(meta["add_label"], size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title(meta["add_label"]),
             content=ft.Column(
                 fields, spacing=10, scroll=ft.ScrollMode.AUTO, width=400,
             ),
-            actions=cast(list[ft.Control], [
+            actions=cast(list[ft.Control], wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=save,
                     style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
-            ]),
-            bgcolor=design.T().surface,
+            ])),
         ))
 
     # ──────────────────────────────────────────────────────────────────────────

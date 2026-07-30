@@ -31,6 +31,7 @@ from data.repositories.character_export import (
     peek_character_summary,
 )
 from ui import design
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -185,14 +186,12 @@ def show_character_import_picker(page: ft.Page, on_select: Callable[[str], None]
 
     page.show_dialog(ft.AlertDialog(
         modal=True,
-        title=ft.Text("Importa Personaggio", size=14, weight=ft.FontWeight.BOLD,
-                      color=design.T().text),
-        bgcolor=design.T().surface,
+        title=design.dialog_title("Importa Personaggio"),
         content=body_container,
-        actions=[
+        actions=wrap_dialog_actions([
             ft.TextButton("Ricarica", icon=ft.Icons.REFRESH, on_click=_refresh,
                           style=ft.ButtonStyle(color=design.T().text_2)),
             ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog(),
                           style=ft.ButtonStyle(color=design.T().primary)),
-        ],
+        ]),
     ))

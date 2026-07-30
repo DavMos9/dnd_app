@@ -28,6 +28,7 @@ import flet as ft
 
 from data.database import get_image_library_path
 from ui import design
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -208,14 +209,12 @@ def show_image_library_picker(page: ft.Page, on_select: Callable[[str], None]):
 
     page.show_dialog(ft.AlertDialog(
         modal=True,
-        title=ft.Text("Libreria immagini", size=14, weight=ft.FontWeight.BOLD,
-                      color=design.T().text),
-        bgcolor=design.T().surface,
+        title=design.dialog_title("Libreria immagini"),
         content=body_container,
-        actions=[
+        actions=wrap_dialog_actions([
             ft.TextButton("Ricarica", icon=ft.Icons.REFRESH, on_click=_refresh,
                           style=ft.ButtonStyle(color=design.T().text_2)),
             ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog(),
                           style=ft.ButtonStyle(color=design.T().primary)),
-        ],
+        ]),
     ))

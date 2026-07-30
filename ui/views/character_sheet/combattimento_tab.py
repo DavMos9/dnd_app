@@ -386,11 +386,9 @@ class CombattimentoTab(ScrollMemoryListView):
         if page is None:
             return
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD,
-                          color=accent or design.T().magic),
+            title=design.dialog_title(title),
             content=ft.Text(message, size=13, color=design.T().text),
             actions=[ft.TextButton("OK", on_click=lambda ev: page.pop_dialog())],
-            bgcolor=design.T().surface,
         ))
 
     def _on_damage_click(self, e):
@@ -403,7 +401,7 @@ class CombattimentoTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=16, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().danger,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
         # PHB p.197 "Danni a 0 punti ferita": un colpo critico subito a 0 PF
         # equivale a DUE tiri salvezza contro morte falliti invece di uno.
         crit_cb = ft.Checkbox(
@@ -479,15 +477,13 @@ class CombattimentoTab(ScrollMemoryListView):
                 )
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Applica Danno", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().danger),
+            title=design.dialog_title("Applica Danno"),
             content=ft.Column([field, crit_cb], width=240, spacing=4, tight=True),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Applica", on_click=apply,
                                   style=ft.ButtonStyle(bgcolor=design.T().danger, color=design.T().on_primary)),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     def _on_heal_click(self, e):
@@ -500,7 +496,7 @@ class CombattimentoTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=16, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().success,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def apply(ev):
             if page is None:
@@ -526,15 +522,13 @@ class CombattimentoTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Applica Cura", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().success),
+            title=design.dialog_title("Applica Cura"),
             content=ft.Column([field], width=240, spacing=0),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Cura", on_click=apply,
                                   style=ft.ButtonStyle(bgcolor=design.T().success, color=design.T().on_primary)),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     def _on_edit_temp_hp_click(self, e: Any) -> None:
@@ -559,7 +553,7 @@ class CombattimentoTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=16, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().magic,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def apply(ev: Any) -> None:
             if page is None:
@@ -585,16 +579,14 @@ class CombattimentoTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("HP Temporanei", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().magic),
+            title=design.dialog_title("HP Temporanei"),
             content=ft.Column([field], width=240, spacing=0),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Azzera", on_click=reset),
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Applica", on_click=apply,
                                   style=ft.ButtonStyle(bgcolor=design.T().magic, color=design.T().on_accent)),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     def _on_edit_hp_click(self, e):
@@ -610,7 +602,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 text_style=ft.TextStyle(size=13, color=design.T().text),
                 border_color=design.T().border, focused_border_color=design.T().magic,
                 bgcolor=design.T().surface,
-            )
+                border_radius=design.field_style()['border_radius'])
 
         f_max  = _num_field("HP Max", c.hp_max)
         f_curr = _num_field("HP Attuali", c.hp_current)
@@ -633,15 +625,13 @@ class CombattimentoTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Modifica HP", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().text),
+            title=design.dialog_title("Modifica HP"),
             content=ft.Column([f_max, f_curr, f_temp], spacing=10),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     # ------------------------------------------------------------------
@@ -783,12 +773,12 @@ class CombattimentoTab(ScrollMemoryListView):
                                keyboard_type=ft.KeyboardType.NUMBER,
                                text_style=ft.TextStyle(size=13, color=design.T().text),
                                border_color=design.T().border, focused_border_color=design.T().magic,
-                               bgcolor=design.T().surface)
+                               bgcolor=design.T().surface, border_radius=design.field_style()['border_radius'])
         f_speed = ft.TextField(label="Velocità (m)", value=str(c.speed),
                                keyboard_type=ft.KeyboardType.NUMBER,
                                text_style=ft.TextStyle(size=13, color=design.T().text),
                                border_color=design.T().border, focused_border_color=design.T().magic,
-                               bgcolor=design.T().surface)
+                               bgcolor=design.T().surface, border_radius=design.field_style()['border_radius'])
 
         def save(ev):
             if page is None:
@@ -812,15 +802,13 @@ class CombattimentoTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Modifica Statistiche", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().text),
+            title=design.dialog_title("Modifica Statistiche"),
             content=ft.Column([f_ac, f_speed], spacing=10, width=280),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     def _on_ca_bonus_click(self, e):
@@ -841,7 +829,7 @@ class CombattimentoTab(ScrollMemoryListView):
             focused_border_color=design.T().magic,
             bgcolor=design.T().surface,
             autofocus=True,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         info_text = ft.Text(
             f"CA base (armatura): {c.ac}   |   CA totale con bonus: {c.ac + cur_bonus}",
@@ -869,8 +857,7 @@ class CombattimentoTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Bonus CA Temporaneo", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Bonus CA Temporaneo"),
             content=ft.Column([
                 info_text,
                 f_bonus,
@@ -888,7 +875,6 @@ class CombattimentoTab(ScrollMemoryListView):
                                   style=ft.ButtonStyle(
                                       bgcolor=design.T().magic, color=design.T().on_accent)),
             ]),
-            bgcolor=design.T().surface,
         ))
 
     # ------------------------------------------------------------------
@@ -1751,8 +1737,7 @@ class CombattimentoTab(ScrollMemoryListView):
 
         if not spell:
             page.show_dialog(ft.AlertDialog(
-                title=ft.Text(spell_name, size=14, weight=ft.FontWeight.BOLD,
-                              color=design.T().text),
+                title=design.dialog_title(spell_name),
                 content=ft.Text(
                     "Trucchetto" if spell_level == 0 else f"{spell_level}° livello",
                     size=12, color=design.T().text_3,
@@ -1761,7 +1746,6 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.TextButton("Chiudi",
                                   on_click=lambda ev: page.pop_dialog() if page else None),
                 ],
-                bgcolor=design.T().surface,
             ))
             return
 
@@ -1832,8 +1816,7 @@ class CombattimentoTab(ScrollMemoryListView):
             )
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text(spell_name, size=15, weight=ft.FontWeight.BOLD,
-                          color=design.T().text),
+            title=design.dialog_title(spell_name),
             content=ft.Column(
                 content_items,
                 spacing=6,
@@ -1843,7 +1826,6 @@ class CombattimentoTab(ScrollMemoryListView):
                 ft.TextButton("Chiudi",
                               on_click=lambda ev: page.pop_dialog() if page else None),
             ],
-            bgcolor=design.T().surface,
         ))
 
     def _toggle_slot(self, slot_level: int, use: bool):
@@ -1874,7 +1856,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 border_color=design.T().border,
                 focused_border_color=design.T().magic,
                 bgcolor=design.T().surface,
-            )
+                border_radius=design.field_style()['border_radius'])
 
         # Layout 3×3
         grid = ft.Row(
@@ -1900,8 +1882,7 @@ class CombattimentoTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Configura Slot Incantesimo", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Configura Slot Incantesimo"),
             content=ft.Column(
                 [
                     ft.Text(
@@ -1913,7 +1894,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 ],
                 scroll=ft.ScrollMode.AUTO,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Salva", on_click=save,
@@ -1921,8 +1902,7 @@ class CombattimentoTab(ScrollMemoryListView):
                         bgcolor=design.T().magic, color=design.T().on_accent,
                     ),
                 ),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     # ------------------------------------------------------------------
@@ -1991,8 +1971,8 @@ class CombattimentoTab(ScrollMemoryListView):
             width=190,
             dense=True,
             text_size=12,
-            border_radius=6,
-        )
+            border_radius=design.Radius.SM,
+            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
         available_slots = [s for s in self._slots if s.total > 0 and s.used < s.total]
         convert_dd = ft.Dropdown(
@@ -2009,8 +1989,8 @@ class CombattimentoTab(ScrollMemoryListView):
             width=190,
             dense=True,
             text_size=12,
-            border_radius=6,
-        )
+            border_radius=design.Radius.SM,
+            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
         def on_create(e: Any) -> None:
             if not create_dd.value:
@@ -2067,11 +2047,9 @@ class CombattimentoTab(ScrollMemoryListView):
         if page is None:
             return
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Operazione non valida", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().primary),
+            title=design.dialog_title("Operazione non valida"),
             content=ft.Text(message, size=13, color=design.T().text),
             actions=[ft.TextButton("OK", on_click=lambda ev: page.pop_dialog() if page else None)],
-            bgcolor=design.T().surface,
         ))
 
     def _section_frenzy(self) -> ft.Column:
@@ -2318,7 +2296,7 @@ class CombattimentoTab(ScrollMemoryListView):
             hint_text="es. +1 (può essere anche negativo)",
             keyboard_type=ft.KeyboardType.NUMBER,
             autofocus=True,
-        )
+            **design.field_style())
 
         def _save(e):
             raw = (tf.value or "").strip()
@@ -2356,7 +2334,7 @@ class CombattimentoTab(ScrollMemoryListView):
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text(f"Bonus — {res.name}"),
+            title=design.dialog_title(f"Bonus — {res.name}"),
             content=ft.Column(
                 [
                     muted_text(f"Massimo calcolato dal PHB: {base_max}", 12),
@@ -2365,11 +2343,11 @@ class CombattimentoTab(ScrollMemoryListView):
                 spacing=12,
                 tight=True,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Rimuovi bonus", on_click=_reset),
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton("Applica", on_click=_save),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -2484,8 +2462,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 return
             page = self._page
             page.show_dialog(ft.AlertDialog(
-                title=ft.Text(style_name, size=14, weight=ft.FontWeight.BOLD,
-                              color=design.T().text),
+                title=design.dialog_title(style_name),
                 content=ft.Column([
                     ft.Text(
                         description or "Nessuna descrizione disponibile.",
@@ -2496,7 +2473,6 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.TextButton("Chiudi",
                                   on_click=lambda ev: page.pop_dialog() if page else None),
                 ],
-                bgcolor=design.T().surface,
             ))
 
         row = ft.Container(
@@ -2533,8 +2509,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 return
             page = self._page
             page.show_dialog(ft.AlertDialog(
-                title=ft.Text(inv.get("name", ""), size=14, weight=ft.FontWeight.BOLD,
-                              color=design.T().text),
+                title=design.dialog_title(inv.get("name", "")),
                 content=ft.Column([
                     ft.Text(
                         inv.get("description", "") or "Nessuna descrizione disponibile.",
@@ -2545,7 +2520,6 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.TextButton("Chiudi",
                                   on_click=lambda ev: page.pop_dialog() if page else None),
                 ],
-                bgcolor=design.T().surface,
             ))
 
         rows: list[ft.Control] = []
@@ -2681,11 +2655,11 @@ class CombattimentoTab(ScrollMemoryListView):
 
         tf_name = ft.TextField(
             label="Nome", value=(ab.name if ab else ""), autofocus=True,
-        )
+            **design.field_style())
         tf_desc = ft.TextField(
             label="Descrizione", value=(ab.description if ab else ""),
             multiline=True, min_lines=3, max_lines=8,
-        )
+            **design.field_style())
 
         def _save(e):
             name = (tf_name.value or "").strip()
@@ -2712,12 +2686,12 @@ class CombattimentoTab(ScrollMemoryListView):
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Modifica Abilità Speciale" if ab else "Nuova Abilità Speciale"),
+            title=design.dialog_title("Modifica Abilità Speciale" if ab else "Nuova Abilità Speciale"),
             content=ft.Column([tf_name, tf_desc], spacing=12, tight=True, width=340),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton("Salva", on_click=_save),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -2737,15 +2711,15 @@ class CombattimentoTab(ScrollMemoryListView):
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Elimina Abilità Speciale"),
+            title=design.dialog_title("Elimina Abilità Speciale"),
             content=ft.Text(f'Eliminare "{ab.name}" dalla scheda?'),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
                     "Elimina", on_click=_confirm,
                     style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -2843,7 +2817,6 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.TextButton("Chiudi",
                                   on_click=lambda ev: page.pop_dialog() if page else None),
                 ],
-                bgcolor=design.T().surface,
             ))
 
         rows: list[ft.Control] = []
@@ -3000,7 +2973,7 @@ class CombattimentoTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().warning,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
         f_roll = ft.TextField(
             label="Totale dadi tirati (escluso CON)",
             hint_text=f"es. {die // 2} per un dado",
@@ -3008,7 +2981,7 @@ class CombattimentoTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().warning,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def apply(ev):
             if page is None:
@@ -3051,8 +3024,7 @@ class CombattimentoTab(ScrollMemoryListView):
             ))
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Riposo Breve", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().warning),
+            title=design.dialog_title("Riposo Breve"),
             content=ft.Column(
                 [
                     ft.Text(
@@ -3066,7 +3038,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 ],
                 spacing=8,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Applica Riposo", on_click=apply,
@@ -3074,8 +3046,7 @@ class CombattimentoTab(ScrollMemoryListView):
                         bgcolor=design.T().warning, color=design.T().on_primary,
                     ),
                 ),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     # ------------------------------------------------------------------
@@ -3162,8 +3133,7 @@ class CombattimentoTab(ScrollMemoryListView):
             # riposo per ottenerne i benefici".
             if c.hp_current <= 0:
                 page.show_dialog(ft.AlertDialog(
-                    title=ft.Text("Riposo Lungo non possibile", size=14,
-                                  weight=ft.FontWeight.BOLD, color=design.T().danger),
+                    title=design.dialog_title("Riposo Lungo non possibile"),
                     content=ft.Text(
                         "Il personaggio è a 0 punti ferita.\n\n"
                         "PHB p.186: un personaggio «deve possedere almeno 1 punto "
@@ -3172,7 +3142,6 @@ class CombattimentoTab(ScrollMemoryListView):
                         size=13, color=design.T().text,
                     ),
                     actions=[ft.TextButton("OK", on_click=lambda ev: page.pop_dialog())],
-                    bgcolor=design.T().surface,
                 ))
                 return
 
@@ -3197,10 +3166,9 @@ class CombattimentoTab(ScrollMemoryListView):
                 rows.append(ft.Container(height=4))
                 rows.append(food_cb)
             page.show_dialog(ft.AlertDialog(
-                title=ft.Text("Riposo Lungo", size=14, weight=ft.FontWeight.BOLD,
-                              color=design.T().text),
+                title=design.dialog_title("Riposo Lungo"),
                 content=ft.Column(rows, spacing=2, tight=True),
-                actions=[
+                actions=wrap_dialog_actions([
                     ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                     ft.ElevatedButton(
                         "Riposa",
@@ -3209,8 +3177,7 @@ class CombattimentoTab(ScrollMemoryListView):
                             bgcolor=design.T().magic, color=design.T().on_accent,
                         ),
                     ),
-                ],
-                bgcolor=design.T().surface,
+                ]),
             ))
 
         return ft.Container(
@@ -3284,7 +3251,7 @@ class CombattimentoTab(ScrollMemoryListView):
             if not self._page:
                 return
             page = self._page
-            tf = ft.TextField(label="Danno", keyboard_type=ft.KeyboardType.NUMBER, width=120)
+            tf = ft.TextField(label="Danno", keyboard_type=ft.KeyboardType.NUMBER, width=120, **design.field_style())
 
             def confirm(_ev: Any) -> None:
                 try:
@@ -3305,12 +3272,12 @@ class CombattimentoTab(ScrollMemoryListView):
                     self._refresh()
 
             dlg = ft.AlertDialog(
-                title=ft.Text(f"Danno a {forma.name}"),
+                title=design.dialog_title(f"Danno a {forma.name}"),
                 content=tf,
-                actions=cast(list[ft.Control], [
+                actions=cast(list[ft.Control], wrap_dialog_actions([
                     ft.TextButton("Applica", on_click=confirm),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
-                ]),
+                ])),
             )
             page.show_dialog(dlg)
 
@@ -3318,7 +3285,7 @@ class CombattimentoTab(ScrollMemoryListView):
             if not self._page:
                 return
             page = self._page
-            tf = ft.TextField(label="Cura", keyboard_type=ft.KeyboardType.NUMBER, width=120)
+            tf = ft.TextField(label="Cura", keyboard_type=ft.KeyboardType.NUMBER, width=120, **design.field_style())
 
             def confirm(_ev: Any) -> None:
                 try:
@@ -3331,12 +3298,12 @@ class CombattimentoTab(ScrollMemoryListView):
                 self._refresh()
 
             dlg = ft.AlertDialog(
-                title=ft.Text(f"Cura {forma.name}"),
+                title=design.dialog_title(f"Cura {forma.name}"),
                 content=tf,
-                actions=cast(list[ft.Control], [
+                actions=cast(list[ft.Control], wrap_dialog_actions([
                     ft.TextButton("Applica", on_click=confirm),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
-                ]),
+                ])),
             )
             page.show_dialog(dlg)
 
@@ -3410,13 +3377,13 @@ class CombattimentoTab(ScrollMemoryListView):
                 page.pop_dialog()
                 self._refresh()
             dlg = ft.AlertDialog(
-                title=ft.Text("Rimuovi forma?"),
+                title=design.dialog_title("Rimuovi forma?"),
                 content=ft.Text(f"Rimuovere {forma.name.title()} dal bestiary?"),
-                actions=cast(list[ft.Control], [
+                actions=cast(list[ft.Control], wrap_dialog_actions([
                     ft.TextButton("Rimuovi", on_click=confirm,
                                   style=ft.ButtonStyle(color=design.T().primary)),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
-                ]),
+                ])),
             )
             page.show_dialog(dlg)
 
@@ -3478,7 +3445,7 @@ class CombattimentoTab(ScrollMemoryListView):
             self._refresh()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("⚠️ Forma a 0 PF!"),
+            title=design.dialog_title("⚠️ Forma a 0 PF!"),
             content=ft.Column([
                 ft.Text("La forma selvatica ha esaurito i suoi Punti Ferita.", size=13),
                 ft.Container(height=4),
@@ -3489,11 +3456,11 @@ class CombattimentoTab(ScrollMemoryListView):
                 ft.Text("Se il danno spillover supera i tuoi PF massimi, cadi immediatamente privo di sensi.",
                         size=11, color=design.T().text_3),
             ], spacing=2, tight=True),
-            actions=cast(list[ft.Control], [
+            actions=cast(list[ft.Control], wrap_dialog_actions([
                 ft.TextButton("Applica danno al personaggio", on_click=apply,
                               style=ft.ButtonStyle(color=design.T().primary)),
                 ft.TextButton("Ignora (gestione manuale)", on_click=dismiss),
-            ]),
+            ])),
         )
         page.show_dialog(dlg)
 
@@ -3558,7 +3525,7 @@ class CombattimentoTab(ScrollMemoryListView):
             if not self._page:
                 return
             page = self._page
-            tf = ft.TextField(label="Danno", keyboard_type=ft.KeyboardType.NUMBER, width=120)
+            tf = ft.TextField(label="Danno", keyboard_type=ft.KeyboardType.NUMBER, width=120, **design.field_style())
 
             def confirm(_ev: Any) -> None:
                 try:
@@ -3573,7 +3540,7 @@ class CombattimentoTab(ScrollMemoryListView):
                     page.pop_dialog()
                     # Mostra avviso
                     page.show_dialog(ft.AlertDialog(
-                        title=ft.Text("Evocazione eliminata"),
+                        title=design.dialog_title("Evocazione eliminata"),
                         content=ft.Text(
                             f"{evoc.name.title()} ha raggiunto 0 PF ed è stata rimossa dal campo.\n"
                             "La voce rimane nel tuo bestiary per future evocazioni."
@@ -3587,12 +3554,12 @@ class CombattimentoTab(ScrollMemoryListView):
                     self._refresh()
 
             dlg = ft.AlertDialog(
-                title=ft.Text(f"Danno a {evoc.name.title()}"),
+                title=design.dialog_title(f"Danno a {evoc.name.title()}"),
                 content=tf,
-                actions=cast(list[ft.Control], [
+                actions=cast(list[ft.Control], wrap_dialog_actions([
                     ft.TextButton("Applica", on_click=confirm),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
-                ]),
+                ])),
             )
             page.show_dialog(dlg)
 
@@ -3600,7 +3567,7 @@ class CombattimentoTab(ScrollMemoryListView):
             if not self._page:
                 return
             page = self._page
-            tf = ft.TextField(label="Cura", keyboard_type=ft.KeyboardType.NUMBER, width=120)
+            tf = ft.TextField(label="Cura", keyboard_type=ft.KeyboardType.NUMBER, width=120, **design.field_style())
 
             def confirm(_ev: Any) -> None:
                 try:
@@ -3613,12 +3580,12 @@ class CombattimentoTab(ScrollMemoryListView):
                 self._refresh()
 
             dlg = ft.AlertDialog(
-                title=ft.Text(f"Cura {evoc.name.title()}"),
+                title=design.dialog_title(f"Cura {evoc.name.title()}"),
                 content=tf,
-                actions=cast(list[ft.Control], [
+                actions=cast(list[ft.Control], wrap_dialog_actions([
                     ft.TextButton("Applica", on_click=confirm),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
-                ]),
+                ])),
             )
             page.show_dialog(dlg)
 
@@ -3688,13 +3655,13 @@ class CombattimentoTab(ScrollMemoryListView):
                 page.pop_dialog()
                 self._refresh()
             dlg = ft.AlertDialog(
-                title=ft.Text("Rimuovi evocazione?"),
+                title=design.dialog_title("Rimuovi evocazione?"),
                 content=ft.Text(f"Rimuovere {evoc.name.title()} dal bestiary?"),
-                actions=cast(list[ft.Control], [
+                actions=cast(list[ft.Control], wrap_dialog_actions([
                     ft.TextButton("Rimuovi", on_click=confirm,
                                   style=ft.ButtonStyle(color=design.T().primary)),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
-                ]),
+                ])),
             )
             page.show_dialog(dlg)
 
@@ -3830,12 +3797,12 @@ class CombattimentoTab(ScrollMemoryListView):
             return
         page = self._page
 
-        f_name = ft.TextField(label="Nome*", autofocus=True)
-        f_type = ft.TextField(label="Tipo (es. Bestia, Elementale)")
-        f_cr   = ft.TextField(label="Grado Sfida (es. 1/4, 5)")
-        f_ac   = ft.TextField(label="CA", value="10", keyboard_type=ft.KeyboardType.NUMBER, width=90)
-        f_hp   = ft.TextField(label="PF massimi*", keyboard_type=ft.KeyboardType.NUMBER, width=120)
-        f_speed= ft.TextField(label="Velocità (es. 9 m)")
+        f_name = ft.TextField(label="Nome*", autofocus=True, **design.field_style())
+        f_type = ft.TextField(label="Tipo (es. Bestia, Elementale)", **design.field_style())
+        f_cr   = ft.TextField(label="Grado Sfida (es. 1/4, 5)", **design.field_style())
+        f_ac   = ft.TextField(label="CA", value="10", keyboard_type=ft.KeyboardType.NUMBER, width=90, **design.field_style())
+        f_hp   = ft.TextField(label="PF massimi*", keyboard_type=ft.KeyboardType.NUMBER, width=120, **design.field_style())
+        f_speed= ft.TextField(label="Velocità (es. 9 m)", **design.field_style())
 
         def save(_e: Any) -> None:
             if not f_name.value or not f_hp.value:
@@ -3862,17 +3829,17 @@ class CombattimentoTab(ScrollMemoryListView):
             self._refresh()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Inserimento manuale"),
+            title=design.dialog_title("Inserimento manuale"),
             content=ft.Column([
                 f_name,
                 ft.Row([f_type, ft.Container(width=8), f_cr], spacing=0),
                 ft.Row([f_ac, ft.Container(width=8), f_hp], spacing=0),
                 f_speed,
             ], spacing=10, tight=True),
-            actions=cast(list[ft.Control], [
+            actions=cast(list[ft.Control], wrap_dialog_actions([
                 ft.TextButton("Salva", on_click=save),
                 ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
-            ]),
+            ])),
         )
         page.show_dialog(dlg)
 

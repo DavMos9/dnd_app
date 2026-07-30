@@ -274,7 +274,7 @@ def show_stat_block_dialog(page: ft.Page, name: str, data: dict) -> None:
     """AlertDialog di sola lettura con lo stat block completo di `data` (già
     risolto — vedi `build_stat_block_column`)."""
     dlg = ft.AlertDialog(
-        title=ft.Text(monster_display_name(name), size=16, weight=ft.FontWeight.BOLD),
+        title=design.dialog_title(monster_display_name(name)),
         content=ft.Container(content=build_stat_block_column(data), height=480),
         actions=[ft.TextButton("Chiudi", on_click=lambda _e: page.pop_dialog())],
     )
@@ -323,18 +323,18 @@ def show_monster_picker(
         label="Tipo",
         options=[ft.DropdownOption(key="", text="Tutti")]
         + [ft.DropdownOption(key=t, text=t) for t in all_types],
-        value="", width=148, dense=True, text_size=12, border_radius=6,
-    )
+        value="", width=148, dense=True, text_size=12, border_radius=design.Radius.SM,
+        border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
     cr_dd = ft.Dropdown(
         label="GS max",
         options=[ft.DropdownOption(key="", text="Tutti")]
         + [ft.DropdownOption(key=str(v), text=f"GS {v}") for v in cr_vals_raw],
-        value="", width=112, dense=True, text_size=12, border_radius=6,
-    )
+        value="", width=112, dense=True, text_size=12, border_radius=design.Radius.SM,
+        border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
     search_tf = ft.TextField(
         label="Cerca per nome...", prefix_icon=ft.Icons.SEARCH, autofocus=True,
         border_radius=8, dense=True, text_size=13,
-    )
+        border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
     results_col = ft.Column([], spacing=3, scroll=ft.ScrollMode.AUTO, height=270)
 
     def _filtered_pool() -> list[dict]:
@@ -482,7 +482,7 @@ def show_monster_picker(
     _populate_list()
 
     dlg = ft.AlertDialog(
-        title=ft.Text(title),
+        title=design.dialog_title(title),
         content=ft.Container(content=_list_content(), height=480),
         actions=[ft.TextButton("Chiudi", on_click=lambda _e: page.pop_dialog())],
     )

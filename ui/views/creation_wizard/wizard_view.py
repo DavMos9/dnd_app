@@ -766,7 +766,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             border_color=design.T().border,
             focused_border_color=design.T().magic,
             expand=True,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         race_dd = ft.Dropdown(
             label="Razza",
             value=self._review_race if self._review_race in RACES_BASE else list(RACES_BASE.keys())[0],
@@ -778,7 +778,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             border_color=design.T().border,
             focused_border_color=design.T().magic,
             expand=True,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         bg_dd = ft.Dropdown(
             label="Background",
             value=self._review_bg,
@@ -790,7 +790,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             border_color=design.T().border,
             focused_border_color=design.T().magic,
             expand=True,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         align_dd = ft.Dropdown(
             label="Allineamento",
             value=self._review_align if self._review_align in ALIGNMENTS else ALIGNMENTS[0],
@@ -802,7 +802,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             border_color=design.T().border,
             focused_border_color=design.T().magic,
             expand=True,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
 
         # ------ Statistiche (Standard Array) ------
         available_values = list(STANDARD_ARRAY)
@@ -821,7 +821,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 border_color=design.T().border,
                 focused_border_color=design.T().magic,
                 width=110,
-            )
+                border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
             stat_dropdowns[key] = dd
             mod_badge = ft.Container(
                 content=ft.Text(mod_str, size=13, weight=ft.FontWeight.BOLD,
@@ -894,7 +894,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     border_color=design.T().border,
                     focused_border_color=design.T().magic,
                     expand=True,
-                )
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                 if not self._review_subrace:
                     self._review_subrace = DRACONIDE_ANCESTRIES[0]
                 subrace_col.controls.append(anc_dd)
@@ -917,7 +917,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     border_color=design.T().border,
                     focused_border_color=design.T().magic,
                     expand=True,
-                )
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                 subrace_col.controls.append(sr_dd)
                 subrace_col.visible = True
             else:
@@ -970,7 +970,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 border_color=design.T().border,
                 focused_border_color=design.T().magic,
                 expand=True,
-            )
+                border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
             subclass_col.controls.append(sc_dd)
             subclass_col.visible = bool(subclasses)
             try:
@@ -1088,7 +1088,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                             label_style=ft.TextStyle(color=design.T().text_3, size=12),
                             border_color=design.T().border, focused_border_color=design.T().magic,
                             expand=True,
-                        )
+                            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                         dds.append(dd)
                     return list(dds)
 
@@ -1129,7 +1129,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     border_color=design.T().border,
                     focused_border_color=design.T().magic,
                     expand=True,
-                ))
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
                 dragon_col.visible = True
             else:
                 self._review_dragon_ancestry = ""
@@ -1161,7 +1161,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     border_color=design.T().border,
                     focused_border_color=design.T().magic,
                     expand=True,
-                ))
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
                 fighting_style_col.visible = True
             else:
                 self._review_fighting_style = ""
@@ -1255,7 +1255,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         border_color=design.T().border,
                         focused_border_color=design.T().magic,
                         expand=True,
-                    )
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                     flex_dd_refs.append(dd)
                     flex_dds.append(dd)
                 race_extras_col.controls.append(ft.Row(flex_dds, spacing=12))
@@ -1452,7 +1452,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                             label_style=ft.TextStyle(color=design.T().text_3, size=12),
                             border_color=design.T().border, focused_border_color=design.T().magic,
                             expand=True,
-                        )
+                            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                         uv_dd_refs.append(dd_u)
                         uv_dds.append(dd_u)
                     race_extras_col.controls.append(ft.Row(uv_dds, spacing=12))
@@ -1483,7 +1483,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         label_style=ft.TextStyle(color=design.T().text_3, size=12),
                         border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
-                    ))
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
 
                     # --- 1 talento a scelta (stesso pool/picker dell'ASI level-up) ---
                     feat_names_u = _loader.get_feat_names()
@@ -1510,7 +1510,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         label_style=ft.TextStyle(color=design.T().text_3, size=12),
                         border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
-                    )
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
 
                     def _refresh_uv_feat_bonus_dd() -> None:
                         fd = _loader.get_feat(self._review_umano_variant_feat)
@@ -1645,7 +1645,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                                 label_style=ft.TextStyle(color=design.T().text_3, size=12),
                                 border_color=design.T().border, focused_border_color=design.T().magic,
                                 expand=True,
-                            )
+                                border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                             setattr(dd_fp, "_prof_pool", _pool)
                             uv_feat_prof_dds.append(dd_fp)
                             uv_feat_prof_col.controls.append(dd_fp)
@@ -1720,7 +1720,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         border_color=design.T().border,
                         focused_border_color=design.T().magic,
                         expand=True,
-                    ))
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
             else:
                 self._review_race_languages = []
 
@@ -2038,7 +2038,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     border_color=design.T().border,
                     focused_border_color=design.T().magic,
                     expand=True,
-                )
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                 lang_tool_col.controls.append(tool_dd)
 
             # Strumenti a scelta di CLASSE (Bardo/Monaco, 2026-07-15) — a
@@ -2102,7 +2102,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         label_style=ft.TextStyle(color=design.T().text_3, size=12),
                         border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
-                    )
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                     dds.append(dd)
                     lang_tool_col.controls.append(dd)
                 class_tool_dd_groups.append(dds)
@@ -2792,7 +2792,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                                 width=220,
                                 text_size=13,
                                 on_select=_on_wsel,
-                            ))
+                                **design.field_style()))
                     else:
                         chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
                         fixed_checks.append(ft.Row([
@@ -2803,7 +2803,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                                 width=220,
                                 text_size=13,
                                 on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
-                            ),
+                                **design.field_style()),
                         ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                 else:
                     qty = item.get("quantity", 1)
@@ -2882,7 +2882,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                                 value=chosen_ws[wi] if wi < len(chosen_ws) else (weapons[0] if weapons else ""),
                                 options=[ft.DropdownOption(key=w, text=w) for w in weapons],
                                 width=220, text_size=13, on_select=_on_wc,
-                            ))
+                                **design.field_style()))
                     else:
                         chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
                         pickers.append(ft.Row([
@@ -2892,7 +2892,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                                 options=[ft.DropdownOption(key=w, text=w) for w in weapons],
                                 width=220, text_size=13,
                                 on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
-                            ),
+                                **design.field_style()),
                         ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                 return pickers
 
@@ -2967,7 +2967,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     border_color=design.T().border,
                     focused_border_color=design.T().magic,
                     bgcolor=design.T().surface,
-                )
+                    border_radius=design.field_style()['border_radius'])
 
                 # CardPicker invece di RadioGroup (2026-07-17, feedback Davide:
                 # "la selezione dell'oro è brutta da vedere perché è rimasta
@@ -3050,7 +3050,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             focused_border_color=design.T().magic,
             cursor_color=design.T().magic,
             autofocus=True,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         player_field = ft.TextField(
             label="Nome del giocatore (opzionale)",
             bgcolor=design.T().surface,
@@ -3059,7 +3059,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             border_color=design.T().border,
             focused_border_color=design.T().magic,
             cursor_color=design.T().magic,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         error_text = ft.Text("", color=design.T().danger, size=13, visible=False)
 
         # Riepilogo

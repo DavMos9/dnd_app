@@ -320,7 +320,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             border_color=design.T().border,
             focused_border_color=design.T().magic,
             expand=True,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
 
     # -----------------------------------------------------------------------
     # FASE 1 — Identità
@@ -340,7 +340,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             cursor_color=design.T().magic,
             on_change=lambda e: setattr(self, "_name", e.control.value or ""),
             expand=True,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         player_tf = ft.TextField(
             label="Nome Giocatore (opzionale)",
             value=self._player_name,
@@ -350,7 +350,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             cursor_color=design.T().magic,
             on_change=lambda e: setattr(self, "_player_name", e.control.value or ""),
             expand=True,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
 
         _class_names = _loader.get_class_names()
         _bg_names    = _loader.get_background_names()
@@ -490,7 +490,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 bgcolor=design.T().surface, color=design.T().text,
                 border_color=design.T().border, focused_border_color=design.T().magic,
                 width=110,
-            )
+                border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
             stat_dropdowns[key] = dd
             badge = ft.Container(
                 content=ft.Text(mod_str, size=13, weight=ft.FontWeight.BOLD,
@@ -585,7 +585,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     label_style=ft.TextStyle(color=design.T().text_3, size=12),
                     border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
-                ))
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
             elif subraces:
                 val = self._review_subrace if self._review_subrace in subraces else subraces[0]
                 self._review_subrace = val
@@ -603,7 +603,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     label_style=ft.TextStyle(color=design.T().text_3, size=12),
                     border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
-                ))
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
             else:
                 self._review_subrace = ""
             try:
@@ -726,7 +726,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 label_style=ft.TextStyle(color=design.T().text_3, size=12),
                 border_color=design.T().border, focused_border_color=design.T().magic,
                 expand=True,
-            ))
+                border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
             subclass_col.visible = bool(subclasses)
             try:
                 subclass_col.update()
@@ -835,7 +835,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                             label_style=ft.TextStyle(color=design.T().text_3, size=12),
                             border_color=design.T().border, focused_border_color=design.T().magic,
                             expand=True,
-                        )
+                            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                         dds.append(dd)
                     return list(dds)
 
@@ -871,7 +871,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     label_style=ft.TextStyle(color=design.T().text_3, size=12),
                     border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
-                ))
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
                 dragon_col.visible = True
             else:
                 self._review_dragon_ancestry = ""
@@ -899,7 +899,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     label_style=ft.TextStyle(color=design.T().text_3, size=12),
                     border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
-                ))
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
                 fighting_style_col.visible = True
             else:
                 self._review_fighting_style = ""
@@ -987,7 +987,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         label_style=ft.TextStyle(color=design.T().text_3, size=12),
                         border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
-                    )
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                     flex_dd_refs.append(dd)
                     flex_dds.append(dd)
                 race_extras_col.controls.append(ft.Row(flex_dds, spacing=12))
@@ -1185,7 +1185,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                             label_style=ft.TextStyle(color=design.T().text_3, size=12),
                             border_color=design.T().border, focused_border_color=design.T().magic,
                             expand=True,
-                        )
+                            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                         uv_dd_refs.append(dd_u)
                         uv_dds.append(dd_u)
                     race_extras_col.controls.append(ft.Row(uv_dds, spacing=12))
@@ -1216,7 +1216,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         label_style=ft.TextStyle(color=design.T().text_3, size=12),
                         border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
-                    ))
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
 
                     # --- 1 talento a scelta (stesso pool/picker dell'ASI level-up) ---
                     feat_names_u = _loader.get_feat_names()
@@ -1249,7 +1249,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         label_style=ft.TextStyle(color=design.T().text_3, size=12),
                         border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
-                    )
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
 
                     def _refresh_uv_feat_bonus_dd() -> None:
                         fd = _loader.get_feat(self._review_umano_variant_feat)
@@ -1386,7 +1386,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                 label_style=ft.TextStyle(color=design.T().text_3, size=12),
                                 border_color=design.T().border, focused_border_color=design.T().magic,
                                 expand=True,
-                            )
+                                border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                             setattr(dd_fp, "_prof_pool", _pool)
                             uv_feat_prof_dds.append(dd_fp)
                             uv_feat_prof_col.controls.append(dd_fp)
@@ -1460,7 +1460,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         label_style=ft.TextStyle(color=design.T().text_3, size=12),
                         border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
-                    ))
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
             else:
                 self._review_race_languages = []
 
@@ -2055,7 +2055,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     label_style=ft.TextStyle(color=design.T().text_3, size=12),
                     border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
-                ))
+                    border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
 
             # Strumenti a scelta di CLASSE (Bardo/Monaco, 2026-07-15) — a
             # differenza degli strumenti di background (sempre un solo
@@ -2117,7 +2117,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         label_style=ft.TextStyle(color=design.T().text_3, size=12),
                         border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
-                    )
+                        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
                     dds.append(dd)
                     lang_tool_col.controls.append(dd)
                 class_tool_dd_groups.append(dds)
@@ -2393,7 +2393,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                 value=chosen[wi] if wi < len(chosen) else (weapons[0] if weapons else ""),
                                 options=[ft.DropdownOption(key=w, text=w) for w in weapons],
                                 width=220, text_size=13, on_select=_on_wsel,
-                            ))
+                                **design.field_style()))
                     else:
                         chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
                         fixed_checks.append(ft.Row([
@@ -2403,7 +2403,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                 options=[ft.DropdownOption(key=w, text=w) for w in weapons],
                                 width=220, text_size=13,
                                 on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
-                            ),
+                                **design.field_style()),
                         ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                 else:
                     qty   = item.get("quantity", 1)
@@ -2478,7 +2478,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                 value=chosen_ws[wi] if wi < len(chosen_ws) else (weapons[0] if weapons else ""),
                                 options=[ft.DropdownOption(key=w, text=w) for w in weapons],
                                 width=220, text_size=13, on_select=_on_wc,
-                            ))
+                                **design.field_style()))
                     else:
                         chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
                         pickers.append(ft.Row([
@@ -2488,7 +2488,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                 options=[ft.DropdownOption(key=w, text=w) for w in weapons],
                                 width=220, text_size=13,
                                 on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
-                            ),
+                                **design.field_style()),
                         ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                 return pickers
 
@@ -2562,7 +2562,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     border_color=design.T().border,
                     focused_border_color=design.T().magic,
                     bgcolor=design.T().surface,
-                )
+                    border_radius=design.field_style()['border_radius'])
 
                 # CardPicker invece di RadioGroup (2026-07-17, feedback Davide:
                 # "la selezione dell'oro è brutta da vedere perché è rimasta

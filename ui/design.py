@@ -276,6 +276,46 @@ def page_gradient() -> ft.LinearGradient:
 
 
 # ---------------------------------------------------------------------------
+# Chrome degli overlay (editor mappe)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Chrome:
+    """
+    Palette dei pannelli sovrapposti a un'immagine (oggi: l'editor di mappe).
+
+    È **scura in entrambi i temi** per scelta, non per dimenticanza: una barra
+    strumenti chiara sopra una mappa competerebbe con l'immagine e renderebbe
+    illeggibili i tratti chiari. Vive qui e non come dizionario di hex dentro
+    `maps_view.py` così anche questa superficie rispetta la regola "nessun
+    colore magico nelle view".
+    """
+    bg: str            # barra strumenti
+    panel: str         # pannello secondario (slider)
+    btn: str           # bottone non selezionato
+    border: str
+    text: str
+    text_muted: str
+    text_dim: str
+    on_light: str      # testo su swatch/bottone chiaro selezionato
+    danger: str        # "Cancella tutto"
+    backdrop: str      # sfondo del fullscreen
+    canvas: str        # area di disegno
+    overlay_text: str  # etichette scritte sopra la mappa
+    overlay_dim: str   # loro alone/ombra
+
+
+CHROME = Chrome(
+    bg="#24222b", panel="#1a181f", btn="#322e3c", border="#423d4f",
+    text="#f5f2ee", text_muted="#b8b2c2", text_dim="#9c96a8",
+    on_light="#17151c", danger="#6d1b1f",
+    backdrop="#100f14", canvas="#000000",
+    overlay_text="#ffffffdd", overlay_dim="#00000066",
+)
+
+
+# ---------------------------------------------------------------------------
 # Colori semantici di dominio
 # ---------------------------------------------------------------------------
 
@@ -644,6 +684,49 @@ def dot_button(filled: bool, *, tone: Tone = "magic", size: int = 18,
         tooltip=tooltip,
         ink=bool(on_click),
         animate_scale=ft.Animation(Duration.FAST, CURVE),
+    )
+
+
+def dialog_title(text: str, icon: ft.IconData | None = None,
+                 tone: Tone = "primary") -> ft.Control:
+    """
+    Intestazione standard dei dialog: icona in un cerchietto tinto + titolo nel
+    font display. Prima ogni dialog costruiva il proprio `ft.Text` con
+    dimensione, peso e colore scelti caso per caso (101 varianti).
+    """
+    p = T()
+    col = tone_color(tone)
+    kids: list[ft.Control] = []
+    if icon is not None:
+        kids.append(ft.Container(
+            content=ft.Icon(icon, size=18, color=col),
+            width=36, height=36, alignment=ft.Alignment.CENTER,
+            bgcolor=ft.Colors.with_opacity(0.12, col),
+            border_radius=Radius.PILL,
+        ))
+        kids.append(ft.Container(width=Space.MD))
+    kids.append(ft.Text(text, size=Size.SUBTITLE, weight=ft.FontWeight.BOLD,
+                        color=p.text, font_family=Font.DISPLAY,
+                        expand=True, no_wrap=False))
+    return ft.Row(kids, tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+
+def field_style() -> dict[str, Any]:
+    """
+    Stile condiviso di `TextField`/`Dropdown`.
+
+    Flet 0.85.3 **non ha** `input_decoration_theme` in `ft.Theme` (verificato per
+    introspezione), quindi i campi non si possono uniformare dal tema: questi
+    kwarg vengono applicati a ogni campo dell'app.
+    """
+    p = T()
+    return dict(
+        border_radius=Radius.SM,
+        border_color=p.border,
+        focused_border_color=p.magic,
+        bgcolor=p.surface,
+        text_style=ft.TextStyle(size=Size.BODY_SM, color=p.text,
+                                font_family=Font.BODY),
     )
 
 

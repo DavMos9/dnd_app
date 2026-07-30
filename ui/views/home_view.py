@@ -14,6 +14,7 @@ from data.repositories import character_repo, character_export
 from ui.character_transfer import show_character_import_picker
 from ui.theme import muted_text, primary_button, ghost_button
 from ui import design as d
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -409,12 +410,7 @@ class HomeView(ft.Column):
         """Dialog per scegliere wizard o creazione manuale."""
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text(
-                "Nuovo Personaggio",
-                color=d.T().text,
-                weight=ft.FontWeight.BOLD,
-            ),
-            bgcolor=d.T().surface,
+            title=d.dialog_title("Nuovo Personaggio"),
             content=ft.Column(
                 [
                     muted_text(
@@ -471,13 +467,12 @@ class HomeView(ft.Column):
         """Dialog di conferma eliminazione."""
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Elimina personaggio", color=d.T().danger),
-            bgcolor=d.T().surface,
+            title=d.dialog_title("Elimina personaggio"),
             content=ft.Text(
                 f'Sei sicuro di voler eliminare "{char.name}"?\nQuesta azione non può essere annullata.',
                 color=d.T().text,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton(
                     "Annulla",
                     on_click=lambda e: self._close_dialog(),
@@ -492,7 +487,7 @@ class HomeView(ft.Column):
                         color=d.T().text,
                     ),
                 ),
-            ],
+            ]),
         )
         self.page.show_dialog(dlg)
 
@@ -877,9 +872,7 @@ class HomeView(ft.Column):
 
         page.show_dialog(ft.AlertDialog(
             modal=True,
-            title=ft.Text("Personaggio esportato", color=d.T().text,
-                          weight=ft.FontWeight.BOLD),
-            bgcolor=d.T().surface,
+            title=d.dialog_title("Personaggio esportato"),
             content=ft.Column([
                 ft.Text(f'File salvato come "{filename}".',
                         color=d.T().text, size=13),
@@ -1127,9 +1120,7 @@ class HomeView(ft.Column):
 
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Personaggio già presente", color=d.T().text,
-                          weight=ft.FontWeight.BOLD),
-            bgcolor=d.T().surface,
+            title=d.dialog_title("Personaggio già presente"),
             content=ft.Column(
                 [
                     ft.Text(
@@ -1145,7 +1136,7 @@ class HomeView(ft.Column):
                 ],
                 tight=True, spacing=0,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton(
                     "Annulla",
                     on_click=lambda e: page.pop_dialog(),
@@ -1169,7 +1160,7 @@ class HomeView(ft.Column):
                         color=d.T().text,
                     ),
                 ),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 

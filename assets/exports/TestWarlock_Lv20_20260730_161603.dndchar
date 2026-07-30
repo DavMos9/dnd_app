@@ -1,0 +1,170 @@
+{
+  "export_format_version": 1,
+  "app": "dnd_companion",
+  "exported_at": "2026-07-30T16:16:03.370903",
+  "character": {
+    "id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+    "name": "TestWarlock",
+    "player_name": "",
+    "class_name": "Warlock",
+    "subclass": "",
+    "level": 20,
+    "race": "Umano",
+    "subrace": "",
+    "background": "Soldato",
+    "alignment": "Neutrale",
+    "xp": 0,
+    "image_path": "",
+    "str_score": 14,
+    "dex_score": 14,
+    "con_score": 14,
+    "int_score": 14,
+    "wis_score": 14,
+    "cha_score": 14,
+    "hp_max": 30,
+    "hp_current": 25,
+    "hp_temp": 0,
+    "ac": 15,
+    "speed": 9.0,
+    "hit_dice_type": 8,
+    "hit_dice_total": 20,
+    "hit_dice_remaining": 20,
+    "death_saves_success": 0,
+    "death_saves_failure": 0,
+    "action_used": 0,
+    "bonus_action_used": 0,
+    "reaction_used": 0,
+    "movement_used": 0.0,
+    "previous_turn_state": "",
+    "spellcasting_ability": "cha",
+    "inspiration": 0,
+    "age": "",
+    "height": "",
+    "weight": "",
+    "eyes": "",
+    "skin": "",
+    "hair": "",
+    "personality_traits": "",
+    "ideals": "",
+    "bonds": "",
+    "flaws": "",
+    "backstory": "",
+    "allies_organizations": "",
+    "additional_traits": "",
+    "appearance_notes": "",
+    "created_at": "2026-07-30T16:16:03.304089",
+    "updated_at": "2026-07-30T16:16:03.304089",
+    "image_data": "",
+    "ca_bonus": 0,
+    "proficiency_bonus_override": 0,
+    "session_notes": "",
+    "max_prepared_spells_override": 0,
+    "dragon_ancestry": "",
+    "fighting_style": "",
+    "totem_animal": "",
+    "land_terrain": "",
+    "pact_boon": "",
+    "initiative_bonus": 0,
+    "passive_perception_override": 0,
+    "carry_capacity_override": 0.0,
+    "exhaustion_level": 0,
+    "frenzy_active": 0
+  },
+  "related": {
+    "character_proficiencies": [
+      {
+        "id": "be2c9cf7-c30f-4655-83f1-f21cb4877ca2",
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "proficiency_type": "armor",
+        "name": "leggere",
+        "is_expert": 0,
+        "bonus_data": null,
+        "level_obtained": 0
+      },
+      {
+        "id": "de6864b3-16c1-4b4c-976a-f579d714f05c",
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "proficiency_type": "weapon",
+        "name": "semplice",
+        "is_expert": 0,
+        "bonus_data": null,
+        "level_obtained": 0
+      }
+    ],
+    "weapons": [],
+    "inventory_items": [],
+    "currencies": [
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "copper": 0,
+        "silver": 0,
+        "electrum": 0,
+        "gold": 0,
+        "platinum": 0
+      }
+    ],
+    "spell_slots": [
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "slot_level": 1,
+        "total": 0,
+        "used": 0
+      },
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "slot_level": 2,
+        "total": 0,
+        "used": 0
+      },
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "slot_level": 3,
+        "total": 0,
+        "used": 0
+      },
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "slot_level": 4,
+        "total": 0,
+        "used": 0
+      },
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "slot_level": 5,
+        "total": 4,
+        "used": 0
+      },
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "slot_level": 6,
+        "total": 0,
+        "used": 0
+      },
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "slot_level": 7,
+        "total": 0,
+        "used": 0
+      },
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "slot_level": 8,
+        "total": 0,
+        "used": 0
+      },
+      {
+        "character_id": "ddded0c6-c124-499f-a86f-ead047c6a757",
+        "slot_level": 9,
+        "total": 0,
+        "used": 0
+      }
+    ],
+    "known_spells": [],
+    "diary_entries": [],
+    "game_maps": [],
+    "class_resources": [],
+    "creature_entries": [],
+    "campaign_notes": [],
+    "custom_abilities": []
+  }
+}

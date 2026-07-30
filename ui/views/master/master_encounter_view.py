@@ -25,6 +25,7 @@ from data.repositories import character_repo, master_repo
 from ui.components.monster_picker import load_monsters, show_monster_picker, monster_display_name
 from ui.theme import title_text, muted_text, primary_button
 from ui import design
+from ui.widgets import wrap_dialog_actions, responsive_dialog_width
 
 logger = logging.getLogger(__name__)
 
@@ -110,10 +111,11 @@ class MasterEncounterView(ft.Column):
                             ),
                             ft.Column(
                                 [
-                                    title_text(enc.name or "(senza nome)", size=17),
-                                    muted_text(f"Round {enc.round_number}", size=12),
+                                    title_text(enc.name or "(senza nome)", size=18),
+                                    design.chip(f"Round {enc.round_number}", "primary",
+                                                icon=ft.Icons.REPLAY),
                                 ],
-                                spacing=0,
+                                spacing=design.Space.XS,
                             ),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -144,29 +146,16 @@ class MasterEncounterView(ft.Column):
                 ],
                 spacing=8,
             ),
-            padding=ft.Padding.symmetric(horizontal=16, vertical=12),
-            bgcolor=design.T().surface_alt,
-            border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
+            padding=ft.Padding.symmetric(horizontal=design.Space.LG,
+                                         vertical=design.Space.MD),
+            bgcolor=design.T().surface,
+            shadow=design.elevation(1),
         )
 
     @staticmethod
     def _action_pill(icon, label: str, color: str, on_click) -> ft.Control:
-        return ft.Container(
-            content=ft.Row(
-                [
-                    ft.Icon(icon, size=15, color=color),
-                    ft.Container(width=6),
-                    ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=color),
-                ],
-                tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.Padding.symmetric(horizontal=12, vertical=7),
-            bgcolor=design.T().surface,
-            border=ft.Border.all(1, color),
-            border_radius=16,
-            on_click=on_click,
-            ink=True,
-        )
+        """Pillola dalla primitiva condivisa (stessa forma di Home e Master)."""
+        return design.pill(icon, label, color=color, on_click=on_click)
 
     def _populate_list(self):
         self._list_col.controls.clear()
@@ -180,20 +169,10 @@ class MasterEncounterView(ft.Column):
             )
 
     def _empty_state(self) -> ft.Control:
-        return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Icon(ft.Icons.GROUPS_OUTLINED, size=48, color=design.T().border),
-                    ft.Container(height=10),
-                    muted_text(
-                        "Nessun combattente ancora aggiunto a questo incontro.",
-                        size=13, text_align=ft.TextAlign.CENTER,
-                    ),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.Padding.all(32),
-            alignment=ft.Alignment.CENTER,
+        return design.empty_state(
+            ft.Icons.GROUPS_OUTLINED,
+            "Nessun combattente",
+            "Aggiungi personaggi, NPC o mostri per tracciare iniziativa e PF.",
         )
 
     def _member_card(self, resolved: dict, is_current: bool) -> ft.Control:
@@ -224,10 +203,10 @@ class MasterEncounterView(ft.Column):
                 hp_color = design.T().alert
 
         stats_row: list[ft.Control] = [
-            ft.Text(f"CA {ac}", size=11, color=design.T().text_3),
+            design.chip(f"CA {ac}", "neutral", icon=ft.Icons.SHIELD_OUTLINED),
         ]
         if source == "character":
-            stats_row.append(ft.Text(f"PF {hp_current}/{hp_max} (giocatore)", size=11, color=design.T().text_3))
+            stats_row.append(design.chip(f"PF {hp_current}/{hp_max} · giocatore", "magic"))
         else:
             stats_row.append(
                 ft.Row(
@@ -244,7 +223,7 @@ class MasterEncounterView(ft.Column):
                 )
             )
             if resolved.get("xp"):
-                stats_row.append(ft.Text(f"{resolved['xp']} PE", size=11, color=design.T().text_3))
+                stats_row.append(design.chip(f"{resolved['xp']} PE", "neutral"))
 
         return ft.Container(
             content=ft.Row(
@@ -253,22 +232,27 @@ class MasterEncounterView(ft.Column):
                         content=ft.Text(str(m.initiative), size=15, weight=ft.FontWeight.BOLD,
                                          color=design.T().on_primary if is_current else design.T().text,
                                          text_align=ft.TextAlign.CENTER),
-                        width=34, height=34, alignment=ft.Alignment.CENTER,
+                        width=38, height=38, alignment=ft.Alignment.CENTER,
                         bgcolor=design.T().primary if is_current else design.T().surface_alt,
-                        border_radius=17,
+                        border_radius=design.Radius.PILL,
+                        shadow=design.elevation(1) if is_current else None,
                         on_click=lambda e, mm=m: self._on_edit_initiative(mm),
                         tooltip="Modifica iniziativa",
                         ink=True,
                     ),
-                    ft.Container(width=10),
+                    ft.Container(width=design.Space.MD),
                     ft.Icon(icon, color=icon_color, size=20),
-                    ft.Container(width=8),
+                    ft.Container(width=design.Space.SM),
                     ft.Column(
                         [
-                            ft.Text(name, size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
-                            ft.Row(stats_row, spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                            ft.Text(name, size=15, weight=ft.FontWeight.BOLD,
+                                    color=design.T().text, font_family=design.Font.DISPLAY,
+                                    no_wrap=True, max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS),
+                            ft.Row(stats_row, spacing=design.Space.SM, wrap=True,
+                                   vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         ],
-                        spacing=3, expand=True,
+                        spacing=design.Space.XS, expand=True,
                     ),
                     ft.IconButton(
                         icon=ft.Icons.CLOSE, icon_color=design.T().text_3, icon_size=18,
@@ -278,10 +262,16 @@ class MasterEncounterView(ft.Column):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.all(10),
+            padding=ft.Padding.all(design.Space.MD),
             bgcolor=design.T().surface,
-            border=ft.Border.all(2 if is_current else 1, design.T().primary if is_current else design.T().border),
-            border_radius=8,
+            # Il combattente di turno è l'unico con accento pieno e ombra più
+            # marcata: si trova a colpo d'occhio scorrendo l'ordine d'iniziativa.
+            border=ft.Border.only(left=ft.BorderSide(
+                4 if is_current else 3,
+                design.T().primary if is_current else icon_color)),
+            shadow=design.elevation(2 if is_current else 1),
+            border_radius=design.Radius.MD,
+            animate=ft.Animation(design.Duration.BASE, design.CURVE),
         )
 
     # ------------------------------------------------------------------
@@ -303,19 +293,19 @@ class MasterEncounterView(ft.Column):
             self.on_back_to_list()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Termina Incontro?", size=15, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Termina Incontro?"),
             content=ft.Text(
                 "L'incontro verrà archiviato e non comparirà più nella lista attiva "
                 "(resta comunque conservato nello storico del database).",
                 size=12, color=design.T().text_2,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Termina", icon=ft.Icons.FLAG, on_click=_do_end,
                     style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -346,7 +336,7 @@ class MasterEncounterView(ft.Column):
         result_col = ft.Column([], spacing=6)
         ghost_row = ft.Row([], spacing=6, wrap=True)
         ghost_tf = ft.TextField(label="Livello PG fantasma", value="1", width=140, dense=True,
-                                 border_radius=6, keyboard_type=ft.KeyboardType.NUMBER)
+                                 border_radius=design.Radius.SM, keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
         def _recompute():
             levels = party_levels + ghost_levels
@@ -422,7 +412,7 @@ class MasterEncounterView(ft.Column):
         _recompute()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Calcolatore Difficoltà Incontro", size=15, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Calcolatore Difficoltà Incontro"),
             content=ft.Container(
                 content=ft.Column(
                     [
@@ -438,7 +428,7 @@ class MasterEncounterView(ft.Column):
                     ],
                     spacing=6, scroll=ft.ScrollMode.AUTO, tight=True,
                 ),
-                width=340, height=420,
+                width=responsive_dialog_width(page, 340), height=420,
             ),
             actions=[ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog())],
         )
@@ -458,7 +448,7 @@ class MasterEncounterView(ft.Column):
             return
         page = self._page
         init_tf = ft.TextField(label="Iniziativa", value=str(member.initiative), dense=True,
-                                border_radius=6, autofocus=True, keyboard_type=ft.KeyboardType.NUMBER)
+                                border_radius=design.Radius.SM, autofocus=True, keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
         def _do_save(_e: Any):
             master_repo.update_member_initiative(member.id, _int_or(init_tf.value, member.initiative))
@@ -466,13 +456,13 @@ class MasterEncounterView(ft.Column):
             self.refresh()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Modifica Iniziativa", size=15, weight=ft.FontWeight.BOLD),
-            content=ft.Container(content=init_tf, width=200),
-            actions=[
+            title=design.dialog_title("Modifica Iniziativa"),
+            content=ft.Container(content=init_tf, width=responsive_dialog_width(page, 200)),
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Salva", icon=ft.Icons.SAVE, on_click=_do_save,
                                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -500,7 +490,7 @@ class MasterEncounterView(ft.Column):
             return _inner
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Aggiungi Combattente", size=16, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Aggiungi Combattente"),
             content=ft.Column(
                 [
                     ft.OutlinedButton(
@@ -547,7 +537,7 @@ class MasterEncounterView(ft.Column):
 
         if not available:
             dlg = ft.AlertDialog(
-                title=ft.Text("Nessun personaggio disponibile", size=15, weight=ft.FontWeight.BOLD),
+                title=design.dialog_title("Nessun personaggio disponibile"),
                 content=ft.Text(
                     "Tutti i personaggi esistenti sono già in questo incontro, oppure non ne hai ancora creato uno.",
                     size=12, color=design.T().text_2,
@@ -560,10 +550,10 @@ class MasterEncounterView(ft.Column):
         char_dd = ft.Dropdown(
             label="Personaggio",
             options=[ft.DropdownOption(key=c.id, text=f"{c.name} (Lv.{c.level} {c.class_name})") for c in available],
-            value=available[0].id, dense=True, border_radius=6,
-        )
+            value=available[0].id, dense=True, border_radius=design.Radius.SM,
+            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         init_tf = ft.TextField(label="Iniziativa", value="10", dense=True, width=120,
-                                keyboard_type=ft.KeyboardType.NUMBER)
+                                keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
 
         def _do_add(_e: Any):
             ch = next((c for c in available if c.id == char_dd.value), available[0])
@@ -576,15 +566,15 @@ class MasterEncounterView(ft.Column):
             self.refresh()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Aggiungi Personaggio Giocante", size=15, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Aggiungi Personaggio Giocante"),
             content=ft.Container(
-                content=ft.Column([char_dd, ft.Container(height=8), init_tf], tight=True), width=300,
+                content=ft.Column([char_dd, ft.Container(height=8), init_tf], tight=True), width=responsive_dialog_width(page, 300),
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
                                    style=ft.ButtonStyle(bgcolor=design.T().magic, color=design.T().on_accent)),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -596,7 +586,7 @@ class MasterEncounterView(ft.Column):
 
         if not npcs:
             dlg = ft.AlertDialog(
-                title=ft.Text("Nessun NPC in rubrica", size=15, weight=ft.FontWeight.BOLD),
+                title=design.dialog_title("Nessun NPC in rubrica"),
                 content=ft.Text(
                     "Crea prima un NPC dalla tab \"Rubrica NPC\", poi torna qui per aggiungerlo.",
                     size=12, color=design.T().text_2,
@@ -609,12 +599,12 @@ class MasterEncounterView(ft.Column):
         npc_dd = ft.Dropdown(
             label="NPC",
             options=[ft.DropdownOption(key=n.id, text=n.name or "(senza nome)") for n in npcs],
-            value=npcs[0].id, dense=True, border_radius=6,
-        )
+            value=npcs[0].id, dense=True, border_radius=design.Radius.SM,
+            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         init_tf = ft.TextField(label="Iniziativa", value="10", dense=True, width=100,
-                                keyboard_type=ft.KeyboardType.NUMBER)
+                                keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         qty_tf = ft.TextField(label="Quantità", value="1", dense=True, width=90,
-                               keyboard_type=ft.KeyboardType.NUMBER)
+                               keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
 
         def _do_add(_e: Any):
             npc = next((n for n in npcs if n.id == npc_dd.value), npcs[0])
@@ -631,16 +621,16 @@ class MasterEncounterView(ft.Column):
             self.refresh()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Aggiungi NPC dalla Rubrica", size=15, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Aggiungi NPC dalla Rubrica"),
             content=ft.Container(
                 content=ft.Column([npc_dd, ft.Row([init_tf, qty_tf], spacing=8)], spacing=8, tight=True),
-                width=300,
+                width=responsive_dialog_width(page, 300),
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
                                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -649,9 +639,9 @@ class MasterEncounterView(ft.Column):
             return
         page = self._page
         init_tf = ft.TextField(label="Iniziativa", value="10", dense=True, width=110,
-                                keyboard_type=ft.KeyboardType.NUMBER)
+                                keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         qty_tf = ft.TextField(label="Quantità", value="1", dense=True, width=90,
-                               keyboard_type=ft.KeyboardType.NUMBER)
+                               keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         save_cb = ft.Checkbox(label="Salva anche in Rubrica NPC", value=False)
 
         def _open_picker(_e: Any):
@@ -682,7 +672,7 @@ class MasterEncounterView(ft.Column):
             )
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Aggiungi Mostro dal Bestiario", size=15, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Aggiungi Mostro dal Bestiario"),
             content=ft.Container(
                 content=ft.Column(
                     [
@@ -693,13 +683,13 @@ class MasterEncounterView(ft.Column):
                     ],
                     spacing=8, tight=True,
                 ),
-                width=300,
+                width=responsive_dialog_width(page, 300),
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Scegli Mostro...", icon=ft.Icons.MENU_BOOK_OUTLINED, on_click=_open_picker,
                                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -707,15 +697,15 @@ class MasterEncounterView(ft.Column):
         if not self._page:
             return
         page = self._page
-        name_tf = ft.TextField(label="Nome *", dense=True, border_radius=6, autofocus=True)
+        name_tf = ft.TextField(label="Nome *", dense=True, border_radius=design.Radius.SM, autofocus=True, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         ac_tf = ft.TextField(label="CA", value="10", dense=True, width=90,
-                              keyboard_type=ft.KeyboardType.NUMBER)
+                              keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         hp_tf = ft.TextField(label="PF", value="10", dense=True, width=90,
-                              keyboard_type=ft.KeyboardType.NUMBER)
+                              keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         xp_tf = ft.TextField(label="PE", value="0", dense=True, width=90,
-                              keyboard_type=ft.KeyboardType.NUMBER)
+                              keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         init_tf = ft.TextField(label="Iniziativa", value="10", dense=True, width=110,
-                                keyboard_type=ft.KeyboardType.NUMBER)
+                                keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         error_text = ft.Text("", size=12, color=design.T().danger)
 
         def _do_add(_e: Any):
@@ -738,18 +728,18 @@ class MasterEncounterView(ft.Column):
             self.refresh()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Creazione Rapida", size=15, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Creazione Rapida"),
             content=ft.Container(
                 content=ft.Column(
                     [name_tf, ft.Row([ac_tf, hp_tf, xp_tf], spacing=8), init_tf, error_text],
                     spacing=8, tight=True,
                 ),
-                width=320,
+                width=responsive_dialog_width(page, 320),
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
                                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
+            ]),
         )
         page.show_dialog(dlg)

@@ -67,9 +67,10 @@ class MasterView(ft.Column):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.symmetric(horizontal=16, vertical=12),
-            bgcolor=design.T().surface_alt,
-            border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
+            padding=ft.Padding.symmetric(horizontal=design.Space.LG,
+                                         vertical=design.Space.MD),
+            bgcolor=design.T().surface,
+            shadow=design.elevation(1),
         )
 
         self._content_area.content = self._get_tab_content(self.active_tab)
@@ -95,63 +96,60 @@ class MasterView(ft.Column):
         ]
         return ft.Container(
             content=ft.Row(cast(list[ft.Control], pills), spacing=8, wrap=True),
-            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-            bgcolor=design.T().bg,
-            border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
+            padding=ft.Padding.symmetric(horizontal=design.Space.LG,
+                                         vertical=design.Space.MD),
         )
 
     @staticmethod
     def _tool_pill(icon, label: str, on_click) -> ft.Control:
-        return ft.Container(
-            content=ft.Row(
-                [
-                    ft.Icon(icon, size=15, color=design.T().primary),
-                    ft.Container(width=6),
-                    ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=design.T().primary),
-                ],
-                tight=True,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.Padding.symmetric(horizontal=12, vertical=7),
-            bgcolor=design.T().surface,
-            border=ft.Border.all(1, design.T().primary),
-            border_radius=16,
-            on_click=lambda e: on_click(),
-            ink=True,
-        )
+        """Pillola dalla primitiva condivisa `design.pill()` — stessa forma di
+        quelle di Home ed Encounter, un solo posto da cambiare."""
+        return design.pill(icon, label, on_click=lambda e: on_click())
 
     def _build_tab_bar(self) -> ft.Container:
-        items = []
+        """Controllo segmentato: stesso linguaggio della tab bar della scheda."""
+        p = design.T()
+        items: list[ft.Control] = []
         for t in _TABS:
             is_sel = t["key"] == self.active_tab
             items.append(
                 ft.Container(
                     content=ft.Row(
                         [
-                            ft.Icon(
-                                t["icon"], size=16,
-                                color=design.T().primary if is_sel else design.T().text_3,
-                            ),
+                            ft.Icon(t["icon"], size=15,
+                                    color=p.primary if is_sel else p.text_3),
                             ft.Container(width=6),
                             ft.Text(
-                                t["label"].upper(), size=12,
-                                weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
-                                color=design.T().primary if is_sel else design.T().text_2,
+                                t["label"], size=design.Size.LABEL + 1,
+                                weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.W_500,
+                                color=p.primary if is_sel else p.text_2,
+                                font_family=design.Font.BODY,
+                                no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS,
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
+                        tight=True,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    padding=ft.Padding.symmetric(horizontal=16, vertical=12),
-                    bgcolor=design.T().surface if is_sel else design.T().surface_alt,
-                    border=ft.Border.only(
-                        bottom=ft.BorderSide(3, design.T().primary if is_sel else "transparent")
-                    ),
+                    padding=ft.Padding.symmetric(horizontal=design.Space.MD,
+                                                 vertical=design.Space.SM),
+                    border_radius=design.Radius.PILL,
+                    bgcolor=p.surface if is_sel else "transparent",
+                    shadow=design.elevation(1) if is_sel else None,
                     on_click=lambda e, k=t["key"]: self._on_tab_click(k),
                     ink=True,
                     expand=True,
+                    animate=ft.Animation(design.Duration.BASE, design.CURVE),
                 )
             )
-        return ft.Container(content=ft.Row(items, spacing=0), bgcolor=design.T().surface_alt)
+        return ft.Container(
+            content=ft.Row(items, spacing=design.Space.XS),
+            bgcolor=design.T().surface_alt,
+            border_radius=design.Radius.PILL,
+            padding=design.Space.XS,
+            margin=ft.Margin.only(left=design.Space.LG, right=design.Space.LG,
+                                  bottom=design.Space.MD),
+        )
 
     def _open_treasure_dialog(self) -> None:
         page = self.page

@@ -33,7 +33,7 @@ from core import magic_item_generator as mig
 from data.game_data.game_data_loader import GameDataLoader, magic_item_rarity_bucket
 from data.repositories import character_repo
 from ui.views.master.master_magic_items_view import (
-    _RARITY_COLORS, _RARITY_LABELS, _RARITY_ORDER, _category_icon,
+    _rarity_color, _RARITY_LABELS, _RARITY_ORDER, _category_icon,
 )
 from ui.widgets import responsive_dialog_width, wrap_dialog_actions
 from ui import design
@@ -54,25 +54,25 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
     result_state: dict[str, Any] = {"items": []}
 
     rarity_dd = ft.Dropdown(
-        label="Rarità", value="", dense=True, border_radius=6,
+        label="Rarità", value="", dense=True, border_radius=design.Radius.SM,
         options=[ft.DropdownOption(key="", text="Qualsiasi")]
         + [ft.DropdownOption(key=k, text=_RARITY_LABELS[k]) for k in _RARITY_ORDER],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        text_style=design.field_style()['text_style'])
     category_dd = ft.Dropdown(
-        label="Categoria", value="", dense=True, border_radius=6,
+        label="Categoria", value="", dense=True, border_radius=design.Radius.SM,
         options=[ft.DropdownOption(key="", text="Tutte")]
         + [ft.DropdownOption(key=c, text=c) for c in category_options],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        text_style=design.field_style()['text_style'])
     count_tf = ft.TextField(
-        label="Quanti oggetti", value="1", dense=True, border_radius=6,
+        label="Quanti oggetti", value="1", dense=True, border_radius=design.Radius.SM,
         keyboard_type=ft.KeyboardType.NUMBER, width=140,
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        text_style=design.field_style()['text_style'])
     pool_hint = ft.Text("", size=11, color=design.T().text_3)
     result_col = ft.Column(spacing=8)
     char_dd = ft.Dropdown(
@@ -82,7 +82,7 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         disabled=not characters,
-    )
+        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
     feedback_text = ft.Text("", size=11, color=design.T().magic)
 
     def _update_pool_hint() -> None:
@@ -113,7 +113,7 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
         if rarity_raw:
             chips.append(_item_chip(
                 _RARITY_LABELS.get(bucket, rarity_raw.strip().capitalize()),
-                _RARITY_COLORS.get(bucket, design.T().text_3),
+                _rarity_color(bucket),
             ))
         if category:
             chips.append(_item_chip(category, design.T().text_3))
@@ -248,9 +248,8 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
         page.pop_dialog()
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Genera Oggetto Magico", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+        title=design.dialog_title("Genera Oggetto Magico"),
         content=content,
         actions=wrap_dialog_actions([ft.TextButton("Chiudi", on_click=_close)]),
-        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

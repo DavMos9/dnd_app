@@ -50,11 +50,10 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text(title, size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title(title),
             content=ft.Column(body_controls, width=responsive_dialog_width(page, 380), height=420,
                               scroll=ft.ScrollMode.AUTO, tight=True),
             actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
-            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)
 
@@ -152,7 +151,7 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
         options=[ft.DropdownOption(key=k, text=v) for k, v in _MADNESS_KIND_LABELS.items()],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
     madness_result_col = ft.Column(spacing=6)
 
     def _render_madness_result() -> None:
@@ -270,9 +269,8 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
     )
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Malattie, Veleni e Follia", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+        title=design.dialog_title("Malattie, Veleni e Follia"),
         content=content,
         actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
-        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

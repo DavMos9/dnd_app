@@ -115,19 +115,19 @@ class MasterMagicItemsView(ft.Column):
             prefix_icon=ft.Icons.SEARCH,
             dense=True, border_radius=8,
             on_change=self._on_search_change,
-        )
+            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         rarity_dd = ft.Dropdown(
-            label="Rarità", dense=True, border_radius=6, width=160, value="",
+            label="Rarità", dense=True, border_radius=design.Radius.SM, width=160, value="",
             options=[ft.DropdownOption(key="", text="Tutte")]
             + [ft.DropdownOption(key=k, text=_RARITY_LABELS[k]) for k in _RARITY_ORDER],
             on_select=self._on_rarity_select,
-        )
+            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         category_dd = ft.Dropdown(
-            label="Categoria", dense=True, border_radius=6, width=200, value="",
+            label="Categoria", dense=True, border_radius=design.Radius.SM, width=200, value="",
             options=[ft.DropdownOption(key="", text="Tutte")]
             + [ft.DropdownOption(key=c, text=c) for c in self._categories],
             on_select=self._on_category_select,
-        )
+            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
         header = ft.Container(
             content=ft.Column(
@@ -339,6 +339,5 @@ class MasterMagicItemsView(ft.Column):
                 height=460,
             ),
             actions=[ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog())],
-            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)

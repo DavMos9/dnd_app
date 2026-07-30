@@ -23,7 +23,7 @@ from ui.components.monster_picker import (
     build_stat_block_column, monster_display_name,
 )
 from ui.theme import title_text, body_text, muted_text, primary_button
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import wrap_dialog_actions, responsive_dialog_width
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ class MasterNpcListView(ft.Column):
                         dense=True,
                         border_radius=8,
                         on_change=self._on_search_change,
-                    ),
+                        border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style']),
                 ],
                 spacing=10,
             ),
@@ -124,18 +124,7 @@ class MasterNpcListView(ft.Column):
             if self._search_query
             else "Nessun NPC ancora salvato. Creane uno dal Bestiario o manualmente."
         )
-        return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Icon(ft.Icons.GROUPS_OUTLINED, size=48, color=design.T().border),
-                    ft.Container(height=10),
-                    muted_text(msg, size=13, text_align=ft.TextAlign.CENTER),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.Padding.all(32),
-            alignment=ft.Alignment.CENTER,
-        )
+        return design.empty_state(ft.Icons.GROUPS_OUTLINED, "Rubrica vuota", msg)
 
     def _npc_card(self, npc: MasterNpc) -> ft.Control:
         chips: list[ft.Control] = []
@@ -156,16 +145,27 @@ class MasterNpcListView(ft.Column):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(
-                        ft.Icons.SHIELD if npc.has_stat_block else ft.Icons.PERSON_OUTLINE,
-                        color=design.T().primary if npc.has_stat_block else design.T().text_3,
-                        size=22,
+                    ft.Container(
+                        content=ft.Icon(
+                            ft.Icons.SHIELD if npc.has_stat_block else ft.Icons.PERSON_OUTLINE,
+                            color=design.T().primary if npc.has_stat_block else design.T().text_3,
+                            size=22,
+                        ),
+                        width=44, height=44,
+                        alignment=ft.Alignment.CENTER,
+                        bgcolor=ft.Colors.with_opacity(
+                            0.12, design.T().primary if npc.has_stat_block else design.T().text_3),
+                        border_radius=design.Radius.PILL,
                     ),
-                    ft.Container(width=10),
+                    ft.Container(width=design.Space.MD),
                     ft.Column(
                         [
-                            ft.Text(npc.name or "(senza nome)", size=14, weight=ft.FontWeight.BOLD,
-                                     color=design.T().text),
+                            ft.Text(npc.name or "(senza nome)", size=15,
+                                     weight=ft.FontWeight.BOLD,
+                                     color=design.T().text,
+                                     font_family=design.Font.DISPLAY,
+                                     no_wrap=True, max_lines=1,
+                                     overflow=ft.TextOverflow.ELLIPSIS),
                             ft.Row(chips, spacing=6, wrap=True) if chips else ft.Container(height=0),
                             ft.Text(subtitle, size=11, color=design.T().text_3) if subtitle else ft.Container(height=0),
                         ],
@@ -175,21 +175,24 @@ class MasterNpcListView(ft.Column):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.all(12),
+            padding=ft.Padding.all(design.Space.MD),
             bgcolor=design.T().surface,
             shadow=design.elevation(1),
-            border_radius=8,
+            border_radius=design.Radius.MD,
+            border=ft.Border.only(left=ft.BorderSide(
+                3, design.T().primary if npc.has_stat_block else design.T().magic)),
             on_click=lambda e, n=npc: self._open_detail(n),
             ink=True,
+            animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
         )
 
-    def _chip(self, text: str, color: str) -> ft.Container:
-        return ft.Container(
-            content=ft.Text(text, size=10, color=color, weight=ft.FontWeight.W_600),
-            padding=ft.Padding.symmetric(horizontal=8, vertical=3),
-            border=ft.Border.all(1, color),
-            border_radius=10,
-        )
+    @staticmethod
+    def _chip(text: str, color: str) -> ft.Container:
+        """Chip dalla primitiva condivisa: il colore passato sceglie il tono."""
+        p = design.T()
+        tone = {p.primary: "primary", p.magic: "magic", p.success: "success",
+                p.warning: "warning", p.danger: "danger"}.get(color, "neutral")
+        return design.chip(text, tone)
 
     # ------------------------------------------------------------------
     # Dettaglio NPC
@@ -219,14 +222,14 @@ class MasterNpcListView(ft.Column):
             info_rows.append(body_text(npc.notes, size=13, color=design.T().text))
 
         dlg = ft.AlertDialog(
-            title=ft.Text(npc.name or "(senza nome)", size=16, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title(npc.name or "(senza nome)"),
             content=ft.Container(
                 content=ft.Column(
                     [*info_rows, ft.Divider(height=14, color=design.T().border) if info_rows else ft.Container(height=0),
                      content_col],
                     scroll=ft.ScrollMode.AUTO,
                 ),
-                width=340, height=480,
+                width=responsive_dialog_width(page, 340), height=480,
             ),
             actions=wrap_dialog_actions([
                 ft.TextButton(
@@ -258,7 +261,7 @@ class MasterNpcListView(ft.Column):
             self.refresh()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Elimina NPC?", size=15, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Elimina NPC?"),
             content=ft.Text(
                 f"\"{npc.name}\" verrà rimosso dalla rubrica. Se è già presente in un incontro "
                 "salvato, il suo nome/CA/PF restano comunque nello storico di quell'incontro.",
@@ -283,7 +286,7 @@ class MasterNpcListView(ft.Column):
 
         if not encounters:
             info_dlg = ft.AlertDialog(
-                title=ft.Text("Nessun incontro attivo", size=15, weight=ft.FontWeight.BOLD),
+                title=design.dialog_title("Nessun incontro attivo"),
                 content=ft.Text(
                     "Crea prima un incontro dalla tab \"Incontri\", poi torna qui per aggiungerci questo NPC.",
                     size=12, color=design.T().text_2,
@@ -296,10 +299,10 @@ class MasterNpcListView(ft.Column):
         enc_dd = ft.Dropdown(
             label="Incontro",
             options=[ft.DropdownOption(key=enc.id, text=enc.name or "(senza nome)") for enc in encounters],
-            value=encounters[0].id, dense=True, border_radius=6,
-        )
+            value=encounters[0].id, dense=True, border_radius=design.Radius.SM,
+            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         init_tf = ft.TextField(label="Iniziativa", value="10", dense=True, width=100,
-                                keyboard_type=ft.KeyboardType.NUMBER)
+                                keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
 
         def _do_add(e: Any):
             enc_id = enc_dd.value or encounters[0].id
@@ -311,10 +314,10 @@ class MasterNpcListView(ft.Column):
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text(f"Aggiungi \"{npc.name}\" a un incontro", size=15, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title(f"Aggiungi \"{npc.name}\" a un incontro"),
             content=ft.Container(
                 content=ft.Column([enc_dd, ft.Container(height=8), init_tf], tight=True),
-                width=300,
+                width=responsive_dialog_width(page, 300),
             ),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
@@ -349,7 +352,7 @@ class MasterNpcListView(ft.Column):
             show_npc_generator_dialog(page, on_saved=self.refresh)
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Nuovo NPC", size=16, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Nuovo NPC"),
             content=ft.Column(
                 [
                     ft.Text("Come vuoi crearlo?", size=12, color=design.T().text_2),
@@ -486,46 +489,46 @@ class MasterNpcListView(ft.Column):
             }
 
         # --- campi anagrafici, sempre visibili ---
-        name_tf = ft.TextField(label="Nome *", value=src["name"], dense=True, border_radius=6, autofocus=True)
+        name_tf = ft.TextField(label="Nome *", value=src["name"], dense=True, border_radius=design.Radius.SM, autofocus=True, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         role_tf = ft.TextField(label="Ruolo (es. Alleato, Antagonista, Comune)", value=src["role"],
-                                dense=True, border_radius=6)
-        tags_tf = ft.TextField(label="Tag (separati da virgola)", value=src["tags"], dense=True, border_radius=6)
+                                dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        tags_tf = ft.TextField(label="Tag (separati da virgola)", value=src["tags"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         notes_tf = ft.TextField(label="Note di ruolo / backstory", value=src["notes"],
-                                 multiline=True, min_lines=2, max_lines=6, dense=True, border_radius=6)
+                                 multiline=True, min_lines=2, max_lines=6, dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         error_text = ft.Text("", size=12, color=design.T().danger)
 
         # --- toggle + campi statistiche ---
         stat_cb = ft.Checkbox(label="Ha statistiche di combattimento", value=src["has_stat_block"])
 
         type_tf = ft.TextField(label="Tipo creatura", value=src["creature_type"], dense=True,
-                                border_radius=6, width=160)
-        size_tf = ft.TextField(label="Taglia", value=src["size"], dense=True, border_radius=6, width=110)
-        align_tf = ft.TextField(label="Allineamento", value=src["alignment"], dense=True, border_radius=6)
-        ac_tf = ft.TextField(label="CA", value=str(src["ac"]), dense=True, border_radius=6, width=80,
-                              keyboard_type=ft.KeyboardType.NUMBER)
-        ac_note_tf = ft.TextField(label="Nota CA", value=src["ac_note"], dense=True, border_radius=6)
-        hp_tf = ft.TextField(label="PF Massimi", value=str(src["hp_max"]), dense=True, border_radius=6,
-                              width=100, keyboard_type=ft.KeyboardType.NUMBER)
+                                border_radius=design.Radius.SM, width=160, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        size_tf = ft.TextField(label="Taglia", value=src["size"], dense=True, border_radius=design.Radius.SM, width=110, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        align_tf = ft.TextField(label="Allineamento", value=src["alignment"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        ac_tf = ft.TextField(label="CA", value=str(src["ac"]), dense=True, border_radius=design.Radius.SM, width=80,
+                              keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        ac_note_tf = ft.TextField(label="Nota CA", value=src["ac_note"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        hp_tf = ft.TextField(label="PF Massimi", value=str(src["hp_max"]), dense=True, border_radius=design.Radius.SM,
+                              width=100, keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         hp_formula_tf = ft.TextField(label="Formula PF (es. 2d8+2)", value=src["hp_formula"],
-                                      dense=True, border_radius=6, width=160)
-        speed_tf = ft.TextField(label="Velocità", value=src["speed"], dense=True, border_radius=6, width=110)
-        cr_tf = ft.TextField(label="GS", value=src["cr"], dense=True, border_radius=6, width=80)
+                                      dense=True, border_radius=design.Radius.SM, width=160, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        speed_tf = ft.TextField(label="Velocità", value=src["speed"], dense=True, border_radius=design.Radius.SM, width=110, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        cr_tf = ft.TextField(label="GS", value=src["cr"], dense=True, border_radius=design.Radius.SM, width=80, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         xp_tf = ft.TextField(label="PE (per Calcolatore Difficoltà)", value=str(src["xp"]), dense=True,
-                              border_radius=6, width=180, keyboard_type=ft.KeyboardType.NUMBER)
+                              border_radius=design.Radius.SM, width=180, keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
         def _score_field(label: str, key: str) -> ft.TextField:
-            return ft.TextField(label=label, value=str(src[key]), dense=True, border_radius=6,
-                                 width=70, keyboard_type=ft.KeyboardType.NUMBER)
+            return ft.TextField(label=label, value=str(src[key]), dense=True, border_radius=design.Radius.SM,
+                                 width=70, keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
         str_tf, dex_tf, con_tf = _score_field("FOR", "str_score"), _score_field("DES", "dex_score"), _score_field("COS", "con_score")
         int_tf, wis_tf, cha_tf = _score_field("INT", "int_score"), _score_field("SAG", "wis_score"), _score_field("CAR", "cha_score")
 
-        senses_tf = ft.TextField(label="Sensi", value=src["senses"], dense=True, border_radius=6)
-        languages_tf = ft.TextField(label="Linguaggi", value=src["languages"], dense=True, border_radius=6)
-        vuln_tf = ft.TextField(label="Vulnerabilità danni", value=src["damage_vulnerabilities"], dense=True, border_radius=6)
-        res_tf = ft.TextField(label="Resistenze danni", value=src["damage_resistances"], dense=True, border_radius=6)
-        imm_tf = ft.TextField(label="Immunità danni", value=src["damage_immunities"], dense=True, border_radius=6)
-        cond_tf = ft.TextField(label="Immunità condizioni", value=src["condition_immunities"], dense=True, border_radius=6)
+        senses_tf = ft.TextField(label="Sensi", value=src["senses"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        languages_tf = ft.TextField(label="Linguaggi", value=src["languages"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        vuln_tf = ft.TextField(label="Vulnerabilità danni", value=src["damage_vulnerabilities"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        res_tf = ft.TextField(label="Resistenze danni", value=src["damage_resistances"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        imm_tf = ft.TextField(label="Immunità danni", value=src["damage_immunities"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        cond_tf = ft.TextField(label="Immunità condizioni", value=src["condition_immunities"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
         import json as _json2
 
@@ -630,7 +633,7 @@ class MasterNpcListView(ft.Column):
             self.refresh()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Modifica NPC" if is_edit else "Nuovo NPC", size=16, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Modifica NPC" if is_edit else "Nuovo NPC"),
             content=ft.Container(
                 content=ft.Column(
                     [
@@ -642,7 +645,7 @@ class MasterNpcListView(ft.Column):
                     ],
                     scroll=ft.ScrollMode.AUTO, spacing=8,
                 ),
-                width=340, height=480,
+                width=responsive_dialog_width(page, 340), height=480,
             ),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),

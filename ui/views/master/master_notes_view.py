@@ -138,11 +138,11 @@ class MasterNotesView(ft.Column):
         self._note_edit: bool = False
 
         # campi editor nota (impostati in _build_note_edit_panel)
-        self._nf_name:   ft.TextField = ft.TextField()
-        self._nf_status: ft.Dropdown = ft.Dropdown()
-        self._nf_tags:   ft.TextField = ft.TextField()
-        self._nf_desc:   ft.TextField = ft.TextField()
-        self._nf_npc:    ft.Dropdown = ft.Dropdown()
+        self._nf_name:   ft.TextField = ft.TextField(**design.field_style())
+        self._nf_status: ft.Dropdown = ft.Dropdown(**design.field_style())
+        self._nf_tags:   ft.TextField = ft.TextField(**design.field_style())
+        self._nf_desc:   ft.TextField = ft.TextField(**design.field_style())
+        self._nf_npc:    ft.Dropdown = ft.Dropdown(**design.field_style())
 
         self._detail_container: ft.Container = ft.Container(expand=True)
         self._left_list_lv: ft.ListView = ft.ListView(expand=True, spacing=2,
@@ -295,10 +295,13 @@ class MasterNotesView(ft.Column):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.symmetric(horizontal=10, vertical=7),
+            padding=ft.Padding.symmetric(horizontal=design.Space.MD,
+                                         vertical=design.Space.SM),
             bgcolor=design.T().primary if is_sel else "transparent",
-            border_radius=design.Radius.MD,
+            border_radius=design.Radius.PILL,
+            shadow=design.elevation(1) if is_sel else None,
             margin=ft.Margin.only(left=6, right=6),
+            animate=ft.Animation(design.Duration.FAST, design.CURVE),
             on_click=lambda e, k=cat["key"]: self._on_cat_click(k),
             ink=True,
         )
@@ -307,12 +310,7 @@ class MasterNotesView(ft.Column):
         n = len(self._notes.get(key, []))
         if n == 0:
             return ft.Container(width=0)
-        return ft.Container(
-            content=ft.Text(str(n), size=9, color=design.T().text_3,
-                             text_align=ft.TextAlign.CENTER),
-            bgcolor=design.T().border, border_radius=8,
-            padding=ft.Padding.symmetric(horizontal=5, vertical=1),
-        )
+        return design.chip(str(n), "neutral")
 
     def _build_note_list_items(self) -> list[ft.Control]:
         notes = self._notes.get(self._active_cat, [])
@@ -352,7 +350,8 @@ class MasterNotesView(ft.Column):
             padding=ft.Padding.symmetric(horizontal=8, vertical=8),
             bgcolor=ft.Colors.with_opacity(0.10, design.T().primary) if is_sel else "transparent",
             border_radius=design.Radius.MD,
-            border=ft.Border.all(1, design.T().primary) if is_sel else None,
+            border=(ft.Border.only(left=ft.BorderSide(3, design.T().primary))
+                    if is_sel else None),
             on_click=lambda e, nid=note.id: self._on_sel_note(nid),
             ink=True,
         )
@@ -491,21 +490,21 @@ class MasterNotesView(ft.Column):
             text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'])
         self._nf_status = ft.Dropdown(
             label="Stato",
             value=note.status or (opts[0] if opts else ""),
             options=[ft.DropdownOption(key=s, text=s) for s in opts],
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         self._nf_tags = ft.TextField(
             value=note.tags or "",
             label="Tag (separati da virgola — es. corte, waterdeep, alleanza)",
             text_style=ft.TextStyle(size=12, color=design.T().text_2),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'])
         npc_opts = [ft.DropdownOption(key="", text="— nessuno —")] + [
             ft.DropdownOption(key=n.id, text=n.name or "(senza nome)") for n in self._npcs
         ]
@@ -515,14 +514,14 @@ class MasterNotesView(ft.Column):
             options=npc_opts,
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         self._nf_desc = ft.TextField(
             value=note.description or "", label="Descrizione / Note",
             multiline=True, min_lines=10, max_lines=30,
             text_style=ft.TextStyle(size=14, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
-        )
+            border_radius=design.field_style()['border_radius'])
 
         action_bar = ft.Container(
             content=ft.Row(
@@ -655,7 +654,7 @@ class MasterNotesView(ft.Column):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Elimina voce", size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Elimina voce"),
             content=ft.Text(
                 f"Eliminare «{note.name or 'Senza nome'}»?\nL'azione non è reversibile.",
                 size=13, color=design.T().text,
@@ -667,7 +666,6 @@ class MasterNotesView(ft.Column):
                     style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
             ]),
-            bgcolor=design.T().surface,
         ))
 
     def _open_new_note_dialog(self) -> None:
@@ -683,13 +681,13 @@ class MasterNotesView(ft.Column):
             text_style=ft.TextStyle(size=14, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         f_status = ft.Dropdown(
             label="Stato", value=opts[0] if opts else "",
             options=[ft.DropdownOption(key=s, text=s) for s in opts],
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         npc_opts = [ft.DropdownOption(key="", text="— nessuno —")] + [
             ft.DropdownOption(key=n.id, text=n.name or "(senza nome)") for n in self._npcs
         ]
@@ -698,13 +696,13 @@ class MasterNotesView(ft.Column):
             options=npc_opts,
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         f_desc = ft.TextField(
             label="Descrizione / Note", multiline=True, min_lines=3, max_lines=8,
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def save(ev: Any) -> None:
             if page is None:
@@ -730,7 +728,7 @@ class MasterNotesView(ft.Column):
         fields.append(f_desc)
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text(meta["add_label"], size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title(meta["add_label"]),
             content=ft.Column(fields, spacing=10, scroll=ft.ScrollMode.AUTO, width=400),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
@@ -739,7 +737,6 @@ class MasterNotesView(ft.Column):
                     style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
             ]),
-            bgcolor=design.T().surface,
         ))
 
     # ──────────────────────────────────────────────────────────────────────

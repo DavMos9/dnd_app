@@ -64,7 +64,7 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
         ],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
     result_col = ft.Column(spacing=8)
 
     def _open_creature_sheet(m: dict[str, Any]) -> None:
@@ -154,9 +154,8 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
     )
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Genera Incontro per Ambiente", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+        title=design.dialog_title("Genera Incontro per Ambiente"),
         content=content,
         actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
-        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

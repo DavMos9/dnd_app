@@ -1,6 +1,13 @@
-# Restyle — progettazione del sistema visivo (Fasi A · B · C · D)
+# Restyle — progettazione del sistema visivo (Fasi A · B · C · D · E)
 
-> Documento di **progettazione**. Nessuna riga di codice applicata.
+> **STATO: A · B · C · E completate il 2026-07-30** (C assorbita dentro E).
+> Resta solo la **FASE D** — interruttore del tema scuro e persistenza della
+> preferenza: i token e le due palette sono già pronti e nelle view non c'è più
+> un solo colore statico. Ogni fase completata ha in testa un riquadro con gli
+> scostamenti rispetto a quanto era stato progettato qui; il changelog
+> dettagliato è in `CLAUDE.md`.
+>
+> Documento nato come **progettazione** (nessuna riga di codice applicata).
 > Scelte confermate da Davide il 2026-07-26: restyle completo **incluso dark mode**.
 > Ordine di lavoro confermato: bug → pulizia → restyle → feature.
 >
@@ -72,6 +79,14 @@ ELEV_3  light: blur 32, offset (0,8),  #1a1c24 @ 18%   (dialog)
 
 **Migrazione**: non tutto in un colpo. Le primitive nascono in Fase A, le view
 migrano in Fase E, una per volta. Una view non migrata resta funzionante.
+
+> Alla chiusura della Fase E le primitive effettivamente in uso sono 15, non 8:
+> alle previste si sono aggiunte `hp_bar()` (barra PF a segmenti, per mostrare i
+> temporanei), `slot_dots()`/`dot_button()` (gli slot erano caratteri di testo),
+> `dialog_title()` e `field_style()` (allineamento delle 114 finestre),
+> `difficulty_color()`, `CURRENCY_COLORS` e `CHROME` (chrome dell'editor mappe).
+> `section(collapsible=…)` è invece rimasta **non implementata**: nessuna view
+> l'ha richiesta durante il restyle.
 
 ### A.3 — `get_theme()` riscritta
 
@@ -222,6 +237,15 @@ sparati. È il lavoro più noioso della Fase B ed è ineliminabile.
 
 ## FASE C — Micro-interazioni
 
+> ✅ **ASSORBITA NELLA FASE E il 2026-07-30** (scelta confermata da Davide: "sì,
+> insieme"). Applicate: feedback di press su card/pillole/chip/riquadri
+> caratteristica, transizione della tab bar (scheda e Master), barra HP animata,
+> pallini degli slot animati, ombre e superfici con `animate`.
+> **Non fatte, per scelta**: `ft.AnimatedSwitcher` sul cambio tab (il contenuto
+> del tab viene ricostruito, un switcher animerebbe due alberi diversi) e
+> `ft.Shimmer` come skeleton sulle liste lunghe — le liste si costruiscono da DB
+> locale, il caricamento non è mai percepibile.
+
 Serve **prima** aver risolto B10 (il rebuild totale ad ogni click): animare un
 albero che viene ricostruito da zero produce sfarfallio, non fluidità.
 
@@ -279,6 +303,21 @@ lo scroll.
 > * due primitive non previste qui si sono rivelate necessarie: `hp_bar()` a
 >   segmenti (per mostrare i PF temporanei) e `slot_dots()`/`dot_button()` (gli
 >   slot erano caratteri di testo "●"/"○", non forme).
+>
+> **Coda 2 (stesso giorno)**: allineate tutte le **114 finestre** dell'app
+> (Master e giocatore) — titolo dalla primitiva condivisa, sfondo dal tema
+> (i 76 `bgcolor` inline rimossi erano un ostacolo silenzioso al tema scuro),
+> pulsanti sempre avvolti per andare a capo, larghezze responsive, campi con
+> stile condiviso. Nota tecnica: `ft.Theme` **non ha** `input_decoration_theme`
+> in Flet 0.85.3, quindi `TextField`/`Dropdown` sono l'unico controllo che va
+> stilizzato sito per sito (`design.field_style()`); tutti gli altri controlli
+> Material dei dialog sono ora uniformati dal tema.
+>
+> **Coda (stesso giorno)**: restylati anche l'editor di mappe e la Sezione
+> Master. La chrome dell'editor resta scura in entrambi i temi — è un pannello
+> sopra un'immagine — ma vive ora in `design.CHROME` invece che come dizionario
+> di hex dentro la view; i colori del pennarello restano intoccabili perché
+> **persistiti** in `game_maps.annotations`.
 >
 > **La Fase D è ora la sola cosa che separa l'app dal tema scuro**: nelle view non
 > resta nessun colore statico, serve solo l'interruttore + persistenza.

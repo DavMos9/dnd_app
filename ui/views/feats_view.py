@@ -136,7 +136,6 @@ class FeatsView(ft.ListView):
                         on_click=lambda e: page.pop_dialog(),
                     ),
                 ],
-                bgcolor=design.T().surface,
             ))
 
         return ft.Container(

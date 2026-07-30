@@ -213,7 +213,7 @@ class EsplorazioneTab(ScrollMemoryListView):
             hint_text=f"Vuoto = calcolato automaticamente ({calculated})",
             keyboard_type=ft.KeyboardType.NUMBER,
             autofocus=True,
-        )
+            **design.field_style())
 
         def _save(e):
             raw = (tf.value or "").strip()
@@ -245,7 +245,7 @@ class EsplorazioneTab(ScrollMemoryListView):
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Percezione Passiva"),
+            title=design.dialog_title("Percezione Passiva"),
             content=ft.Column(
                 [
                     muted_text(f"Valore calcolato dal PHB: {calculated}", 12),
@@ -383,7 +383,7 @@ class EsplorazioneTab(ScrollMemoryListView):
             value=f"{c.speed or 9:g}",
             hint_text="es. 9, 7.5, 10.5",
             autofocus=True,
-        )
+            **design.field_style())
 
         def _save(e):
             raw = (tf.value or "").strip().replace(",", ".")
@@ -405,7 +405,7 @@ class EsplorazioneTab(ScrollMemoryListView):
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Modifica Velocità"),
+            title=design.dialog_title("Modifica Velocità"),
             content=ft.Column(
                 [
                     muted_text(
@@ -419,10 +419,10 @@ class EsplorazioneTab(ScrollMemoryListView):
                 spacing=12,
                 tight=True,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton("Applica", on_click=_save),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -627,11 +627,11 @@ class EsplorazioneTab(ScrollMemoryListView):
 
         tf_name = ft.TextField(
             label="Nome", value=(ab.name if ab else ""), autofocus=True,
-        )
+            **design.field_style())
         tf_desc = ft.TextField(
             label="Descrizione", value=(ab.description if ab else ""),
             multiline=True, min_lines=3, max_lines=8,
-        )
+            **design.field_style())
 
         def _save(e):
             name = (tf_name.value or "").strip()
@@ -658,12 +658,12 @@ class EsplorazioneTab(ScrollMemoryListView):
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Modifica Abilità Speciale" if ab else "Nuova Abilità Speciale"),
+            title=design.dialog_title("Modifica Abilità Speciale" if ab else "Nuova Abilità Speciale"),
             content=ft.Column([tf_name, tf_desc], spacing=12, tight=True, width=340),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton("Salva", on_click=_save),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -683,15 +683,15 @@ class EsplorazioneTab(ScrollMemoryListView):
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Elimina Abilità Speciale"),
+            title=design.dialog_title("Elimina Abilità Speciale"),
             content=ft.Text(f'Eliminare "{ab.name}" dalla scheda?'),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
                     "Elimina", on_click=_confirm,
                     style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
-            ],
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -925,7 +925,7 @@ class EsplorazioneTab(ScrollMemoryListView):
             focused_border_color=design.T().magic,
             bgcolor=design.T().surface,
             expand=True,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def on_blur(ev: ft.Event[ft.TextField]) -> None:
             notes = notes_field.value or ""

@@ -18,9 +18,9 @@ import flet as ft
 
 from data.models import MasterEncounter
 from data.repositories import master_repo
-from ui.theme import title_text, muted_text, primary_button
+from ui.theme import title_text, primary_button
 from ui.views.master.master_encounter_view import MasterEncounterView
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import wrap_dialog_actions, responsive_dialog_width
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -108,37 +108,38 @@ class MasterEncounterListView(ft.Column):
             self._list_col.controls.append(self._encounter_card(enc))
 
     def _empty_state(self) -> ft.Control:
-        return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Icon(ft.Icons.SHIELD_OUTLINED, size=48, color=design.T().border),
-                    ft.Container(height=10),
-                    muted_text(
-                        "Nessun incontro attivo. Creane uno per iniziare a tracciare "
-                        "iniziativa e PF dei combattenti.",
-                        size=13, text_align=ft.TextAlign.CENTER,
-                    ),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.Padding.all(32),
-            alignment=ft.Alignment.CENTER,
+        return design.empty_state(
+            ft.Icons.SHIELD_OUTLINED,
+            "Nessun incontro attivo",
+            "Creane uno per iniziare a tracciare iniziativa e PF dei combattenti.",
         )
 
     def _encounter_card(self, enc: MasterEncounter) -> ft.Control:
         members = master_repo.get_encounter_members(enc.id, active_only=True)
         count = len(members)
-        subtitle = f"Round {enc.round_number} · {count} combattent{'e' if count == 1 else 'i'}"
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(ft.Icons.SHIELD, color=design.T().primary, size=22),
-                    ft.Container(width=10),
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.SHIELD, color=design.T().primary, size=22),
+                        width=44, height=44, alignment=ft.Alignment.CENTER,
+                        bgcolor=ft.Colors.with_opacity(0.12, design.T().primary),
+                        border_radius=design.Radius.PILL,
+                    ),
+                    ft.Container(width=design.Space.MD),
                     ft.Column(
                         [
-                            ft.Text(enc.name or "(senza nome)", size=14, weight=ft.FontWeight.BOLD,
-                                     color=design.T().text),
-                            ft.Text(subtitle, size=11, color=design.T().text_3),
+                            ft.Text(enc.name or "(senza nome)", size=15,
+                                     weight=ft.FontWeight.BOLD, color=design.T().text,
+                                     font_family=design.Font.DISPLAY,
+                                     no_wrap=True, max_lines=1,
+                                     overflow=ft.TextOverflow.ELLIPSIS),
+                            ft.Row([
+                                design.chip(f"Round {enc.round_number}", "primary"),
+                                design.chip(
+                                    f"{count} combattent{'e' if count == 1 else 'i'}",
+                                    "magic", icon=ft.Icons.GROUPS_OUTLINED),
+                            ], spacing=design.Space.XS, wrap=True),
                             ft.Text(enc.notes, size=11, color=design.T().text_2, italic=True)
                             if enc.notes else ft.Container(height=0),
                         ],
@@ -153,12 +154,14 @@ class MasterEncounterListView(ft.Column):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.all(12),
+            padding=ft.Padding.all(design.Space.MD),
             bgcolor=design.T().surface,
             shadow=design.elevation(1),
-            border_radius=8,
+            border_radius=design.Radius.MD,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
             on_click=lambda e, en=enc: self._open_encounter(en.id),
             ink=True,
+            animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
         )
 
     def _confirm_delete(self, enc: MasterEncounter):
@@ -172,7 +175,7 @@ class MasterEncounterListView(ft.Column):
             self.refresh()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Elimina incontro?", size=15, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Elimina incontro?"),
             content=ft.Text(
                 f"\"{enc.name}\" e tutti i suoi combattenti verranno eliminati definitivamente.",
                 size=12, color=design.T().text_2,
@@ -203,9 +206,9 @@ class MasterEncounterListView(ft.Column):
         if not self._page:
             return
         page = self._page
-        name_tf = ft.TextField(label="Nome incontro", dense=True, border_radius=6, autofocus=True)
+        name_tf = ft.TextField(label="Nome incontro", dense=True, border_radius=design.Radius.SM, autofocus=True, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         notes_tf = ft.TextField(label="Note (opzionale)", multiline=True, min_lines=2, max_lines=4,
-                                 dense=True, border_radius=6)
+                                 dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
         def _do_create(_e: Any):
             name = (name_tf.value or "").strip() or "Nuovo Incontro"
@@ -216,10 +219,10 @@ class MasterEncounterListView(ft.Column):
                 self._open_encounter(enc.id)
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Nuovo Incontro", size=16, weight=ft.FontWeight.BOLD),
+            title=design.dialog_title("Nuovo Incontro"),
             content=ft.Container(
                 content=ft.Column([name_tf, notes_tf], spacing=8, tight=True),
-                width=320,
+                width=responsive_dialog_width(page, 320),
             ),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),

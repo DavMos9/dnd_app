@@ -110,6 +110,37 @@ def _build_theme(p: "d.Palette") -> ft.Theme:
             cross_axis_margin=2,
             interactive=True,
         ),
+        # Controlli Material che l'app usa dentro i dialog: uniformati dal tema
+        # (Fase E, coda 2026-07-30) invece che stilizzati caso per caso.
+        dropdown_theme=ft.DropdownTheme(
+            text_style=txt(d.Size.BODY_SM, p.text),
+        ),
+        checkbox_theme=ft.CheckboxTheme(
+            fill_color=p.primary,
+            check_color=p.on_primary,
+            shape=ft.RoundedRectangleBorder(radius=d.Radius.SM // 2),
+            border_side=ft.BorderSide(1.5, p.border),
+        ),
+        radio_theme=ft.RadioTheme(fill_color=p.primary),
+        slider_theme=ft.SliderTheme(
+            active_track_color=p.primary,
+            inactive_track_color=p.surface_alt,
+            thumb_color=p.primary,
+            value_indicator_color=p.primary,
+        ),
+        chip_theme=ft.ChipTheme(
+            bgcolor=p.surface_alt,
+            color=p.text_2,
+            shape=ft.RoundedRectangleBorder(radius=d.Radius.PILL),
+            label_text_style=txt(d.Size.LABEL, p.text_2, ft.FontWeight.BOLD),
+        ),
+        icon_theme=ft.IconTheme(color=p.text_2),
+        snackbar_theme=ft.SnackBarTheme(
+            bgcolor=p.surface,
+            content_text_style=txt(d.Size.BODY_SM, p.text),
+            shape=ft.RoundedRectangleBorder(radius=d.Radius.MD),
+            elevation=4,
+        ),
         divider_theme=ft.DividerTheme(color=p.border, thickness=1, space=1),
         tooltip_theme=ft.TooltipTheme(
             text_style=txt(d.Size.LABEL, p.surface),
@@ -252,10 +283,9 @@ def show_error_dialog(
     if page is None:
         return
     page.show_dialog(ft.AlertDialog(
-        title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=d.T().primary),
+        title=d.dialog_title(title),
         content=ft.Text(message, size=13, color=d.T().text),
         actions=[
             ft.TextButton("OK", on_click=lambda e: page.pop_dialog()),
         ],
-        bgcolor=d.T().surface,
     ))

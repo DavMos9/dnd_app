@@ -104,15 +104,15 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         dense=True,
-    )
+        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
 
     # --- Modalità Diretta ---
     cr_min_tf = ft.TextField(label="GS min", value="0", width=90, dense=True,
-                              keyboard_type=ft.KeyboardType.NUMBER)
+                              keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
     cr_max_tf = ft.TextField(label="GS max", value="5", width=90, dense=True,
-                              keyboard_type=ft.KeyboardType.NUMBER)
+                              keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
     count_tf = ft.TextField(label="Numero mostri", value="4", width=140, dense=True,
-                             keyboard_type=ft.KeyboardType.NUMBER)
+                             keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
     direct_col = ft.Container(
         content=ft.Column(
             [
@@ -141,11 +141,11 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         dense=True,
-    )
-    party_cr_min_tf = ft.TextField(label="GS min (opz.)", dense=True, width=120)
-    party_cr_max_tf = ft.TextField(label="GS max (opz.)", dense=True, width=120)
+        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
+    party_cr_min_tf = ft.TextField(label="GS min (opz.)", dense=True, width=120, **design.field_style())
+    party_cr_max_tf = ft.TextField(label="GS max (opz.)", dense=True, width=120, **design.field_style())
     ghost_tf = ft.TextField(label="Livello PG fantasma", value="1", width=160, dense=True,
-                             keyboard_type=ft.KeyboardType.NUMBER)
+                             keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
     ghost_row = ft.Row([], spacing=6, wrap=True)
 
     party_col = ft.Container(
@@ -173,7 +173,7 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
 
     result_col = ft.Column(spacing=4)
     feedback_text = ft.Text("", size=11, color=design.T().magic)
-    name_tf = ft.TextField(label="Nome nuovo incontro", value="Incontro Casuale", dense=True, border_radius=6)
+    name_tf = ft.TextField(label="Nome nuovo incontro", value="Incontro Casuale", dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
     # ------------------------------------------------------------------
     # Helper di stato
@@ -398,11 +398,10 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
     )
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Genera Incontro Casuale", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+        title=design.dialog_title("Genera Incontro Casuale"),
         content=content,
         actions=wrap_dialog_actions([
             ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
         ]),
-        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

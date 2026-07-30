@@ -48,8 +48,8 @@ from data.models import Character, KnownSpell, SpellSlot
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text
-from ui.widgets import (CardPicker, ScrollMemoryListView,
-                        spell_card_options, wrap_dialog_actions)
+from ui.widgets import (CardPicker, ScrollMemoryListView, spell_card_options,
+                        wrap_dialog_actions, responsive_dialog_width)
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -226,9 +226,7 @@ class SpellsView(ScrollMemoryListView):
                 # Limite raggiunto: mostra snackbar e blocca
                 if self._page:
                     self._page.show_dialog(ft.AlertDialog(
-                        title=ft.Text("Limite raggiunto", size=14,
-                                      weight=ft.FontWeight.BOLD,
-                                      color=design.T().primary),
+                        title=design.dialog_title("Limite raggiunto"),
                         content=ft.Text(
                             f"Hai già preparato {max_prep} incantesimi, "
                             f"il massimo per il tuo livello.\n\n"
@@ -243,7 +241,6 @@ class SpellsView(ScrollMemoryListView):
                                 if self._page else None,
                             )
                         ],
-                        bgcolor=design.T().surface,
                     ))
                 return
 
@@ -299,7 +296,7 @@ class SpellsView(ScrollMemoryListView):
             focused_border_color=design.T().magic,
             bgcolor=design.T().surface,
             autofocus=True,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def save(ev):
             if page is None:
@@ -323,8 +320,7 @@ class SpellsView(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Limite Preparazione", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Limite Preparazione"),
             content=ft.Column([
                 ft.Text(formula_desc, size=12, color=design.T().text_3, italic=True),
                 ft.Container(height=4),
@@ -346,7 +342,6 @@ class SpellsView(ScrollMemoryListView):
                     ),
                 ),
             ]),
-            bgcolor=design.T().surface,
         ))
 
     def _open_spell_dialog(self, spell: dict[str, Any]) -> None:
@@ -421,7 +416,6 @@ class SpellsView(ScrollMemoryListView):
                 ft.TextButton("Chiudi",
                               on_click=lambda e: page.pop_dialog() if page else None),
             ],
-            bgcolor=design.T().surface,
         ))
 
     # ------------------------------------------------------------------
@@ -942,8 +936,7 @@ class SpellsView(ScrollMemoryListView):
                         ft.Text(_ks.higher_levels, size=12, color=design.T().text_2),
                     ]
                 page.show_dialog(ft.AlertDialog(
-                    title=ft.Text(_ks.name, size=14, weight=ft.FontWeight.BOLD,
-                                  color=design.T().text),
+                    title=design.dialog_title(_ks.name),
                     content=ft.Column(
                         rows_d, spacing=6, scroll=ft.ScrollMode.AUTO
                     ),
@@ -953,7 +946,6 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=design.T().surface,
                 ))
 
             rows.append(ft.Container(
@@ -1065,7 +1057,6 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=design.T().surface,
                 ))
 
             rows.append(ft.Container(
@@ -1168,7 +1159,6 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=design.T().surface,
                 ))
 
             rows.append(ft.Container(
@@ -1309,7 +1299,6 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=design.T().surface,
                 ))
 
             def _remove(e, _ks: KnownSpell = ks) -> None:
@@ -1472,8 +1461,7 @@ class SpellsView(ScrollMemoryListView):
                         size=13, color=design.T().text_3, italic=True,
                     ))
                 page.show_dialog(ft.AlertDialog(
-                    title=ft.Text(_name, size=14, weight=ft.FontWeight.BOLD,
-                                  color=design.T().text),
+                    title=design.dialog_title(_name),
                     content=ft.Column(rows_d, spacing=6, scroll=ft.ScrollMode.AUTO),
                     actions=[
                         ft.TextButton(
@@ -1481,7 +1469,6 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=design.T().surface,
                 ))
 
             rows.append(ft.Container(
@@ -1557,7 +1544,7 @@ class SpellsView(ScrollMemoryListView):
             label_style=ft.TextStyle(color=design.T().text_3, size=12),
             border_color=design.T().border,
             focused_border_color=design.T().magic,
-        )
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         error_text = ft.Text("", size=12, color=design.T().primary)
 
         def _spells_for(cls: str) -> list[dict[str, Any]]:
@@ -1626,8 +1613,7 @@ class SpellsView(ScrollMemoryListView):
                 pass
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Aggiungi Incantesimo Bonus", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Aggiungi Incantesimo Bonus"),
             content=ft.Container(
                 # scroll + altezza fissa spostati QUI (2026-07-16, fix
                 # scorrimento annidato — vedi ui/widgets.py): CardPicker non
@@ -1646,10 +1632,10 @@ class SpellsView(ScrollMemoryListView):
                     spell_dd.control,
                     error_text,
                 ], spacing=10, scroll=ft.ScrollMode.AUTO),
-                width=340,
+                width=responsive_dialog_width(page, 340),
                 height=460,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
@@ -1658,8 +1644,7 @@ class SpellsView(ScrollMemoryListView):
                         bgcolor=design.T().magic, color=design.T().on_accent,
                     ),
                 ),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     # ------------------------------------------------------------------

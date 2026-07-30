@@ -13,7 +13,7 @@ from typing import Callable, cast
 from data.models import Character, DiaryEntry
 import data.repositories.character_repo as character_repo
 from ui.theme import muted_text
-from ui.widgets import ScrollMemoryListView
+from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -219,7 +219,7 @@ class DiarioTab(ScrollMemoryListView):
             focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         f_date = ft.TextField(
             label="Data / Sessione  (es. «Sessione 3», «15 Olarune 998»)",
             value="" if is_new else (entry.session_date or ""),
@@ -228,7 +228,7 @@ class DiarioTab(ScrollMemoryListView):
             focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         f_content = ft.TextField(
             label="Contenuto",
             value="" if is_new else (entry.content or ""),
@@ -240,7 +240,7 @@ class DiarioTab(ScrollMemoryListView):
             focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def save(ev):
             if page is None:
@@ -257,16 +257,13 @@ class DiarioTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text(
-                "Nuova Voce" if is_new else "Modifica Voce",
-                size=14, weight=ft.FontWeight.BOLD, color=design.T().text,
-            ),
+            title=design.dialog_title("Nuova Voce" if is_new else "Modifica Voce"),
             content=ft.Column(
                 [f_title, f_date, f_content],
                 spacing=10,
                 scroll=ft.ScrollMode.AUTO,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton(
                     "Annulla",
                     on_click=lambda ev: page.pop_dialog() if page else None,
@@ -280,8 +277,7 @@ class DiarioTab(ScrollMemoryListView):
                         color=design.T().on_primary,
                     ),
                 ),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     # ------------------------------------------------------------------
@@ -301,13 +297,12 @@ class DiarioTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Elimina voce", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Elimina voce"),
             content=ft.Text(
                 f"Eliminare «{entry.title or 'Senza titolo'}»?\nL'operazione non è reversibile.",
                 size=13, color=design.T().text,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton(
                     "Annulla",
                     on_click=lambda ev: page.pop_dialog() if page else None,
@@ -321,8 +316,7 @@ class DiarioTab(ScrollMemoryListView):
                         color=design.T().on_primary,
                     ),
                 ),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     # ------------------------------------------------------------------

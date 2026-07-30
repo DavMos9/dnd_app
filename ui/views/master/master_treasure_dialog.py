@@ -59,7 +59,7 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
         options=[ft.DropdownOption(key=k, text=v) for k, v in _CR_LABELS.items()],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-    )
+        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
     result_col = ft.Column(spacing=6)
     char_dd = ft.Dropdown(
         label="Aggiungi all'inventario di...",
@@ -68,7 +68,7 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         disabled=not characters,
-    )
+        border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
     add_btn_ref: list[ft.ElevatedButton] = []
     feedback_text = ft.Text("", size=11, color=design.T().magic)
 
@@ -260,11 +260,10 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
         page.pop_dialog()
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Genera Tesoro", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+        title=design.dialog_title("Genera Tesoro"),
         content=content,
         actions=cast(list[ft.Control], [
             ft.TextButton("Chiudi", on_click=_close),
         ]),
-        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

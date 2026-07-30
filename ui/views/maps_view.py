@@ -35,6 +35,7 @@ from data.models import Character, GameMap
 from data.repositories import maps_repo
 from ui.image_library import show_image_library_picker
 from ui import design
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -147,28 +148,9 @@ _PEN_COLORS = [
     "#212121",  # nero
 ]
 
-# Chrome dell'editor di mappe: volutamente SCURA in entrambi i temi, perché è
-# un pannello di strumenti sovrapposto a un'immagine — se seguisse la palette
-# chiara competerebbe con la mappa. Prima erano ~40 hex inline sparsi nel file.
-_CHROME = {
-    "bar_bg":        "#2a2a2a",   # sfondo barra strumenti
-    "bar_border":    "#444444",
-    "panel_bg":      "#222222",   # pannello secondario (slider)
-    "btn_bg":        "#3a3a3a",   # bottone non selezionato
-    "btn_border":    "#555555",
-    "btn_border_2":  "#666666",
-    "danger_bg":     "#7b0000",   # "Cancella tutto"
-    "text":          "#ffffff",
-    "text_muted":    "#bbbbbb",
-    "text_dim":      "#aaaaaa",
-    "text_dark":     "#111111",   # su swatch chiaro selezionato
-    "neutral":       "#777777",
-    "slider_active": "#888888",
-    "fullscreen_bg": "#111111",
-    "canvas_bg":     "#000000",
-    "shadow_text":   "#ffffffdd",  # etichette sopra la mappa
-    "shadow_dim":    "#00000066",
-}
+# La chrome dell'editor (barra strumenti scura sovrapposta alla mappa) vive in
+# `ui/design.py → CHROME`: è volutamente scura in ENTRAMBI i temi, ma non è più
+# un dizionario di hex dentro questa view.
 
 # ── Data URI helper ────────────────────────────────────────────────────────
 def _data_uri(b64: str) -> str:
@@ -304,7 +286,7 @@ class MapsView(ft.Column):
                         "＋ Nuova Mappa", icon=ft.Icons.MAP,
                         on_click=lambda e: self._open_create_dialog(),
                         style=ft.ButtonStyle(
-                            bgcolor=design.T().primary, color=_CHROME["text"],
+                            bgcolor=design.T().primary, color=design.CHROME.text,
                         ),
                     ),
                 ],
@@ -328,30 +310,15 @@ class MapsView(ft.Column):
         return self._list_view
 
     def _empty_state(self) -> ft.Container:
-        return ft.Container(
-            expand=True,
-            content=ft.Column(
-                [
-                    ft.Icon(ft.Icons.MAP_OUTLINED, size=64, color=design.T().border),
-                    ft.Container(height=16),
-                    ft.Text("Nessuna mappa", size=18, color=design.T().text_3,
-                            weight=ft.FontWeight.BOLD),
-                    ft.Container(height=8),
-                    ft.Text("Carica la mappa della tua avventura\ne aggiungi annotazioni.",
-                            size=13, color=design.T().text_3,
-                            text_align=ft.TextAlign.CENTER),
-                    ft.Container(height=20),
-                    ft.ElevatedButton(
-                        "Carica prima mappa", icon=ft.Icons.ADD_PHOTO_ALTERNATE,
-                        on_click=lambda e: self._open_create_dialog(),
-                        style=ft.ButtonStyle(
-                            bgcolor=design.T().primary, color=_CHROME["text"],
-                        ),
-                    ),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                expand=True,
+        return design.empty_state(
+            ft.Icons.MAP_OUTLINED,
+            "Nessuna mappa",
+            "Carica la mappa della tua avventura e aggiungi annotazioni.",
+            ft.ElevatedButton(
+                "Carica prima mappa", icon=ft.Icons.ADD_PHOTO_ALTERNATE,
+                on_click=lambda e: self._open_create_dialog(),
+                style=ft.ButtonStyle(bgcolor=design.T().primary,
+                                     color=design.T().on_primary),
             ),
         )
 
@@ -359,14 +326,14 @@ class MapsView(ft.Column):
         if gm.image_data:
             thumb = ft.Container(
                 content=ft.Image(src=_data_uri(gm.image_data), fit=ft.BoxFit.COVER),
-                width=80, height=60, border_radius=design.Radius.SM,
+                width=96, height=72, border_radius=design.Radius.MD,
                 clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                border=ft.Border.all(1, design.T().border),
+                shadow=design.elevation(1),
             )
         else:
             thumb = ft.Container(
                 content=ft.Icon(ft.Icons.MAP_OUTLINED, size=28, color=design.T().text_3),
-                width=80, height=60, border_radius=design.Radius.SM,
+                width=96, height=72, border_radius=design.Radius.MD,
                 bgcolor=design.T().surface_alt,
                 shadow=design.elevation(1),
                 alignment=ft.Alignment.CENTER,
@@ -381,12 +348,19 @@ class MapsView(ft.Column):
                     thumb,
                     ft.Column(
                         [
-                            ft.Text(gm.name or "Mappa senza nome", size=13,
-                                    weight=ft.FontWeight.BOLD, color=design.T().text),
-                            ft.Text((gm.notes or "—")[:80], size=11,
+                            ft.Text(gm.name or "Mappa senza nome", size=15,
+                                    weight=ft.FontWeight.BOLD, color=design.T().text,
+                                    font_family=design.Font.DISPLAY,
+                                    no_wrap=True, max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS),
+                            ft.Text((gm.notes or "—")[:80], size=design.Size.BODY_SM,
                                     color=design.T().text_3, max_lines=2),
-                            ft.Text(f"✏ {n} annotazioni" if n else "",
-                                    size=10, color=design.T().magic),
+                            ft.Container(
+                                content=design.chip(f"{n} annotazioni", "magic",
+                                                    icon=ft.Icons.GESTURE),
+                                visible=bool(n),
+                                margin=ft.Margin.only(top=design.Space.XS),
+                            ),
                         ],
                         spacing=2, expand=True,
                     ),
@@ -407,10 +381,12 @@ class MapsView(ft.Column):
                 ],
                 spacing=12, vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            bgcolor=design.T().surface, padding=12,
+            bgcolor=design.T().surface, padding=design.Space.MD,
             border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
             shadow=design.elevation(1),
-            border_radius=design.Radius.MD, on_click=lambda e, m=gm: self._open_detail(m), ink=True,
+            border_radius=design.Radius.MD,
+            on_click=lambda e, m=gm: self._open_detail(m), ink=True,
+            animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
         )
 
     # ------------------------------------------------------------------
@@ -448,7 +424,7 @@ class MapsView(ft.Column):
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().magic,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def save_notes(ev):
             maps_repo.update_map(gm.id, notes=notes_tf.value or "")
@@ -459,8 +435,9 @@ class MapsView(ft.Column):
                 ft.IconButton(ft.Icons.ARROW_BACK, tooltip="Lista mappe",
                               on_click=lambda e: self._back_to_list(),
                               icon_color=design.T().text_2),
-                ft.Text(gm.name or "Mappa", size=15, weight=ft.FontWeight.BOLD,
-                        color=design.T().text, expand=True,
+                ft.Text(gm.name or "Mappa", size=16, weight=ft.FontWeight.BOLD,
+                        color=design.T().text, font_family=design.Font.DISPLAY,
+                        expand=True,
                         no_wrap=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                 ft.IconButton(ft.Icons.FULLSCREEN, tooltip="Schermo intero",
                               on_click=lambda e: self._open_fullscreen(gm),
@@ -474,15 +451,26 @@ class MapsView(ft.Column):
         return ft.Column(
             [
                 ft.Container(
-                    content=header_row, bgcolor=design.T().surface_alt,
-                    padding=ft.Padding.only(left=8, right=8, top=4, bottom=4),
-                    border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
+                    content=header_row, bgcolor=design.T().surface,
+                    padding=ft.Padding.only(left=design.Space.SM, right=design.Space.SM,
+                                            top=design.Space.SM, bottom=design.Space.SM),
+                    shadow=design.elevation(1),
                 ),
-                ft.Container(expand=True, content=draw_stack),
+                # L'area di disegno è scura: fa risaltare la mappa e i tratti
+                # chiari, e stacca l'immagine dal fondo pergamena della scheda.
+                ft.Container(expand=True, content=draw_stack,
+                             bgcolor=design.CHROME.backdrop),
+                # Barra strumenti: pannello scuro flottante, angoli superiori
+                # arrotondati e ombra verso l'alto — "posata" sopra la mappa
+                # invece di incollata al bordo con un filo da 1px.
                 ft.Container(
                     content=ft.Column([toolbar_row, toolbar_body], spacing=0),
-                    bgcolor=_CHROME["bar_bg"],
-                    border=ft.Border.only(top=ft.BorderSide(1, _CHROME["bar_border"])),
+                    bgcolor=design.CHROME.bg,
+                    border_radius=ft.BorderRadius.only(
+                        top_left=design.Radius.LG, top_right=design.Radius.LG),
+                    shadow=ft.BoxShadow(blur_radius=18, spread_radius=0,
+                                        offset=ft.Offset(0, -4),
+                                        color=ft.Colors.with_opacity(0.45, design.CHROME.canvas)),
                 ),
                 ft.Container(
                     content=ft.Column(
@@ -494,7 +482,7 @@ class MapsView(ft.Column):
                             ft.Row([ft.ElevatedButton(
                                 "Salva note", on_click=save_notes,
                                 style=ft.ButtonStyle(
-                                    bgcolor=design.T().primary, color=_CHROME["text"],
+                                    bgcolor=design.T().primary, color=design.CHROME.text,
                                 ),
                             )], alignment=ft.MainAxisAlignment.END),
                         ],
@@ -615,7 +603,7 @@ class MapsView(ft.Column):
             shapes.append(cv.Circle(
                 cx, cy, r,
                 paint=ft.Paint(
-                    color=_CHROME["shadow_text"],
+                    color=design.CHROME.overlay_text,
                     stroke_width=1.5,
                     style=ft.PaintingStyle.STROKE,
                 ),
@@ -624,7 +612,7 @@ class MapsView(ft.Column):
             shapes.append(cv.Circle(
                 cx, cy, r,
                 paint=ft.Paint(
-                    color=_CHROME["shadow_dim"],
+                    color=design.CHROME.overlay_dim,
                     stroke_width=0.8,
                     style=ft.PaintingStyle.STROKE,
                 ),
@@ -824,73 +812,93 @@ class MapsView(ft.Column):
 
         # ── Bottoni modalità ──────────────────────────────────────────
         def _mbtn(key: str, icon: Any, label: str) -> ft.Container:
-            sel = key == self._draw_mode
             c = ft.Container(
-                content=ft.Column(
-                    [ft.Icon(icon, size=14, color=_CHROME["text"] if sel else _CHROME["text_muted"]),
-                     ft.Text(label, size=9, color=_CHROME["text"] if sel else _CHROME["text_muted"])],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=1,
+                content=ft.Row(
+                    [ft.Icon(icon, size=15),
+                     ft.Text(label, size=design.Size.LABEL,
+                             weight=ft.FontWeight.BOLD,
+                             font_family=design.Font.BODY)],
+                    spacing=6, tight=True,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                width=46, height=42, border_radius=design.Radius.MD,
-                bgcolor=design.T().primary if sel else _CHROME["btn_bg"],
-                border=ft.Border.all(1, design.T().primary if sel else _CHROME["btn_border"]),
+                padding=ft.Padding.symmetric(horizontal=design.Space.MD,
+                                             vertical=design.Space.SM),
+                border_radius=design.Radius.PILL,
                 alignment=ft.Alignment.CENTER,
                 on_click=lambda e, k=key, ml=mode_list, sl=swatch_list, el=ersub_list:
                     self._select_mode(k, ml, sl, el, gm, is_fs),
                 ink=True,
+                animate=ft.Animation(design.Duration.FAST, design.CURVE),
             )
+            self._style_mode_btn(c, key == self._draw_mode)
             mode_list.append(c)
             return c
 
-        mode_row = ft.Row(
-            [_mbtn(k, ic, lb) for k, ic, lb in self._MODE_DEFS],
-            spacing=4,
+        # Segmento (pillole dentro un binario) invece di due riquadri squadrati
+        mode_row = ft.Container(
+            content=ft.Row([_mbtn(k, ic, lb) for k, ic, lb in self._MODE_DEFS],
+                           spacing=design.Space.XS),
+            bgcolor=design.CHROME.panel,
+            border_radius=design.Radius.PILL,
+            padding=design.Space.XS,
         )
 
         # ── Colori ───────────────────────────────────────────────────
         def _swatch(idx: int) -> ft.Container:
-            sel = idx == self._pen_color_idx
             c = ft.Container(
-                width=22, height=22, bgcolor=_PEN_COLORS[idx], border_radius=11,
-                border=ft.Border.all(3 if sel else 1.5,
-                                     _CHROME["text"] if sel else _CHROME["shadow_dim"]),
+                content=ft.Container(bgcolor=_PEN_COLORS[idx],
+                                     border_radius=design.Radius.PILL, expand=True),
+                width=28, height=28, border_radius=design.Radius.PILL,
+                padding=3,
                 on_click=lambda e, i=idx, sl=swatch_list:
                     self._select_color(i, sl),
                 ink=True,
+                animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
+                tooltip="Colore del pennarello",
             )
+            self._style_swatch(c, idx == self._pen_color_idx)
             swatch_list.append(c)
             return c
 
-        swatches = ft.Row([_swatch(i) for i in range(len(_PEN_COLORS))], spacing=4)
+        swatches = ft.Row([_swatch(i) for i in range(len(_PEN_COLORS))],
+                          spacing=design.Space.XS)
 
-        # ── Undo / Cancella disegni / Cancella tutto ────────────────
-        def _action_btn(icon: Any, label: str, color: str,
-                        border: str, fn: Any) -> ft.Container:
+        # ── Undo / Cancella tutto ───────────────────────────────────
+        def _action_btn(icon: Any, label: str, bg: str, fg: str, fn: Any) -> ft.Container:
             return ft.Container(
                 content=ft.Row(
-                    [ft.Icon(icon, size=13, color=_CHROME["text"]),
-                     ft.Text(label, size=10, color=_CHROME["text"])],
-                    spacing=3,
+                    [ft.Icon(icon, size=14, color=fg),
+                     ft.Text(label, size=design.Size.LABEL, color=fg,
+                             weight=ft.FontWeight.BOLD,
+                             font_family=design.Font.BODY)],
+                    spacing=5, tight=True,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                padding=ft.Padding.symmetric(horizontal=8, vertical=5),
-                border_radius=5, bgcolor=color,
-                border=ft.Border.all(1, border),
+                padding=ft.Padding.symmetric(horizontal=design.Space.MD,
+                                             vertical=design.Space.SM),
+                border_radius=design.Radius.PILL,
+                bgcolor=bg,
                 on_click=fn, ink=True,
+                animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
             )
 
-        undo_btn     = _action_btn(ft.Icons.UNDO, "Annulla", _CHROME["btn_bg"], _CHROME["neutral"],
+        undo_btn     = _action_btn(ft.Icons.UNDO, "Annulla",
+                                   design.CHROME.btn, design.CHROME.text,
                                    lambda e: self._undo_stroke(gm))
         clearall_btn = _action_btn(ft.Icons.DELETE_FOREVER_OUTLINED, "Cancella tutto",
-                                   _CHROME["danger_bg"], design.T().primary,
+                                   design.CHROME.danger, design.CHROME.text,
                                    lambda e: self._clear_all(gm))
 
         def _sep():
-            return ft.Container(width=1, height=30, bgcolor=_CHROME["btn_border"],
-                                margin=ft.Margin.only(left=2, right=2))
+            return ft.Container(width=1, height=24,
+                                bgcolor=ft.Colors.with_opacity(0.5, design.CHROME.border),
+                                margin=ft.Margin.only(left=design.Space.SM,
+                                                      right=design.Space.SM))
 
         top_row = ft.Row(
             [mode_row, _sep(), swatches, _sep(), undo_btn, clearall_btn],
-            spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=design.Space.SM,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
             scroll=ft.ScrollMode.AUTO,
         )
 
@@ -898,8 +906,9 @@ class MapsView(ft.Column):
         body_content = self._build_toolbar_body(gm, is_fs, swatch_list, ersub_list)
         toolbar_body = ft.Container(
             content=body_content,
-            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-            bgcolor=_CHROME["panel_bg"],
+            padding=ft.Padding.symmetric(horizontal=design.Space.LG,
+                                         vertical=design.Space.SM),
+            bgcolor=design.CHROME.panel,
         )
 
         if is_fs:
@@ -915,44 +924,90 @@ class MapsView(ft.Column):
             toolbar_body,
         )
 
+    # ── Stile dei controlli della barra (condiviso build ↔ selezione) ──
+    # Prima lo stile era scritto due volte: una in costruzione e una dentro
+    # `_select_*`, con il rischio che restassero disallineati.
+
+    @staticmethod
+    def _style_mode_btn(btn: ft.Container, sel: bool) -> None:
+        btn.bgcolor = design.T().primary if sel else "transparent"
+        fg = design.T().on_primary if sel else design.CHROME.text_muted
+        for c in getattr(btn.content, "controls", []):
+            c.color = fg
+
+    @staticmethod
+    def _style_swatch(sw: ft.Container, sel: bool) -> None:
+        # Anello di selezione attorno al colore, invece di un bordo più spesso
+        sw.bgcolor = design.CHROME.text if sel else "transparent"
+        sw.border = None if sel else ft.Border.all(
+            1, ft.Colors.with_opacity(0.5, design.CHROME.border))
+        sw.scale = 1.0 if sel else 0.9
+
+    @staticmethod
+    def _style_ersub_btn(btn: ft.Container, sel: bool) -> None:
+        btn.bgcolor = design.T().primary if sel else design.CHROME.btn
+        btn.border = None
+        if btn.content:
+            cast(ft.Text, btn.content).color = (
+                design.T().on_primary if sel else design.CHROME.text_muted)
+
     def _build_toolbar_body(self, gm: GameMap, is_fs: bool,
                              swatch_list: list, ersub_list: list) -> ft.Control:
         """Contenuto body toolbar in base alla modalità corrente."""
         mode = self._draw_mode
 
+        def _value_badge(text: str) -> ft.Container:
+            """Valore dello slider in un badge mono, invece di testo nudo."""
+            return ft.Container(
+                content=ft.Text(text, size=design.Size.LABEL,
+                                color=design.CHROME.text,
+                                font_family=design.Font.MONO,
+                                weight=ft.FontWeight.BOLD,
+                                text_align=ft.TextAlign.CENTER),
+                bgcolor=design.CHROME.btn,
+                border_radius=design.Radius.SM,
+                padding=ft.Padding.symmetric(horizontal=design.Space.SM, vertical=2),
+                width=48,
+                alignment=ft.Alignment.CENTER,
+            )
+
+        def _slider_label(text: str) -> ft.Text:
+            return ft.Text(text, size=design.Size.LABEL, color=design.CHROME.text_dim,
+                           weight=ft.FontWeight.BOLD, font_family=design.Font.BODY,
+                           style=ft.TextStyle(letter_spacing=0.8))
+
         if mode == "pen":
             return ft.Row(
                 [
-                    ft.Text("Larghezza:", size=10, color=_CHROME["text_dim"]),
+                    _slider_label("LARGHEZZA"),
                     ft.Slider(
                         min=1, max=30, value=self._pen_width, divisions=29,
-                        active_color=design.T().primary, thumb_color=_CHROME["text"],
-                        inactive_color=_CHROME["btn_border"], expand=True, height=32,
+                        active_color=design.T().primary, thumb_color=design.CHROME.text,
+                        inactive_color=design.CHROME.border, expand=True, height=32,
                         on_change=lambda e: self._on_pen_width_change(e, gm),
                     ),
-                    ft.Text(f"{self._pen_width:.0f}px", size=10, color=_CHROME["text_dim"],
-                            width=34),
+                    _value_badge(f"{self._pen_width:.0f}px"),
                 ],
-                spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=design.Space.MD, vertical_alignment=ft.CrossAxisAlignment.CENTER,
             )
 
         if mode == "eraser":
             ersub_list.clear()
 
             def _esbtn(key: str, label: str) -> ft.Container:
-                sel = key == self._eraser_sub
                 c = ft.Container(
-                    content=ft.Text(label, size=10,
-                                    color=_CHROME["text_dark"] if sel else _CHROME["text"],
-                                    weight=ft.FontWeight.W_600),
-                    padding=ft.Padding.symmetric(horizontal=10, vertical=4),
-                    border_radius=design.Radius.SM,
-                    bgcolor=_CHROME["text"] if sel else _CHROME["btn_bg"],
-                    border=ft.Border.all(1, _CHROME["text"] if sel else _CHROME["btn_border_2"]),
+                    content=ft.Text(label, size=design.Size.LABEL,
+                                    weight=ft.FontWeight.BOLD,
+                                    font_family=design.Font.BODY),
+                    padding=ft.Padding.symmetric(horizontal=design.Space.MD,
+                                                 vertical=design.Space.XS + 2),
+                    border_radius=design.Radius.PILL,
                     on_click=lambda e, k=key, el=ersub_list:
                         self._select_eraser_sub(k, el, gm, is_fs),
                     ink=True,
+                    animate=ft.Animation(design.Duration.FAST, design.CURVE),
                 )
+                self._style_ersub_btn(c, key == self._eraser_sub)
                 ersub_list.append(c)
                 return c
 
@@ -960,18 +1015,17 @@ class MapsView(ft.Column):
                 [
                     _esbtn("stroke", "Tratto"),
                     _esbtn("pixel", "Libera"),
-                    ft.Container(width=8),
-                    ft.Text("Dimensione:", size=10, color=_CHROME["text_dim"]),
+                    ft.Container(width=design.Space.SM),
+                    _slider_label("DIMENSIONE"),
                     ft.Slider(
                         min=5, max=60, value=self._eraser_size, divisions=55,
-                        active_color=_CHROME["slider_active"], thumb_color=_CHROME["text"],
-                        inactive_color=_CHROME["bar_border"], expand=True, height=32,
+                        active_color=design.CHROME.text_muted, thumb_color=design.CHROME.text,
+                        inactive_color=design.CHROME.border, expand=True, height=32,
                         on_change=lambda e: self._on_eraser_size_change(e, gm),
                     ),
-                    ft.Text(f"{self._eraser_size:.0f}px", size=10, color=_CHROME["text_dim"],
-                            width=34),
+                    _value_badge(f"{self._eraser_size:.0f}px"),
                 ],
-                spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=design.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
             )
 
         # fallback (non dovrebbe accadere)
@@ -979,18 +1033,25 @@ class MapsView(ft.Column):
 
     # ── Slider callbacks ─────────────────────────────────────────────
 
+    @staticmethod
+    def _set_badge(ctrl: Any, text: str) -> None:
+        """Aggiorna il valore dentro il badge dello slider (Container → Text)."""
+        target = ctrl.content if isinstance(ctrl, ft.Container) else ctrl
+        if isinstance(target, ft.Text):
+            target.value = text
+            try:
+                target.update()
+            except RuntimeError:
+                pass
+
     def _on_pen_width_change(self, e: Any, gm: GameMap):
         self._pen_width = float(e.control.value)
-        # Aggiorna etichetta (3° figlio del Row nel body)
+        # Aggiorna il badge del valore (3° figlio del Row nel body)
         body = self._toolbar_body
         if body and body.content and hasattr(body.content, "controls"):
             ctrls = cast(list, cast(Any, body.content).controls)
             if len(ctrls) >= 3:
-                cast(ft.Text, ctrls[2]).value = f"{self._pen_width:.0f}px"
-                try:
-                    ctrls[2].update()
-                except RuntimeError:
-                    pass
+                self._set_badge(ctrls[2], f"{self._pen_width:.0f}px")
 
     def _on_eraser_size_change(self, e: Any, gm: GameMap):
         self._eraser_size = float(e.control.value)
@@ -998,9 +1059,9 @@ class MapsView(ft.Column):
         if body and body.content and hasattr(body.content, "controls"):
             ctrls = cast(list, cast(Any, body.content).controls)
             if len(ctrls) >= 6:
-                cast(ft.Text, ctrls[5]).value = f"{self._eraser_size:.0f}px"
+                self._set_badge(ctrls[5], f"{self._eraser_size:.0f}px")
                 try:
-                    ctrls[5].update()
+                    pass
                 except RuntimeError:
                     pass
 
@@ -1014,13 +1075,7 @@ class MapsView(ft.Column):
         for i, (k, _, _) in enumerate(self._MODE_DEFS):
             if i >= len(mode_list):
                 break
-            sel = k == key
-            mode_list[i].bgcolor = design.T().primary if sel else _CHROME["btn_bg"]
-            mode_list[i].border = ft.Border.all(1, design.T().primary if sel else _CHROME["btn_border"])
-            ctrls = getattr(mode_list[i].content, "controls", [])
-            if len(ctrls) >= 2:
-                ctrls[0].color = _CHROME["text"] if sel else _CHROME["text_muted"]
-                ctrls[1].color = _CHROME["text"] if sel else _CHROME["text_muted"]
+            self._style_mode_btn(mode_list[i], k == key)
             try:
                 mode_list[i].update()
             except RuntimeError:
@@ -1044,13 +1099,7 @@ class MapsView(ft.Column):
             for i, (k, _, _) in enumerate(self._MODE_DEFS):
                 if i >= len(other_mode):
                     break
-                sel = k == key
-                other_mode[i].bgcolor = design.T().primary if sel else _CHROME["btn_bg"]
-                other_mode[i].border = ft.Border.all(1, design.T().primary if sel else _CHROME["btn_border"])
-                ctrls = getattr(other_mode[i].content, "controls", [])
-                if len(ctrls) >= 2:
-                    ctrls[0].color = _CHROME["text"] if sel else _CHROME["text_muted"]
-                    ctrls[1].color = _CHROME["text"] if sel else _CHROME["text_muted"]
+                self._style_mode_btn(other_mode[i], k == key)
                 try:
                     other_mode[i].update()
                 except RuntimeError:
@@ -1066,9 +1115,7 @@ class MapsView(ft.Column):
     def _select_color(self, idx: int, swatch_list: list):
         self._pen_color_idx = idx
         for i, s in enumerate(swatch_list):
-            sel = i == idx
-            s.border = ft.Border.all(3 if sel else 1.5,
-                                     _CHROME["text"] if sel else _CHROME["shadow_dim"])
+            self._style_swatch(s, i == idx)
             try:
                 s.update()
             except RuntimeError:
@@ -1076,9 +1123,7 @@ class MapsView(ft.Column):
         # Sincronizza altra toolbar
         other = self._swatch_refs if swatch_list is self._fs_swatch_refs else self._fs_swatch_refs
         for i, s in enumerate(other):
-            sel = i == idx
-            s.border = ft.Border.all(3 if sel else 1.5,
-                                     _CHROME["text"] if sel else _CHROME["shadow_dim"])
+            self._style_swatch(s, i == idx)
             try:
                 s.update()
             except RuntimeError:
@@ -1089,10 +1134,7 @@ class MapsView(ft.Column):
         self._eraser_sub = key
         for i, btn in enumerate(ersub_list):
             sel = (i == 0 and key == "stroke") or (i == 1 and key == "pixel")
-            btn.bgcolor = _CHROME["text"] if sel else _CHROME["btn_bg"]
-            btn.border = ft.Border.all(1, _CHROME["text"] if sel else _CHROME["btn_border_2"])
-            if btn.content:
-                cast(ft.Text, btn.content).color = _CHROME["text_dark"] if sel else _CHROME["text"]
+            self._style_ersub_btn(btn, sel)
             try:
                 btn.update()
             except RuntimeError:
@@ -1136,20 +1178,20 @@ class MapsView(ft.Column):
         header = ft.Container(
             content=ft.Row(
                 [
-                    ft.Text(gm.name or "Mappa", size=16, color=_CHROME["text"],
+                    ft.Text(gm.name or "Mappa", size=16, color=design.CHROME.text,
                             weight=ft.FontWeight.BOLD, expand=True,
                             no_wrap=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
-                    ft.IconButton(ft.Icons.FULLSCREEN_EXIT, icon_color=_CHROME["text"],
+                    ft.IconButton(ft.Icons.FULLSCREEN_EXIT, icon_color=design.CHROME.text,
                                   on_click=close_fs),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.symmetric(horizontal=16, vertical=8),
-            bgcolor=_CHROME["fullscreen_bg"],
+            bgcolor=design.CHROME.backdrop,
         )
 
         overlay = ft.Container(
-            expand=True, bgcolor=_CHROME["canvas_bg"],
+            expand=True, bgcolor=design.CHROME.canvas,
             content=ft.Column(
                 [
                     header,
@@ -1157,8 +1199,12 @@ class MapsView(ft.Column):
                     ft.Container(
                         content=ft.Column(
                             [fs_toolbar_row, fs_toolbar_body], spacing=0),
-                        bgcolor=_CHROME["bar_bg"],
-                        border=ft.Border.only(top=ft.BorderSide(1, _CHROME["bar_border"])),
+                        bgcolor=design.CHROME.bg,
+                        border_radius=ft.BorderRadius.only(
+                            top_left=design.Radius.LG, top_right=design.Radius.LG),
+                        shadow=ft.BoxShadow(blur_radius=18, spread_radius=0,
+                                            offset=ft.Offset(0, -4),
+                                            color=ft.Colors.with_opacity(0.45, design.CHROME.canvas)),
                     ),
                 ],
                 spacing=0, expand=True,
@@ -1184,14 +1230,14 @@ class MapsView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().magic,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         notes_tf = ft.TextField(
             label="Note (opzionale)", multiline=True, min_lines=2, max_lines=5,
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().magic,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         img_data: list[str] = [""]
         img_label  = ft.Text("Nessuna immagine", size=11, color=design.T().text_3)
         img_preview = ft.Container(
@@ -1233,8 +1279,7 @@ class MapsView(ft.Column):
                 error_text.update()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Nuova Mappa", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().text),
+            title=design.dialog_title("Nuova Mappa"),
             content=ft.Column(
                 [
                     name_tf, notes_tf, ft.Container(height=4),
@@ -1260,13 +1305,12 @@ class MapsView(ft.Column):
                 ],
                 spacing=10, scroll=ft.ScrollMode.AUTO,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Salva", on_click=on_save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=_CHROME["text"])),
-            ],
-            bgcolor=design.T().surface,
+                                      bgcolor=design.T().primary, color=design.CHROME.text)),
+            ]),
         ))
 
     # ------------------------------------------------------------------
@@ -1284,7 +1328,7 @@ class MapsView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().magic,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         notes_tf = ft.TextField(
             label="Note", value=gm.notes or "",
             multiline=True, min_lines=2, max_lines=5,
@@ -1292,7 +1336,7 @@ class MapsView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().magic,
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-        )
+            border_radius=design.field_style()['border_radius'])
         img_data: list[str] = [gm.image_data or ""]
         img_label = ft.Text(
             "Immagine corrente" if gm.image_data else "Nessuna immagine",
@@ -1346,8 +1390,7 @@ class MapsView(ft.Column):
             self._back_to_list()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Modifica Mappa", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().text),
+            title=design.dialog_title("Modifica Mappa"),
             content=ft.Column(
                 [
                     name_tf, notes_tf, ft.Container(height=4),
@@ -1373,13 +1416,12 @@ class MapsView(ft.Column):
                 ],
                 spacing=10, scroll=ft.ScrollMode.AUTO,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Salva", on_click=on_save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=_CHROME["text"])),
-            ],
-            bgcolor=design.T().surface,
+                                      bgcolor=design.T().primary, color=design.CHROME.text)),
+            ]),
         ))
 
     # ------------------------------------------------------------------
@@ -1397,19 +1439,17 @@ class MapsView(ft.Column):
             self._back_to_list()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Elimina Mappa", size=14, weight=ft.FontWeight.BOLD,
-                          color=design.T().text),
+            title=design.dialog_title("Elimina Mappa"),
             content=ft.Text(
                 f'Eliminare "{gm.name}"?\nVerranno rimossi anche tutti i disegni.',
                 size=13, color=design.T().text,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=_CHROME["text"])),
-            ],
-            bgcolor=design.T().surface,
+                                      bgcolor=design.T().primary, color=design.CHROME.text)),
+            ]),
         ))
 
 

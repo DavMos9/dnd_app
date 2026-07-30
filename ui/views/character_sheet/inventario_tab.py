@@ -385,7 +385,7 @@ class InventarioTab(ScrollMemoryListView):
             value=(f"{current_override:g}" if current_override > 0 else ""),
             hint_text=f"Vuoto = calcolato automaticamente ({calculated:.0f} kg)",
             autofocus=True,
-        )
+            **design.field_style())
 
         def _save(e):
             raw = (tf.value or "").strip().replace(",", ".")
@@ -417,7 +417,7 @@ class InventarioTab(ScrollMemoryListView):
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Capacità di Trasporto"),
+            title=design.dialog_title("Capacità di Trasporto"),
             content=ft.Column(
                 [
                     muted_text(
@@ -926,7 +926,7 @@ class InventarioTab(ScrollMemoryListView):
             width=100,
             height=56,
             content_padding=ft.Padding.symmetric(horizontal=8, vertical=0),
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def _apply(delta: int) -> None:
             if page is None:
@@ -962,8 +962,7 @@ class InventarioTab(ScrollMemoryListView):
         )
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text(full_names[abbr], size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title(full_names[abbr]),
             content=ft.Column([
                 # Quantità attuale — numero grande centrato
                 ft.Container(
@@ -1003,7 +1002,6 @@ class InventarioTab(ScrollMemoryListView):
                 ft.TextButton("Chiudi",
                               on_click=lambda ev: page.pop_dialog() if page else None),
             ],
-            bgcolor=design.T().surface,
         ))
 
     # ------------------------------------------------------------------
@@ -1034,7 +1032,7 @@ class InventarioTab(ScrollMemoryListView):
                 focused_border_color=design.T().primary,
                 bgcolor=design.T().surface,
                 label_style=ft.TextStyle(color=design.T().text_2),
-            )
+                border_radius=design.field_style()['border_radius'])
 
         f_name   = _tf("Nome arma *",      "" if is_new else weapon.name)
         f_dice   = _tf("Dadi danno (es. 1d8)", "" if is_new else weapon.damage_dice)
@@ -1047,7 +1045,7 @@ class InventarioTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         f_atk    = _tf("Bonus attacco (magico, può essere negativo)",
                         "0" if is_new else str(weapon.attack_bonus),
@@ -1071,7 +1069,7 @@ class InventarioTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
         prof_override_cb = ft.Checkbox(
             label="Competenza garantita da quest'arma (es. arma magica senziente)",
             value=False if is_new else weapon.proficiency_override,
@@ -1091,7 +1089,7 @@ class InventarioTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         # Override manuale del totale del tiro per colpire — per casi
         # eccezionali non coperti dal calcolo automatico.
@@ -1170,7 +1168,7 @@ class InventarioTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def on_catalog_select(ev: ft.Event[ft.Dropdown]) -> None:
             name = catalog_dd.value or ""
@@ -1237,20 +1235,20 @@ class InventarioTab(ScrollMemoryListView):
                 text_style=ft.TextStyle(size=12, color=design.T().text),
                 border_color=design.T().border, focused_border_color=design.T().primary,
                 bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-            )
+                border_radius=design.field_style()['border_radius'])
             row_type = ft.Dropdown(
                 label="Tipo", value=type_v, width=120,
                 options=[ft.DropdownOption(key=t, text=t) for t in _DAMAGE_TYPES],
                 text_style=ft.TextStyle(size=12, color=design.T().text),
                 border_color=design.T().border, focused_border_color=design.T().primary,
                 bgcolor=design.T().surface,
-            )
+                border_radius=design.field_style()['border_radius'])
             row_note = ft.TextField(
                 label="Note", value=note_v, expand=True,
                 text_style=ft.TextStyle(size=12, color=design.T().text),
                 border_color=design.T().border, focused_border_color=design.T().primary,
                 bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-            )
+                border_radius=design.field_style()['border_radius'])
             row_ref: list[ft.Row] = []
 
             def remove_this(ev: ft.Event[ft.IconButton]) -> None:
@@ -1398,8 +1396,7 @@ class InventarioTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Nuova Arma" if is_new else "Modifica Arma",
-                          size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Nuova Arma" if is_new else "Modifica Arma"),
             content=ft.Column(
                 [catalog_dd, f_name, f_dice, dtype_dd, f_atk, f_dbonus,
                  category_dd, prof_override_cb, ability_dd, atk_override_row,
@@ -1407,14 +1404,13 @@ class InventarioTab(ScrollMemoryListView):
                  magic_section, equip_cb],
                 spacing=8, scroll=ft.ScrollMode.AUTO,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
                                       bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     def _on_delete_weapon(self, weapon: Weapon) -> None:
@@ -1430,18 +1426,16 @@ class InventarioTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Elimina arma", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Elimina arma"),
             content=ft.Text(f"Eliminare «{weapon.name}»?", size=13,
                             color=design.T().text),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
                                       bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     def _update_weapon_equipped_flag(
@@ -1705,7 +1699,7 @@ class InventarioTab(ScrollMemoryListView):
                 focused_border_color=design.T().primary,
                 bgcolor=design.T().surface,
                 label_style=ft.TextStyle(color=design.T().text_2),
-            )
+                border_radius=design.field_style()['border_radius'])
 
         f_name = _tf("Nome oggetto *", "" if is_new else item.name)
         f_qty  = _tf("Quantità", "1" if is_new else str(item.quantity),
@@ -1747,7 +1741,7 @@ class InventarioTab(ScrollMemoryListView):
             border_color=design.T().border,
             focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
         equip_cb = ft.Checkbox(
             label="Equipaggiato / indossato",
             value=False if is_new else item.is_equipped,
@@ -1771,7 +1765,7 @@ class InventarioTab(ScrollMemoryListView):
             border_color=design.T().border,
             focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
         # Autofill dal catalogo PHB (equipment/armor.json) — 2026-07-16,
         # richiesta Davide: scegliendo il "Tipo" dalla tendina, la scheda si
         # autoriempie con CA/tipo/peso di quell'armatura; i campi restano
@@ -1787,7 +1781,7 @@ class InventarioTab(ScrollMemoryListView):
             border_color=design.T().border,
             focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
-        )
+            border_radius=design.field_style()['border_radius'])
 
         def on_catalog_select(ev: ft.Event[ft.Dropdown]) -> None:
             name = catalog_dd.value or ""
@@ -1890,21 +1884,19 @@ class InventarioTab(ScrollMemoryListView):
         else:
             dialog_title = "Modifica Oggetto"
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text(dialog_title,
-                          size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title(dialog_title),
             content=ft.Column(
                 [f_name, f_qty, f_wt, cat_dd, armor_fields,
                  equip_cb, f_desc, f_effects],
                 spacing=8, scroll=ft.ScrollMode.AUTO,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
                                       bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     def _on_delete_item(self, item: InventoryItem) -> None:
@@ -1920,18 +1912,16 @@ class InventarioTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Elimina oggetto", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Elimina oggetto"),
             content=ft.Text(f"Eliminare «{item.name}»?", size=13,
                             color=design.T().text),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
                                       bgcolor=design.T().primary, color=design.T().on_primary)),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         ))
 
     # ------------------------------------------------------------------

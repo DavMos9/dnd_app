@@ -18,6 +18,7 @@ from data.models import Character, CharacterProficiency
 from ui.theme import show_error_dialog
 import data.repositories.character_repo as character_repo
 from ui import design
+from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -299,7 +300,7 @@ class SheetView(ft.Column):
                 bgcolor=design.T().surface,
                 label_style=ft.TextStyle(color=design.T().text_2),
                 expand=True,
-            )
+                border_radius=design.field_style()['border_radius'])
 
         error_text = ft.Text("", size=11, color=design.T().primary)
 
@@ -330,8 +331,7 @@ class SheetView(ft.Column):
             self._refresh_all()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Modifica Caratteristiche", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Modifica Caratteristiche"),
             content=ft.Column(
                 [
                     ft.Text(
@@ -345,7 +345,7 @@ class SheetView(ft.Column):
                 ],
                 spacing=10,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
@@ -355,8 +355,7 @@ class SheetView(ft.Column):
                         bgcolor=design.T().primary, color=design.T().on_primary,
                     ),
                 ),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         )
         page.show_dialog(dlg)
 
@@ -383,7 +382,7 @@ class SheetView(ft.Column):
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
             width=280,
-        )
+            border_radius=design.field_style()['border_radius'])
         error_text = ft.Text("", size=11, color=design.T().primary)
 
         def on_save(ev):
@@ -420,8 +419,7 @@ class SheetView(ft.Column):
             self._refresh_all()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Bonus Competenza", size=14,
-                          weight=ft.FontWeight.BOLD, color=design.T().text),
+            title=design.dialog_title("Bonus Competenza"),
             content=ft.Column(
                 [
                     ft.Text(
@@ -439,7 +437,7 @@ class SheetView(ft.Column):
                 ],
                 spacing=8,
             ),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.TextButton(
@@ -454,8 +452,7 @@ class SheetView(ft.Column):
                         bgcolor=design.T().primary, color=design.T().on_primary,
                     ),
                 ),
-            ],
-            bgcolor=design.T().surface,
+            ]),
         )
         page.show_dialog(dlg)
 
