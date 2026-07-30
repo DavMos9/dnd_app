@@ -28,11 +28,6 @@ from typing import Any, cast
 
 import flet as ft
 
-from config.settings import (
-    COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-    COLOR_TEXT_MUTED, COLOR_BORDER, COLOR_BG_CARD, COLOR_BG_PRIMARY,
-    COLOR_ACCENT_CRIMSON, COLOR_ACCENT_BLUE,
-)
 from data.game_data.game_data_loader import game_data
 from ui.components.monster_picker import load_monsters, show_stat_block_dialog
 from ui.widgets import responsive_dialog_width
@@ -67,8 +62,8 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
             ft.DropdownOption(key=k, text=game_data.get_environment_table(k).get("label", k))
             for k in env_names
         ],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
     )
     result_col = ft.Column(spacing=8)
 
@@ -80,19 +75,19 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
         r = state["result"]
         if not r:
             result_col.controls.append(
-                ft.Text("Premi «Tira 1d12+1d8» per generare un incontro.", size=12, color=COLOR_TEXT_MUTED)
+                ft.Text("Premi «Tira 1d12+1d8» per generare un incontro.", size=12, color=design.T().text_3)
             )
         else:
             result_col.controls.append(
                 ft.Text(
                     f"Tiro: {r['roll']}  (d12={r['d12']} + d8={r['d8']})",
-                    size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON,
+                    size=13, weight=ft.FontWeight.BOLD, color=design.T().primary,
                 )
             )
-            result_col.controls.append(ft.Text(r["text"], size=13, color=COLOR_TEXT_PRIMARY))
+            result_col.controls.append(ft.Text(r["text"], size=13, color=design.T().text))
             if r.get("note"):
                 result_col.controls.append(
-                    ft.Text(r["note"], size=11, italic=True, color=COLOR_TEXT_MUTED)
+                    ft.Text(r["note"], size=11, italic=True, color=design.T().text_3)
                 )
             links: list[ft.Control] = []
             for cname in r.get("creatures", []):
@@ -102,7 +97,7 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
                         ft.OutlinedButton(
                             f"Vedi scheda: {cname}",
                             icon=ft.Icons.MENU_BOOK_OUTLINED,
-                            style=ft.ButtonStyle(color=COLOR_ACCENT_BLUE),
+                            style=ft.ButtonStyle(color=design.T().magic),
                             on_click=lambda e, mm=mdata: _open_creature_sheet(mm),
                         )
                     )
@@ -134,7 +129,7 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
         content_controls.append(
             ft.Text(
                 "Nessun ambiente disponibile — dato non ancora trascritto.",
-                size=13, color=COLOR_TEXT_MUTED,
+                size=13, color=design.T().text_3,
             )
         )
     else:
@@ -143,13 +138,12 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
                 env_dd,
                 ft.ElevatedButton(
                     "Tira 1d12+1d8", icon=ft.Icons.CASINO, on_click=_on_roll,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                          shape=ft.RoundedRectangleBorder(radius=4)),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
-                ft.Divider(height=1, color=COLOR_BORDER),
+                ft.Divider(height=1, color=design.T().border),
                 ft.Container(
-                    content=result_col, bgcolor=COLOR_BG_PRIMARY,
-                    border_radius=6, padding=ft.Padding.all(12),
+                    content=result_col, bgcolor=design.T().bg,
+                    border_radius=design.Radius.MD, padding=ft.Padding.all(12),
                 ),
             ]
         )
@@ -160,9 +154,9 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
     )
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Genera Incontro per Ambiente", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+        title=ft.Text("Genera Incontro per Ambiente", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
         content=content,
         actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
-        bgcolor=COLOR_BG_CARD,
+        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

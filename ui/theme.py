@@ -15,7 +15,6 @@ nella Fase E, non tutte insieme.
 """
 
 import flet as ft
-from config.settings import *
 from ui import design as d
 
 
@@ -76,18 +75,28 @@ def _build_theme(p: "d.Palette") -> ft.Theme:
             body_small=txt(d.Size.LABEL, p.text_3),
             label_medium=txt(d.Size.LABEL, p.text_3, ft.FontWeight.BOLD),
         ),
+        # Forma, padding e tipografia dei bottoni vivono QUI: nella Fase E.4 le
+        # 81 `shape=RoundedRectangleBorder(radius=4|6|8)` inline sono state
+        # rimosse dalle view, così ogni bottone dell'app prende questi valori.
         button_theme=ft.ButtonTheme(style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
             padding=ft.Padding.symmetric(horizontal=d.Space.LG, vertical=d.Space.MD),
+            elevation=2,
+            shadow_color=p.shadow,
+            text_style=txt(13, None, ft.FontWeight.BOLD),
         )),
         outlined_button_theme=ft.ButtonTheme(style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
+            padding=ft.Padding.symmetric(horizontal=d.Space.LG, vertical=d.Space.MD),
             side=ft.BorderSide(1, p.border),
             color=p.text_2,
+            text_style=txt(13, None, ft.FontWeight.W_600),
         )),
         text_button_theme=ft.ButtonTheme(style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
+            padding=ft.Padding.symmetric(horizontal=d.Space.MD, vertical=d.Space.SM),
             color=p.primary,
+            text_style=txt(13, None, ft.FontWeight.W_600),
         )),
         # Le scrollbar di default sono uno dei dettagli che più "invecchiano"
         # un'app: sottili, arrotondate e semitrasparenti.
@@ -126,84 +135,66 @@ def get_dark_theme() -> ft.Theme:
 # ---------------------------------------------------------------------------
 
 def title_text(text: str, size: int = 20) -> ft.Text:
-    return ft.Text(
-        text,
-        size=size,
-        weight=ft.FontWeight.BOLD,
-        color=COLOR_TEXT_TITLE,
-        font_family=FONT_TITLE,
-    )
+    return d.title(text, size=size)
 
 
-def body_text(text: str, size: int = 14, color: str = COLOR_TEXT_PRIMARY, weight=None) -> ft.Text:
-    return ft.Text(text, size=size, color=color, font_family=FONT_BODY, weight=weight)
+def body_text(text: str, size: int = 14, color: str | None = None, weight=None) -> ft.Text:
+    # `color` NON può avere `d.T()...` come default: sarebbe valutato una sola
+    # volta all'import, congelando la palette chiara (Fase E.3).
+    return d.body(text, size=size, color=color, weight=weight)
 
 
-def muted_text(text: str, size: int = 12, text_align: ft.TextAlign | None = None, weight=None) -> ft.Text:
-    return ft.Text(text, size=size, color=COLOR_TEXT_MUTED, font_family=FONT_BODY,
-                   text_align=text_align or ft.TextAlign.LEFT, weight=weight)
+def muted_text(text: str, size: int = 12, text_align: ft.TextAlign | None = None,
+               weight=None) -> ft.Text:
+    t = d.muted(text, size=size)
+    t.text_align = text_align or ft.TextAlign.LEFT
+    t.weight = weight
+    return t
 
 
 def label_text(text: str, size: int = 10) -> ft.Text:
-    return ft.Text(
-        text.upper(),
-        size=size,
-        color=COLOR_TEXT_MUTED,          # grigio pietra – non giallo
-        font_family=FONT_BODY,
-        weight=ft.FontWeight.BOLD,
-        style=ft.TextStyle(letter_spacing=1),
-    )
+    t = d.label(text)
+    t.size = max(size, d.Size.LABEL)   # mai sotto 11px (regola della Fase B)
+    return t
 
 
 # ---------------------------------------------------------------------------
-# Helper: contenitori — stile lastra di pietra scolpita
+# Helper: contenitori
 # ---------------------------------------------------------------------------
 
 def fantasy_card(content: ft.Control, padding: int = 16) -> ft.Container:
-    """
-    Card marmo bianco con bordo superiore rosso rubino.
-    Sfondo bianco/carta, ombra leggera tramite bordo grigio.
-    """
-    return ft.Container(
-        content=content,
-        bgcolor=COLOR_BG_CARD,
-        padding=padding,
-        border=ft.Border(
-            top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-            left=ft.BorderSide(1, COLOR_BORDER),
-            right=ft.BorderSide(1, COLOR_BORDER),
-            bottom=ft.BorderSide(1, COLOR_BORDER),
-        ),
-        border_radius=6,
-    )
+    """Card standard — delega alla primitiva `design.card()` (accento a sinistra)."""
+    return d.card(content, accent=d.T().primary, padding=padding)
 
 
-def section_header(text: str, accent: str = COLOR_ACCENT_CRIMSON) -> ft.Container:
+def section_header(text: str, accent: str | None = None) -> ft.Container:
     """
-    Intestazione di sezione con stile runico:
-    - piccolo blocco colorato a sinistra
-    - testo maiuscolo in oro con spaziatura
-    - linea decorativa sottile a destra
+    Intestazione di sezione: barretta d'accento + etichetta maiuscola spaziata +
+    filo di separazione. Riscritta sui token nella Fase E.3 — è chiamata da 68
+    punti nelle view, quindi cambiarla qui restyla tutte le sezioni dell'app.
     """
+    p = d.T()
     return ft.Container(
         content=ft.Row(
             [
-                ft.Container(width=3, height=14, bgcolor=accent, border_radius=1),
-                ft.Container(width=8),
+                ft.Container(width=3, height=16, bgcolor=accent or p.primary,
+                             border_radius=d.Radius.SM),
+                ft.Container(width=d.Space.SM),
                 ft.Text(
                     text.upper(),
-                    size=10,
-                    color=COLOR_TEXT_SECONDARY,   # grigio pietra, non oro
+                    size=d.Size.LABEL,
+                    color=p.text_2,
                     weight=ft.FontWeight.BOLD,
-                    font_family=FONT_BODY,
-                    style=ft.TextStyle(letter_spacing=2),
+                    font_family=d.Font.BODY,
+                    style=ft.TextStyle(letter_spacing=1.5),
                 ),
-                ft.Container(width=8),
-                ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
+                ft.Container(width=d.Space.MD),
+                ft.Container(expand=True, height=1,
+                             bgcolor=ft.Colors.with_opacity(0.6, p.border)),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
-        margin=ft.Margin.only(bottom=10, top=4),
+        margin=ft.Margin.only(bottom=d.Space.MD, top=d.Space.XS),
     )
 
 
@@ -212,27 +203,38 @@ def section_header(text: str, accent: str = COLOR_ACCENT_CRIMSON) -> ft.Containe
 # ---------------------------------------------------------------------------
 
 def primary_button(text: str, on_click=None, icon: ft.IconData | None = None) -> ft.ElevatedButton:
+    """Azione primaria: pieno, angoli morbidi, tap-target comodo anche su tablet."""
+    p = d.T()
     return ft.ElevatedButton(
         text,
         icon=icon,
         on_click=on_click,
         style=ft.ButtonStyle(
-            bgcolor=COLOR_ACCENT_CRIMSON,
-            color=d.T().on_primary,
-            shape=ft.RoundedRectangleBorder(radius=4),
-            side=ft.BorderSide(1, d.T().primary),
+            bgcolor=p.primary,
+            color=p.on_primary,
+            elevation=2,
+            shadow_color=p.shadow,
+            shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
+            padding=ft.Padding.symmetric(horizontal=d.Space.LG, vertical=d.Space.MD),
+            text_style=ft.TextStyle(size=13, weight=ft.FontWeight.BOLD,
+                                    font_family=d.Font.BODY),
         ),
     )
 
 
 def ghost_button(text: str, on_click=None) -> ft.OutlinedButton:
+    """Azione secondaria: contorno sottile, stessa altezza del primario."""
+    p = d.T()
     return ft.OutlinedButton(
         text,
         on_click=on_click,
         style=ft.ButtonStyle(
-            color=COLOR_TEXT_SECONDARY,
-            side=ft.BorderSide(1, COLOR_BORDER),
-            shape=ft.RoundedRectangleBorder(radius=4),
+            color=p.text_2,
+            side=ft.BorderSide(1, p.border),
+            shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
+            padding=ft.Padding.symmetric(horizontal=d.Space.LG, vertical=d.Space.MD),
+            text_style=ft.TextStyle(size=13, weight=ft.FontWeight.W_600,
+                                    font_family=d.Font.BODY),
         ),
     )
 
@@ -250,10 +252,10 @@ def show_error_dialog(
     if page is None:
         return
     page.show_dialog(ft.AlertDialog(
-        title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON),
-        content=ft.Text(message, size=13, color=COLOR_TEXT_PRIMARY),
+        title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=d.T().primary),
+        content=ft.Text(message, size=13, color=d.T().text),
         actions=[
             ft.TextButton("OK", on_click=lambda e: page.pop_dialog()),
         ],
-        bgcolor=COLOR_BG_CARD,
+        bgcolor=d.T().surface,
     ))

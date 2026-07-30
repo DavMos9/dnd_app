@@ -228,13 +228,13 @@ class SpellsView(ScrollMemoryListView):
                     self._page.show_dialog(ft.AlertDialog(
                         title=ft.Text("Limite raggiunto", size=14,
                                       weight=ft.FontWeight.BOLD,
-                                      color=COLOR_ACCENT_CRIMSON),
+                                      color=design.T().primary),
                         content=ft.Text(
                             f"Hai già preparato {max_prep} incantesimi, "
                             f"il massimo per il tuo livello.\n\n"
                             f"Deprepara un incantesimo oppure aumenta il limite "
                             f"manualmente con il tasto ✎.",
-                            size=13, color=COLOR_TEXT_PRIMARY,
+                            size=13, color=design.T().text,
                         ),
                         actions=[
                             ft.TextButton(
@@ -243,7 +243,7 @@ class SpellsView(ScrollMemoryListView):
                                 if self._page else None,
                             )
                         ],
-                        bgcolor=COLOR_BG_CARD,
+                        bgcolor=design.T().surface,
                     ))
                 return
 
@@ -293,11 +293,11 @@ class SpellsView(ScrollMemoryListView):
             value=str(c.max_prepared_spells_override or ""),
             hint_text="Lascia vuoto o 0 per usare la formula PHB",
             keyboard_type=ft.KeyboardType.NUMBER,
-            text_style=ft.TextStyle(size=14, color=COLOR_TEXT_PRIMARY,
-                                    font_family=FONT_MONO),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_BLUE,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=14, color=design.T().text,
+                                    font_family=design.Font.MONO),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
+            bgcolor=design.T().surface,
             autofocus=True,
         )
 
@@ -324,30 +324,29 @@ class SpellsView(ScrollMemoryListView):
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Limite Preparazione", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column([
-                ft.Text(formula_desc, size=12, color=COLOR_TEXT_MUTED, italic=True),
+                ft.Text(formula_desc, size=12, color=design.T().text_3, italic=True),
                 ft.Container(height=4),
                 f_val,
                 ft.Text(
                     "Imposta 0 per tornare al calcolo automatico PHB.",
-                    size=11, color=COLOR_TEXT_MUTED,
+                    size=11, color=design.T().text_3,
                 ),
             ], spacing=8),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.TextButton("Reset PHB", on_click=reset,
-                              style=ft.ButtonStyle(color=COLOR_TEXT_MUTED)),
+                              style=ft.ButtonStyle(color=design.T().text_3)),
                 ft.ElevatedButton(
                     "Salva", on_click=save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
-                        shape=ft.RoundedRectangleBorder(radius=4),
+                        bgcolor=design.T().magic, color=design.T().on_accent,
                     ),
                 ),
             ]),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     def _open_spell_dialog(self, spell: dict[str, Any]) -> None:
@@ -369,13 +368,13 @@ class SpellsView(ScrollMemoryListView):
 
         def _info_row(label: str, value: str) -> ft.Row:
             return ft.Row([
-                ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                ft.Text(label, size=11, color=design.T().text_3,
                         weight=ft.FontWeight.BOLD, width=100),
-                ft.Text(value, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                ft.Text(value, size=12, color=design.T().text, expand=True),
             ], spacing=4)
 
         rows: list[ft.Control] = [
-            ft.Text(header_line, size=11, color=COLOR_TEXT_MUTED, italic=True),
+            ft.Text(header_line, size=11, color=design.T().text_3, italic=True),
             ft.Container(height=4),
         ]
         for label, key in [
@@ -388,18 +387,18 @@ class SpellsView(ScrollMemoryListView):
             rows.append(_info_row("Componenti:", comp_str))
         if conc_icon or ritual_icon:
             rows.append(ft.Text(f"{conc_icon}{ritual_icon}",
-                                size=11, color=COLOR_ACCENT_AMBER))
-        rows.append(ft.Divider(color=COLOR_BORDER))
+                                size=11, color=design.T().warning))
+        rows.append(ft.Divider(color=design.T().border))
         rows.append(ft.Text(
             spell.get("description", "Nessuna descrizione."),
-            size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+            size=13, color=design.T().text, selectable=True,
         ))
         if spell.get("higher_levels"):
             rows += [
                 ft.Container(height=6),
-                ft.Text("Ai livelli superiori:", size=11, color=COLOR_TEXT_MUTED,
+                ft.Text("Ai livelli superiori:", size=11, color=design.T().text_3,
                         weight=ft.FontWeight.BOLD),
-                ft.Text(spell["higher_levels"], size=12, color=COLOR_TEXT_SECONDARY),
+                ft.Text(spell["higher_levels"], size=12, color=design.T().text_2),
             ]
 
         page.show_dialog(ft.AlertDialog(
@@ -409,20 +408,20 @@ class SpellsView(ScrollMemoryListView):
                         f"Lv{level}" if level > 0 else "0",
                         size=10, color=design.T().on_accent, weight=ft.FontWeight.BOLD,
                     ),
-                    bgcolor=COLOR_ACCENT_BLUE if level == 0 else COLOR_ACCENT_CRIMSON,
+                    bgcolor=design.T().magic if level == 0 else design.T().primary,
                     padding=ft.Padding.symmetric(horizontal=6, vertical=3),
-                    border_radius=4,
+                    border_radius=design.Radius.SM,
                 ),
                 ft.Container(width=8),
                 ft.Text(name, size=14, weight=ft.FontWeight.BOLD,
-                        color=COLOR_TEXT_TITLE, expand=True),
+                        color=design.T().text, expand=True),
             ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
             content=ft.Column(rows, spacing=6, scroll=ft.ScrollMode.AUTO),
             actions=[
                 ft.TextButton("Chiudi",
                               on_click=lambda e: page.pop_dialog() if page else None),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     # ------------------------------------------------------------------
@@ -495,12 +494,12 @@ class SpellsView(ScrollMemoryListView):
         if not self._class_spells and not c.spellcasting_ability and not bonus_spells:
             controls.append(ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.Icons.AUTO_AWESOME, size=48, color=COLOR_BORDER),
+                    ft.Icon(ft.Icons.AUTO_AWESOME, size=48, color=design.T().border),
                     ft.Container(height=8),
                     ft.Text(
                         f"Nessun incantesimo di classe per {c.class_name} — "
                         f"puoi comunque aggiungere un Incantesimo Bonus qui sopra.",
-                        size=14, color=COLOR_TEXT_MUTED,
+                        size=14, color=design.T().text_3,
                         text_align=ft.TextAlign.CENTER,
                     ),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -561,7 +560,7 @@ class SpellsView(ScrollMemoryListView):
                             "Nessun incantesimo ancora conosciuto — si "
                             "impara alla creazione del personaggio o "
                             "salendo di livello.",
-                            size=12, color=COLOR_TEXT_MUTED, italic=True,
+                            size=12, color=design.T().text_3, italic=True,
                         ),
                         padding=16,
                     ))
@@ -606,7 +605,7 @@ class SpellsView(ScrollMemoryListView):
             controls.append(ft.Text(
                 "Concessi dal tuo Dominio/Giuramento/Circolo — non contano nel "
                 "limite di preparazione e sono sempre disponibili.",
-                size=11, color=COLOR_TEXT_MUTED, italic=True,
+                size=11, color=design.T().text_3, italic=True,
             ))
             for lv in sorted(ap_by_level.keys()):
                 lv_label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
@@ -669,17 +668,17 @@ class SpellsView(ScrollMemoryListView):
         def _box(label: str, value: str) -> ft.Container:
             return ft.Container(
                 content=ft.Column([
-                    ft.Text(label, size=9, color=COLOR_TEXT_MUTED,
+                    ft.Text(label, size=9, color=design.T().text_3,
                             weight=ft.FontWeight.BOLD,
                             text_align=ft.TextAlign.CENTER),
-                    ft.Text(value, size=18, color=COLOR_ACCENT_BLUE,
+                    ft.Text(value, size=18, color=design.T().magic,
                             weight=ft.FontWeight.BOLD,
                             text_align=ft.TextAlign.CENTER,
-                            font_family=FONT_MONO),
+                            font_family=design.Font.MONO),
                 ], spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                bgcolor=COLOR_BG_SECONDARY,
+                bgcolor=design.T().surface_alt,
                 padding=ft.Padding.symmetric(horizontal=10, vertical=8),
-                border_radius=6, expand=True,
+                border_radius=design.Radius.MD, expand=True,
             )
 
         return ft.Container(
@@ -688,15 +687,11 @@ class SpellsView(ScrollMemoryListView):
                 _box("CD TIRO SALV.", str(save_dc)),
                 _box("BONUS ATTACCO", atk_str),
             ], spacing=8),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=14,
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_BLUE),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _section_prep_banner(self, c: Character) -> ft.Container:
@@ -719,12 +714,12 @@ class SpellsView(ScrollMemoryListView):
             expected = _expected_known_spell_count(c)
             over     = expected > 0 and count > expected
             label_text = f"{count} / {expected} incantesimi conosciuti"
-            color = COLOR_ACCENT_CRIMSON if over else COLOR_TEXT_MUTED
+            color = design.T().primary if over else design.T().text_3
             ratio = min(1.0, count / expected) if expected > 0 else 0.0
         else:
             label_text = f"{count} / {max_prep} preparati"
             at_limit   = count >= max_prep
-            color      = COLOR_ACCENT_CRIMSON if at_limit else COLOR_ACCENT_BLUE
+            color      = design.T().primary if at_limit else design.T().magic
             ratio      = min(1.0, count / max_prep) if max_prep > 0 else 0.0
 
         if max_prep is not None:
@@ -740,13 +735,13 @@ class SpellsView(ScrollMemoryListView):
             ft.Row([
                 ft.Text(
                     label_text, size=18, color=color,
-                    weight=ft.FontWeight.BOLD, font_family=FONT_MONO,
+                    weight=ft.FontWeight.BOLD, font_family=design.Font.MONO,
                     expand=True,
                 ),
                 ft.TextButton(
                     "✎",
                     on_click=lambda e: self._open_override_dialog(),
-                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                    style=ft.ButtonStyle(color=design.T().text_3),
                     tooltip="Modifica limite manualmente",
                 ),
             ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
@@ -755,63 +750,60 @@ class SpellsView(ScrollMemoryListView):
             rows.append(ft.Row([ft.ProgressBar(
                 value=ratio,
                 color=color,
-                bgcolor=COLOR_BG_SECONDARY,
+                bgcolor=design.T().surface_alt,
                 height=8, border_radius=4, expand=True,
             )]))
-        rows.append(ft.Text(note, size=10, color=COLOR_TEXT_MUTED, italic=True))
+        rows.append(ft.Text(note, size=10, color=design.T().text_3, italic=True))
 
         return ft.Container(
             content=ft.Column(rows, spacing=6),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=14,
-            border=ft.Border(
-                top=ft.BorderSide(3, color),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, color)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _section_slots_summary(self, slots: list[SpellSlot]) -> ft.Container:
+        # Slot come pallini pieni/anello (Fase E.4 del restyle): prima erano i
+        # caratteri "●"/"○" di un font di testo — dimensione e allineamento
+        # dipendevano dal font, e in tema scuro il vuoto sparisce. Ora sono
+        # forme vere, dalla primitiva condivisa `design.slot_dots()`.
+        p = design.T()
         rows: list[ft.Control] = []
         for slot in sorted(slots, key=lambda s: s.slot_level):
             avail = slot.total - slot.used
-            circles = [
-                ft.Text(
-                    "●" if i < avail else "○",
-                    size=20,
-                    color=COLOR_SLOT_FULL if i < avail else COLOR_TEXT_MUTED,
-                )
-                for i in range(slot.total)
-            ]
             rows.append(ft.Row(cast(list[ft.Control], [
                 ft.Container(
-                    content=ft.Text(_SLOT_NAMES[slot.slot_level - 1], size=12,
-                                    color=COLOR_TEXT_SECONDARY,
-                                    weight=ft.FontWeight.W_600),
-                    width=28,
+                    content=ft.Text(_SLOT_NAMES[slot.slot_level - 1],
+                                    size=design.Size.LABEL,
+                                    color=p.text_2,
+                                    weight=ft.FontWeight.BOLD,
+                                    font_family=design.Font.MONO),
+                    bgcolor=p.surface_alt,
+                    border_radius=design.Radius.SM,
+                    padding=ft.Padding.symmetric(horizontal=6, vertical=2),
+                    width=34,
+                    alignment=ft.Alignment.CENTER,
                 ),
-                ft.Row(cast(list[ft.Control], circles), spacing=2),
+                ft.Container(width=design.Space.SM),
+                design.slot_dots(slot.total, slot.used),
                 ft.Container(expand=True),
-                ft.Text(f"{avail}/{slot.total}", size=11,
-                        color=COLOR_TEXT_MUTED, font_family=FONT_MONO),
-            ]), vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=4))
+                ft.Text(f"{avail}/{slot.total}", size=design.Size.LABEL,
+                        color=p.text_3, font_family=design.Font.MONO),
+            ]), vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0))
         rows.append(ft.Text(
             "Usa / recupera slot nel tab Combattimento.",
-            size=10, color=COLOR_TEXT_MUTED, italic=True,
+            size=design.Size.LABEL, color=p.text_3, italic=True,
+            font_family=design.Font.BODY,
         ))
         return ft.Container(
             content=ft.Column(rows, spacing=8),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=14,
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_BLUE),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _section_spell_list(self, spells: list[dict]) -> ft.Container:
@@ -835,8 +827,8 @@ class SpellsView(ScrollMemoryListView):
 
             toggle_icon  = "◉" if prepared else ("✕" if blocked else "○")
             toggle_color = (
-                COLOR_ACCENT_CRIMSON if prepared
-                else (COLOR_BORDER if blocked else COLOR_TEXT_MUTED)
+                design.T().primary if prepared
+                else (design.T().border if blocked else design.T().text_3)
             )
 
             row = ft.Container(
@@ -860,29 +852,29 @@ class SpellsView(ScrollMemoryListView):
                             ft.Text(
                                 name, size=13, expand=True,
                                 color=(
-                                    COLOR_TEXT_PRIMARY if prepared
-                                    else (COLOR_TEXT_MUTED if blocked
-                                          else COLOR_TEXT_SECONDARY)
+                                    design.T().text if prepared
+                                    else (design.T().text_3 if blocked
+                                          else design.T().text_2)
                                 ),
                                 weight=(
                                     ft.FontWeight.W_600 if prepared
                                     else ft.FontWeight.NORMAL
                                 ),
                             ),
-                            ft.Text(tags, size=11, color=COLOR_ACCENT_AMBER)
+                            ft.Text(tags, size=11, color=design.T().warning)
                             if tags else ft.Container(width=0),
                             ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14,
-                                    color=COLOR_TEXT_MUTED),
+                                    color=design.T().text_3),
                         ], spacing=4,
                            vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         on_click=lambda e, s=sp: self._open_spell_dialog(s),
-                        expand=True, ink=True, border_radius=4,
+                        expand=True, ink=True, border_radius=design.Radius.SM,
                         padding=ft.Padding.symmetric(vertical=6, horizontal=4),
                         tooltip="Dettagli",
                     ),
                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
                 border=ft.Border(
-                    bottom=ft.BorderSide(1, COLOR_BORDER)
+                    bottom=ft.BorderSide(1, design.T().border)
                     if i < len(sorted_spells) - 1
                     else ft.BorderSide(0, "transparent"),
                 ),
@@ -891,15 +883,11 @@ class SpellsView(ScrollMemoryListView):
 
         return ft.Container(
             content=ft.Column(rows, spacing=0),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _section_known_class_spell_list(self, spells: list[KnownSpell]) -> ft.Container:
@@ -923,7 +911,7 @@ class SpellsView(ScrollMemoryListView):
                 rows_d: list[ft.Control] = [
                     ft.Text(
                         f"Lv{_ks.spell_level}  ·  {_ks.school or '—'}",
-                        size=11, color=COLOR_TEXT_MUTED, italic=True,
+                        size=11, color=design.T().text_3, italic=True,
                     ),
                     ft.Container(height=4),
                 ]
@@ -935,27 +923,27 @@ class SpellsView(ScrollMemoryListView):
                 ]:
                     if val:
                         rows_d.append(ft.Row([
-                            ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                            ft.Text(label, size=11, color=design.T().text_3,
                                     weight=ft.FontWeight.BOLD, width=100),
-                            ft.Text(val, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Text(val, size=12, color=design.T().text, expand=True),
                         ], spacing=4))
                 rows_d += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Text(
                         _ks.description or "Nessuna descrizione.",
-                        size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+                        size=13, color=design.T().text, selectable=True,
                     ),
                 ]
                 if _ks.higher_levels:
                     rows_d += [
                         ft.Container(height=6),
                         ft.Text("Ai livelli superiori:", size=11,
-                                color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
-                        ft.Text(_ks.higher_levels, size=12, color=COLOR_TEXT_SECONDARY),
+                                color=design.T().text_3, weight=ft.FontWeight.BOLD),
+                        ft.Text(_ks.higher_levels, size=12, color=design.T().text_2),
                     ]
                 page.show_dialog(ft.AlertDialog(
                     title=ft.Text(_ks.name, size=14, weight=ft.FontWeight.BOLD,
-                                  color=COLOR_TEXT_TITLE),
+                                  color=design.T().text),
                     content=ft.Column(
                         rows_d, spacing=6, scroll=ft.ScrollMode.AUTO
                     ),
@@ -965,31 +953,31 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=COLOR_BG_CARD,
+                    bgcolor=design.T().surface,
                 ))
 
             rows.append(ft.Container(
                 content=ft.Row([
-                    ft.Text("●", size=18, color=COLOR_ACCENT_CRIMSON),
+                    ft.Text("●", size=18, color=design.T().primary),
                     ft.Container(width=6),
                     ft.Container(
                         content=ft.Row([
                             ft.Text(
                                 ks.name, size=13, expand=True,
-                                color=COLOR_TEXT_PRIMARY,
+                                color=design.T().text,
                                 weight=ft.FontWeight.W_600,
                             ),
                             ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14,
-                                    color=COLOR_TEXT_MUTED),
+                                    color=design.T().text_3),
                         ], spacing=6,
                            vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         on_click=_open,
-                        expand=True, ink=True, border_radius=4,
+                        expand=True, ink=True, border_radius=design.Radius.SM,
                         padding=ft.Padding.symmetric(vertical=6, horizontal=4),
                     ),
                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
                 border=ft.Border(
-                    bottom=ft.BorderSide(1, COLOR_BORDER)
+                    bottom=ft.BorderSide(1, design.T().border)
                     if i < len(sorted_spells) - 1
                     else ft.BorderSide(0, "transparent"),
                 ),
@@ -997,15 +985,11 @@ class SpellsView(ScrollMemoryListView):
 
         return ft.Container(
             content=ft.Column(rows, spacing=0),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _section_extra_spell_list(self, spells: list[KnownSpell]) -> ft.Container:
@@ -1022,9 +1006,9 @@ class SpellsView(ScrollMemoryListView):
                     (ks.class_list or "?")[:4], size=9,
                     color=design.T().on_primary, weight=ft.FontWeight.BOLD,
                 ),
-                bgcolor=COLOR_ACCENT_AMBER,
+                bgcolor=design.T().warning,
                 padding=ft.Padding.symmetric(horizontal=5, vertical=2),
-                border_radius=4,
+                border_radius=design.Radius.SM,
                 tooltip=f"Da: {ks.class_list or '—'}",
             )
 
@@ -1035,7 +1019,7 @@ class SpellsView(ScrollMemoryListView):
                 rows_d: list[ft.Control] = [
                     ft.Text(
                         f"Lv{_ks.spell_level}  ·  {_ks.school or '—'}",
-                        size=11, color=COLOR_TEXT_MUTED, italic=True,
+                        size=11, color=design.T().text_3, italic=True,
                     ),
                     ft.Container(height=4),
                 ]
@@ -1047,30 +1031,30 @@ class SpellsView(ScrollMemoryListView):
                 ]:
                     if val:
                         rows_d.append(ft.Row([
-                            ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                            ft.Text(label, size=11, color=design.T().text_3,
                                     weight=ft.FontWeight.BOLD, width=100),
-                            ft.Text(val, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Text(val, size=12, color=design.T().text, expand=True),
                         ], spacing=4))
                 rows_d += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Text(
                         _ks.description or "Nessuna descrizione.",
-                        size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+                        size=13, color=design.T().text, selectable=True,
                     ),
                 ]
                 if _ks.higher_levels:
                     rows_d += [
                         ft.Container(height=6),
                         ft.Text("Ai livelli superiori:", size=11,
-                                color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
-                        ft.Text(_ks.higher_levels, size=12, color=COLOR_TEXT_SECONDARY),
+                                color=design.T().text_3, weight=ft.FontWeight.BOLD),
+                        ft.Text(_ks.higher_levels, size=12, color=design.T().text_2),
                     ]
                 page.show_dialog(ft.AlertDialog(
                     title=ft.Row([
                         origin_badge,
                         ft.Container(width=8),
                         ft.Text(_ks.name, size=14, weight=ft.FontWeight.BOLD,
-                                color=COLOR_TEXT_TITLE, expand=True),
+                                color=design.T().text, expand=True),
                     ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     content=ft.Column(
                         rows_d, spacing=6, scroll=ft.ScrollMode.AUTO
@@ -1081,32 +1065,32 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=COLOR_BG_CARD,
+                    bgcolor=design.T().surface,
                 ))
 
             rows.append(ft.Container(
                 content=ft.Row([
-                    ft.Text("★", size=18, color=COLOR_ACCENT_AMBER),
+                    ft.Text("★", size=18, color=design.T().warning),
                     ft.Container(width=6),
                     ft.Container(
                         content=ft.Row([
                             ft.Text(
                                 ks.name, size=13, expand=True,
-                                color=COLOR_TEXT_PRIMARY,
+                                color=design.T().text,
                                 weight=ft.FontWeight.W_600,
                             ),
                             origin_badge,
                             ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14,
-                                    color=COLOR_TEXT_MUTED),
+                                    color=design.T().text_3),
                         ], spacing=6,
                            vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         on_click=_open,
-                        expand=True, ink=True, border_radius=4,
+                        expand=True, ink=True, border_radius=design.Radius.SM,
                         padding=ft.Padding.symmetric(vertical=6, horizontal=4),
                     ),
                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
                 border=ft.Border(
-                    bottom=ft.BorderSide(1, COLOR_BORDER)
+                    bottom=ft.BorderSide(1, design.T().border)
                     if i < len(sorted_spells) - 1
                     else ft.BorderSide(0, "transparent"),
                 ),
@@ -1114,15 +1098,11 @@ class SpellsView(ScrollMemoryListView):
 
         return ft.Container(
             content=ft.Column(rows, spacing=0),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_AMBER),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().warning)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _section_always_prepared_list(self, spells: list[KnownSpell]) -> ft.Container:
@@ -1144,7 +1124,7 @@ class SpellsView(ScrollMemoryListView):
                 rows_d: list[ft.Control] = [
                     ft.Text(
                         f"Lv{_ks.spell_level}  ·  {_ks.school or '—'}  ·  Sempre pronto",
-                        size=11, color=COLOR_TEXT_MUTED, italic=True,
+                        size=11, color=design.T().text_3, italic=True,
                     ),
                     ft.Container(height=4),
                 ]
@@ -1156,30 +1136,30 @@ class SpellsView(ScrollMemoryListView):
                 ]:
                     if val:
                         rows_d.append(ft.Row([
-                            ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                            ft.Text(label, size=11, color=design.T().text_3,
                                     weight=ft.FontWeight.BOLD, width=100),
-                            ft.Text(val, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Text(val, size=12, color=design.T().text, expand=True),
                         ], spacing=4))
                 rows_d += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Text(
                         _ks.description or "Nessuna descrizione.",
-                        size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+                        size=13, color=design.T().text, selectable=True,
                     ),
                 ]
                 if _ks.higher_levels:
                     rows_d += [
                         ft.Container(height=6),
                         ft.Text("Ai livelli superiori:", size=11,
-                                color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
-                        ft.Text(_ks.higher_levels, size=12, color=COLOR_TEXT_SECONDARY),
+                                color=design.T().text_3, weight=ft.FontWeight.BOLD),
+                        ft.Text(_ks.higher_levels, size=12, color=design.T().text_2),
                     ]
                 page.show_dialog(ft.AlertDialog(
                     title=ft.Row([
                         ft.Text("🔒", size=16),
                         ft.Container(width=8),
                         ft.Text(_ks.name, size=14, weight=ft.FontWeight.BOLD,
-                                color=COLOR_TEXT_TITLE, expand=True),
+                                color=design.T().text, expand=True),
                     ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     content=ft.Column(rows_d, spacing=6, scroll=ft.ScrollMode.AUTO),
                     actions=[
@@ -1188,7 +1168,7 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=COLOR_BG_CARD,
+                    bgcolor=design.T().surface,
                 ))
 
             rows.append(ft.Container(
@@ -1199,20 +1179,20 @@ class SpellsView(ScrollMemoryListView):
                         content=ft.Row([
                             ft.Text(
                                 ks.name, size=13, expand=True,
-                                color=COLOR_TEXT_PRIMARY,
+                                color=design.T().text,
                                 weight=ft.FontWeight.W_600,
                             ),
                             ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14,
-                                    color=COLOR_TEXT_MUTED),
+                                    color=design.T().text_3),
                         ], spacing=6,
                            vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         on_click=_open,
-                        expand=True, ink=True, border_radius=4,
+                        expand=True, ink=True, border_radius=design.Radius.SM,
                         padding=ft.Padding.symmetric(vertical=6, horizontal=4),
                     ),
                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
                 border=ft.Border(
-                    bottom=ft.BorderSide(1, COLOR_BORDER)
+                    bottom=ft.BorderSide(1, design.T().border)
                     if i < len(sorted_spells) - 1
                     else ft.BorderSide(0, "transparent"),
                 ),
@@ -1220,15 +1200,11 @@ class SpellsView(ScrollMemoryListView):
 
         return ft.Container(
             content=ft.Column(rows, spacing=0),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border(
-                top=ft.BorderSide(3, design.T().magic),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -1239,27 +1215,23 @@ class SpellsView(ScrollMemoryListView):
         """Pulsante "+ Aggiungi Incantesimo Bonus" — sempre visibile."""
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.Icons.AUTO_AWESOME, size=16, color=COLOR_ACCENT_BLUE),
+                ft.Icon(ft.Icons.AUTO_AWESOME, size=16, color=design.T().magic),
                 ft.Text(
                     "Incantesimi concessi manualmente (es. dal master), "
                     "aggiunti a quelli conosciuti/preparati.",
-                    size=11, color=COLOR_TEXT_MUTED, expand=True,
+                    size=11, color=design.T().text_3, expand=True,
                 ),
                 ft.TextButton(
                     "+ Aggiungi Incantesimo Bonus",
                     on_click=lambda e: self._open_add_bonus_spell_dialog(),
-                    style=ft.ButtonStyle(color=COLOR_ACCENT_BLUE),
+                    style=ft.ButtonStyle(color=design.T().magic),
                 ),
             ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_BLUE),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _section_bonus_spell_list(self, spells: list[KnownSpell]) -> ft.Container:
@@ -1278,9 +1250,9 @@ class SpellsView(ScrollMemoryListView):
                     (ks.class_list or "?")[:4], size=9,
                     color=design.T().on_accent, weight=ft.FontWeight.BOLD,
                 ),
-                bgcolor=COLOR_ACCENT_BLUE,
+                bgcolor=design.T().magic,
                 padding=ft.Padding.symmetric(horizontal=5, vertical=2),
-                border_radius=4,
+                border_radius=design.Radius.SM,
                 tooltip=f"Da: {ks.class_list or '—'}",
             )
 
@@ -1291,7 +1263,7 @@ class SpellsView(ScrollMemoryListView):
                 rows_d: list[ft.Control] = [
                     ft.Text(
                         f"Lv{_ks.spell_level}  ·  {_ks.school or '—'}",
-                        size=11, color=COLOR_TEXT_MUTED, italic=True,
+                        size=11, color=design.T().text_3, italic=True,
                     ),
                     ft.Container(height=4),
                 ]
@@ -1303,30 +1275,30 @@ class SpellsView(ScrollMemoryListView):
                 ]:
                     if val:
                         rows_d.append(ft.Row([
-                            ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                            ft.Text(label, size=11, color=design.T().text_3,
                                     weight=ft.FontWeight.BOLD, width=100),
-                            ft.Text(val, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Text(val, size=12, color=design.T().text, expand=True),
                         ], spacing=4))
                 rows_d += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Text(
                         _ks.description or "Nessuna descrizione.",
-                        size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+                        size=13, color=design.T().text, selectable=True,
                     ),
                 ]
                 if _ks.higher_levels:
                     rows_d += [
                         ft.Container(height=6),
                         ft.Text("Ai livelli superiori:", size=11,
-                                color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
-                        ft.Text(_ks.higher_levels, size=12, color=COLOR_TEXT_SECONDARY),
+                                color=design.T().text_3, weight=ft.FontWeight.BOLD),
+                        ft.Text(_ks.higher_levels, size=12, color=design.T().text_2),
                     ]
                 page.show_dialog(ft.AlertDialog(
                     title=ft.Row([
                         origin_badge,
                         ft.Container(width=8),
                         ft.Text(_ks.name, size=14, weight=ft.FontWeight.BOLD,
-                                color=COLOR_TEXT_TITLE, expand=True),
+                                color=design.T().text, expand=True),
                     ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     content=ft.Column(
                         rows_d, spacing=6, scroll=ft.ScrollMode.AUTO
@@ -1337,7 +1309,7 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=COLOR_BG_CARD,
+                    bgcolor=design.T().surface,
                 ))
 
             def _remove(e, _ks: KnownSpell = ks) -> None:
@@ -1353,33 +1325,33 @@ class SpellsView(ScrollMemoryListView):
 
             rows.append(ft.Container(
                 content=ft.Row([
-                    ft.Text("✦", size=18, color=COLOR_ACCENT_BLUE),
+                    ft.Text("✦", size=18, color=design.T().magic),
                     ft.Container(width=6),
                     ft.Container(
                         content=ft.Row([
                             ft.Text(
                                 ks.name, size=13, expand=True,
-                                color=COLOR_TEXT_PRIMARY,
+                                color=design.T().text,
                                 weight=ft.FontWeight.W_600,
                             ),
                             origin_badge,
                             ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14,
-                                    color=COLOR_TEXT_MUTED),
+                                    color=design.T().text_3),
                         ], spacing=6,
                            vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         on_click=_open,
-                        expand=True, ink=True, border_radius=4,
+                        expand=True, ink=True, border_radius=design.Radius.SM,
                         padding=ft.Padding.symmetric(vertical=6, horizontal=4),
                     ),
                     ft.IconButton(
                         ft.Icons.DELETE_OUTLINE, icon_size=18,
-                        icon_color=COLOR_ACCENT_CRIMSON,
+                        icon_color=design.T().primary,
                         tooltip="Rimuovi incantesimo bonus",
                         on_click=_remove,
                     ),
                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
                 border=ft.Border(
-                    bottom=ft.BorderSide(1, COLOR_BORDER)
+                    bottom=ft.BorderSide(1, design.T().border)
                     if i < len(sorted_spells) - 1
                     else ft.BorderSide(0, "transparent"),
                 ),
@@ -1387,15 +1359,11 @@ class SpellsView(ScrollMemoryListView):
 
         return ft.Container(
             content=ft.Column(rows, spacing=0),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_BLUE),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _section_racial_spells(self, c: Character) -> ft.Container:
@@ -1441,9 +1409,9 @@ class SpellsView(ScrollMemoryListView):
                 usage_chip = ft.Container(
                     content=ft.Text("A volontà", size=10, color=design.T().on_accent,
                                      weight=ft.FontWeight.BOLD),
-                    bgcolor=COLOR_ACCENT_BLUE,
+                    bgcolor=design.T().magic,
                     padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-                    border_radius=4,
+                    border_radius=design.Radius.SM,
                 )
             else:
                 res = resources_by_name.get(entry.get("resource_name", ""))
@@ -1453,9 +1421,9 @@ class SpellsView(ScrollMemoryListView):
                         "Disponibile" if available else "Usato (riposo lungo)",
                         size=10, color=design.T().on_accent, weight=ft.FontWeight.BOLD,
                     ),
-                    bgcolor=(COLOR_ACCENT_BLUE if available else COLOR_TEXT_MUTED),
+                    bgcolor=(design.T().magic if available else design.T().text_3),
                     padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-                    border_radius=4,
+                    border_radius=design.Radius.SM,
                     tooltip="Contatore gestito nella tab Combattimento",
                 )
 
@@ -1467,12 +1435,12 @@ class SpellsView(ScrollMemoryListView):
                 rows_d: list[ft.Control] = [
                     ft.Text(
                         f"{_level_label}  ·  CD {_dc}  ·  CD su Carisma (tratto razziale)",
-                        size=11, color=COLOR_TEXT_MUTED, italic=True,
+                        size=11, color=design.T().text_3, italic=True,
                     ),
                 ]
                 if _note:
                     rows_d.append(ft.Text(f"⚠ {_note}", size=11,
-                                           color=COLOR_ACCENT_CRIMSON, italic=True))
+                                           color=design.T().primary, italic=True))
                 rows_d.append(ft.Container(height=4))
                 if _master:
                     for label, val in [
@@ -1485,15 +1453,15 @@ class SpellsView(ScrollMemoryListView):
                     ]:
                         if val:
                             rows_d.append(ft.Row([
-                                ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                                ft.Text(label, size=11, color=design.T().text_3,
                                         weight=ft.FontWeight.BOLD, width=100),
-                                ft.Text(val, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                                ft.Text(val, size=12, color=design.T().text, expand=True),
                             ], spacing=4))
                     rows_d += [
-                        ft.Divider(color=COLOR_BORDER),
+                        ft.Divider(color=design.T().border),
                         ft.Text(
                             _master.get("description") or "Nessuna descrizione.",
-                            size=13, color=COLOR_TEXT_PRIMARY, selectable=True,
+                            size=13, color=design.T().text, selectable=True,
                         ),
                     ]
                 else:
@@ -1501,11 +1469,11 @@ class SpellsView(ScrollMemoryListView):
                         "Testo dell'incantesimo non ancora disponibile nel "
                         "compendio — vedi il tratto di razza in Profilo per "
                         "il testo del privilegio.",
-                        size=13, color=COLOR_TEXT_MUTED, italic=True,
+                        size=13, color=design.T().text_3, italic=True,
                     ))
                 page.show_dialog(ft.AlertDialog(
                     title=ft.Text(_name, size=14, weight=ft.FontWeight.BOLD,
-                                  color=COLOR_TEXT_TITLE),
+                                  color=design.T().text),
                     content=ft.Column(rows_d, spacing=6, scroll=ft.ScrollMode.AUTO),
                     actions=[
                         ft.TextButton(
@@ -1513,7 +1481,7 @@ class SpellsView(ScrollMemoryListView):
                             on_click=lambda e: page.pop_dialog() if page else None,
                         )
                     ],
-                    bgcolor=COLOR_BG_CARD,
+                    bgcolor=design.T().surface,
                 ))
 
             rows.append(ft.Container(
@@ -1521,20 +1489,20 @@ class SpellsView(ScrollMemoryListView):
                     ft.Container(
                         content=ft.Row([
                             ft.Text(name, size=13, expand=True,
-                                    color=COLOR_TEXT_PRIMARY,
+                                    color=design.T().text,
                                     weight=ft.FontWeight.W_600),
-                            ft.Text(level_label, size=11, color=COLOR_TEXT_MUTED),
+                            ft.Text(level_label, size=11, color=design.T().text_3),
                             usage_chip,
                             ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14,
-                                    color=COLOR_TEXT_MUTED),
+                                    color=design.T().text_3),
                         ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         on_click=_open,
-                        expand=True, ink=True, border_radius=4,
+                        expand=True, ink=True, border_radius=design.Radius.SM,
                         padding=ft.Padding.symmetric(vertical=6, horizontal=4),
                     ),
                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
                 border=ft.Border(
-                    bottom=ft.BorderSide(1, COLOR_BORDER)
+                    bottom=ft.BorderSide(1, design.T().border)
                     if i < len(visible_entries) - 1
                     else ft.BorderSide(0, "transparent"),
                 ),
@@ -1543,25 +1511,21 @@ class SpellsView(ScrollMemoryListView):
         return ft.Container(
             content=ft.Column([
                 ft.Row([
-                    ft.Icon(ft.Icons.AUTO_AWESOME, size=16, color=COLOR_ACCENT_CRIMSON),
+                    ft.Icon(ft.Icons.AUTO_AWESOME, size=16, color=design.T().primary),
                     ft.Text(
                         f"Da tratto di razza — CD {dc} (8 + comp. {pb:+d} + CAR {cha_mod:+d}), "
                         f"sempre attivi indipendentemente dalla classe.",
-                        size=11, color=COLOR_TEXT_MUTED, expand=True,
+                        size=11, color=design.T().text_3, expand=True,
                     ),
                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
-                ft.Divider(color=COLOR_BORDER, height=10),
+                ft.Divider(color=design.T().border, height=10),
                 ft.Column(rows, spacing=0),
             ], spacing=6),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _open_add_bonus_spell_dialog(self) -> None:
@@ -1589,12 +1553,12 @@ class SpellsView(ScrollMemoryListView):
             label="Lista incantesimi",
             value=default_class,
             options=[ft.DropdownOption(key=n, text=n) for n in class_names],
-            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_BLUE,
+            bgcolor=design.T().surface, color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
         )
-        error_text = ft.Text("", size=12, color=COLOR_ACCENT_CRIMSON)
+        error_text = ft.Text("", size=12, color=design.T().primary)
 
         def _spells_for(cls: str) -> list[dict[str, Any]]:
             return sorted(_loader.get_spells(cls), key=lambda s: (s.get("level", 0), s.get("name", "")))
@@ -1663,7 +1627,7 @@ class SpellsView(ScrollMemoryListView):
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Aggiungi Incantesimo Bonus", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Container(
                 # scroll + altezza fissa spostati QUI (2026-07-16, fix
                 # scorrimento annidato — vedi ui/widgets.py): CardPicker non
@@ -1675,7 +1639,7 @@ class SpellsView(ScrollMemoryListView):
                         "Scegli da quale lista e quale incantesimo aggiungere "
                         "(es. concesso dal master). Verrà segnato come "
                         "conosciuto/preparato.",
-                        size=11, color=COLOR_TEXT_MUTED,
+                        size=11, color=design.T().text_3,
                     ),
                     class_dd,
                     muted_text("Incantesimo", size=11),
@@ -1691,12 +1655,11 @@ class SpellsView(ScrollMemoryListView):
                 ft.ElevatedButton(
                     "Aggiungi", on_click=save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
-                        shape=ft.RoundedRectangleBorder(radius=4),
+                        bgcolor=design.T().magic, color=design.T().on_accent,
                     ),
                 ),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     # ------------------------------------------------------------------

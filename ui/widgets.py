@@ -67,10 +67,7 @@ stesso, è sempre il contenitore che lo ospita a scrollare**.
 
 import flet as ft
 from typing import Any, Callable
-from config.settings import (
-    COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_MUTED, COLOR_ACCENT_BLUE,
-    COLOR_ACCENT_CRIMSON, COLOR_BG_CARD, COLOR_BORDER, ABILITY_KEYS, ABILITY_SCORES,
-)
+from config.settings import ABILITY_KEYS, ABILITY_SCORES
 from ui import design
 
 _ABILITY_KEY_TO_LABEL: dict[str, str] = dict(zip(ABILITY_KEYS, ABILITY_SCORES))
@@ -232,13 +229,13 @@ class CardPicker:
         max_selected: int | None = None,
         disabled: bool = False,
         empty_text: str = "Nessuna opzione disponibile.",
-        active_color: str = COLOR_ACCENT_BLUE,
+        active_color: str | None = None,
         on_select: Callable[[Any], None] | None = None,
     ) -> None:
         self.multi = multi
         self.max_selected = max_selected
         self.empty_text = empty_text
-        self.active_color = active_color
+        self.active_color = active_color or design.T().magic
         self.on_select = on_select
 
         self._options: list[dict[str, str]] = []
@@ -354,13 +351,13 @@ class CardPicker:
     def _rebuild(self) -> None:
         rows: list[ft.Control] = []
         if not self._options:
-            rows.append(ft.Text(self.empty_text, size=12, color=COLOR_TEXT_MUTED, italic=True))
+            rows.append(ft.Text(self.empty_text, size=12, color=design.T().text_3, italic=True))
         for opt in self._options:
             key = opt.get("key", "")
             title = opt.get("title", key)
             body = opt.get("body", "")
             badge = opt.get("badge", "")
-            badge_color = opt.get("badge_color") or COLOR_ACCENT_BLUE
+            badge_color = opt.get("badge_color") or design.T().magic
             selected = self._is_selected(key)
             icon_name = (
                 (ft.Icons.CHECK_BOX if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK)
@@ -370,11 +367,11 @@ class CardPicker:
             header_children: list[ft.Control] = [
                 ft.Icon(
                     icon_name, size=18,
-                    color=self.active_color if selected else COLOR_TEXT_MUTED,
+                    color=self.active_color if selected else design.T().text_3,
                 ),
                 ft.Text(
                     title, size=13, weight=ft.FontWeight.W_600,
-                    color=COLOR_TEXT_TITLE if selected else COLOR_TEXT_PRIMARY,
+                    color=design.T().text if selected else design.T().text,
                     expand=True,
                 ),
             ]
@@ -384,7 +381,7 @@ class CardPicker:
                                      weight=ft.FontWeight.BOLD),
                     bgcolor=badge_color,
                     padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-                    border_radius=4,
+                    border_radius=design.Radius.SM,
                 ))
             header = ft.Row(
                 header_children,
@@ -393,18 +390,18 @@ class CardPicker:
             card_children: list[ft.Control] = [header]
             if selected and body:
                 card_children.append(ft.Container(
-                    content=ft.Text(body, size=12, color=COLOR_TEXT_PRIMARY, selectable=True),
+                    content=ft.Text(body, size=12, color=design.T().text, selectable=True),
                     padding=ft.Padding.only(top=4, left=26),
                 ))
             rows.append(ft.Container(
                 content=ft.Column(card_children, spacing=2),
                 on_click=(None if self._disabled else (lambda e, k=key: self._toggle(k))),
-                bgcolor=design.T().info_bg if selected else COLOR_BG_CARD,
+                bgcolor=design.T().info_bg if selected else design.T().surface,
                 border=ft.Border.all(
                     1.5 if selected else 1,
-                    self.active_color if selected else COLOR_BORDER,
+                    self.active_color if selected else design.T().border,
                 ),
-                border_radius=6,
+                border_radius=design.Radius.MD,
                 padding=ft.Padding.all(8),
                 ink=not self._disabled,
                 opacity=0.5 if self._disabled else 1.0,
@@ -439,7 +436,7 @@ def spell_card_options(spells: list[dict]) -> list[dict[str, str]]:
         opts.append({
             "key": name, "title": name, "body": format_spell_body(s),
             "badge": "0" if level == 0 else f"Lv{level}",
-            "badge_color": COLOR_ACCENT_BLUE if level == 0 else COLOR_ACCENT_CRIMSON,
+            "badge_color": design.T().magic if level == 0 else design.T().primary,
         })
     return opts
 

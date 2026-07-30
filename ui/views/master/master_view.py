@@ -17,11 +17,8 @@ from typing import Any, cast
 
 import flet as ft
 
-from config.settings import (
-    COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_TAB_ACTIVE, COLOR_BG_TAB_INACTIVE,
-    COLOR_BORDER, COLOR_ACCENT_CRIMSON, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED,
-)
 from ui.theme import title_text, muted_text
+from ui import design
 
 
 _TABS: list[dict[str, Any]] = [
@@ -39,7 +36,7 @@ class MasterView(ft.Column):
         super().__init__(expand=True, spacing=0)
         self.on_back_to_home = on_back_to_home
         self.active_tab: str = "npcs"
-        self._content_area = ft.Container(expand=True, bgcolor=COLOR_BG_PRIMARY)
+        self._content_area = ft.Container(expand=True, bgcolor=design.T().bg)
         self._build()
 
     # ------------------------------------------------------------------
@@ -54,11 +51,11 @@ class MasterView(ft.Column):
                 [
                     ft.IconButton(
                         icon=ft.Icons.ARROW_BACK,
-                        icon_color=COLOR_TEXT_SECONDARY,
+                        icon_color=design.T().text_2,
                         tooltip="Torna alla Home",
                         on_click=lambda e: self.on_back_to_home(),
                     ),
-                    ft.Icon(ft.Icons.CASTLE_OUTLINED, color=COLOR_ACCENT_CRIMSON, size=22),
+                    ft.Icon(ft.Icons.CASTLE_OUTLINED, color=design.T().primary, size=22),
                     ft.Container(width=8),
                     # expand=True + no_wrap: il titolo si tronca con "..." invece di
                     # spingere il resto dell'header fuori dalla finestra su schermi
@@ -71,8 +68,8 @@ class MasterView(ft.Column):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.symmetric(horizontal=16, vertical=12),
-            bgcolor=COLOR_BG_SECONDARY,
-            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            bgcolor=design.T().surface_alt,
+            border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
         )
 
         self._content_area.content = self._get_tab_content(self.active_tab)
@@ -99,8 +96,8 @@ class MasterView(ft.Column):
         return ft.Container(
             content=ft.Row(cast(list[ft.Control], pills), spacing=8, wrap=True),
             padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-            bgcolor=COLOR_BG_PRIMARY,
-            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            bgcolor=design.T().bg,
+            border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
         )
 
     @staticmethod
@@ -108,16 +105,16 @@ class MasterView(ft.Column):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(icon, size=15, color=COLOR_ACCENT_CRIMSON),
+                    ft.Icon(icon, size=15, color=design.T().primary),
                     ft.Container(width=6),
-                    ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON),
+                    ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=design.T().primary),
                 ],
                 tight=True,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.symmetric(horizontal=12, vertical=7),
-            bgcolor=COLOR_BG_TAB_ACTIVE,
-            border=ft.Border.all(1, COLOR_ACCENT_CRIMSON),
+            bgcolor=design.T().surface,
+            border=ft.Border.all(1, design.T().primary),
             border_radius=16,
             on_click=lambda e: on_click(),
             ink=True,
@@ -133,28 +130,28 @@ class MasterView(ft.Column):
                         [
                             ft.Icon(
                                 t["icon"], size=16,
-                                color=COLOR_ACCENT_CRIMSON if is_sel else COLOR_TEXT_MUTED,
+                                color=design.T().primary if is_sel else design.T().text_3,
                             ),
                             ft.Container(width=6),
                             ft.Text(
                                 t["label"].upper(), size=12,
                                 weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
-                                color=COLOR_ACCENT_CRIMSON if is_sel else COLOR_TEXT_SECONDARY,
+                                color=design.T().primary if is_sel else design.T().text_2,
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
                     padding=ft.Padding.symmetric(horizontal=16, vertical=12),
-                    bgcolor=COLOR_BG_TAB_ACTIVE if is_sel else COLOR_BG_TAB_INACTIVE,
+                    bgcolor=design.T().surface if is_sel else design.T().surface_alt,
                     border=ft.Border.only(
-                        bottom=ft.BorderSide(3, COLOR_ACCENT_CRIMSON if is_sel else "transparent")
+                        bottom=ft.BorderSide(3, design.T().primary if is_sel else "transparent")
                     ),
                     on_click=lambda e, k=t["key"]: self._on_tab_click(k),
                     ink=True,
                     expand=True,
                 )
             )
-        return ft.Container(content=ft.Row(items, spacing=0), bgcolor=COLOR_BG_TAB_INACTIVE)
+        return ft.Container(content=ft.Row(items, spacing=0), bgcolor=design.T().surface_alt)
 
     def _open_treasure_dialog(self) -> None:
         page = self.page
@@ -249,7 +246,7 @@ class MasterView(ft.Column):
             expand=True,
             content=ft.Column(
                 [
-                    ft.Icon(icon, size=64, color=COLOR_BORDER),
+                    ft.Icon(icon, size=64, color=design.T().border),
                     ft.Container(height=16),
                     title_text(title, size=22),
                     ft.Container(height=8),

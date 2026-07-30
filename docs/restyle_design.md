@@ -260,6 +260,29 @@ lo scroll.
 
 ## FASE E — Restyle per superficie
 
+> ✅ **COMPLETATA il 2026-07-30** (Fase C assorbita al suo interno: le
+> micro-interazioni sono state aggiunte insieme al restyle, non in un giro a
+> parte). Changelog completo in `CLAUDE.md` ("FASE E COMPLETATA").
+>
+> Scostamenti rispetto a quanto progettato qui:
+> * l'ordine per superficie è stato **sostituito da due sweep globali** (token di
+>   colore, poi superfici/raggi/ombre) seguiti dal restyle a mano dei soli
+>   componenti nominati da Davide. Motivo: la maggior parte del "sembra vecchio"
+>   veniva dalla vecchia palette e dal pattern card "filetto in cima + bordo
+>   1px", entrambi presenti in modo identico in tutte le view — risolverli una
+>   view alla volta avrebbe richiesto 11 passaggi per lo stesso risultato;
+> * gli helper legacy di `ui/theme.py` **non sono stati lasciati invariati** come
+>   previsto in Fase A: riscriverli sulle primitive ha restylato in un colpo solo
+>   le 68 sezioni e i pulsanti delle view non ancora toccate a mano;
+> * `config/settings.py` non ha più costanti di colore/font (rimosse, non
+>   deprecate): erano l'ultimo ostacolo strutturale al tema scuro;
+> * due primitive non previste qui si sono rivelate necessarie: `hp_bar()` a
+>   segmenti (per mostrare i PF temporanei) e `slot_dots()`/`dot_button()` (gli
+>   slot erano caratteri di testo "●"/"○", non forme).
+>
+> **La Fase D è ora la sola cosa che separa l'app dal tema scuro**: nelle view non
+> resta nessun colore statico, serve solo l'interruttore + persistenza.
+
 Ordine proposto (dal più visibile al meno):
 1. **Home** — è la prima impressione. Card personaggio con ritratto grande,
    ombre, chip di classe/livello.

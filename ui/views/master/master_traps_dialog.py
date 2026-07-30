@@ -19,11 +19,6 @@ from typing import Any, cast
 
 import flet as ft
 
-from config.settings import (
-    COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-    COLOR_TEXT_MUTED, COLOR_BORDER, COLOR_BG_CARD, COLOR_BG_PRIMARY,
-    COLOR_ACCENT_CRIMSON,
-)
 from core import trap_generator as tg
 from data.game_data.game_data_loader import game_data
 from ui.widgets import responsive_dialog_width
@@ -44,8 +39,8 @@ def show_traps_dialog(page: ft.Page) -> None:
         label="Livello dei PG",
         value="1",
         options=[ft.DropdownOption(key=str(n), text=f"Livello {n}") for n in range(1, 21)],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
     )
     severity_group = ft.RadioGroup(
         value="imprevisto",
@@ -64,20 +59,20 @@ def show_traps_dialog(page: ft.Page) -> None:
         r = state["result"]
         if not r:
             suggest_result_col.controls.append(
-                ft.Text("Premi «Suggerisci» per calcolare i valori.", size=12, color=COLOR_TEXT_MUTED)
+                ft.Text("Premi «Suggerisci» per calcolare i valori.", size=12, color=design.T().text_3)
             )
         else:
             suggest_result_col.controls.extend([
                 ft.Text(f"Gravità: {r['severity_label']} (PG livello {r['char_level_range'] or '?'})",
-                        size=13, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
-                ft.Text(f"CD Tiro Salvezza: {r['save_dc']}", size=13, color=COLOR_TEXT_PRIMARY),
-                ft.Text(f"Bonus di Attacco: {r['attack_bonus']}", size=13, color=COLOR_TEXT_PRIMARY),
-                ft.Text(f"Dado Danno: {r['damage_dice']}", size=13, color=COLOR_TEXT_PRIMARY),
+                        size=13, weight=ft.FontWeight.BOLD, color=design.T().text),
+                ft.Text(f"CD Tiro Salvezza: {r['save_dc']}", size=13, color=design.T().text),
+                ft.Text(f"Bonus di Attacco: {r['attack_bonus']}", size=13, color=design.T().text),
+                ft.Text(f"Dado Danno: {r['damage_dice']}", size=13, color=design.T().text),
             ])
             if r.get("rolled_damage") is not None:
                 suggest_result_col.controls.append(
                     ft.Text(f"Danno tirato: {r['rolled_damage']}", size=14, weight=ft.FontWeight.BOLD,
-                             color=COLOR_ACCENT_CRIMSON)
+                             color=design.T().primary)
                 )
         try:
             suggest_result_col.update()
@@ -111,17 +106,16 @@ def show_traps_dialog(page: ft.Page) -> None:
                 [
                     ft.ElevatedButton(
                         "Suggerisci", icon=ft.Icons.CALCULATE, on_click=_on_suggest,
-                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                              shape=ft.RoundedRectangleBorder(radius=4)),
+                        style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                     ),
                     ft.OutlinedButton("Tira Danno", icon=ft.Icons.CASINO, on_click=_on_roll_damage),
                 ],
                 spacing=8,
             ),
-            ft.Divider(height=1, color=COLOR_BORDER),
+            ft.Divider(height=1, color=design.T().border),
             ft.Container(
-                content=suggest_result_col, bgcolor=COLOR_BG_PRIMARY,
-                border_radius=6, padding=ft.Padding.all(12),
+                content=suggest_result_col, bgcolor=design.T().bg,
+                border_radius=design.Radius.MD, padding=ft.Padding.all(12),
             ),
         ],
         spacing=10,
@@ -133,24 +127,24 @@ def show_traps_dialog(page: ft.Page) -> None:
     # -- Modalità "Sfoglia Esempi" ----------------------------------------------
     def _open_trap_detail(trap: dict[str, Any]) -> None:
         rows: list[ft.Control] = [
-            ft.Text(f"Trappola {trap.get('type', '')}", size=12, italic=True, color=COLOR_TEXT_MUTED),
+            ft.Text(f"Trappola {trap.get('type', '')}", size=12, italic=True, color=design.T().text_3),
             ft.Container(height=6),
-            ft.Text(trap.get("description", ""), size=13, color=COLOR_TEXT_PRIMARY),
+            ft.Text(trap.get("description", ""), size=13, color=design.T().text),
         ]
         for v in trap.get("variants", []):
             rows.append(ft.Container(height=10))
-            rows.append(ft.Text(v.get("name", ""), size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE))
-            rows.append(ft.Text(v.get("description", ""), size=13, color=COLOR_TEXT_PRIMARY))
+            rows.append(ft.Text(v.get("name", ""), size=14, weight=ft.FontWeight.BOLD, color=design.T().text))
+            rows.append(ft.Text(v.get("description", ""), size=13, color=design.T().text))
 
         def _close_detail(ev: Any) -> None:
             page.pop_dialog()
 
         detail_dlg = ft.AlertDialog(
-            title=ft.Text(trap.get("name", ""), size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            title=ft.Text(trap.get("name", ""), size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(rows, width=responsive_dialog_width(page, 380), height=420,
                               scroll=ft.ScrollMode.AUTO, tight=True),
             actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close_detail)]),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         )
         page.show_dialog(detail_dlg)
 
@@ -160,15 +154,15 @@ def show_traps_dialog(page: ft.Page) -> None:
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Text(trap.get("name", ""), size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
-                    ft.Text(f"Trappola {trap.get('type', '')} — {subtitle}", size=11, color=COLOR_TEXT_MUTED),
+                    ft.Text(trap.get("name", ""), size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
+                    ft.Text(f"Trappola {trap.get('type', '')} — {subtitle}", size=11, color=design.T().text_3),
                 ],
                 spacing=2,
             ),
             padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.all(1, COLOR_BORDER),
-            border_radius=6,
+            bgcolor=design.T().surface,
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
             on_click=lambda e, t=trap: _open_trap_detail(t),
             ink=True,
         )
@@ -191,9 +185,9 @@ def show_traps_dialog(page: ft.Page) -> None:
         is_sel = state["tab"] == key
         return ft.Container(
             content=ft.Text(label, size=12, weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
-                             color=COLOR_ACCENT_CRIMSON if is_sel else COLOR_TEXT_SECONDARY),
+                             color=design.T().primary if is_sel else design.T().text_2),
             padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-            border=ft.Border.only(bottom=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if is_sel else "transparent")),
+            border=ft.Border.only(bottom=ft.BorderSide(2, design.T().primary if is_sel else "transparent")),
             on_click=lambda e, k=key: _on_tab_click(k),
             ink=True,
         )
@@ -222,15 +216,15 @@ def show_traps_dialog(page: ft.Page) -> None:
         page.pop_dialog()
 
     content = ft.Column(
-        [tab_row, ft.Divider(height=1, color=COLOR_BORDER), body_col],
+        [tab_row, ft.Divider(height=1, color=design.T().border), body_col],
         spacing=10, scroll=ft.ScrollMode.AUTO,
         width=responsive_dialog_width(page, 420), height=520, tight=True,
     )
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Generatore Trappole", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+        title=ft.Text("Generatore Trappole", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
         content=content,
         actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
-        bgcolor=COLOR_BG_CARD,
+        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

@@ -9,14 +9,9 @@ Sezione di riferimento — non legata ad un personaggio specifico.
 import flet as ft
 import logging
 from typing import Any
-from config.settings import (
-    COLOR_BG_CARD,
-    COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED,
-    COLOR_ACCENT_AMBER, COLOR_BORDER,
-    FONT_TITLE,
-)
 from ui.theme import muted_text
 from data.game_data.game_data_loader import GameDataLoader
+from ui import design
 
 logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
@@ -42,13 +37,13 @@ class FeatsView(ft.ListView):
         # Header
         self.controls.append(ft.Container(
             content=ft.Row([
-                ft.Icon(ft.Icons.MILITARY_TECH, color=COLOR_ACCENT_AMBER, size=22),
+                ft.Icon(ft.Icons.MILITARY_TECH, color=design.T().warning, size=22),
                 ft.Container(width=10),
                 ft.Column([
                     ft.Text("Compendio Talenti", size=18,
                             weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_TITLE,
-                            font_family=FONT_TITLE),
+                            color=design.T().text,
+                            font_family=design.Font.DISPLAY),
                     muted_text(
                         f"{len(all_feats)} talenti PHB 5e  ·  "
                         "Tocca una card per leggere la descrizione completa",
@@ -56,29 +51,22 @@ class FeatsView(ft.ListView):
                     ),
                 ], spacing=2),
             ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.all(1, COLOR_BORDER),
-            border_radius=8,
-            padding=ft.Padding.all(14),
+            bgcolor=design.T().surface,
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
+            padding=ft.Padding.all(design.Space.LG),
         ))
 
         if not all_feats:
-            self.controls.append(ft.Container(
-                content=ft.Column([
-                    ft.Icon(ft.Icons.MILITARY_TECH, size=56, color=COLOR_BORDER),
-                    ft.Container(height=12),
-                    ft.Text("Nessun talento disponibile",
-                            size=15, color=COLOR_TEXT_MUTED, italic=True),
-                    ft.Container(height=4),
-                    muted_text("Popola dnd_app/data/game_data/feats.json per abilitare questa sezione.", size=11),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
-                alignment=ft.Alignment.CENTER,
-                padding=ft.Padding.all(40),
+            self.controls.append(design.empty_state(
+                ft.Icons.MILITARY_TECH,
+                "Nessun talento disponibile",
+                "Popola dnd_app/data/game_data/feats.json per abilitare questa sezione.",
             ))
             return
 
         # Separatore con contatore
-        self.controls.append(ft.Divider(color=COLOR_BORDER, height=1))
+        self.controls.append(ft.Divider(color=design.T().border, height=1))
 
         # Cards talenti — ordinate alfabeticamente
         for feat in sorted(all_feats, key=lambda f: f.get("name", "")):
@@ -113,18 +101,18 @@ class FeatsView(ft.ListView):
                 return
             page.show_dialog(ft.AlertDialog(
                 title=ft.Row([
-                    ft.Icon(ft.Icons.MILITARY_TECH, color=COLOR_ACCENT_AMBER, size=16),
+                    ft.Icon(ft.Icons.MILITARY_TECH, color=design.T().warning, size=16),
                     ft.Container(width=6),
                     ft.Text(_name, size=14, weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_TITLE, expand=True),
+                            color=design.T().text, expand=True),
                 ]),
                 content=ft.Column([
                     ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.LOCK_OUTLINE, size=12, color=COLOR_TEXT_MUTED),
+                            ft.Icon(ft.Icons.LOCK_OUTLINE, size=12, color=design.T().text_3),
                             ft.Container(width=4),
                             ft.Text(f"Prerequisito: {_pre}", size=11,
-                                    color=COLOR_TEXT_MUTED),
+                                    color=design.T().text_3),
                         ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         visible=bool(_pre),
                         padding=ft.Padding.only(bottom=6),
@@ -132,15 +120,15 @@ class FeatsView(ft.ListView):
                     ft.Container(
                         content=ft.Row([
                             ft.Icon(ft.Icons.ADD_CIRCLE_OUTLINE, size=12,
-                                    color=COLOR_ACCENT_AMBER),
+                                    color=design.T().warning),
                             ft.Container(width=4),
-                            ft.Text(_ab, size=11, color=COLOR_ACCENT_AMBER,
+                            ft.Text(_ab, size=11, color=design.T().warning,
                                     weight=ft.FontWeight.BOLD),
                         ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         visible=bool(_ab),
                         padding=ft.Padding.only(bottom=6),
                     ),
-                    ft.Text(_desc, size=12, color=COLOR_TEXT_PRIMARY),
+                    ft.Text(_desc, size=12, color=design.T().text),
                 ], scroll=ft.ScrollMode.AUTO, spacing=2),
                 actions=[
                     ft.TextButton(
@@ -148,38 +136,39 @@ class FeatsView(ft.ListView):
                         on_click=lambda e: page.pop_dialog(),
                     ),
                 ],
-                bgcolor=COLOR_BG_CARD,
+                bgcolor=design.T().surface,
             ))
 
         return ft.Container(
             content=ft.Column([
                 ft.Row([
-                    ft.Icon(ft.Icons.MILITARY_TECH, size=15, color=COLOR_ACCENT_AMBER),
+                    ft.Icon(ft.Icons.MILITARY_TECH, size=15, color=design.T().warning),
                     ft.Text(name, size=13, weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_TITLE, expand=True),
-                    ft.Icon(ft.Icons.CHEVRON_RIGHT, size=16, color=COLOR_TEXT_MUTED),
+                            color=design.T().text, expand=True),
+                    ft.Icon(ft.Icons.CHEVRON_RIGHT, size=16, color=design.T().text_3),
                 ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 ft.Row([
                     ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.LOCK_OUTLINE, size=10, color=COLOR_TEXT_MUTED),
+                            ft.Icon(ft.Icons.LOCK_OUTLINE, size=10, color=design.T().text_3),
                             ft.Container(width=3),
-                            ft.Text(prereq, size=10, color=COLOR_TEXT_MUTED),
+                            ft.Text(prereq, size=10, color=design.T().text_3),
                         ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         visible=bool(prereq),
                     ),
                     ft.Container(
-                        content=ft.Text(ab_text, size=10, color=COLOR_ACCENT_AMBER,
-                                        weight=ft.FontWeight.BOLD),
+                        content=design.chip(ab_text or "—", "warning"),
                         visible=bool(ab_text),
                     ),
                 ], spacing=10),
-                ft.Text(preview, size=11, color=COLOR_TEXT_SECONDARY),
+                ft.Text(preview, size=11, color=design.T().text_2),
             ], spacing=4),
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.all(1, COLOR_BORDER),
-            border_radius=8,
-            padding=ft.Padding.all(12),
+            bgcolor=design.T().surface,
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().warning)),
+            padding=ft.Padding.all(design.Space.MD),
             on_click=_show_detail,
             ink=True,
+            animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
         )

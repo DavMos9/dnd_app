@@ -197,13 +197,13 @@ class ProfiloTab(ScrollMemoryListView):
         elif c.image_path:
             avatar_content = ft.Image(src=c.image_path, fit=ft.BoxFit.COVER)
         else:
-            avatar_content = ft.Icon(ft.Icons.PERSON, size=38, color=COLOR_NAV_MUTED)
+            avatar_content = ft.Icon(ft.Icons.PERSON, size=38, color=design.T().nav_muted)
 
         avatar = ft.Container(
             content=avatar_content,
             width=80, height=80,
             border_radius=40,
-            bgcolor=COLOR_NAV_BG if not (c.image_data or c.image_path) else None,
+            bgcolor=design.T().nav_bg if not (c.image_data or c.image_path) else None,
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             alignment=ft.Alignment.CENTER,
             on_click=lambda e: self._pick_photo(),
@@ -217,10 +217,10 @@ class ProfiloTab(ScrollMemoryListView):
             width=80,
             height=32,
             text_align=ft.TextAlign.CENTER,
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_BLUE,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
+            bgcolor=design.T().surface,
             content_padding=ft.Padding.symmetric(horizontal=6, vertical=4),
             keyboard_type=ft.KeyboardType.NUMBER,
         )
@@ -252,23 +252,21 @@ class ProfiloTab(ScrollMemoryListView):
             on_click=self._on_level_up_click,
             disabled=(c.level >= 20),
             style=ft.ButtonStyle(
-                bgcolor=COLOR_ACCENT_CRIMSON,
-                shape=ft.RoundedRectangleBorder(radius=6),
+                bgcolor=design.T().primary,
                 padding=ft.Padding.symmetric(horizontal=10, vertical=0),
             ),
             height=30,
         )
         self._level_down_btn = ft.OutlinedButton(
             content=ft.Row([
-                ft.Icon(ft.Icons.ARROW_DOWNWARD, size=14, color=COLOR_TEXT_SECONDARY),
-                ft.Text("Level down", size=12, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_SECONDARY),
+                ft.Icon(ft.Icons.ARROW_DOWNWARD, size=14, color=design.T().text_2),
+                ft.Text("Level down", size=12, weight=ft.FontWeight.BOLD, color=design.T().text_2),
             ], spacing=3, tight=True),
             tooltip=f"Scendi a Lv.{c.level - 1}" if c.level > 1 else "Livello minimo",
             on_click=self._on_level_down_click,
             disabled=(c.level <= 1),
             style=ft.ButtonStyle(
-                side=ft.BorderSide(1, COLOR_BORDER),
-                shape=ft.RoundedRectangleBorder(radius=6),
+                side=ft.BorderSide(1, design.T().border),
                 padding=ft.Padding.symmetric(horizontal=10, vertical=0),
             ),
             height=30,
@@ -282,12 +280,12 @@ class ProfiloTab(ScrollMemoryListView):
                     ft.Column(
                         [
                             ft.Text(c.name or "—", size=18, weight=ft.FontWeight.BOLD,
-                                    color=COLOR_TEXT_TITLE, font_family=FONT_TITLE),
+                                    color=design.T().text, font_family=design.Font.DISPLAY),
                             ft.Row(
                                 [
-                                    ft.Text(f"Lv.{c.level}", size=11, color=COLOR_ACCENT_CRIMSON,
+                                    ft.Text(f"Lv.{c.level}", size=11, color=design.T().primary,
                                             weight=ft.FontWeight.BOLD),
-                                    ft.Text(f"  Comp. +{pb}", size=11, color=COLOR_TEXT_SECONDARY),
+                                    ft.Text(f"  Comp. +{pb}", size=11, color=design.T().text_2),
                                     ft.Container(width=10),
                                     self._level_up_btn,
                                     self._level_down_btn,
@@ -303,16 +301,16 @@ class ProfiloTab(ScrollMemoryListView):
                                 (c.class_name or "—")
                                 + (f" ({c.subclass})" if c.subclass else "")
                                 + f"  •  {c.race or '—'}",
-                                size=12, color=COLOR_TEXT_SECONDARY,
+                                size=12, color=design.T().text_2,
                             ),
                             ft.Row(
                                 [
-                                    ft.Text("XP:", size=12, color=COLOR_TEXT_SECONDARY),
+                                    ft.Text("XP:", size=12, color=design.T().text_2),
                                     self._xp_field,
                                     ft.TextButton(
                                         "Salva",
                                         on_click=self._on_save_xp,
-                                        style=ft.ButtonStyle(color=COLOR_ACCENT_BLUE),
+                                        style=ft.ButtonStyle(color=design.T().magic),
                                     ),
                                 ],
                                 spacing=6,
@@ -324,9 +322,9 @@ class ProfiloTab(ScrollMemoryListView):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=16,
-            border=ft.Border.all(1, COLOR_BORDER),
+            shadow=design.elevation(1),
             border_radius=8,
         )
 
@@ -339,7 +337,7 @@ class ProfiloTab(ScrollMemoryListView):
         edit_btn = ft.TextButton(
             "✎ Modifica",
             on_click=lambda e, s=section_key: self._open_edit_dialog(s),
-            style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+            style=ft.ButtonStyle(color=design.T().text_3),
         )
         return ft.Container(
             content=ft.Column(
@@ -349,15 +347,11 @@ class ProfiloTab(ScrollMemoryListView):
                 ],
                 spacing=6,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=16,
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -381,7 +375,7 @@ class ProfiloTab(ScrollMemoryListView):
                 states[p.name] = 2 if p.is_expert else 1
 
         _DOTS  = ["○", "●", "★"]
-        _CLRS  = [COLOR_TEXT_MUTED, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_BLUE]
+        _CLRS  = [design.T().text_3, design.T().primary, design.T().magic]
 
         def make_row(name: str, extra: str = "") -> ft.Container:
             s = states.get(name, 0)
@@ -397,14 +391,14 @@ class ProfiloTab(ScrollMemoryListView):
                 content=ft.Row(
                     [
                         dot,
-                        ft.Text(name, size=12, expand=True, color=COLOR_TEXT_PRIMARY),
-                        ft.Text(extra, size=10, color=COLOR_TEXT_MUTED),
+                        ft.Text(name, size=12, expand=True, color=design.T().text),
+                        ft.Text(extra, size=10, color=design.T().text_3),
                     ],
                     spacing=6,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 padding=ft.Padding.only(left=4, top=3, bottom=3, right=4),
-                border_radius=4,
+                border_radius=design.Radius.SM,
                 on_click=cycle,
                 ink=True,
                 # Tooltip per-riga (2026-07-24, fix affordance "nulla di
@@ -441,34 +435,34 @@ class ProfiloTab(ScrollMemoryListView):
 
         dlg = ft.AlertDialog(
             title=ft.Text("Modifica Competenze", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(
                 [
                     ft.Text(
                         "Tocca una riga per ciclare: ○ nessuna  ●  competente  ★ maestria",
-                        size=11, color=COLOR_TEXT_MUTED,
+                        size=11, color=design.T().text_3,
                     ),
                     ft.Container(height=4),
-                    ft.Text("TIRI SALVEZZA", size=9, color=COLOR_TEXT_MUTED,
+                    ft.Text("TIRI SALVEZZA", size=9, color=design.T().text_3,
                             weight=ft.FontWeight.BOLD,
                             style=ft.TextStyle(letter_spacing=0.8)),
                     ft.Container(
                         content=ft.Column(save_rows, spacing=2),
-                        bgcolor=COLOR_BG_SECONDARY,
+                        bgcolor=design.T().surface_alt,
                         padding=8,
-                        border_radius=4,
-                        border=ft.Border.all(1, COLOR_BORDER),
+                        border_radius=design.Radius.SM,
+                        shadow=design.elevation(1),
                     ),
                     ft.Container(height=6),
-                    ft.Text("ABILITÀ", size=9, color=COLOR_TEXT_MUTED,
+                    ft.Text("ABILITÀ", size=9, color=design.T().text_3,
                             weight=ft.FontWeight.BOLD,
                             style=ft.TextStyle(letter_spacing=0.8)),
                     ft.Container(
                         content=ft.Column(skill_rows, spacing=2),
-                        bgcolor=COLOR_BG_SECONDARY,
+                        bgcolor=design.T().surface_alt,
                         padding=8,
-                        border_radius=4,
-                        border=ft.Border.all(1, COLOR_BORDER),
+                        border_radius=design.Radius.SM,
+                        shadow=design.elevation(1),
                     ),
                 ],
                 spacing=6,
@@ -482,12 +476,11 @@ class ProfiloTab(ScrollMemoryListView):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
+                        bgcolor=design.T().primary, color=design.T().on_primary,
                     ),
                 ),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)
 
@@ -495,11 +488,11 @@ class ProfiloTab(ScrollMemoryListView):
         return ft.Row(
             [
                 ft.Container(
-                    content=ft.Text(label, size=11, color=COLOR_TEXT_SECONDARY,
+                    content=ft.Text(label, size=11, color=design.T().text_2,
                                     weight=ft.FontWeight.W_600),
                     width=130,
                 ),
-                ft.Text(value or "—", size=13, color=COLOR_TEXT_PRIMARY,
+                ft.Text(value or "—", size=13, color=design.T().text,
                         weight=ft.FontWeight.W_500),
             ],
             spacing=8,
@@ -509,11 +502,11 @@ class ProfiloTab(ScrollMemoryListView):
     def _text_block(self, text: str) -> ft.Container:
         return ft.Container(
             content=ft.Text(text or "—", size=13,
-                            color=COLOR_TEXT_PRIMARY if text else COLOR_TEXT_MUTED),
-            bgcolor=COLOR_BG_SECONDARY,
+                            color=design.T().text if text else design.T().text_3),
+            bgcolor=design.T().surface_alt,
             padding=10,
-            border_radius=4,
-            border=ft.Border.all(1, COLOR_BORDER),
+            border_radius=design.Radius.SM,
+            shadow=design.elevation(1),
         )
 
     # ------------------------------------------------------------------
@@ -543,7 +536,7 @@ class ProfiloTab(ScrollMemoryListView):
         ]
         if traits:
             rows.append(ft.Container(height=4))
-            rows.append(ft.Text("Tratti Speciali", size=9, color=COLOR_TEXT_MUTED,
+            rows.append(ft.Text("Tratti Speciali", size=9, color=design.T().text_3,
                                  weight=ft.FontWeight.BOLD,
                                  style=ft.TextStyle(letter_spacing=0.8)))
             for t in traits:
@@ -553,9 +546,9 @@ class ProfiloTab(ScrollMemoryListView):
                 rows.append(ft.Container(
                     content=ft.Column([
                         ft.Text(name.strip(), size=12, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_CRIMSON),
+                                color=design.T().primary),
                         *(
-                            [ft.Text(desc.strip(), size=12, color=COLOR_TEXT_SECONDARY)]
+                            [ft.Text(desc.strip(), size=12, color=design.T().text_2)]
                             if desc else []
                         ),
                     ], spacing=2),
@@ -575,24 +568,24 @@ class ProfiloTab(ScrollMemoryListView):
 
     def _build_personalita(self, c: Character) -> ft.Container:
         return self._editable_card([
-            ft.Text("Tratti", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            ft.Text("Tratti", size=10, color=design.T().text_3, weight=ft.FontWeight.BOLD),
             self._text_block(c.personality_traits),
-            ft.Text("Ideali", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            ft.Text("Ideali", size=10, color=design.T().text_3, weight=ft.FontWeight.BOLD),
             self._text_block(c.ideals),
-            ft.Text("Legami", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            ft.Text("Legami", size=10, color=design.T().text_3, weight=ft.FontWeight.BOLD),
             self._text_block(c.bonds),
-            ft.Text("Difetti", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            ft.Text("Difetti", size=10, color=design.T().text_3, weight=ft.FontWeight.BOLD),
             self._text_block(c.flaws),
         ], "personalita")
 
     def _build_storia(self, c: Character) -> ft.Container:
         return self._editable_card([
-            ft.Text("Storia", size=10, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.BOLD),
+            ft.Text("Storia", size=10, color=design.T().text_3, weight=ft.FontWeight.BOLD),
             self._text_block(c.backstory),
-            ft.Text("Alleanze e Organizzazioni", size=10, color=COLOR_TEXT_MUTED,
+            ft.Text("Alleanze e Organizzazioni", size=10, color=design.T().text_3,
                     weight=ft.FontWeight.BOLD),
             self._text_block(c.allies_organizations),
-            ft.Text("Tratti Aggiuntivi", size=10, color=COLOR_TEXT_MUTED,
+            ft.Text("Tratti Aggiuntivi", size=10, color=design.T().text_3,
                     weight=ft.FontWeight.BOLD),
             self._text_block(c.additional_traits),
         ], "storia")
@@ -609,21 +602,21 @@ class ProfiloTab(ScrollMemoryListView):
         def _dot_row(name: str, mod_str: str, is_prof: bool, is_expert: bool,
                      extra: str = "") -> ft.Row:
             if is_expert:
-                dot = ft.Text("★", size=13, color=COLOR_ACCENT_BLUE)
-                mod_color = COLOR_ACCENT_BLUE
+                dot = ft.Text("★", size=13, color=design.T().magic)
+                mod_color = design.T().magic
             elif is_prof:
-                dot = ft.Text("●", size=13, color=COLOR_ACCENT_CRIMSON)
-                mod_color = COLOR_ACCENT_CRIMSON
+                dot = ft.Text("●", size=13, color=design.T().primary)
+                mod_color = design.T().primary
             else:
-                dot = ft.Text("○", size=13, color=COLOR_TEXT_MUTED)
-                mod_color = COLOR_TEXT_SECONDARY
+                dot = ft.Text("○", size=13, color=design.T().text_3)
+                mod_color = design.T().text_2
 
             return ft.Row(
                 [
                     dot,
                     ft.Container(
                         content=ft.Text(
-                            mod_str, size=12, font_family=FONT_MONO,
+                            mod_str, size=12, font_family=design.Font.MONO,
                             color=mod_color,
                             weight=ft.FontWeight.BOLD if is_prof else ft.FontWeight.NORMAL,
                         ),
@@ -631,10 +624,10 @@ class ProfiloTab(ScrollMemoryListView):
                     ),
                     ft.Text(
                         name, size=12, expand=True,
-                        color=COLOR_TEXT_PRIMARY,
+                        color=design.T().text,
                         weight=ft.FontWeight.BOLD if is_prof else ft.FontWeight.NORMAL,
                     ),
-                    ft.Text(extra, size=10, color=COLOR_TEXT_MUTED),
+                    ft.Text(extra, size=10, color=design.T().text_3),
                 ],
                 spacing=4,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -676,31 +669,31 @@ class ProfiloTab(ScrollMemoryListView):
         edit_btn = ft.TextButton(
             "✎ Modifica",
             on_click=lambda e: self._on_edit_competenze(),
-            style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+            style=ft.ButtonStyle(color=design.T().text_3),
         )
 
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Text("TIRI SALVEZZA", size=9, color=COLOR_TEXT_MUTED,
+                    ft.Text("TIRI SALVEZZA", size=9, color=design.T().text_3,
                             weight=ft.FontWeight.BOLD,
                             style=ft.TextStyle(letter_spacing=0.8)),
                     ft.Container(
                         content=ft.Column(save_rows, spacing=3),
-                        bgcolor=COLOR_BG_SECONDARY,
+                        bgcolor=design.T().surface_alt,
                         padding=10,
-                        border_radius=4,
-                        border=ft.Border.all(1, COLOR_BORDER),
+                        border_radius=design.Radius.SM,
+                        shadow=design.elevation(1),
                     ),
                     ft.Container(height=8),
                     ft.Row([
-                        ft.Text("ABILITÀ", size=9, color=COLOR_TEXT_MUTED,
+                        ft.Text("ABILITÀ", size=9, color=design.T().text_3,
                                 weight=ft.FontWeight.BOLD,
                                 style=ft.TextStyle(letter_spacing=0.8)),
-                        ft.Text(" ● competente   ★ maestria", size=9, color=COLOR_TEXT_MUTED),
+                        ft.Text(" ● competente   ★ maestria", size=9, color=design.T().text_3),
                     ], spacing=16),
                     ft.Row(
-                        [col_a, ft.VerticalDivider(width=1, color=COLOR_BORDER), col_b],
+                        [col_a, ft.VerticalDivider(width=1, color=design.T().border), col_b],
                         spacing=12,
                         vertical_alignment=ft.CrossAxisAlignment.START,
                     ),
@@ -709,15 +702,11 @@ class ProfiloTab(ScrollMemoryListView):
                 ],
                 spacing=6,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=16,
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -754,8 +743,7 @@ class ProfiloTab(ScrollMemoryListView):
                     "+ Aggiungi", icon=ft.Icons.ADD,
                     on_click=lambda e: self._open_add_competenza_dialog("weapon"),
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
+                        bgcolor=design.T().primary, color=design.T().on_primary,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                     ),
                 ),
@@ -777,11 +765,11 @@ class ProfiloTab(ScrollMemoryListView):
                 rows.append(
                     ft.Row(
                         [
-                            ft.Icon(icon, size=14, color=COLOR_TEXT_MUTED),
-                            ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Icon(icon, size=14, color=design.T().text_3),
+                            ft.Text(label, size=13, color=design.T().text, expand=True),
                             ft.IconButton(
                                 icon=ft.Icons.CLOSE,
-                                icon_color=COLOR_TEXT_MUTED,
+                                icon_color=design.T().text_3,
                                 icon_size=14,
                                 tooltip="Rimuovi",
                                 on_click=lambda e, pp=p: self._on_delete_proficiency(pp),
@@ -794,15 +782,11 @@ class ProfiloTab(ScrollMemoryListView):
 
         return ft.Container(
             content=ft.Column(rows, spacing=6),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=16,
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -822,8 +806,7 @@ class ProfiloTab(ScrollMemoryListView):
                     "+ Aggiungi", icon=ft.Icons.ADD,
                     on_click=lambda e: self._open_add_competenza_dialog("language"),
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
+                        bgcolor=design.T().primary, color=design.T().on_primary,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                     ),
                 ),
@@ -842,11 +825,11 @@ class ProfiloTab(ScrollMemoryListView):
                 rows.append(
                     ft.Row(
                         [
-                            ft.Icon(icon, size=14, color=COLOR_TEXT_MUTED),
-                            ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Icon(icon, size=14, color=design.T().text_3),
+                            ft.Text(label, size=13, color=design.T().text, expand=True),
                             ft.IconButton(
                                 icon=ft.Icons.CLOSE,
-                                icon_color=COLOR_TEXT_MUTED,
+                                icon_color=design.T().text_3,
                                 icon_size=14,
                                 tooltip="Rimuovi",
                                 on_click=lambda e, pp=p: self._on_delete_proficiency(pp),
@@ -859,15 +842,11 @@ class ProfiloTab(ScrollMemoryListView):
 
         return ft.Container(
             content=ft.Column(rows, spacing=6),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=16,
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # Tipi di competenza gestibili dal dialog generico "+ Aggiungi
@@ -920,26 +899,26 @@ class ProfiloTab(ScrollMemoryListView):
             label="Tipo",
             value=default_type,
             options=[ft.DropdownOption(key=k, text=lbl) for k, lbl in self._COMPETENZA_TIPI],
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
         catalog_dd = ft.Dropdown(
             label="Suggerimenti dal catalogo",
             value=None,
             options=[],
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
         f_name = ft.TextField(
             label="Nome *", value="",
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
         expert_cb = ft.Checkbox(label="Maestria (raddoppia il bonus competenza)", value=False)
-        error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
+        error_text = ft.Text("", size=11, color=design.T().primary)
 
         def _rebuild_catalog() -> None:
             opts = self._competenza_catalog_options(type_dd.value or "language")
@@ -1002,7 +981,7 @@ class ProfiloTab(ScrollMemoryListView):
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Aggiungi Competenza", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(
                 [type_dd, catalog_dd, f_name, expert_cb, error_text],
                 spacing=10, scroll=ft.ScrollMode.AUTO,
@@ -1012,10 +991,9 @@ class ProfiloTab(ScrollMemoryListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                      shape=ft.RoundedRectangleBorder(radius=4))),
+                                      bgcolor=design.T().primary, color=design.T().on_primary)),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     def _on_delete_proficiency(self, prof: CharacterProficiency) -> None:
@@ -1052,7 +1030,7 @@ class ProfiloTab(ScrollMemoryListView):
                 ft.ElevatedButton(
                     "Rimuovi",
                     on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
             ],
         )
@@ -1084,7 +1062,7 @@ class ProfiloTab(ScrollMemoryListView):
                 cb = ft.Checkbox(
                     label=fn,
                     value=(fn in owned_names),
-                    active_color=COLOR_ACCENT_AMBER,
+                    active_color=design.T().warning,
                 )
                 feat_cbs.append(cb)
 
@@ -1113,10 +1091,10 @@ class ProfiloTab(ScrollMemoryListView):
 
             page.show_dialog(ft.AlertDialog(
                 title=ft.Row([
-                    ft.Icon(ft.Icons.MILITARY_TECH, color=COLOR_ACCENT_AMBER, size=16),
+                    ft.Icon(ft.Icons.MILITARY_TECH, color=design.T().warning, size=16),
                     ft.Container(width=6),
                     ft.Text("Modifica Talenti", size=13, weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_TITLE),
+                            color=design.T().text),
                 ]),
                 content=ft.Column(
                     cast(list[ft.Control], feat_cbs),
@@ -1133,19 +1111,18 @@ class ProfiloTab(ScrollMemoryListView):
                         "Salva",
                         on_click=_save_feats,
                         style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                            shape=ft.RoundedRectangleBorder(radius=4),
+                            bgcolor=design.T().primary, color=design.T().on_primary,
                         ),
                     ),
                 ],
-                bgcolor=COLOR_BG_CARD,
+                bgcolor=design.T().surface,
             ))
 
         rows.append(ft.Row(
             [ft.TextButton(
                 "✎ Modifica talenti",
                 on_click=_open_feat_edit,
-                style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                style=ft.ButtonStyle(color=design.T().text_3),
             )],
             alignment=ft.MainAxisAlignment.END,
         ))
@@ -1159,23 +1136,23 @@ class ProfiloTab(ScrollMemoryListView):
                 rows.append(ft.Container(
                     content=ft.Column([
                         ft.Row([
-                            ft.Icon(ft.Icons.STAR, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Icon(ft.Icons.STAR, size=14, color=design.T().warning),
                             ft.Text(prof.name, size=13, weight=ft.FontWeight.BOLD,
-                                    color=COLOR_TEXT_TITLE),
+                                    color=design.T().text),
                         ], spacing=6),
-                        ft.Text(f"Prerequisito: {prereq}", size=11, color=COLOR_TEXT_MUTED,
+                        ft.Text(f"Prerequisito: {prereq}", size=11, color=design.T().text_3,
                                 visible=bool(prereq)),
-                        ft.Text(desc, size=12, color=COLOR_TEXT_PRIMARY, visible=bool(desc)),
+                        ft.Text(desc, size=12, color=design.T().text, visible=bool(desc)),
                     ], spacing=4),
-                    bgcolor=COLOR_BG_CARD,
-                    border=ft.Border.all(1, COLOR_BORDER),
-                    border_radius=6,
+                    bgcolor=design.T().surface,
+                    shadow=design.elevation(1),
+                    border_radius=design.Radius.MD,
                     padding=ft.Padding.all(10),
                 ))
         else:
             rows.append(ft.Text(
                 "Nessun talento acquisito. Scegli 'Talento' al prossimo ASI.",
-                size=12, color=COLOR_TEXT_MUTED, italic=True,
+                size=12, color=design.T().text_3, italic=True,
             ))
 
         # --- Scelte di Classe (Stile di Combattimento, Totem, Terreno, Discendenza) ---
@@ -1234,9 +1211,9 @@ class ProfiloTab(ScrollMemoryListView):
                         label="Stile di Combattimento",
                         value=c.fighting_style if c.fighting_style in styles else styles[0],
                         options=[ft.DropdownOption(key=o, text=o) for o in styles],
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().primary,
                     )
                     dd_refs["fighting_style"] = dd
                     dlg_content.append(dd)
@@ -1247,9 +1224,9 @@ class ProfiloTab(ScrollMemoryListView):
                     label="Animale Totem",
                     value=c.totem_animal if c.totem_animal in totems else totems[0],
                     options=[ft.DropdownOption(key=o, text=o) for o in totems],
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                    bgcolor=design.T().surface, color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border, focused_border_color=design.T().primary,
                 )
                 dd_refs["totem_animal"] = dd
                 dlg_content.append(dd)
@@ -1260,9 +1237,9 @@ class ProfiloTab(ScrollMemoryListView):
                     label="Terreno del Cerchio",
                     value=c.land_terrain if c.land_terrain in terrains else terrains[0],
                     options=[ft.DropdownOption(key=o, text=o) for o in terrains],
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                    bgcolor=design.T().surface, color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border, focused_border_color=design.T().primary,
                 )
                 dd_refs["land_terrain"] = dd
                 dlg_content.append(dd)
@@ -1272,9 +1249,9 @@ class ProfiloTab(ScrollMemoryListView):
                     label="Antenato Draconico",
                     value=c.dragon_ancestry if c.dragon_ancestry in DRACONIDE_ANCESTRIES else DRACONIDE_ANCESTRIES[0],
                     options=[ft.DropdownOption(key=o, text=o) for o in DRACONIDE_ANCESTRIES],
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                    bgcolor=design.T().surface, color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border, focused_border_color=design.T().primary,
                 )
                 dd_refs["dragon_ancestry"] = dd
                 dlg_content.append(dd)
@@ -1303,58 +1280,57 @@ class ProfiloTab(ScrollMemoryListView):
 
             page.show_dialog(ft.AlertDialog(
                 title=ft.Row([
-                    ft.Icon(ft.Icons.AUTO_AWESOME, color=COLOR_ACCENT_CRIMSON, size=16),
+                    ft.Icon(ft.Icons.AUTO_AWESOME, color=design.T().primary, size=16),
                     ft.Container(width=6),
                     ft.Text("Modifica Scelte di Classe", size=13, weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_TITLE),
+                            color=design.T().text),
                 ]),
                 content=ft.Column(dlg_content, spacing=12, width=320),
                 actions=[
                     ft.TextButton("Annulla", on_click=lambda ev_inner: page.pop_dialog()),
                     ft.ElevatedButton(
                         "Salva", on_click=_save,
-                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                              shape=ft.RoundedRectangleBorder(radius=4)),
+                        style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                     ),
                 ],
-                bgcolor=COLOR_BG_CARD,
+                bgcolor=design.T().surface,
             ))
 
         if class_choices:
-            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Divider(color=design.T().border, height=16))
             rows.append(ft.Row([
                 ft.Text(
                     "Scelte di Classe", size=13, weight=ft.FontWeight.BOLD,
-                    color=COLOR_ACCENT_CRIMSON, expand=True,
+                    color=design.T().primary, expand=True,
                 ),
                 ft.TextButton(
                     "✎ Modifica", on_click=_open_class_choices_edit,
-                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                    style=ft.ButtonStyle(color=design.T().text_3),
                 ),
             ]))
             for label, value, detail in class_choices:
                 rows.append(ft.Container(
                     content=ft.Column([
                         ft.Row([
-                            ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_CRIMSON),
-                            ft.Text(label, size=11, color=COLOR_TEXT_MUTED,
+                            ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().primary),
+                            ft.Text(label, size=11, color=design.T().text_3,
                                     weight=ft.FontWeight.BOLD),
                         ], spacing=6),
                         ft.Text(value, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_TEXT_TITLE),
-                        ft.Text(detail, size=12, color=COLOR_TEXT_PRIMARY,
+                                color=design.T().text),
+                        ft.Text(detail, size=12, color=design.T().text,
                                 visible=bool(detail)),
                     ], spacing=2),
-                    bgcolor=COLOR_BG_CARD,
-                    border=ft.Border.all(1, COLOR_BORDER),
-                    border_radius=6,
+                    bgcolor=design.T().surface,
+                    shadow=design.elevation(1),
+                    border_radius=design.Radius.MD,
                     padding=ft.Padding.all(10),
                 ))
 
         # --- Metamagia (solo se Stregone) ---
         if (c.class_name or "").lower() == "stregone":
             metamagic = [p for p in all_profs if p.proficiency_type == "metamagic"]
-            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Divider(color=design.T().border, height=16))
             rows.append(ft.Text(
                 "Metamagia", size=13, weight=ft.FontWeight.BOLD, color=design.T().magic,
             ))
@@ -1363,17 +1339,17 @@ class ProfiloTab(ScrollMemoryListView):
                     rows.append(ft.Container(
                         content=ft.Row([
                             ft.Icon(ft.Icons.BOLT, size=14, color=design.T().magic),
-                            ft.Text(mm.name, size=12, color=COLOR_TEXT_PRIMARY),
+                            ft.Text(mm.name, size=12, color=design.T().text),
                         ], spacing=6),
-                        bgcolor=COLOR_BG_CARD,
-                        border=ft.Border.all(1, COLOR_BORDER),
-                        border_radius=6,
+                        bgcolor=design.T().surface,
+                        shadow=design.elevation(1),
+                        border_radius=design.Radius.MD,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                     ))
             else:
                 rows.append(ft.Text(
                     "Nessuna metamagia — disponibile dal Lv.3.",
-                    size=12, color=COLOR_TEXT_MUTED, italic=True,
+                    size=12, color=design.T().text_3, italic=True,
                 ))
 
         # --- Discipline Elementali (solo se Monaco, Via dei Quattro Elementi) ---
@@ -1385,7 +1361,7 @@ class ProfiloTab(ScrollMemoryListView):
             disciplines_known = [p for p in all_profs if p.proficiency_type == "monk_discipline"]
             _mk_all_data = _loader.get_subclass_data("Monaco", "Via dei Quattro Elementi") or {}
             _mk_by_name = {d.get("name", ""): d for d in _mk_all_data.get("disciplines", [])}
-            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Divider(color=design.T().border, height=16))
             rows.append(ft.Text(
                 "Discipline Elementali", size=13, weight=ft.FontWeight.BOLD, color=design.T().magic,
             ))
@@ -1403,24 +1379,24 @@ class ProfiloTab(ScrollMemoryListView):
                             return
                         page.show_dialog(ft.AlertDialog(
                             title=ft.Text(_name, size=14, weight=ft.FontWeight.BOLD,
-                                          color=COLOR_TEXT_TITLE),
+                                          color=design.T().text),
                             content=ft.Column([
-                                ft.Text(f"Costo: {_ki}", size=12, color=COLOR_TEXT_MUTED),
-                                ft.Text(_desc, size=13, color=COLOR_TEXT_PRIMARY),
+                                ft.Text(f"Costo: {_ki}", size=12, color=design.T().text_3),
+                                ft.Text(_desc, size=13, color=design.T().text),
                             ], spacing=8, scroll=ft.ScrollMode.AUTO, width=340, height=220),
                             actions=[ft.TextButton("Chiudi", on_click=lambda ev2: page.pop_dialog())],
-                            bgcolor=COLOR_BG_CARD,
+                            bgcolor=design.T().surface,
                         ))
 
                     rows.append(ft.Container(
                         content=ft.Row([
                             ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color=design.T().magic),
-                            ft.Text(disc.name, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
-                            ft.Text(ki_label, size=11, color=COLOR_TEXT_MUTED),
+                            ft.Text(disc.name, size=12, color=design.T().text, expand=True),
+                            ft.Text(ki_label, size=11, color=design.T().text_3),
                         ], spacing=6),
-                        bgcolor=COLOR_BG_CARD,
-                        border=ft.Border.all(1, COLOR_BORDER),
-                        border_radius=6,
+                        bgcolor=design.T().surface,
+                        shadow=design.elevation(1),
+                        border_radius=design.Radius.MD,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                         on_click=_open_discipline_detail,
                         ink=True,
@@ -1428,7 +1404,7 @@ class ProfiloTab(ScrollMemoryListView):
             else:
                 rows.append(ft.Text(
                     "Nessuna disciplina conosciuta — disponibile dal Lv.3.",
-                    size=12, color=COLOR_TEXT_MUTED, italic=True,
+                    size=12, color=design.T().text_3, italic=True,
                 ))
 
         # --- Invocazioni Occulte + Patto (solo se Warlock) ---
@@ -1446,9 +1422,9 @@ class ProfiloTab(ScrollMemoryListView):
                     label="Dono del Patto",
                     value=c.pact_boon if c.pact_boon in boons else boons[0],
                     options=[ft.DropdownOption(key=o, text=o) for o in boons],
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
+                    bgcolor=design.T().surface, color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border, focused_border_color=design.T().primary,
                 )
 
                 def _save(ev_inner: Any) -> None:
@@ -1461,54 +1437,53 @@ class ProfiloTab(ScrollMemoryListView):
 
                 page.show_dialog(ft.AlertDialog(
                     title=ft.Text("Modifica Dono del Patto", size=13,
-                                  weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                                  weight=ft.FontWeight.BOLD, color=design.T().text),
                     content=ft.Column([dd], spacing=8, width=280),
                     actions=[
                         ft.TextButton("Annulla", on_click=lambda ev_inner: page.pop_dialog()),
                         ft.ElevatedButton(
                             "Salva", on_click=_save,
-                            style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                                  shape=ft.RoundedRectangleBorder(radius=4)),
+                            style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                         ),
                     ],
-                    bgcolor=COLOR_BG_CARD,
+                    bgcolor=design.T().surface,
                 ))
 
             # Patto
-            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Divider(color=design.T().border, height=16))
             rows.append(ft.Row([
                 ft.Text(
                     "Dono del Patto", size=13, weight=ft.FontWeight.BOLD,
-                    color=COLOR_ACCENT_CRIMSON, expand=True,
+                    color=design.T().primary, expand=True,
                 ),
                 ft.TextButton(
                     "✎ Modifica", on_click=_open_pact_boon_edit,
-                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                    style=ft.ButtonStyle(color=design.T().text_3),
                 ) if c.pact_boon else ft.Container(width=0),
             ]))
             if c.pact_boon:
                 rows.append(ft.Container(
                     content=ft.Row([
-                        ft.Icon(ft.Icons.BOOK, size=14, color=COLOR_ACCENT_CRIMSON),
-                        ft.Text(c.pact_boon, size=12, color=COLOR_TEXT_PRIMARY),
+                        ft.Icon(ft.Icons.BOOK, size=14, color=design.T().primary),
+                        ft.Text(c.pact_boon, size=12, color=design.T().text),
                     ], spacing=6),
-                    bgcolor=COLOR_BG_CARD,
-                    border=ft.Border.all(1, COLOR_BORDER),
-                    border_radius=6,
+                    bgcolor=design.T().surface,
+                    shadow=design.elevation(1),
+                    border_radius=design.Radius.MD,
                     padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                 ))
             else:
                 rows.append(ft.Text(
                     "Nessun patto ancora — sceglierai al Lv.3.",
-                    size=12, color=COLOR_TEXT_MUTED, italic=True,
+                    size=12, color=design.T().text_3, italic=True,
                 ))
 
         # --- Suppliche Occulte (solo se Warlock) ---
         if (c.class_name or "").lower() == "warlock":
-            rows.append(ft.Divider(color=COLOR_BORDER, height=16))
+            rows.append(ft.Divider(color=design.T().border, height=16))
             rows.append(ft.Text(
                 "Suppliche Occulte",
-                size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON,
+                size=13, weight=ft.FontWeight.BOLD, color=design.T().primary,
             ))
             if invocations:
                 for inv in invocations:
@@ -1522,25 +1497,25 @@ class ProfiloTab(ScrollMemoryListView):
                         content=ft.Column([
                             ft.Row([
                                 ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14,
-                                        color=COLOR_ACCENT_CRIMSON),
+                                        color=design.T().primary),
                                 ft.Text(inv.name, size=13, weight=ft.FontWeight.BOLD,
-                                        color=COLOR_TEXT_TITLE),
+                                        color=design.T().text),
                                 ft.Text(f"  Lv.{prereq_lv}+", size=11,
-                                        color=COLOR_TEXT_MUTED,
+                                        color=design.T().text_3,
                                         visible=bool(prereq_lv)),
                             ], spacing=4),
-                            ft.Text(desc, size=12, color=COLOR_TEXT_PRIMARY,
+                            ft.Text(desc, size=12, color=design.T().text,
                                     visible=bool(desc)),
                         ], spacing=4),
-                        bgcolor=COLOR_BG_CARD,
-                        border=ft.Border.all(1, COLOR_BORDER),
-                        border_radius=6,
+                        bgcolor=design.T().surface,
+                        shadow=design.elevation(1),
+                        border_radius=design.Radius.MD,
                         padding=ft.Padding.all(10),
                     ))
             else:
                 rows.append(ft.Text(
                     "Nessuna supplica ancora — verranno mostrate dal Lv.2.",
-                    size=12, color=COLOR_TEXT_MUTED, italic=True,
+                    size=12, color=design.T().text_3, italic=True,
                 ))
 
         return ft.Container(
@@ -1596,9 +1571,9 @@ class ProfiloTab(ScrollMemoryListView):
         manual_roll = ft.TextField(
             label=f"Risultato dado d{hit_die} (1–{hit_die})",
             width=200, keyboard_type=ft.KeyboardType.NUMBER, visible=False,
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_BLUE,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().magic,
+            bgcolor=design.T().surface,
         )
 
         def on_hp_choice_change(ev):
@@ -1645,11 +1620,11 @@ class ProfiloTab(ScrollMemoryListView):
             options=[],
             width=280,
             visible=False,
-            bgcolor=COLOR_BG_CARD,
-            color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_BLUE,
+            bgcolor=design.T().surface,
+            color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
         )
 
         _stat_name_map = dict(zip(ABILITY_KEYS, ABILITY_SCORES))  # es. "str" → "Forza"
@@ -1663,7 +1638,7 @@ class ProfiloTab(ScrollMemoryListView):
         # progetto per trucchetti Lv.1/strumenti di classe.
         feat_prof_dds: list[ft.Dropdown] = []
         feat_prof_col = ft.Column([], spacing=6, visible=False)
-        feat_prof_fixed_text = ft.Text("", size=12, color=COLOR_TEXT_SECONDARY, visible=False)
+        feat_prof_fixed_text = ft.Text("", size=12, color=design.T().text_2, visible=False)
 
         def _feat_prof_owned() -> set:
             return {(p.proficiency_type, p.name) for p in _all_profs}
@@ -1724,9 +1699,9 @@ class ProfiloTab(ScrollMemoryListView):
                         options=[ft.DropdownOption(key=v, text=v) for v in pool],
                         width=280,
                         on_select=_on_feat_prof_select,
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_BLUE,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().magic,
                     )
                     setattr(dd, "_prof_pool", pool)
                     feat_prof_dds.append(dd)
@@ -1808,10 +1783,10 @@ class ProfiloTab(ScrollMemoryListView):
         # --- Costruzione dialog da steps ---
         dlg_rows: list[ft.Control] = [
             ft.Text(f"Avanzamento a Livello {new_level}",
-                    size=15, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                    size=15, weight=ft.FontWeight.BOLD, color=design.T().text),
             ft.Text(f"{c.class_name or '—'}  •  {c.race or '—'}",
-                    size=12, color=COLOR_TEXT_SECONDARY),
-            ft.Divider(color=COLOR_BORDER),
+                    size=12, color=design.T().text_2),
+            ft.Divider(color=design.T().border),
         ]
 
         # Abilità/strumenti su cui il personaggio è già competente (candidati Maestria)
@@ -1917,9 +1892,9 @@ class ProfiloTab(ScrollMemoryListView):
             if step.step_type == StepType.HP_GAIN:
                 dlg_rows += [
                     ft.Text("Punti Ferita", size=13, weight=ft.FontWeight.BOLD,
-                            color=COLOR_ACCENT_CRIMSON),
+                            color=design.T().primary),
                     ft.Text(f"Dado vita: d{hit_die}  |  Mod. CON: {con_mod:+d}",
-                            size=12, color=COLOR_TEXT_SECONDARY),
+                            size=12, color=design.T().text_2),
                     hp_choice,
                     manual_roll,
                 ]
@@ -1927,13 +1902,13 @@ class ProfiloTab(ScrollMemoryListView):
             elif step.step_type == StepType.FEATURE_AUTO:
                 dlg_rows.append(ft.Container(
                     content=ft.Row([
-                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
-                        ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
+                        ft.Text(step.label, size=12, color=design.T().text, expand=True),
                     ], spacing=6),
-                    bgcolor=COLOR_BG_SECONDARY,
+                    bgcolor=design.T().surface_alt,
                     padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-                    border_radius=4,
-                    border=ft.Border.all(1, COLOR_BORDER),
+                    border_radius=design.Radius.SM,
+                    shadow=design.elevation(1),
                 ))
 
             elif step.step_type == StepType.SUBCLASS_CHOICE:
@@ -1950,20 +1925,20 @@ class ProfiloTab(ScrollMemoryListView):
                         label=subclass_label_name,
                         value=c.subclass if c.subclass in subclasses else subclasses[0],
                         options=[ft.DropdownOption(key=s, text=s) for s in subclasses],
-                        bgcolor=COLOR_BG_CARD,
-                        color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER,
-                        focused_border_color=COLOR_ACCENT_BLUE,
+                        bgcolor=design.T().surface,
+                        color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border,
+                        focused_border_color=design.T().magic,
                         expand=True,
                     )
                     subclass_dd_ref.append(_sc_dd)
                     dlg_rows += [
-                        ft.Divider(color=COLOR_BORDER),
+                        ft.Divider(color=design.T().border),
                         ft.Row([
-                            ft.Icon(ft.Icons.STAR, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Icon(ft.Icons.STAR, size=14, color=design.T().warning),
                             ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
-                                    color=COLOR_ACCENT_BLUE, expand=True),
+                                    color=design.T().magic, expand=True),
                         ], spacing=6),
                         _sc_dd,
                     ]
@@ -2046,11 +2021,11 @@ class ProfiloTab(ScrollMemoryListView):
                         _refresh_borrowed_initial_options()
 
                         _bi_rows: list[ft.Control] = [
-                            ft.Divider(color=COLOR_BORDER),
+                            ft.Divider(color=design.T().border),
                             ft.Row([
-                                ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                                ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
                                 ft.Text("Incantesimi da Mago (Lv.3)", size=13,
-                                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE,
+                                        weight=ft.FontWeight.BOLD, color=design.T().magic,
                                         expand=True),
                             ], spacing=6),
                         ]
@@ -2126,11 +2101,11 @@ class ProfiloTab(ScrollMemoryListView):
                         )
                         _mk3_container = ft.Container(
                             content=ft.Column([
-                                ft.Divider(color=COLOR_BORDER),
+                                ft.Divider(color=design.T().border),
                                 ft.Row([
-                                    ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color=COLOR_ACCENT_AMBER),
+                                    ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color=design.T().warning),
                                     ft.Text("Discepolo degli Elementi (Lv.3)", size=13,
-                                            weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_AMBER,
+                                            weight=ft.FontWeight.BOLD, color=design.T().warning,
                                             expand=True),
                                 ], spacing=6),
                                 muted_text(f"Disciplina fissa: {_mk3_fixed} (automatica).", size=11),
@@ -2153,23 +2128,23 @@ class ProfiloTab(ScrollMemoryListView):
                 else:
                     dlg_rows.append(ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.STAR, size=14, color=COLOR_ACCENT_AMBER),
-                            ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Icon(ft.Icons.STAR, size=14, color=design.T().warning),
+                            ft.Text(step.label, size=12, color=design.T().text, expand=True),
                         ], spacing=6),
                         bgcolor=design.T().note_bg,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-                        border_radius=4,
-                        border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+                        border_radius=design.Radius.SM,
+                        border=ft.Border.all(1, design.T().warning),
                     ))
 
             elif step.step_type == StepType.ASI:
                 has_asi = True
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Text(f"Miglioramento Caratteristiche — Lv.{new_level}",
-                            size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE),
+                            size=13, weight=ft.FontWeight.BOLD, color=design.T().magic),
                     ft.Text("Scegli come distribuire i 2 punti, oppure prendi un Talento.",
-                            size=12, color=COLOR_TEXT_SECONDARY),
+                            size=12, color=design.T().text_2),
                     asi_type,
                     stat_dd1,
                     stat_dd2,
@@ -2188,12 +2163,12 @@ class ProfiloTab(ScrollMemoryListView):
                     )
                     pact_rg_ref.append(pact_picker)
                     dlg_rows += [
-                        ft.Divider(color=COLOR_BORDER),
+                        ft.Divider(color=design.T().border),
                         ft.Row([
-                            ft.Icon(ft.Icons.BOOK, size=14, color=COLOR_ACCENT_CRIMSON),
+                            ft.Icon(ft.Icons.BOOK, size=14, color=design.T().primary),
                             ft.Text("Dono del Patto — scegli il tuo patto",
                                     size=13, weight=ft.FontWeight.BOLD,
-                                    color=COLOR_ACCENT_CRIMSON),
+                                    color=design.T().primary),
                         ], spacing=6),
                         muted_text("Determina il tipo di patto con il tuo Patrono.", size=11),
                         pact_picker.control,
@@ -2201,12 +2176,12 @@ class ProfiloTab(ScrollMemoryListView):
                 else:
                     dlg_rows.append(ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.BOOK, size=14, color=COLOR_ACCENT_CRIMSON),
+                            ft.Icon(ft.Icons.BOOK, size=14, color=design.T().primary),
                             ft.Text(f"Dono del Patto: {c.pact_boon} (già scelto)",
-                                    size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                                    size=12, color=design.T().text, expand=True),
                         ], spacing=6),
-                        bgcolor=COLOR_BG_SECONDARY, padding=8, border_radius=4,
-                        border=ft.Border.all(1, COLOR_BORDER),
+                        bgcolor=design.T().surface_alt, padding=8, border_radius=design.Radius.SM,
+                        shadow=design.elevation(1),
                     ))
 
             elif step.step_type == StepType.METAMAGIC:
@@ -2228,7 +2203,7 @@ class ProfiloTab(ScrollMemoryListView):
                     )
                     metamagic_cb_groups.append((to_add_mm, mm_picker))
                     dlg_rows += [
-                        ft.Divider(color=COLOR_BORDER),
+                        ft.Divider(color=design.T().border),
                         ft.Row([
                             ft.Icon(ft.Icons.BOLT, size=14, color=design.T().magic),
                             ft.Text(f"Metamagia — scegli {to_add_mm} opzion{'e' if to_add_mm == 1 else 'i'}",
@@ -2244,10 +2219,10 @@ class ProfiloTab(ScrollMemoryListView):
                         content=ft.Row([
                             ft.Icon(ft.Icons.BOLT, size=14, color=design.T().magic),
                             ft.Text(f"{step.label} — tutte le opzioni già note",
-                                    size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                                    size=12, color=design.T().text, expand=True),
                         ], spacing=6),
-                        bgcolor=COLOR_BG_SECONDARY, padding=8, border_radius=4,
-                        border=ft.Border.all(1, COLOR_BORDER),
+                        bgcolor=design.T().surface_alt, padding=8, border_radius=design.Radius.SM,
+                        shadow=design.elevation(1),
                     ))
 
             elif step.step_type == StepType.INVOCATION:
@@ -2278,14 +2253,14 @@ class ProfiloTab(ScrollMemoryListView):
                         )
                         invocation_cb_groups.append((to_add, inv_picker))
                         dlg_rows += [
-                            ft.Divider(color=COLOR_BORDER),
+                            ft.Divider(color=design.T().border),
                             ft.Row([
                                 ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14,
-                                        color=COLOR_ACCENT_CRIMSON),
+                                        color=design.T().primary),
                                 ft.Text(
                                     f"Suppliche Occulte — scegli {to_add} nuov{'a' if to_add == 1 else 'e'}",
                                     size=13, weight=ft.FontWeight.BOLD,
-                                    color=COLOR_ACCENT_CRIMSON),
+                                    color=design.T().primary),
                             ], spacing=6),
                             muted_text(
                                 f"Totale suppliche a Lv.{new_level}: {total_inv} "
@@ -2296,32 +2271,32 @@ class ProfiloTab(ScrollMemoryListView):
                     else:
                         # JSON ancora vuoto — info generica
                         dlg_rows += [
-                            ft.Divider(color=COLOR_BORDER),
+                            ft.Divider(color=design.T().border),
                             ft.Container(
                                 content=ft.Row([
                                     ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14,
-                                            color=COLOR_ACCENT_CRIMSON),
+                                            color=design.T().primary),
                                     ft.Text(
                                         f"{step.label} (+{to_add} — scegli manualmente per ora)",
-                                        size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                                        size=12, color=design.T().text, expand=True),
                                 ], spacing=6),
-                                bgcolor=COLOR_BG_SECONDARY,
+                                bgcolor=design.T().surface_alt,
                                 padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-                                border_radius=4,
-                                border=ft.Border.all(1, COLOR_BORDER),
+                                border_radius=design.Radius.SM,
+                                shadow=design.elevation(1),
                             ),
                         ]
                 else:
                     # Nessuna nuova da scegliere (caso edge: downgrade/undo)
                     dlg_rows.append(ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14, color=COLOR_ACCENT_CRIMSON),
-                            ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14, color=design.T().primary),
+                            ft.Text(step.label, size=12, color=design.T().text, expand=True),
                         ], spacing=6),
-                        bgcolor=COLOR_BG_SECONDARY,
+                        bgcolor=design.T().surface_alt,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-                        border_radius=4,
-                        border=ft.Border.all(1, COLOR_BORDER),
+                        border_radius=design.Radius.SM,
+                        shadow=design.elevation(1),
                     ))
 
             elif step.step_type == StepType.EXPERTISE:
@@ -2340,7 +2315,7 @@ class ProfiloTab(ScrollMemoryListView):
                                 except RuntimeError: pass
                         cb = ft.Checkbox(
                             label=name, value=False,
-                            active_color=COLOR_ACCENT_BLUE,
+                            active_color=design.T().magic,
                             on_change=on_toggle,
                         )
                         cbs_ref.append(cb)
@@ -2351,12 +2326,12 @@ class ProfiloTab(ScrollMemoryListView):
                         for name in _expertise_candidates
                     ]
                     dlg_rows += [
-                        ft.Divider(color=COLOR_BORDER),
+                        ft.Divider(color=design.T().border),
                         ft.Row([
-                            ft.Icon(ft.Icons.STAR_HALF, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Icon(ft.Icons.STAR_HALF, size=14, color=design.T().warning),
                             ft.Text(f"Maestria — scegli {count} abilità aggiuntive",
                                     size=13, weight=ft.FontWeight.BOLD,
-                                    color=COLOR_ACCENT_AMBER),
+                                    color=design.T().warning),
                         ], spacing=6),
                         muted_text("Raddoppia il bonus competenza su queste abilità.", size=11),
                         ft.Column(cast(list[ft.Control], cb_widgets), spacing=2),
@@ -2365,13 +2340,13 @@ class ProfiloTab(ScrollMemoryListView):
                     # Nessuna competenza senza maestria — mostro solo info
                     dlg_rows.append(ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.STAR_HALF, size=14, color=COLOR_ACCENT_AMBER),
-                            ft.Text(step.label, size=12, color=COLOR_TEXT_PRIMARY, expand=True),
+                            ft.Icon(ft.Icons.STAR_HALF, size=14, color=design.T().warning),
+                            ft.Text(step.label, size=12, color=design.T().text, expand=True),
                         ], spacing=6),
-                        bgcolor=COLOR_BG_SECONDARY,
+                        bgcolor=design.T().surface_alt,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-                        border_radius=4,
-                        border=ft.Border.all(1, COLOR_BORDER),
+                        border_radius=design.Radius.SM,
+                        shadow=design.elevation(1),
                     ))
 
             elif step.step_type == StepType.SPELL_LEARN:
@@ -2380,11 +2355,11 @@ class ProfiloTab(ScrollMemoryListView):
                 max_lv    = step.data.get("max_level", 9)
 
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE, expand=True),
+                                color=design.T().magic, expand=True),
                     ], spacing=6),
                 ]
 
@@ -2401,7 +2376,7 @@ class ProfiloTab(ScrollMemoryListView):
 
                     status_text = ft.Text(
                         f"0/{count} incantesimi scelti",
-                        size=12, color=COLOR_TEXT_MUTED, italic=True,
+                        size=12, color=design.T().text_3, italic=True,
                     )
                     badges_row = ft.Row([], spacing=6, wrap=True)
 
@@ -2424,8 +2399,8 @@ class ProfiloTab(ScrollMemoryListView):
                         counter_txt = ft.Text(
                             f"{len(_chosen)}/{_cnt}",
                             size=13, weight=ft.FontWeight.BOLD,
-                            color=COLOR_ACCENT_BLUE if len(_chosen) == _cnt
-                            else COLOR_TEXT_MUTED,
+                            color=design.T().magic if len(_chosen) == _cnt
+                            else design.T().text_3,
                         )
                         confirm_btn_ref: list[ft.ElevatedButton] = []
                         chip_refs: dict[str, ft.Container] = {}
@@ -2458,7 +2433,7 @@ class ProfiloTab(ScrollMemoryListView):
                                     rows.append(ft.Container(
                                         content=ft.Text(
                                             f"Livello {lv}",
-                                            size=10, color=COLOR_TEXT_MUTED,
+                                            size=10, color=design.T().text_3,
                                             weight=ft.FontWeight.BOLD,
                                         ),
                                         padding=ft.Padding.only(
@@ -2488,11 +2463,11 @@ class ProfiloTab(ScrollMemoryListView):
                                     _pg.show_dialog(ft.AlertDialog(
                                         title=ft.Text(spell.get("name", ""), size=14,
                                                       weight=ft.FontWeight.BOLD,
-                                                      color=COLOR_TEXT_TITLE),
+                                                      color=design.T().text),
                                         content=ft.Container(
                                             content=ft.Column(
                                                 [ft.Text(format_spell_body(spell), size=13,
-                                                        color=COLOR_TEXT_PRIMARY, selectable=True)],
+                                                        color=design.T().text, selectable=True)],
                                                 scroll=ft.ScrollMode.AUTO,
                                             ),
                                             width=340, height=300,
@@ -2500,7 +2475,7 @@ class ProfiloTab(ScrollMemoryListView):
                                         actions=[ft.TextButton(
                                             "Chiudi", on_click=lambda e: _pg.pop_dialog(),
                                         )],
-                                        bgcolor=COLOR_BG_CARD,
+                                        bgcolor=design.T().surface,
                                     ))
 
                                 rows.append(ft.Container(
@@ -2509,28 +2484,28 @@ class ProfiloTab(ScrollMemoryListView):
                                             "●" if is_chosen else ("—" if at_limit else "○"),
                                             size=20,
                                             color=(
-                                                COLOR_ACCENT_CRIMSON if is_chosen
-                                                else (COLOR_BORDER if at_limit
-                                                      else COLOR_TEXT_MUTED)
+                                                design.T().primary if is_chosen
+                                                else (design.T().border if at_limit
+                                                      else design.T().text_3)
                                             ),
                                         ),
                                         ft.Container(width=6),
                                         ft.Column([
                                             ft.Text(
                                                 nm, size=13, expand=True,
-                                                color=(COLOR_TEXT_MUTED if at_limit
-                                                       else COLOR_TEXT_PRIMARY),
+                                                color=(design.T().text_3 if at_limit
+                                                       else design.T().text),
                                                 weight=(ft.FontWeight.W_600 if is_chosen
                                                         else ft.FontWeight.NORMAL),
                                             ),
                                             ft.Text(
                                                 f"Lv{lv}  ·  {sp.get('school', '')}",
-                                                size=10, color=COLOR_TEXT_MUTED,
+                                                size=10, color=design.T().text_3,
                                             ),
                                         ], spacing=1, expand=True),
                                         ft.IconButton(
                                             ft.Icons.INFO_OUTLINE, icon_size=16,
-                                            icon_color=COLOR_ACCENT_BLUE,
+                                            icon_color=design.T().magic,
                                             tooltip="Mostra descrizione",
                                             on_click=_show_spell_info,
                                             padding=ft.Padding.all(2),
@@ -2539,7 +2514,7 @@ class ProfiloTab(ScrollMemoryListView):
                                     on_click=None if at_limit else _toggle,
                                     ink=not at_limit,
                                     border=ft.Border(
-                                        bottom=ft.BorderSide(1, COLOR_BORDER)
+                                        bottom=ft.BorderSide(1, design.T().border)
                                     ),
                                     padding=ft.Padding.symmetric(
                                         vertical=6, horizontal=4
@@ -2550,7 +2525,7 @@ class ProfiloTab(ScrollMemoryListView):
                                 rows.append(ft.Container(
                                     content=ft.Text(
                                         "Nessun incantesimo disponibile.",
-                                        size=12, color=COLOR_TEXT_MUTED, italic=True,
+                                        size=12, color=design.T().text_3, italic=True,
                                     ),
                                     padding=20,
                                 ))
@@ -2567,7 +2542,7 @@ class ProfiloTab(ScrollMemoryListView):
                             n = len(_chosen)
                             counter_txt.value = f"{n}/{_cnt}"
                             counter_txt.color = (
-                                COLOR_ACCENT_BLUE if n == _cnt else COLOR_TEXT_MUTED
+                                design.T().magic if n == _cnt else design.T().text_3
                             )
                             if confirm_btn_ref:
                                 confirm_btn_ref[0].disabled = (n != _cnt)
@@ -2579,13 +2554,13 @@ class ProfiloTab(ScrollMemoryListView):
                                 is_active = cls_name == _active_cls[0]
                                 has_picks = cls_counts.get(cls_name, 0) > 0
                                 chip.bgcolor = (
-                                    COLOR_ACCENT_BLUE if is_active
-                                    else (design.T().success_bg if has_picks else COLOR_BG_SECONDARY)
+                                    design.T().magic if is_active
+                                    else (design.T().success_bg if has_picks else design.T().surface_alt)
                                 )
                                 chip.border = ft.Border.all(
                                     2 if has_picks else 1,
-                                    COLOR_ACCENT_BLUE if is_active
-                                    else (design.T().success if has_picks else COLOR_BORDER),
+                                    design.T().magic if is_active
+                                    else (design.T().success if has_picks else design.T().border),
                                 )
                             _rebuild_spell_list()
                             try:
@@ -2608,15 +2583,15 @@ class ProfiloTab(ScrollMemoryListView):
                             chip = ft.Container(
                                 content=ft.Text(
                                     cls_n, size=11,
-                                    color=design.T().on_primary if is_active else COLOR_TEXT_SECONDARY,
+                                    color=design.T().on_primary if is_active else design.T().text_2,
                                     weight=ft.FontWeight.BOLD,
                                     text_align=ft.TextAlign.CENTER,
                                 ),
-                                bgcolor=COLOR_ACCENT_BLUE if is_active else COLOR_BG_SECONDARY,
+                                bgcolor=design.T().magic if is_active else design.T().surface_alt,
                                 padding=ft.Padding.symmetric(horizontal=10, vertical=5),
                                 border_radius=14,
                                 border=ft.Border.all(
-                                    1, COLOR_ACCENT_BLUE if is_active else COLOR_BORDER
+                                    1, design.T().magic if is_active else design.T().border
                                 ),
                                 on_click=lambda ev, c=cls_n: _on_chip_click(ev, c),
                                 ink=True,
@@ -2632,7 +2607,7 @@ class ProfiloTab(ScrollMemoryListView):
                             n = len(_chosen)
                             _st.value = f"{n}/{_cnt} incantesimi scelti"
                             _st.color = (
-                                COLOR_ACCENT_BLUE if n == _cnt else COLOR_TEXT_MUTED
+                                design.T().magic if n == _cnt else design.T().text_3
                             )
                             _br.controls.clear()
                             for sn, cn in _chosen:
@@ -2641,7 +2616,7 @@ class ProfiloTab(ScrollMemoryListView):
                                         ft.Text(sn, size=11, color=design.T().on_accent, expand=True),
                                         ft.Text(f"({cn[:4]})", size=10, color=ft.Colors.with_opacity(0.75, design.T().on_accent)),
                                     ], spacing=4),
-                                    bgcolor=COLOR_ACCENT_BLUE,
+                                    bgcolor=design.T().magic,
                                     padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                                     border_radius=12,
                                 ))
@@ -2657,34 +2632,33 @@ class ProfiloTab(ScrollMemoryListView):
                             disabled=len(_chosen) != _cnt,
                             on_click=_confirm,
                             style=ft.ButtonStyle(
-                                bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
-                                shape=ft.RoundedRectangleBorder(radius=4),
+                                bgcolor=design.T().magic, color=design.T().on_accent,
                             ),
                         )
                         confirm_btn_ref.append(confirm_btn)
 
                         _pg.show_dialog(ft.AlertDialog(
                             title=ft.Row([
-                                ft.Icon(ft.Icons.AUTO_AWESOME, color=COLOR_ACCENT_BLUE, size=16),
+                                ft.Icon(ft.Icons.AUTO_AWESOME, color=design.T().magic, size=16),
                                 ft.Container(width=6),
                                 ft.Text(
                                     _lbl, size=13, weight=ft.FontWeight.BOLD,
-                                    color=COLOR_TEXT_TITLE, expand=True,
+                                    color=design.T().text, expand=True,
                                 ),
                             ]),
                             content=ft.Column([
                                 ft.Text(
                                     f"Scegli {_cnt} incantesimi  ·  max livello {_ml}°",
-                                    size=11, color=COLOR_TEXT_MUTED, italic=True,
+                                    size=11, color=design.T().text_3, italic=True,
                                 ),
                                 ft.Container(height=4),
                                 ft.Row(chip_controls, wrap=True, spacing=6, run_spacing=6),
-                                ft.Divider(color=COLOR_BORDER),
+                                ft.Divider(color=design.T().border),
                                 spell_area,
-                                ft.Divider(color=COLOR_BORDER),
+                                ft.Divider(color=design.T().border),
                                 ft.Row([
                                     ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE,
-                                            size=14, color=COLOR_TEXT_MUTED),
+                                            size=14, color=design.T().text_3),
                                     ft.Container(width=4),
                                     counter_txt,
                                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -2696,7 +2670,7 @@ class ProfiloTab(ScrollMemoryListView):
                                 ),
                                 confirm_btn,
                             ],
-                            bgcolor=COLOR_BG_CARD,
+                            bgcolor=design.T().surface,
                         ))
 
                     dlg_rows += [
@@ -2704,9 +2678,8 @@ class ProfiloTab(ScrollMemoryListView):
                             f"✨  Scegli {count} incantesimi — qualsiasi lista",
                             on_click=_open_ms_picker,
                             style=ft.ButtonStyle(
-                                color=COLOR_ACCENT_BLUE,
-                                side=ft.BorderSide(1, COLOR_ACCENT_BLUE),
-                                shape=ft.RoundedRectangleBorder(radius=6),
+                                color=design.T().magic,
+                                side=ft.BorderSide(1, design.T().magic),
                             ),
                         ),
                         status_text,
@@ -2766,11 +2739,11 @@ class ProfiloTab(ScrollMemoryListView):
                     options=spell_card_options(eligible_arcanum),
                 )
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE, expand=True),
+                                color=design.T().magic, expand=True),
                     ], spacing=6),
                     muted_text(f"Arcanum Mistico ({_arcanum_lv}° livello)", size=11),
                     arcanum_dd.control,
@@ -2799,14 +2772,14 @@ class ProfiloTab(ScrollMemoryListView):
                 )
                 mk_dd = CardPicker(
                     options=named_option_card_options(_mk_eligible),
-                    active_color=COLOR_ACCENT_AMBER,
+                    active_color=design.T().warning,
                 )
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color=COLOR_ACCENT_AMBER),
+                        ft.Icon(ft.Icons.SELF_IMPROVEMENT, size=14, color=design.T().warning),
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_AMBER, expand=True),
+                                color=design.T().warning, expand=True),
                     ], spacing=6),
                     mk_dd.control,
                 ]
@@ -2905,11 +2878,11 @@ class ProfiloTab(ScrollMemoryListView):
                     swap_enable_cb.label = "Sostituisci un incantesimo conosciuto (nessuno disponibile)"
 
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE, expand=True),
+                                color=design.T().magic, expand=True),
                     ], spacing=6),
                     swap_enable_cb,
                     muted_text("Incantesimo da sostituire", size=11),
@@ -2940,11 +2913,11 @@ class ProfiloTab(ScrollMemoryListView):
                     options=spell_card_options(_eligible_cantrips),
                 )
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE, expand=True),
+                                color=design.T().magic, expand=True),
                     ], spacing=6),
                     cantrip_dd.control,
                 ]
@@ -2971,11 +2944,11 @@ class ProfiloTab(ScrollMemoryListView):
                     options=spell_card_options(_bc_cantrip_spells),
                 )
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE, expand=True),
+                                color=design.T().magic, expand=True),
                     ], spacing=6),
                     muted_text("Nuovo trucchetto da mago", size=11),
                     bc_cantrip_dd.control,
@@ -2999,11 +2972,11 @@ class ProfiloTab(ScrollMemoryListView):
                 )
                 _opts_bsl = spell_card_options(_eligible_bsl)
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE, expand=True),
+                                color=design.T().magic, expand=True),
                     ], spacing=6),
                 ]
                 for i in range(_count_bsl):
@@ -3093,11 +3066,11 @@ class ProfiloTab(ScrollMemoryListView):
                     bsw_enable_cb.label = "Sostituisci un incantesimo da mago conosciuto (nessuno disponibile)"
 
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
                         ft.Text(step.label, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE, expand=True),
+                                color=design.T().magic, expand=True),
                     ], spacing=6),
                     bsw_enable_cb,
                     muted_text("Incantesimo da sostituire", size=11),
@@ -3110,9 +3083,9 @@ class ProfiloTab(ScrollMemoryListView):
             elif step.step_type == StepType.PROFICIENCY_BONUS_UP:
                 dlg_rows.append(ft.Container(
                     content=ft.Text(f"⬆ {step.label}", size=12,
-                                    color=COLOR_ACCENT_BLUE, weight=ft.FontWeight.BOLD),
-                    bgcolor=design.T().info_bg, padding=8, border_radius=4,
-                    border=ft.Border.all(1, COLOR_ACCENT_BLUE),
+                                    color=design.T().magic, weight=ft.FontWeight.BOLD),
+                    bgcolor=design.T().info_bg, padding=8, border_radius=design.Radius.SM,
+                    border=ft.Border.all(1, design.T().magic),
                 ))
 
         # ------------------------------------------------------------------
@@ -3129,11 +3102,11 @@ class ProfiloTab(ScrollMemoryListView):
                 label=label,
                 value=current if current in opts else opts[0],
                 options=[ft.DropdownOption(key=o, text=o) for o in opts],
-                bgcolor=COLOR_BG_CARD,
-                color=COLOR_TEXT_PRIMARY,
-                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                border_color=COLOR_BORDER,
-                focused_border_color=COLOR_ACCENT_BLUE,
+                bgcolor=design.T().surface,
+                color=design.T().text,
+                label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                border_color=design.T().border,
+                focused_border_color=design.T().magic,
                 expand=True,
             )
 
@@ -3146,11 +3119,11 @@ class ProfiloTab(ScrollMemoryListView):
                 )
                 fighting_style_dd_ref.append(fs_dd)
                 dlg_rows += [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.SHIELD, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Icon(ft.Icons.SHIELD, size=14, color=design.T().magic),
                         ft.Text("Scegli il tuo Stile di Combattimento",
-                                size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE),
+                                size=13, weight=ft.FontWeight.BOLD, color=design.T().magic),
                     ], spacing=6),
                     fs_dd.control,
                 ]
@@ -3188,11 +3161,11 @@ class ProfiloTab(ScrollMemoryListView):
                 totem_animal_dd_ref.append(ta_dd)
                 ta_container = ft.Container(
                     content=ft.Column([
-                        ft.Divider(color=COLOR_BORDER),
+                        ft.Divider(color=design.T().border),
                         ft.Row([
-                            ft.Icon(ft.Icons.PETS, size=14, color=COLOR_ACCENT_AMBER),
+                            ft.Icon(ft.Icons.PETS, size=14, color=design.T().warning),
                             ft.Text("Scegli il tuo Spirito Totem",
-                                    size=13, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_AMBER),
+                                    size=13, weight=ft.FontWeight.BOLD, color=design.T().warning),
                         ], spacing=6),
                         muted_text("L'animale scelto a Lv.3 determina tutte le feature future del Percorso.", size=11),
                         ta_dd,
@@ -3218,7 +3191,7 @@ class ProfiloTab(ScrollMemoryListView):
                 land_terrain_dd_ref.append(lt_dd)
                 lt_container = ft.Container(
                     content=ft.Column([
-                        ft.Divider(color=COLOR_BORDER),
+                        ft.Divider(color=design.T().border),
                         ft.Row([
                             ft.Icon(ft.Icons.LANDSCAPE, size=14, color=design.T().success),
                             ft.Text("Scegli il Terreno del Cerchio della Terra",
@@ -3287,11 +3260,11 @@ class ProfiloTab(ScrollMemoryListView):
                     return
 
                 rows: list[ft.Control] = [
-                    ft.Divider(color=COLOR_BORDER),
+                    ft.Divider(color=design.T().border),
                     ft.Row([
-                        ft.Icon(ft.Icons.SHIELD_MOON, size=14, color=COLOR_ACCENT_BLUE),
+                        ft.Icon(ft.Icons.SHIELD_MOON, size=14, color=design.T().magic),
                         ft.Text("Competenze Bonus di Sottoclasse", size=13,
-                                weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE, expand=True),
+                                weight=ft.FontWeight.BOLD, color=design.T().magic, expand=True),
                     ], spacing=6),
                 ]
                 if fixed:
@@ -3346,9 +3319,9 @@ class ProfiloTab(ScrollMemoryListView):
                                 value=curr,
                                 options=[ft.DropdownOption(key=p, text=p) for p in opts],
                                 on_select=_make_scb_handler(),
-                                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_BLUE,
+                                bgcolor=design.T().surface, color=design.T().text,
+                                label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                                border_color=design.T().border, focused_border_color=design.T().magic,
                                 expand=True,
                             )
                             dds.append(dd)
@@ -3592,18 +3565,18 @@ class ProfiloTab(ScrollMemoryListView):
                 err_dlg = ft.AlertDialog(
                     title=ft.Row([
                         ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED,
-                                color=COLOR_ACCENT_AMBER, size=18),
+                                color=design.T().warning, size=18),
                         ft.Container(width=6),
                         ft.Text("Completa tutte le scelte", size=13,
-                                weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                                weight=ft.FontWeight.BOLD, color=design.T().text),
                     ]),
                     content=ft.Column(
-                        [ft.Text(f"• {err}", size=12, color=COLOR_TEXT_PRIMARY)
+                        [ft.Text(f"• {err}", size=12, color=design.T().text)
                          for err in _errors],
                         spacing=6,
                     ),
                     actions=[ft.TextButton("OK", on_click=_close_err_dlg)],
-                    bgcolor=COLOR_BG_CARD,
+                    bgcolor=design.T().surface,
                 )
                 page.show_dialog(err_dlg)  # type: ignore[union-attr]
                 return
@@ -3968,12 +3941,11 @@ class ProfiloTab(ScrollMemoryListView):
                     f"Sali a Lv.{new_level}",
                     on_click=do_level_up,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
+                        bgcolor=design.T().primary, color=design.T().on_primary,
                     ),
                 ),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)
 
@@ -4050,15 +4022,15 @@ class ProfiloTab(ScrollMemoryListView):
 
         dlg = ft.AlertDialog(
             title=ft.Text("Scendi di Livello", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column([
                 ft.Text(f"Il personaggio scenderà a Livello {new_level}.",
-                        size=13, color=COLOR_TEXT_PRIMARY),
+                        size=13, color=design.T().text),
                 ft.Container(height=4),
                 ft.Text(
                     f"HP max verrà ridotto di ~{hp_loss} PF "
                     f"(stima media: d{hit_die} + {con_mod:+d} CON).",
-                    size=12, color=COLOR_TEXT_SECONDARY,
+                    size=12, color=design.T().text_2,
                 ),
                 ft.Container(height=4),
                 ft.Container(
@@ -4067,10 +4039,10 @@ class ProfiloTab(ScrollMemoryListView):
                         f"{c.level} verranno invertiti automaticamente.\n"
                         "⚠ Le feature di classe ottenute a quel livello "
                         "non vengono ripristinate automaticamente.",
-                        size=11, color=COLOR_ACCENT_AMBER,
+                        size=11, color=design.T().warning,
                     ),
-                    bgcolor=design.T().note_bg, padding=8, border_radius=4,
-                    border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+                    bgcolor=design.T().note_bg, padding=8, border_radius=design.Radius.SM,
+                    border=ft.Border.all(1, design.T().warning),
                 ),
             ], spacing=4),
             actions=[
@@ -4079,12 +4051,11 @@ class ProfiloTab(ScrollMemoryListView):
                     f"Scendi a Lv.{new_level}",
                     on_click=do_level_down,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_AMBER, color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
+                        bgcolor=design.T().warning, color=design.T().on_primary,
                     ),
                 ),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)
 
@@ -4107,11 +4078,11 @@ class ProfiloTab(ScrollMemoryListView):
                 multiline=multiline,
                 min_lines=min_lines,
                 max_lines=8 if multiline else 1,
-                text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-                border_color=COLOR_BORDER,
-                focused_border_color=COLOR_ACCENT_BLUE,
-                bgcolor=COLOR_BG_CARD,
-                label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+                text_style=ft.TextStyle(size=13, color=design.T().text),
+                border_color=design.T().border,
+                focused_border_color=design.T().magic,
+                bgcolor=design.T().surface,
+                label_style=ft.TextStyle(color=design.T().text_2),
                 expand=not multiline,
             )
 
@@ -4121,11 +4092,11 @@ class ProfiloTab(ScrollMemoryListView):
                 label=label,
                 value=value or None,
                 options=[ft.DropdownOption(key=o, text=o) for o in options],
-                text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-                border_color=COLOR_BORDER,
-                focused_border_color=COLOR_ACCENT_BLUE,
-                bgcolor=COLOR_BG_CARD,
-                label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+                text_style=ft.TextStyle(size=13, color=design.T().text),
+                border_color=design.T().border,
+                focused_border_color=design.T().magic,
+                bgcolor=design.T().surface,
+                label_style=ft.TextStyle(color=design.T().text_2),
             )
 
         if section == "anagrafica":
@@ -4187,7 +4158,7 @@ class ProfiloTab(ScrollMemoryListView):
         }
         dlg = ft.AlertDialog(
             title=ft.Text(titles.get(section, "Modifica"), size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(
                 list(fields.values()),  # mix di TextField e Dropdown — entrambi hanno .value
                 spacing=10,
@@ -4199,13 +4170,12 @@ class ProfiloTab(ScrollMemoryListView):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON,
+                        bgcolor=design.T().primary,
                         color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)
 
@@ -4362,9 +4332,9 @@ class ProfiloTab(ScrollMemoryListView):
             hint_text="/percorso/immagine.png",
             expand=True,
             autofocus=True,
-            bgcolor=COLOR_BG_SECONDARY,
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_CRIMSON,
+            bgcolor=design.T().surface_alt,
+            border_color=design.T().border,
+            focused_border_color=design.T().primary,
         )
 
         def _confirm(e):
@@ -4377,26 +4347,25 @@ class ProfiloTab(ScrollMemoryListView):
 
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Percorso immagine", color=COLOR_TEXT_TITLE,
+            title=ft.Text("Percorso immagine", color=design.T().text,
                           weight=ft.FontWeight.BOLD),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             content=ft.Column([
                 ft.Text("Incolla o digita il percorso del file immagine:",
-                        color=COLOR_TEXT_SECONDARY, size=13),
+                        color=design.T().text_2, size=13),
                 ft.Container(height=8),
                 path_field,
             ], tight=True, spacing=0),
             actions=[
                 ft.TextButton("Annulla",
                               on_click=lambda e: page.pop_dialog() if page else None,
-                              style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY)),
+                              style=ft.ButtonStyle(color=design.T().text_2)),
                 ft.ElevatedButton("Carica",
                                   icon=ft.Icons.UPLOAD,
                                   on_click=_confirm,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON,
+                                      bgcolor=design.T().primary,
                                       color=design.T().on_primary,
-                                      shape=ft.RoundedRectangleBorder(radius=6),
                                   )),
             ],
         )

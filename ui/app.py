@@ -84,7 +84,7 @@ class DnDApp:
         self.page.theme_mode = ft.ThemeMode.LIGHT
         self.page.theme = get_theme()
         self.page.dark_theme = get_dark_theme()
-        self.page.bgcolor = COLOR_BG_PRIMARY
+        self.page.bgcolor = design.T().bg
         self.page.padding = 0
 
     # ------------------------------------------------------------------
@@ -163,7 +163,7 @@ class DnDApp:
 
         self.content_area = ft.Container(
             expand=True,
-            bgcolor=COLOR_BG_PRIMARY,
+            bgcolor=design.T().bg,
             content=self._get_section_view(self.active_section),
         )
 
@@ -182,7 +182,7 @@ class DnDApp:
                 ft.Row(
                     controls=[
                         self.nav_rail,
-                        ft.VerticalDivider(width=1, color=COLOR_BORDER),
+                        ft.VerticalDivider(width=1, color=design.T().border),
                         self.content_area,
                     ],
                     expand=True,
@@ -216,7 +216,7 @@ class DnDApp:
                 width=56, height=56,
                 border_radius=28,
                 clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                border=ft.Border.all(2, COLOR_ACCENT_CRIMSON),
+                border=ft.Border.all(2, design.T().primary),
             )
 
         # Placeholder: scudo con iniziali
@@ -483,24 +483,24 @@ class DnDApp:
         try:
             dlg = ft.AlertDialog(
                 title=ft.Row([
-                    ft.Icon(ft.Icons.SYSTEM_UPDATE, color=COLOR_ACCENT_BLUE, size=20),
+                    ft.Icon(ft.Icons.SYSTEM_UPDATE, color=design.T().magic, size=20),
                     ft.Container(width=8),
                     ft.Text("Aggiornamento disponibile", size=15,
-                            weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                            weight=ft.FontWeight.BOLD, color=design.T().text),
                 ]),
                 content=ft.Text(
                     f"È disponibile la versione {version}.\nVuoi scaricarla?",
-                    size=13, color=COLOR_TEXT_PRIMARY,
+                    size=13, color=design.T().text,
                 ),
                 actions=[
                     ft.TextButton("Più tardi", on_click=lambda e: self.page.pop_dialog()),
                     ft.ElevatedButton(
                         "Scarica", icon=ft.Icons.DOWNLOAD,
                         on_click=_open,
-                        bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
+                        bgcolor=design.T().magic, color=design.T().on_accent,
                     ),
                 ],
-                bgcolor=COLOR_BG_CARD,
+                bgcolor=design.T().surface,
             )
             self.page.show_dialog(dlg)
             logger.info(f"Dialog aggiornamento mostrato per versione {version}")
@@ -510,10 +510,10 @@ class DnDApp:
     def _placeholder_view(self, title: str, icon, subtitle: str) -> ft.Container:
         return ft.Container(
             expand=True,
-            bgcolor=COLOR_BG_PRIMARY,
+            bgcolor=design.T().bg,
             content=ft.Column(
                 [
-                    ft.Icon(icon, size=64, color=COLOR_BORDER),
+                    ft.Icon(icon, size=64, color=design.T().border),
                     ft.Container(height=16),
                     title_text(title, size=24),
                     ft.Container(height=8),

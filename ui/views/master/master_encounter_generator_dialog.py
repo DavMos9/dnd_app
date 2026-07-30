@@ -29,11 +29,6 @@ from typing import Any, Callable, cast
 
 import flet as ft
 
-from config.settings import (
-    COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON,
-    COLOR_BG_CARD, COLOR_BG_PRIMARY, COLOR_BORDER,
-    COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
-)
 from core import encounter_generator as eg
 from core.encounter_calculator import DIFFICULTY_LABELS, DIFFICULTY_ORDER, calculate_difficulty
 from data.game_data.game_data_loader import parse_monster_xp
@@ -106,8 +101,8 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
         value="",
         options=[ft.DropdownOption(key="", text="Qualsiasi")]
         + [ft.DropdownOption(key=t, text=t) for t in theme_options],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         dense=True,
     )
 
@@ -137,14 +132,14 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
     char_checks_col: ft.Control = (
         ft.Column(cast(list[ft.Control], char_checks), spacing=2)
         if char_checks
-        else ft.Text("Nessun personaggio creato ancora.", size=11, color=COLOR_TEXT_MUTED)
+        else ft.Text("Nessun personaggio creato ancora.", size=11, color=design.T().text_3)
     )
 
     difficulty_dd = ft.Dropdown(
         label="Difficoltà bersaglio", value="medio",
         options=[ft.DropdownOption(key=d, text=DIFFICULTY_LABELS[d]) for d in DIFFICULTY_ORDER],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         dense=True,
     )
     party_cr_min_tf = ft.TextField(label="GS min (opz.)", dense=True, width=120)
@@ -156,16 +151,16 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
     party_col = ft.Container(
         content=ft.Column(
             [
-                ft.Text("Personaggi nel gruppo:", size=11, color=COLOR_TEXT_SECONDARY, weight=ft.FontWeight.W_600),
+                ft.Text("Personaggi nel gruppo:", size=11, color=design.T().text_2, weight=ft.FontWeight.W_600),
                 char_checks_col,
                 ft.Row(
-                    [ghost_tf, ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLOR_ACCENT_BLUE,
+                    [ghost_tf, ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=design.T().magic,
                                               tooltip="Aggiungi PG fantasma")],
                     spacing=6,
                 ),
                 ft.Text(
                     "PG fantasma: solo livello, per pianificare senza personaggi reali già creati.",
-                    size=10, color=COLOR_TEXT_MUTED, italic=True,
+                    size=10, color=design.T().text_3, italic=True,
                 ),
                 ghost_row,
                 difficulty_dd,
@@ -177,7 +172,7 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
     )
 
     result_col = ft.Column(spacing=4)
-    feedback_text = ft.Text("", size=11, color=COLOR_ACCENT_BLUE)
+    feedback_text = ft.Text("", size=11, color=design.T().magic)
     name_tf = ft.TextField(label="Nome nuovo incontro", value="Incontro Casuale", dense=True, border_radius=6)
 
     # ------------------------------------------------------------------
@@ -191,7 +186,7 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
         result_col.controls.clear()
         if not generated:
             result_col.controls.append(
-                ft.Text("Premi «Genera» per creare un incontro.", size=12, color=COLOR_TEXT_MUTED)
+                ft.Text("Premi «Genera» per creare un incontro.", size=12, color=design.T().text_3)
             )
             try:
                 result_col.update()
@@ -206,7 +201,7 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
             result_col.controls.append(
                 ft.Text(
                     f"• {label}  —  GS {inst.get('cr', '—')}, {parse_monster_xp(inst.get('xp', 0))} PE",
-                    size=13, color=COLOR_TEXT_PRIMARY,
+                    size=13, color=design.T().text,
                 )
             )
 
@@ -227,13 +222,13 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
                             f"(PE modificato {res['adjusted_xp']} su bersaglio {DIFFICULTY_LABELS.get(state.get('target_difficulty', ''), '')})",
                             size=12, weight=ft.FontWeight.BOLD, color=design.T().on_primary, text_align=ft.TextAlign.CENTER,
                         ),
-                        bgcolor=diff_color, border_radius=6, padding=ft.Padding.symmetric(vertical=8),
+                        bgcolor=diff_color, border_radius=design.Radius.MD, padding=ft.Padding.symmetric(vertical=8),
                         alignment=ft.Alignment.CENTER,
                     )
                 )
         else:
             result_col.controls.append(
-                ft.Text(f"PE totale (non modificato): {total_xp}", size=11, color=COLOR_TEXT_MUTED)
+                ft.Text(f"PE totale (non modificato): {total_xp}", size=11, color=design.T().text_3)
             )
 
         try:
@@ -248,14 +243,14 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
                 ft.Container(
                     content=ft.Row(
                         [
-                            ft.Text(f"Lv.{lvl}", size=11, color=COLOR_TEXT_SECONDARY),
-                            ft.IconButton(ft.Icons.CLOSE, icon_size=12, icon_color=COLOR_TEXT_MUTED,
+                            ft.Text(f"Lv.{lvl}", size=11, color=design.T().text_2),
+                            ft.IconButton(ft.Icons.CLOSE, icon_size=12, icon_color=design.T().text_3,
                                           on_click=lambda e, ix=i: _remove_ghost(ix)),
                         ],
                         spacing=0, tight=True,
                     ),
                     padding=ft.Padding.symmetric(horizontal=6),
-                    border=ft.Border.all(1, COLOR_BORDER), border_radius=12,
+                    border=ft.Border.all(1, design.T().border), border_radius=12,
                 )
             )
         try:
@@ -383,19 +378,17 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
             party_col,
             ft.ElevatedButton(
                 "Genera", icon=ft.Icons.CASINO, on_click=_on_generate,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                      shape=ft.RoundedRectangleBorder(radius=4)),
+                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
             ),
-            ft.Divider(height=1, color=COLOR_BORDER),
+            ft.Divider(height=1, color=design.T().border),
             ft.Container(
-                content=result_col, bgcolor=COLOR_BG_PRIMARY, border_radius=6, padding=ft.Padding.all(12),
+                content=result_col, bgcolor=design.T().bg, border_radius=design.Radius.MD, padding=ft.Padding.all(12),
             ),
-            ft.Divider(height=1, color=COLOR_BORDER),
+            ft.Divider(height=1, color=design.T().border),
             name_tf,
             ft.ElevatedButton(
                 "Crea Nuovo Incontro con questi Mostri", icon=ft.Icons.ADD, on_click=_on_create,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
-                                      shape=ft.RoundedRectangleBorder(radius=4)),
+                style=ft.ButtonStyle(bgcolor=design.T().magic, color=design.T().on_accent),
             ),
             feedback_text,
         ],
@@ -405,11 +398,11 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
     )
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Genera Incontro Casuale", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+        title=ft.Text("Genera Incontro Casuale", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
         content=content,
         actions=wrap_dialog_actions([
             ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
         ]),
-        bgcolor=COLOR_BG_CARD,
+        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

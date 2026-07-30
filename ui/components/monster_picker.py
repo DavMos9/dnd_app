@@ -24,14 +24,6 @@ from typing import Any, Callable
 
 import flet as ft
 
-from config.settings import (
-    COLOR_ACCENT_CRIMSON,
-    COLOR_ACCENT_BLUE,
-    COLOR_BORDER,
-    COLOR_TEXT_MUTED,
-    COLOR_TEXT_PRIMARY,
-    COLOR_TEXT_SECONDARY,
-)
 # cr_to_float vive ora in data/game_data/game_data_loader.py (2026-07-25,
 # serviva a core/encounter_generator.py, che per convenzione di progetto
 # non può dipendere da Flet) — re-esportata qui per compatibilità con
@@ -83,11 +75,11 @@ def build_stat_block_column(m: dict) -> ft.Column:
         sign = "+" if mod >= 0 else ""
         return ft.Column(
             [
-                ft.Text(abbr, size=10, color=COLOR_TEXT_MUTED,
+                ft.Text(abbr, size=10, color=design.T().text_3,
                         weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER),
                 ft.Text(str(score), size=16, weight=ft.FontWeight.BOLD,
-                        color=COLOR_TEXT_PRIMARY, text_align=ft.TextAlign.CENTER),
-                ft.Text(f"{sign}{mod}", size=11, color=COLOR_TEXT_MUTED,
+                        color=design.T().text, text_align=ft.TextAlign.CENTER),
+                ft.Text(f"{sign}{mod}", size=11, color=design.T().text_3,
                         text_align=ft.TextAlign.CENTER),
             ],
             spacing=1,
@@ -99,8 +91,8 @@ def build_stat_block_column(m: dict) -> ft.Column:
             content=ft.Column(
                 [
                     ft.Text(name, size=12, weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_PRIMARY, italic=True),
-                    ft.Text(text, size=11, color=COLOR_TEXT_SECONDARY),
+                            color=design.T().text, italic=True),
+                    ft.Text(text, size=11, color=design.T().text_2),
                 ],
                 spacing=2,
             ),
@@ -112,9 +104,9 @@ def build_stat_block_column(m: dict) -> ft.Column:
             return None
         return ft.Row(
             [
-                ft.Text(label + ":", size=11, color=COLOR_TEXT_MUTED, weight=ft.FontWeight.W_600),
+                ft.Text(label + ":", size=11, color=design.T().text_3, weight=ft.FontWeight.W_600),
                 ft.Container(width=4),
-                ft.Text(value, size=11, color=COLOR_TEXT_PRIMARY, expand=True),
+                ft.Text(value, size=11, color=design.T().text, expand=True),
             ]
         )
 
@@ -165,53 +157,53 @@ def build_stat_block_column(m: dict) -> ft.Column:
 
     features: list[ft.Control] = []
     if traits_l:
-        features.append(ft.Text("Tratti", size=12, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
+        features.append(ft.Text("Tratti", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
         for t in traits_l:
             features.append(feat_tile(t.get("name", ""), _desc(t)))
     if actions_l:
-        features.append(ft.Text("Azioni", size=12, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
+        features.append(ft.Text("Azioni", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
         for a in actions_l:
             features.append(feat_tile(a.get("name", ""), _desc(a)))
     if react_l:
-        features.append(ft.Text("Reazioni", size=12, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
+        features.append(ft.Text("Reazioni", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
         for r in react_l:
             features.append(feat_tile(r.get("name", ""), _desc(r)))
     if leg_l:
-        features.append(ft.Text("Azioni Leggendarie", size=12, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
+        features.append(ft.Text("Azioni Leggendarie", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
         for la in leg_l:
             features.append(feat_tile(la.get("name", ""), _desc(la)))
     if lair_l:
-        features.append(ft.Text("Azioni di Tana", size=12, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
+        features.append(ft.Text("Azioni di Tana", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
         lair_intro = m.get("lair_actions_intro", "")
         if lair_intro:
-            features.append(ft.Text(lair_intro, size=11, color=COLOR_TEXT_SECONDARY, italic=True))
+            features.append(ft.Text(lair_intro, size=11, color=design.T().text_2, italic=True))
         for eff in lair_l:
-            features.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
+            features.append(ft.Text(f"•  {eff}", size=11, color=design.T().text_2))
     if regional_l:
         reg_label = m.get("regional_effects_label", "") or "Effetti Regionali"
-        features.append(ft.Text(reg_label, size=12, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON))
+        features.append(ft.Text(reg_label, size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
         reg_intro = m.get("regional_effects_intro", "")
         if reg_intro:
-            features.append(ft.Text(reg_intro, size=11, color=COLOR_TEXT_SECONDARY, italic=True))
+            features.append(ft.Text(reg_intro, size=11, color=design.T().text_2, italic=True))
         for eff in regional_l:
-            features.append(ft.Text(f"•  {eff}", size=11, color=COLOR_TEXT_SECONDARY))
+            features.append(ft.Text(f"•  {eff}", size=11, color=design.T().text_2))
     if variants_l:
-        features.append(ft.Text("Varianti Opzionali", size=12, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_BLUE))
+        features.append(ft.Text("Varianti Opzionali", size=12, weight=ft.FontWeight.BOLD, color=design.T().magic))
         for v in variants_l:
             features.append(feat_tile(v.get("name", ""), _desc(v)))
 
     items: list[ft.Control] = [
         ft.Text(
             f"{m.get('type', m.get('creature_type', '?'))} · {m.get('alignment', '—')}",
-            size=11, color=COLOR_TEXT_MUTED, italic=True,
+            size=11, color=design.T().text_3, italic=True,
         ),
-        ft.Divider(height=10, color=COLOR_BORDER),
+        ft.Divider(height=10, color=design.T().border),
         stats_row,
-        ft.Divider(height=10, color=COLOR_BORDER),
+        ft.Divider(height=10, color=design.T().border),
         *info_items,
     ]
     if features:
-        items.append(ft.Divider(height=10, color=COLOR_BORDER))
+        items.append(ft.Divider(height=10, color=design.T().border))
         items.extend(features)
 
     return ft.Column(items, spacing=6, scroll=ft.ScrollMode.AUTO)
@@ -296,7 +288,7 @@ def show_monster_picker(
     existing_names: set[str] | None = None,
     on_select: Callable[[dict], None] | None = None,
     select_label: str = "✔ Aggiungi",
-    select_color: str = COLOR_ACCENT_CRIMSON,
+    select_color: str | None = None,
     already_label: str = "✓ Già presente",
     manual_label: str = "Inserimento manuale (creatura non trovata)",
     on_manual: Callable[[], None] | None = None,
@@ -384,24 +376,24 @@ def show_monster_picker(
                                     ft.Text(
                                         monster_display_name(m["name"]),
                                         size=13, weight=ft.FontWeight.W_600,
-                                        color=COLOR_TEXT_MUTED if already else COLOR_TEXT_PRIMARY,
+                                        color=design.T().text_3 if already else design.T().text,
                                     ),
                                     ft.Text(
                                         subtitle, size=11,
-                                        color=COLOR_ACCENT_CRIMSON if already else COLOR_TEXT_MUTED,
+                                        color=design.T().primary if already else design.T().text_3,
                                     ),
                                 ],
                                 spacing=1, expand=True,
                             ),
                             ft.Icon(
                                 ft.Icons.CHECK_CIRCLE if already else ft.Icons.CHEVRON_RIGHT,
-                                color=COLOR_ACCENT_CRIMSON if already else COLOR_TEXT_MUTED, size=18,
+                                color=design.T().primary if already else design.T().text_3, size=18,
                             ),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     padding=ft.Padding.symmetric(vertical=6, horizontal=4),
-                    border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),
+                    border=ft.Border(bottom=ft.BorderSide(1, design.T().border)),
                     on_click=_go_detail,
                     ink=True,
                 )
@@ -425,7 +417,7 @@ def show_monster_picker(
                 ft.TextButton(
                     manual_label, icon=ft.Icons.EDIT,
                     on_click=lambda _e: (page.pop_dialog(), on_manual()),
-                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                    style=ft.ButtonStyle(color=design.T().text_3),
                 )
             )
         return ft.Column(controls, spacing=4, tight=True)
@@ -451,8 +443,8 @@ def show_monster_picker(
             btn_label, icon=ft.Icons.CHECK if already else ft.Icons.ADD, disabled=already,
             on_click=_do_select,
             style=ft.ButtonStyle(
-                bgcolor=select_color if not already else None,
-                color=design.T().on_primary if not already else COLOR_TEXT_MUTED,
+                bgcolor=(select_color or design.T().primary) if not already else None,
+                color=design.T().on_primary if not already else design.T().text_3,
             ),
         )
         dlg.content = ft.Container(content=build_stat_block_column(m), height=480)
@@ -460,7 +452,7 @@ def show_monster_picker(
             [
                 ft.IconButton(
                     ft.Icons.ARROW_BACK, on_click=_go_back, tooltip="Torna alla lista",
-                    icon_color=COLOR_TEXT_SECONDARY,
+                    icon_color=design.T().text_2,
                 ),
                 ft.Text(monster_display_name(m["name"]), size=15, weight=ft.FontWeight.BOLD, expand=True),
             ]

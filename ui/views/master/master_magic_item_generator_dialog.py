@@ -29,11 +29,6 @@ from typing import Any
 
 import flet as ft
 
-from config.settings import (
-    COLOR_ACCENT_AMBER, COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON,
-    COLOR_BG_CARD, COLOR_BG_PRIMARY, COLOR_BORDER,
-    COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
-)
 from core import magic_item_generator as mig
 from data.game_data.game_data_loader import GameDataLoader, magic_item_rarity_bucket
 from data.repositories import character_repo
@@ -62,33 +57,33 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
         label="Rarità", value="", dense=True, border_radius=6,
         options=[ft.DropdownOption(key="", text="Qualsiasi")]
         + [ft.DropdownOption(key=k, text=_RARITY_LABELS[k]) for k in _RARITY_ORDER],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
     )
     category_dd = ft.Dropdown(
         label="Categoria", value="", dense=True, border_radius=6,
         options=[ft.DropdownOption(key="", text="Tutte")]
         + [ft.DropdownOption(key=c, text=c) for c in category_options],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
     )
     count_tf = ft.TextField(
         label="Quanti oggetti", value="1", dense=True, border_radius=6,
         keyboard_type=ft.KeyboardType.NUMBER, width=140,
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
     )
-    pool_hint = ft.Text("", size=11, color=COLOR_TEXT_MUTED)
+    pool_hint = ft.Text("", size=11, color=design.T().text_3)
     result_col = ft.Column(spacing=8)
     char_dd = ft.Dropdown(
         label="Aggiungi all'inventario di...",
         value=characters[0].id if characters else "",
         options=[ft.DropdownOption(key=c.id, text=f"{c.name} (Lv.{c.level})") for c in characters],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         disabled=not characters,
     )
-    feedback_text = ft.Text("", size=11, color=COLOR_ACCENT_BLUE)
+    feedback_text = ft.Text("", size=11, color=design.T().magic)
 
     def _update_pool_hint() -> None:
         pool = mig.filter_magic_items(all_items, rarity_dd.value or "", category_dd.value or "")
@@ -118,33 +113,33 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
         if rarity_raw:
             chips.append(_item_chip(
                 _RARITY_LABELS.get(bucket, rarity_raw.strip().capitalize()),
-                _RARITY_COLORS.get(bucket, COLOR_TEXT_MUTED),
+                _RARITY_COLORS.get(bucket, design.T().text_3),
             ))
         if category:
-            chips.append(_item_chip(category, COLOR_TEXT_MUTED))
+            chips.append(_item_chip(category, design.T().text_3))
         if requires_att:
-            chips.append(_item_chip("Sintonia", COLOR_ACCENT_AMBER))
+            chips.append(_item_chip("Sintonia", design.T().warning))
 
         return ft.Container(
             content=ft.Column(
                 [
                     ft.Row(
                         [
-                            ft.Icon(_category_icon(category), size=16, color=COLOR_ACCENT_CRIMSON),
+                            ft.Icon(_category_icon(category), size=16, color=design.T().primary),
                             ft.Container(width=8),
                             ft.Text(name, size=13, weight=ft.FontWeight.BOLD,
-                                    color=COLOR_TEXT_TITLE, expand=True),
+                                    color=design.T().text, expand=True),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     ft.Row(chips, spacing=6, wrap=True),
-                    ft.Text(desc, size=11, color=COLOR_TEXT_PRIMARY, selectable=True),
+                    ft.Text(desc, size=11, color=design.T().text, selectable=True),
                 ],
                 spacing=6,
             ),
             padding=ft.Padding.all(10),
-            bgcolor=COLOR_BG_PRIMARY,
-            border=ft.Border.all(1, COLOR_BORDER),
+            bgcolor=design.T().bg,
+            border=ft.Border.all(1, design.T().border),
             border_radius=8,
         )
 
@@ -154,7 +149,7 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
         if not items:
             result_col.controls.append(
                 ft.Text("Premi «Genera» per estrarre uno o più oggetti magici.",
-                        size=12, color=COLOR_TEXT_MUTED)
+                        size=12, color=design.T().text_3)
             )
         else:
             for it in items:
@@ -231,18 +226,16 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
             pool_hint,
             ft.ElevatedButton(
                 "Genera", icon=ft.Icons.AUTO_AWESOME, on_click=_on_generate,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                      shape=ft.RoundedRectangleBorder(radius=4)),
+                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
             ),
-            ft.Divider(height=1, color=COLOR_BORDER),
+            ft.Divider(height=1, color=design.T().border),
             ft.Container(content=result_col, expand=True),
-            ft.Divider(height=1, color=COLOR_BORDER),
+            ft.Divider(height=1, color=design.T().border),
             char_dd,
             ft.ElevatedButton(
                 "Aggiungi all'inventario", icon=ft.Icons.ADD_SHOPPING_CART,
                 on_click=_on_add_to_inventory, disabled=not characters,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
-                                      shape=ft.RoundedRectangleBorder(radius=4)),
+                style=ft.ButtonStyle(bgcolor=design.T().magic, color=design.T().on_accent),
             ),
             feedback_text,
         ],
@@ -255,9 +248,9 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
         page.pop_dialog()
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Genera Oggetto Magico", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+        title=ft.Text("Genera Oggetto Magico", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
         content=content,
         actions=wrap_dialog_actions([ft.TextButton("Chiudi", on_click=_close)]),
-        bgcolor=COLOR_BG_CARD,
+        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

@@ -23,11 +23,6 @@ from typing import Any, cast
 
 import flet as ft
 
-from config.settings import (
-    COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-    COLOR_TEXT_MUTED, COLOR_BORDER, COLOR_BG_CARD, COLOR_BG_PRIMARY,
-    COLOR_ACCENT_CRIMSON,
-)
 from data.game_data.game_data_loader import game_data
 from ui.widgets import responsive_dialog_width
 from ui import design
@@ -55,11 +50,11 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
             page.pop_dialog()
 
         dlg = ft.AlertDialog(
-            title=ft.Text(title, size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            title=ft.Text(title, size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(body_controls, width=responsive_dialog_width(page, 380), height=420,
                               scroll=ft.ScrollMode.AUTO, tight=True),
             actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)
 
@@ -67,15 +62,15 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Text(name, size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
-                    ft.Text(subtitle, size=11, color=COLOR_TEXT_MUTED),
+                    ft.Text(name, size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
+                    ft.Text(subtitle, size=11, color=design.T().text_3),
                 ],
                 spacing=2,
             ),
             padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.all(1, COLOR_BORDER),
-            border_radius=6,
+            bgcolor=design.T().surface,
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
             on_click=on_click,
             ink=True,
         )
@@ -84,7 +79,7 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
     def _open_disease_detail(disease: dict[str, Any]) -> None:
         _text_dialog(
             disease.get("name", ""),
-            [ft.Text(disease.get("description", ""), size=13, color=COLOR_TEXT_PRIMARY)],
+            [ft.Text(disease.get("description", ""), size=13, color=design.T().text)],
         )
 
     diseases_view = ft.Column(
@@ -104,28 +99,28 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
             poison.get("name", ""),
             [
                 ft.Text(f"Tipo: {poison.get('type', '')} — Prezzo: {poison.get('price', '')}",
-                        size=12, italic=True, color=COLOR_TEXT_MUTED),
+                        size=12, italic=True, color=design.T().text_3),
                 ft.Container(height=6),
-                ft.Text(poison.get("description", ""), size=13, color=COLOR_TEXT_PRIMARY),
+                ft.Text(poison.get("description", ""), size=13, color=design.T().text),
             ],
         )
 
     def _open_poison_types_info(ev: Any) -> None:
         _text_dialog(
             "Tipi di Veleno",
-            [ft.Text(game_data.get_poison_types_intro(), size=13, color=COLOR_TEXT_PRIMARY)],
+            [ft.Text(game_data.get_poison_types_intro(), size=13, color=design.T().text)],
         )
 
     def _open_poison_acquiring_info(ev: Any) -> None:
         _text_dialog(
             "Acquistare i Veleni",
-            [ft.Text(game_data.get_poison_acquiring_text(), size=13, color=COLOR_TEXT_PRIMARY)],
+            [ft.Text(game_data.get_poison_acquiring_text(), size=13, color=design.T().text)],
         )
 
     def _open_poison_crafting_info(ev: Any) -> None:
         _text_dialog(
             "Fabbricare ed Estrarre i Veleni",
-            [ft.Text(game_data.get_poison_crafting_text(), size=13, color=COLOR_TEXT_PRIMARY)],
+            [ft.Text(game_data.get_poison_crafting_text(), size=13, color=design.T().text)],
         )
 
     poisons_view = ft.Column(
@@ -138,7 +133,7 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
                 ],
                 spacing=6, wrap=True,
             ),
-            ft.Divider(height=1, color=COLOR_BORDER),
+            ft.Divider(height=1, color=design.T().border),
         ]
         + [
             _simple_card(
@@ -155,8 +150,8 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
         label="Tabella",
         value="temporanea",
         options=[ft.DropdownOption(key=k, text=v) for k, v in _MADNESS_KIND_LABELS.items()],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
     )
     madness_result_col = ft.Column(spacing=6)
 
@@ -165,13 +160,13 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
         r = state["rolled"]
         if not r:
             madness_result_col.controls.append(
-                ft.Text("Premi «Tira 1d100» per estrarre un effetto.", size=12, color=COLOR_TEXT_MUTED)
+                ft.Text("Premi «Tira 1d100» per estrarre un effetto.", size=12, color=design.T().text_3)
             )
         else:
             madness_result_col.controls.extend([
                 ft.Text(f"Tiro: {r['roll']} (intervallo {r['range']})", size=13,
-                        weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON),
-                ft.Text(r["effect"], size=13, color=COLOR_TEXT_PRIMARY),
+                        weight=ft.FontWeight.BOLD, color=design.T().primary),
+                ft.Text(r["effect"], size=13, color=design.T().text),
             ])
         try:
             madness_result_col.update()
@@ -190,7 +185,7 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
 
     def _open_madness_info(title: str, text: str):
         def _handler(ev: Any) -> None:
-            _text_dialog(title, [ft.Text(text, size=13, color=COLOR_TEXT_PRIMARY)])
+            _text_dialog(title, [ft.Text(text, size=13, color=design.T().text)])
         return _handler
 
     madness_dd.on_select = _on_madness_change
@@ -208,16 +203,15 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
                 ],
                 spacing=6, wrap=True,
             ),
-            ft.Divider(height=1, color=COLOR_BORDER),
+            ft.Divider(height=1, color=design.T().border),
             madness_dd,
             ft.ElevatedButton(
                 "Tira 1d100", icon=ft.Icons.CASINO, on_click=_on_madness_roll,
-                style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                      shape=ft.RoundedRectangleBorder(radius=4)),
+                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
             ),
             ft.Container(
-                content=madness_result_col, bgcolor=COLOR_BG_PRIMARY,
-                border_radius=6, padding=ft.Padding.all(12),
+                content=madness_result_col, bgcolor=design.T().bg,
+                border_radius=design.Radius.MD, padding=ft.Padding.all(12),
             ),
         ],
         spacing=10,
@@ -238,9 +232,9 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
         is_sel = state["tab"] == key
         return ft.Container(
             content=ft.Text(label, size=12, weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
-                             color=COLOR_ACCENT_CRIMSON if is_sel else COLOR_TEXT_SECONDARY),
+                             color=design.T().primary if is_sel else design.T().text_2),
             padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-            border=ft.Border.only(bottom=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if is_sel else "transparent")),
+            border=ft.Border.only(bottom=ft.BorderSide(2, design.T().primary if is_sel else "transparent")),
             on_click=lambda e, k=key: _on_tab_click(k),
             ink=True,
         )
@@ -270,15 +264,15 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
         page.pop_dialog()
 
     content = ft.Column(
-        [tab_row, ft.Divider(height=1, color=COLOR_BORDER), body_col],
+        [tab_row, ft.Divider(height=1, color=design.T().border), body_col],
         spacing=10, scroll=ft.ScrollMode.AUTO,
         width=responsive_dialog_width(page, 440), height=540, tight=True,
     )
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Malattie, Veleni e Follia", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+        title=ft.Text("Malattie, Veleni e Follia", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
         content=content,
         actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
-        bgcolor=COLOR_BG_CARD,
+        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

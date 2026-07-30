@@ -23,11 +23,6 @@ from typing import Any, cast
 
 import flet as ft
 
-from config.settings import (
-    COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-    COLOR_TEXT_MUTED, COLOR_BORDER, COLOR_BG_CARD,
-    COLOR_ACCENT_CRIMSON,
-)
 from data.models import MasterCampaignNote, MasterNpc
 from data.repositories import master_repo
 from ui.widgets import wrap_dialog_actions
@@ -193,7 +188,7 @@ class MasterNotesView(ft.Column):
         body = ft.Row(
             [
                 self._build_left_panel(),
-                ft.VerticalDivider(width=1, color=COLOR_BORDER),
+                ft.VerticalDivider(width=1, color=design.T().border),
                 self._detail_container,
             ],
             expand=True, spacing=0,
@@ -201,7 +196,7 @@ class MasterNotesView(ft.Column):
         )
 
         self.controls.append(self._build_header())
-        self.controls.append(ft.Divider(height=1, color=COLOR_BORDER))
+        self.controls.append(ft.Divider(height=1, color=design.T().border))
         self.controls.append(body)
 
     # ──────────────────────────────────────────────────────────────────────
@@ -214,15 +209,15 @@ class MasterNotesView(ft.Column):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(meta["icon_on"], color=COLOR_ACCENT_CRIMSON, size=20),
+                    ft.Icon(meta["icon_on"], color=design.T().primary, size=20),
                     ft.Container(width=10),
                     ft.Column(
                         [
                             ft.Text("Note di Campagna", size=15, weight=ft.FontWeight.BOLD,
-                                    color=COLOR_TEXT_TITLE),
+                                    color=design.T().text),
                             ft.Text(
                                 f"{meta['label']} · {total} {'voce' if total == 1 else 'voci'}",
-                                size=11, color=COLOR_TEXT_MUTED,
+                                size=11, color=design.T().text_3,
                             ),
                         ],
                         spacing=1, expand=True,
@@ -231,17 +226,16 @@ class MasterNotesView(ft.Column):
                         meta["add_label"], icon=ft.Icons.ADD,
                         on_click=lambda e: self._open_new_note_dialog(),
                         style=ft.ButtonStyle(
-                            bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                            shape=ft.RoundedRectangleBorder(radius=4),
+                            bgcolor=design.T().primary, color=design.T().on_primary,
                             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
                         ),
                     ),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=18, vertical=10),
-            border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border(bottom=ft.BorderSide(1, design.T().border)),
         )
 
     # ──────────────────────────────────────────────────────────────────────
@@ -255,7 +249,7 @@ class MasterNotesView(ft.Column):
             [
                 ft.Container(
                     content=ft.Text("SEZIONI", size=9, weight=ft.FontWeight.BOLD,
-                                     color=COLOR_TEXT_MUTED,
+                                     color=design.T().text_3,
                                      style=ft.TextStyle(letter_spacing=2)),
                     padding=ft.Padding.only(left=12, top=10, bottom=4),
                 ),
@@ -266,7 +260,7 @@ class MasterNotesView(ft.Column):
 
         list_label = ft.Container(
             content=ft.Text(meta["list_label"], size=9, weight=ft.FontWeight.BOLD,
-                             color=COLOR_TEXT_MUTED,
+                             color=design.T().text_3,
                              style=ft.TextStyle(letter_spacing=2)),
             padding=ft.Padding.only(left=12, top=8, bottom=4),
         )
@@ -279,7 +273,7 @@ class MasterNotesView(ft.Column):
 
         return ft.Container(
             content=ft.Column(
-                [cat_nav, ft.Divider(height=1, color=COLOR_BORDER), list_label, self._left_list_lv],
+                [cat_nav, ft.Divider(height=1, color=design.T().border), list_label, self._left_list_lv],
                 expand=True, spacing=0,
             ),
             width=200, bgcolor=design.T().parchment_alt,
@@ -291,10 +285,10 @@ class MasterNotesView(ft.Column):
             content=ft.Row(
                 [
                     ft.Icon(cat["icon_on"] if is_sel else cat["icon_off"], size=16,
-                            color=design.T().on_primary if is_sel else COLOR_TEXT_SECONDARY),
+                            color=design.T().on_primary if is_sel else design.T().text_2),
                     ft.Container(width=8),
                     ft.Text(cat["label"], size=12,
-                            color=design.T().on_primary if is_sel else COLOR_TEXT_PRIMARY,
+                            color=design.T().on_primary if is_sel else design.T().text,
                             weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
                             expand=True),
                     self._count_badge(cat["key"]),
@@ -302,8 +296,8 @@ class MasterNotesView(ft.Column):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.symmetric(horizontal=10, vertical=7),
-            bgcolor=COLOR_ACCENT_CRIMSON if is_sel else "transparent",
-            border_radius=6,
+            bgcolor=design.T().primary if is_sel else "transparent",
+            border_radius=design.Radius.MD,
             margin=ft.Margin.only(left=6, right=6),
             on_click=lambda e, k=cat["key"]: self._on_cat_click(k),
             ink=True,
@@ -314,9 +308,9 @@ class MasterNotesView(ft.Column):
         if n == 0:
             return ft.Container(width=0)
         return ft.Container(
-            content=ft.Text(str(n), size=9, color=COLOR_TEXT_MUTED,
+            content=ft.Text(str(n), size=9, color=design.T().text_3,
                              text_align=ft.TextAlign.CENTER),
-            bgcolor=COLOR_BORDER, border_radius=8,
+            bgcolor=design.T().border, border_radius=8,
             padding=ft.Padding.symmetric(horizontal=5, vertical=1),
         )
 
@@ -347,25 +341,25 @@ class MasterNotesView(ft.Column):
                 [
                     ft.Text(note.name or "Senza nome", size=12,
                             weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
-                            color=COLOR_TEXT_TITLE if is_sel else COLOR_TEXT_PRIMARY,
+                            color=design.T().text if is_sel else design.T().text,
                             overflow=ft.TextOverflow.ELLIPSIS, max_lines=1),
                     ft.Row([status_chip], spacing=4) if note.status else ft.Container(height=0),
-                    ft.Text(preview, size=10, color=COLOR_TEXT_MUTED,
+                    ft.Text(preview, size=10, color=design.T().text_3,
                             overflow=ft.TextOverflow.ELLIPSIS, max_lines=1) if preview else ft.Container(height=0),
                 ],
                 spacing=3,
             ),
             padding=ft.Padding.symmetric(horizontal=8, vertical=8),
             bgcolor=ft.Colors.with_opacity(0.10, design.T().primary) if is_sel else "transparent",
-            border_radius=6,
-            border=ft.Border.all(1, COLOR_ACCENT_CRIMSON) if is_sel else None,
+            border_radius=design.Radius.MD,
+            border=ft.Border.all(1, design.T().primary) if is_sel else None,
             on_click=lambda e, nid=note.id: self._on_sel_note(nid),
             ink=True,
         )
 
     def _left_empty(self, msg: str) -> ft.Container:
         return ft.Container(
-            content=ft.Text(msg, size=11, color=COLOR_TEXT_MUTED, text_align=ft.TextAlign.CENTER),
+            content=ft.Text(msg, size=11, color=design.T().text_3, text_align=ft.TextAlign.CENTER),
             padding=ft.Padding.symmetric(horizontal=10, vertical=16),
             alignment=ft.Alignment.CENTER,
         )
@@ -403,18 +397,18 @@ class MasterNotesView(ft.Column):
             for tag in [t.strip() for t in note.tags.split(",") if t.strip()]:
                 tag_chips.append(
                     ft.Container(
-                        content=ft.Text(f"#{tag}", size=10, color=COLOR_TEXT_SECONDARY),
-                        bgcolor=COLOR_BORDER + "80", border_radius=8,
+                        content=ft.Text(f"#{tag}", size=10, color=design.T().text_2),
+                        bgcolor=design.T().border + "80", border_radius=8,
                         padding=ft.Padding.symmetric(horizontal=8, vertical=3),
                     )
                 )
 
         ornament = ft.Row(
             [
-                ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
-                ft.Container(content=ft.Icon(ft.Icons.STAR, size=11, color=COLOR_ACCENT_CRIMSON),
+                ft.Container(expand=True, height=1, bgcolor=design.T().border),
+                ft.Container(content=ft.Icon(ft.Icons.STAR, size=11, color=design.T().primary),
                              padding=ft.Padding.symmetric(horizontal=10)),
-                ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
+                ft.Container(expand=True, height=1, bgcolor=design.T().border),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
@@ -426,7 +420,7 @@ class MasterNotesView(ft.Column):
 
         page_content_items += [
             ft.Text(note.name or "Senza nome", size=22, weight=ft.FontWeight.BOLD,
-                    color=COLOR_TEXT_TITLE, text_align=ft.TextAlign.CENTER, italic=True),
+                    color=design.T().text, text_align=ft.TextAlign.CENTER, italic=True),
             ft.Container(height=14),
             ornament,
             ft.Container(height=18),
@@ -434,7 +428,7 @@ class MasterNotesView(ft.Column):
 
         if note.description:
             page_content_items.append(
-                ft.Text(note.description, size=14, color=COLOR_TEXT_PRIMARY, selectable=True)
+                ft.Text(note.description, size=14, color=design.T().text, selectable=True)
             )
 
         npc_name = self._npc_name(note.linked_npc_id) if note.linked_npc_id else ""
@@ -443,10 +437,10 @@ class MasterNotesView(ft.Column):
                 ft.Container(height=14),
                 ft.Row(
                     [
-                        ft.Icon(ft.Icons.PERSON, size=14, color=COLOR_TEXT_MUTED),
+                        ft.Icon(ft.Icons.PERSON, size=14, color=design.T().text_3),
                         ft.Container(width=6),
                         ft.Text(f"PNG collegato: {npc_name}", size=12,
-                                color=COLOR_TEXT_SECONDARY, italic=True),
+                                color=design.T().text_2, italic=True),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
@@ -455,7 +449,7 @@ class MasterNotesView(ft.Column):
         if tag_chips:
             page_content_items += [
                 ft.Container(height=20),
-                ft.Divider(height=1, color=COLOR_BORDER),
+                ft.Divider(height=1, color=design.T().border),
                 ft.Container(height=8),
                 ft.Row(tag_chips, wrap=True, spacing=6, run_spacing=6),
             ]
@@ -470,15 +464,15 @@ class MasterNotesView(ft.Column):
                     ft.OutlinedButton("Modifica", icon=ft.Icons.EDIT_OUTLINED,
                                        on_click=lambda e: self._on_note_start_edit()),
                     ft.Container(width=8),
-                    ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=COLOR_ACCENT_CRIMSON,
+                    ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=design.T().primary,
                                   icon_size=18, tooltip="Elimina",
                                   on_click=lambda e: self._on_note_delete()),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=16, vertical=8),
-            border=ft.Border(top=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border(top=ft.BorderSide(1, design.T().border)),
         )
 
         return ft.Column(
@@ -494,23 +488,23 @@ class MasterNotesView(ft.Column):
         opts = STATUS_OPTIONS.get(self._active_cat, [])
         self._nf_name = ft.TextField(
             value=note.name or "", label="Nome", autofocus=True,
-            text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor="transparent", label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=11),
+            text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
         )
         self._nf_status = ft.Dropdown(
             label="Stato",
             value=note.status or (opts[0] if opts else ""),
             options=[ft.DropdownOption(key=s, text=s) for s in opts],
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor="transparent", label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=11),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
         )
         self._nf_tags = ft.TextField(
             value=note.tags or "",
             label="Tag (separati da virgola — es. corte, waterdeep, alleanza)",
-            text_style=ft.TextStyle(size=12, color=COLOR_TEXT_SECONDARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor="transparent", label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=11),
+            text_style=ft.TextStyle(size=12, color=design.T().text_2),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
         )
         npc_opts = [ft.DropdownOption(key="", text="— nessuno —")] + [
             ft.DropdownOption(key=n.id, text=n.name or "(senza nome)") for n in self._npcs
@@ -519,35 +513,34 @@ class MasterNotesView(ft.Column):
             label="PNG collegato (opzionale)",
             value=note.linked_npc_id or "",
             options=npc_opts,
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor="transparent", label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=11),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
         )
         self._nf_desc = ft.TextField(
             value=note.description or "", label="Descrizione / Note",
             multiline=True, min_lines=10, max_lines=30,
-            text_style=ft.TextStyle(size=14, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor="transparent", label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=11),
+            text_style=ft.TextStyle(size=14, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
         )
 
         action_bar = ft.Container(
             content=ft.Row(
                 [
                     ft.TextButton("Annulla", on_click=lambda e: self._on_note_cancel_edit(),
-                                  style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY)),
+                                  style=ft.ButtonStyle(color=design.T().text_2)),
                     ft.Container(expand=True),
                     ft.ElevatedButton(
                         "Salva", icon=ft.Icons.SAVE_OUTLINED,
                         on_click=lambda e: self._on_note_save_edit(note),
-                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                              shape=ft.RoundedRectangleBorder(radius=4)),
+                        style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                     ),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=16, vertical=8),
-            border=ft.Border(top=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border(top=ft.BorderSide(1, design.T().border)),
         )
 
         return ft.Column(
@@ -570,12 +563,12 @@ class MasterNotesView(ft.Column):
             expand=True, bgcolor=design.T().parchment,
             content=ft.Column(
                 [
-                    ft.Icon(icon, size=64, color=COLOR_BORDER),
+                    ft.Icon(icon, size=64, color=design.T().border),
                     ft.Container(height=16),
-                    ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_SECONDARY,
+                    ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=design.T().text_2,
                             italic=True, text_align=ft.TextAlign.CENTER),
                     ft.Container(height=8),
-                    ft.Text(msg, size=13, color=COLOR_TEXT_MUTED, text_align=ft.TextAlign.CENTER),
+                    ft.Text(msg, size=13, color=design.T().text_3, text_align=ft.TextAlign.CENTER),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -662,20 +655,19 @@ class MasterNotesView(ft.Column):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Elimina voce", size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            title=ft.Text("Elimina voce", size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Text(
                 f"Eliminare «{note.name or 'Senza nome'}»?\nL'azione non è reversibile.",
-                size=13, color=COLOR_TEXT_PRIMARY,
+                size=13, color=design.T().text,
             ),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                          shape=ft.RoundedRectangleBorder(radius=4)),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
             ]),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     def _open_new_note_dialog(self) -> None:
@@ -688,15 +680,15 @@ class MasterNotesView(ft.Column):
 
         f_name = ft.TextField(
             label="Nome", autofocus=True,
-            text_style=ft.TextStyle(size=14, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            text_style=ft.TextStyle(size=14, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         )
         f_status = ft.Dropdown(
             label="Stato", value=opts[0] if opts else "",
             options=[ft.DropdownOption(key=s, text=s) for s in opts],
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         )
         npc_opts = [ft.DropdownOption(key="", text="— nessuno —")] + [
             ft.DropdownOption(key=n.id, text=n.name or "(senza nome)") for n in self._npcs
@@ -704,14 +696,14 @@ class MasterNotesView(ft.Column):
         f_npc = ft.Dropdown(
             label="PNG collegato (opzionale)", value="",
             options=npc_opts,
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         )
         f_desc = ft.TextField(
             label="Descrizione / Note", multiline=True, min_lines=3, max_lines=8,
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         )
 
         def save(ev: Any) -> None:
@@ -738,17 +730,16 @@ class MasterNotesView(ft.Column):
         fields.append(f_desc)
 
         page.show_dialog(ft.AlertDialog(
-            title=ft.Text(meta["add_label"], size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+            title=ft.Text(meta["add_label"], size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(fields, spacing=10, scroll=ft.ScrollMode.AUTO, width=400),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=save,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                          shape=ft.RoundedRectangleBorder(radius=4)),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
             ]),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     # ──────────────────────────────────────────────────────────────────────

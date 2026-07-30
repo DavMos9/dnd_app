@@ -8,7 +8,6 @@ import logging
 import os
 import threading
 from typing import cast
-from config.settings import *
 from data.database import get_character_exports_path, get_web_export_staging_path
 from data.models import Character
 from data.repositories import character_repo, character_export
@@ -412,10 +411,10 @@ class HomeView(ft.Column):
             modal=True,
             title=ft.Text(
                 "Nuovo Personaggio",
-                color=COLOR_TEXT_TITLE,
+                color=d.T().text,
                 weight=ft.FontWeight.BOLD,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=d.T().surface,
             content=ft.Column(
                 [
                     muted_text(
@@ -432,9 +431,8 @@ class HomeView(ft.Column):
                                 on_click=lambda e: self._close_and(self.on_create_wizard),
                                 expand=True,
                                 style=ft.ButtonStyle(
-                                    bgcolor=COLOR_ACCENT_GOLD,
-                                    color=COLOR_BG_PRIMARY,
-                                    shape=ft.RoundedRectangleBorder(radius=6),
+                                    bgcolor=d.T().magic,
+                                    color=d.T().bg,
                                 ),
                             ),
                         ],
@@ -449,9 +447,8 @@ class HomeView(ft.Column):
                                 on_click=lambda e: self._close_and(self.on_create_manual),
                                 expand=True,
                                 style=ft.ButtonStyle(
-                                    color=COLOR_ACCENT_GOLD,
-                                    side=ft.BorderSide(1, COLOR_ACCENT_GOLD),
-                                    shape=ft.RoundedRectangleBorder(radius=6),
+                                    color=d.T().magic,
+                                    side=ft.BorderSide(1, d.T().magic),
                                 ),
                             ),
                         ],
@@ -464,7 +461,7 @@ class HomeView(ft.Column):
                 ft.TextButton(
                     "Annulla",
                     on_click=lambda e: self._close_dialog(),
-                    style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY),
+                    style=ft.ButtonStyle(color=d.T().text_2),
                 ),
             ],
         )
@@ -474,26 +471,25 @@ class HomeView(ft.Column):
         """Dialog di conferma eliminazione."""
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Elimina personaggio", color=COLOR_ACCENT_RED),
-            bgcolor=COLOR_BG_CARD,
+            title=ft.Text("Elimina personaggio", color=d.T().danger),
+            bgcolor=d.T().surface,
             content=ft.Text(
                 f'Sei sicuro di voler eliminare "{char.name}"?\nQuesta azione non può essere annullata.',
-                color=COLOR_TEXT_PRIMARY,
+                color=d.T().text,
             ),
             actions=[
                 ft.TextButton(
                     "Annulla",
                     on_click=lambda e: self._close_dialog(),
-                    style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY),
+                    style=ft.ButtonStyle(color=d.T().text_2),
                 ),
                 ft.ElevatedButton(
                     "Elimina",
                     icon=ft.Icons.DELETE,
                     on_click=lambda e: self._do_delete(dlg, char.id),
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_RED,
-                        color=COLOR_TEXT_PRIMARY,
-                        shape=ft.RoundedRectangleBorder(radius=6),
+                        bgcolor=d.T().danger,
+                        color=d.T().text,
                     ),
                 ),
             ],
@@ -516,15 +512,15 @@ class HomeView(ft.Column):
 
     def _show_error(self, message: str):
         snack = ft.SnackBar(
-            content=ft.Text(message, color=COLOR_TEXT_PRIMARY),
-            bgcolor=COLOR_ACCENT_RED,
+            content=ft.Text(message, color=d.T().text),
+            bgcolor=d.T().danger,
         )
         self.page.show_dialog(snack)
 
     def _show_success(self, message: str):
         snack = ft.SnackBar(
-            content=ft.Text(message, color=COLOR_TEXT_PRIMARY),
-            bgcolor=COLOR_ACCENT_GOLD,
+            content=ft.Text(message, color=d.T().text),
+            bgcolor=d.T().magic,
         )
         self.page.show_dialog(snack)
 
@@ -866,30 +862,29 @@ class HomeView(ft.Column):
                 icon=ft.Icons.DOWNLOAD,
                 url=ft.Url(url=download_url, target=ft.UrlTarget.BLANK),
                 style=ft.ButtonStyle(
-                    bgcolor=COLOR_ACCENT_GOLD,
-                    color=COLOR_BG_PRIMARY,
-                    shape=ft.RoundedRectangleBorder(radius=6),
+                    bgcolor=d.T().magic,
+                    color=d.T().bg,
                 ),
             ))
         if system is not None:
             actions.append(ft.TextButton(
                 "Mostra nel Finder" if system == "Darwin" else "Mostra nella cartella",
                 icon=ft.Icons.FOLDER_OPEN, on_click=_reveal,
-                style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY),
+                style=ft.ButtonStyle(color=d.T().text_2),
             ))
         actions.append(ft.TextButton("OK", on_click=lambda e: page.pop_dialog(),
-                                      style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON)))
+                                      style=ft.ButtonStyle(color=d.T().primary)))
 
         page.show_dialog(ft.AlertDialog(
             modal=True,
-            title=ft.Text("Personaggio esportato", color=COLOR_TEXT_TITLE,
+            title=ft.Text("Personaggio esportato", color=d.T().text,
                           weight=ft.FontWeight.BOLD),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=d.T().surface,
             content=ft.Column([
                 ft.Text(f'File salvato come "{filename}".',
-                        color=COLOR_TEXT_PRIMARY, size=13),
+                        color=d.T().text, size=13),
                 ft.Container(height=6),
-                ft.Text(path, color=COLOR_TEXT_MUTED, size=11, selectable=True),
+                ft.Text(path, color=d.T().text_3, size=11, selectable=True),
             ], tight=True, spacing=0),
             actions=cast(list[ft.Control], actions),
         ))
@@ -1132,9 +1127,9 @@ class HomeView(ft.Column):
 
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Personaggio già presente", color=COLOR_TEXT_TITLE,
+            title=ft.Text("Personaggio già presente", color=d.T().text,
                           weight=ft.FontWeight.BOLD),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=d.T().surface,
             content=ft.Column(
                 [
                     ft.Text(
@@ -1143,7 +1138,7 @@ class HomeView(ft.Column):
                         f'con lo stesso ID del file da importare '
                         f'("{new_summary.get("name") or "?"}", '
                         f'Lv.{new_summary.get("level", "?")} {new_summary.get("class_name", "")}).',
-                        color=COLOR_TEXT_PRIMARY, size=13,
+                        color=d.T().text, size=13,
                     ),
                     ft.Container(height=12),
                     muted_text("Cosa vuoi fare?", size=12),
@@ -1154,16 +1149,15 @@ class HomeView(ft.Column):
                 ft.TextButton(
                     "Annulla",
                     on_click=lambda e: page.pop_dialog(),
-                    style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY),
+                    style=ft.ButtonStyle(color=d.T().text_2),
                 ),
                 ft.OutlinedButton(
                     "Crea copia",
                     icon=ft.Icons.CONTENT_COPY,
                     on_click=lambda e: self._confirm_import(data, "copy"),
                     style=ft.ButtonStyle(
-                        color=COLOR_ACCENT_GOLD,
-                        side=ft.BorderSide(1, COLOR_ACCENT_GOLD),
-                        shape=ft.RoundedRectangleBorder(radius=6),
+                        color=d.T().magic,
+                        side=ft.BorderSide(1, d.T().magic),
                     ),
                 ),
                 ft.ElevatedButton(
@@ -1171,9 +1165,8 @@ class HomeView(ft.Column):
                     icon=ft.Icons.WARNING_AMBER_ROUNDED,
                     on_click=lambda e: self._confirm_import(data, "overwrite"),
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_RED,
-                        color=COLOR_TEXT_PRIMARY,
-                        shape=ft.RoundedRectangleBorder(radius=6),
+                        bgcolor=d.T().danger,
+                        color=d.T().text,
                     ),
                 ),
             ],

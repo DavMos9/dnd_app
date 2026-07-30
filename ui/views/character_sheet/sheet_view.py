@@ -73,6 +73,16 @@ class SheetView(ft.Column):
     # ------------------------------------------------------------------
 
     def _build_stat_bar(self) -> ft.Container:
+        """
+        Barra flottante delle caratteristiche (Fase E.4 del restyle).
+
+        Prima: sei riquadri bianchi identici con l'etichetta piccola e il
+        modificatore come semplice testo blu. Ora la barra è un pannello elevato
+        con i riquadri incassati (`surface_alt`), il punteggio in cifre
+        tabellari e il modificatore in un chip d'accento — quello che il
+        giocatore legge più spesso è anche l'elemento con più peso visivo.
+        """
+        p = design.T()
         boxes = []
         for abbr, key in zip(ABILITY_ABBR, ABILITY_KEYS):
             score = getattr(self.character, f"{key}_score")
@@ -89,41 +99,55 @@ class SheetView(ft.Column):
                             # usata ovunque)
                             ft.Row(
                                 [
-                                    ft.Text(abbr, size=9, color=COLOR_TEXT_SECONDARY,
-                                            weight=ft.FontWeight.BOLD),
-                                    ft.Icon(ft.Icons.EDIT, size=9, color=COLOR_TEXT_MUTED),
+                                    ft.Text(abbr, size=design.Size.LABEL,
+                                            color=p.text_3,
+                                            weight=ft.FontWeight.BOLD,
+                                            font_family=design.Font.BODY,
+                                            style=ft.TextStyle(letter_spacing=0.8)),
+                                    ft.Icon(ft.Icons.EDIT, size=9, color=p.text_3),
                                 ],
                                 spacing=2, tight=True,
                                 alignment=ft.MainAxisAlignment.CENTER,
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
-                            ft.Text(str(score), size=17, color=COLOR_TEXT_PRIMARY,
+                            ft.Text(str(score), size=20, color=p.text,
                                     weight=ft.FontWeight.BOLD,
                                     text_align=ft.TextAlign.CENTER,
-                                    font_family=FONT_MONO),
-                            ft.Text(mod_str, size=11, color=COLOR_ACCENT_GOLD,
-                                    weight=ft.FontWeight.BOLD,
-                                    text_align=ft.TextAlign.CENTER),
+                                    font_family=design.Font.MONO),
+                            ft.Container(
+                                content=ft.Text(mod_str, size=design.Size.LABEL,
+                                                color=p.magic,
+                                                weight=ft.FontWeight.BOLD,
+                                                font_family=design.Font.MONO,
+                                                text_align=ft.TextAlign.CENTER),
+                                bgcolor=ft.Colors.with_opacity(0.12, p.magic),
+                                border_radius=design.Radius.PILL,
+                                padding=ft.Padding.symmetric(horizontal=8, vertical=1),
+                            ),
                         ],
-                        spacing=1,
+                        spacing=2,
+                        tight=True,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    padding=ft.Padding.symmetric(vertical=6, horizontal=10),
-                    bgcolor=COLOR_BG_CARD,
-                    border=ft.Border.all(1, COLOR_BORDER),
-                    border_radius=4,
+                    padding=ft.Padding.symmetric(vertical=design.Space.SM, horizontal=6),
+                    bgcolor=p.surface_alt,
+                    border_radius=design.Radius.MD,
                     expand=True,
                     on_click=lambda e: self._open_ability_score_dialog(),
                     ink=True,
+                    animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
                     tooltip="Clicca per modificare le caratteristiche",
                 )
             )
 
         return ft.Container(
-            content=ft.Row(boxes, spacing=6, expand=True),
-            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-            bgcolor=COLOR_BG_SECONDARY,
-            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            content=ft.Row(boxes, spacing=design.Space.SM, expand=True),
+            padding=ft.Padding.symmetric(horizontal=design.Space.MD,
+                                         vertical=design.Space.MD),
+            bgcolor=p.surface,
+            shadow=design.elevation(2),
+            border_radius=ft.BorderRadius.only(bottom_left=design.Radius.LG,
+                                               bottom_right=design.Radius.LG),
         )
 
     # ------------------------------------------------------------------
@@ -146,12 +170,12 @@ class SheetView(ft.Column):
                 ft.Text(
                     f"+{pb} comp.",
                     size=11,
-                    color=COLOR_ACCENT_BLUE if is_override else COLOR_TEXT_SECONDARY,
+                    color=design.T().magic if is_override else design.T().text_2,
                     weight=ft.FontWeight.BOLD if is_override else ft.FontWeight.NORMAL,
                 ),
                 ft.Icon(
                     ft.Icons.EDIT, size=10,
-                    color=COLOR_ACCENT_BLUE if is_override else COLOR_TEXT_MUTED,
+                    color=design.T().magic if is_override else design.T().text_3,
                 ),
             ],
             spacing=3, tight=True,
@@ -161,27 +185,28 @@ class SheetView(ft.Column):
             content=pb_label,
             on_click=lambda e: self._open_prof_bonus_dialog(),
             ink=True,
-            border_radius=4,
+            border_radius=design.Radius.SM,
             padding=ft.Padding.symmetric(horizontal=4, vertical=2),
             tooltip="Clicca per modificare il bonus competenza",
         )
 
         name_row = ft.Row(
             [
-                ft.Text(c.name, size=15, weight=ft.FontWeight.BOLD,
-                        color=COLOR_TEXT_TITLE, font_family=FONT_TITLE, expand=True),
+                ft.Text(c.name, size=18, weight=ft.FontWeight.BOLD,
+                        color=design.T().text, font_family=design.Font.DISPLAY,
+                        no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
                 pb_btn,
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
-        subtitle = ft.Text(
-            f"Lv.{c.level} {c.class_name}"
-            + (f" ({c.subclass})" if c.subclass else "")
-            + f"  •  {c.race}"
-            + (f" ({c.subrace})" if c.subrace else ""),
-            size=11,
-            color=COLOR_TEXT_SECONDARY,
-        )
+        # Chip invece di una riga di testo con i "•": stesso linguaggio visivo
+        # delle card della Home, e i tre dati si distinguono a colpo d'occhio.
+        chips: list[ft.Control] = [
+            design.chip(f"Lv. {c.level}", "primary"),
+            design.chip(c.class_name + (f" · {c.subclass}" if c.subclass else ""), "magic"),
+            design.chip(c.race + (f" · {c.subrace}" if c.subrace else ""), "neutral"),
+        ]
+        subtitle = ft.Row(chips, spacing=design.Space.XS, wrap=True)
 
         # Tab buttons
         tab_row = []
@@ -191,45 +216,65 @@ class SheetView(ft.Column):
             self._tab_buttons[tab["key"]] = btn
             tab_row.append(btn)
 
+        p = design.T()
         return ft.Container(
             content=ft.Column(
                 [
                     ft.Container(
-                        content=ft.Column([name_row, subtitle], spacing=2),
-                        padding=ft.Padding.only(left=16, right=16, top=8, bottom=6),
+                        content=ft.Column([name_row, subtitle],
+                                          spacing=design.Space.SM),
+                        padding=ft.Padding.only(left=design.Space.LG,
+                                                right=design.Space.LG,
+                                                top=design.Space.MD,
+                                                bottom=design.Space.MD),
                     ),
+                    # Controllo segmentato (pillole) invece dei tab sottolineati:
+                    # stesso linguaggio delle pillole usate in Home e Master.
                     ft.Container(
-                        content=ft.Row(tab_row, spacing=0),
-                        border=ft.Border.only(top=ft.BorderSide(1, COLOR_BORDER)),
+                        content=ft.Row(tab_row, spacing=design.Space.XS),
+                        bgcolor=p.surface_alt,
+                        border_radius=design.Radius.PILL,
+                        padding=design.Space.XS,
+                        margin=ft.Margin.only(left=design.Space.MD,
+                                              right=design.Space.MD,
+                                              bottom=design.Space.MD),
                     ),
                 ],
                 spacing=0,
             ),
-            bgcolor=COLOR_BG_SECONDARY,
-            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER_ACCENT)),
+            bgcolor=p.surface,
+            shadow=design.elevation(1),
         )
 
+    def _style_tab_button(self, btn: ft.Container, active: bool) -> None:
+        """Stile della pillola di tab — usato sia in costruzione sia al cambio tab."""
+        p = design.T()
+        label = cast(ft.Text, btn.content)
+        label.color = p.primary if active else p.text_2
+        label.weight = ft.FontWeight.BOLD if active else ft.FontWeight.W_500
+        btn.bgcolor = p.surface if active else "transparent"
+        btn.shadow = design.elevation(1) if active else None
+
     def _make_tab_button(self, key: str, label: str) -> ft.Container:
-        is_active = key == self.active_tab
-        return ft.Container(
+        btn = ft.Container(
             content=ft.Text(
                 label,
-                size=11,
-                color=COLOR_ACCENT_CRIMSON if is_active else COLOR_TEXT_SECONDARY,
-                weight=ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL,
+                size=design.Size.LABEL + 1,
                 text_align=ft.TextAlign.CENTER,
+                font_family=design.Font.BODY,
                 no_wrap=True,
+                overflow=ft.TextOverflow.ELLIPSIS,
             ),
-            padding=ft.Padding.symmetric(horizontal=6, vertical=9),
-            bgcolor=COLOR_BG_TAB_ACTIVE if is_active else COLOR_BG_TAB_INACTIVE,
-            border=ft.Border.only(
-                bottom=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if is_active else "transparent")
-            ),
+            padding=ft.Padding.symmetric(horizontal=design.Space.SM, vertical=design.Space.SM),
+            border_radius=design.Radius.PILL,
             on_click=lambda e, k=key: self._switch_tab(k),
             ink=True,
             expand=True,
             alignment=ft.Alignment.CENTER,
+            animate=ft.Animation(design.Duration.BASE, design.CURVE),
         )
+        self._style_tab_button(btn, key == self.active_tab)
+        return btn
 
     # ------------------------------------------------------------------
     # Dialog — modifica caratteristiche
@@ -248,15 +293,15 @@ class SheetView(ft.Column):
                 label=f"{name} ({abbr})",
                 value=str(score),
                 keyboard_type=ft.KeyboardType.NUMBER,
-                text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-                border_color=COLOR_BORDER,
-                focused_border_color=COLOR_ACCENT_BLUE,
-                bgcolor=COLOR_BG_CARD,
-                label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+                text_style=ft.TextStyle(size=13, color=design.T().text),
+                border_color=design.T().border,
+                focused_border_color=design.T().magic,
+                bgcolor=design.T().surface,
+                label_style=ft.TextStyle(color=design.T().text_2),
                 expand=True,
             )
 
-        error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
+        error_text = ft.Text("", size=11, color=design.T().primary)
 
         def on_save(ev):
             if page is None:
@@ -286,12 +331,12 @@ class SheetView(ft.Column):
 
         dlg = ft.AlertDialog(
             title=ft.Text("Modifica Caratteristiche", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(
                 [
                     ft.Text(
                         "Valori ammessi: 1–30  (house rules: nessun limite a 20)",
-                        size=11, color=COLOR_TEXT_MUTED,
+                        size=11, color=design.T().text_3,
                     ),
                     ft.Container(height=4),
                     ft.Row([fields["str"], fields["dex"], fields["con"]], spacing=10),
@@ -307,12 +352,11 @@ class SheetView(ft.Column):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
+                        bgcolor=design.T().primary, color=design.T().on_primary,
                     ),
                 ),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)
 
@@ -333,14 +377,14 @@ class SheetView(ft.Column):
             value=str(current_override) if current_override > 0 else "",
             hint_text=f"Standard PHB: +{standard_pb}",
             keyboard_type=ft.KeyboardType.NUMBER,
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_BLUE,
-            bgcolor=COLOR_BG_CARD,
-            label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
+            bgcolor=design.T().surface,
+            label_style=ft.TextStyle(color=design.T().text_2),
             width=280,
         )
-        error_text = ft.Text("", size=11, color=COLOR_ACCENT_CRIMSON)
+        error_text = ft.Text("", size=11, color=design.T().primary)
 
         def on_save(ev):
             if page is None:
@@ -377,17 +421,17 @@ class SheetView(ft.Column):
 
         dlg = ft.AlertDialog(
             title=ft.Text("Bonus Competenza", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(
                 [
                     ft.Text(
                         f"Standard PHB per Lv.{c.level}: +{standard_pb}",
-                        size=12, color=COLOR_TEXT_SECONDARY,
+                        size=12, color=design.T().text_2,
                     ),
                     ft.Text(
                         "Lascia vuoto per usare la tabella PHB standard. "
                         "Imposta un valore diverso per house rules.",
-                        size=11, color=COLOR_TEXT_MUTED,
+                        size=11, color=design.T().text_3,
                     ),
                     ft.Container(height=4),
                     tf,
@@ -401,18 +445,17 @@ class SheetView(ft.Column):
                 ft.TextButton(
                     "Reset PHB",
                     on_click=on_reset_phb,
-                    style=ft.ButtonStyle(color=COLOR_TEXT_MUTED),
+                    style=ft.ButtonStyle(color=design.T().text_3),
                 ),
                 ft.ElevatedButton(
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
+                        bgcolor=design.T().primary, color=design.T().on_primary,
                     ),
                 ),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)
 
@@ -471,14 +514,7 @@ class SheetView(ft.Column):
 
         # Aggiorna stile bottoni
         for k, btn in self._tab_buttons.items():
-            active = k == key
-            label = cast(ft.Text, btn.content)
-            label.color = COLOR_ACCENT_CRIMSON if active else COLOR_TEXT_SECONDARY
-            label.weight = ft.FontWeight.BOLD if active else ft.FontWeight.NORMAL
-            btn.bgcolor = COLOR_BG_TAB_ACTIVE if active else COLOR_BG_TAB_INACTIVE
-            btn.border = ft.Border.only(
-                bottom=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if active else "transparent")
-            )
+            self._style_tab_button(btn, k == key)
 
         self.content_container.content = self._get_tab_content(key)
         self.update()
@@ -518,11 +554,11 @@ class SheetView(ft.Column):
             expand=True,
             content=ft.Column(
                 [
-                    ft.Icon(icon, size=52, color=COLOR_BORDER),
+                    ft.Icon(icon, size=52, color=design.T().border),
                     ft.Container(height=12),
-                    ft.Text(label, size=20, color=COLOR_TEXT_MUTED),
+                    ft.Text(label, size=20, color=design.T().text_3),
                     ft.Container(height=8),
-                    ft.Text("In sviluppo...", size=13, color=COLOR_TEXT_MUTED),
+                    ft.Text("In sviluppo...", size=13, color=design.T().text_3),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,

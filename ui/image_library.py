@@ -26,8 +26,8 @@ from typing import Callable
 
 import flet as ft
 
-from config.settings import *
 from data.database import get_image_library_path
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -137,17 +137,17 @@ def show_image_library_picker(page: ft.Page, on_select: Callable[[str], None]):
         if b64:
             thumb = ft.Container(
                 content=ft.Image(src=_data_uri(b64), fit=ft.BoxFit.COVER),
-                width=80, height=60, border_radius=4,
+                width=80, height=60, border_radius=design.Radius.SM,
                 clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                border=ft.Border.all(1, COLOR_BORDER),
+                border=ft.Border.all(1, design.T().border),
             )
         else:
             thumb = ft.Container(
                 content=ft.Icon(ft.Icons.BROKEN_IMAGE_OUTLINED, size=28,
-                                color=COLOR_TEXT_MUTED),
-                width=80, height=60, border_radius=4,
-                bgcolor=COLOR_BG_SECONDARY,
-                border=ft.Border.all(1, COLOR_BORDER),
+                                color=design.T().text_3),
+                width=80, height=60, border_radius=design.Radius.SM,
+                bgcolor=design.T().surface_alt,
+                shadow=design.elevation(1),
                 alignment=ft.Alignment.CENTER,
             )
 
@@ -155,11 +155,11 @@ def show_image_library_picker(page: ft.Page, on_select: Callable[[str], None]):
             content=ft.Row(
                 [
                     thumb,
-                    ft.Text(name, size=12, color=COLOR_TEXT_PRIMARY, expand=True,
+                    ft.Text(name, size=12, color=design.T().text, expand=True,
                             max_lines=2, selectable=True),
                     ft.IconButton(
                         ft.Icons.CHECK_CIRCLE_OUTLINE, icon_size=22,
-                        icon_color=COLOR_ACCENT_CRIMSON,
+                        icon_color=design.T().primary,
                         tooltip="Seleziona questa immagine",
                         on_click=lambda e, p=path: _select(p),
                     ),
@@ -167,7 +167,7 @@ def show_image_library_picker(page: ft.Page, on_select: Callable[[str], None]):
                 spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.symmetric(vertical=6, horizontal=6),
-            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
             on_click=lambda e, p=path: _select(p),
             ink=True,
         )
@@ -175,14 +175,14 @@ def show_image_library_picker(page: ft.Page, on_select: Callable[[str], None]):
     def _empty_state() -> ft.Column:
         return ft.Column(
             [
-                ft.Icon(ft.Icons.PHOTO_LIBRARY_OUTLINED, size=40, color=COLOR_BORDER),
+                ft.Icon(ft.Icons.PHOTO_LIBRARY_OUTLINED, size=40, color=design.T().border),
                 ft.Container(height=8),
                 ft.Text("Nessuna immagine trovata", size=13,
-                        weight=ft.FontWeight.BOLD, color=COLOR_TEXT_MUTED),
+                        weight=ft.FontWeight.BOLD, color=design.T().text_3),
                 ft.Container(height=4),
                 ft.Text(
                     f"Copia le immagini in questa cartella sul server:\n{lib_dir}",
-                    size=11, color=COLOR_TEXT_MUTED,
+                    size=11, color=design.T().text_3,
                     text_align=ft.TextAlign.CENTER, selectable=True,
                 ),
             ],
@@ -209,13 +209,13 @@ def show_image_library_picker(page: ft.Page, on_select: Callable[[str], None]):
     page.show_dialog(ft.AlertDialog(
         modal=True,
         title=ft.Text("Libreria immagini", size=14, weight=ft.FontWeight.BOLD,
-                      color=COLOR_TEXT_TITLE),
-        bgcolor=COLOR_BG_CARD,
+                      color=design.T().text),
+        bgcolor=design.T().surface,
         content=body_container,
         actions=[
             ft.TextButton("Ricarica", icon=ft.Icons.REFRESH, on_click=_refresh,
-                          style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY)),
+                          style=ft.ButtonStyle(color=design.T().text_2)),
             ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog(),
-                          style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON)),
+                          style=ft.ButtonStyle(color=design.T().primary)),
         ],
     ))

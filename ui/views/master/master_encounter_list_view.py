@@ -16,11 +16,6 @@ from typing import Any
 
 import flet as ft
 
-from config.settings import (
-    COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_RED,
-    COLOR_BG_CARD, COLOR_BORDER,
-    COLOR_TEXT_MUTED, COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
-)
 from data.models import MasterEncounter
 from data.repositories import master_repo
 from ui.theme import title_text, muted_text, primary_button
@@ -76,8 +71,8 @@ class MasterEncounterListView(ft.Column):
                                 icon=ft.Icons.CASINO,
                                 on_click=self._on_generate_click,
                                 style=ft.ButtonStyle(
-                                    color=COLOR_ACCENT_BLUE,
-                                    side=ft.BorderSide(1, COLOR_ACCENT_BLUE),
+                                    color=design.T().magic,
+                                    side=ft.BorderSide(1, design.T().magic),
                                 ),
                             ),
                             primary_button("+ Nuovo Incontro", on_click=self._on_new_click),
@@ -116,7 +111,7 @@ class MasterEncounterListView(ft.Column):
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Icon(ft.Icons.SHIELD_OUTLINED, size=48, color=COLOR_BORDER),
+                    ft.Icon(ft.Icons.SHIELD_OUTLINED, size=48, color=design.T().border),
                     ft.Container(height=10),
                     muted_text(
                         "Nessun incontro attivo. Creane uno per iniziare a tracciare "
@@ -137,30 +132,30 @@ class MasterEncounterListView(ft.Column):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(ft.Icons.SHIELD, color=COLOR_ACCENT_CRIMSON, size=22),
+                    ft.Icon(ft.Icons.SHIELD, color=design.T().primary, size=22),
                     ft.Container(width=10),
                     ft.Column(
                         [
                             ft.Text(enc.name or "(senza nome)", size=14, weight=ft.FontWeight.BOLD,
-                                     color=COLOR_TEXT_TITLE),
-                            ft.Text(subtitle, size=11, color=COLOR_TEXT_MUTED),
-                            ft.Text(enc.notes, size=11, color=COLOR_TEXT_SECONDARY, italic=True)
+                                     color=design.T().text),
+                            ft.Text(subtitle, size=11, color=design.T().text_3),
+                            ft.Text(enc.notes, size=11, color=design.T().text_2, italic=True)
                             if enc.notes else ft.Container(height=0),
                         ],
                         spacing=3, expand=True,
                     ),
                     ft.IconButton(
-                        icon=ft.Icons.DELETE_OUTLINE, icon_color=COLOR_TEXT_MUTED, icon_size=18,
+                        icon=ft.Icons.DELETE_OUTLINE, icon_color=design.T().text_3, icon_size=18,
                         tooltip="Elimina incontro",
                         on_click=lambda e, en=enc: self._confirm_delete(en),
                     ),
-                    ft.Icon(ft.Icons.CHEVRON_RIGHT, color=COLOR_TEXT_MUTED, size=18),
+                    ft.Icon(ft.Icons.CHEVRON_RIGHT, color=design.T().text_3, size=18),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.all(12),
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.all(1, COLOR_BORDER),
+            bgcolor=design.T().surface,
+            shadow=design.elevation(1),
             border_radius=8,
             on_click=lambda e, en=enc: self._open_encounter(en.id),
             ink=True,
@@ -180,13 +175,13 @@ class MasterEncounterListView(ft.Column):
             title=ft.Text("Elimina incontro?", size=15, weight=ft.FontWeight.BOLD),
             content=ft.Text(
                 f"\"{enc.name}\" e tutti i suoi combattenti verranno eliminati definitivamente.",
-                size=12, color=COLOR_TEXT_SECONDARY,
+                size=12, color=design.T().text_2,
             ),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=_do_delete,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_RED, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().danger, color=design.T().on_primary),
                 ),
             ]),
         )
@@ -230,7 +225,7 @@ class MasterEncounterListView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=_do_create,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent),
+                    style=ft.ButtonStyle(bgcolor=design.T().magic, color=design.T().on_accent),
                 ),
             ]),
         )

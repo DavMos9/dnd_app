@@ -139,11 +139,11 @@ class EsplorazioneTab(ScrollMemoryListView):
         passive = override if override > 0 else calculated
 
         if passive >= 18:
-            color = COLOR_ACCENT_GREEN
+            color = design.T().success
         elif passive >= 14:
-            color = COLOR_ACCENT_BLUE
+            color = design.T().magic
         else:
-            color = COLOR_TEXT_PRIMARY
+            color = design.T().text
 
         indicator = ""
         if is_expert:
@@ -170,7 +170,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                             ft.Row(
                                 [
                                     label_text("Percezione Passiva", 9),
-                                    ft.Icon(ft.Icons.EDIT, size=11, color=COLOR_TEXT_MUTED),
+                                    ft.Icon(ft.Icons.EDIT, size=11, color=design.T().text_3),
                                 ],
                                 spacing=4,
                                 alignment=ft.MainAxisAlignment.CENTER,
@@ -179,8 +179,8 @@ class EsplorazioneTab(ScrollMemoryListView):
                                 str(passive),
                                 size=42,
                                 weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE if override > 0 else color,
-                                font_family=FONT_MONO,
+                                color=design.T().magic if override > 0 else color,
+                                font_family=design.Font.MONO,
                             ),
                             muted_text(detail, size=11, text_align=ft.TextAlign.CENTER),
                         ],
@@ -190,15 +190,11 @@ class EsplorazioneTab(ScrollMemoryListView):
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=16, vertical=20),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
             ink=True,
             on_click=lambda e: self._on_edit_passive_perception(calculated),
             tooltip="Modifica Percezione Passiva",
@@ -307,8 +303,8 @@ class EsplorazioneTab(ScrollMemoryListView):
                                 str(calculated),
                                 size=30,
                                 weight=ft.FontWeight.BOLD,
-                                color=COLOR_TEXT_PRIMARY,
-                                font_family=FONT_MONO,
+                                color=design.T().text,
+                                font_family=design.Font.MONO,
                             ),
                             muted_text(detail, size=11, text_align=ft.TextAlign.CENTER),
                         ],
@@ -318,15 +314,15 @@ class EsplorazioneTab(ScrollMemoryListView):
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=16, vertical=12),
             border=ft.Border(
-                top=ft.BorderSide(2, COLOR_BORDER),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
+                top=ft.BorderSide(2, design.T().border),
+                left=ft.BorderSide(1, design.T().border),
+                right=ft.BorderSide(1, design.T().border),
+                bottom=ft.BorderSide(1, design.T().border),
             ),
-            border_radius=6,
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -440,17 +436,17 @@ class EsplorazioneTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(width=3, height=14, bgcolor=COLOR_ACCENT_CRIMSON, border_radius=1),
+                    ft.Container(width=3, height=14, bgcolor=design.T().primary, border_radius=1),
                     ft.Container(width=8),
                     ft.Text(
                         "LINGUE",
                         size=10,
-                        color=COLOR_TEXT_SECONDARY,
+                        color=design.T().text_2,
                         weight=ft.FontWeight.BOLD,
                         style=ft.TextStyle(letter_spacing=2),
                     ),
                     ft.Container(width=8),
-                    ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
+                    ft.Container(expand=True, height=1, bgcolor=design.T().border),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -468,11 +464,11 @@ class EsplorazioneTab(ScrollMemoryListView):
                 rows.append(
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.LANGUAGE, size=14, color=COLOR_TEXT_MUTED),
+                            ft.Icon(ft.Icons.LANGUAGE, size=14, color=design.T().text_3),
                             ft.Text(
                                 p.name,
                                 size=13,
-                                color=COLOR_TEXT_PRIMARY,
+                                color=design.T().text,
                                 expand=True,
                             ),
                         ],
@@ -491,17 +487,17 @@ class EsplorazioneTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(width=3, height=14, bgcolor=COLOR_ACCENT_CRIMSON, border_radius=1),
+                    ft.Container(width=3, height=14, bgcolor=design.T().primary, border_radius=1),
                     ft.Container(width=8),
                     ft.Text(
                         "STRUMENTI",
                         size=10,
-                        color=COLOR_TEXT_SECONDARY,
+                        color=design.T().text_2,
                         weight=ft.FontWeight.BOLD,
                         style=ft.TextStyle(letter_spacing=2),
                     ),
                     ft.Container(width=8),
-                    ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
+                    ft.Container(expand=True, height=1, bgcolor=design.T().border),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -517,7 +513,7 @@ class EsplorazioneTab(ScrollMemoryListView):
             rows = []
             for s in sorted(strumenti, key=lambda x: x.name):
                 indicator = "★" if s.is_expert else "●"
-                ind_color = COLOR_ACCENT_BLUE if s.is_expert else COLOR_ACCENT_CRIMSON
+                ind_color = design.T().magic if s.is_expert else design.T().primary
                 lvl_text = "maestria" if s.is_expert else "competenza"
                 rows.append(
                     ft.Row(
@@ -526,7 +522,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                             ft.Text(
                                 s.name,
                                 size=13,
-                                color=COLOR_TEXT_PRIMARY,
+                                color=design.T().text,
                                 expand=True,
                             ),
                             muted_text(lvl_text, 11),
@@ -547,20 +543,20 @@ class EsplorazioneTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(width=3, height=14, bgcolor=COLOR_ACCENT_CRIMSON, border_radius=1),
+                    ft.Container(width=3, height=14, bgcolor=design.T().primary, border_radius=1),
                     ft.Container(width=8),
                     ft.Text(
                         "ABILITÀ SPECIALI",
-                        size=10, color=COLOR_TEXT_SECONDARY, weight=ft.FontWeight.BOLD,
+                        size=10, color=design.T().text_2, weight=ft.FontWeight.BOLD,
                         style=ft.TextStyle(letter_spacing=2),
                     ),
                     ft.Container(width=8),
-                    ft.Container(expand=True, height=1, bgcolor=COLOR_BORDER),
+                    ft.Container(expand=True, height=1, bgcolor=design.T().border),
                     ft.Container(width=8),
                     ft.TextButton(
                         "+ Aggiungi",
                         on_click=lambda e: self._on_add_custom_ability(),
-                        style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
+                        style=ft.ButtonStyle(color=design.T().primary),
                     ),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -591,7 +587,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                 [
                     ft.Column(
                         [
-                            ft.Text(ab.name, size=13, color=COLOR_TEXT_PRIMARY,
+                            ft.Text(ab.name, size=13, color=design.T().text,
                                     weight=ft.FontWeight.W_600),
                             muted_text(full_desc, 11) if full_desc else ft.Container(height=0),
                         ],
@@ -599,13 +595,13 @@ class EsplorazioneTab(ScrollMemoryListView):
                         expand=True,
                     ),
                     ft.IconButton(
-                        ft.Icons.EDIT, icon_size=16, icon_color=COLOR_TEXT_MUTED,
+                        ft.Icons.EDIT, icon_size=16, icon_color=design.T().text_3,
                         tooltip="Modifica",
                         on_click=lambda e, a=ab: self._on_edit_custom_ability(a),
                         padding=ft.Padding.all(2),
                     ),
                     ft.IconButton(
-                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=COLOR_ACCENT_CRIMSON,
+                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().primary,
                         tooltip="Elimina",
                         on_click=lambda e, a=ab: self._on_delete_custom_ability(a),
                         padding=ft.Padding.all(2),
@@ -614,7 +610,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                 vertical_alignment=ft.CrossAxisAlignment.START,
                 spacing=4,
             ),
-            border=ft.Border(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border(bottom=ft.BorderSide(1, design.T().border)),
             padding=ft.Padding.only(bottom=8),
         )
 
@@ -693,7 +689,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
                     "Elimina", on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
             ],
         )
@@ -717,8 +713,8 @@ class EsplorazioneTab(ScrollMemoryListView):
             total = base_mod + (pb if prof else 0)
             total_str = f"+{total}" if total >= 0 else str(total)
 
-            indicator_color = COLOR_ACCENT_CRIMSON if prof else COLOR_BORDER
-            text_color = COLOR_TEXT_PRIMARY if prof else COLOR_TEXT_MUTED
+            indicator_color = design.T().primary if prof else design.T().border
+            text_color = design.T().text if prof else design.T().text_3
 
             cells.append(
                 ft.Container(
@@ -732,7 +728,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                                         border_radius=3,
                                     ),
                                     ft.Text(
-                                        abbr, size=9, color=COLOR_TEXT_SECONDARY,
+                                        abbr, size=9, color=design.T().text_2,
                                         weight=ft.FontWeight.BOLD,
                                         style=ft.TextStyle(letter_spacing=1),
                                     ),
@@ -745,7 +741,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                                 size=16,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,
-                                font_family=FONT_MONO,
+                                font_family=design.Font.MONO,
                                 text_align=ft.TextAlign.CENTER,
                             ),
                         ],
@@ -753,24 +749,20 @@ class EsplorazioneTab(ScrollMemoryListView):
                         spacing=2,
                     ),
                     expand=True,
-                    bgcolor=COLOR_BG_SECONDARY if prof else COLOR_BG_CARD,
+                    bgcolor=design.T().surface_alt if prof else design.T().surface,
                     padding=ft.Padding.symmetric(horizontal=4, vertical=8),
-                    border=ft.Border.all(1, COLOR_BORDER),
-                    border_radius=4,
+                    shadow=design.elevation(1),
+                    border_radius=design.Radius.SM,
                 )
             )
 
         return ft.Container(
             content=ft.Row(cells, spacing=4),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=12, vertical=12),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -793,15 +785,15 @@ class EsplorazioneTab(ScrollMemoryListView):
             if is_expert:
                 bonus = pb * 2
                 indicator = "★"
-                ind_color = COLOR_ACCENT_BLUE
+                ind_color = design.T().magic
             elif is_prof:
                 bonus = pb
                 indicator = "●"
-                ind_color = COLOR_ACCENT_CRIMSON
+                ind_color = design.T().primary
             else:
                 bonus = 0
                 indicator = "○"
-                ind_color = COLOR_BORDER
+                ind_color = design.T().border
 
             total = base_mod + bonus
             total_str = f"+{total}" if total >= 0 else str(total)
@@ -815,15 +807,15 @@ class EsplorazioneTab(ScrollMemoryListView):
                             total_str,
                             size=12,
                             weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_PRIMARY if is_prof else COLOR_TEXT_MUTED,
-                            font_family=FONT_MONO,
+                            color=design.T().text if is_prof else design.T().text_3,
+                            font_family=design.Font.MONO,
                             width=32,
                             text_align=ft.TextAlign.RIGHT,
                         ),
                         ft.Text(
                             skill_name,
                             size=12,
-                            color=COLOR_TEXT_PRIMARY if is_prof else COLOR_TEXT_SECONDARY,
+                            color=design.T().text if is_prof else design.T().text_2,
                             expand=True,
                         ),
                         muted_text(abbr, 10),
@@ -840,21 +832,17 @@ class EsplorazioneTab(ScrollMemoryListView):
             content=ft.Row(
                 [
                     ft.Column(cast(list[ft.Control], col_left), spacing=6, expand=True),
-                    ft.Container(width=1, bgcolor=COLOR_BORDER),
+                    ft.Container(width=1, bgcolor=design.T().border),
                     ft.Column(cast(list[ft.Control], col_right), spacing=6, expand=True),
                 ],
                 spacing=10,
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=12, vertical=12),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # NOTA: Lingue/Strumenti sono sola lettura da qui (2026-07-17) —
@@ -873,8 +861,8 @@ class EsplorazioneTab(ScrollMemoryListView):
             [
                 muted_text(label, 12),
                 ft.Text(
-                    value, size=13, color=COLOR_TEXT_PRIMARY,
-                    weight=ft.FontWeight.BOLD, font_family=FONT_BODY,
+                    value, size=13, color=design.T().text,
+                    weight=ft.FontWeight.BOLD, font_family=design.Font.BODY,
                 ),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -889,10 +877,10 @@ class EsplorazioneTab(ScrollMemoryListView):
                     ft.Row(
                         [
                             ft.Text(
-                                value, size=13, color=COLOR_TEXT_PRIMARY,
-                                weight=ft.FontWeight.BOLD, font_family=FONT_BODY,
+                                value, size=13, color=design.T().text,
+                                weight=ft.FontWeight.BOLD, font_family=design.Font.BODY,
                             ),
-                            ft.Icon(ft.Icons.EDIT, size=12, color=COLOR_TEXT_MUTED),
+                            ft.Icon(ft.Icons.EDIT, size=12, color=design.T().text_3),
                         ],
                         spacing=4,
                     ),
@@ -901,22 +889,18 @@ class EsplorazioneTab(ScrollMemoryListView):
             ),
             on_click=lambda e: on_click(),
             ink=True,
-            border_radius=4,
+            border_radius=design.Radius.SM,
             tooltip=f"Modifica {label}",
         )
 
     def _compact_card(self, rows: list[ft.Control]) -> ft.Container:
         return ft.Container(
             content=ft.Column(rows, spacing=6),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=12, vertical=12),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -935,11 +919,11 @@ class EsplorazioneTab(ScrollMemoryListView):
             max_lines=12,
             hint_text="Scrivi qui note veloci: tiri da ricordare, promemoria abilità, "
                       "effetti attivi, info ricevute dal DM…",
-            hint_style=ft.TextStyle(size=12, color=COLOR_TEXT_MUTED),
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_BLUE,
-            bgcolor=COLOR_BG_CARD,
+            hint_style=ft.TextStyle(size=12, color=design.T().text_3),
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
+            bgcolor=design.T().surface,
             expand=True,
         )
 
@@ -959,10 +943,10 @@ class EsplorazioneTab(ScrollMemoryListView):
                 ],
                 spacing=6,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.all(12),
-            border=ft.Border.all(1, COLOR_BORDER),
-            border_radius=6,
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------

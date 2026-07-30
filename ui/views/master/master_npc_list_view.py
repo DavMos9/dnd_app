@@ -15,11 +15,6 @@ from typing import Any
 
 import flet as ft
 
-from config.settings import (
-    COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_GOLD, COLOR_ACCENT_RED,
-    COLOR_BG_CARD, COLOR_BORDER,
-    COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
-)
 from data.game_data.game_data_loader import parse_monster_xp
 from data.models import MasterNpc
 from data.repositories import master_repo
@@ -132,7 +127,7 @@ class MasterNpcListView(ft.Column):
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Icon(ft.Icons.GROUPS_OUTLINED, size=48, color=COLOR_BORDER),
+                    ft.Icon(ft.Icons.GROUPS_OUTLINED, size=48, color=design.T().border),
                     ft.Container(height=10),
                     muted_text(msg, size=13, text_align=ft.TextAlign.CENTER),
                 ],
@@ -145,9 +140,9 @@ class MasterNpcListView(ft.Column):
     def _npc_card(self, npc: MasterNpc) -> ft.Control:
         chips: list[ft.Control] = []
         if npc.role:
-            chips.append(self._chip(npc.role, COLOR_ACCENT_BLUE))
+            chips.append(self._chip(npc.role, design.T().magic))
         for tag in [t.strip() for t in npc.tags.split(",") if t.strip()]:
-            chips.append(self._chip(tag, COLOR_TEXT_MUTED))
+            chips.append(self._chip(tag, design.T().text_3))
 
         subtitle_parts: list[str] = []
         if npc.has_stat_block:
@@ -163,26 +158,26 @@ class MasterNpcListView(ft.Column):
                 [
                     ft.Icon(
                         ft.Icons.SHIELD if npc.has_stat_block else ft.Icons.PERSON_OUTLINE,
-                        color=COLOR_ACCENT_CRIMSON if npc.has_stat_block else COLOR_TEXT_MUTED,
+                        color=design.T().primary if npc.has_stat_block else design.T().text_3,
                         size=22,
                     ),
                     ft.Container(width=10),
                     ft.Column(
                         [
                             ft.Text(npc.name or "(senza nome)", size=14, weight=ft.FontWeight.BOLD,
-                                     color=COLOR_TEXT_TITLE),
+                                     color=design.T().text),
                             ft.Row(chips, spacing=6, wrap=True) if chips else ft.Container(height=0),
-                            ft.Text(subtitle, size=11, color=COLOR_TEXT_MUTED) if subtitle else ft.Container(height=0),
+                            ft.Text(subtitle, size=11, color=design.T().text_3) if subtitle else ft.Container(height=0),
                         ],
                         spacing=3, expand=True,
                     ),
-                    ft.Icon(ft.Icons.CHEVRON_RIGHT, color=COLOR_TEXT_MUTED, size=18),
+                    ft.Icon(ft.Icons.CHEVRON_RIGHT, color=design.T().text_3, size=18),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.all(12),
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.all(1, COLOR_BORDER),
+            bgcolor=design.T().surface,
+            shadow=design.elevation(1),
             border_radius=8,
             on_click=lambda e, n=npc: self._open_detail(n),
             ink=True,
@@ -211,23 +206,23 @@ class MasterNpcListView(ft.Column):
         else:
             content_col = ft.Column(
                 [ft.Text("Nessuna statistica di combattimento — solo scheda di ruolo.",
-                         size=12, color=COLOR_TEXT_MUTED, italic=True)]
+                         size=12, color=design.T().text_3, italic=True)]
             )
 
         info_rows: list[ft.Control] = []
         if npc.role:
-            info_rows.append(body_text(f"Ruolo: {npc.role}", size=12, color=COLOR_TEXT_SECONDARY))
+            info_rows.append(body_text(f"Ruolo: {npc.role}", size=12, color=design.T().text_2))
         if npc.tags:
-            info_rows.append(body_text(f"Tag: {npc.tags}", size=12, color=COLOR_TEXT_MUTED))
+            info_rows.append(body_text(f"Tag: {npc.tags}", size=12, color=design.T().text_3))
         if npc.notes:
             info_rows.append(ft.Container(height=6))
-            info_rows.append(body_text(npc.notes, size=13, color=COLOR_TEXT_PRIMARY))
+            info_rows.append(body_text(npc.notes, size=13, color=design.T().text))
 
         dlg = ft.AlertDialog(
             title=ft.Text(npc.name or "(senza nome)", size=16, weight=ft.FontWeight.BOLD),
             content=ft.Container(
                 content=ft.Column(
-                    [*info_rows, ft.Divider(height=14, color=COLOR_BORDER) if info_rows else ft.Container(height=0),
+                    [*info_rows, ft.Divider(height=14, color=design.T().border) if info_rows else ft.Container(height=0),
                      content_col],
                     scroll=ft.ScrollMode.AUTO,
                 ),
@@ -244,7 +239,7 @@ class MasterNpcListView(ft.Column):
                 ),
                 ft.TextButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE,
-                    style=ft.ButtonStyle(color=COLOR_ACCENT_RED),
+                    style=ft.ButtonStyle(color=design.T().danger),
                     on_click=lambda e, n=npc: (page.pop_dialog(), self._confirm_delete(n)),
                 ),
                 ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
@@ -267,13 +262,13 @@ class MasterNpcListView(ft.Column):
             content=ft.Text(
                 f"\"{npc.name}\" verrà rimosso dalla rubrica. Se è già presente in un incontro "
                 "salvato, il suo nome/CA/PF restano comunque nello storico di quell'incontro.",
-                size=12, color=COLOR_TEXT_SECONDARY,
+                size=12, color=design.T().text_2,
             ),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=_do_delete,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_RED, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().danger, color=design.T().on_primary),
                 ),
             ]),
         )
@@ -291,7 +286,7 @@ class MasterNpcListView(ft.Column):
                 title=ft.Text("Nessun incontro attivo", size=15, weight=ft.FontWeight.BOLD),
                 content=ft.Text(
                     "Crea prima un incontro dalla tab \"Incontri\", poi torna qui per aggiungerci questo NPC.",
-                    size=12, color=COLOR_TEXT_SECONDARY,
+                    size=12, color=design.T().text_2,
                 ),
                 actions=[ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog())],
             )
@@ -325,7 +320,7 @@ class MasterNpcListView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent),
+                    style=ft.ButtonStyle(bgcolor=design.T().magic, color=design.T().on_accent),
                 ),
             ]),
         )
@@ -357,27 +352,27 @@ class MasterNpcListView(ft.Column):
             title=ft.Text("Nuovo NPC", size=16, weight=ft.FontWeight.BOLD),
             content=ft.Column(
                 [
-                    ft.Text("Come vuoi crearlo?", size=12, color=COLOR_TEXT_SECONDARY),
+                    ft.Text("Come vuoi crearlo?", size=12, color=design.T().text_2),
                     ft.Container(height=10),
                     ft.OutlinedButton(
                         "Nuovo dal Bestiario", icon=ft.Icons.MENU_BOOK_OUTLINED,
                         on_click=_from_bestiary,
-                        style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON,
-                                             side=ft.BorderSide(1, COLOR_ACCENT_CRIMSON)),
+                        style=ft.ButtonStyle(color=design.T().primary,
+                                             side=ft.BorderSide(1, design.T().primary)),
                     ),
                     ft.Container(height=8),
                     ft.OutlinedButton(
                         "Nuovo Manuale", icon=ft.Icons.EDIT_OUTLINED,
                         on_click=_manual,
-                        style=ft.ButtonStyle(color=COLOR_ACCENT_BLUE,
-                                             side=ft.BorderSide(1, COLOR_ACCENT_BLUE)),
+                        style=ft.ButtonStyle(color=design.T().magic,
+                                             side=ft.BorderSide(1, design.T().magic)),
                     ),
                     ft.Container(height=8),
                     ft.OutlinedButton(
                         "Genera Casuale", icon=ft.Icons.AUTO_AWESOME,
                         on_click=_generate,
-                        style=ft.ButtonStyle(color=COLOR_ACCENT_GOLD,
-                                             side=ft.BorderSide(1, COLOR_ACCENT_GOLD)),
+                        style=ft.ButtonStyle(color=design.T().magic,
+                                             side=ft.BorderSide(1, design.T().magic)),
                     ),
                 ],
                 tight=True,
@@ -398,7 +393,7 @@ class MasterNpcListView(ft.Column):
         show_monster_picker(
             self._page, "Nuovo NPC dal Bestiario", pool,
             existing_names=set(), on_select=_on_select,
-            select_label="Usa questo mostro", select_color=COLOR_ACCENT_BLUE,
+            select_label="Usa questo mostro", select_color=design.T().magic,
         )
 
     # ------------------------------------------------------------------
@@ -497,7 +492,7 @@ class MasterNpcListView(ft.Column):
         tags_tf = ft.TextField(label="Tag (separati da virgola)", value=src["tags"], dense=True, border_radius=6)
         notes_tf = ft.TextField(label="Note di ruolo / backstory", value=src["notes"],
                                  multiline=True, min_lines=2, max_lines=6, dense=True, border_radius=6)
-        error_text = ft.Text("", size=12, color=COLOR_ACCENT_RED)
+        error_text = ft.Text("", size=12, color=design.T().danger)
 
         # --- toggle + campi statistiche ---
         stat_cb = ft.Checkbox(label="Ha statistiche di combattimento", value=src["has_stat_block"])
@@ -551,7 +546,7 @@ class MasterNpcListView(ft.Column):
 
         stat_fields_col = ft.Column(
             [
-                ft.Divider(height=14, color=COLOR_BORDER),
+                ft.Divider(height=14, color=design.T().border),
                 ft.Row([type_tf, size_tf], spacing=8),
                 align_tf,
                 ft.Row([ac_tf, hp_tf, hp_formula_tf], spacing=8),
@@ -653,7 +648,7 @@ class MasterNpcListView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Salva" if is_edit else "Crea NPC", icon=ft.Icons.SAVE, on_click=_do_save,
-                    style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
             ]),
         )

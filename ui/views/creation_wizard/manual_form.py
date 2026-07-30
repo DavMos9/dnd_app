@@ -22,16 +22,9 @@ from typing import Any, cast
 import flet as ft
 
 from config.settings import (
-    COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_GOLD, COLOR_ACCENT_RED,
-    COLOR_BG_CARD, COLOR_BG_PRIMARY, COLOR_BG_SECONDARY,
-    COLOR_BORDER,
-    COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
-    ABILITY_KEYS, ABILITY_SCORES, ALIGNMENTS, DRACONIDE_ANCESTRIES,
-    LANGUAGES, RACES_BASE,
-    SKILLS, STANDARD_ARRAY,
-    WEAPONS_BY_CATEGORY,
-    get_modifier, get_modifier_str, get_permanent_class_hp_bonus,
-    get_feats_permanent_hp_bonus,
+    ABILITY_KEYS, ABILITY_SCORES, ALIGNMENTS, DRACONIDE_ANCESTRIES, LANGUAGES, RACES_BASE,
+    SKILLS, STANDARD_ARRAY, WEAPONS_BY_CATEGORY, get_modifier, get_modifier_str,
+    get_permanent_class_hp_bonus, get_feats_permanent_hp_bonus,
 )
 from core.wizard_engine import WizardEngine
 from core.equipment_manager import ArmorCandidate, resolve_armor_equip
@@ -179,9 +172,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
         # ---- Shell UI ----
         self._phase        = "identity"
-        self._content      = ft.Container(expand=True, bgcolor=COLOR_BG_PRIMARY)
+        self._content      = ft.Container(expand=True, bgcolor=design.T().bg)
         self._progress_bar = ft.ProgressBar(
-            value=0.2, color=COLOR_ACCENT_CRIMSON, bgcolor=COLOR_BORDER, height=4,
+            value=0.2, color=design.T().primary, bgcolor=design.T().border, height=4,
         )
         self._build_shell()
         self._render_identity()
@@ -196,7 +189,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 [
                     ft.IconButton(
                         icon=ft.Icons.ARROW_BACK,
-                        icon_color=COLOR_TEXT_SECONDARY,
+                        icon_color=design.T().text_2,
                         on_click=self._on_back,
                         tooltip="Indietro",
                     ),
@@ -213,8 +206,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 spacing=8,
             ),
             padding=ft.Padding.symmetric(horizontal=24, vertical=14),
-            bgcolor=COLOR_BG_SECONDARY,
-            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            bgcolor=design.T().surface_alt,
+            border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
         )
         self.controls = [header, self._progress_bar, self._content]
 
@@ -321,11 +314,11 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             value=value,
             options=[ft.DropdownOption(key=o, text=o) for o in options],
             on_select=on_select,
-            bgcolor=COLOR_BG_CARD,
-            color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_GOLD,
+            bgcolor=design.T().surface,
+            color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
             expand=True,
         )
 
@@ -341,20 +334,20 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             label="Nome Personaggio *",
             value=self._name,
             autofocus=True,
-            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
-            cursor_color=COLOR_ACCENT_GOLD,
+            bgcolor=design.T().surface, color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border, focused_border_color=design.T().magic,
+            cursor_color=design.T().magic,
             on_change=lambda e: setattr(self, "_name", e.control.value or ""),
             expand=True,
         )
         player_tf = ft.TextField(
             label="Nome Giocatore (opzionale)",
             value=self._player_name,
-            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
-            cursor_color=COLOR_ACCENT_GOLD,
+            bgcolor=design.T().surface, color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border, focused_border_color=design.T().magic,
+            cursor_color=design.T().magic,
             on_change=lambda e: setattr(self, "_player_name", e.control.value or ""),
             expand=True,
         )
@@ -410,7 +403,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         align_dd = self._dd("Allineamento", ALIGNMENTS, align_val,
                             lambda e: setattr(self, "_review_align", e.control.value or ALIGNMENTS[0]))
 
-        error_text = ft.Text("", color=COLOR_ACCENT_RED, size=13, visible=False)
+        error_text = ft.Text("", color=design.T().danger, size=13, visible=False)
 
         def _on_continue(e) -> None:
             nm = (name_tf.value or "").strip()
@@ -437,7 +430,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         content = ft.Column(
             [
                 ft.Text("Chi è il tuo personaggio?", size=22,
-                        weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                        weight=ft.FontWeight.BOLD, color=design.T().text),
                 ft.Container(height=4),
                 muted_text("Inserisci i dati base. HP, CA e velocità verranno derivati automaticamente.", size=13),
                 ft.Container(height=20),
@@ -494,19 +487,19 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 options=[ft.DropdownOption(key=str(v), text=str(v))
                          for v in sorted(STANDARD_ARRAY, reverse=True)],
                 on_select=lambda e, k=key: _on_stat_change(k, int(e.control.value or 10)),
-                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                bgcolor=design.T().surface, color=design.T().text,
+                border_color=design.T().border, focused_border_color=design.T().magic,
                 width=110,
             )
             stat_dropdowns[key] = dd
             badge = ft.Container(
                 content=ft.Text(mod_str, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE if mod >= 0 else COLOR_ACCENT_RED),
+                                color=design.T().magic if mod >= 0 else design.T().danger),
                 width=40,
                 alignment=ft.Alignment.CENTER,
             )
             return ft.Row(
-                [ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, expand=True), dd, badge],
+                [ft.Text(label, size=13, color=design.T().text, expand=True), dd, badge],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8,
             )
@@ -520,7 +513,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     badge = cast(ft.Container, cast(ft.Row, row).controls[2])
                     cast(ft.Text, badge.content).value = get_modifier_str(v)
                     cast(ft.Text, badge.content).color = (
-                        COLOR_ACCENT_GOLD if get_modifier(v) >= 0 else COLOR_ACCENT_RED
+                        design.T().magic if get_modifier(v) >= 0 else design.T().danger
                     )
                     badge.update()
             hp_note.value = _hp_note()
@@ -540,7 +533,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             [_make_stat_row(k, lbl) for k, lbl in zip(ABILITY_KEYS, ABILITY_SCORES)],
             spacing=8,
         )
-        hp_note = ft.Text(_hp_note(), size=11, color=COLOR_TEXT_MUTED, italic=True)
+        hp_note = ft.Text(_hp_note(), size=11, color=design.T().text_3, italic=True)
 
         # ---- Sottorazza / Discendenza Draconica ----
         # Scelta qui (non in fase "Scelte") perché la sottorazza può portare
@@ -588,9 +581,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     value=val,
                     options=[ft.DropdownOption(key=a, text=a) for a in DRACONIDE_ANCESTRIES],
                     on_select=_on_select,
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface, color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
                 ))
             elif subraces:
@@ -606,9 +599,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     value=val,
                     options=[ft.DropdownOption(key=s, text=s) for s in subraces],
                     on_select=_on_select,
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface, color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
                 ))
             else:
@@ -637,7 +630,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         content = ft.Column(
             [
                 ft.Text("Assegna i punteggi", size=22,
-                        weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                        weight=ft.FontWeight.BOLD, color=design.T().text),
                 ft.Container(height=4),
                 muted_text(
                     f"Standard Array [{', '.join(str(v) for v in sorted(STANDARD_ARRAY, reverse=True))}] "
@@ -729,9 +722,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     _rebuild_spells_init_col(),
                     _update_extra_card(),
                 ],
-                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                bgcolor=design.T().surface, color=design.T().text,
+                label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                border_color=design.T().border, focused_border_color=design.T().magic,
                 expand=True,
             ))
             subclass_col.visible = bool(subclasses)
@@ -775,7 +768,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 labels = ", ".join(_ARMOR_WEAPON_TOKEN_LABELS.get(f, f) for f in fixed)
                 subclass_bonus_col.controls.append(ft.Text(
                     f"Competenze bonus dalla sottoclasse: {labels}",
-                    size=12, color=COLOR_TEXT_SECONDARY,
+                    size=12, color=design.T().text_2,
                 ))
 
             if total_slots > 0:
@@ -787,7 +780,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 )
                 subclass_bonus_col.controls.append(ft.Text(
                     "Scegli le competenze bonus della sottoclasse",
-                    size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600,
+                    size=13, color=design.T().text, weight=ft.FontWeight.W_600,
                 ))
 
                 def _build_choice_entry_dropdowns(choice_entry: dict, base: int) -> list[ft.Control]:
@@ -838,9 +831,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                             value=curr,
                             options=[ft.DropdownOption(key=p, text=p) for p in opts],
                             on_select=_make_handler(),
-                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                            bgcolor=design.T().surface, color=design.T().text,
+                            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                            border_color=design.T().border, focused_border_color=design.T().magic,
                             expand=True,
                         )
                         dds.append(dd)
@@ -874,9 +867,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     value=curr,
                     options=[ft.DropdownOption(key=a, text=a) for a in DRACONIDE_ANCESTRIES],
                     on_select=lambda e: setattr(self, "_review_dragon_ancestry", e.control.value or ""),
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface, color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
                 ))
                 dragon_col.visible = True
@@ -902,9 +895,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     value=self._review_fighting_style,
                     options=[ft.DropdownOption(key=s, text=s) for s in styles],
                     on_select=lambda e: setattr(self, "_review_fighting_style", e.control.value or ""),
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface, color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
                 ))
                 fighting_style_col.visible = True
@@ -946,7 +939,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
                 race_extras_col.controls.append(
                     ft.Text("Versatilità Mezzelf — assegna +1 a due caratteristiche (escluso Carisma)",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 flex_dds: list[ft.Control] = []
                 flex_dd_refs: list[ft.Dropdown] = []
@@ -990,9 +983,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         value=curr_key,
                         options=[ft.DropdownOption(key=k, text=stat_labels.get(k, k)) for k in all_stat_keys],
                         on_select=_make_flex_handler(slot),
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
                     )
                     flex_dd_refs.append(dd)
@@ -1009,10 +1002,10 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 self._review_mezzelf_skills = [s for s in self._review_mezzelf_skills if s in all_skills]
                 mez_count   = 2
                 mez_counter = ft.Text(f"({len(self._review_mezzelf_skills)}/{mez_count})",
-                                      size=11, color=COLOR_TEXT_MUTED)
+                                      size=11, color=design.T().text_3)
                 mez_label_row = ft.Row([
                     ft.Text(f"Scegli {mez_count} abilità (tratto razziale)",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600),
                     ft.Container(expand=True),
                     mez_counter,
                 ])
@@ -1053,8 +1046,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 for i, sk in enumerate(all_skills):
                     cb = ft.Checkbox(
                         label=sk, value=sk in self._review_mezzelf_skills,
-                        fill_color=COLOR_ACCENT_GOLD, check_color=design.T().on_accent,
-                        label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                        fill_color=design.T().magic, check_color=design.T().on_accent,
+                        label_style=ft.TextStyle(size=12, color=design.T().text),
                         on_change=lambda e, s=sk: _on_mez_skill(s, bool(e.control.value)),
                     )
                     mez_checks[sk] = cb
@@ -1120,7 +1113,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     value="variant" if self._review_umano_variant else "standard",
                     on_change=_on_variant_radio_change,
                     content=ft.Column([
-                        ft.Text("Tratti Umani", size=13, color=COLOR_TEXT_PRIMARY,
+                        ft.Text("Tratti Umani", size=13, color=design.T().text,
                                 weight=ft.FontWeight.W_600),
                         ft.Radio(value="standard",
                                  label="Standard — +1 a tutte le caratteristiche"),
@@ -1146,7 +1139,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
                     race_extras_col.controls.append(
                         ft.Text("Variante Umana — assegna +1 a due caratteristiche diverse",
-                                size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                                size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                     )
                     uv_dds: list[ft.Control] = []
                     uv_dd_refs: list[ft.Dropdown] = []
@@ -1188,9 +1181,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                             options=[ft.DropdownOption(key=k, text=stat_labels_u.get(k, k))
                                      for k in all_stat_keys_u],
                             on_select=_make_uv_handler(slot),
-                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                            bgcolor=design.T().surface, color=design.T().text,
+                            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                            border_color=design.T().border, focused_border_color=design.T().magic,
                             expand=True,
                         )
                         uv_dd_refs.append(dd_u)
@@ -1219,9 +1212,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         value=self._review_umano_variant_skill,
                         options=[ft.DropdownOption(key=s, text=s) for s in uv_skill_opts],
                         on_select=_on_uv_skill_select,
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
                     ))
 
@@ -1252,9 +1245,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         label="Scegli la caratteristica da aumentare (+1)",
                         options=[], visible=False,
                         on_select=_on_uv_feat_bonus_select,
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
                     )
 
@@ -1310,7 +1303,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     # --- Competenze concesse dal talento (proficiency_grants) ---
                     uv_feat_prof_dds: list[ft.Dropdown] = []
                     uv_feat_prof_col = ft.Column([], spacing=6)
-                    uv_feat_prof_fixed_text = ft.Text("", size=12, color=COLOR_TEXT_SECONDARY)
+                    uv_feat_prof_fixed_text = ft.Text("", size=12, color=design.T().text_2)
 
                     def _uv_feat_prof_excluded_skills() -> set:
                         return (
@@ -1389,9 +1382,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                 value=_preset or None,
                                 options=[ft.DropdownOption(key=v, text=v) for v in _pool],
                                 on_select=_on_uv_feat_prof_select,
-                                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                                bgcolor=design.T().surface, color=design.T().text,
+                                label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                                border_color=design.T().border, focused_border_color=design.T().magic,
                                 expand=True,
                             )
                             setattr(dd_fp, "_prof_pool", _pool)
@@ -1463,9 +1456,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         value=curr,
                         options=[ft.DropdownOption(key=l, text=l) for l in opts],
                         on_select=lambda e, idx=i: _on_race_lang_select(idx, e.control.value or ""),
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
                     ))
             else:
@@ -1494,10 +1487,10 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 return
             self._review_skills = [s for s in self._review_skills if s in opts]
             counter_text = ft.Text(f"({len(self._review_skills)}/{count} selezionate)",
-                                   size=11, color=COLOR_TEXT_MUTED)
+                                   size=11, color=design.T().text_3)
             label_row = ft.Row([
                 ft.Text(f"Scegli {count} abilità dalla lista", size=13,
-                        color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                        color=design.T().text, weight=ft.FontWeight.W_600),
                 ft.Container(expand=True),
                 counter_text,
             ])
@@ -1537,8 +1530,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             for i, skill in enumerate(opts):
                 cb = ft.Checkbox(
                     label=skill, value=skill in self._review_skills,
-                    fill_color=COLOR_ACCENT_CRIMSON, check_color=design.T().on_primary,
-                    label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                    fill_color=design.T().primary, check_color=design.T().on_primary,
+                    label_style=ft.TextStyle(size=12, color=design.T().text),
                     on_change=lambda e, s=skill: _on_skill_toggle(s, bool(e.control.value)),
                 )
                 skill_checks[skill] = cb
@@ -1586,10 +1579,10 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 return
             self._review_expertise = [s for s in self._review_expertise if s in pool]
             exp_counter = ft.Text(f"({len(self._review_expertise)}/2 selezionate)",
-                                  size=11, color=COLOR_TEXT_MUTED)
+                                  size=11, color=design.T().text_3)
             expertise_col.controls.append(ft.Row([
                 ft.Text("Scegli 2 abilità per la Maestria (Lv.1)",
-                        size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                        size=13, color=design.T().text, weight=ft.FontWeight.W_600),
                 ft.Container(expand=True),
                 exp_counter,
             ]))
@@ -1622,8 +1615,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             for i, skill in enumerate(pool):
                 cb = ft.Checkbox(
                     label=skill, value=skill in self._review_expertise,
-                    fill_color=COLOR_ACCENT_BLUE, check_color=design.T().on_accent,
-                    label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                    fill_color=design.T().magic, check_color=design.T().on_accent,
+                    label_style=ft.TextStyle(size=12, color=design.T().text),
                     on_change=lambda e, s=skill: _on_expertise_toggle(s, bool(e.control.value)),
                 )
                 expertise_checks[skill] = cb
@@ -1871,7 +1864,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             if n_cantrips > 0 and cantrip_pool:
                 spells_init_col.controls.append(
                     ft.Text(f"Trucchetti conosciuti (scegli {n_cantrips})",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 for i in range(n_cantrips):
                     current = self._review_cantrips[i] if i < len(self._review_cantrips) else ""
@@ -1891,7 +1884,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 spells_init_col.controls.append(ft.Container(height=4))
                 spells_init_col.controls.append(
                     ft.Text(f"Incantesimi di 1° livello conosciuti (scegli {n_spells})",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 for i in range(n_spells):
                     current = self._review_spells_lv1[i] if i < len(self._review_spells_lv1) else ""
@@ -1911,7 +1904,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 spells_init_col.controls.append(ft.Container(height=4))
                 spells_init_col.controls.append(
                     ft.Text(f"Incantesimi preparati iniziali (scegli {n_prepared})",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 spells_init_col.controls.append(
                     muted_text(
@@ -1938,7 +1931,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 spells_init_col.controls.append(ft.Container(height=4))
                 spells_init_col.controls.append(
                     ft.Text(f"Libro degli Incantesimi (scegli {n_spellbook})",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 spells_init_col.controls.append(
                     muted_text(
@@ -1991,10 +1984,10 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 avail_langs = [l for l in LANGUAGES if l not in already_known]
                 self._review_languages = [l for l in self._review_languages if l in avail_langs]
                 lang_counter = ft.Text(f"({len(self._review_languages)}/{lang_count})",
-                                       size=11, color=COLOR_TEXT_MUTED)
+                                       size=11, color=design.T().text_3)
                 lang_tool_col.controls.append(ft.Row([
                     ft.Text(f"Scegli {lang_count} {'lingue' if lang_count > 1 else 'lingua'}",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600),
                     ft.Container(expand=True),
                     lang_counter,
                 ]))
@@ -2028,8 +2021,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 for i, lang in enumerate(avail_langs):
                     cb = ft.Checkbox(
                         label=lang, value=lang in self._review_languages,
-                        fill_color=COLOR_ACCENT_GOLD, check_color=design.T().on_accent,
-                        label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                        fill_color=design.T().magic, check_color=design.T().on_accent,
+                        label_style=ft.TextStyle(size=12, color=design.T().text),
                         on_change=lambda e, lg=lang: _on_lang_toggle(lg, bool(e.control.value)),
                     )
                     lang_checks[lang] = cb
@@ -2058,9 +2051,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     value=curr_tool,
                     options=[ft.DropdownOption(key=t, text=t) for t in tc_opts],
                     on_select=lambda e, idx=tc_idx: _set_tool(idx, e.control.value or ""),
-                    bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface, color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border, focused_border_color=design.T().magic,
                     expand=True,
                 ))
 
@@ -2107,7 +2100,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 has_content = True
                 lang_tool_col.controls.append(
                     ft.Text(f"Scegli {cc_count} strument{'o' if cc_count == 1 else 'i'} di classe",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 group_idx = len(class_tool_dd_groups)
                 dds: list[ft.Dropdown] = []
@@ -2120,9 +2113,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         options=[ft.DropdownOption(key=t, text=t) for t in cc_opts],
                         on_select=lambda e, s=slot, gi=group_idx, off=_ct_offset, pl=cc_opts:
                             _set_class_tool(s, e.control.value or "", gi, off, pl),
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
                     )
                     dds.append(dd)
@@ -2184,13 +2177,13 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
         no_choices_text = ft.Text(
             "Nessuna scelta richiesta per questa combinazione classe/razza/background.",
-            size=13, color=COLOR_TEXT_MUTED, italic=True,
+            size=13, color=design.T().text_3, italic=True,
         )
 
         extra_card = ft.Container(
             content=extra_card_content,
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.only(top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON)),
+            bgcolor=design.T().surface,
+            border=ft.Border.only(top=ft.BorderSide(3, design.T().primary)),
             border_radius=ft.BorderRadius.all(8),
             padding=20,
         )
@@ -2296,7 +2289,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
             return ""
 
-        scelte_error_text = ft.Text("", color=COLOR_ACCENT_RED, size=13, visible=False)
+        scelte_error_text = ft.Text("", color=design.T().danger, size=13, visible=False)
 
         def _on_continue_to_equipment(e: Any) -> None:
             err = _scelte_validation_error()
@@ -2313,7 +2306,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         content = ft.Column(
             [
                 ft.Text("Scelte di classe e razza", size=22,
-                        weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                        weight=ft.FontWeight.BOLD, color=design.T().text),
                 ft.Container(height=4),
                 muted_text(f"Seleziona le opzioni disponibili per {self._review_class} / {self._review_race}.", size=13),
                 ft.Container(height=20),
@@ -2377,7 +2370,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
         rows: list[ft.Control] = [
             ft.Text("Equipaggiamento iniziale", size=22,
-                    weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                    weight=ft.FontWeight.BOLD, color=design.T().text),
             ft.Container(height=4),
             muted_text("Seleziona l'equipaggiamento di partenza della tua classe.", size=13),
             ft.Container(height=20),
@@ -2416,8 +2409,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     qty   = item.get("quantity", 1)
                     label = item["name"] + (f" ×{qty}" if qty > 1 else "")
                     fixed_row = ft.Row([
-                        ft.Icon(ft.Icons.CHECK_BOX, color=COLOR_ACCENT_CRIMSON, size=20),
-                        ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY),
+                        ft.Icon(ft.Icons.CHECK_BOX, color=design.T().primary, size=20),
+                        ft.Text(label, size=13, color=design.T().text),
                     ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                     # Se l'oggetto è una Dotazione, mostra sempre il suo
                     # contenuto (nessun "scegliere" qui — è già garantita —
@@ -2428,7 +2421,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                             fixed_row,
                             ft.Container(
                                 content=ft.Text(pack_body, size=11,
-                                                 color=COLOR_TEXT_SECONDARY, selectable=True),
+                                                 color=design.T().text_2, selectable=True),
                                 padding=ft.Padding.only(left=28, top=2, bottom=4),
                             ),
                         ], spacing=2))
@@ -2542,7 +2535,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     section_header("Equipaggiamento background"),
                     muted_text("Aggiunto automaticamente all'inventario.", size=11),
                     ft.Container(height=4),
-                    ft.Text(bg_text, size=13, color=COLOR_TEXT_PRIMARY),
+                    ft.Text(bg_text, size=13, color=design.T().text),
                 ], spacing=8), padding=20))
                 rows.append(ft.Container(height=16))
 
@@ -2565,10 +2558,10 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         self, "_gold_amount",
                         ev.control.value if ev.control.value else ""
                     ),
-                    text_style=ft.TextStyle(size=14, color=COLOR_TEXT_PRIMARY),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_GOLD,
-                    bgcolor=COLOR_BG_CARD,
+                    text_style=ft.TextStyle(size=14, color=design.T().text),
+                    border_color=design.T().border,
+                    focused_border_color=design.T().magic,
+                    bgcolor=design.T().surface,
                 )
 
                 # CardPicker invece di RadioGroup (2026-07-17, feedback Davide:
@@ -2652,7 +2645,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         ac_val  = 10 + dex_mod
         speed   = _loader.get_resolved_race(self._review_race, self._review_subrace).get("speed", 9)
 
-        error_text = ft.Text("", color=COLOR_ACCENT_RED, size=13, visible=False)
+        error_text = ft.Text("", color=design.T().danger, size=13, visible=False)
 
         def _stat_chip(label: str, val: Any) -> ft.Container:
             return ft.Container(
@@ -2660,15 +2653,15 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     [
                         label_text(label, size=9),
                         ft.Text(str(val), size=14, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_GOLD),
+                                color=design.T().magic),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=2,
                 ),
                 padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-                bgcolor=COLOR_BG_SECONDARY,
-                border=ft.Border.all(1, COLOR_BORDER),
-                border_radius=6,
+                bgcolor=design.T().surface_alt,
+                shadow=design.elevation(1),
+                border_radius=design.Radius.MD,
             )
 
         summary = ft.Column(
@@ -3456,7 +3449,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         content = ft.Column(
             [
                 ft.Text("Riepilogo e salvataggio", size=22,
-                        weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                        weight=ft.FontWeight.BOLD, color=design.T().text),
                 ft.Container(height=4),
                 muted_text("Controlla i valori derivati e crea il personaggio.", size=13),
                 ft.Container(height=20),

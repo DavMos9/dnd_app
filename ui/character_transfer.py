@@ -25,12 +25,12 @@ from typing import Callable
 
 import flet as ft
 
-from config.settings import *
 from data.database import get_character_exports_path
 from data.repositories.character_export import (
     load_json_string,
     peek_character_summary,
 )
+from ui import design
 
 logger = logging.getLogger(__name__)
 
@@ -107,33 +107,33 @@ def show_character_import_picker(page: ft.Page, on_select: Callable[[str], None]
             level_part = f" · Liv. {info['level']}" if info.get("level") else ""
             subtitle = f"{info.get('class_name', '')}{level_part}  ·  {info.get('race', '')}".strip(" ·")
             title_text = info.get("name") or name
-            icon = ft.Icon(ft.Icons.PERSON, color=COLOR_ACCENT_CRIMSON, size=24)
+            icon = ft.Icon(ft.Icons.PERSON, color=design.T().primary, size=24)
             clickable = True
         else:
             title_text = name
             subtitle = "File non riconosciuto come export personaggio"
-            icon = ft.Icon(ft.Icons.ERROR_OUTLINE, color=COLOR_TEXT_MUTED, size=24)
+            icon = ft.Icon(ft.Icons.ERROR_OUTLINE, color=design.T().text_3, size=24)
             clickable = False
 
         row_content = ft.Row(
             [
                 ft.Container(
-                    content=icon, width=40, height=40, border_radius=6,
-                    bgcolor=COLOR_BG_SECONDARY, alignment=ft.Alignment.CENTER,
-                    border=ft.Border.all(1, COLOR_BORDER),
+                    content=icon, width=40, height=40, border_radius=design.Radius.MD,
+                    bgcolor=design.T().surface_alt, alignment=ft.Alignment.CENTER,
+                    shadow=design.elevation(1),
                 ),
                 ft.Column(
                     [
                         ft.Text(title_text, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_TEXT_PRIMARY, max_lines=1),
-                        ft.Text(subtitle, size=11, color=COLOR_TEXT_MUTED, max_lines=1),
+                                color=design.T().text, max_lines=1),
+                        ft.Text(subtitle, size=11, color=design.T().text_3, max_lines=1),
                     ],
                     spacing=2, expand=True, tight=True,
                 ),
             ] + ([
                 ft.IconButton(
                     ft.Icons.DOWNLOAD_OUTLINED, icon_size=22,
-                    icon_color=COLOR_ACCENT_CRIMSON,
+                    icon_color=design.T().primary,
                     tooltip="Importa questo personaggio",
                     on_click=lambda e, p=path: _select(p),
                 ),
@@ -144,7 +144,7 @@ def show_character_import_picker(page: ft.Page, on_select: Callable[[str], None]
         return ft.Container(
             content=row_content,
             padding=ft.Padding.symmetric(vertical=6, horizontal=6),
-            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
             on_click=(lambda e, p=path: _select(p)) if clickable else None,
             ink=clickable,
         )
@@ -152,14 +152,14 @@ def show_character_import_picker(page: ft.Page, on_select: Callable[[str], None]
     def _empty_state() -> ft.Column:
         return ft.Column(
             [
-                ft.Icon(ft.Icons.FOLDER_OPEN_OUTLINED, size=40, color=COLOR_BORDER),
+                ft.Icon(ft.Icons.FOLDER_OPEN_OUTLINED, size=40, color=design.T().border),
                 ft.Container(height=8),
                 ft.Text("Nessun file trovato", size=13,
-                        weight=ft.FontWeight.BOLD, color=COLOR_TEXT_MUTED),
+                        weight=ft.FontWeight.BOLD, color=design.T().text_3),
                 ft.Container(height=4),
                 ft.Text(
                     f"Copia il file .dndchar in questa cartella sul server:\n{exp_dir}",
-                    size=11, color=COLOR_TEXT_MUTED,
+                    size=11, color=design.T().text_3,
                     text_align=ft.TextAlign.CENTER, selectable=True,
                 ),
             ],
@@ -186,13 +186,13 @@ def show_character_import_picker(page: ft.Page, on_select: Callable[[str], None]
     page.show_dialog(ft.AlertDialog(
         modal=True,
         title=ft.Text("Importa Personaggio", size=14, weight=ft.FontWeight.BOLD,
-                      color=COLOR_TEXT_TITLE),
-        bgcolor=COLOR_BG_CARD,
+                      color=design.T().text),
+        bgcolor=design.T().surface,
         content=body_container,
         actions=[
             ft.TextButton("Ricarica", icon=ft.Icons.REFRESH, on_click=_refresh,
-                          style=ft.ButtonStyle(color=COLOR_TEXT_SECONDARY)),
+                          style=ft.ButtonStyle(color=design.T().text_2)),
             ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog(),
-                          style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON)),
+                          style=ft.ButtonStyle(color=design.T().primary)),
         ],
     ))

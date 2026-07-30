@@ -19,7 +19,6 @@ import json
 import logging
 import re
 from typing import Any, Callable, cast
-from config.settings import *
 from data.models import Character, Currency, InventoryItem, Weapon
 import data.repositories.character_repo as character_repo
 from core.equipment_manager import (
@@ -175,7 +174,7 @@ class InventarioTab(ScrollMemoryListView):
             logger.error("InventarioTab._build() fallito: %s", exc, exc_info=True)
             self.controls.clear()
             self.controls.append(ft.Text(f"Errore caricamento inventario: {exc}",
-                                         color=COLOR_ACCENT_CRIMSON, size=13))
+                                         color=design.T().primary, size=13))
 
     def did_mount(self) -> None:
         self._page = cast(ft.Page, self.page)
@@ -299,7 +298,7 @@ class InventarioTab(ScrollMemoryListView):
                                      border=ft.Border.all(1, ft.Colors.with_opacity(0.19, design.T().shadow))),
                         ft.Text(str(values[abbr]), size=18,
                                 weight=ft.FontWeight.BOLD,
-                                color=COLOR_TEXT_PRIMARY, font_family=FONT_MONO,
+                                color=design.T().text, font_family=design.Font.MONO,
                                 text_align=ft.TextAlign.CENTER),
                         label_text(abbr, 9),
                     ],
@@ -311,11 +310,11 @@ class InventarioTab(ScrollMemoryListView):
                 ink=True,
                 tooltip=f"Modifica {names[abbr]}",
                 padding=ft.Padding.symmetric(horizontal=4, vertical=10),
-                border=ft.Border.all(1, COLOR_BORDER),
-                border_radius=6,
-                bgcolor=COLOR_BG_CARD,
+                shadow=design.elevation(1),
+                border_radius=design.Radius.MD,
+                bgcolor=design.T().surface,
             ))
-        return ft.Container(content=ft.Row(cells, spacing=6), bgcolor=COLOR_BG_PRIMARY)
+        return ft.Container(content=ft.Row(cells, spacing=6), bgcolor=design.T().bg)
 
     # ------------------------------------------------------------------
     # Peso
@@ -329,11 +328,11 @@ class InventarioTab(ScrollMemoryListView):
         total_weight = sum(item.weight * item.quantity for item in self._items)
         pct = min(1.0, total_weight / max_carry) if max_carry > 0 else 0.0
         if pct >= 1.0:
-            bar_color, status = COLOR_ACCENT_CRIMSON, "Sovraccarico"
+            bar_color, status = design.T().primary, "Sovraccarico"
         elif pct >= 0.666:
-            bar_color, status = COLOR_ACCENT_AMBER, "Carico pesante"
+            bar_color, status = design.T().warning, "Carico pesante"
         else:
-            bar_color, status = COLOR_ACCENT_GREEN, "Carico normale"
+            bar_color, status = design.T().success, "Carico normale"
 
         capacity_label = (
             f"/ {max_carry:.0f} kg  (override manuale)"
@@ -345,7 +344,7 @@ class InventarioTab(ScrollMemoryListView):
         # Wrapping in ft.Row(expand=True) glielo fornisce correttamente.
         bar = ft.Row([
             ft.ProgressBar(value=pct, height=8, color=bar_color,
-                           bgcolor=COLOR_BG_SECONDARY, expand=True),
+                           bgcolor=design.T().surface_alt, expand=True),
         ])
 
         return ft.Container(
@@ -353,26 +352,22 @@ class InventarioTab(ScrollMemoryListView):
                 ft.Row([
                     ft.Text(f"{total_weight:.1f} kg", size=22,
                             weight=ft.FontWeight.BOLD,
-                            color=COLOR_TEXT_PRIMARY, font_family=FONT_MONO),
+                            color=design.T().text, font_family=design.Font.MONO),
                     ft.Text(capacity_label, size=12,
-                            color=COLOR_ACCENT_BLUE if override_carry > 0 else COLOR_TEXT_MUTED,
-                            font_family=FONT_BODY),
-                    ft.Icon(ft.Icons.EDIT, size=12, color=COLOR_TEXT_MUTED),
+                            color=design.T().magic if override_carry > 0 else design.T().text_3,
+                            font_family=design.Font.BODY),
+                    ft.Icon(ft.Icons.EDIT, size=12, color=design.T().text_3),
                 ], spacing=8),
                 ft.Container(height=6),
                 bar,
                 ft.Container(height=4),
                 muted_text(status, 11),
             ], spacing=0),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=12, vertical=12),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
             on_click=lambda e: self._on_edit_carry_capacity(calculated_carry),
             ink=True,
             tooltip="Modifica capacità massima di trasporto",
@@ -449,15 +444,14 @@ class InventarioTab(ScrollMemoryListView):
 
     def _section_armi(self) -> ft.Container:
         header: list[ft.Control] = [
-            ft.Text("ARMI", size=10, color=COLOR_TEXT_MUTED,
+            ft.Text("ARMI", size=10, color=design.T().text_3,
                     weight=ft.FontWeight.BOLD,
                     style=ft.TextStyle(letter_spacing=1.5), expand=True),
             ft.ElevatedButton(
                 "Aggiungi Arma", icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_add_weapon(),
                 style=ft.ButtonStyle(
-                    bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                    shape=ft.RoundedRectangleBorder(radius=4),
+                    bgcolor=design.T().primary, color=design.T().on_primary,
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                 ),
             ),
@@ -501,7 +495,7 @@ class InventarioTab(ScrollMemoryListView):
         rng_str = (f"{rng_n}/{rng_x} m" if rng_x
                    else (f"{rng_n} m" if rng_n else "mischia"))
 
-        equip_color = COLOR_ACCENT_CRIMSON if w.is_equipped else COLOR_BORDER
+        equip_color = design.T().primary if w.is_equipped else design.T().border
 
         # Riga badge magica (opzionale)
         # Nota: questi badge mostrano SOLO i bonus magici/manuali inseriti
@@ -510,19 +504,19 @@ class InventarioTab(ScrollMemoryListView):
         # mostrato nella tab Combattimento, unica sede pensata per l'uso
         # in gioco del valore finale (vedi core/weapon_calculator.py).
         badge_items: list[ft.Control] = [
-            self._badge(att_str, "BONUS ATT.", COLOR_ACCENT_BLUE),
-            self._badge(dmg_str, "BONUS DANNO", COLOR_ACCENT_CRIMSON),
+            self._badge(att_str, "BONUS ATT.", design.T().magic),
+            self._badge(dmg_str, "BONUS DANNO", design.T().primary),
         ]
         if w.is_magical:
             badge_items.append(ft.Container(
                 content=ft.Row([
-                    ft.Icon(ft.Icons.STAR, size=10, color=COLOR_ACCENT_AMBER),
-                    ft.Text("magica", size=10, color=COLOR_ACCENT_AMBER),
+                    ft.Icon(ft.Icons.STAR, size=10, color=design.T().warning),
+                    ft.Text("magica", size=10, color=design.T().warning),
                 ], spacing=2),
                 bgcolor=design.T().note_bg,
                 padding=ft.Padding.symmetric(horizontal=6, vertical=3),
-                border_radius=4,
-                border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+                border_radius=design.Radius.SM,
+                border=ft.Border.all(1, design.T().warning),
             ))
 
         # Colonna azioni (destra)
@@ -538,7 +532,7 @@ class InventarioTab(ScrollMemoryListView):
         if is_versatile and w.versatile_damage_dice:
             action_buttons.append(ft.IconButton(
                 icon=ft.Icons.BACK_HAND if w.grip_two_handed else ft.Icons.FRONT_HAND,
-                icon_color=COLOR_ACCENT_BLUE if w.grip_two_handed else COLOR_TEXT_MUTED,
+                icon_color=design.T().magic if w.grip_two_handed else design.T().text_3,
                 icon_size=16,
                 tooltip=(
                     f"Impugnata a due mani ({w.versatile_damage_dice}) — clic per una mano"
@@ -551,14 +545,14 @@ class InventarioTab(ScrollMemoryListView):
         action_buttons += [
             ft.IconButton(
                 icon=ft.Icons.EDIT,
-                icon_color=COLOR_TEXT_MUTED, icon_size=16,
+                icon_color=design.T().text_3, icon_size=16,
                 tooltip="Modifica",
                 on_click=lambda e, ww=w: self._on_edit_weapon(ww),
                 padding=ft.Padding.all(2),
             ),
             ft.IconButton(
                 icon=ft.Icons.DELETE,
-                icon_color=COLOR_ACCENT_CRIMSON, icon_size=16,
+                icon_color=design.T().primary, icon_size=16,
                 tooltip="Elimina",
                 on_click=lambda e, ww=w: self._on_delete_weapon(ww),
                 padding=ft.Padding.all(2),
@@ -572,7 +566,7 @@ class InventarioTab(ScrollMemoryListView):
         content_rows: list[ft.Control] = [
             ft.Row([
                 ft.Text(w.name, size=14, weight=ft.FontWeight.BOLD,
-                        color=COLOR_TEXT_TITLE),
+                        color=design.T().text),
                 ft.Container(expand=True),   # spacer leggero
                 muted_text(rng_str, 11),
             ], spacing=6),
@@ -592,8 +586,8 @@ class InventarioTab(ScrollMemoryListView):
         # c'era solo il badge "magica" senza descrizione).
         if w.is_magical and w.magic_description and w.magic_description.strip():
             content_rows.append(ft.Row([
-                ft.Icon(ft.Icons.AUTO_AWESOME, size=11, color=COLOR_ACCENT_AMBER),
-                ft.Text(w.magic_description.strip(), size=11, color=COLOR_ACCENT_AMBER,
+                ft.Icon(ft.Icons.AUTO_AWESOME, size=11, color=design.T().warning),
+                ft.Text(w.magic_description.strip(), size=11, color=design.T().warning,
                         expand=True),
             ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.START))
         _ref_line = self._catalog_ref_line(w.name, "weapon")
@@ -612,15 +606,15 @@ class InventarioTab(ScrollMemoryListView):
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            bgcolor=COLOR_BG_SECONDARY if w.is_equipped else COLOR_BG_CARD,
+            bgcolor=design.T().surface_alt if w.is_equipped else design.T().surface,
             padding=ft.Padding.symmetric(horizontal=12, vertical=10),
             border=ft.Border(
                 left=ft.BorderSide(4, equip_color),
-                top=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
+                top=ft.BorderSide(1, design.T().border),
+                right=ft.BorderSide(1, design.T().border),
+                bottom=ft.BorderSide(1, design.T().border),
             ),
-            border_radius=6,
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -632,15 +626,14 @@ class InventarioTab(ScrollMemoryListView):
 
     def _section_armature(self) -> ft.Container:
         header: list[ft.Control] = [
-            ft.Text("ARMATURE & SCUDI", size=10, color=COLOR_TEXT_MUTED,
+            ft.Text("ARMATURE & SCUDI", size=10, color=design.T().text_3,
                     weight=ft.FontWeight.BOLD,
                     style=ft.TextStyle(letter_spacing=1.5), expand=True),
             ft.ElevatedButton(
                 "Aggiungi Armatura", icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_add_armor(),
                 style=ft.ButtonStyle(
-                    bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                    shape=ft.RoundedRectangleBorder(radius=4),
+                    bgcolor=design.T().primary, color=design.T().on_primary,
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                 ),
             ),
@@ -673,7 +666,7 @@ class InventarioTab(ScrollMemoryListView):
     }
 
     def _armor_card(self, item: InventoryItem) -> ft.Container:
-        equip_color = COLOR_ACCENT_CRIMSON if item.is_equipped else COLOR_BORDER
+        equip_color = design.T().primary if item.is_equipped else design.T().border
         armor_type = item.armor_type or ""
         ca_val = item.ca_value or 0
         if armor_type == "scudo":
@@ -683,18 +676,18 @@ class InventarioTab(ScrollMemoryListView):
         type_label = self._ARMOR_TYPE_LABELS.get(armor_type, armor_type or "—")
 
         badge_items: list[ft.Control] = [
-            self._badge(ca_str, "CA", COLOR_ACCENT_BLUE),
+            self._badge(ca_str, "CA", design.T().magic),
         ]
         if item.effects:
             badge_items.append(ft.Container(
                 content=ft.Row([
-                    ft.Icon(ft.Icons.STAR, size=10, color=COLOR_ACCENT_AMBER),
-                    ft.Text("effetti", size=10, color=COLOR_ACCENT_AMBER),
+                    ft.Icon(ft.Icons.STAR, size=10, color=design.T().warning),
+                    ft.Text("effetti", size=10, color=design.T().warning),
                 ], spacing=2),
                 bgcolor=design.T().note_bg,
                 padding=ft.Padding.symmetric(horizontal=6, vertical=3),
-                border_radius=4,
-                border=ft.Border.all(1, COLOR_ACCENT_AMBER),
+                border_radius=design.Radius.SM,
+                border=ft.Border.all(1, design.T().warning),
             ))
 
         action_col = ft.Column([
@@ -707,14 +700,14 @@ class InventarioTab(ScrollMemoryListView):
             ),
             ft.IconButton(
                 icon=ft.Icons.EDIT,
-                icon_color=COLOR_TEXT_MUTED, icon_size=16,
+                icon_color=design.T().text_3, icon_size=16,
                 tooltip="Modifica",
                 on_click=lambda e, ii=item: self._on_edit_item(ii),
                 padding=ft.Padding.all(2),
             ),
             ft.IconButton(
                 icon=ft.Icons.DELETE,
-                icon_color=COLOR_ACCENT_CRIMSON, icon_size=16,
+                icon_color=design.T().primary, icon_size=16,
                 tooltip="Elimina",
                 on_click=lambda e, ii=item: self._on_delete_item(ii),
                 padding=ft.Padding.all(2),
@@ -724,7 +717,7 @@ class InventarioTab(ScrollMemoryListView):
         content_rows: list[ft.Control] = [
             ft.Row([
                 ft.Text(item.name, size=14, weight=ft.FontWeight.BOLD,
-                        color=COLOR_TEXT_TITLE),
+                        color=design.T().text),
                 ft.Container(expand=True),
                 muted_text(type_label, 11),
             ], spacing=6),
@@ -735,8 +728,8 @@ class InventarioTab(ScrollMemoryListView):
         # nessuna vista — mostrato ora per intero.
         if item.effects and item.effects.strip():
             content_rows.append(ft.Row([
-                ft.Icon(ft.Icons.AUTO_AWESOME, size=11, color=COLOR_ACCENT_AMBER),
-                ft.Text(item.effects.strip(), size=11, color=COLOR_ACCENT_AMBER,
+                ft.Icon(ft.Icons.AUTO_AWESOME, size=11, color=design.T().warning),
+                ft.Text(item.effects.strip(), size=11, color=design.T().warning,
                         expand=True),
             ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.START))
         if item.description:
@@ -765,15 +758,15 @@ class InventarioTab(ScrollMemoryListView):
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            bgcolor=COLOR_BG_SECONDARY if item.is_equipped else COLOR_BG_CARD,
+            bgcolor=design.T().surface_alt if item.is_equipped else design.T().surface,
             padding=ft.Padding.symmetric(horizontal=12, vertical=10),
             border=ft.Border(
                 left=ft.BorderSide(4, equip_color),
-                top=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
+                top=ft.BorderSide(1, design.T().border),
+                right=ft.BorderSide(1, design.T().border),
+                bottom=ft.BorderSide(1, design.T().border),
             ),
-            border_radius=6,
+            border_radius=design.Radius.MD,
         )
 
     def _on_add_armor(self) -> None:
@@ -788,15 +781,14 @@ class InventarioTab(ScrollMemoryListView):
 
     def _section_oggetti(self) -> ft.Container:
         header: list[ft.Control] = [
-            ft.Text("OGGETTI", size=10, color=COLOR_TEXT_MUTED,
+            ft.Text("OGGETTI", size=10, color=design.T().text_3,
                     weight=ft.FontWeight.BOLD,
                     style=ft.TextStyle(letter_spacing=1.5), expand=True),
             ft.ElevatedButton(
                 "Aggiungi Oggetto", icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_add_item(),
                 style=ft.ButtonStyle(
-                    bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                    shape=ft.RoundedRectangleBorder(radius=4),
+                    bgcolor=design.T().primary, color=design.T().on_primary,
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                 ),
             ),
@@ -826,7 +818,7 @@ class InventarioTab(ScrollMemoryListView):
             rows.append(ft.Container(
                 content=ft.Text(
                     _CATEGORY_LABELS.get(cat, cat).upper(),
-                    size=9, color=COLOR_TEXT_MUTED,
+                    size=9, color=design.T().text_3,
                     weight=ft.FontWeight.BOLD,
                     style=ft.TextStyle(letter_spacing=1),
                 ),
@@ -837,15 +829,11 @@ class InventarioTab(ScrollMemoryListView):
 
         return ft.Container(
             content=ft.Column(rows, spacing=4),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=12, vertical=12),
-            border=ft.Border(
-                top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                left=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
-            ),
-            border_radius=6,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     def _item_row(self, item: InventoryItem) -> ft.Row:
@@ -861,21 +849,21 @@ class InventarioTab(ScrollMemoryListView):
         equip_mark = " ◆" if item.is_equipped else ""
 
         return ft.Row([
-            ft.Icon(icon, size=14, color=COLOR_TEXT_MUTED),
+            ft.Icon(icon, size=14, color=design.T().text_3),
             ft.Text(
                 f"{item.name}{equip_mark}",
                 size=13,
-                color=COLOR_TEXT_PRIMARY if item.is_equipped else COLOR_TEXT_SECONDARY,
+                color=design.T().text if item.is_equipped else design.T().text_2,
                 weight=ft.FontWeight.BOLD if item.is_equipped else ft.FontWeight.NORMAL,
                 expand=True,
             ),
-            ft.Text(f"×{item.quantity}", size=12, color=COLOR_TEXT_SECONDARY,
-                    font_family=FONT_MONO, width=32,
+            ft.Text(f"×{item.quantity}", size=12, color=design.T().text_2,
+                    font_family=design.Font.MONO, width=32,
                     text_align=ft.TextAlign.RIGHT),
             muted_text(wt_str, 11),
             ft.IconButton(
                 icon=ft.Icons.CHECK_CIRCLE if item.is_equipped else ft.Icons.RADIO_BUTTON_UNCHECKED,
-                icon_color=COLOR_ACCENT_CRIMSON if item.is_equipped else COLOR_BORDER,
+                icon_color=design.T().primary if item.is_equipped else design.T().border,
                 icon_size=14,
                 tooltip="Disequipaggia" if item.is_equipped else "Equipaggia",
                 on_click=lambda e, it=item: self._toggle_item_equipped(it),
@@ -883,13 +871,13 @@ class InventarioTab(ScrollMemoryListView):
             ),
             ft.IconButton(
                 icon=ft.Icons.EDIT,
-                icon_color=COLOR_TEXT_MUTED, icon_size=14, tooltip="Modifica",
+                icon_color=design.T().text_3, icon_size=14, tooltip="Modifica",
                 on_click=lambda e, it=item: self._on_edit_item(it),
                 padding=ft.Padding.all(2),
             ),
             ft.IconButton(
                 icon=ft.Icons.DELETE,
-                icon_color=COLOR_ACCENT_CRIMSON, icon_size=14, tooltip="Elimina",
+                icon_color=design.T().primary, icon_size=14, tooltip="Elimina",
                 on_click=lambda e, it=item: self._on_delete_item(it),
                 padding=ft.Padding.all(2),
             ),
@@ -921,7 +909,7 @@ class InventarioTab(ScrollMemoryListView):
         current_text = ft.Text(
             str(current_val),
             size=48, weight=ft.FontWeight.BOLD,
-            color=COLOR_TEXT_PRIMARY, font_family=FONT_MONO,
+            color=design.T().text, font_family=design.Font.MONO,
             text_align=ft.TextAlign.CENTER,
         )
 
@@ -930,11 +918,11 @@ class InventarioTab(ScrollMemoryListView):
             keyboard_type=ft.KeyboardType.NUMBER,
             autofocus=True,
             text_align=ft.TextAlign.CENTER,
-            text_style=ft.TextStyle(size=22, color=COLOR_TEXT_PRIMARY,
-                                    font_family=FONT_MONO, weight=ft.FontWeight.BOLD),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=22, color=design.T().text,
+                                    font_family=design.Font.MONO, weight=ft.FontWeight.BOLD),
+            border_color=design.T().border,
+            focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
             width=100,
             height=56,
             content_padding=ft.Padding.symmetric(horizontal=8, vertical=0),
@@ -965,19 +953,17 @@ class InventarioTab(ScrollMemoryListView):
             self._refresh()
 
         btn_style_sub = ft.ButtonStyle(
-            bgcolor=COLOR_BG_SECONDARY, color=COLOR_ACCENT_CRIMSON,
-            shape=ft.RoundedRectangleBorder(radius=8),
+            bgcolor=design.T().surface_alt, color=design.T().primary,
             text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
         )
         btn_style_add = ft.ButtonStyle(
-            bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-            shape=ft.RoundedRectangleBorder(radius=8),
+            bgcolor=design.T().primary, color=design.T().on_primary,
             text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
         )
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text(full_names[abbr], size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column([
                 # Quantità attuale — numero grande centrato
                 ft.Container(
@@ -989,7 +975,7 @@ class InventarioTab(ScrollMemoryListView):
                     width=300,
                     padding=ft.Padding.symmetric(vertical=8),
                 ),
-                ft.Divider(height=1, color=COLOR_BORDER),
+                ft.Divider(height=1, color=design.T().border),
                 ft.Container(height=8),
                 # Riga: [− Sottrai] [campo] [+ Aggiungi]
                 ft.Row([
@@ -1017,7 +1003,7 @@ class InventarioTab(ScrollMemoryListView):
                 ft.TextButton("Chiudi",
                               on_click=lambda ev: page.pop_dialog() if page else None),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     # ------------------------------------------------------------------
@@ -1043,11 +1029,11 @@ class InventarioTab(ScrollMemoryListView):
                 expand: bool = False) -> ft.TextField:
             return ft.TextField(
                 label=label, value=value, keyboard_type=kb, expand=expand,
-                text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-                border_color=COLOR_BORDER,
-                focused_border_color=COLOR_ACCENT_CRIMSON,
-                bgcolor=COLOR_BG_CARD,
-                label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+                text_style=ft.TextStyle(size=13, color=design.T().text),
+                border_color=design.T().border,
+                focused_border_color=design.T().primary,
+                bgcolor=design.T().surface,
+                label_style=ft.TextStyle(color=design.T().text_2),
             )
 
         f_name   = _tf("Nome arma *",      "" if is_new else weapon.name)
@@ -1058,9 +1044,9 @@ class InventarioTab(ScrollMemoryListView):
             label="Tipo danno",
             value=(weapon.damage_type or None) if not is_new else None,
             options=[ft.DropdownOption(key=t, text=t) for t in _DAMAGE_TYPES],
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
 
         f_atk    = _tf("Bonus attacco (magico, può essere negativo)",
@@ -1082,9 +1068,9 @@ class InventarioTab(ScrollMemoryListView):
                 ft.DropdownOption(key="semplice", text="Arma semplice"),
                 ft.DropdownOption(key="guerra", text="Arma da guerra"),
             ],
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
         prof_override_cb = ft.Checkbox(
             label="Competenza garantita da quest'arma (es. arma magica senziente)",
@@ -1102,9 +1088,9 @@ class InventarioTab(ScrollMemoryListView):
                 ft.DropdownOption(key="str", text="Forza"),
                 ft.DropdownOption(key="dex", text="Destrezza"),
             ],
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
 
         # Override manuale del totale del tiro per colpire — per casi
@@ -1181,9 +1167,9 @@ class InventarioTab(ScrollMemoryListView):
                 [ft.DropdownOption(key="", text="— nessuno, compila a mano —")]
                 + [ft.DropdownOption(key=n, text=n) for n in _loader.get_weapon_names()]
             ),
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
 
         def on_catalog_select(ev: ft.Event[ft.Dropdown]) -> None:
@@ -1248,22 +1234,22 @@ class InventarioTab(ScrollMemoryListView):
         def _make_magic_row(dice_v: str = "", type_v: str = "Fuoco", note_v: str = "") -> ft.Row:
             row_dice = ft.TextField(
                 label="Dadi (es. 1d6)", value=dice_v, width=100,
-                text_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
-                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-                bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+                text_style=ft.TextStyle(size=12, color=design.T().text),
+                border_color=design.T().border, focused_border_color=design.T().primary,
+                bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
             )
             row_type = ft.Dropdown(
                 label="Tipo", value=type_v, width=120,
                 options=[ft.DropdownOption(key=t, text=t) for t in _DAMAGE_TYPES],
-                text_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
-                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-                bgcolor=COLOR_BG_CARD,
+                text_style=ft.TextStyle(size=12, color=design.T().text),
+                border_color=design.T().border, focused_border_color=design.T().primary,
+                bgcolor=design.T().surface,
             )
             row_note = ft.TextField(
                 label="Note", value=note_v, expand=True,
-                text_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
-                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-                bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+                text_style=ft.TextStyle(size=12, color=design.T().text),
+                border_color=design.T().border, focused_border_color=design.T().primary,
+                bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
             )
             row_ref: list[ft.Row] = []
 
@@ -1278,7 +1264,7 @@ class InventarioTab(ScrollMemoryListView):
             r = ft.Row(
                 cast(list[ft.Control], [row_dice, row_type, row_note,
                      ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE,
-                                   icon_color=COLOR_ACCENT_CRIMSON, icon_size=16,
+                                   icon_color=design.T().primary, icon_size=16,
                                    on_click=remove_this, tooltip="Rimuovi",
                                    padding=ft.Padding.all(0))]),
                 spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1303,7 +1289,7 @@ class InventarioTab(ScrollMemoryListView):
                         ft.TextButton(
                             "+ Aggiungi danno",
                             on_click=add_magic_row,
-                            style=ft.ButtonStyle(color=COLOR_ACCENT_CRIMSON),
+                            style=ft.ButtonStyle(color=design.T().primary),
                         ),
                     ]),
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -1413,7 +1399,7 @@ class InventarioTab(ScrollMemoryListView):
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Nuova Arma" if is_new else "Modifica Arma",
-                          size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(
                 [catalog_dd, f_name, f_dice, dtype_dd, f_atk, f_dbonus,
                  category_dd, prof_override_cb, ability_dd, atk_override_row,
@@ -1426,10 +1412,9 @@ class InventarioTab(ScrollMemoryListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                      shape=ft.RoundedRectangleBorder(radius=4))),
+                                      bgcolor=design.T().primary, color=design.T().on_primary)),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     def _on_delete_weapon(self, weapon: Weapon) -> None:
@@ -1446,18 +1431,17 @@ class InventarioTab(ScrollMemoryListView):
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Elimina arma", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Text(f"Eliminare «{weapon.name}»?", size=13,
-                            color=COLOR_TEXT_PRIMARY),
+                            color=design.T().text),
             actions=[
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                      shape=ft.RoundedRectangleBorder(radius=4))),
+                                      bgcolor=design.T().primary, color=design.T().on_primary)),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     def _update_weapon_equipped_flag(
@@ -1716,11 +1700,11 @@ class InventarioTab(ScrollMemoryListView):
         def _tf(label: str, value: str = "", kb=ft.KeyboardType.TEXT) -> ft.TextField:
             return ft.TextField(
                 label=label, value=value, keyboard_type=kb,
-                text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-                border_color=COLOR_BORDER,
-                focused_border_color=COLOR_ACCENT_CRIMSON,
-                bgcolor=COLOR_BG_CARD,
-                label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+                text_style=ft.TextStyle(size=13, color=design.T().text),
+                border_color=design.T().border,
+                focused_border_color=design.T().primary,
+                bgcolor=design.T().surface,
+                label_style=ft.TextStyle(color=design.T().text_2),
             )
 
         f_name = _tf("Nome oggetto *", "" if is_new else item.name)
@@ -1759,10 +1743,10 @@ class InventarioTab(ScrollMemoryListView):
             label="Categoria",
             value=initial_cat,
             options=cat_options,
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border,
+            focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
         equip_cb = ft.Checkbox(
             label="Equipaggiato / indossato",
@@ -1783,10 +1767,10 @@ class InventarioTab(ScrollMemoryListView):
                 ft.DropdownOption(key="pesante", text="Pesante (DES ignorato)"),
                 ft.DropdownOption(key="scudo",   text="Scudo (bonus CA fisso)"),
             ],
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border,
+            focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
         # Autofill dal catalogo PHB (equipment/armor.json) — 2026-07-16,
         # richiesta Davide: scegliendo il "Tipo" dalla tendina, la scheda si
@@ -1799,10 +1783,10 @@ class InventarioTab(ScrollMemoryListView):
                 [ft.DropdownOption(key="", text="— nessuno, compila a mano —")]
                 + [ft.DropdownOption(key=n, text=n) for n in _loader.get_armor_names()]
             ),
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border,
+            focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
         )
 
         def on_catalog_select(ev: ft.Event[ft.Dropdown]) -> None:
@@ -1907,7 +1891,7 @@ class InventarioTab(ScrollMemoryListView):
             dialog_title = "Modifica Oggetto"
         page.show_dialog(ft.AlertDialog(
             title=ft.Text(dialog_title,
-                          size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          size=14, weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Column(
                 [f_name, f_qty, f_wt, cat_dd, armor_fields,
                  equip_cb, f_desc, f_effects],
@@ -1918,10 +1902,9 @@ class InventarioTab(ScrollMemoryListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                      shape=ft.RoundedRectangleBorder(radius=4))),
+                                      bgcolor=design.T().primary, color=design.T().on_primary)),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     def _on_delete_item(self, item: InventoryItem) -> None:
@@ -1938,18 +1921,17 @@ class InventarioTab(ScrollMemoryListView):
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Elimina oggetto", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Text(f"Eliminare «{item.name}»?", size=13,
-                            color=COLOR_TEXT_PRIMARY),
+                            color=design.T().text),
             actions=[
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                      shape=ft.RoundedRectangleBorder(radius=4))),
+                                      bgcolor=design.T().primary, color=design.T().on_primary)),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     # ------------------------------------------------------------------
@@ -2001,35 +1983,35 @@ class InventarioTab(ScrollMemoryListView):
         if not parts:
             return None
         return ft.Text(
-            f"PHB: {' · '.join(parts)}", size=10, color=COLOR_TEXT_MUTED, italic=True,
+            f"PHB: {' · '.join(parts)}", size=10, color=design.T().text_3, italic=True,
         )
 
     def _badge(self, value: str, label: str, color: str) -> ft.Container:
         return ft.Container(
             content=ft.Column([
                 ft.Text(value, size=12, weight=ft.FontWeight.BOLD,
-                        color=color, font_family=FONT_MONO,
+                        color=color, font_family=design.Font.MONO,
                         text_align=ft.TextAlign.CENTER),
-                ft.Text(label, size=9, color=COLOR_TEXT_MUTED,
+                ft.Text(label, size=9, color=design.T().text_3,
                         text_align=ft.TextAlign.CENTER,
                         style=ft.TextStyle(letter_spacing=0.8)),
             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=1),
-            bgcolor=COLOR_BG_SECONDARY,
+            bgcolor=design.T().surface_alt,
             padding=ft.Padding.symmetric(horizontal=8, vertical=4),
-            border=ft.Border.all(1, COLOR_BORDER),
-            border_radius=4,
+            shadow=design.elevation(1),
+            border_radius=design.Radius.SM,
         )
 
     def _empty_card(self, msg: str) -> ft.Container:
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.Icons.INBOX, size=18, color=COLOR_TEXT_MUTED),
+                ft.Icon(ft.Icons.INBOX, size=18, color=design.T().text_3),
                 muted_text(msg, 13),
             ], spacing=8),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=12, vertical=14),
-            border=ft.Border.all(1, COLOR_BORDER),
-            border_radius=6,
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -2050,7 +2032,7 @@ class InventarioTab(ScrollMemoryListView):
             self.controls.clear()
             self.controls.append(
                 ft.Text(f"Errore aggiornamento inventario: {exc}",
-                        color=COLOR_ACCENT_CRIMSON, size=13)
+                        color=design.T().primary, size=13)
             )
         try:
             if self._page:

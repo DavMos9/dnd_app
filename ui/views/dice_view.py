@@ -12,12 +12,6 @@ import logging
 from typing import Any
 
 import flet as ft
-from config.settings import (
-    COLOR_BG_PRIMARY, COLOR_BG_CARD,
-    COLOR_ACCENT_CRIMSON, COLOR_ACCENT_GREEN,
-    COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED,
-    COLOR_BORDER,
-)
 from ui.theme import title_text, label_text, section_header
 from ui import design
 
@@ -54,12 +48,12 @@ class DiceView(ft.Column):
 
         # Widget refs aggiornabili
         self._die_buttons: dict[int, ft.ElevatedButton] = {}
-        self._count_label  = ft.Text("1",  size=26, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE)
-        self._mod_label    = ft.Text("+0", size=26, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE)
+        self._count_label  = ft.Text("1",  size=26, weight=ft.FontWeight.BOLD, color=design.T().text)
+        self._mod_label    = ft.Text("+0", size=26, weight=ft.FontWeight.BOLD, color=design.T().text)
         self._adv_btns:    dict[str, ft.TextButton] = {}
         self._adv_row:     ft.Row | None = None
-        self._result_text  = ft.Text("—",  size=80, weight=ft.FontWeight.BOLD, color=COLOR_ACCENT_CRIMSON)
-        self._detail_text  = ft.Text("",   size=14, color=COLOR_TEXT_SECONDARY, italic=True)
+        self._result_text  = ft.Text("—",  size=80, weight=ft.FontWeight.BOLD, color=design.T().primary)
+        self._detail_text  = ft.Text("",   size=14, color=design.T().text_2, italic=True)
         self._history_col  = ft.Column(spacing=4)
 
         self._build()
@@ -103,7 +97,7 @@ class DiceView(ft.Column):
         self.controls.append(
             ft.Container(
                 expand=True,
-                bgcolor=COLOR_BG_PRIMARY,
+                bgcolor=design.T().bg,
                 padding=ft.Padding.all(24),
                 content=ft.Column(
                     [
@@ -148,9 +142,8 @@ class DiceView(ft.Column):
                                     "🎲   LANCIA",
                                     on_click=self._roll,
                                     style=ft.ButtonStyle(
-                                        bgcolor=COLOR_ACCENT_CRIMSON,
+                                        bgcolor=design.T().primary,
                                         color=design.T().on_primary,
-                                        shape=ft.RoundedRectangleBorder(radius=8),
                                         padding=ft.Padding.symmetric(horizontal=48, vertical=18),
                                     ),
                                 ),
@@ -170,7 +163,7 @@ class DiceView(ft.Column):
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
                         ),
-                        ft.Divider(color=COLOR_BORDER, height=32),
+                        ft.Divider(color=design.T().border, height=32),
 
                         # Cronologia
                         section_header("Cronologia Sessione"),
@@ -252,9 +245,9 @@ class DiceView(ft.Column):
                        if self._modifier != 0 else "")
             detail = f"{adv_str}{mod_str}"
             label = f"1d20 [{_ADV_LABELS[self._adv_mode][:4]}]{mod_str}"
-            result_color = (COLOR_ACCENT_GREEN if chosen == 20
-                            else COLOR_ACCENT_CRIMSON if chosen == 1
-                            else COLOR_TEXT_TITLE)
+            result_color = (design.T().success if chosen == 20
+                            else design.T().primary if chosen == 1
+                            else design.T().text)
         else:
             rolls = [random.randint(1, d) for _ in range(self._count)]
             total = sum(rolls) + self._modifier
@@ -266,11 +259,11 @@ class DiceView(ft.Column):
                      else f"d{d}{mod_str}")
             # Critico/fallimento critico solo su d20 singolo
             if d == 20 and self._count == 1:
-                result_color = (COLOR_ACCENT_GREEN if rolls[0] == 20
-                                else COLOR_ACCENT_CRIMSON if rolls[0] == 1
-                                else COLOR_TEXT_TITLE)
+                result_color = (design.T().success if rolls[0] == 20
+                                else design.T().primary if rolls[0] == 1
+                                else design.T().text)
             else:
-                result_color = COLOR_TEXT_TITLE
+                result_color = design.T().text
 
         self._result_text.value = str(total)
         self._result_text.color = result_color
@@ -299,16 +292,16 @@ class DiceView(ft.Column):
                     content=ft.Row(
                         [
                             ft.Text(entry["label"], size=13,
-                                    color=COLOR_TEXT_SECONDARY, expand=True),
+                                    color=design.T().text_2, expand=True),
                             ft.Text(str(entry["total"]), size=16,
-                                    weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                                    weight=ft.FontWeight.BOLD, color=design.T().text),
                             ft.Text(f"  {entry['detail']}", size=11,
-                                    color=COLOR_TEXT_MUTED),
+                                    color=design.T().text_3),
                         ],
                     ),
                     padding=ft.Padding.symmetric(horizontal=12, vertical=7),
-                    bgcolor=COLOR_BG_CARD,
-                    border=ft.Border.all(1, COLOR_BORDER),
+                    bgcolor=design.T().surface,
+                    shadow=design.elevation(1),
                     border_radius=ft.BorderRadius.all(4),
                     margin=ft.Margin.only(bottom=4),
                 )
@@ -331,11 +324,11 @@ class DiceView(ft.Column):
                 ft.Row(
                     [
                         ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE,
-                                      icon_size=22, icon_color=COLOR_TEXT_SECONDARY,
+                                      icon_size=22, icon_color=design.T().text_2,
                                       on_click=on_minus),
                         value_widget,
                         ft.IconButton(ft.Icons.ADD_CIRCLE_OUTLINE,
-                                      icon_size=22, icon_color=COLOR_TEXT_SECONDARY,
+                                      icon_size=22, icon_color=design.T().text_2,
                                       on_click=on_plus),
                     ],
                     spacing=4,
@@ -347,18 +340,39 @@ class DiceView(ft.Column):
         )
 
     def _die_style(self, d: int) -> ft.ButtonStyle:
+        """
+        Tasti dado (Fase E.4): quello attivo è pieno e in rilievo, gli altri
+        piatti sulla superficie alternativa — prima si distinguevano solo per un
+        bordo da 1px. Cifre in font monospaziato, così i "d4 d6 d8…" si allineano.
+        """
+        p = design.T()
         active = (d == self._selected_die)
         return ft.ButtonStyle(
-            bgcolor=COLOR_ACCENT_CRIMSON if active else COLOR_BG_CARD,
-            color=design.T().on_primary if active else COLOR_TEXT_PRIMARY,
-            shape=ft.RoundedRectangleBorder(radius=6),
-            side=ft.BorderSide(1 if not active else 0, COLOR_BORDER),
-            padding=ft.Padding.symmetric(horizontal=14, vertical=10),
+            bgcolor=p.primary if active else p.surface_alt,
+            color=p.on_primary if active else p.text_2,
+            elevation=3 if active else 0,
+            shadow_color=p.shadow,
+            side=ft.BorderSide(0 if active else 1, p.border),
+            shape=ft.RoundedRectangleBorder(radius=design.Radius.MD),
+            padding=ft.Padding.symmetric(horizontal=design.Space.LG,
+                                         vertical=design.Space.MD),
+            text_style=ft.TextStyle(size=15, weight=ft.FontWeight.BOLD,
+                                    font_family=design.Font.MONO),
         )
 
     def _adv_style(self, mode: str) -> ft.ButtonStyle:
+        """Vantaggio/Svantaggio come segmenti: l'attivo ha un fondo tinto."""
+        p = design.T()
         active = (mode == self._adv_mode)
         return ft.ButtonStyle(
-            color=COLOR_ACCENT_CRIMSON if active else COLOR_TEXT_MUTED,
-            bgcolor=ft.Colors.TRANSPARENT,
+            color=p.primary if active else p.text_3,
+            bgcolor=(ft.Colors.with_opacity(0.12, p.primary) if active
+                     else ft.Colors.TRANSPARENT),
+            shape=ft.RoundedRectangleBorder(radius=design.Radius.PILL),
+            padding=ft.Padding.symmetric(horizontal=design.Space.LG,
+                                         vertical=design.Space.SM),
+            text_style=ft.TextStyle(size=13,
+                                    weight=ft.FontWeight.BOLD if active
+                                    else ft.FontWeight.W_500,
+                                    font_family=design.Font.BODY),
         )

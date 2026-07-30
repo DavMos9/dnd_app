@@ -24,11 +24,6 @@ from typing import Any
 
 import flet as ft
 
-from config.settings import (
-    COLOR_ACCENT_AMBER, COLOR_ACCENT_BLUE, COLOR_ACCENT_CRIMSON, COLOR_ACCENT_GREEN,
-    COLOR_BG_CARD, COLOR_BORDER, COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY,
-    COLOR_TEXT_SECONDARY, COLOR_TEXT_TITLE,
-)
 from data.game_data.game_data_loader import (
     GameDataLoader,
     magic_item_category_base as _category_base,
@@ -36,6 +31,7 @@ from data.game_data.game_data_loader import (
 )
 from ui.theme import muted_text, title_text
 from ui.widgets import responsive_dialog_width
+from ui import design
 
 logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
@@ -66,14 +62,20 @@ _RARITY_LABELS: dict[str, str] = {
     "leggendario": "Leggendario",
     "variabile": "Rarità Variabile",
 }
-_RARITY_COLORS: dict[str, str] = {
-    "comune": COLOR_TEXT_MUTED,
-    "non comune": COLOR_ACCENT_GREEN,
-    "raro": COLOR_ACCENT_BLUE,
-    "molto raro": COLOR_ACCENT_AMBER,
-    "leggendario": COLOR_ACCENT_CRIMSON,
-    "variabile": COLOR_TEXT_SECONDARY,
+# Rarità → NOME DI TOKEN, non colore: una costante di modulo è valutata a
+# import-time e congelerebbe la palette chiara (Fase E.1 del restyle).
+_RARITY_TONES: dict[str, str] = {
+    "comune": "text_3",
+    "non comune": "success",
+    "raro": "magic",
+    "molto raro": "warning",
+    "leggendario": "primary",
+    "variabile": "text_2",
 }
+
+
+def _rarity_color(bucket: str) -> str:
+    return getattr(design.T(), _RARITY_TONES.get(bucket, "text_3"))
 
 
 def _category_icon(category: str) -> str:
@@ -132,7 +134,7 @@ class MasterMagicItemsView(ft.Column):
                 [
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.AUTO_AWESOME, color=COLOR_ACCENT_CRIMSON, size=20),
+                            ft.Icon(ft.Icons.AUTO_AWESOME, color=design.T().primary, size=20),
                             ft.Container(width=8),
                             title_text("Oggetti Magici", size=18),
                             ft.Container(width=8),
@@ -205,7 +207,7 @@ class MasterMagicItemsView(ft.Column):
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Icon(ft.Icons.AUTO_AWESOME, size=48, color=COLOR_BORDER),
+                    ft.Icon(ft.Icons.AUTO_AWESOME, size=48, color=design.T().border),
                     ft.Container(height=10),
                     muted_text("Nessun oggetto trovato con questi filtri.", size=13,
                                text_align=ft.TextAlign.CENTER),
@@ -241,30 +243,30 @@ class MasterMagicItemsView(ft.Column):
 
         chips: list[ft.Control] = [
             self._chip(_RARITY_LABELS.get(bucket, rarity_raw.strip().capitalize() or "—"),
-                       _RARITY_COLORS.get(bucket, COLOR_TEXT_MUTED))
+                       _rarity_color(bucket))
         ]
         if category:
-            chips.append(self._chip(category, COLOR_TEXT_MUTED))
+            chips.append(self._chip(category, design.T().text_3))
         if requires_att:
-            chips.append(self._chip("Sintonia", COLOR_ACCENT_AMBER))
+            chips.append(self._chip("Sintonia", design.T().warning))
 
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(_category_icon(category), size=18, color=COLOR_ACCENT_CRIMSON),
+                    ft.Icon(_category_icon(category), size=18, color=design.T().primary),
                     ft.Container(width=10),
                     ft.Column(
                         [
                             ft.Row(
                                 [
                                     ft.Text(name, size=14, weight=ft.FontWeight.BOLD,
-                                            color=COLOR_TEXT_TITLE, expand=True),
-                                    ft.Icon(ft.Icons.CHEVRON_RIGHT, size=16, color=COLOR_TEXT_MUTED),
+                                            color=design.T().text, expand=True),
+                                    ft.Icon(ft.Icons.CHEVRON_RIGHT, size=16, color=design.T().text_3),
                                 ],
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
                             ft.Row(chips, spacing=6, wrap=True),
-                            ft.Text(preview, size=11, color=COLOR_TEXT_SECONDARY),
+                            ft.Text(preview, size=11, color=design.T().text_2),
                         ],
                         spacing=4, expand=True,
                     ),
@@ -272,8 +274,8 @@ class MasterMagicItemsView(ft.Column):
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
             padding=ft.Padding.all(12),
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.all(1, COLOR_BORDER),
+            bgcolor=design.T().surface,
+            shadow=design.elevation(1),
             border_radius=8,
             on_click=lambda e, it=item: self._open_detail(it),
             ink=True,
@@ -300,31 +302,31 @@ class MasterMagicItemsView(ft.Column):
         dlg = ft.AlertDialog(
             title=ft.Row(
                 [
-                    ft.Icon(_category_icon(category), color=COLOR_ACCENT_CRIMSON, size=18),
+                    ft.Icon(_category_icon(category), color=design.T().primary, size=18),
                     ft.Container(width=8),
-                    ft.Text(name, size=15, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE, expand=True),
+                    ft.Text(name, size=15, weight=ft.FontWeight.BOLD, color=design.T().text, expand=True),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             content=ft.Container(
                 content=ft.Column(
                     [
-                        ft.Text(", ".join(info_bits), size=12, color=COLOR_TEXT_SECONDARY,
+                        ft.Text(", ".join(info_bits), size=12, color=design.T().text_2,
                                 weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=ft.Row(
                                 [
-                                    ft.Icon(ft.Icons.HANDSHAKE, size=12, color=COLOR_ACCENT_AMBER),
+                                    ft.Icon(ft.Icons.HANDSHAKE, size=12, color=design.T().warning),
                                     ft.Container(width=4),
-                                    ft.Text(att_text, size=11, color=COLOR_ACCENT_AMBER),
+                                    ft.Text(att_text, size=11, color=design.T().warning),
                                 ],
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
                             visible=bool(att_text),
                             padding=ft.Padding.only(top=4, bottom=6),
                         ),
-                        ft.Divider(height=10, color=COLOR_BORDER),
-                        ft.Text(desc, size=12, color=COLOR_TEXT_PRIMARY, selectable=True),
+                        ft.Divider(height=10, color=design.T().border),
+                        ft.Text(desc, size=12, color=design.T().text, selectable=True),
                         ft.Container(
                             content=muted_text(f"Guida del Master, pag. {source_page}", size=10),
                             padding=ft.Padding.only(top=10),
@@ -337,6 +339,6 @@ class MasterMagicItemsView(ft.Column):
                 height=460,
             ),
             actions=[ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog())],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         )
         page.show_dialog(dlg)

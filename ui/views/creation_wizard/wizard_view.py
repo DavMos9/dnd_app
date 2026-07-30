@@ -17,15 +17,9 @@ import logging
 from typing import Any, cast
 
 from config.settings import (
-    COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_CARD, COLOR_BG_SELECTED,
-    COLOR_ACCENT_GOLD,COLOR_ACCENT_BLUE, COLOR_ACCENT_RED, COLOR_ACCENT_CRIMSON, COLOR_BORDER,
-    COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_MUTED, COLOR_TEXT_TITLE,
-    RACES_BASE, DRACONIDE_ANCESTRIES, ALIGNMENTS,
-    ABILITY_SCORES, ABILITY_KEYS, STANDARD_ARRAY, SKILLS,
-    LANGUAGES,
-    WEAPONS_BY_CATEGORY,
-    get_modifier, get_modifier_str, get_permanent_class_hp_bonus,
-    get_feats_permanent_hp_bonus,
+    RACES_BASE, DRACONIDE_ANCESTRIES, ALIGNMENTS, ABILITY_SCORES, ABILITY_KEYS,
+    STANDARD_ARRAY, SKILLS, LANGUAGES, WEAPONS_BY_CATEGORY, get_modifier, get_modifier_str,
+    get_permanent_class_hp_bonus, get_feats_permanent_hp_bonus,
 )
 from ui.theme import (
     title_text, body_text, muted_text, label_text,
@@ -107,8 +101,9 @@ _ICON_MAP = {
     "PERSON":              ft.Icons.PERSON,
 }
 
-def _icon(name: str, color: str = COLOR_TEXT_SECONDARY, size: int = 28) -> ft.Icon:
-    return ft.Icon(_ICON_MAP.get(name, ft.Icons.HELP_OUTLINE), color=color, size=size)
+def _icon(name: str, color: str | None = None, size: int = 28) -> ft.Icon:
+    return ft.Icon(_ICON_MAP.get(name, ft.Icons.HELP_OUTLINE),
+                   color=color or design.T().text_2, size=size)
 
 
 class WizardView(CreationSharedMixin, ft.Column):
@@ -192,11 +187,11 @@ class WizardView(CreationSharedMixin, ft.Column):
         self._equip_choices: list[dict[str, Any]] = []
 
         # Area di contenuto centrale (sostituita ad ogni step)
-        self._content = ft.Container(expand=True, bgcolor=COLOR_BG_PRIMARY)
+        self._content = ft.Container(expand=True, bgcolor=design.T().bg)
         self._progress_bar = ft.ProgressBar(
             value=0.0,
-            color=COLOR_ACCENT_GOLD,
-            bgcolor=COLOR_BORDER,
+            color=design.T().magic,
+            bgcolor=design.T().border,
             height=4,
         )
 
@@ -213,7 +208,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 [
                     ft.IconButton(
                         icon=ft.Icons.ARROW_BACK,
-                        icon_color=COLOR_TEXT_SECONDARY,
+                        icon_color=design.T().text_2,
                         on_click=self._on_back,
                         tooltip="Indietro",
                     ),
@@ -230,8 +225,8 @@ class WizardView(CreationSharedMixin, ft.Column):
                 spacing=8,
             ),
             padding=ft.Padding.symmetric(horizontal=24, vertical=14),
-            bgcolor=COLOR_BG_SECONDARY,
-            border=ft.Border.only(bottom=ft.BorderSide(1, COLOR_BORDER)),
+            bgcolor=design.T().surface_alt,
+            border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
         )
 
         self.controls = [
@@ -307,12 +302,12 @@ class WizardView(CreationSharedMixin, ft.Column):
                 q["phase"].upper(),
                 size=10,
                 weight=ft.FontWeight.BOLD,
-                color=COLOR_ACCENT_GOLD,
+                color=design.T().magic,
                 style=ft.TextStyle(letter_spacing=2),
             ),
             padding=ft.Padding.symmetric(horizontal=10, vertical=4),
-            border=ft.Border.all(1, COLOR_ACCENT_GOLD),
-            border_radius=4,
+            border=ft.Border.all(1, design.T().magic),
+            border_radius=design.Radius.SM,
         )
 
         counter = muted_text(
@@ -324,7 +319,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             q["text"],
             size=22,
             weight=ft.FontWeight.BOLD,
-            color=COLOR_TEXT_TITLE,
+            color=design.T().text,
             text_align=ft.TextAlign.CENTER,
         )
 
@@ -340,7 +335,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             card = ft.Container(
                 content=ft.Row(
                     [
-                        _icon(opt["icon"], COLOR_TEXT_MUTED, 28),
+                        _icon(opt["icon"], design.T().text_3, 28),
                         ft.Container(width=16),
                         ft.Column(
                             [
@@ -348,12 +343,12 @@ class WizardView(CreationSharedMixin, ft.Column):
                                     opt["text"],
                                     size=15,
                                     weight=ft.FontWeight.W_600,
-                                    color=COLOR_TEXT_PRIMARY,
+                                    color=design.T().text,
                                 ),
                                 ft.Text(
                                     opt["desc"],
                                     size=12,
-                                    color=COLOR_TEXT_MUTED,
+                                    color=design.T().text_3,
                                 ),
                             ],
                             spacing=2,
@@ -363,8 +358,8 @@ class WizardView(CreationSharedMixin, ft.Column):
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 padding=ft.Padding.symmetric(horizontal=20, vertical=14),
-                bgcolor=COLOR_BG_CARD,
-                border=ft.Border.all(1, COLOR_BORDER),
+                bgcolor=design.T().surface,
+                shadow=design.elevation(1),
                 border_radius=8,
                 on_click=lambda e, o=opt: _toggle_option(o["id"]),
                 ink=True,
@@ -388,21 +383,21 @@ class WizardView(CreationSharedMixin, ft.Column):
         def _refresh_option_styles():
             for oid, card in option_refs.items():
                 if oid in selected:
-                    card.bgcolor = COLOR_BG_SELECTED
-                    card.border = ft.Border.all(2, COLOR_ACCENT_BLUE)
+                    card.bgcolor = design.T().info_bg
+                    card.border = ft.Border.all(2, design.T().magic)
                     # Aggiorna colore icona
                     row = cast(ft.Row, card.content)
                     row.controls[0] = _icon(
                         next(o["icon"] for o in q["options"] if o["id"] == oid),
-                        COLOR_ACCENT_BLUE, 28,
+                        design.T().magic, 28,
                     )
                 else:
-                    card.bgcolor = COLOR_BG_CARD
-                    card.border = ft.Border.all(1, COLOR_BORDER)
+                    card.bgcolor = design.T().surface
+                    card.border = ft.Border.all(1, design.T().border)
                     row = cast(ft.Row, card.content)
                     row.controls[0] = _icon(
                         next(o["icon"] for o in q["options"] if o["id"] == oid),
-                        COLOR_TEXT_MUTED, 28,
+                        design.T().text_3, 28,
                     )
                 card.update()
 
@@ -413,9 +408,8 @@ class WizardView(CreationSharedMixin, ft.Column):
             disabled=True,
             on_click=lambda e: _on_next(),
             style=ft.ButtonStyle(
-                bgcolor=COLOR_ACCENT_GOLD,
-                color=COLOR_BG_PRIMARY,
-                shape=ft.RoundedRectangleBorder(radius=6),
+                bgcolor=design.T().magic,
+                color=design.T().bg,
             ),
         )
 
@@ -496,12 +490,12 @@ class WizardView(CreationSharedMixin, ft.Column):
             sel = selected_class[0]
             for cls, card in card_refs.items():
                 is_sel = cls == sel
-                card.bgcolor = COLOR_BG_SELECTED if is_sel else COLOR_BG_CARD
+                card.bgcolor = design.T().info_bg if is_sel else design.T().surface
                 card.border = ft.Border(
-                    top=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if is_sel else COLOR_BORDER),
-                    left=ft.BorderSide(1, COLOR_ACCENT_CRIMSON if is_sel else COLOR_BORDER),
-                    right=ft.BorderSide(1, COLOR_BORDER),
-                    bottom=ft.BorderSide(1, COLOR_BORDER),
+                    top=ft.BorderSide(2, design.T().primary if is_sel else design.T().border),
+                    left=ft.BorderSide(1, design.T().primary if is_sel else design.T().border),
+                    right=ft.BorderSide(1, design.T().border),
+                    bottom=ft.BorderSide(1, design.T().border),
                 )
                 try:
                     card.update()
@@ -527,9 +521,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                     content=ft.Text(
                         "★ CONSIGLIATO" if is_top else f"#{rank + 1}",
                         size=9, weight=ft.FontWeight.BOLD,
-                        color=COLOR_BG_PRIMARY if is_top else COLOR_TEXT_MUTED,
+                        color=design.T().bg if is_top else design.T().text_3,
                     ),
-                    bgcolor=COLOR_ACCENT_GOLD if is_top else COLOR_BG_SECONDARY,
+                    bgcolor=design.T().magic if is_top else design.T().surface_alt,
                     border_radius=3,
                     padding=ft.Padding.symmetric(horizontal=8, vertical=3),
                 ),
@@ -538,9 +532,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                     content=ft.Text(
                         "● SELEZIONATO" if is_top else "  Seleziona",
                         size=9, weight=ft.FontWeight.BOLD,
-                        color=COLOR_ACCENT_CRIMSON if is_top else COLOR_TEXT_MUTED,
+                        color=design.T().primary if is_top else design.T().text_3,
                     ),
-                    border=ft.Border.all(1, COLOR_ACCENT_CRIMSON if is_top else COLOR_BORDER),
+                    border=ft.Border.all(1, design.T().primary if is_top else design.T().border),
                     border_radius=3,
                     padding=ft.Padding.symmetric(horizontal=8, vertical=3),
                 ),
@@ -558,7 +552,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         ft.Row(cast(list[ft.Control], badges), alignment=ft.MainAxisAlignment.START),
                         ft.Container(height=8),
                         ft.Text(cls, size=18 if is_top else 15, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_GOLD if is_top else COLOR_TEXT_PRIMARY),
+                                color=design.T().magic if is_top else design.T().text),
                         ft.Container(height=4),
                         muted_text(CLASS_DESCRIPTIONS.get(cls, ""), size=12),
                         ft.Container(height=8),
@@ -571,14 +565,14 @@ class WizardView(CreationSharedMixin, ft.Column):
                     spacing=0,
                 ),
                 padding=14,
-                bgcolor=COLOR_BG_SELECTED if is_top else COLOR_BG_CARD,
+                bgcolor=design.T().info_bg if is_top else design.T().surface,
                 border=ft.Border(
-                    top=ft.BorderSide(2, COLOR_ACCENT_CRIMSON if is_top else COLOR_BORDER),
-                    left=ft.BorderSide(1, COLOR_ACCENT_CRIMSON if is_top else COLOR_BORDER),
-                    right=ft.BorderSide(1, COLOR_BORDER),
-                    bottom=ft.BorderSide(1, COLOR_BORDER),
+                    top=ft.BorderSide(2, design.T().primary if is_top else design.T().border),
+                    left=ft.BorderSide(1, design.T().primary if is_top else design.T().border),
+                    right=ft.BorderSide(1, design.T().border),
+                    bottom=ft.BorderSide(1, design.T().border),
                 ),
-                border_radius=6,
+                border_radius=design.Radius.MD,
                 on_click=lambda e, c=cls: _select_class(c),
                 ink=True,
             )
@@ -597,18 +591,18 @@ class WizardView(CreationSharedMixin, ft.Column):
                     label_text("RAZZA SUGGERITA", 10),
                     ft.Text(
                         rec_race_by_class[top3[0][0]], size=15,
-                        weight=ft.FontWeight.W_600, color=COLOR_TEXT_PRIMARY,
+                        weight=ft.FontWeight.W_600, color=design.T().text,
                         ref=race_label_ref,
                     ),
                     muted_text("Sinergia ottimale con la classe", 11),
                 ], spacing=4, expand=True),
-                ft.VerticalDivider(width=1, color=COLOR_BORDER),
+                ft.VerticalDivider(width=1, color=design.T().border),
                 ft.Column([
                     label_text("BACKGROUND SUGGERITO", 10),
                     body_text(rec_bg, 15, weight=ft.FontWeight.W_600),
                     muted_text(", ".join((_loader.get_background(rec_bg) or {}).get("skill_proficiencies", [])), 11),
                 ], spacing=4, expand=True),
-                ft.VerticalDivider(width=1, color=COLOR_BORDER),
+                ft.VerticalDivider(width=1, color=design.T().border),
                 ft.Column([
                     label_text("ALLINEAMENTO", 10),
                     body_text(rec_align, 15, weight=ft.FontWeight.W_600),
@@ -626,7 +620,7 @@ class WizardView(CreationSharedMixin, ft.Column):
         content = ft.Column(
             [
                 ft.Text("Il tuo personaggio ideale", size=22, weight=ft.FontWeight.BOLD,
-                        color=COLOR_TEXT_TITLE, text_align=ft.TextAlign.CENTER),
+                        color=design.T().text, text_align=ft.TextAlign.CENTER),
                 ft.Container(height=4),
                 muted_text("Clicca su una classe per selezionarla, poi personalizza.",
                            size=13, text_align=ft.TextAlign.CENTER),
@@ -766,11 +760,11 @@ class WizardView(CreationSharedMixin, ft.Column):
             value=self._review_class,
             options=[ft.DropdownOption(key=c, text=str(c)) for c in _loader.get_class_names()],
             on_select=lambda e: _on_class_change(e),
-            bgcolor=COLOR_BG_CARD,
-            color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_GOLD,
+            bgcolor=design.T().surface,
+            color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
             expand=True,
         )
         race_dd = ft.Dropdown(
@@ -778,11 +772,11 @@ class WizardView(CreationSharedMixin, ft.Column):
             value=self._review_race if self._review_race in RACES_BASE else list(RACES_BASE.keys())[0],
             options=[ft.DropdownOption(key=r, text=str(r)) for r in RACES_BASE.keys()],
             on_select=lambda e: _on_race_change(e),
-            bgcolor=COLOR_BG_CARD,
-            color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_GOLD,
+            bgcolor=design.T().surface,
+            color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
             expand=True,
         )
         bg_dd = ft.Dropdown(
@@ -790,11 +784,11 @@ class WizardView(CreationSharedMixin, ft.Column):
             value=self._review_bg,
             options=[ft.DropdownOption(key=b, text=str(b)) for b in _loader.get_background_names()],
             on_select=lambda e: _on_bg_change(e),
-            bgcolor=COLOR_BG_CARD,
-            color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_GOLD,
+            bgcolor=design.T().surface,
+            color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
             expand=True,
         )
         align_dd = ft.Dropdown(
@@ -802,11 +796,11 @@ class WizardView(CreationSharedMixin, ft.Column):
             value=self._review_align if self._review_align in ALIGNMENTS else ALIGNMENTS[0],
             options=[ft.DropdownOption(key=a, text=str(a)) for a in ALIGNMENTS],
             on_select=lambda e: setattr(self, "_review_align", e.control.value),
-            bgcolor=COLOR_BG_CARD,
-            color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_GOLD,
+            bgcolor=design.T().surface,
+            color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
             expand=True,
         )
 
@@ -822,21 +816,21 @@ class WizardView(CreationSharedMixin, ft.Column):
                 value=str(current_val),
                 options=[ft.DropdownOption(key=str(v), text=str(v)) for v in sorted(available_values, reverse=True)],
                 on_select=lambda e, k=key: _on_stat_change(k, int(e.control.value or 10)),
-                bgcolor=COLOR_BG_CARD,
-                color=COLOR_TEXT_PRIMARY,
-                border_color=COLOR_BORDER,
-                focused_border_color=COLOR_ACCENT_GOLD,
+                bgcolor=design.T().surface,
+                color=design.T().text,
+                border_color=design.T().border,
+                focused_border_color=design.T().magic,
                 width=110,
             )
             stat_dropdowns[key] = dd
             mod_badge = ft.Container(
                 content=ft.Text(mod_str, size=13, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_BLUE if mod >= 0 else COLOR_ACCENT_RED),
+                                color=design.T().magic if mod >= 0 else design.T().danger),
                 width=40,
                 alignment=ft.Alignment.CENTER,
             )
             return ft.Row(
-                [ft.Text(label, size=13, color=COLOR_TEXT_PRIMARY, expand=True), dd, mod_badge],
+                [ft.Text(label, size=13, color=design.T().text, expand=True), dd, mod_badge],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8,
             )
@@ -851,7 +845,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     badge = cast(ft.Container, cast(ft.Row, row).controls[2])
                     cast(ft.Text, badge.content).value = ms
                     m = get_modifier(v)
-                    cast(ft.Text, badge.content).color = COLOR_ACCENT_GOLD if m >= 0 else COLOR_ACCENT_RED
+                    cast(ft.Text, badge.content).color = design.T().magic if m >= 0 else design.T().danger
                     badge.update()
             # Cambiare la caratteristica da incantatore (es. Saggezza per un
             # Chierico) può cambiare quanti incantesimi preparati iniziali
@@ -878,7 +872,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             sign = "+" if con_mod >= 0 else ""
             return f"HP al Lv.1: d{hd}{sign}{con_mod} = {hp}  (modifica Cos. per cambiare)"
 
-        hp_note_text = ft.Text(_hit_die_note(), size=11, color=COLOR_TEXT_MUTED, italic=True)
+        hp_note_text = ft.Text(_hit_die_note(), size=11, color=design.T().text_3, italic=True)
 
         # ------ Sezione sottorazza / discendenza (dinamica) ------
         subrace_col = ft.Column([], spacing=8, visible=False)
@@ -894,11 +888,11 @@ class WizardView(CreationSharedMixin, ft.Column):
                     value=self._review_subrace or DRACONIDE_ANCESTRIES[0],
                     options=[ft.DropdownOption(key=a, text=a) for a in DRACONIDE_ANCESTRIES],
                     on_select=lambda e: setattr(self, "_review_subrace", e.control.value),
-                    bgcolor=COLOR_BG_CARD,
-                    color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface,
+                    color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border,
+                    focused_border_color=design.T().magic,
                     expand=True,
                 )
                 if not self._review_subrace:
@@ -917,11 +911,11 @@ class WizardView(CreationSharedMixin, ft.Column):
                         _rebuild_race_extras_col(),
                         _rebuild_lang_tool_col(),
                     ],
-                    bgcolor=COLOR_BG_CARD,
-                    color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface,
+                    color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border,
+                    focused_border_color=design.T().magic,
                     expand=True,
                 )
                 subrace_col.controls.append(sr_dd)
@@ -970,11 +964,11 @@ class WizardView(CreationSharedMixin, ft.Column):
                     # della chiamata (mai prima del completamento del metodo).
                     _rebuild_spells_init_col(),
                 ],
-                bgcolor=COLOR_BG_CARD,
-                color=COLOR_TEXT_PRIMARY,
-                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                border_color=COLOR_BORDER,
-                focused_border_color=COLOR_ACCENT_GOLD,
+                bgcolor=design.T().surface,
+                color=design.T().text,
+                label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                border_color=design.T().border,
+                focused_border_color=design.T().magic,
                 expand=True,
             )
             subclass_col.controls.append(sc_dd)
@@ -1026,7 +1020,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 labels = ", ".join(_ARMOR_WEAPON_TOKEN_LABELS.get(f, f) for f in fixed)
                 subclass_bonus_col.controls.append(ft.Text(
                     f"Competenze bonus dalla sottoclasse: {labels}",
-                    size=12, color=COLOR_TEXT_SECONDARY,
+                    size=12, color=design.T().text_2,
                 ))
 
             if total_slots > 0:
@@ -1038,7 +1032,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 )
                 subclass_bonus_col.controls.append(ft.Text(
                     "Scegli le competenze bonus della sottoclasse",
-                    size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600,
+                    size=13, color=design.T().text, weight=ft.FontWeight.W_600,
                 ))
                 def _build_choice_entry_dropdowns(choice_entry: dict, base: int) -> list[ft.Control]:
                     # Funzione dedicata (non un blocco inline dentro il for)
@@ -1090,9 +1084,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                             value=curr,
                             options=[ft.DropdownOption(key=p, text=p) for p in opts],
                             on_select=_make_handler(),
-                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                            bgcolor=design.T().surface, color=design.T().text,
+                            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                            border_color=design.T().border, focused_border_color=design.T().magic,
                             expand=True,
                         )
                         dds.append(dd)
@@ -1129,11 +1123,11 @@ class WizardView(CreationSharedMixin, ft.Column):
                     value=curr,
                     options=[ft.DropdownOption(key=a, text=a) for a in DRACONIDE_ANCESTRIES],
                     on_select=lambda e: setattr(self, "_review_dragon_ancestry", e.control.value or ""),
-                    bgcolor=COLOR_BG_CARD,
-                    color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface,
+                    color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border,
+                    focused_border_color=design.T().magic,
                     expand=True,
                 ))
                 dragon_col.visible = True
@@ -1161,11 +1155,11 @@ class WizardView(CreationSharedMixin, ft.Column):
                     value=self._review_fighting_style,
                     options=[ft.DropdownOption(key=s, text=s) for s in styles],
                     on_select=lambda e: setattr(self, "_review_fighting_style", e.control.value or ""),
-                    bgcolor=COLOR_BG_CARD,
-                    color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface,
+                    color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border,
+                    focused_border_color=design.T().magic,
                     expand=True,
                 ))
                 fighting_style_col.visible = True
@@ -1211,7 +1205,7 @@ class WizardView(CreationSharedMixin, ft.Column):
 
                 race_extras_col.controls.append(
                     ft.Text("Versatilità Mezzelf — assegna +1 a due caratteristiche (escluso Carisma)",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 flex_dds: list[ft.Control] = []
                 flex_dd_refs: list[ft.Dropdown] = []
@@ -1255,11 +1249,11 @@ class WizardView(CreationSharedMixin, ft.Column):
                         value=curr_key,
                         options=[ft.DropdownOption(key=k, text=all_stat_labels.get(k, k)) for k in all_stat_keys],
                         on_select=_make_flex_handler(slot),
-                        bgcolor=COLOR_BG_CARD,
-                        color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER,
-                        focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface,
+                        color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border,
+                        focused_border_color=design.T().magic,
                         expand=True,
                     )
                     flex_dd_refs.append(dd)
@@ -1277,10 +1271,10 @@ class WizardView(CreationSharedMixin, ft.Column):
                 mez_skill_count = 2
                 mez_label_row = ft.Row([
                     ft.Text(f"Scegli {mez_skill_count} abilità (tratto razziale)",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600),
                     ft.Container(expand=True),
                     ft.Text(f"({len(self._review_mezzelf_skills)}/{mez_skill_count})",
-                            size=11, color=COLOR_TEXT_MUTED),
+                            size=11, color=design.T().text_3),
                 ])
                 race_extras_col.controls.append(mez_label_row)
                 mez_counter = cast(ft.Text, mez_label_row.controls[2])
@@ -1317,9 +1311,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                     cb = ft.Checkbox(
                         label=sk,
                         value=sk in self._review_mezzelf_skills,
-                        fill_color=COLOR_ACCENT_GOLD,
+                        fill_color=design.T().magic,
                         check_color=design.T().on_accent,
-                        label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                        label_style=ft.TextStyle(size=12, color=design.T().text),
                         on_change=lambda e, s=sk: _on_mez_skill(s, bool(e.control.value)),
                     )
                     mez_checks[sk] = cb
@@ -1386,7 +1380,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     value="variant" if self._review_umano_variant else "standard",
                     on_change=_on_variant_radio_change,
                     content=ft.Column([
-                        ft.Text("Tratti Umani", size=13, color=COLOR_TEXT_PRIMARY,
+                        ft.Text("Tratti Umani", size=13, color=design.T().text,
                                 weight=ft.FontWeight.W_600),
                         ft.Radio(value="standard",
                                  label="Standard — +1 a tutte le caratteristiche"),
@@ -1412,7 +1406,7 @@ class WizardView(CreationSharedMixin, ft.Column):
 
                     race_extras_col.controls.append(
                         ft.Text("Variante Umana — assegna +1 a due caratteristiche diverse",
-                                size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                                size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                     )
                     uv_dds: list[ft.Control] = []
                     uv_dd_refs: list[ft.Dropdown] = []
@@ -1454,9 +1448,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                             options=[ft.DropdownOption(key=k, text=stat_labels_u.get(k, k))
                                      for k in all_stat_keys_u],
                             on_select=_make_uv_handler(slot),
-                            bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                            border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                            bgcolor=design.T().surface, color=design.T().text,
+                            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                            border_color=design.T().border, focused_border_color=design.T().magic,
                             expand=True,
                         )
                         uv_dd_refs.append(dd_u)
@@ -1485,9 +1479,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                         value=self._review_umano_variant_skill,
                         options=[ft.DropdownOption(key=s, text=s) for s in uv_skill_opts],
                         on_select=_on_uv_skill_select,
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
                     ))
 
@@ -1512,9 +1506,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                         label="Scegli la caratteristica da aumentare (+1)",
                         options=[], visible=False,
                         on_select=_on_uv_feat_bonus_select,
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
                     )
 
@@ -1568,7 +1562,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     # --- Competenze concesse dal talento (proficiency_grants) ---
                     uv_feat_prof_dds: list[ft.Dropdown] = []
                     uv_feat_prof_col = ft.Column([], spacing=6)
-                    uv_feat_prof_fixed_text = ft.Text("", size=12, color=COLOR_TEXT_SECONDARY)
+                    uv_feat_prof_fixed_text = ft.Text("", size=12, color=design.T().text_2)
 
                     def _uv_feat_prof_excluded_skills() -> set:
                         return (
@@ -1647,9 +1641,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                                 value=_preset or None,
                                 options=[ft.DropdownOption(key=v, text=v) for v in _pool],
                                 on_select=_on_uv_feat_prof_select,
-                                bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                                label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                                border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                                bgcolor=design.T().surface, color=design.T().text,
+                                label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                                border_color=design.T().border, focused_border_color=design.T().magic,
                                 expand=True,
                             )
                             setattr(dd_fp, "_prof_pool", _pool)
@@ -1720,11 +1714,11 @@ class WizardView(CreationSharedMixin, ft.Column):
                         value=curr,
                         options=[ft.DropdownOption(key=l, text=l) for l in opts],
                         on_select=lambda e, idx=i: _on_race_lang_select(idx, e.control.value or ""),
-                        bgcolor=COLOR_BG_CARD,
-                        color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER,
-                        focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface,
+                        color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border,
+                        focused_border_color=design.T().magic,
                         expand=True,
                     ))
             else:
@@ -1768,10 +1762,10 @@ class WizardView(CreationSharedMixin, ft.Column):
 
             exp_label_row = ft.Row([
                 ft.Text("Scegli 2 abilità per la Maestria (Lv.1)",
-                        size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                        size=13, color=design.T().text, weight=ft.FontWeight.W_600),
                 ft.Container(expand=True),
                 ft.Text(f"({len(self._review_expertise)}/2 selezionate)",
-                        size=11, color=COLOR_TEXT_MUTED),
+                        size=11, color=design.T().text_3),
             ])
             expertise_col.controls.append(exp_label_row)
             exp_counter = cast(ft.Text, exp_label_row.controls[2])
@@ -1805,9 +1799,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                 cb = ft.Checkbox(
                     label=skill,
                     value=skill in self._review_expertise,
-                    fill_color=COLOR_ACCENT_BLUE,
+                    fill_color=design.T().magic,
                     check_color=design.T().on_accent,
-                    label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                    label_style=ft.TextStyle(size=12, color=design.T().text),
                     on_change=lambda e, s=skill: _on_expertise_toggle(s, bool(e.control.value)),
                 )
                 expertise_checks[skill] = cb
@@ -1852,10 +1846,10 @@ class WizardView(CreationSharedMixin, ft.Column):
 
             label_row = ft.Row([
                 ft.Text(f"Scegli {count} abilità dalla lista", size=13,
-                        color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                        color=design.T().text, weight=ft.FontWeight.W_600),
                 ft.Container(expand=True),
                 ft.Text(f"({len(self._review_skills)}/{count} selezionate)",
-                        size=11, color=COLOR_TEXT_MUTED),
+                        size=11, color=design.T().text_3),
             ])
             skills_col.controls.append(label_row)
 
@@ -1902,9 +1896,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                 cb = ft.Checkbox(
                     label=skill,
                     value=skill in self._review_skills,
-                    fill_color=COLOR_ACCENT_CRIMSON,
+                    fill_color=design.T().primary,
                     check_color=design.T().on_primary,
-                    label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                    label_style=ft.TextStyle(size=12, color=design.T().text),
                     on_change=lambda e, s=skill: _on_skill_toggle(s, bool(e.control.value)),
                 )
                 skill_checks[skill] = cb
@@ -1961,10 +1955,10 @@ class WizardView(CreationSharedMixin, ft.Column):
                 self._review_languages = [l for l in self._review_languages if l in avail_langs]
                 lang_label = ft.Row([
                     ft.Text(f"Scegli {lang_count} {'lingue' if lang_count > 1 else 'lingua'}",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600),
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600),
                     ft.Container(expand=True),
                     ft.Text(f"({len(self._review_languages)}/{lang_count})",
-                            size=11, color=COLOR_TEXT_MUTED),
+                            size=11, color=design.T().text_3),
                 ])
                 lang_tool_col.controls.append(lang_label)
                 lang_counter = cast(ft.Text, lang_label.controls[2])
@@ -2000,9 +1994,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                     cb = ft.Checkbox(
                         label=lang,
                         value=lang in self._review_languages,
-                        fill_color=COLOR_ACCENT_GOLD,
+                        fill_color=design.T().magic,
                         check_color=design.T().on_accent,
-                        label_style=ft.TextStyle(size=12, color=COLOR_TEXT_PRIMARY),
+                        label_style=ft.TextStyle(size=12, color=design.T().text),
                         on_change=lambda e, lg=lang: _on_lang_toggle(lg, bool(e.control.value)),
                     )
                     lang_checks[lang] = cb
@@ -2038,11 +2032,11 @@ class WizardView(CreationSharedMixin, ft.Column):
                     value=curr_tool,
                     options=[ft.DropdownOption(key=t, text=t) for t in tc_opts],
                     on_select=lambda e, idx=tc_idx: _set_tool(idx, e.control.value or ""),
-                    bgcolor=COLOR_BG_CARD,
-                    color=COLOR_TEXT_PRIMARY,
-                    label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_GOLD,
+                    bgcolor=design.T().surface,
+                    color=design.T().text,
+                    label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                    border_color=design.T().border,
+                    focused_border_color=design.T().magic,
                     expand=True,
                 )
                 lang_tool_col.controls.append(tool_dd)
@@ -2091,7 +2085,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 has_content = True
                 lang_tool_col.controls.append(
                     ft.Text(f"Scegli {cc_count} strument{'o' if cc_count == 1 else 'i'} di classe",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 group_idx = len(class_tool_dd_groups)
                 dds: list[ft.Dropdown] = []
@@ -2104,9 +2098,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                         options=[ft.DropdownOption(key=t, text=t) for t in cc_opts],
                         on_select=lambda e, s=slot, gi=group_idx, off=_ct_offset, pl=cc_opts:
                             _set_class_tool(s, e.control.value or "", gi, off, pl),
-                        bgcolor=COLOR_BG_CARD, color=COLOR_TEXT_PRIMARY,
-                        label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-                        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_GOLD,
+                        bgcolor=design.T().surface, color=design.T().text,
+                        label_style=ft.TextStyle(color=design.T().text_3, size=12),
+                        border_color=design.T().border, focused_border_color=design.T().magic,
                         expand=True,
                     )
                     dds.append(dd)
@@ -2358,7 +2352,7 @@ class WizardView(CreationSharedMixin, ft.Column):
             if n_cantrips > 0 and cantrip_pool:
                 spells_init_col.controls.append(
                     ft.Text(f"Trucchetti conosciuti (scegli {n_cantrips})",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 for i in range(n_cantrips):
                     current = self._review_cantrips[i] if i < len(self._review_cantrips) else ""
@@ -2378,7 +2372,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 spells_init_col.controls.append(ft.Container(height=4))
                 spells_init_col.controls.append(
                     ft.Text(f"Incantesimi di 1° livello conosciuti (scegli {n_spells})",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 for i in range(n_spells):
                     current = self._review_spells_lv1[i] if i < len(self._review_spells_lv1) else ""
@@ -2398,7 +2392,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 spells_init_col.controls.append(ft.Container(height=4))
                 spells_init_col.controls.append(
                     ft.Text(f"Incantesimi preparati iniziali (scegli {n_prepared})",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 spells_init_col.controls.append(
                     muted_text(
@@ -2425,7 +2419,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 spells_init_col.controls.append(ft.Container(height=4))
                 spells_init_col.controls.append(
                     ft.Text(f"Libro degli Incantesimi (scegli {n_spellbook})",
-                            size=13, color=COLOR_TEXT_PRIMARY, weight=ft.FontWeight.W_600)
+                            size=13, color=design.T().text, weight=ft.FontWeight.W_600)
                 )
                 spells_init_col.controls.append(
                     muted_text(
@@ -2557,8 +2551,8 @@ class WizardView(CreationSharedMixin, ft.Column):
         extra_card = ft.Container(
             content=extra_card_content,
             visible=False,
-            bgcolor=COLOR_BG_CARD,
-            border=ft.Border.only(top=ft.BorderSide(3, COLOR_ACCENT_CRIMSON)),
+            bgcolor=design.T().surface,
+            border=ft.Border.only(top=ft.BorderSide(3, design.T().primary)),
             border_radius=ft.BorderRadius.all(8),
             padding=20,
         )
@@ -2587,7 +2581,7 @@ class WizardView(CreationSharedMixin, ft.Column):
 
         content_sections: list[ft.Control] = [
             ft.Text("Personalizza il tuo personaggio", size=22,
-                    weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                    weight=ft.FontWeight.BOLD, color=design.T().text),
             ft.Container(height=4),
             muted_text("Puoi modificare i suggerimenti del wizard.", size=13),
             ft.Container(height=20),
@@ -2695,7 +2689,7 @@ class WizardView(CreationSharedMixin, ft.Column):
 
             return ""
 
-        review_error_text = ft.Text("", color=COLOR_ACCENT_RED, size=13, visible=False)
+        review_error_text = ft.Text("", color=design.T().danger, size=13, visible=False)
 
         def _on_continue_to_equipment(e):
             err = _review_validation_error()
@@ -2770,7 +2764,7 @@ class WizardView(CreationSharedMixin, ft.Column):
 
         rows: list[ft.Control] = [
             ft.Text("Equipaggiamento iniziale", size=22,
-                    weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                    weight=ft.FontWeight.BOLD, color=design.T().text),
             ft.Container(height=4),
             muted_text("Seleziona l'equipaggiamento di partenza della tua classe.", size=13),
             ft.Container(height=20),
@@ -2817,9 +2811,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                     cb = ft.Checkbox(
                         label=label,
                         value=item["selected"],
-                        fill_color=COLOR_ACCENT_CRIMSON,
+                        fill_color=design.T().primary,
                         check_color=design.T().on_primary,
-                        label_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
+                        label_style=ft.TextStyle(size=13, color=design.T().text),
                         on_change=lambda e, it=item: it.update({"selected": bool(e.control.value)}),
                     )
                     # Se l'oggetto è una Dotazione, mostra sempre il suo
@@ -2831,7 +2825,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                             cb,
                             ft.Container(
                                 content=ft.Text(pack_body, size=11,
-                                                 color=COLOR_TEXT_SECONDARY, selectable=True),
+                                                 color=design.T().text_2, selectable=True),
                                 padding=ft.Padding.only(left=32, top=2, bottom=4),
                             ),
                         ], spacing=2))
@@ -2946,7 +2940,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     section_header("Equipaggiamento background"),
                     muted_text("Aggiunto automaticamente all'inventario.", size=11),
                     ft.Container(height=4),
-                    ft.Text(bg_items_text, size=13, color=COLOR_TEXT_PRIMARY),
+                    ft.Text(bg_items_text, size=13, color=design.T().text),
                 ], spacing=8), padding=20))
                 rows.append(ft.Container(height=16))
 
@@ -2969,10 +2963,10 @@ class WizardView(CreationSharedMixin, ft.Column):
                         self, "_gold_amount",
                         ev.control.value if ev.control.value else ""
                     ),
-                    text_style=ft.TextStyle(size=14, color=COLOR_TEXT_PRIMARY),
-                    border_color=COLOR_BORDER,
-                    focused_border_color=COLOR_ACCENT_GOLD,
-                    bgcolor=COLOR_BG_CARD,
+                    text_style=ft.TextStyle(size=14, color=design.T().text),
+                    border_color=design.T().border,
+                    focused_border_color=design.T().magic,
+                    bgcolor=design.T().surface,
                 )
 
                 # CardPicker invece di RadioGroup (2026-07-17, feedback Davide:
@@ -3049,24 +3043,24 @@ class WizardView(CreationSharedMixin, ft.Column):
         name_field = ft.TextField(
             label="Nome del personaggio *",
             hint_text="Come si chiama il tuo eroe?",
-            bgcolor=COLOR_BG_CARD,
-            color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_GOLD,
-            cursor_color=COLOR_ACCENT_GOLD,
+            bgcolor=design.T().surface,
+            color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
+            cursor_color=design.T().magic,
             autofocus=True,
         )
         player_field = ft.TextField(
             label="Nome del giocatore (opzionale)",
-            bgcolor=COLOR_BG_CARD,
-            color=COLOR_TEXT_PRIMARY,
-            label_style=ft.TextStyle(color=COLOR_TEXT_MUTED, size=12),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_GOLD,
-            cursor_color=COLOR_ACCENT_GOLD,
+            bgcolor=design.T().surface,
+            color=design.T().text,
+            label_style=ft.TextStyle(color=design.T().text_3, size=12),
+            border_color=design.T().border,
+            focused_border_color=design.T().magic,
+            cursor_color=design.T().magic,
         )
-        error_text = ft.Text("", color=COLOR_ACCENT_RED, size=13, visible=False)
+        error_text = ft.Text("", color=design.T().danger, size=13, visible=False)
 
         # Riepilogo
         hd    = (_loader.get_class(self._review_class) or {}).get("hit_die", 8)
@@ -3081,15 +3075,15 @@ class WizardView(CreationSharedMixin, ft.Column):
                     [
                         label_text(label, size=9),
                         ft.Text(str(val), size=14, weight=ft.FontWeight.BOLD,
-                                color=COLOR_ACCENT_GOLD),
+                                color=design.T().magic),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=2,
                 ),
                 padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-                bgcolor=COLOR_BG_SECONDARY,
-                border=ft.Border.all(1, COLOR_BORDER),
-                border_radius=6,
+                bgcolor=design.T().surface_alt,
+                shadow=design.elevation(1),
+                border_radius=design.Radius.MD,
             )
 
         summary = ft.Column(
@@ -3912,7 +3906,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     "Dai un nome al tuo eroe",
                     size=22,
                     weight=ft.FontWeight.BOLD,
-                    color=COLOR_TEXT_TITLE,
+                    color=design.T().text,
                 ),
                 ft.Container(height=4),
                 muted_text("Quasi fatto! Assegna un nome e salva il tuo personaggio.", size=13),

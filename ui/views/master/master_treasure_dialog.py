@@ -24,11 +24,6 @@ from typing import Any, cast
 
 import flet as ft
 
-from config.settings import (
-    COLOR_TEXT_TITLE, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-    COLOR_TEXT_MUTED, COLOR_BORDER, COLOR_BG_CARD, COLOR_BG_PRIMARY,
-    COLOR_ACCENT_CRIMSON, COLOR_ACCENT_BLUE,
-)
 from core import treasure_generator as tg
 from data.repositories import character_repo
 from ui.widgets import responsive_dialog_width
@@ -62,27 +57,27 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
         label="Fascia di Sfida (CR)",
         value="0-4",
         options=[ft.DropdownOption(key=k, text=v) for k, v in _CR_LABELS.items()],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
     )
     result_col = ft.Column(spacing=6)
     char_dd = ft.Dropdown(
         label="Aggiungi all'inventario di...",
         value=characters[0].id if characters else "",
         options=[ft.DropdownOption(key=c.id, text=f"{c.name} (Lv.{c.level})") for c in characters],
-        border_color=COLOR_BORDER, focused_border_color=COLOR_ACCENT_CRIMSON,
-        bgcolor=COLOR_BG_CARD, label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         disabled=not characters,
     )
     add_btn_ref: list[ft.ElevatedButton] = []
-    feedback_text = ft.Text("", size=11, color=COLOR_ACCENT_BLUE)
+    feedback_text = ft.Text("", size=11, color=design.T().magic)
 
     def _coin_lines(coins: list[dict[str, Any]]) -> list[ft.Control]:
         if not any(c.get("amount") for c in coins):
-            return [ft.Text("Nessuna moneta", size=12, color=COLOR_TEXT_MUTED)]
+            return [ft.Text("Nessuna moneta", size=12, color=design.T().text_3)]
         return [
             ft.Text(f"• {c['amount']} {tg.CURRENCY_LABELS.get(c['currency'], c['currency'])}",
-                     size=13, color=COLOR_TEXT_PRIMARY)
+                     size=13, color=design.T().text)
             for c in coins if c.get("amount")
         ]
 
@@ -90,45 +85,45 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
         result_col.controls.clear()
         if not result_state:
             result_col.controls.append(
-                ft.Text("Premi «Tira» per generare un tesoro.", size=12, color=COLOR_TEXT_MUTED)
+                ft.Text("Premi «Tira» per generare un tesoro.", size=12, color=design.T().text_3)
             )
         elif mode_state["mode"] == "individual":
             result_col.controls.append(
-                ft.Text(f"Tiro d100: {result_state['roll']}", size=11, color=COLOR_TEXT_MUTED)
+                ft.Text(f"Tiro d100: {result_state['roll']}", size=11, color=design.T().text_3)
             )
             result_col.controls.extend(_coin_lines(result_state["coins"]))
         else:
-            result_col.controls.append(ft.Text("Monete (formula fissa):", size=12, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE))
+            result_col.controls.append(ft.Text("Monete (formula fissa):", size=12, weight=ft.FontWeight.BOLD, color=design.T().text))
             result_col.controls.extend(_coin_lines(result_state["coins"]))
             result_col.controls.append(ft.Container(height=6))
             result_col.controls.append(
-                ft.Text(f"Tiro d100 tabella aggiuntiva: {result_state['roll']}", size=11, color=COLOR_TEXT_MUTED)
+                ft.Text(f"Tiro d100 tabella aggiuntiva: {result_state['roll']}", size=11, color=design.T().text_3)
             )
             ga = result_state.get("gems_or_art")
             if ga:
                 label = "Gemme" if ga["type"] == "gems" else "Oggetti d'Arte"
                 result_col.controls.append(
                     ft.Text(f"{label} da {ga['value']} mo (×{ga['count']}):", size=12,
-                             weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE)
+                             weight=ft.FontWeight.BOLD, color=design.T().text)
                 )
                 for item in ga["items"]:
-                    result_col.controls.append(ft.Text(f"• {item}", size=12, color=COLOR_TEXT_PRIMARY))
+                    result_col.controls.append(ft.Text(f"• {item}", size=12, color=design.T().text))
             magic = result_state.get("magic_items", [])
             if magic:
-                result_col.controls.append(ft.Text("Oggetti Magici:", size=12, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE))
+                result_col.controls.append(ft.Text("Oggetti Magici:", size=12, weight=ft.FontWeight.BOLD, color=design.T().text))
                 for item in magic:
-                    result_col.controls.append(ft.Text(f"• {item}", size=12, color=COLOR_TEXT_PRIMARY))
+                    result_col.controls.append(ft.Text(f"• {item}", size=12, color=design.T().text))
             if not ga and not magic:
                 result_col.controls.append(ft.Text("Nessuna gemma/oggetto d'arte/oggetto magico in questo tiro.",
-                                                      size=12, color=COLOR_TEXT_MUTED, italic=True))
+                                                      size=12, color=design.T().text_3, italic=True))
 
         if trinket_state:
             result_col.controls.append(ft.Container(height=6))
-            result_col.controls.append(ft.Divider(height=1, color=COLOR_BORDER))
+            result_col.controls.append(ft.Divider(height=1, color=design.T().border))
             result_col.controls.append(
-                ft.Text(f"Cimelio (tiro {trinket_state['roll']}):", size=12, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE)
+                ft.Text(f"Cimelio (tiro {trinket_state['roll']}):", size=12, weight=ft.FontWeight.BOLD, color=design.T().text)
             )
-            result_col.controls.append(ft.Text(trinket_state["description"], size=12, color=COLOR_TEXT_PRIMARY, italic=True))
+            result_col.controls.append(ft.Text(trinket_state["description"], size=12, color=design.T().text, italic=True))
 
         try:
             result_col.update()
@@ -222,8 +217,7 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
         "Aggiungi all'inventario", icon=ft.Icons.ADD_SHOPPING_CART,
         on_click=_on_add_to_inventory,
         disabled=not characters,
-        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_BLUE, color=design.T().on_accent,
-                              shape=ft.RoundedRectangleBorder(radius=4)),
+        style=ft.ButtonStyle(bgcolor=design.T().magic, color=design.T().on_accent),
     )
     add_btn_ref.append(add_btn)
 
@@ -240,20 +234,19 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
                 [
                     ft.ElevatedButton(
                         "Tira", icon=ft.Icons.CASINO, on_click=_on_roll,
-                        style=ft.ButtonStyle(bgcolor=COLOR_ACCENT_CRIMSON, color=design.T().on_primary,
-                                              shape=ft.RoundedRectangleBorder(radius=4)),
+                        style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                     ),
                     ft.OutlinedButton("+ Cimelio", icon=ft.Icons.AUTO_AWESOME, on_click=_on_trinket),
                 ],
                 spacing=8,
             ),
-            ft.Divider(height=1, color=COLOR_BORDER),
+            ft.Divider(height=1, color=design.T().border),
             ft.Container(
                 content=result_col,
-                bgcolor=COLOR_BG_PRIMARY, border_radius=6,
+                bgcolor=design.T().bg, border_radius=design.Radius.MD,
                 padding=ft.Padding.all(12),
             ),
-            ft.Divider(height=1, color=COLOR_BORDER),
+            ft.Divider(height=1, color=design.T().border),
             char_dd,
             add_btn,
             feedback_text,
@@ -267,11 +260,11 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
         page.pop_dialog()
 
     dlg = ft.AlertDialog(
-        title=ft.Text("Genera Tesoro", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+        title=ft.Text("Genera Tesoro", size=16, weight=ft.FontWeight.BOLD, color=design.T().text),
         content=content,
         actions=cast(list[ft.Control], [
             ft.TextButton("Chiudi", on_click=_close),
         ]),
-        bgcolor=COLOR_BG_CARD,
+        bgcolor=design.T().surface,
     )
     page.show_dialog(dlg)

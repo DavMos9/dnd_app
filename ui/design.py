@@ -550,6 +550,103 @@ def metric_bar(value: float, maximum: float, *, tone: Tone = "success",
     ])
 
 
+def hp_tone(current: float, maximum: float) -> Tone:
+    """Verde sopra metà, ambra sopra un quarto, rosso sotto — soglie di sempre."""
+    if maximum <= 0:
+        return "neutral"
+    r = current / maximum
+    return "success" if r > 0.5 else ("warning" if r > 0.25 else "danger")
+
+
+def hp_bar(current: int, maximum: int, temp: int = 0, *, height: int = 14) -> ft.Container:
+    """
+    Barra dei punti ferita a segmenti (Fase E.4 del restyle).
+
+    Prima era una `ProgressBar` piatta che ignorava del tutto i PF temporanei.
+    Qui i segmenti sono Container con peso `expand`, quindi le proporzioni sono
+    esatte e i PF temporanei hanno una loro fascia in colore `magic` — si vede a
+    colpo d'occhio quanta parte della barra è "presa in prestito".
+    """
+    p = T()
+    cur = max(0, current)
+    tmp = max(0, temp)
+    total = max(maximum, cur + tmp, 1)
+    tone = hp_tone(cur, maximum)
+    segs: list[ft.Control] = []
+    if cur:
+        segs.append(ft.Container(bgcolor=tone_color(tone), expand=cur))
+    if tmp:
+        segs.append(ft.Container(bgcolor=p.magic, expand=tmp))
+    rest = total - cur - tmp
+    if rest > 0:
+        segs.append(ft.Container(bgcolor=ft.Colors.with_opacity(0.5, p.border), expand=rest))
+    return ft.Container(
+        content=ft.Row(segs, spacing=0),
+        height=height,
+        border_radius=Radius.PILL,
+        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+        bgcolor=ft.Colors.with_opacity(0.5, p.border),
+        animate=ft.Animation(Duration.BASE, CURVE),
+    )
+
+
+def slot_dots(total: int, used: int, *, tone: Tone = "magic", size: int = 16,
+              max_shown: int = 12) -> ft.Row:
+    """
+    Pallini degli slot incantesimo / risorse di classe (Fase E.4).
+
+    Pieno = disponibile, anello vuoto = speso. Prima erano cerchi con bordo 1px
+    e riempimento pieno/grigio: l'anello rende la differenza leggibile anche a
+    colpo d'occhio e in tema scuro.
+    """
+    p = T()
+    col = tone_color(tone)
+    avail = max(0, total - max(0, used))
+    dots: list[ft.Control] = []
+    shown = min(total, max_shown)
+    for i in range(shown):
+        is_avail = i < avail
+        dots.append(ft.Container(
+            width=size, height=size, border_radius=size // 2,
+            bgcolor=col if is_avail else "transparent",
+            border=None if is_avail else ft.Border.all(2, ft.Colors.with_opacity(0.45, col)),
+            animate=ft.Animation(Duration.FAST, CURVE),
+        ))
+    if total > max_shown:
+        dots.append(ft.Text(f"+{total - max_shown}", size=Size.LABEL,
+                            color=p.text_3, font_family=Font.MONO))
+    return ft.Row(dots, spacing=Space.XS, wrap=True)
+
+
+def dot_button(filled: bool, *, tone: Tone = "magic", size: int = 18,
+               on_click: Callable[[Any], None] | None = None,
+               tooltip: str | None = None, dim: bool = False) -> ft.Container:
+    """
+    Pallino CLICCABILE (slot incantesimo, risorse di classe, TS contro morte).
+
+    Stessa resa di `slot_dots` — pieno = disponibile, anello = speso — ma con
+    tap-target adeguato: il pallino disegnato è `size`, l'area cliccabile ha 4px
+    di padding attorno, così resta comodo anche col dito su tablet.
+    """
+    col = tone_color(tone)
+    inner = ft.Container(
+        width=size, height=size, border_radius=size // 2,
+        bgcolor=col if filled else "transparent",
+        border=None if filled else ft.Border.all(
+            2, ft.Colors.with_opacity(0.20 if dim else 0.45, col)),
+        animate=ft.Animation(Duration.FAST, CURVE),
+    )
+    return ft.Container(
+        content=inner,
+        padding=ft.Padding.all(Space.XS),
+        border_radius=Radius.PILL,
+        on_click=on_click,
+        tooltip=tooltip,
+        ink=bool(on_click),
+        animate_scale=ft.Animation(Duration.FAST, CURVE),
+    )
+
+
 def empty_state(icon: ft.IconData, title_text: str, hint: str = "",
                 action: ft.Control | None = None) -> ft.Container:
     """Stato vuoto uniforme — l'app ne aveva ~12 scritti a mano tutti diversi."""

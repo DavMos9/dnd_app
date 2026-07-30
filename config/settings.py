@@ -8,57 +8,23 @@ APP_VERSION = "0.1.0"
 # il nome del file è deciso da data/database.py -> get_db_path().
 
 # ---------------------------------------------------------------------------
-# Palette Pergamena & Avventura — sfondo pergamena, rosso D&D + blu reale
+# Colori e font — NON più qui
 # ---------------------------------------------------------------------------
-COLOR_BG_PRIMARY       = "#f5f0e8"   # pergamena calda (sfondo principale)
-COLOR_BG_SECONDARY     = "#ece5d8"   # pergamena leggermente più scura (stat bar, header)
-COLOR_BG_CARD          = "#ffffff"   # bianco puro (card, pannelli)
-COLOR_BG_TAB_ACTIVE    = "#ffffff"   # tab attivo: bianco puro
-COLOR_BG_TAB_INACTIVE  = "#e8e1d4"   # tab inattivo: pergamena
-COLOR_BG_SELECTED      = "#dce8f8"   # selezione attiva (blu tenue)
-
-COLOR_ACCENT_CRIMSON   = "#c0182c"   # rosso D&D – accento principale
-COLOR_ACCENT_GOLD      = "#1848a0"   # blu reale – accento secondario (nome legacy)
-COLOR_ACCENT_AMBER     = "#b86800"   # ambra/oro per warning e HP
-COLOR_ACCENT_BLUE      = "#1848a0"   # blu reale – magia, modificatori
-COLOR_ACCENT_GREEN     = "#1a6b30"   # verde selvatico – valori positivi
-COLOR_ACCENT_RED       = "#c0182c"   # alias rosso (= CRIMSON)
-
-# Colori testo — scuri leggibili su sfondo chiaro
-COLOR_TEXT_PRIMARY     = "#1c1e2c"   # inchiostro quasi nero – testo principale
-COLOR_TEXT_SECONDARY   = "#3c4060"   # blu-ardesia scuro – label, sottotitoli (più visibile)
-COLOR_TEXT_MUTED       = "#7880a0"   # grigio-blu – placeholder, info secondaria
-COLOR_TEXT_TITLE       = "#0a0c1c"   # nero profondo – nomi e titoli
-
-COLOR_BORDER           = "#c8c0b0"   # bordo pergamena dorata
-COLOR_BORDER_ACCENT    = "#1848a0"   # bordo blu – evidenziato
-
-COLOR_HP_FULL          = "#186030"   # verde vitale scuro
-COLOR_HP_MID           = "#b86800"   # ambra attenzione
-COLOR_HP_LOW           = "#c0182c"   # rosso pericolo
-
-COLOR_SLOT_FULL        = "#1848a0"   # slot incantesimo disponibile (blu)
-
-# Sidebar (nav rail) — scura per contrasto, stile cuoio scuro D&D
-COLOR_NAV_BG           = "#1a0808"   # rosso-nero quasi nero (sidebar)
-COLOR_NAV_MUTED        = "#806878"   # testo secondario sidebar
-
-# ---------------------------------------------------------------------------
-# Font
-# ---------------------------------------------------------------------------
-# ⚠️ Alias legacy (Fase B.1 del restyle, 2026-07-30). La fonte di verità delle
-# famiglie tipografiche è `ui/design.py → Font`, che le registra anche in
-# `page.fonts`. Qui restano solo come alias perché ~60 punti nelle view non
-# ancora migrate leggono `FONT_TITLE`/`FONT_BODY`/`FONT_MONO`: aggiornare questi
-# 3 valori applica i font nuovi anche a quelle view senza toccarle una per una.
-# È l'unico caso di duplicazione di stringa accettato nel progetto, e c'è un
-# test che verifica che i 3 valori combacino con `ui.design.Font`. Vanno rimossi
-# a fine Fase E, quando ogni view userà i token direttamente.
-# NON importare `ui.design` da qui: `config/settings.py` è importato anche da
-# `core/`, che per regola di progetto non deve dipendere da Flet.
-FONT_TITLE  = "Cinzel"         # titoli e intestazioni  (= design.Font.DISPLAY)
-FONT_BODY   = "Inter"          # corpo testo            (= design.Font.BODY)
-FONT_MONO   = "JetBrains Mono" # valori numerici        (= design.Font.MONO)
+# Le 24 costanti `COLOR_*` e i 3 alias `FONT_*` sono stati rimossi nella Fase E
+# del restyle (2026-07-30): erano una palette a tema unico, quindi un ostacolo
+# strutturale al tema scuro, e duplicavano valori che ora vivono in un solo
+# posto. Ogni colore e font si legge da `ui/design.py`:
+#
+#     from ui import design
+#     design.T().surface / .text / .primary / .magic / …   (token del tema attivo)
+#     design.Font.DISPLAY / .BODY / .MONO                  (famiglie tipografiche)
+#     design.Radius.* / design.Space.* / design.elevation()
+#
+# `T()` è una FUNZIONE, non una costante: va chiamata al momento di costruire il
+# controllo, mai salvata in una costante di modulo o in un default di parametro
+# (verrebbe valutata all'import, congelando la palette chiara).
+# Questo modulo resta la sede delle costanti di REGOLAMENTO, non di quelle
+# visive: `core/` lo importa e non deve dipendere da Flet.
 
 # ---------------------------------------------------------------------------
 # Costanti D&D 5e

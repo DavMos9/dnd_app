@@ -10,7 +10,6 @@ Struttura (ListView scrollabile):
 import flet as ft
 import logging
 from typing import Callable, cast
-from config.settings import *
 from data.models import Character, DiaryEntry
 import data.repositories.character_repo as character_repo
 from ui.theme import muted_text
@@ -47,7 +46,7 @@ class DiarioTab(ScrollMemoryListView):
                 "Diario di Avventura",
                 size=16,
                 weight=ft.FontWeight.BOLD,
-                color=COLOR_TEXT_TITLE,
+                color=design.T().text,
                 expand=True,
             ),
             ft.ElevatedButton(
@@ -55,9 +54,8 @@ class DiarioTab(ScrollMemoryListView):
                 icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_new_entry(),
                 style=ft.ButtonStyle(
-                    bgcolor=COLOR_ACCENT_CRIMSON,
+                    bgcolor=design.T().primary,
                     color=design.T().on_primary,
-                    shape=ft.RoundedRectangleBorder(radius=4),
                 ),
             ),
         ]
@@ -85,10 +83,10 @@ class DiarioTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Icon(ft.Icons.MENU_BOOK_OUTLINED, size=56, color=COLOR_BORDER),
+                    ft.Icon(ft.Icons.MENU_BOOK_OUTLINED, size=56, color=design.T().border),
                     ft.Container(height=12),
                     ft.Text("Nessuna voce nel diario", size=16,
-                            weight=ft.FontWeight.BOLD, color=COLOR_TEXT_SECONDARY),
+                            weight=ft.FontWeight.BOLD, color=design.T().text_2),
                     ft.Container(height=6),
                     muted_text("Premi «Nuova Voce» per iniziare a scrivere\nle tue avventure.", 13),
                 ],
@@ -125,7 +123,7 @@ class DiarioTab(ScrollMemoryListView):
                                         entry.title or "Senza titolo",
                                         size=14,
                                         weight=ft.FontWeight.BOLD,
-                                        color=COLOR_TEXT_TITLE,
+                                        color=design.T().text,
                                         overflow=ft.TextOverflow.ELLIPSIS,
                                     ),
                                     muted_text(date_label, 11),
@@ -138,7 +136,7 @@ class DiarioTab(ScrollMemoryListView):
                                     ft.IconButton(
                                         icon=ft.Icons.EDIT_OUTLINED,
                                         icon_size=16,
-                                        icon_color=COLOR_TEXT_MUTED,
+                                        icon_color=design.T().text_3,
                                         tooltip="Modifica",
                                         on_click=lambda e, en=entry: self._on_edit_entry(en),
                                         padding=ft.Padding.all(4),
@@ -146,7 +144,7 @@ class DiarioTab(ScrollMemoryListView):
                                     ft.IconButton(
                                         icon=ft.Icons.DELETE_OUTLINE,
                                         icon_size=16,
-                                        icon_color=COLOR_ACCENT_CRIMSON,
+                                        icon_color=design.T().primary,
                                         tooltip="Elimina",
                                         on_click=lambda e, en=entry: self._on_delete_entry(en),
                                         padding=ft.Padding.all(4),
@@ -164,7 +162,7 @@ class DiarioTab(ScrollMemoryListView):
                             ft.Text(
                                 preview,
                                 size=12,
-                                color=COLOR_TEXT_SECONDARY,
+                                color=design.T().text_2,
                                 max_lines=2,
                                 overflow=ft.TextOverflow.ELLIPSIS,
                             ),
@@ -174,15 +172,15 @@ class DiarioTab(ScrollMemoryListView):
                 ],
                 spacing=0,
             ),
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=12),
             border=ft.Border(
-                left=ft.BorderSide(3, COLOR_ACCENT_CRIMSON),
-                top=ft.BorderSide(1, COLOR_BORDER),
-                right=ft.BorderSide(1, COLOR_BORDER),
-                bottom=ft.BorderSide(1, COLOR_BORDER),
+                left=ft.BorderSide(3, design.T().primary),
+                top=ft.BorderSide(1, design.T().border),
+                right=ft.BorderSide(1, design.T().border),
+                bottom=ft.BorderSide(1, design.T().border),
             ),
-            border_radius=6,
+            border_radius=design.Radius.MD,
         )
 
     # ------------------------------------------------------------------
@@ -216,20 +214,20 @@ class DiarioTab(ScrollMemoryListView):
             label="Titolo",
             value="" if is_new else (entry.title or ""),
             autofocus=True,
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
-            label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border,
+            focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
+            label_style=ft.TextStyle(color=design.T().text_2),
         )
         f_date = ft.TextField(
             label="Data / Sessione  (es. «Sessione 3», «15 Olarune 998»)",
             value="" if is_new else (entry.session_date or ""),
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
-            label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border,
+            focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
+            label_style=ft.TextStyle(color=design.T().text_2),
         )
         f_content = ft.TextField(
             label="Contenuto",
@@ -237,11 +235,11 @@ class DiarioTab(ScrollMemoryListView):
             multiline=True,
             min_lines=5,
             max_lines=12,
-            text_style=ft.TextStyle(size=13, color=COLOR_TEXT_PRIMARY),
-            border_color=COLOR_BORDER,
-            focused_border_color=COLOR_ACCENT_CRIMSON,
-            bgcolor=COLOR_BG_CARD,
-            label_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            text_style=ft.TextStyle(size=13, color=design.T().text),
+            border_color=design.T().border,
+            focused_border_color=design.T().primary,
+            bgcolor=design.T().surface,
+            label_style=ft.TextStyle(color=design.T().text_2),
         )
 
         def save(ev):
@@ -261,7 +259,7 @@ class DiarioTab(ScrollMemoryListView):
         page.show_dialog(ft.AlertDialog(
             title=ft.Text(
                 "Nuova Voce" if is_new else "Modifica Voce",
-                size=14, weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE,
+                size=14, weight=ft.FontWeight.BOLD, color=design.T().text,
             ),
             content=ft.Column(
                 [f_title, f_date, f_content],
@@ -278,13 +276,12 @@ class DiarioTab(ScrollMemoryListView):
                     icon=ft.Icons.SAVE_OUTLINED,
                     on_click=save,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON,
+                        bgcolor=design.T().primary,
                         color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     # ------------------------------------------------------------------
@@ -305,10 +302,10 @@ class DiarioTab(ScrollMemoryListView):
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Text("Elimina voce", size=14,
-                          weight=ft.FontWeight.BOLD, color=COLOR_TEXT_TITLE),
+                          weight=ft.FontWeight.BOLD, color=design.T().text),
             content=ft.Text(
                 f"Eliminare «{entry.title or 'Senza titolo'}»?\nL'operazione non è reversibile.",
-                size=13, color=COLOR_TEXT_PRIMARY,
+                size=13, color=design.T().text,
             ),
             actions=[
                 ft.TextButton(
@@ -320,13 +317,12 @@ class DiarioTab(ScrollMemoryListView):
                     icon=ft.Icons.DELETE_OUTLINE,
                     on_click=do_delete,
                     style=ft.ButtonStyle(
-                        bgcolor=COLOR_ACCENT_CRIMSON,
+                        bgcolor=design.T().primary,
                         color=design.T().on_primary,
-                        shape=ft.RoundedRectangleBorder(radius=4),
                     ),
                 ),
             ],
-            bgcolor=COLOR_BG_CARD,
+            bgcolor=design.T().surface,
         ))
 
     # ------------------------------------------------------------------
