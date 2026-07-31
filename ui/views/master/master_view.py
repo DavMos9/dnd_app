@@ -26,6 +26,7 @@ _TABS: list[dict[str, Any]] = [
     {"key": "encounters", "label": "Incontri", "icon": ft.Icons.SHIELD_OUTLINED},
     {"key": "notes", "label": "Note di Campagna", "icon": ft.Icons.MENU_BOOK_OUTLINED},
     {"key": "magic_items", "label": "Oggetti Magici", "icon": ft.Icons.AUTO_AWESOME},
+    {"key": "loot", "label": "Bottino", "icon": ft.Icons.INVENTORY_2_OUTLINED},
 ]
 
 
@@ -265,6 +266,15 @@ class MasterView(ft.Column):
                 return self._placeholder(
                     ft.Icons.AUTO_AWESOME, "Oggetti Magici",
                     "In costruzione — presto potrai consultare qui il compendio.",
+                )
+        elif key == "loot":
+            try:
+                from ui.views.master.master_loot_view import MasterLootView
+                return MasterLootView()
+            except ImportError:
+                return self._placeholder(
+                    ft.Icons.INVENTORY_2_OUTLINED, "Bottino",
+                    "In costruzione — presto potrai gestire qui l'archivio e il deposito del gruppo.",
                 )
         return ft.Container()
 

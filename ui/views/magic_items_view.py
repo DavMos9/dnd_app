@@ -6,13 +6,18 @@ Estratta da `master_magic_items_view.py` il 2026-07-30 (Fase 4, feature 3) per
 poter essere riusata; `master_magic_items_view` la re-esporta, quindi resta un
 solo componente.
 
-**Sola consultazione, e solo lato Master.** Una voce "Oggetti" era stata
-aggiunta anche alla sidebar del giocatore, con un pulsante "Aggiungi alla mia
-scheda": entrambi sono stati rimossi lo stesso giorno su decisione di Davide —
-è di fatto un manuale del DM, e gli oggetti che un personaggio possiede hanno
-già il testo ufficiale integrale nel proprio Inventario. Per metterne uno sulla
-scheda di un giocatore il Master usa il Generatore Oggetti Magici, che ha già
-"Aggiungi all'inventario di…".
+**Sola consultazione lato giocatore, solo lato Master per la scrittura.** Una
+voce "Oggetti" era stata aggiunta anche alla sidebar del giocatore, con un
+pulsante "Aggiungi alla mia scheda": entrambi sono stati rimossi lo stesso
+giorno su decisione di Davide — è di fatto un manuale del DM, e gli oggetti
+che un personaggio possiede hanno già il testo ufficiale integrale nel
+proprio Inventario.
+
+**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 3/6)**: il
+dialog di dettaglio (`_open_detail`) ha ora "Assegna…"/"Salva nell'archivio",
+così una delle 264 voci può arrivare sulla scheda di un giocatore per nome
+esatto (prima l'unica via era il Generatore Oggetti Magici, che pesca a
+caso — resta comunque disponibile, invariato).
 
 Esclusi da questo compendio (vedi nota `_source_note` in magic_items.json):
 "Oggetti Magici Senzienti" (solo regole generali, nessuna scheda) e
@@ -299,6 +304,32 @@ class MagicItemsView(ft.Column):
         if requires_att:
             att_text = "Richiede sintonia" + (f" ({att_restriction})" if att_restriction else "")
 
+        # -- Bottino: "Assegna…"/"Salva nell'archivio" (2026-07-31,
+        # `dnd_app/docs/loot_design.md` §6, punto 3/6) — prima non c'era
+        # alcun modo di far arrivare una delle 264 voci del compendio sulla
+        # scheda di un giocatore se non passando dal Generatore Oggetti
+        # Magici (che pesca a caso, non per nome).
+        def _build_loot_item() -> dict[str, Any]:
+            from ui.views.master.master_loot_assign_dialog import simple_item
+            note_bits = list(info_bits)
+            if att_text:
+                note_bits.append(att_text)
+            return simple_item(
+                "magic_item", name, description=desc,
+                source_note="Compendio Oggetti Magici" + (" · " + " · ".join(note_bits) if note_bits else ""),
+                requires_attunement=requires_att,
+            )
+
+        def _on_assign_loot(ev: Any) -> None:
+            from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
+            show_loot_assign_dialog(page, [_build_loot_item()])
+
+        def _on_save_to_archive(ev: Any) -> None:
+            from ui.views.master.master_loot_assign_dialog import save_items_to_stash
+            from ui.widgets import show_snack
+            save_items_to_stash([_build_loot_item()])
+            show_snack(page, f"«{name}» salvato nell'archivio.")
+
         dlg = ft.AlertDialog(
             title=ft.Row(
                 [
@@ -340,6 +371,9 @@ class MagicItemsView(ft.Column):
             ),
             actions=wrap_dialog_actions([
                 ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
+                ft.OutlinedButton("Salva nell'archivio", icon=ft.Icons.ARCHIVE_OUTLINED,
+                                  on_click=_on_save_to_archive),
+                ft.OutlinedButton("Assegna…", icon=ft.Icons.SEND_OUTLINED, on_click=_on_assign_loot),
             ]),
         )
         page.show_dialog(dlg)

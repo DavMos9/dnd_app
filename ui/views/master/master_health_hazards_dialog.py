@@ -15,6 +15,11 @@ regole/effetti da applicare a mano dal Master). 3 sotto-tab, come da design:
   l'effetto risultante, più i testi di contesto (Impazzire/Effetti/Curare).
 
 Accessibile da `MasterView` (bottone in header, "Malattie e Veleni").
+
+**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 5/6)**: la
+scheda di un veleno ha ora "Assegna…"/"Salva nell'archivio" (Malattie e
+Follia restano di sola consultazione — non sono oggetti che finiscono in un
+inventario).
 """
 
 from __future__ import annotations
@@ -24,7 +29,7 @@ from typing import Any, cast
 import flet as ft
 
 from data.game_data.game_data_loader import game_data
-from ui.widgets import responsive_dialog_width
+from ui.widgets import responsive_dialog_width, wrap_dialog_actions
 from ui import design
 
 
@@ -45,7 +50,8 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
     body_col = ft.Column(spacing=10)
 
     # -- Helper card-e-dialog condiviso ------------------------------------
-    def _text_dialog(title: str, body_controls: list[ft.Control]) -> None:
+    def _text_dialog(title: str, body_controls: list[ft.Control],
+                     extra_actions: list[ft.Control] | None = None) -> None:
         def _close(ev: Any) -> None:
             page.pop_dialog()
 
@@ -53,7 +59,9 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
             title=design.dialog_title(title),
             content=ft.Column(body_controls, width=responsive_dialog_width(page, 380), height=420,
                               scroll=ft.ScrollMode.AUTO, tight=True),
-            actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
+            actions=wrap_dialog_actions(
+                [ft.TextButton("Chiudi", on_click=_close)] + (extra_actions or [])
+            ),
         )
         page.show_dialog(dlg)
 
@@ -93,7 +101,30 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
     )
 
     # -- Modalità "Veleni" ----------------------------------------------------
+    # Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 5/6): prima
+    # non c'era alcun modo di far arrivare uno dei 14 veleni sulla scheda di
+    # un giocatore — solo consultazione, applicazione manuale del Master.
+    def _build_poison_loot_item(poison: dict[str, Any]) -> dict[str, Any]:
+        from ui.views.master.master_loot_assign_dialog import simple_item
+        ptype = poison.get("type", "")
+        price = poison.get("price", "")
+        return simple_item(
+            "poison", poison.get("name", ""),
+            description=f"Tipo: {ptype} — Prezzo: {price}\n\n{poison.get('description', '')}",
+            source_note=f"Veleni — {ptype}" + (f" · {price}" if price else ""),
+        )
+
     def _open_poison_detail(poison: dict[str, Any]) -> None:
+        def _on_assign_loot(ev: Any) -> None:
+            from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
+            show_loot_assign_dialog(page, [_build_poison_loot_item(poison)])
+
+        def _on_save_to_archive(ev: Any) -> None:
+            from ui.views.master.master_loot_assign_dialog import save_items_to_stash
+            from ui.widgets import show_snack
+            save_items_to_stash([_build_poison_loot_item(poison)])
+            show_snack(page, f"«{poison.get('name', '')}» salvato nell'archivio.")
+
         _text_dialog(
             poison.get("name", ""),
             [
@@ -101,6 +132,11 @@ def show_health_hazards_dialog(page: ft.Page) -> None:
                         size=12, italic=True, color=design.T().text_3),
                 ft.Container(height=6),
                 ft.Text(poison.get("description", ""), size=13, color=design.T().text),
+            ],
+            extra_actions=[
+                ft.OutlinedButton("Salva nell'archivio", icon=ft.Icons.ARCHIVE_OUTLINED,
+                                  on_click=_on_save_to_archive),
+                ft.OutlinedButton("Assegna…", icon=ft.Icons.SEND_OUTLINED, on_click=_on_assign_loot),
             ],
         )
 

@@ -850,3 +850,45 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
+
+    # ------------------------------------------------------------------
+    # loot_stash_entries (2026-07-31, Bottino — vedi dnd_app/docs/loot_design.md)
+    # Un'unica tabella per due contenitori distinti, discriminati da
+    # `stash_kind`: "master" (archivio privato del Master, mai visibile ai
+    # giocatori) | "party" (deposito comune del gruppo, visibile a tutti).
+    # Nessuna FK obbligatoria verso `characters` (un oggetto in archivio non
+    # appartiene a nessun personaggio finche' non viene assegnato) ne' verso
+    # un mondo (l'archivio del Master funziona gia' oggi, prima del
+    # multiplayer, con `world_id=''`).
+    # `entry_kind` distingue il tipo di voce: "item" (oggetto generico) |
+    # "magic_item" (Compendio A-Z o Generatore) | "artifact" | "poison" |
+    # "gem" | "art" (oggetto d'arte) | "coins" (voce puramente monetaria,
+    # usa solo le 5 colonne valuta, name/description restano vuoti).
+    # `description` porta sempre il testo ufficiale COMPLETO quando la voce
+    # proviene da una fonte trascritta — mai un riassunto, stessa regola
+    # gia' seguita per il Compendio Oggetti Magici e gli Artefatti.
+    # ------------------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS loot_stash_entries (
+            id                  TEXT PRIMARY KEY,
+            stash_kind          TEXT NOT NULL DEFAULT 'master',
+            world_id            TEXT NOT NULL DEFAULT '',
+            entry_kind          TEXT NOT NULL DEFAULT 'item',
+            name                TEXT NOT NULL DEFAULT '',
+            description         TEXT NOT NULL DEFAULT '',
+            quantity            INTEGER NOT NULL DEFAULT 1,
+            source_note         TEXT NOT NULL DEFAULT '',
+            copper              INTEGER NOT NULL DEFAULT 0,
+            silver              INTEGER NOT NULL DEFAULT 0,
+            electrum            INTEGER NOT NULL DEFAULT 0,
+            gold                INTEGER NOT NULL DEFAULT 0,
+            platinum            INTEGER NOT NULL DEFAULT 0,
+            added_by_device_id  TEXT NOT NULL DEFAULT '',
+            created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_loot_stash_entries_kind
+        ON loot_stash_entries(stash_kind, world_id)
+    """)

@@ -665,6 +665,27 @@ def wrap_dialog_actions(buttons: list[ft.Control]) -> list[ft.Control]:
     return [ft.Row(buttons, wrap=True, alignment=ft.MainAxisAlignment.END, spacing=8)]
 
 
+def show_snack(page: Any, message: str, tone: str = "success") -> None:
+    """
+    SnackBar di conferma/errore in stile uniforme — centralizza il pattern
+    già duplicato in `home_view.py` (`_show_success`/`_show_error`, due
+    `ft.SnackBar` quasi identici). Aggiunto per il Bottino (2026-07-31): i
+    punti di aggancio "Assegna…"/"Salva nell'archivio" vivono in 5 dialog
+    diversi (Tesoro, Oggetto Magico, Compendio, Artefatti, Veleni) e devono
+    dare lo stesso feedback senza duplicare la costruzione dello SnackBar
+    in ognuno.
+
+    In Flet 0.85.3 `SnackBar` è un `DialogControl`: si apre con
+    `page.show_dialog()`, mai con `page.snack_bar = ...` (vedi
+    `dnd_app/docs/regole_flet_api.md`).
+    """
+    snack = ft.SnackBar(
+        content=ft.Text(message, color=design.T().text),
+        bgcolor=design.tone_color(tone if tone in ("success", "danger", "warning", "primary", "magic") else "success"),
+    )
+    page.show_dialog(snack)
+
+
 def responsive_dialog_width(page: Any, base_width: int, margin: int = 32, min_width: int = 260) -> int:
     """
     Calcola una larghezza sicura per il content di un `ft.AlertDialog`, che

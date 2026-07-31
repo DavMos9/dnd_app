@@ -1,5 +1,5 @@
 {
-  "_source": "Guida del Dungeon Master italiana, Capitolo 7 «Tesori», sezione «Artefatti», pag. 219-225.",
+  "_source": "Guida del Dungeon Master italiana, Capitolo 7 «Tesori», sezione «Artefatti», pag. 219-227.",
   "_source_note": "Testo trascritto leggendo visivamente le pagine renderizzate del PDF (pdftoppm -r 150), mai da pdftotext/OCR e mai tradotto dall'inglese.",
   "intro": "Un artefatto è un oggetto magico unico di vasta potenza e vanta un'origine e una storia speciale. Un artefatto potrebbe essere stato creato da una divinità o da un mortale dotato di grandi poteri.\nSolitamente i personaggi non trovano un artefatto nel corso di una normale avventura. Anzi, gli artefatti compaiono soltanto quando il DM desidera che lo facciano, essendo sia elementi della trama che oggetti magici.",
   "properties_intro": "Ogni artefatto è dotato di proprietà magiche personali, come gli altri oggetti magici, e in genere si tratta di proprietà di straordinaria potenza. Un artefatto potrebbe essere dotato di altre proprietà benefiche o nocive. Il DM può scegliere quelle proprietà dalle tabelle in questa sezione o determinarle casualmente. Può anche inventare nuove proprietà benefiche e nocive. Queste proprietà solitamente cambiano ogni volta che un artefatto compare nel mondo.\nUn artefatto può avere fino a quattro proprietà benefiche minori e due proprietà benefiche maggiori. Può inoltre avere fino a quattro proprietà nocive minori e due proprietà nocive maggiori.",
@@ -421,8 +421,67 @@
           "text": "Si narra che il Libro delle Imprese Eroiche non possa essere distrutto fintanto che esisterà del bene nel multiverso. Tuttavia, immergendo il libro nel Fiume Stige, tutte le scritte e le immagini contenute nelle pagine scompaiono, rendendo il libro privo di poteri per 1d100 anni."
         }
       ]
+    },
+    {
+      "name": "Occhio e Mano di Vecna",
+      "subtitle": "Oggetto meraviglioso, artefatto (richiede sintonia)",
+      "source_page": 225,
+      "lore": "È raro che il nome di Vecna venga pronunciato, se non con un sussurro timoroso. Vecna era uno dei maghi più potenti della sua epoca che fondò un terribile impero attraverso la magia nera e la conquista. Ma nonostante tutta la sua potenza, Vecna non poteva sfuggire alla sua mortalità. Iniziò a temere la morte e a intraprendere i primi passi per sfuggire alla sua fine inevitabile.\nOrcus, il principe demoniaco della non morte, insegnò a Vecna un rituale che gli avrebbe permesso di vivere per sempre come lich. Varcata la soglia della morte, egli divenne il più grande di tutti i lich. Anche se il suo corpo continuava gradualmente ad avvizzirsi e decomporsi, Vecna continuava ad ampliare i suoi malvagi domini. La sua indole era talmente imperiosa e terribile che i suoi sudditi avevano paura a pronunciare il suo nome. Venne soprannominato il Sussurrato, il Signore del Trono del Ragno, il Re Imperituro e il Signore della Torre Putrefatta.\nC'è chi dice che il luogotenente di Vecna, Kas, bramasse il Trono del Ragno per sé o che la spada che il suo signore aveva creato per lui lo abbia incitato a ribellarsi. Quale che fosse il motivo, Kas decretò la fine del regno del Re Imperituro nel corso di una terribile battaglia che ridusse la torre di Vecna in un cumulo di cenere. Di Vecna non rimasero altro che un occhio e una mano, due disgustosi artefatti che ancora cercano di imporre il volere del Sussurrato nel mondo.\nL'Occhio di Vecna e la Mano di Vecna possono essere rinvenuti assieme o separatamente. L'occhio ha l'aspetto di un bulbo oculare iniettato di sangue e strappato dalla sua orbita. La mano è un'estremità sinistra mummificata e raggrinzita.\nPer entrare in sintonia con l'occhio, il personaggio deve cavarsi un occhio e inserire l'artefatto nella sua orbita vuota. L'occhio si innesta automaticamente nella testa del personaggio e vi rimane finché questi non muore. Una volta al suo posto, l'occhio si trasforma in un occhio dorato con una pupilla sottile, simile all'occhio di un gatto. Se l'occhio viene rimosso, il personaggio muore.\nPer entrare in sintonia con la mano, il personaggio deve amputarsi la mano sinistra all'altezza del polso e premere l'artefatto sul moncherino. La mano si innesta automaticamente al braccio del personaggio e diventa un'appendice funzionante. Se la mano viene rimossa, il personaggio muore.",
+      "properties": [
+        {
+          "name": "Proprietà Casuali",
+          "text": "L'Occhio di Vecna e la Mano di Vecna possiedono ognuno le seguenti proprietà casuali:\n• 1 proprietà benefica minore\n• 1 proprietà benefica maggiore\n• 1 proprietà nociva minore"
+        },
+        {
+          "name": "Proprietà dell'Occhio",
+          "text": "Il personaggio diventa di allineamento neutrale malvagio e ottiene i seguenti benefici:\n• Il personaggio ha vista pura.\n• Il personaggio può usare un'azione per vedere come se stesse indossando un anello della vista a raggi X. Il personaggio può terminare questo effetto con un'azione bonus.\n• L'occhio possiede 8 cariche. Il personaggio può usare un'azione e spendere 1 o più cariche per lanciare con esso uno degli incantesimi seguenti (CD 18 del tiro salvezza): chiaroveggenza (2 cariche), corona di follia (1 carica), disintegrazione (4 cariche), dominare mostri (5 cariche) o sguardo penetrante (4 cariche).\nL'occhio recupera 1d4 + 4 cariche spese ogni giorno all'alba. Ogni volta che il personaggio lancia un incantesimo tramite l'occhio, esiste una probabilità del 5 per cento che Vecna strappi l'anima dal corpo del personaggio, la divori e prenda il controllo del corpo come se fosse una marionetta. In questo caso il personaggio diventa un PNG sotto il controllo del DM."
+        },
+        {
+          "name": "Proprietà della Mano",
+          "text": "Il personaggio diventa di allineamento neutrale malvagio e ottiene i seguenti benefici:\n• Il punteggio di Forza del personaggio diventa 20, a meno che non sia già pari o superiore a 20.\n• Tutti gli attacchi in mischia con incantesimo effettuati tramite la mano e tutti gli attacchi con arma da mischia effettuati con un'arma impugnata con la mano, infliggono 2d8 danni da freddo extra quando colpiscono.\n• La mano possiede 8 cariche. Il personaggio può usare un'azione e spendere 1 o più cariche per lanciare con essa uno degli incantesimi seguenti (CD 18 del tiro salvezza): dito della morte (5 cariche), lentezza (2 cariche), sonno (1 carica) o teletrasporto (3 cariche). La mano recupera 1d4 + 4 cariche spese ogni giorno all'alba. Ogni volta che il personaggio lancia un incantesimo con la mano, essa lancia l'incantesimo suggestione sul personaggio (CD 18 del tiro salvezza), esigendo che il personaggio commetta un'azione malvagia. La mano può avere in mente un'azione specifica o lasciare la scelta al personaggio."
+        },
+        {
+          "name": "Proprietà dell'Occhio e della Mano",
+          "text": "Se il personaggio è in sintonia sia con la mano che con l'occhio, ottiene i seguenti benefici aggiuntivi:\n• Il personaggio è immune alle malattie e ai veleni.\n• Quando il personaggio usa la vista a raggi X dell'occhio, non subisce mai indebolimento.\n• Il personaggio è soggetto a premonizioni che lo avvertono del pericolo; a meno che non sia incapacitato, non può essere sorpreso.\n• Se il personaggio inizia il suo turno con almeno 1 punto ferita, recupera 1d10 punti ferita.\n• Se una creatura è dotata di scheletro, il personaggio può provare a trasformare le sue ossa in gelatina con un tocco della Mano di Vecna. Il personaggio deve usare un'azione per effettuare un attacco in mischia contro una creatura situata entro la sua portata, usando il bonus di attacco in mischia che preferisce tra quello con arma o con incantesimo. Se l'attacco colpisce, il bersaglio deve superare un tiro salvezza su Costituzione con CD 18, altrimenti scende a 0 punti vita.\n• Il personaggio può usare un'azione per lanciare desiderio. Questa proprietà non può essere riutilizzata finché non sono passati 30 giorni."
+        },
+        {
+          "name": "Distruggere l'Occhio e la Mano",
+          "text": "Se l'Occhio di Vecna e la Mano di Vecna sono legati alla stessa creatura e quella creatura viene uccisa con la Spada di Kas, sia l'occhio che la mano scompaiono in un'esplosione di fiamme, sono ridotti in cenere e sono distrutti per sempre. Ogni altro tentativo di distruggere l'occhio o la mano sembra avere effetto, ma l'artefatto riappare in uno dei tanti nascondigli di Vecna e attende di essere ritrovato da qualcuno."
+        }
+      ]
+    },
+    {
+      "name": "Spada di Kas",
+      "subtitle": "Oggetto meraviglioso, artefatto (richiede sintonia)",
+      "source_page": 227,
+      "lore": "Quando Vecna accrebbe il suo potere, designò un malvagio e spietato luogotenente, Kas il Sanguinario, come sua guardia del corpo e braccio destro. Questo spregevole malvagio lo servì in qualità di consigliere, signore della guerra e assassino. I suoi successi gli procurarono l'ammirazione di Vecna e una ricompensa: una spada dal lignaggio oscuro quanto quello dell'uomo che l'avrebbe impugnata.\nPer molto tempo, Kas servì fedelmente il lich, ma assieme al suo potere crebbe anche la sua ambizione. La spada lo convinse a prendere il posto di Vecna, affinché potessero regnare sull'impero del lich al suo posto. Stando a quanto narrano le leggende, Kas provocò la distruzione di Vecna, ma anche Vecna consegnò il suo braccio destro ribelle al suo destino, e così rimase soltanto la spada, ma il mondo divenne un posto migliore.\nLa Spada di Kas è una spada lunga magica senziente che conferisce un bonus di +3 ai tiri per colpire e ai tiri per i danni effettuati con essa. Mette a segno un colpo critico con un risultato di 19 o 20 e infligge 2d10 danni taglienti extra ai non morti.\nSe la spada non viene bagnata nel sangue entro 1 minuto da quando è stata sfoderata, il possessore deve effettuare un tiro salvezza su Carisma con CD 15: se lo supera, subisce 3d6 danni psichici, mentre se fallisce, viene controllato dalla spada con gli stessi effetti dell'incantesimo dominare mostri e la spada esige di essere immersa nel sangue. L'effetto dell'incantesimo termina quando la richiesta della spada viene soddisfatta.",
+      "properties": [
+        {
+          "name": "Proprietà Casuali",
+          "text": "La Spada di Kas possiede le proprietà casuali seguenti:\n• 1 proprietà benefica minore\n• 1 proprietà benefica maggiore\n• 1 proprietà nociva minore\n• 1 proprietà nociva maggiore"
+        },
+        {
+          "name": "Spirito di Kas",
+          "text": "Finché il personaggio porta la spada con sé, aggiunge un d10 alla sua iniziativa all'inizio di ogni combattimento. Inoltre, quando usa un'azione per attaccare con la spada, il personaggio può trasferire una parte o tutto il suo bonus di attacco alla Classe Armatura. I bonus modificati rimangono in effetto fino all'inizio del prossimo turno del personaggio."
+        },
+        {
+          "name": "Incantesimi",
+          "text": "Finché il personaggio porta la spada con sé, può usare un'azione per lanciare con essa uno degli incantesimi seguenti (CD 18 del tiro salvezza): dito della morte, invocare il fulmine o parola divina. Una volta che il personaggio ha usato la spada per lanciare un incantesimo, non può lanciare di nuovo quell'incantesimo con la spada fino all'alba successiva."
+        },
+        {
+          "name": "Senziente",
+          "text": "La Spada di Kas è un'arma senziente caotica malvagia con Intelligenza 15, Saggezza 13 e Carisma 16. È dotata di udito e di scurovisione entro un raggio di 36 metri.\nL'arma comunica telepaticamente con il suo possessore ed è in grado di parlare, leggere e capire il Comune."
+        },
+        {
+          "name": "Personalità",
+          "text": "Lo scopo della spada è provocare la rovina di Vecna. Uccidere i suoi adoratori, distruggere le creazioni del lich e mandare all'aria i suoi piani sono tutte azioni che contribuiscono a conseguire tale scopo.\nLa Spada di Kas ambisce a distruggere chiunque sia corrotto dall'Occhio e dalla Mano di Vecna. L'ossessione della spada per questi artefatti prima o poi diventa una fissazione anche per il suo possessore."
+        },
+        {
+          "name": "Distruggere la Spada",
+          "text": "Una creatura in sintonia con l'Occhio di Vecna e la Mano di Vecna può usare la proprietà desiderio dei due artefatti uniti per distruggere la Spada di Kas. La creatura deve lanciare l'incantesimo desiderio ed effettuare una prova di Carisma contrapposta alla prova di Carisma della spada. La spada deve trovarsi entro 9 metri dalla creatura, altrimenti l'incantesimo fallisce. Se la spada vince la contesa, non accade nulla e l'incantesimo desiderio è sprecato. Se la spada perde, è distrutta."
+        }
+      ]
     }
   ],
-  "examples_intro": "Gli artefatti presentati in questa sezione sono comparsi in uno o più mondi di D&D. Il DM può usarli come modelli quando crea i propri artefatti o modificarli come ritiene più opportuno.",
-  "_incomplete_note": "Trascritti 5 dei ~7 artefatti d'esempio della DMG. Mancano ancora «Occhio e Mano di Vecna» (pag. 225-226) e «Spada di Kas» (pag. 226): le loro pagine non sono ancora state lette visivamente, e per la regola del progetto non vanno scritte a memoria. Le 4 tabelle d100 delle proprietà e le regole di distruzione sono invece complete e verificate."
+  "examples_intro": "Gli artefatti presentati in questa sezione sono comparsi in uno o più mondi di D&D. Il DM può usarli come modelli quando crea i propri artefatti o modificarli come ritiene più opportuno."
 }

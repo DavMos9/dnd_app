@@ -1,10 +1,12 @@
 # Bottino: archivio, deposito comune, assegnazione e ripartizione
 
-> **Stato: SOLA PROGETTAZIONE, nessuna riga di codice scritta.**
-> Documento redatto il 2026-07-31 su richiesta di Davide, insieme a
-> `multiplayer_design.md`. **Questa parte non dipende dal multiplayer** e può
-> essere realizzata per prima: funziona già oggi su un singolo dispositivo e
-> nel deploy web.
+> **Stato al 2026-07-31: passi 1-5 di §8 implementati e verificati** (schema
+> `loot_stash_entries` + repository, `core/loot_calculator.py`, tab "Bottino"
+> nella Sezione Master, dialogo di assegnazione condiviso, wiring nei 6 punti
+> di generazione). Dettaglio completo in `dnd_app/docs/funzionalita_e_todo.md`
+> e `dnd_app/docs/changelog_storico.md`. Resta solo il **passo 6** (deposito
+> del gruppo lato giocatore), bloccato sul modello mondo del Multiplayer — le
+> scelte di design restano tutte valide, questo documento non va riscritto.
 
 ---
 

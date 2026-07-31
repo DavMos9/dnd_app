@@ -1368,6 +1368,40 @@ class GameDataLoader:
                 return entry.get("description")
         return None
 
+    def get_economy(self) -> dict[str, Any]:
+        """
+        Dizionario grezzo di equipment/economy.json (valuta, tabella di
+        cambio, ricchezza di partenza per classe, merci, vitto/alloggio).
+        """
+        self._ensure_equipment_file("economy")
+        return self._equipment["economy"]
+
+    _CURRENCY_ABBR_TO_NAME = {
+        "mr": "rame", "ma": "argento", "me": "electrum", "mo": "oro", "mp": "platino",
+    }
+
+    def get_currency_exchange_table(self) -> dict[str, dict[str, float]]:
+        """
+        Tabella di cambio completa, chiave = nome moneta riga ("rame"|
+        "argento"|"electrum"|"oro"|"platino") → dict abbreviazione colonna
+        ("mr"|"ma"|"me"|"mo"|"mp") → valore di 1 unità della moneta riga
+        espresso in unità della moneta colonna. Fonte: equipment/economy.json
+        → currency.exchange_table (PHB IT p.143, "Valori di Scambio").
+        """
+        return self.get_economy().get("currency", {}).get("exchange_table", {})
+
+    def get_currency_exchange_rate(self, from_abbr: str, to_abbr: str) -> float:
+        """
+        Valore di 1 unità della moneta `from_abbr` espresso in unità della
+        moneta `to_abbr` (entrambe abbreviazioni: "mr"|"ma"|"me"|"mo"|"mp").
+        Ritorna 0.0 se una delle due abbreviazioni non è riconosciuta.
+        """
+        from_name = self._CURRENCY_ABBR_TO_NAME.get(from_abbr.lower())
+        if from_name is None:
+            return 0.0
+        row = self.get_currency_exchange_table().get(from_name, {})
+        return float(row.get(to_abbr.lower(), 0.0))
+
     def get_tool_names(self, category: str) -> list[str]:
         """
         Nomi degli strumenti di una categoria, letti da equipment/tools.json →

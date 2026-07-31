@@ -19,6 +19,11 @@ pattern UI di `master_treasure_dialog.py`: funzione top-level
 
 Accessibile da `MasterView` (pillola "Oggetto Magico" nella barra strumenti
 sempre visibile, stesso stile delle altre 4 pillole già presenti).
+
+**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 2/6)**: oltre
+alla scorciatoia "Aggiungi all'inventario" (invariata), "Assegna…"/"Salva
+nell'archivio" sugli oggetti generati — stesso wiring di
+`master_treasure_dialog.py`.
 """
 
 from __future__ import annotations
@@ -213,6 +218,53 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
         except RuntimeError:
             pass
 
+    # -- Bottino: "Assegna…"/"Salva nell'archivio" (loot_design.md §6, punto
+    # 2/6) — "Aggiungi all'inventario" sopra resta la scorciatoia a un solo
+    # destinatario, invariata.
+    def _build_loot_items() -> list[dict[str, Any]]:
+        from ui.views.master.master_loot_assign_dialog import simple_item
+        items = result_state["items"]
+        out: list[dict[str, Any]] = []
+        for name, qty in Counter(it.get("name", "") for it in items).items():
+            item = next((it for it in items if it.get("name", "") == name), {})
+            category = item.get("category", "")
+            rarity_raw = item.get("rarity", "").strip()
+            requires_att = bool(item.get("requires_attunement"))
+            att_restriction = item.get("attunement_restriction", "")
+            note_bits = [b for b in (category, rarity_raw.capitalize()) if b]
+            if requires_att:
+                note_bits.append("Richiede sintonia" + (f" ({att_restriction})" if att_restriction else ""))
+            out.append(simple_item(
+                "magic_item", name, quantity=qty, description=item.get("description", ""),
+                source_note="Generatore Oggetti Magici" + (" · " + " · ".join(note_bits) if note_bits else ""),
+                requires_attunement=requires_att,
+            ))
+        return out
+
+    def _on_assign_loot(ev: Any) -> None:
+        from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
+        items = _build_loot_items()
+        if not items:
+            return
+        show_loot_assign_dialog(page, items)
+
+    def _on_save_to_archive(ev: Any) -> None:
+        from ui.views.master.master_loot_assign_dialog import save_items_to_stash
+        from ui.widgets import show_snack
+        items = _build_loot_items()
+        if not items:
+            return
+        n = save_items_to_stash(items)
+        show_snack(page, f"Salvato nell'archivio: {n} voc{'e' if n == 1 else 'i'}.")
+
+    loot_btn_row = ft.Row(
+        [
+            ft.OutlinedButton("Assegna…", icon=ft.Icons.SEND_OUTLINED, on_click=_on_assign_loot),
+            ft.OutlinedButton("Salva nell'archivio", icon=ft.Icons.ARCHIVE_OUTLINED, on_click=_on_save_to_archive),
+        ],
+        spacing=8, wrap=True,
+    )
+
     rarity_dd.on_select = _on_filter_change
     category_dd.on_select = _on_filter_change
 
@@ -238,6 +290,8 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
                 style=ft.ButtonStyle(bgcolor=design.T().magic, color=design.T().on_accent),
             ),
             feedback_text,
+            ft.Divider(height=1, color=design.T().border),
+            loot_btn_row,
         ],
         spacing=10, scroll=ft.ScrollMode.AUTO,
         width=responsive_dialog_width(page, 440), height=560,

@@ -14,6 +14,14 @@ navigazione a sé (un tiro 1d100 senza parametri non giustifica una
 schermata dedicata).
 
 Accessibile da `MasterView` (bottone in header, "Genera Tesoro").
+
+**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 1/6)**: oltre
+alla scorciatoia "Aggiungi all'inventario" (un solo destinatario, invariata),
+due pulsanti "Assegna…"/"Salva nell'archivio" che aprono
+`master_loot_assign_dialog.show_loot_assign_dialog()`/chiamano
+`save_items_to_stash()` sull'intero risultato del tiro (monete, gemme/oggetti
+d'arte, oggetti magici, cimelio) — così un tesoro tirato ma non ancora
+distribuito non si perde più chiudendo il dialogo.
 """
 
 from __future__ import annotations
@@ -221,6 +229,68 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
     )
     add_btn_ref.append(add_btn)
 
+    # -- Bottino: "Assegna…"/"Salva nell'archivio" (loot_design.md §6, primo
+    # dei 6 punti da collegare) — il pulsante "Aggiungi all'inventario" sopra
+    # resta invariato come scorciatoia per il caso più semplice (un solo
+    # destinatario, la scelta di design non lo tocca).
+    def _build_loot_items() -> list[dict[str, Any]]:
+        from ui.views.master.master_loot_assign_dialog import coins_item, simple_item
+        items: list[dict[str, Any]] = []
+        currency_map = {"mr": "copper", "ma": "silver", "me": "electrum", "mo": "gold", "mp": "platinum"}
+        coins_totals = {"copper": 0, "silver": 0, "electrum": 0, "gold": 0, "platinum": 0}
+        for c in result_state.get("coins", []):
+            field = currency_map.get(c["currency"])
+            if field and c.get("amount"):
+                coins_totals[field] += c["amount"]
+        if any(coins_totals.values()):
+            items.append(coins_item(coins_totals, source_note="Generatore Tesori"))
+
+        ga = result_state.get("gems_or_art")
+        if ga and ga.get("items"):
+            label = "Gemma" if ga["type"] == "gems" else "Oggetto d'arte"
+            for name, qty in Counter(ga["items"]).items():
+                items.append(simple_item(
+                    "gem" if ga["type"] == "gems" else "art", name, quantity=qty,
+                    description=f"{label} da {ga['value']} mo (Generatore Tesori)",
+                    source_note="Generatore Tesori",
+                ))
+        for name, qty in Counter(result_state.get("magic_items", [])).items():
+            items.append(simple_item(
+                "magic_item", name, quantity=qty,
+                description="Oggetto magico (Generatore Tesori — descrizione completa non ancora disponibile)",
+                source_note="Generatore Tesori",
+            ))
+        if trinket_state:
+            items.append(simple_item(
+                "item", "Cimelio", quantity=1, description=trinket_state["description"],
+                source_note="Generatore Tesori — Cimelio",
+            ))
+        return items
+
+    def _on_assign_loot(ev: Any) -> None:
+        from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
+        items = _build_loot_items()
+        if not items:
+            return
+        show_loot_assign_dialog(page, items)
+
+    def _on_save_to_archive(ev: Any) -> None:
+        from ui.views.master.master_loot_assign_dialog import save_items_to_stash
+        from ui.widgets import show_snack
+        items = _build_loot_items()
+        if not items:
+            return
+        n = save_items_to_stash(items)
+        show_snack(page, f"Salvato nell'archivio: {n} voc{'e' if n == 1 else 'i'}.")
+
+    loot_btn_row = ft.Row(
+        [
+            ft.OutlinedButton("Assegna…", icon=ft.Icons.SEND_OUTLINED, on_click=_on_assign_loot),
+            ft.OutlinedButton("Salva nell'archivio", icon=ft.Icons.ARCHIVE_OUTLINED, on_click=_on_save_to_archive),
+        ],
+        spacing=8, wrap=True,
+    )
+
     mode_group.on_change = _on_mode_change
     cr_dd.on_select = _on_cr_change
 
@@ -250,6 +320,8 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
             char_dd,
             add_btn,
             feedback_text,
+            ft.Divider(height=1, color=design.T().border),
+            loot_btn_row,
         ],
         spacing=10, scroll=ft.ScrollMode.AUTO,
         width=responsive_dialog_width(page, 420), height=520,

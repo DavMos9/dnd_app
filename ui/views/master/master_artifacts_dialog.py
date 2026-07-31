@@ -1,7 +1,7 @@
 """
 Artefatti — dialog di consultazione e generatore di proprietà casuali.
 
-Guida del Dungeon Master, Capitolo 7 «Tesori», sezione «Artefatti» (pag. 219-225).
+Guida del Dungeon Master, Capitolo 7 «Tesori», sezione «Artefatti» (pag. 219-227).
 Dati in `data/game_data/artifacts.json`, trascritti leggendo visivamente le
 pagine renderizzate del PDF (mai `pdftotext`/OCR).
 
@@ -12,7 +12,16 @@ nominate, più quattro tabelle d100 di proprietà casuali che il DM tira quando
 l'artefatto compare nel mondo — è per questo che erano rimasti fuori dal
 compendio fin dalla sua trascrizione.
 
-Sola consultazione + tiro: nessuna scrittura su alcuna tabella del DB.
+**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 4/6)**: la
+scheda di un artefatto (`_open_artifact`) ha "Assegna…"/"Salva nell'archivio"
+— prima non c'era alcun modo di far arrivare un artefatto sulla scheda di un
+giocatore. **Stessa coppia di pulsanti aggiunta anche alla scheda "Proprietà
+casuali"** (segnalazione di Davide, stesso giorno): il tiro su una delle 4
+tabelle veniva generato e mostrato ma non si poteva salvare/assegnare, a
+differenza di ogni altro generatore della Sezione Master. Opera sull'ULTIMO
+tiro soltanto (non sullo storico in `result_col`), con `entry_kind="item"`:
+una proprietà casuale non è un oggetto di per sé, è un ingrediente che il
+Master userebbe per comporre un artefatto/oggetto magico homebrew.
 """
 
 from __future__ import annotations
@@ -110,6 +119,33 @@ def show_artifacts_dialog(page: ft.Page) -> None:
         rows.append(muted_text(
             f"Guida del Master, pag. {art.get('source_page', '?')}", 10))
 
+        # -- Bottino: "Assegna…"/"Salva nell'archivio" (2026-07-31,
+        # `dnd_app/docs/loot_design.md` §6, punto 4/6) — prima non c'era
+        # alcun modo di far arrivare un artefatto sulla scheda di un
+        # giocatore. La descrizione porta lore + TUTTE le proprietà nominate
+        # per esteso (mai un riassunto, stessa regola di `LootStashEntry`).
+        def _build_loot_item() -> dict[str, Any]:
+            from ui.views.master.master_loot_assign_dialog import simple_item
+            parts = [art.get("lore", "")]
+            for prop in art.get("properties", []):
+                parts.append(f"{prop.get('name', '')}. {prop.get('text', '')}")
+            requires_att = "sintonia" in art.get("subtitle", "").lower()
+            return simple_item(
+                "artifact", art.get("name", ""), description="\n\n".join(p for p in parts if p),
+                source_note=f"Artefatti — Guida del Master pag. {art.get('source_page', '?')}",
+                requires_attunement=requires_att,
+            )
+
+        def _on_assign_loot(ev: Any) -> None:
+            from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
+            show_loot_assign_dialog(page, [_build_loot_item()])
+
+        def _on_save_to_archive(ev: Any) -> None:
+            from ui.views.master.master_loot_assign_dialog import save_items_to_stash
+            from ui.widgets import show_snack
+            save_items_to_stash([_build_loot_item()])
+            show_snack(page, f"«{art.get('name', '')}» salvato nell'archivio.")
+
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title(art.get("name", ""),
                                       icon=ft.Icons.AUTO_AWESOME),
@@ -119,6 +155,9 @@ def show_artifacts_dialog(page: ft.Page) -> None:
             ),
             actions=wrap_dialog_actions([
                 ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
+                ft.OutlinedButton("Salva nell'archivio", icon=ft.Icons.ARCHIVE_OUTLINED,
+                                  on_click=_on_save_to_archive),
+                ft.OutlinedButton("Assegna…", icon=ft.Icons.SEND_OUTLINED, on_click=_on_assign_loot),
             ]),
         ))
 
@@ -127,11 +166,18 @@ def show_artifacts_dialog(page: ft.Page) -> None:
     # ------------------------------------------------------------------
 
     result_col = ft.Column(spacing=6)
+    #: Ultimo tiro (per il Bottino, sotto) — solo l'ultimo, non l'intero
+    #: storico: stesso principio "un solo risultato corrente da poter
+    #: assegnare/salvare" già seguito da tutti gli altri generatori
+    #: (Tesoro, Oggetto Magico).
+    last_roll: dict[str, Any] = {}
 
     def _roll(key: str, label: str, tone: str) -> None:
         res = _loader.roll_artifact_property(key)
         if res is None:
             return
+        last_roll.clear()
+        last_roll.update({"key": key, "label": label, **res})
         result_col.controls.insert(0, ft.Container(
             content=ft.Column(
                 [
@@ -155,6 +201,42 @@ def show_artifacts_dialog(page: ft.Page) -> None:
             result_col.update()
         except (RuntimeError, AssertionError):
             pass
+
+    # -- Bottino: "Assegna…"/"Salva nell'archivio" sull'ultimo tiro
+    # (2026-07-31, segnalazione di Davide: la scheda "Proprietà casuali"
+    # genera un tiro e lo mostra ma non dava modo di farlo arrivare da
+    # nessuna parte, a differenza degli altri generatori). Una proprietà
+    # casuale non è di per sé un oggetto — è un ingrediente che il Master
+    # userebbe per comporre un artefatto o oggetto magico homebrew — quindi
+    # `entry_kind="item"`, un generico appunto di testo, non "artifact".
+    def _build_property_loot_item() -> dict[str, Any] | None:
+        if not last_roll:
+            return None
+        from ui.views.master.master_loot_assign_dialog import simple_item
+        return simple_item(
+            "item", f"Proprietà {last_roll['label']} (d100={last_roll['roll']})",
+            description=last_roll.get("text", ""),
+            source_note=f"Artefatti — tabella proprietà casuali, {last_roll['label']}",
+        )
+
+    def _on_assign_property(ev: Any) -> None:
+        item = _build_property_loot_item()
+        if item is None:
+            from ui.widgets import show_snack
+            show_snack(page, "Tira prima una proprietà (premi uno dei pulsanti sopra).", tone="warning")
+            return
+        from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
+        show_loot_assign_dialog(page, [item])
+
+    def _on_save_property_to_archive(ev: Any) -> None:
+        item = _build_property_loot_item()
+        from ui.widgets import show_snack
+        if item is None:
+            show_snack(page, "Tira prima una proprietà (premi uno dei pulsanti sopra).", tone="warning")
+            return
+        from ui.views.master.master_loot_assign_dialog import save_items_to_stash
+        save_items_to_stash([item])
+        show_snack(page, "Proprietà salvata nell'archivio.")
 
     # ------------------------------------------------------------------
 
@@ -192,6 +274,16 @@ def show_artifacts_dialog(page: ft.Page) -> None:
                 spacing=6, wrap=True,
             ))
             body.controls.append(result_col)
+            body.controls.append(ft.Divider(height=1, color=design.T().border))
+            body.controls.append(ft.Row(
+                [
+                    ft.OutlinedButton("Salva nell'archivio", icon=ft.Icons.ARCHIVE_OUTLINED,
+                                      on_click=_on_save_property_to_archive),
+                    ft.OutlinedButton("Assegna…", icon=ft.Icons.SEND_OUTLINED,
+                                      on_click=_on_assign_property),
+                ],
+                spacing=8, wrap=True,
+            ))
 
         try:
             body.update()

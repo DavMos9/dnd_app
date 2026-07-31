@@ -638,3 +638,45 @@ class CharacterCondition:
     source: str = ""      # da cosa e' stata imposta ("Incantesimo Spavento")
     note: str = ""
     created_at: str = ""
+
+
+@dataclass
+class LootStashEntry:
+    """
+    Una voce di bottino — vive nell'archivio privato del Master o nel
+    deposito comune del gruppo (`dnd_app/docs/loot_design.md`).
+
+    `stash_kind`: "master" (archivio privato, mai visibile ai giocatori) |
+    "party" (deposito comune, visibile a tutti i membri del gruppo).
+
+    `world_id`: stringa vuota consentita per `stash_kind="master"` finche'
+    il modello mondo (Multiplayer, passo 2) non esiste — l'archivio del
+    Master funziona gia' oggi su un dispositivo solo, senza rete. Per
+    `stash_kind="party"` sara' sempre valorizzato una volta introdotto il
+    mondo condiviso (il deposito comune non ha senso senza un gruppo).
+
+    `entry_kind`: "item" (oggetto generico/mondano) | "magic_item" (dal
+    Compendio A-Z o dal Generatore) | "artifact" | "poison" | "gem" |
+    "art" (oggetto d'arte) | "coins" (voce puramente monetaria, usa solo i
+    5 campi valuta sotto, `name`/`description` restano vuoti).
+
+    `description` porta sempre il testo ufficiale COMPLETO quando la voce
+    proviene da una fonte trascritta (mai un riassunto) — stessa regola
+    gia' seguita per il Compendio Oggetti Magici e gli Artefatti.
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    stash_kind: str = "master"
+    world_id: str = ""
+    entry_kind: str = "item"
+    name: str = ""
+    description: str = ""
+    quantity: int = 1
+    source_note: str = ""       # es. "Generatore Tesori", "Manuale (voce manuale)"
+    copper: int = 0
+    silver: int = 0
+    electrum: int = 0
+    gold: int = 0
+    platinum: int = 0
+    added_by_device_id: str = ""  # placeholder per il Multiplayer, vuoto oggi
+    created_at: str = ""
+    updated_at: str = ""

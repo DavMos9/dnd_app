@@ -20,17 +20,32 @@ un pulsante "Vedi scheda" per ciascuna, che apre lo stesso stat block dialog
 già condiviso con Forma Selvatica/Evocazioni/Rubrica NPC.
 
 Accessibile da `MasterView` (bottone in header, "Incontri per Ambiente").
+
+**"Aggiungi Incontro" (2026-07-31, segnalazione di Davide)**: prima il tiro
+veniva generato e mostrato ma non c'era alcun modo di farlo arrivare nella
+sezione "Incontri" — a differenza del Generatore di Incontri Casuali
+(`master_encounter_generator_dialog.py`), che quel pulsante ce l'ha già.
+Ora crea un nuovo `MasterEncounter` (`master_repo.create_encounter`) con le
+note = il testo integrale della riga tirata, e un membro "adhoc" per ciascuna
+creatura della riga risolta nel bestiario (stesse `ac`/`hp_max`/`xp` già usate
+da "Vedi scheda"). **Le quantità non vengono moltiplicate**: la tabella DMG
+scrive quantità in prosa dentro `text` ("2d4 gnoll", "1d4 gnoll and 2d4
+iene") mai come numero strutturato in `creatures` — inventarne uno sarebbe
+scrivere un dato di regolamento non presente nella fonte. Il Master legge la
+riga (rimasta nelle note dell'incontro) e aggiunge le copie extra a mano con
+"+ Aggiungi mostro", già esistente in `MasterEncounterView`.
 """
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 import flet as ft
 
-from data.game_data.game_data_loader import game_data
+from data.game_data.game_data_loader import parse_monster_xp, game_data
+from data.repositories import master_repo
 from ui.components.monster_picker import load_monsters, show_stat_block_dialog
-from ui.widgets import responsive_dialog_width
+from ui.widgets import responsive_dialog_width, show_snack, wrap_dialog_actions
 from ui import design
 
 
@@ -123,6 +138,48 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
     def _close(ev: Any) -> None:
         page.pop_dialog()
 
+    # -- "Aggiungi Incontro" (2026-07-31) --------------------------------
+    default_label = game_data.get_environment_table(default_env).get("label", default_env)
+    name_tf = ft.TextField(
+        label="Nome nuovo incontro", value=f"{default_label} — Incontro" if default_label else "",
+        dense=True, **design.field_style(),
+    )
+
+    def _on_add_encounter(ev: Any) -> None:
+        r = state["result"]
+        if not r:
+            show_snack(page, "Tira prima un incontro (premi «Tira 1d12+1d8»).", tone="warning")
+            return
+        name = (name_tf.value or "").strip() or "Incontro per Ambiente"
+        notes = r.get("text", "")
+        if r.get("note"):
+            notes += f"\n\n{r['note']}"
+        enc = master_repo.create_encounter(name=name, notes=notes)
+        if not enc:
+            show_snack(page, "Errore nella creazione dell'incontro — vedi log.", tone="danger")
+            return
+        added = 0
+        for idx, cname in enumerate(r.get("creatures", [])):
+            m = _resolve_creature(cname)
+            if not m:
+                continue
+            master_repo.add_member(
+                encounter_id=enc.id, kind="adhoc", display_name=str(m.get("name", cname)),
+                ac=int(m.get("ac", 10) or 10),
+                hp_current=int(m.get("hp_max", 1) or 1),
+                hp_max=int(m.get("hp_max", 1) or 1),
+                xp=parse_monster_xp(m.get("xp", 0)),
+                initiative=10, order_index=idx,
+            )
+            added += 1
+        msg = f"Incontro «{name}» creato"
+        msg += (
+            f" con {added} creatur{'a' if added == 1 else 'e'} (1 copia ciascuna — "
+            "le quantità esatte sono nelle note, aggiungi le altre copie a mano)."
+            if added else " (nessuna creatura con scheda nel bestiario da aggiungere)."
+        )
+        show_snack(page, msg)
+
     empty_state = not env_names
     content_controls: list[ft.Control] = []
     if empty_state:
@@ -145,17 +202,20 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
                     content=result_col, bgcolor=design.T().bg,
                     border_radius=design.Radius.MD, padding=ft.Padding.all(12),
                 ),
+                ft.Divider(height=1, color=design.T().border),
+                name_tf,
+                ft.OutlinedButton("Aggiungi Incontro", icon=ft.Icons.ADD, on_click=_on_add_encounter),
             ]
         )
 
     content = ft.Column(
         content_controls, spacing=10, scroll=ft.ScrollMode.AUTO,
-        width=responsive_dialog_width(page, 420), height=420, tight=True,
+        width=responsive_dialog_width(page, 420), height=480, tight=True,
     )
 
     dlg = ft.AlertDialog(
         title=design.dialog_title("Genera Incontro per Ambiente"),
         content=content,
-        actions=cast(list[ft.Control], [ft.TextButton("Chiudi", on_click=_close)]),
+        actions=wrap_dialog_actions([ft.TextButton("Chiudi", on_click=_close)]),
     )
     page.show_dialog(dlg)
