@@ -1,11 +1,22 @@
 # Restyle — progettazione del sistema visivo (Fasi A · B · C · D · E)
 
 > **STATO: A · B · C · E completate il 2026-07-30** (C assorbita dentro E).
-> Resta solo la **FASE D** — interruttore del tema scuro e persistenza della
-> preferenza: i token e le due palette sono già pronti e nelle view non c'è più
-> un solo colore statico. Ogni fase completata ha in testa un riquadro con gli
+> **Tutte le fasi sono completate (A · B · C · D · E) — il restyle è chiuso
+> al 2026-07-30.** Ogni fase completata ha in testa un riquadro con gli
 > scostamenti rispetto a quanto era stato progettato qui; il changelog
 > dettagliato è in `CLAUDE.md`.
+>
+> Scostamenti della **FASE D** rispetto a quanto progettato più sotto:
+> tre stati (Chiaro/Scuro/**Sistema**, default Sistema) invece di un
+> interruttore a due — `page.platform_brightness` e
+> `on_platform_brightness_change` sono stati verificati esistenti su
+> `flet==0.85.3`, quindi "Sistema" segue il SO anche ad app aperta;
+> **densità e dimensione testo NON incluse** (rimandate con Davide, la
+> tabella chiave/valore le accoglierà senza migrazione); il pulsante vive in
+> **tre** superfici (Home, sidebar/bottom nav, Sezione Master) e non in una
+> sola, perché sidebar e bottom nav non esistono fuori dal layout della
+> scheda; `page.theme_mode` riceve sempre un valore concreto e mai
+> `ThemeMode.SYSTEM` (motivazione nel changelog).
 >
 > Documento nato come **progettazione** (nessuna riga di codice applicata).
 > Scelte confermate da Davide il 2026-07-26: restyle completo **incluso dark mode**.

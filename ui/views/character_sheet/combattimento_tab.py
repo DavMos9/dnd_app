@@ -29,8 +29,12 @@ from data.models import Character, SpellSlot, CharacterProficiency, Weapon, Know
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text, show_error_dialog
-from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
+from ui.widgets import (CardPicker, ScrollMemoryListView, wrap_dialog_actions,
+                        responsive_dialog_width)
 from core.weapon_calculator import AttackContext, compute_attack_total, compute_damage_formula
+import core.character_stats as cs
+from core.character_stats import RollSpec
+from ui.components.roll_panel import show_roll
 from ui.components.monster_picker import (
     load_monsters,
     show_monster_picker,
@@ -78,6 +82,11 @@ class CombattimentoTab(ScrollMemoryListView):
             self._slots = character_repo.get_spell_slots(character.id)
         self._profs: list[CharacterProficiency] = character_repo.get_proficiencies(character.id)
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id)
+        # Condizioni attive + i loro effetti uniti (Fase 4, feature 2b).
+        # Gli effetti servono solo ai promemoria in sola lettura: l'app segnala
+        # "svantaggio" accanto ai tiri, non lo applica mai da sola.
+        self._conditions = character_repo.get_conditions(character.id)
+        self._cond_effects = character_repo.condition_effects(character.id)
         # Armature/scudi equipaggiati (2026-07-17, bug report Davide punto 2:
         # gli effetti magici di armature/scudi non erano mai leggibili in
         # Combattimento — solo le armi avevano una sezione dedicata).
@@ -131,11 +140,26 @@ class CombattimentoTab(ScrollMemoryListView):
             self._section_stats(c),
             section_header("Indebolimento"),
             self._section_exhaustion(c),
+            section_header("Condizioni"),
+            self._section_conditions(),
+        ]
+        if (c.concentrating_spell or "").strip():
+            controls += [
+                section_header("Concentrazione", design.T().magic),
+                self._section_concentration(c),
+            ]
+        controls += [
             section_header("Azioni Turno"),
             self._section_turn(c),
             section_header("Tiri Salvezza e Abilità"),
+            *([hint2] if (hint2 := self._condition_hint(
+                "ability_check_disadvantage", "save_disadvantage",
+                "auto_fail_saves")) else []),
             self._section_saves_skills(c),
             section_header("Armi Equipaggiate"),
+            *([hint] if (hint := self._condition_hint(
+                "attack_disadvantage", "attack_advantage",
+                "attacked_advantage", "attacked_disadvantage")) else []),
             self._section_weapons(),
             section_header("Armatura e Scudo Equipaggiati"),
             self._section_armor(),
@@ -355,20 +379,421 @@ class CombattimentoTab(ScrollMemoryListView):
                     weight=ft.FontWeight.BOLD, style=ft.TextStyle(letter_spacing=0.8))
         )
 
-        return ft.Column(
-            [
-                status_label,
+        rows: list[ft.Control] = [
+            status_label,
+            ft.Row([
+                ft.Text("Successi:", size=12, color=succ_color, width=80),
+                _circles(c.death_saves_success, succ_color, set_success),
+            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([
+                ft.Text("Fallimenti:", size=12, color=fail_color, width=80),
+                _circles(c.death_saves_failure, fail_color, set_failure),
+            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        ]
+
+        # Tiro del TS contro morte con applicazione automatica ai pallini
+        # (scelta di Davide, 2026-07-30). Offerto solo a 0 PF: fuori da quella
+        # condizione il tiro non ha senso e segnerebbe pallini a vuoto.
+        if active:
+            rows.append(
                 ft.Row([
-                    ft.Text("Successi:", size=12, color=succ_color, width=80),
-                    _circles(c.death_saves_success, succ_color, set_success),
-                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                ft.Row([
-                    ft.Text("Fallimenti:", size=12, color=fail_color, width=80),
-                    _circles(c.death_saves_failure, fail_color, set_failure),
-                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            ],
-            spacing=4,
+                    ft.ElevatedButton(
+                        "Tira TS contro morte",
+                        icon=ft.Icons.CASINO_OUTLINED,
+                        on_click=lambda e: self._roll_death_save(),
+                        bgcolor=design.T().danger,
+                        color=design.T().on_primary,
+                    ),
+                ], wrap=True)
+            )
+
+        return ft.Column(rows, spacing=4)
+
+    def _roll_death_save(self) -> None:
+        """
+        Tira il TS contro morte e ne applica subito l'esito (PHB p.197):
+          * 20 naturale → il personaggio riprende i sensi con 1 PF;
+          * 1 naturale  → vale come **due** fallimenti;
+          * ≥10 successo, <10 fallimento;
+          * al terzo successo si stabilizza, al terzo fallimento muore.
+        Ogni applicazione automatica è accompagnata da un avviso esplicito:
+        l'app non deve mai modificare la scheda in silenzio.
+        """
+        c = self.character
+
+        def _apply(spec, result) -> None:
+            nat = result.groups[0].kept[0] if result.groups and result.groups[0].kept else result.total
+            title = "Tiro salvezza contro morte"
+
+            if nat == 20:
+                c.death_saves_success = 0
+                c.death_saves_failure = 0
+                c.hp_current = 1
+                character_repo.update_death_saves(c.id, 0, 0)
+                character_repo.update_hp(c.id, 1)
+                self._show_rule_notice(
+                    title,
+                    "20 naturale: il personaggio riprende i sensi con 1 punto "
+                    "ferita e i tiri salvezza contro morte si azzerano.\nPHB p.197.",
+                )
+            elif nat == 1:
+                c.death_saves_failure = min(3, (c.death_saves_failure or 0) + 2)
+                character_repo.update_death_saves(c.id, c.death_saves_success,
+                                                  c.death_saves_failure)
+                msg = ("1 naturale: vale come DUE tiri salvezza falliti "
+                       f"({c.death_saves_failure}/3).\nPHB p.197.")
+                if c.death_saves_failure >= 3:
+                    msg = ("1 naturale: due fallimenti, il terzo è stato "
+                           "raggiunto — il personaggio muore.\nPHB p.197.")
+                self._show_rule_notice(title, msg)
+            elif result.total >= spec.dc:
+                c.death_saves_success = min(3, (c.death_saves_success or 0) + 1)
+                character_repo.update_death_saves(c.id, c.death_saves_success,
+                                                  c.death_saves_failure)
+                msg = f"Successo ({result.total} ≥ CD 10): {c.death_saves_success}/3."
+                if c.death_saves_success >= 3:
+                    msg += ("\nTerzo successo: il personaggio si stabilizza "
+                            "(resta a 0 PF, ma non tira più).\nPHB p.197.")
+                self._show_rule_notice(title, msg)
+            else:
+                c.death_saves_failure = min(3, (c.death_saves_failure or 0) + 1)
+                character_repo.update_death_saves(c.id, c.death_saves_success,
+                                                  c.death_saves_failure)
+                msg = f"Fallimento ({result.total} < CD 10): {c.death_saves_failure}/3."
+                if c.death_saves_failure >= 3:
+                    msg += "\nTerzo fallimento: il personaggio muore.\nPHB p.197."
+                self._show_rule_notice(title, msg)
+
+            self._refresh()
+
+        show_roll(self._page, cs.death_save_roll(), on_result=_apply)
+
+    # ------------------------------------------------------------------
+    # Condizioni (Fase 4, feature 2b — Appendice A del PHB)
+    # ------------------------------------------------------------------
+
+    def _condition_hint(self, *keys: str) -> ft.Control | None:
+        """
+        Promemoria contestuale di una condizione attiva, in **sola lettura**.
+
+        Scelta di Davide (2026-07-30): l'app mostra l'effetto dove serve — es.
+        "svantaggio" accanto ai tiri per colpire se il personaggio è Avvelenato
+        — ma non lo applica mai da sola. Ritorna `None` se nessuna delle
+        condizioni indicate è attiva, così i chiamanti possono ignorarlo.
+        """
+        labels = {
+            "attack_disadvantage": "Svantaggio ai tiri per colpire",
+            "attack_advantage": "Vantaggio ai tiri per colpire",
+            "attacked_advantage": "Vantaggio a chi ti attacca",
+            "attacked_disadvantage": "Svantaggio a chi ti attacca",
+            "ability_check_disadvantage": "Svantaggio alle prove di caratteristica",
+            "save_disadvantage": "Svantaggio ai tiri salvezza su Destrezza",
+            "auto_fail_saves": "Fallisci automaticamente i TS su Forza e Destrezza",
+            "speed_zero": "Velocità 0",
+            "incapacitated": "Incapacitato: niente azioni né reazioni",
+        }
+        eff = self._cond_effects
+        chips: list[ft.Control] = []
+        for k in keys:
+            if not eff.get(k):
+                continue
+            sources = eff.get("_sources", {}).get(k, [])
+            text = labels.get(k, k)
+            if sources:
+                text += f" — {', '.join(dict.fromkeys(sources))}"
+            chips.append(design.chip(text, "warning",
+                                     icon=ft.Icons.WARNING_AMBER_OUTLINED))
+        if not chips:
+            return None
+        return ft.Row(chips, spacing=6, wrap=True)
+
+    def _section_conditions(self) -> ft.Container:
+        p = design.T()
+        rows: list[ft.Control] = []
+
+        if self._conditions:
+            chips: list[ft.Control] = []
+            for cond in self._conditions:
+                data = _loader.get_condition(cond.condition_key) or {}
+                name = data.get("name", cond.condition_key)
+                label = f"{name} · {cond.source}" if cond.source else name
+                chips.append(
+                    ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.Text(label, size=12, weight=ft.FontWeight.BOLD,
+                                        color=p.on_accent, font_family=design.Font.BODY),
+                                ft.Icon(ft.Icons.CLOSE, size=13, color=p.on_accent),
+                            ],
+                            spacing=6, tight=True,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        bgcolor=p.warning,
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+                        border_radius=design.Radius.PILL,
+                        on_click=(lambda e, cc=cond: self._on_condition_click(cc)),
+                        ink=True,
+                        tooltip=f"{name} — clicca per il testo o per rimuoverla",
+                    )
+                )
+            rows.append(ft.Row(chips, spacing=6, wrap=True))
+        else:
+            rows.append(ft.Text("Nessuna condizione attiva.", size=12,
+                                color=p.text_3, italic=True))
+
+        rows.append(ft.Row([
+            ft.TextButton("+ Aggiungi condizione", icon=ft.Icons.ADD,
+                          on_click=lambda e: self._open_condition_picker()),
+        ], wrap=True))
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=8),
+            bgcolor=p.surface,
+            padding=12,
+            border=ft.Border.only(left=ft.BorderSide(3, p.warning)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
         )
+
+    def _on_condition_click(self, cond) -> None:
+        """Mostra il testo integrale della condizione e offre di rimuoverla."""
+        page = self._page
+        if page is None:
+            return
+        data = _loader.get_condition(cond.condition_key) or {}
+        name = data.get("name", cond.condition_key)
+
+        def _remove(_e):
+            character_repo.remove_condition(cond.id)
+            page.pop_dialog()
+            self._refresh()
+
+        body: list[ft.Control] = []
+        if cond.source:
+            body.append(ft.Text(f"Fonte: {cond.source}", size=12,
+                                color=design.T().text_2, italic=True))
+        body.append(ft.Text(data.get("description", ""), size=13,
+                            color=design.T().text, selectable=True))
+        body.append(ft.Text("Manuale del Giocatore, Appendice A.", size=11,
+                            color=design.T().text_3, italic=True))
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title(name, icon=ft.Icons.WARNING_AMBER_OUTLINED),
+            content=ft.Container(
+                content=ft.Column(body, spacing=8, scroll=ft.ScrollMode.AUTO,
+                                  tight=True),
+                width=responsive_dialog_width(page, 380),
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
+                ft.ElevatedButton(
+                    "Rimuovi", icon=ft.Icons.CHECK, on_click=_remove,
+                    style=ft.ButtonStyle(bgcolor=design.T().success,
+                                         color=design.T().on_accent),
+                ),
+            ]),
+        ))
+
+    def _open_condition_picker(self) -> None:
+        """
+        Picker delle 14 condizioni con la descrizione visibile PRIMA di
+        scegliere — stesso `CardPicker` già adottato per incantesimi e talenti.
+        """
+        page = self._page
+        if page is None:
+            return
+        conditions = _loader.get_conditions()
+        picker = CardPicker(
+            options=[{"key": c["key"], "title": c["name"],
+                      "body": c.get("description", "")} for c in conditions],
+        )
+        if conditions:
+            picker.value = conditions[0]["key"]
+        source_tf = ft.TextField(label="Fonte (facoltativa)", dense=True,
+                                 hint_text="es. Incantesimo Spavento del Bardo",
+                                 **design.field_style())
+
+        def _add(_e):
+            key = picker.value
+            if not key:
+                return
+            character_repo.add_condition(self.character.id, key,
+                                         (source_tf.value or "").strip())
+            page.pop_dialog()
+            self._refresh()
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title("Aggiungi condizione"),
+            content=ft.Container(
+                content=ft.Column([source_tf, picker.control], spacing=10,
+                                  scroll=ft.ScrollMode.AUTO),
+                width=responsive_dialog_width(page, 380), height=460,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
+                ft.ElevatedButton(
+                    "Aggiungi", icon=ft.Icons.ADD, on_click=_add,
+                    style=ft.ButtonStyle(bgcolor=design.T().warning,
+                                         color=design.T().on_accent),
+                ),
+            ]),
+        ))
+
+    # ------------------------------------------------------------------
+    # Concentrazione (Fase 4, feature 2a — PHB p.203-204)
+    # ------------------------------------------------------------------
+
+    def _section_concentration(self, c: Character) -> ft.Container:
+        """Riquadro dell'incantesimo su cui il personaggio si sta concentrando."""
+        spell = (c.concentrating_spell or "").strip()
+        p = design.T()
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.CENTER_FOCUS_STRONG, size=18, color=p.magic),
+                    ft.Container(width=design.Space.SM),
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(spell, size=14, weight=ft.FontWeight.BOLD,
+                                        color=p.text, font_family=design.Font.BODY),
+                                ft.Text(
+                                    "Interrompere non richiede alcuna azione (PHB p.203).",
+                                    size=11, color=p.text_3, italic=True),
+                            ],
+                            spacing=2, tight=True,
+                        ),
+                        expand=True,
+                    ),
+                    ft.TextButton("Interrompi", icon=ft.Icons.CLOSE,
+                                  on_click=lambda e: self._end_concentration()),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                wrap=True,
+            ),
+            bgcolor=p.surface,
+            padding=12,
+            border=ft.Border.only(left=ft.BorderSide(3, p.magic)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
+        )
+
+    def _end_concentration(self) -> None:
+        character_repo.clear_concentration(self.character.id)
+        self.character.concentrating_spell = ""
+        self.character.concentrating_since = ""
+        self._refresh()
+
+    def _prompt_concentration_save(self, spell_name: str, damage: int) -> None:
+        """
+        Propone il TS di Costituzione per mantenere la concentrazione.
+
+        PHB p.203: "Ogni volta che l'incantatore subisce danni mentre si
+        concentra su un incantesimo, deve effettuare un tiro salvezza su
+        Costituzione per mantenere la sua concentrazione. La CD è pari a 10 o
+        alla metà dei danni subiti (si sceglie il valore più alto)."
+
+        Il tiro non è obbligatorio da fare qui: il dialog ha anche "Interrompi"
+        e "Ho superato il tiro", perché al tavolo il dado può averlo già tirato
+        il giocatore.
+        """
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+        dc = cs.concentration_save_dc(damage)
+        base = cs.save_roll(c, self._profs, "con")
+        spec = RollSpec(
+            kind="save", label=f"Concentrazione — TS Costituzione (CD {dc})",
+            modifier=base.modifier, ability="con", proficient=base.proficient,
+            note=base.note, dc=dc,
+        )
+
+        def _keep(_e):
+            page.pop_dialog()
+
+        def _break(_e):
+            page.pop_dialog()
+            self._end_concentration()
+
+        def _do_roll(_e):
+            page.pop_dialog()
+
+            def _apply(_spec, result):
+                # Coerente con il pannello dei tiri: un 1 o un 20 naturale
+                # decidono da soli l'esito, senza sommare il modificatore.
+                # Nota: il PHB 2014 non prevede critici sui tiri salvezza —
+                # è una convenzione da tavolo scelta da Davide il 2026-07-30,
+                # applicata qui perché l'app mostri sempre la stessa cosa.
+                if result.is_crit_fail:
+                    self._end_concentration()
+                    self._show_rule_notice(
+                        "Concentrazione interrotta",
+                        f"1 naturale: «{spell_name}» termina.",
+                        design.T().magic,
+                    )
+                elif result.is_crit:
+                    self._show_rule_notice(
+                        "Concentrazione mantenuta",
+                        f"20 naturale: «{spell_name}» resta attivo.",
+                        design.T().success,
+                    )
+                elif result.total >= dc:
+                    self._show_rule_notice(
+                        "Concentrazione mantenuta",
+                        f"{result.total} ≥ CD {dc}: «{spell_name}» resta attivo.",
+                        design.T().success,
+                    )
+                else:
+                    self._end_concentration()
+                    self._show_rule_notice(
+                        "Concentrazione interrotta",
+                        f"{result.total} < CD {dc}: «{spell_name}» termina.\n"
+                        "PHB p.203.",
+                        design.T().magic,
+                    )
+
+            show_roll(self._page, spec, on_result=_apply)
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title("Mantenere la concentrazione?"),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(
+                            f"«{spell_name}» richiede concentrazione e hai subito "
+                            f"{damage} danni.",
+                            size=13, color=design.T().text),
+                        ft.Text(
+                            f"Tiro salvezza su Costituzione, CD {dc} "
+                            f"(10 oppure metà dei danni, il maggiore).",
+                            size=12, color=design.T().text_2),
+                        ft.Text("PHB p.203.", size=11, color=design.T().text_3,
+                                italic=True),
+                    ],
+                    spacing=6, tight=True,
+                ),
+                width=responsive_dialog_width(page, 320),
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Interrompi", on_click=_break),
+                ft.TextButton("Ho superato il tiro", on_click=_keep),
+                ft.ElevatedButton(
+                    "Tira", icon=ft.Icons.CASINO_OUTLINED, on_click=_do_roll,
+                    style=ft.ButtonStyle(bgcolor=design.T().magic,
+                                         color=design.T().on_accent),
+                ),
+            ]),
+        ))
+
+    def _roll_weapon(self, weapon_id: str, what: str) -> None:
+        """Tira attacco o danni dell'arma indicata, rileggendola dallo stato."""
+        weapon = next((w for w in self._weapons if w.id == weapon_id), None)
+        if weapon is None:
+            return
+        spec = (cs.attack_roll(self.character, weapon, self._profs) if what == "attack"
+                else cs.damage_roll(self.character, weapon))
+        show_roll(self._page, spec)
 
     # ------------------------------------------------------------------
     # HP dialogs
@@ -469,12 +894,37 @@ class CombattimentoTab(ScrollMemoryListView):
                 character_repo.update_death_saves(
                     c.id, c.death_saves_success, c.death_saves_failure
                 )
+
+            # Concentrazione (PHB p.203-204). Due casi distinti:
+            #  * a 0 PF il personaggio è incapacitato → la perde comunque
+            #    ("Incantatore incapacitato o ucciso");
+            #  * altrimenti va tirato un TS di Costituzione con
+            #    CD = max(10, metà dei danni subiti).
+            conc_spell = (c.concentrating_spell or "").strip()
+            conc_prompt = None
+            if conc_spell and amt > 0:
+                if c.hp_current <= 0:
+                    character_repo.clear_concentration(c.id)
+                    c.concentrating_spell = ""
+                    c.concentrating_since = ""
+                else:
+                    conc_prompt = (conc_spell, amt)
+
             page.pop_dialog()
             self._refresh()
             if death_note:
                 self._show_rule_notice(
                     "Tiri Salvezza contro Morte", death_note, design.T().danger
                 )
+            elif conc_spell and c.hp_current <= 0:
+                self._show_rule_notice(
+                    "Concentrazione interrotta",
+                    f"«{conc_spell}» termina: a 0 punti ferita il personaggio è "
+                    "incapacitato.\nPHB p.204 — «Incantatore incapacitato o ucciso».",
+                    design.T().magic,
+                )
+            if conc_prompt:
+                self._prompt_concentration_save(*conc_prompt)
 
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title("Applica Danno"),
@@ -639,8 +1089,9 @@ class CombattimentoTab(ScrollMemoryListView):
     # ------------------------------------------------------------------
 
     def _section_stats(self, c: Character) -> ft.Container:
-        initiative = get_modifier(c.dex_score) + (c.initiative_bonus or 0)
-        init_str = f"+{initiative}" if initiative >= 0 else str(initiative)
+        # Iniziativa da core/character_stats (unica fonte dal 2026-07-30).
+        init_spec = cs.initiative_roll(c)
+        init_str = init_spec.modifier_str
 
         # Velocità effettiva: base (razza + override manuale + Talento Mobile)
         # + bonus dinamico di classe non equipaggiato (Monaco/Barbaro, Categoria B)
@@ -648,18 +1099,30 @@ class CombattimentoTab(ScrollMemoryListView):
         speed_bonus_active = effective_speed != (c.speed or 0)
         speed_label = "VELOCITÀ" if not speed_bonus_active else "VELOCITÀ ✦"
 
-        def _stat_box(label: str, value: str, accent: str | None = None) -> ft.Container:
+        def _stat_box(label: str, value: str, accent: str | None = None,
+                      on_click=None, tooltip: str | None = None,
+                      rollable: bool = False) -> ft.Container:
             accent = accent or design.T().text
+            value_row: ft.Control = ft.Text(
+                value, size=22, color=accent, weight=ft.FontWeight.BOLD,
+                text_align=ft.TextAlign.CENTER, font_family=design.Font.MONO)
+            if rollable:
+                value_row = ft.Row(
+                    [
+                        value_row,
+                        ft.Icon(ft.Icons.CASINO_OUTLINED, size=12, color=accent),
+                    ],
+                    spacing=4, tight=True,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
             return ft.Container(
                 content=ft.Column(
                     [
                         ft.Text(label, size=9, color=design.T().text_3,
                                 weight=ft.FontWeight.BOLD,
                                 text_align=ft.TextAlign.CENTER),
-                        ft.Text(value, size=22, color=accent,
-                                weight=ft.FontWeight.BOLD,
-                                text_align=ft.TextAlign.CENTER,
-                                font_family=design.Font.MONO),
+                        value_row,
                     ],
                     spacing=2,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -669,6 +1132,9 @@ class CombattimentoTab(ScrollMemoryListView):
                 shadow=design.elevation(1),
                 border_radius=design.Radius.MD,
                 expand=True,
+                on_click=on_click,
+                ink=bool(on_click),
+                tooltip=tooltip,
             )
 
         ispir_active = bool(c.inspiration)
@@ -729,9 +1195,17 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.Row(
                         [
                             ca_box,
-                            _stat_box(speed_label, f"{effective_speed:g}m",
+                            _stat_box(speed_label,
+                                     ("0m" if self._cond_effects.get("speed_zero")
+                                      else f"{effective_speed:g}m"),
                                      design.T().magic if speed_bonus_active else design.T().text),
-                            _stat_box("INIZIAT.", init_str, design.T().magic),
+                            _stat_box(
+                                "INIZIAT.", init_str, design.T().magic,
+                                on_click=lambda e: show_roll(
+                                    self._page, cs.initiative_roll(self.character)),
+                                tooltip=f"Tira l'iniziativa ({init_spec.note})",
+                                rollable=True,
+                            ),
                             ispir_box,
                         ],
                         spacing=8,
@@ -1427,7 +1901,9 @@ class CombattimentoTab(ScrollMemoryListView):
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                         border_radius=design.Radius.MD,
                         width=58,
-                        tooltip=atk_tooltip,
+                        tooltip=f"{atk_tooltip} — clicca per tirare",
+                        ink=True,
+                        on_click=(lambda e, wid=w.id: self._roll_weapon(wid, "attack")),
                     ),
                     ft.Container(
                         content=ft.Column([
@@ -1442,7 +1918,11 @@ class CombattimentoTab(ScrollMemoryListView):
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                         border_radius=design.Radius.MD,
                         expand=True,
+                        tooltip="Clicca per tirare i danni",
+                        ink=True,
+                        on_click=(lambda e, wid=w.id: self._roll_weapon(wid, "damage")),
                     ),
+                    ft.Icon(ft.Icons.CASINO_OUTLINED, size=14, color=design.T().primary),
                 ], spacing=8),
             ]
             if props:
@@ -3006,6 +3486,40 @@ class CombattimentoTab(ScrollMemoryListView):
             page.pop_dialog()
             self._refresh()
 
+        def roll_hit_dice(ev):
+            """
+            Tira i dadi vita indicati e compila il campo del totale.
+
+            Prima di questa feature il totale andava digitato a mano: si
+            tiravano i dadi al tavolo e si sommava mentalmente. Il modificatore
+            di Costituzione resta fuori dal campo (lo aggiunge `apply`, una
+            volta per dado, come vuole il PHB) — per questo si tira la sola
+            parte in dadi.
+            """
+            try:
+                n = max(1, min(remaining, int(f_dice.value or 1)))
+            except ValueError:
+                n = 1
+            spec = cs.hit_die_roll(c)
+            # Il modificatore di CON è escluso deliberatamente: qui serve solo
+            # il totale grezzo dei dadi.
+            result = show_roll(self._page, RollSpec(
+                kind="hit_die",
+                label=f"Dadi vita ×{n} (d{die})",
+                formula=f"{n}d{die}",
+                note=f"{spec.note} per dado, aggiunto al momento di applicare il riposo",
+            ))
+            if result is not None:
+                f_roll.value = str(result.total)
+                try:
+                    f_roll.update()
+                except (RuntimeError, AssertionError):
+                    pass
+
+        roll_hd_btn = ft.OutlinedButton(
+            "Tira i dadi vita", icon=ft.Icons.CASINO_OUTLINED, on_click=roll_hit_dice,
+        )
+
         # Note classe-specifiche per il riposo breve
         class_key = c.class_name.strip().lower()
         extra_notes: list[ft.Control] = []
@@ -3034,6 +3548,7 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.Container(height=4),
                     f_dice,
                     f_roll,
+                    ft.Row([roll_hd_btn], wrap=True),
                     *extra_notes,
                 ],
                 spacing=8,
@@ -3098,6 +3613,16 @@ class CombattimentoTab(ScrollMemoryListView):
             # non può attraversare un riposo lungo.
             c.ca_bonus = 0
             c.frenzy_active = False
+            # Concentrazione: durante un riposo lungo si dorme almeno 6 ore, e
+            # una creatura addormentata è priva di sensi — quindi incapacitata,
+            # che è la causa di perdita indicata dal PHB p.204. Il riposo BREVE
+            # non la interrompe: è "un'ora di attività leggera", non sonno.
+            c.concentrating_spell = ""
+            c.concentrating_since = ""
+            # Le condizioni imposte durante l'avventura non attraversano una
+            # notte di riposo: si azzerano insieme al resto. Restano comunque
+            # riaggiungibili con un click se il DM le fa persistere.
+            character_repo.clear_conditions(c.id)
             # Ripristina tutti gli slot incantesimo (usato=0)
             character_repo.reset_all_spell_slots(c.id)
             # Ricalcola i totali PHB — rimuove eventuali slot temporanei creati

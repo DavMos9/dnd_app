@@ -32,7 +32,7 @@ import flet as ft
 from core import magic_item_generator as mig
 from data.game_data.game_data_loader import GameDataLoader, magic_item_rarity_bucket
 from data.repositories import character_repo
-from ui.views.master.master_magic_items_view import (
+from ui.views.magic_items_view import (
     _rarity_color, _RARITY_LABELS, _RARITY_ORDER, _category_icon,
 )
 from ui.widgets import responsive_dialog_width, wrap_dialog_actions

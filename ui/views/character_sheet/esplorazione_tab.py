@@ -24,6 +24,8 @@ from data.game_data.game_data_loader import game_data
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
 from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
 from ui import design
+import core.character_stats as cs
+from ui.components.roll_panel import roll_button, show_roll
 
 logger = logging.getLogger(__name__)
 
@@ -700,18 +702,14 @@ class EsplorazioneTab(ScrollMemoryListView):
     # ------------------------------------------------------------------
 
     def _section_saves(self, c: Character, pb: int) -> ft.Container:
-        scores = {
-            "str": c.str_score, "dex": c.dex_score, "con": c.con_score,
-            "int": c.int_score, "wis": c.wis_score, "cha": c.cha_score,
-        }
-
+        # I modificatori vengono da core/character_stats (unica fonte di
+        # verità dal 2026-07-30, Fase 4): prima la stessa matematica era
+        # ripetuta inline qui e in altri 5 punti della UI.
         cells: list[ft.Control] = []
-        for key, full_name, abbr in zip(ABILITY_KEYS, ABILITY_SCORES, ABILITY_ABBR):
-            score = scores[key]
-            base_mod = get_modifier(score)
-            prof = full_name in self._save_profs
-            total = base_mod + (pb if prof else 0)
-            total_str = f"+{total}" if total >= 0 else str(total)
+        for key, abbr in zip(ABILITY_KEYS, ABILITY_ABBR):
+            spec = cs.save_roll(c, self._profs, key)
+            prof = spec.proficient
+            total_str = spec.modifier_str
 
             indicator_color = design.T().primary if prof else design.T().border
             text_color = design.T().text if prof else design.T().text_3
@@ -736,13 +734,21 @@ class EsplorazioneTab(ScrollMemoryListView):
                                 spacing=4,
                                 alignment=ft.MainAxisAlignment.CENTER,
                             ),
-                            ft.Text(
-                                total_str,
-                                size=16,
-                                weight=ft.FontWeight.BOLD,
-                                color=text_color,
-                                font_family=design.Font.MONO,
-                                text_align=ft.TextAlign.CENTER,
+                            ft.Row(
+                                [
+                                    ft.Text(
+                                        total_str,
+                                        size=16,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=text_color,
+                                        font_family=design.Font.MONO,
+                                        text_align=ft.TextAlign.CENTER,
+                                    ),
+                                    ft.Icon(ft.Icons.CASINO_OUTLINED, size=11,
+                                            color=design.T().primary),
+                                ],
+                                spacing=3,
+                                alignment=ft.MainAxisAlignment.CENTER,
                             ),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -753,6 +759,10 @@ class EsplorazioneTab(ScrollMemoryListView):
                     padding=ft.Padding.symmetric(horizontal=4, vertical=8),
                     shadow=design.elevation(1),
                     border_radius=design.Radius.SM,
+                    tooltip=f"Tira {spec.label} ({spec.note})",
+                    ink=True,
+                    on_click=(lambda e, k=key: show_roll(
+                        self._page, cs.save_roll(self.character, self._profs, k))),
                 )
             )
 
@@ -770,33 +780,23 @@ class EsplorazioneTab(ScrollMemoryListView):
     # ------------------------------------------------------------------
 
     def _section_skills(self, c: Character, pb: int) -> ft.Container:
-        scores = {
-            "str": c.str_score, "dex": c.dex_score, "con": c.con_score,
-            "int": c.int_score, "wis": c.wis_score, "cha": c.cha_score,
-        }
-
         skill_items: list[ft.Control] = []
         for skill_name, stat_key in sorted(SKILLS.items()):
-            score = scores.get(stat_key, 10)
-            base_mod = get_modifier(score)
-            is_expert = self._skill_profs.get(skill_name, False) if skill_name in self._skill_profs else None
-            is_prof = skill_name in self._skill_profs
+            spec = cs.skill_roll(c, self._profs, skill_name)
+            is_prof = spec.proficient
+            is_expert = spec.expert
 
             if is_expert:
-                bonus = pb * 2
                 indicator = "★"
                 ind_color = design.T().magic
             elif is_prof:
-                bonus = pb
                 indicator = "●"
                 ind_color = design.T().primary
             else:
-                bonus = 0
                 indicator = "○"
                 ind_color = design.T().border
 
-            total = base_mod + bonus
-            total_str = f"+{total}" if total >= 0 else str(total)
+            total_str = spec.modifier_str
             abbr = ABILITY_ABBR[ABILITY_KEYS.index(stat_key)]
 
             skill_items.append(
@@ -819,6 +819,13 @@ class EsplorazioneTab(ScrollMemoryListView):
                             expand=True,
                         ),
                         muted_text(abbr, 10),
+                        roll_button(
+                            (lambda s=skill_name: cs.skill_roll(
+                                self.character, self._profs, s)),
+                            lambda: self._page,
+                            tooltip=f"Tira {skill_name} ({spec.note})",
+                            icon_size=15,
+                        ),
                     ],
                     spacing=4,
                 )

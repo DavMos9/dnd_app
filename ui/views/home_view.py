@@ -46,14 +46,22 @@ class HomeView(ft.Column):
         on_create_manual()            → apre il form manuale
         on_open_master()              → apre la Modalità Master (indipendente
                                          dai personaggi, vedi ui/views/master/)
+        on_toggle_theme(e)            → cicla Chiaro/Scuro/Sistema (Fase D del
+                                         restyle). Se assente la pillola del
+                                         tema non compare, stesso comportamento
+                                         "nascosto se assente" di
+                                         `on_open_master`.
     """
 
-    def __init__(self, on_select, on_create_wizard, on_create_manual, on_open_master=None):
+    def __init__(self, on_select, on_create_wizard, on_create_manual, on_open_master=None,
+                 on_toggle_theme=None, theme_preference: str = "system"):
         super().__init__(expand=True, spacing=0)
         self.on_select = on_select
         self.on_create_wizard = on_create_wizard
         self.on_create_manual = on_create_manual
         self.on_open_master = on_open_master
+        self.on_toggle_theme = on_toggle_theme
+        self.theme_preference = theme_preference
 
         self._char_list_column = ft.Column(spacing=12, scroll=ft.ScrollMode.AUTO)
         self._stop_event = threading.Event()
@@ -239,6 +247,10 @@ class HomeView(ft.Column):
                                   on_click=lambda e: self.on_open_master()))
         actions.append(d.pill(ft.Icons.UPLOAD_FILE, "Importa personaggio",
                               color=p.text_2, on_click=self._on_import_click))
+        if self.on_toggle_theme is not None:
+            from ui.widgets import theme_toggle_pill
+            actions.append(theme_toggle_pill(self.theme_preference,
+                                             self.on_toggle_theme))
         actions.append(self._new_character_button())
         return actions
 

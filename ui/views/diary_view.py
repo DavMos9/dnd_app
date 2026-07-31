@@ -178,8 +178,7 @@ class DiaryView(ft.Column):
 
         # ── Container riferimenti aggiornabili ────────────────────────────
         self._detail_container: ft.Container = ft.Container(expand=True)
-        self._left_list_lv: ft.ListView = ft.ListView(expand=True, spacing=2,
-                                                       padding=ft.Padding.only(bottom=8))
+        self._left_list_lv: ft.Column = ft.Column(spacing=2)
         self._left_list_label: ft.Text = ft.Text("", size=9,
                                                   weight=ft.FontWeight.BOLD,
                                                   color=design.T().text_3,
@@ -338,23 +337,31 @@ class DiaryView(ft.Column):
         )
 
         items = self._build_item_controls()
-        self._left_list_lv = ft.ListView(
-            controls=items,
-            expand=True,
-            spacing=2,
-            padding=ft.Padding.only(left=4, right=4, bottom=12),
-        )
+        self._left_list_lv = ft.Column(controls=items, spacing=2)
 
         return ft.Container(
+            # Un'unica regione scrollabile per tutto il pannello (fix
+            # 2026-07-30, bug report di Davide: con la finestra ridotta le
+            # categorie in fondo — Fazioni, Eventi… — restavano fuori schermo
+            # e non c'era modo di raggiungerle). Prima la lista era una
+            # `ListView(expand=True)` dentro una Column NON scrollabile: le
+            # voci sopra la occupavano tutta l'altezza e il resto veniva
+            # semplicemente tagliato. Ora scorre l'intero pannello, e la lista
+            # e' una Column normale — niente scroll annidato, stessa regola
+            # gia' stabilita per il CardPicker.
             content=ft.Column(
                 [
                     cat_nav,
                     ft.Divider(height=1, color=design.T().border),
                     list_label,
-                    self._left_list_lv,
+                    ft.Container(
+                        content=self._left_list_lv,
+                        padding=ft.Padding.only(left=4, right=4, bottom=12),
+                    ),
                 ],
                 expand=True,
                 spacing=0,
+                scroll=ft.ScrollMode.AUTO,
             ),
             width=200,
             bgcolor=design.T().parchment_alt,

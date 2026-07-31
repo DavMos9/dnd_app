@@ -448,6 +448,7 @@ def _row_to_member(row) -> MasterEncounterMember:
         hp_max=d.get("hp_max", 0),
         xp=d.get("xp", 0),
         initiative=d.get("initiative", 0),
+        dex_mod=d.get("dex_mod", 0) or 0,
         order_index=d.get("order_index", 0),
         is_active=bool(d.get("is_active", 1)),
         notes=d.get("notes", ""),
@@ -574,6 +575,7 @@ def add_member(
     xp: int = 0,
     initiative: int = 0,
     order_index: int = 0,
+    dex_mod: int = 0,
 ) -> MasterEncounterMember | None:
     """
     Aggiunge un combattente all'incontro. `kind`:
@@ -592,14 +594,14 @@ def add_member(
         conn.execute(
             """INSERT INTO master_encounter_members (
                    id, encounter_id, kind, character_id, npc_id, display_name,
-                   ac, hp_current, hp_max, xp, initiative, order_index, is_active,
-                   notes, created_at, updated_at
-               ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   ac, hp_current, hp_max, xp, initiative, dex_mod, order_index,
+                   is_active, notes, created_at, updated_at
+               ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 member_id, encounter_id, kind,
                 character_id or None, npc_id or None, _s(display_name),
-                ac, hp_current, hp_max, int(xp or 0), initiative, order_index, 1,
-                "", now, now,
+                ac, hp_current, hp_max, int(xp or 0), initiative, int(dex_mod or 0),
+                order_index, 1, "", now, now,
             ),
         )
         conn.commit()

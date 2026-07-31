@@ -6,11 +6,12 @@ Tutta la logica di accesso al DB per i personaggi è qui.
 import json
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from data.database import get_connection
 from data.game_data.game_data_loader import game_data
-from data.models import Character, CharacterProficiency, Currency, SpellSlot, ClassResource, CreatureEntry
+from data.models import (Character, CharacterCondition, CharacterProficiency, Currency,
+                         SpellSlot, ClassResource, CreatureEntry)
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,22 @@ _last_create_error: str = ""
 def _s(value) -> str:
     """Converte None in stringa vuota per i campi TEXT NOT NULL."""
     return value if value is not None else ""
+
+
+def _col(row, name: str, default=0):
+    """
+    Legge una colonna da una `sqlite3.Row` tollerando che non esista.
+
+    `sqlite3.Row` non ha `.get()` (nota già presente in CLAUDE.md) e solleva
+    `IndexError` per una colonna assente: qui serve perché le colonne aggiunte
+    da `_migrate()` potrebbero mancare se il DB non è ancora stato migrato in
+    questa sessione.
+    """
+    try:
+        value = row[name]
+    except (IndexError, KeyError):
+        return default
+    return default if value is None else value
 
 
 def _row_to_character(row) -> Character:
@@ -71,6 +88,8 @@ def _row_to_character(row) -> Character:
         carry_capacity_override=d.get("carry_capacity_override", 0) or 0,
         exhaustion_level=d.get("exhaustion_level", 0) or 0,
         frenzy_active=bool(d.get("frenzy_active", 0) or 0),
+        concentrating_spell=d.get("concentrating_spell", "") or "",
+        concentrating_since=d.get("concentrating_since", "") or "",
         dragon_ancestry=d.get("dragon_ancestry", "") or "",
         fighting_style=d.get("fighting_style", "") or "",
         totem_animal=d.get("totem_animal", "") or "",
@@ -151,6 +170,7 @@ def create(character: Character) -> bool:
                 pact_boon, initiative_bonus, max_prepared_spells_override,
                 passive_perception_override, carry_capacity_override,
                 exhaustion_level, frenzy_active,
+                concentrating_spell, concentrating_since,
                 age, height, weight, eyes, skin, hair,
                 personality_traits, ideals, bonds, flaws,
                 backstory, allies_organizations, additional_traits, appearance_notes,
@@ -170,6 +190,7 @@ def create(character: Character) -> bool:
                 :pact_boon, :initiative_bonus, :max_prepared_spells_override,
                 :passive_perception_override, :carry_capacity_override,
                 :exhaustion_level, :frenzy_active,
+                :concentrating_spell, :concentrating_since,
                 :age, :height, :weight, :eyes, :skin, :hair,
                 :personality_traits, :ideals, :bonds, :flaws,
                 :backstory, :allies_organizations, :additional_traits, :appearance_notes,
@@ -240,6 +261,8 @@ def create(character: Character) -> bool:
             "carry_capacity_override": character.carry_capacity_override,
             "exhaustion_level": character.exhaustion_level,
             "frenzy_active": int(character.frenzy_active),
+            "concentrating_spell": character.concentrating_spell or "",
+            "concentrating_since": character.concentrating_since or "",
             "created_at": character.created_at,
             "updated_at": character.updated_at,
         })
@@ -319,6 +342,8 @@ def update(character: Character) -> bool:
                 carry_capacity_override=:carry_capacity_override,
                 exhaustion_level=:exhaustion_level,
                 frenzy_active=:frenzy_active,
+                concentrating_spell=:concentrating_spell,
+                concentrating_since=:concentrating_since,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -386,6 +411,8 @@ def update(character: Character) -> bool:
             "carry_capacity_override": character.carry_capacity_override,
             "exhaustion_level": character.exhaustion_level,
             "frenzy_active": int(character.frenzy_active),
+            "concentrating_spell": character.concentrating_spell or "",
+            "concentrating_since": character.concentrating_since or "",
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -1665,6 +1692,8 @@ def get_inventory(character_id: str) -> list:
                 ca_value=r["ca_value"] or 0,
                 armor_type=r["armor_type"] or "",
                 effects=r["effects"] or "",
+                requires_attunement=bool(_col(r, "requires_attunement")),
+                is_attuned=bool(_col(r, "is_attuned")),
             )
             for r in rows
         ]
@@ -1779,7 +1808,8 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
                           weight: float = 0.0, description: str = "",
                           category: str = "misc", is_equipped: bool = False,
                           ca_value: int = 0, armor_type: str = "",
-                          effects: str = "") -> str | None:
+                          effects: str = "",
+                          requires_attunement: bool = False) -> str | None:
     """Crea un nuovo oggetto nell'inventario.
 
     Ritorna l'id generato in caso di successo, None in caso di errore —
@@ -1798,10 +1828,12 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
         conn.execute(
             """INSERT INTO inventory_items
                (id, character_id, name, quantity, weight, description,
-                category, is_equipped, ca_value, armor_type, effects)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                category, is_equipped, ca_value, armor_type, effects,
+                requires_attunement, is_attuned)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (new_id, character_id, name, quantity, weight,
-             description, category, int(is_equipped), ca_value, armor_type, effects)
+             description, category, int(is_equipped), ca_value, armor_type, effects,
+             int(requires_attunement), 0)
         )
         conn.commit()
         conn.close()
@@ -1814,16 +1846,26 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
 def update_inventory_item(item_id: str, name: str, quantity: int, weight: float,
                           description: str, category: str, is_equipped: bool,
                           ca_value: int = 0, armor_type: str = "",
-                          effects: str = "") -> bool:
-    """Aggiorna un oggetto dell'inventario."""
+                          effects: str = "",
+                          requires_attunement: bool | None = None) -> bool:
+    """
+    Aggiorna un oggetto dell'inventario.
+
+    `requires_attunement=None` lascia il valore invariato: i chiamanti storici
+    non lo passano e non devono azzerarlo senza volerlo.
+    """
     try:
         conn = get_connection()
         conn.execute(
             """UPDATE inventory_items SET name=?, quantity=?, weight=?,
                description=?, category=?, is_equipped=?,
-               ca_value=?, armor_type=?, effects=? WHERE id=?""",
+               ca_value=?, armor_type=?, effects=?,
+               requires_attunement=COALESCE(?, requires_attunement)
+               WHERE id=?""",
             (name, quantity, weight, description, category, int(is_equipped),
-             ca_value, armor_type, effects, item_id)
+             ca_value, armor_type, effects,
+             None if requires_attunement is None else int(requires_attunement),
+             item_id)
         )
         conn.commit()
         conn.close()
@@ -2966,3 +3008,226 @@ def update_turn_state(character_id: str, action: bool, bonus: bool,
     except Exception as e:
         logger.error(f"Errore aggiornamento stato turno: {e}")
         return False
+
+
+# ---------------------------------------------------------------------------
+# Concentrazione (Fase 4, feature 2a — PHB p.203-204)
+# ---------------------------------------------------------------------------
+
+
+def set_concentration(character_id: str, spell_name: str) -> bool:
+    """
+    Attiva la concentrazione su un incantesimo, sostituendo quella eventuale.
+
+    PHB p.203: "L'incantatore perde la concentrazione su un incantesimo se
+    lancia un altro incantesimo che richiede concentrazione. Un incantatore non
+    può concentrarsi su due incantesimi alla volta." — per questo la scrittura
+    sovrascrive sempre, senza controllare cosa c'era prima: è l'avviso in UI a
+    dire al giocatore che la prima si interrompe.
+    """
+    try:
+        now = datetime.now().isoformat()
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE characters SET concentrating_spell=?, concentrating_since=?, "
+                "updated_at=? WHERE id=?",
+                (spell_name or "", now if spell_name else "", now, character_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Impossibile impostare la concentrazione: {e}")
+        return False
+
+
+def clear_concentration(character_id: str) -> bool:
+    """Interrompe la concentrazione (volontariamente o per una delle cause PHB)."""
+    return set_concentration(character_id, "")
+
+
+def add_xp(character_id: str, delta: int) -> int | None:
+    """
+    Somma punti esperienza a un personaggio e ritorna il nuovo totale.
+
+    Usata **solo** dall'assegnazione dei PE lato master (Fase 4, feature 4b):
+    è la prima e unica scrittura del master su un personaggio giocante in tutto
+    il progetto, autorizzata esplicitamente da Davide il 2026-07-30 e sempre
+    preceduta da un dialog di conferma che mostra chi riceve quanto. Gli HP e
+    tutto il resto della scheda restano fuori dalla portata del master.
+
+    Il livello NON viene toccato: sale il giocatore dalla propria scheda, dove
+    sceglie HP/ASI/incantesimi. L'app mostra solo il badge "Sali di Livello"
+    che già esiste.
+    """
+    try:
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT xp FROM characters WHERE id=?", (character_id,)
+            ).fetchone()
+            if row is None:
+                logger.error(f"Personaggio inesistente per l'assegnazione PE: {character_id}")
+                return None
+            new_xp = max(0, int(row["xp"] or 0) + int(delta))
+            conn.execute(
+                "UPDATE characters SET xp=?, updated_at=? WHERE id=?",
+                (new_xp, datetime.now().isoformat(), character_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return new_xp
+    except Exception as e:
+        logger.error(f"Assegnazione PE fallita: {e}")
+        return None
+
+
+def set_item_attunement(item_id: str, attuned: bool) -> bool:
+    """
+    Entra o esce dalla sintonia con un oggetto (DMG p.138).
+
+    I limiti del manuale (massimo 3 oggetti, mai due copie dello stesso) sono
+    verificati a monte da `core/equipment_manager.can_attune()`: qui si scrive
+    e basta, come per ogni altro setter di questo repository.
+    """
+    try:
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE inventory_items SET is_attuned=? WHERE id=?",
+                (int(attuned), item_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Aggiornamento sintonia fallito per {item_id}: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Condizioni (Fase 4, feature 2b — Appendice A del PHB)
+# ---------------------------------------------------------------------------
+
+
+def get_conditions(character_id: str) -> list[CharacterCondition]:
+    """Condizioni attive sul personaggio, nell'ordine in cui sono state imposte."""
+    try:
+        conn = get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM character_conditions WHERE character_id=? "
+                "ORDER BY created_at, rowid",
+                (character_id,),
+            ).fetchall()
+        finally:
+            conn.close()
+        return [
+            CharacterCondition(
+                id=r["id"], character_id=r["character_id"],
+                condition_key=r["condition_key"],
+                source=r["source"] or "", note=r["note"] or "",
+                created_at=r["created_at"] or "",
+            )
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Errore lettura condizioni di {character_id}: {e}")
+        return []
+
+
+def add_condition(character_id: str, condition_key: str,
+                  source: str = "", note: str = "") -> str | None:
+    """
+    Impone una condizione. Ritorna l'id creato, o `None` in caso di errore.
+
+    PHB Appendice A: "Se più effetti impongono la stessa condizione su una
+    creatura, ogni istanza di quella condizione ha una sua durata, ma gli
+    effetti della condizione non peggiorano." — quindi imporre due volte la
+    stessa condizione è legittimo (fonti diverse), ma sarebbe rumore mostrarne
+    due chip identici: se la fonte è la stessa non si duplica.
+    """
+    import uuid as _uuid
+    try:
+        existing = get_conditions(character_id)
+        for c in existing:
+            if (c.condition_key == condition_key
+                    and c.source.strip().lower() == (source or "").strip().lower()):
+                return c.id
+        new_id = str(_uuid.uuid4())
+        conn = get_connection()
+        try:
+            conn.execute(
+                "INSERT INTO character_conditions "
+                "(id, character_id, condition_key, source, note, created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (new_id, character_id, condition_key, source or "", note or "",
+                 datetime.now().isoformat()),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return new_id
+    except Exception as e:
+        logger.error(f"Errore aggiunta condizione {condition_key}: {e}")
+        return None
+
+
+def remove_condition(condition_id: str) -> bool:
+    try:
+        conn = get_connection()
+        try:
+            conn.execute("DELETE FROM character_conditions WHERE id=?", (condition_id,))
+            conn.commit()
+        finally:
+            conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore rimozione condizione {condition_id}: {e}")
+        return False
+
+
+def clear_conditions(character_id: str) -> bool:
+    """Rimuove tutte le condizioni (usata dal riposo lungo)."""
+    try:
+        conn = get_connection()
+        try:
+            conn.execute("DELETE FROM character_conditions WHERE character_id=?",
+                         (character_id,))
+            conn.commit()
+        finally:
+            conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore azzeramento condizioni di {character_id}: {e}")
+        return False
+
+
+def condition_effects(character_id: str) -> dict[str, Any]:
+    """
+    Unione degli effetti meccanici delle condizioni attive.
+
+    Usata SOLO per i promemoria contestuali in sola lettura (scelta di Davide,
+    2026-07-30): l'app segnala "svantaggio" accanto ai tiri, non lo applica.
+    """
+    from data.game_data.game_data_loader import game_data as _gd
+
+    merged: dict[str, Any] = {}
+    sources: dict[str, list[str]] = {}
+    for c in get_conditions(character_id):
+        data = _gd.get_condition(c.condition_key) or {}
+        for key, value in (data.get("effects") or {}).items():
+            if isinstance(value, list):
+                merged.setdefault(key, [])
+                for v in value:
+                    if v not in merged[key]:
+                        merged[key].append(v)
+            else:
+                merged[key] = bool(merged.get(key)) or bool(value)
+            sources.setdefault(key, []).append(data.get("name", c.condition_key))
+    merged["_sources"] = sources
+    return merged

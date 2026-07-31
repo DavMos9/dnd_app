@@ -19,6 +19,8 @@ from ui.theme import show_error_dialog
 import data.repositories.character_repo as character_repo
 from ui import design
 from ui.widgets import wrap_dialog_actions
+import core.character_stats as cs
+from ui.components.roll_panel import show_roll
 
 logger = logging.getLogger(__name__)
 
@@ -115,15 +117,34 @@ class SheetView(ft.Column):
                                     weight=ft.FontWeight.BOLD,
                                     text_align=ft.TextAlign.CENTER,
                                     font_family=design.Font.MONO),
+                            # Il chip del modificatore è il pulsante di tiro
+                            # (Fase 4, feature 1): due affordance distinte nello
+                            # stesso riquadro — la matita in alto modifica il
+                            # punteggio, il chip qui sotto tira la prova di
+                            # caratteristica. L'icona del dado lo rende esplicito.
                             ft.Container(
-                                content=ft.Text(mod_str, size=design.Size.LABEL,
+                                content=ft.Row(
+                                    [
+                                        ft.Text(mod_str, size=design.Size.LABEL,
                                                 color=p.magic,
                                                 weight=ft.FontWeight.BOLD,
                                                 font_family=design.Font.MONO,
                                                 text_align=ft.TextAlign.CENTER),
+                                        ft.Icon(ft.Icons.CASINO_OUTLINED, size=10,
+                                                color=p.magic),
+                                    ],
+                                    spacing=3, tight=True,
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                ),
                                 bgcolor=ft.Colors.with_opacity(0.12, p.magic),
                                 border_radius=design.Radius.PILL,
                                 padding=ft.Padding.symmetric(horizontal=8, vertical=1),
+                                on_click=(lambda e, k=key: show_roll(
+                                    self._page,
+                                    cs.ability_check_roll(self.character, k))),
+                                ink=True,
+                                tooltip=f"Tira una prova di {cs.ability_label(key)}",
                             ),
                         ],
                         spacing=2,

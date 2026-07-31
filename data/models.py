@@ -106,6 +106,12 @@ class Character:
     # la fine dell'ira (vedi combattimento_tab.py, sezione Risorse di Classe:
     # "Termina Ira" applica +1 Indebolimento in automatico e azzera il flag).
     frenzy_active: bool = False
+    #: Incantesimo su cui il personaggio si sta concentrando (PHB p.203-204).
+    #: Uno solo alla volta: "un incantatore non può concentrarsi su due
+    #: incantesimi alla volta". Stringa vuota = nessuna concentrazione.
+    concentrating_spell: str = ""
+    #: Timestamp ISO di inizio, per mostrare "da quanto" — puramente informativo.
+    concentrating_since: str = ""
 
     # Scelte di classe/razza che influenzano feature successive
     dragon_ancestry: str = ""       # Stregone Discendenza Draconica: tipo drago (es. "Rosso")
@@ -219,7 +225,11 @@ class InventoryItem:
     category: str = "misc"        # "armor" | "weapon" | "tool" | "magic" | "misc"
     is_equipped: bool = False
     # Campi armatura/scudo (usati quando category="armor")
-    ca_value: int = 0             # valore CA base (es. 14 per cotta di maglia)
+    ca_value: int = 0
+    #: Sintonia (DMG p.138). `requires_attunement` è salvato sull'oggetto e non
+    #: dedotto dal catalogo, così vale anche per gli oggetti homebrew.
+    requires_attunement: bool = False
+    is_attuned: bool = False             # valore CA base (es. 14 per cotta di maglia)
     armor_type: str = ""          # "leggera" | "media" | "pesante" | "scudo" | ""
     # Effetti magici (per armature, scudi e qualsiasi item incantato)
     effects: str = ""
@@ -578,6 +588,12 @@ class MasterEncounterMember:
     hp_max: int = 0
     xp: int = 0                        # PE del mostro/NPC (0 per kind="character") — Calcolatore Difficoltà
     initiative: int = 0
+    #: Modificatore di Destrezza del combattente, catturato al momento
+    #: dell'aggiunta (dallo stat block del mostro o dall'NPC di rubrica).
+    #: Serve a "Tira iniziativa per tutti": il membro non conserva altrimenti
+    #: alcuna traccia delle caratteristiche. Vale 0 per kind="character" — i
+    #: PG non vengono mai tirati dal master (regola del progetto).
+    dex_mod: int = 0
     order_index: int = 0               # per pareggi/riordino manuale
     is_active: bool = True              # False = rimosso dall'incontro senza cancellare la riga (storico)
     notes: str = ""
@@ -606,3 +622,19 @@ class MasterCampaignNote:
     linked_npc_id: str = ""
     created_at: str = ""
     updated_at: str = ""
+
+
+@dataclass
+class CharacterCondition:
+    """
+    Una condizione dell'Appendice A attiva su un personaggio (Fase 4, 2b).
+
+    `condition_key` e' la chiave di `data/game_data/conditions.json`; nome e
+    testo integrale vivono la' e non vengono duplicati qui.
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    character_id: str = ""
+    condition_key: str = ""
+    source: str = ""      # da cosa e' stata imposta ("Incantesimo Spavento")
+    note: str = ""
+    created_at: str = ""

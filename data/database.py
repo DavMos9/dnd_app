@@ -308,6 +308,21 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # Idempotente anche per chi ha già le 3 tabelle Master da prima di questa
     # colonna (create_table_if_not_exists non la aggiungerebbe da sola).
     _add_column(cur, "master_npcs", "xp", "INTEGER DEFAULT 0")
+    # Modificatore di Destrezza del combattente, catturato quando lo si
+    # aggiunge (Fase 4, feature 4a): serve a "Tira iniziativa per tutti", che
+    # altrimenti non avrebbe alcun dato da cui tirare per i membri "adhoc"
+    # (un mostro preso dal bestiario non lascia traccia del proprio stat block).
+    _add_column(cur, "master_encounter_members", "dex_mod", "INTEGER DEFAULT 0")
+    # Concentrazione (Fase 4, feature 2a — PHB p.203-204). Colonne e non una
+    # tabella: il manuale è esplicito, "un incantatore non può concentrarsi su
+    # due incantesimi alla volta", quindi lo stato è al più uno.
+    _add_column(cur, "characters", "concentrating_spell", "TEXT DEFAULT ''")
+    _add_column(cur, "characters", "concentrating_since", "TEXT DEFAULT ''")
+    # Sintonia con gli oggetti magici (Fase 4, feature 3 — DMG p.138).
+    # `requires_attunement` vive sull'ITEM e non solo nel catalogo: un oggetto
+    # homebrew inserito a mano può richiederla pur non stando in magic_items.json.
+    _add_column(cur, "inventory_items", "requires_attunement", "INTEGER DEFAULT 0")
+    _add_column(cur, "inventory_items", "is_attuned", "INTEGER DEFAULT 0")
     _add_column(cur, "master_encounter_members", "xp", "INTEGER DEFAULT 0")
 
 
@@ -749,6 +764,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             hp_max        INTEGER NOT NULL DEFAULT 0,
             xp            INTEGER NOT NULL DEFAULT 0,
             initiative    INTEGER NOT NULL DEFAULT 0,
+            dex_mod       INTEGER NOT NULL DEFAULT 0,
             order_index   INTEGER NOT NULL DEFAULT 0,
             is_active     INTEGER NOT NULL DEFAULT 1,
             notes         TEXT NOT NULL DEFAULT '',
@@ -787,4 +803,50 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_master_campaign_notes_category
         ON master_campaign_notes(category)
+    """)
+
+    # ------------------------------------------------------------------
+    # app_settings (2026-07-30, Fase D del restyle) — preferenze
+    # dell'INSTALLAZIONE, non del personaggio: nessun `character_id`,
+    # nessuna FK, nessun CASCADE. Eliminare un personaggio non deve toccare
+    # il tema scelto, ed esportare un personaggio in `.dndchar` non deve
+    # portarsi dietro le preferenze della macchina di origine — per questo
+    # la tabella NON compare in `CHILD_TABLES` di `character_export.py`.
+    #
+    # Forma chiave/valore generica invece di una colonna per preferenza:
+    # aggiungerne una in futuro (densità, dimensione testo — entrambe
+    # valutate e rimandate) non richiede una migrazione di schema.
+    #
+    # Prima e unica chiave oggi: "theme_mode" → "light" | "dark" | "system".
+    # Vedi `data/repositories/settings_repo.py`.
+    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # character_conditions (2026-07-30, Fase 4 feature 2b) — le condizioni
+    # dell'Appendice A del PHB attive su un personaggio. Tabella e non colonne
+    # perche' le condizioni possono essere piu' di una insieme e ognuna puo'
+    # avere una fonte diversa ("Spavento del Bardo", "morso del ragno").
+    # L'Indebolimento resta su characters.exhaustion_level: e' l'unica con
+    # livelli cumulativi invece che on/off.
+    # ------------------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS character_conditions (
+            id             TEXT PRIMARY KEY,
+            character_id   TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+            condition_key  TEXT NOT NULL,
+            source         TEXT NOT NULL DEFAULT '',
+            note           TEXT NOT NULL DEFAULT '',
+            created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_character_conditions_character
+        ON character_conditions(character_id)
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
     """)

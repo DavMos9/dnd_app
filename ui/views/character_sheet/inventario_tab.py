@@ -22,7 +22,8 @@ from typing import Any, Callable, cast
 from data.models import Character, Currency, InventoryItem, Weapon
 import data.repositories.character_repo as character_repo
 from core.equipment_manager import (
-    ArmorCandidate, EquipCandidate, resolve_armor_equip, resolve_weapon_equip,
+    ArmorCandidate, AttunementCandidate, EquipCandidate, MAX_ATTUNED_ITEMS,
+    can_attune, resolve_armor_equip, resolve_weapon_equip,
 )
 from data.game_data.game_data_loader import GameDataLoader, game_data as _loader
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
@@ -258,6 +259,9 @@ class InventarioTab(ScrollMemoryListView):
         self.controls.append(self._section_monete())
         self.controls.append(section_header("Peso"))
         self.controls.append(self._section_peso())
+        if any(it.requires_attunement for it in self._items):
+            self.controls.append(section_header("Sintonia", design.T().warning))
+            self.controls.append(self._section_attunement())
         self.controls.append(section_header("Armi"))
         self.controls.append(self._section_armi())
         self.controls.append(section_header("Armature"))
@@ -869,6 +873,15 @@ class InventarioTab(ScrollMemoryListView):
                 on_click=lambda e, it=item: self._toggle_item_equipped(it),
                 padding=ft.Padding.all(2),
             ),
+            *([ft.IconButton(
+                icon=ft.Icons.HANDSHAKE if item.is_attuned else ft.Icons.HANDSHAKE_OUTLINED,
+                icon_color=design.T().warning if item.is_attuned else design.T().border,
+                icon_size=14,
+                tooltip=("Interrompi la sintonia" if item.is_attuned
+                         else "Entra in sintonia (richiede un riposo breve)"),
+                on_click=lambda e, it=item: self._toggle_attunement(it),
+                padding=ft.Padding.all(2),
+            )] if item.requires_attunement else []),
             ft.IconButton(
                 icon=ft.Icons.EDIT,
                 icon_color=design.T().text_3, icon_size=14, tooltip="Modifica",
@@ -1592,6 +1605,95 @@ class InventarioTab(ScrollMemoryListView):
             if not self._unequip_shield_and_recalc_ca():
                 return
 
+        self._refresh()
+
+    # ------------------------------------------------------------------
+    # Sintonia (Fase 4, feature 3 — DMG p.138)
+    # ------------------------------------------------------------------
+
+    def _attunement_candidates(self) -> list[AttunementCandidate]:
+        return [
+            AttunementCandidate(id=it.id, name=it.name,
+                                requires_attunement=it.requires_attunement,
+                                is_attuned=it.is_attuned)
+            for it in self._items
+        ]
+
+    def _section_attunement(self) -> ft.Container:
+        """
+        Contatore dei tre slot di sintonia, sempre visibile con i pallini.
+
+        Il limite è una regola del manuale (DMG p.138) e viene mostrato in
+        chiaro invece di comparire solo come errore al momento del quarto
+        tentativo.
+        """
+        attuned = [it for it in self._items if it.is_attuned]
+        used = len(attuned)
+        p = design.T()
+        rows: list[ft.Control] = [
+            ft.Row(
+                [
+                    ft.Icon(ft.Icons.HANDSHAKE, size=16, color=p.warning),
+                    ft.Container(width=design.Space.SM),
+                    ft.Text(f"Sintonia: {used} / {MAX_ATTUNED_ITEMS}", size=14,
+                            weight=ft.FontWeight.BOLD, color=p.text,
+                            font_family=design.Font.BODY),
+                    ft.Container(width=design.Space.MD),
+                    # `slot_dots` disegna pieni gli slot DISPONIBILI: qui i
+                    # pallini pieni devono essere quelli OCCUPATI, quindi si
+                    # passa il complemento.
+                    design.slot_dots(MAX_ATTUNED_ITEMS, MAX_ATTUNED_ITEMS - used,
+                                     tone="warning", size=14),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                wrap=True,
+            )
+        ]
+        for it in attuned:
+            rows.append(ft.Row([
+                ft.Container(width=24),
+                ft.Text(it.name, size=12, color=p.text_2, expand=True),
+            ], spacing=0))
+        rows.append(ft.Text(
+            "Entrare in sintonia richiede un riposo breve concentrandosi "
+            "sull'oggetto (Guida del Master, pag. 138).",
+            size=11, color=p.text_3, italic=True,
+        ))
+        return ft.Container(
+            content=ft.Column(rows, spacing=4),
+            bgcolor=p.surface,
+            padding=12,
+            border=ft.Border.only(left=ft.BorderSide(3, p.warning)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
+        )
+
+    def _toggle_attunement(self, item: InventoryItem) -> None:
+        """Entra o esce dalla sintonia, applicando i limiti del manuale."""
+        page = self._page
+        if item.is_attuned:
+            self._write_attunement(item, False)
+            return
+
+        ok, reason = can_attune(self._attunement_candidates(), item.id)
+        if not ok:
+            if page is not None:
+                page.show_dialog(ft.AlertDialog(
+                    title=design.dialog_title("Sintonia non possibile"),
+                    content=ft.Text(reason, size=13, color=design.T().text),
+                    actions=wrap_dialog_actions([
+                        ft.TextButton("OK", on_click=lambda e: page.pop_dialog()),
+                    ]),
+                ))
+            return
+        self._write_attunement(item, True)
+
+    def _write_attunement(self, item: InventoryItem, value: bool) -> None:
+        if not character_repo.set_item_attunement(item.id, value):
+            if self._page is not None:
+                show_error_dialog(self._page)
+            return
+        item.is_attuned = value
         self._refresh()
 
     def _toggle_item_equipped(self, item: InventoryItem) -> None:

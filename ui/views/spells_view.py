@@ -48,6 +48,8 @@ from data.models import Character, KnownSpell, SpellSlot
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text
+import core.character_stats as cs
+from ui.components.roll_panel import show_roll
 from ui.widgets import (CardPicker, ScrollMemoryListView, spell_card_options,
                         wrap_dialog_actions, responsive_dialog_width)
 from ui import design
@@ -412,10 +414,64 @@ class SpellsView(ScrollMemoryListView):
                         color=design.T().text, expand=True),
             ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
             content=ft.Column(rows, spacing=6, scroll=ft.ScrollMode.AUTO),
-            actions=[
+            actions=wrap_dialog_actions([
                 ft.TextButton("Chiudi",
                               on_click=lambda e: page.pop_dialog() if page else None),
-            ],
+                *([ft.ElevatedButton(
+                    "Attiva concentrazione", icon=ft.Icons.CENTER_FOCUS_STRONG,
+                    on_click=lambda e, n=name: self._activate_concentration(n),
+                    style=ft.ButtonStyle(bgcolor=design.T().magic,
+                                         color=design.T().on_accent),
+                )] if spell.get("concentration") else []),
+            ]),
+        ))
+
+    def _activate_concentration(self, spell_name: str) -> None:
+        """
+        Attiva la concentrazione su questo incantesimo.
+
+        PHB p.203: "Un incantatore non può concentrarsi su due incantesimi alla
+        volta" — se una concentrazione è già attiva, l'app **avverte** che verrà
+        interrotta invece di sostituirla in silenzio.
+        """
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+        current = (c.concentrating_spell or "").strip()
+
+        def _do(_e=None):
+            character_repo.set_concentration(c.id, spell_name)
+            c.concentrating_spell = spell_name
+            page.pop_dialog()
+            self._refresh()
+
+        if not current:
+            _do()
+            return
+
+        if current == spell_name:
+            page.pop_dialog()
+            return
+
+        page.pop_dialog()   # chiude il dettaglio dell'incantesimo
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title("Sostituire la concentrazione?"),
+            content=ft.Text(
+                f"Ti stai già concentrando su «{current}»: attivare "
+                f"«{spell_name}» la interrompe.\n"
+                "PHB p.203 — un incantatore non può concentrarsi su due "
+                "incantesimi alla volta.",
+                size=13, color=design.T().text,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
+                ft.ElevatedButton(
+                    "Sostituisci", icon=ft.Icons.CENTER_FOCUS_STRONG, on_click=_do,
+                    style=ft.ButtonStyle(bgcolor=design.T().magic,
+                                         color=design.T().on_accent),
+                ),
+            ]),
         ))
 
     # ------------------------------------------------------------------
@@ -659,27 +715,46 @@ class SpellsView(ScrollMemoryListView):
         sp_name = _KEY_TO_NAME.get(sp_key, sp_key)
         sp_abbr = _KEY_TO_ABBR.get(sp_key, sp_key.upper())
 
-        def _box(label: str, value: str) -> ft.Container:
+        def _box(label: str, value: str, on_click=None, tooltip: str | None = None,
+                 rollable: bool = False) -> ft.Container:
+            value_ctl: ft.Control = ft.Text(
+                value, size=18, color=design.T().magic,
+                weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER,
+                font_family=design.Font.MONO)
+            if rollable:
+                value_ctl = ft.Row(
+                    [value_ctl,
+                     ft.Icon(ft.Icons.CASINO_OUTLINED, size=12, color=design.T().magic)],
+                    spacing=4, tight=True,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
             return ft.Container(
                 content=ft.Column([
                     ft.Text(label, size=9, color=design.T().text_3,
                             weight=ft.FontWeight.BOLD,
                             text_align=ft.TextAlign.CENTER),
-                    ft.Text(value, size=18, color=design.T().magic,
-                            weight=ft.FontWeight.BOLD,
-                            text_align=ft.TextAlign.CENTER,
-                            font_family=design.Font.MONO),
+                    value_ctl,
                 ], spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 bgcolor=design.T().surface_alt,
                 padding=ft.Padding.symmetric(horizontal=10, vertical=8),
                 border_radius=design.Radius.MD, expand=True,
+                on_click=on_click, ink=bool(on_click), tooltip=tooltip,
             )
+
+        atk_spec = cs.spell_attack_roll(c)
 
         return ft.Container(
             content=ft.Row([
                 _box(f"CARATTERISTICA\n({sp_abbr})", sp_name),
                 _box("CD TIRO SALV.", str(save_dc)),
-                _box("BONUS ATTACCO", atk_str),
+                _box("BONUS ATTACCO", atk_str,
+                     on_click=(lambda e: show_roll(
+                         self._page, cs.spell_attack_roll(self.character))
+                     ) if atk_spec else None,
+                     tooltip=(f"Tira l'attacco con incantesimo ({atk_spec.note})"
+                              if atk_spec else None),
+                     rollable=bool(atk_spec)),
             ], spacing=8),
             bgcolor=design.T().surface,
             padding=14,

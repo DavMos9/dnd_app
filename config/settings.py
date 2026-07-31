@@ -77,6 +77,27 @@ def get_modifier_str(score: int) -> str:
 def get_proficiency_bonus(level: int) -> int:
     return LEVEL_PROGRESSION.get(level, (0, 2))[1]
 
+def get_level_from_xp(xp: int) -> int:
+    """
+    Livello corrispondente a un totale di punti esperienza (tabella PHB p.15).
+
+    Reintrodotta con la Fase 4 (assegnazione dei PE lato master): serve a
+    mostrare nel dialog di conferma il livello risultante dopo l'assegnazione
+    ("Thorin: 6.500 → 7.200 PE, sale al livello 6"). Era stata rimossa nella
+    pulizia del 2026-07-26 perché all'epoca non aveva più chiamanti.
+    """
+    try:
+        xp_value = int(xp)
+    except (TypeError, ValueError):
+        return 1
+    level = 1
+    for lvl in sorted(LEVEL_PROGRESSION):
+        if xp_value >= LEVEL_PROGRESSION[lvl][0]:
+            level = lvl
+        else:
+            break
+    return level
+
 def char_prof_bonus(character) -> int:
     """
     Restituisce il bonus competenza effettivo del personaggio.

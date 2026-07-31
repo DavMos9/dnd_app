@@ -18,6 +18,8 @@ from typing import Any
 
 import flet as ft
 
+from core import dice as dice_engine
+from config.settings import get_level_from_xp
 from core.encounter_calculator import calculate_difficulty, DIFFICULTY_LABELS
 from data.game_data.game_data_loader import parse_monster_xp
 from data.models import MasterEncounter
@@ -44,6 +46,44 @@ def _int_or(text: str | None, default: int) -> int:
             return int(float(t))
         except ValueError:
             return default
+
+
+# ---------------------------------------------------------------------------
+# Iniziativa automatica (Fase 4, feature 4a)
+# ---------------------------------------------------------------------------
+
+
+def _mod_from_score(score: Any) -> int:
+    """Modificatore di caratteristica da un punteggio dello stat block."""
+    try:
+        return (int(score) - 10) // 2
+    except (TypeError, ValueError):
+        return 0
+
+
+def _roll_initiative(dex_mod: int) -> int:
+    """d20 + modificatore di Destrezza (PHB Cap. 9)."""
+    return dice_engine.roll_d20(modifier=dex_mod).total
+
+
+def _initiative_options() -> tuple[ft.Checkbox, ft.Checkbox, ft.Control]:
+    """
+    I due interruttori dell'iniziativa automatica, identici nei tre dialog di
+    aggiunta combattente.
+
+    Il default è "tira automaticamente": aggiungere 5 goblin significava prima
+    compilare 5 campi a mano, mentre il modificatore di Destrezza è già nello
+    stat block di tutti i 444 mostri. "Gruppi identici tirano insieme" è la
+    variante DMG (un solo tiro per l'intero gruppo): è una scelta del master,
+    non una regola fissa, quindi resta spenta di default.
+    """
+    auto_cb = ft.Checkbox(label="Tira l'iniziativa (d20 + DES)", value=True)
+    group_cb = ft.Checkbox(label="Gruppi identici tirano insieme", value=False)
+    help_txt = ft.Text(
+        "Con il tiro automatico il campo Iniziativa viene ignorato.",
+        size=11, color=design.T().text_3, italic=True,
+    )
+    return auto_cb, group_cb, help_txt
 
 
 class MasterEncounterView(ft.Column):
@@ -128,8 +168,16 @@ class MasterEncounterView(ft.Column):
                     ft.Row(
                         [
                             self._action_pill(
+                                ft.Icons.CASINO_OUTLINED, "Tira iniziativa", design.T().primary,
+                                lambda e: self._on_roll_all_initiative(),
+                            ),
+                            self._action_pill(
                                 ft.Icons.ANALYTICS_OUTLINED, "Difficoltà", design.T().magic,
                                 self._on_difficulty_click,
+                            ),
+                            self._action_pill(
+                                ft.Icons.STARS_OUTLINED, "Assegna PE", design.T().success,
+                                lambda e: self._on_award_xp_click(),
                             ),
                             self._action_pill(
                                 ft.Icons.FLAG_OUTLINED, "Termina Incontro", design.T().text_2,
@@ -308,6 +356,272 @@ class MasterEncounterView(ft.Column):
             ]),
         )
         page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
+    # Iniziativa di tutti i mostri (Fase 4, feature 4a)
+    # ------------------------------------------------------------------
+
+    def _on_roll_all_initiative(self):
+        """
+        Ritira l'iniziativa di tutti i combattenti `npc`/`adhoc` attivi.
+
+        **I personaggi giocanti non vengono toccati**, coerente con la regola
+        del progetto "il master non scrive mai sui PG": al tavolo tira il
+        giocatore e comunica il valore, che resta modificabile a mano.
+        """
+        if not self._page:
+            return
+        page = self._page
+
+        members = master_repo.get_encounter_members(self.encounter_id, active_only=True)
+        rollable = [m for m in members if m.kind in ("npc", "adhoc")]
+        players = [m for m in members if m.kind == "character"]
+
+        if not rollable:
+            page.show_dialog(ft.AlertDialog(
+                title=design.dialog_title("Nessun mostro da tirare"),
+                content=ft.Text(
+                    "In questo incontro non ci sono NPC o mostri: l'iniziativa dei "
+                    "personaggi giocanti la tirano i giocatori.",
+                    size=12, color=design.T().text_2,
+                ),
+                actions=wrap_dialog_actions([
+                    ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
+                ]),
+            ))
+            return
+
+        # Opzione "gruppi identici": stesso tiro per membri con lo stesso nome
+        # a meno del numero progressivo ("Goblin 1", "Goblin 2" → "Goblin").
+        group_cb = ft.Checkbox(label="Gruppi identici tirano insieme", value=False)
+
+        def _base_name(name: str) -> str:
+            parts = (name or "").rsplit(" ", 1)
+            return parts[0] if len(parts) == 2 and parts[1].isdigit() else (name or "")
+
+        def _do_roll(_e: Any):
+            shared: dict[str, int] = {}
+            for m in rollable:
+                if group_cb.value:
+                    key = _base_name(m.display_name)
+                    if key not in shared:
+                        shared[key] = _roll_initiative(m.dex_mod)
+                    value = shared[key]
+                else:
+                    value = _roll_initiative(m.dex_mod)
+                master_repo.update_member_initiative(m.id, value)
+            page.pop_dialog()
+            self.refresh()
+
+        note = ft.Text(
+            f"Verranno tirati {len(rollable)} combattenti."
+            + (f" I {len(players)} personaggi giocanti non vengono toccati."
+               if players else ""),
+            size=12, color=design.T().text_2,
+        )
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title("Tira l'iniziativa"),
+            content=ft.Container(
+                content=ft.Column([note, group_cb], spacing=8, tight=True),
+                width=responsive_dialog_width(page, 340),
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
+                ft.ElevatedButton(
+                    "Tira", icon=ft.Icons.CASINO_OUTLINED, on_click=_do_roll,
+                    style=ft.ButtonStyle(bgcolor=design.T().primary,
+                                         color=design.T().on_primary),
+                ),
+            ]),
+        ))
+
+    # ------------------------------------------------------------------
+    # Assegnazione dei PE (Fase 4, feature 4b)
+    # ------------------------------------------------------------------
+
+    def _on_award_xp_click(self):
+        """
+        Assegna i PE dell'incontro ai personaggi giocanti presenti.
+
+        **È l'unica scrittura del master su una scheda giocante in tutto il
+        progetto** (autorizzata da Davide il 2026-07-30), e per questo:
+          * ogni mostro ha una casella, pre-spuntata se è a 0 PF o è stato
+            rimosso dall'incontro — un nemico in fuga o aggirato lo decide il
+            master, non un'euristica;
+          * il totale a testa resta modificabile a mano (la DMG prevede PE
+            bonus per obiettivi narrativi);
+          * il dialog di conferma mostra, per ciascun PG, quanti PE ha ora,
+            quanti ne avrà e se questo lo porta a un nuovo livello;
+          * **nessun level-up automatico**: sale il giocatore dalla propria
+            scheda, dove sceglie HP/ASI/incantesimi.
+        """
+        if not self._page:
+            return
+        page = self._page
+
+        members = master_repo.get_encounter_members(self.encounter_id, active_only=False)
+        monsters = [m for m in members if m.kind in ("npc", "adhoc")]
+        player_members = [m for m in members
+                          if m.kind == "character" and m.character_id and m.is_active]
+
+        if not monsters or not player_members:
+            page.show_dialog(ft.AlertDialog(
+                title=design.dialog_title("Impossibile assegnare i PE"),
+                content=ft.Text(
+                    "Servono almeno un mostro e un personaggio giocante "
+                    "nell'incontro." if not monsters else
+                    "Nessun personaggio giocante in questo incontro: aggiungine "
+                    "uno per poter assegnare i PE.",
+                    size=12, color=design.T().text_2,
+                ),
+                actions=wrap_dialog_actions([
+                    ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
+                ]),
+            ))
+            return
+
+        players = [character_repo.get_by_id(m.character_id) for m in player_members]
+        players = [p for p in players if p is not None]
+
+        # Pre-spunta: sconfitto = a 0 PF oppure rimosso dall'incontro.
+        boxes: list[tuple[Any, ft.Checkbox]] = []
+        for m in monsters:
+            defeated = (m.hp_current <= 0) or (not m.is_active)
+            label = f"{m.display_name or '(senza nome)'} — {m.xp} PE"
+            if not m.is_active:
+                label += " (rimosso)"
+            elif m.hp_current <= 0:
+                label += " (a 0 PF)"
+            boxes.append((m, ft.Checkbox(label=label, value=defeated)))
+
+        total_txt = ft.Text("", size=13, weight=ft.FontWeight.BOLD,
+                            color=design.T().text)
+        each_tf = ft.TextField(label="PE a testa", value="0", dense=True, width=140,
+                               keyboard_type=ft.KeyboardType.NUMBER,
+                               **design.field_style())
+
+        def _recalc(_e: Any = None):
+            total = sum(m.xp for m, cb in boxes if cb.value)
+            each = total // len(players) if players else 0
+            total_txt.value = (f"{total} PE totali ÷ {len(players)} personaggi "
+                               f"= {each} a testa")
+            each_tf.value = str(each)
+            for ctl in (total_txt, each_tf):
+                try:
+                    ctl.update()
+                except (RuntimeError, AssertionError):
+                    pass
+
+        for _m, cb in boxes:
+            cb.on_change = _recalc
+        _recalc()
+
+        def _confirm(_e: Any):
+            each = max(0, _int_or(each_tf.value, 0))
+            page.pop_dialog()
+            if each <= 0:
+                return
+            self._confirm_award_xp(players, each)
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title("Assegna PE"),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text("Chi è stato sconfitto?", size=12,
+                                color=design.T().text_2),
+                        *[cb for _m, cb in boxes],
+                        ft.Divider(height=1, color=design.T().border),
+                        total_txt,
+                        each_tf,
+                        ft.Text(
+                            "Il totale a testa è modificabile: la DMG prevede PE "
+                            "bonus per obiettivi narrativi.",
+                            size=11, color=design.T().text_3, italic=True),
+                    ],
+                    spacing=6, tight=True, scroll=ft.ScrollMode.AUTO,
+                ),
+                width=responsive_dialog_width(page, 380), height=420,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
+                ft.ElevatedButton(
+                    "Continua", icon=ft.Icons.ARROW_FORWARD, on_click=_confirm,
+                    style=ft.ButtonStyle(bgcolor=design.T().success,
+                                         color=design.T().on_accent),
+                ),
+            ]),
+        ))
+
+    def _confirm_award_xp(self, players: list[Any], each: int):
+        """Secondo passo: mostra chi riceve quanto e il livello risultante."""
+        page = self._page
+        if page is None:
+            return
+
+        rows: list[ft.Control] = []
+        for p in players:
+            before = int(p.xp or 0)
+            after = before + each
+            lvl_before = get_level_from_xp(before)
+            lvl_after = get_level_from_xp(after)
+            line = f"{p.name}: {before:,} → {after:,} PE".replace(",", ".")
+            if lvl_after > lvl_before:
+                line += f"  ·  sale al livello {lvl_after}"
+            rows.append(ft.Text(
+                line, size=12,
+                color=design.T().success if lvl_after > lvl_before else design.T().text,
+                weight=ft.FontWeight.BOLD if lvl_after > lvl_before else None,
+            ))
+
+        def _do(_e: Any):
+            written = 0
+            for p in players:
+                if character_repo.add_xp(p.id, each) is not None:
+                    written += 1
+            page.pop_dialog()
+            self.refresh()
+            page.show_dialog(ft.AlertDialog(
+                title=design.dialog_title("PE assegnati"),
+                content=ft.Text(
+                    f"{each} PE assegnati a {written} personagg"
+                    f"{'io' if written == 1 else 'i'}.\n"
+                    "Il livello non è stato toccato: sale il giocatore dalla "
+                    "propria scheda, dove sceglie punti ferita, ASI e incantesimi.",
+                    size=12, color=design.T().text,
+                ),
+                actions=wrap_dialog_actions([
+                    ft.TextButton("OK", on_click=lambda e: page.pop_dialog()),
+                ]),
+            ))
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title("Confermi l'assegnazione?"),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(f"{each} PE a ciascun personaggio:", size=13,
+                                color=design.T().text_2),
+                        *rows,
+                        ft.Text(
+                            "Questa è l'unica modifica che la Modalità Master "
+                            "applica a una scheda giocante.",
+                            size=11, color=design.T().text_3, italic=True),
+                    ],
+                    spacing=6, tight=True, scroll=ft.ScrollMode.AUTO,
+                ),
+                width=responsive_dialog_width(page, 360),
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
+                ft.ElevatedButton(
+                    "Assegna", icon=ft.Icons.STARS, on_click=_do,
+                    style=ft.ButtonStyle(bgcolor=design.T().success,
+                                         color=design.T().on_accent),
+                ),
+            ]),
+        ))
 
     # ------------------------------------------------------------------
     # Calcolatore Difficoltà
@@ -605,17 +919,25 @@ class MasterEncounterView(ft.Column):
                                 keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         qty_tf = ft.TextField(label="Quantità", value="1", dense=True, width=90,
                                keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
+        auto_cb, group_cb, init_help = _initiative_options()
 
         def _do_add(_e: Any):
             npc = next((n for n in npcs if n.id == npc_dd.value), npcs[0])
             qty = max(1, _int_or(qty_tf.value, 1))
             base_idx = self._next_order_index()
+            dex_mod = _mod_from_score(getattr(npc, "dex_score", 10))
+            shared = _roll_initiative(dex_mod) if (auto_cb.value and group_cb.value) else None
             for i in range(qty):
                 name = f"{npc.name} {i + 1}" if qty > 1 else npc.name
+                if auto_cb.value:
+                    init_val = shared if shared is not None else _roll_initiative(dex_mod)
+                else:
+                    init_val = _int_or(init_tf.value, 10)
                 master_repo.add_member(
                     encounter_id=self.encounter_id, kind="npc", npc_id=npc.id,
                     display_name=name, ac=npc.ac, hp_current=npc.hp_max, hp_max=npc.hp_max,
-                    xp=npc.xp, initiative=_int_or(init_tf.value, 10), order_index=base_idx + i,
+                    xp=npc.xp, initiative=init_val, order_index=base_idx + i,
+                    dex_mod=dex_mod,
                 )
             page.pop_dialog()
             self.refresh()
@@ -623,7 +945,8 @@ class MasterEncounterView(ft.Column):
         dlg = ft.AlertDialog(
             title=design.dialog_title("Aggiungi NPC dalla Rubrica"),
             content=ft.Container(
-                content=ft.Column([npc_dd, ft.Row([init_tf, qty_tf], spacing=8)], spacing=8, tight=True),
+                content=ft.Column([npc_dd, ft.Row([init_tf, qty_tf], spacing=8),
+                                   auto_cb, group_cb, init_help], spacing=8, tight=True),
                 width=responsive_dialog_width(page, 300),
             ),
             actions=wrap_dialog_actions([
@@ -643,6 +966,7 @@ class MasterEncounterView(ft.Column):
         qty_tf = ft.TextField(label="Quantità", value="1", dense=True, width=90,
                                keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         save_cb = ft.Checkbox(label="Salva anche in Rubrica NPC", value=False)
+        auto_cb, group_cb, init_help = _initiative_options()
 
         def _open_picker(_e: Any):
             page.pop_dialog()
@@ -651,16 +975,22 @@ class MasterEncounterView(ft.Column):
             def _on_select(m: dict):
                 page.pop_dialog()
                 qty = max(1, _int_or(qty_tf.value, 1))
-                init_val = _int_or(init_tf.value, 10)
                 base_idx = self._next_order_index()
                 disp = monster_display_name(m.get("name", ""))
+                dex_mod = _mod_from_score(m.get("dex_score", 10))
+                shared = _roll_initiative(dex_mod) if (auto_cb.value and group_cb.value) else None
                 for i in range(qty):
                     name = f"{disp} {i + 1}" if qty > 1 else disp
+                    if auto_cb.value:
+                        init_val = shared if shared is not None else _roll_initiative(dex_mod)
+                    else:
+                        init_val = _int_or(init_tf.value, 10)
                     master_repo.add_member(
                         encounter_id=self.encounter_id, kind="adhoc",
                         display_name=name, ac=int(m.get("ac", 10)),
                         hp_current=int(m.get("hp_max", 1)), hp_max=int(m.get("hp_max", 1)),
-                        xp=parse_monster_xp(m.get("xp", 0)), initiative=init_val, order_index=base_idx + i,
+                        xp=parse_monster_xp(m.get("xp", 0)), initiative=init_val,
+                        order_index=base_idx + i, dex_mod=dex_mod,
                     )
                 if save_cb.value:
                     master_repo.create_npc_from_monster(m)
@@ -677,6 +1007,7 @@ class MasterEncounterView(ft.Column):
                 content=ft.Column(
                     [
                         ft.Row([init_tf, qty_tf], spacing=8),
+                        auto_cb, group_cb, init_help,
                         save_cb,
                         muted_text("Il nome, CA, PF e PE verranno importati automaticamente dal mostro scelto.",
                                    size=11),
@@ -704,8 +1035,14 @@ class MasterEncounterView(ft.Column):
                               keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         xp_tf = ft.TextField(label="PE", value="0", dense=True, width=90,
                               keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
+        auto_cb = ft.Checkbox(label="Tira l'iniziativa (d20 + DES)", value=True)
         init_tf = ft.TextField(label="Iniziativa", value="10", dense=True, width=110,
                                 keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
+        # Un combattente creato a mano non ha uno stat block da cui leggere la
+        # Destrezza: il modificatore si dichiara qui, e serve anche a "Tira
+        # iniziativa per tutti" nei turni successivi.
+        dex_tf = ft.TextField(label="Mod. DES", value="0", dense=True, width=100,
+                               keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         error_text = ft.Text("", size=12, color=design.T().danger)
 
         def _do_add(_e: Any):
@@ -718,11 +1055,14 @@ class MasterEncounterView(ft.Column):
                     pass
                 return
             hp = _int_or(hp_tf.value, 10)
+            dex_mod = _int_or(dex_tf.value, 0)
+            init_val = (_roll_initiative(dex_mod) if auto_cb.value
+                        else _int_or(init_tf.value, 10))
             master_repo.add_member(
                 encounter_id=self.encounter_id, kind="adhoc", display_name=name,
                 ac=_int_or(ac_tf.value, 10), hp_current=hp, hp_max=hp,
-                xp=_int_or(xp_tf.value, 0), initiative=_int_or(init_tf.value, 10),
-                order_index=self._next_order_index(),
+                xp=_int_or(xp_tf.value, 0), initiative=init_val,
+                order_index=self._next_order_index(), dex_mod=dex_mod,
             )
             page.pop_dialog()
             self.refresh()
@@ -731,7 +1071,8 @@ class MasterEncounterView(ft.Column):
             title=design.dialog_title("Creazione Rapida"),
             content=ft.Container(
                 content=ft.Column(
-                    [name_tf, ft.Row([ac_tf, hp_tf, xp_tf], spacing=8), init_tf, error_text],
+                    [name_tf, ft.Row([ac_tf, hp_tf, xp_tf], spacing=8),
+                     ft.Row([init_tf, dex_tf], spacing=8), auto_cb, error_text],
                     spacing=8, tight=True,
                 ),
                 width=responsive_dialog_width(page, 320),

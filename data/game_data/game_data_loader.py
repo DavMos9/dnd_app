@@ -179,6 +179,8 @@ class GameDataLoader:
         # tabelle tesori DMG (Sezione Master → Generatore Tesori Casuali)
         self._treasure: dict[str, Any] | None = None
         # tabelle trappole DMG (Sezione Master → Generatore Trappole)
+        self._conditions: dict[str, Any] | None = None
+        self._artifacts: dict[str, Any] | None = None
         self._traps: dict[str, Any] | None = None
         # malattie/veleni/follia DMG (Sezione Master → Riferimento Malattie/Veleni/Follia)
         self._health_hazards: dict[str, Any] | None = None
@@ -1519,6 +1521,86 @@ class GameDataLoader:
     # ------------------------------------------------------------------
     # Trappole (DMG IT Cap.5 p.120-124 — Sezione Master, Generatore Trappole)
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Condizioni (Appendice A del PHB) — Fase 4, feature 2b
+    # ------------------------------------------------------------------
+
+    def _ensure_conditions(self) -> None:
+        if self._conditions is not None:
+            return
+        try:
+            self._conditions = _load_json(_DATA_DIR / "conditions.json")
+            logger.debug("Condizioni caricate")
+        except Exception as exc:
+            logger.error("Errore caricamento conditions.json: %s", exc)
+            self._conditions = {"conditions": []}
+
+    def get_conditions(self) -> list[dict[str, Any]]:
+        """Le 14 condizioni dell'Appendice A (l'Indebolimento e' tracciato a parte)."""
+        self._ensure_conditions()
+        return (self._conditions or {}).get("conditions", [])
+
+    def get_condition(self, key: str) -> dict[str, Any] | None:
+        target = (key or "").strip().lower()
+        for c in self.get_conditions():
+            if c.get("key", "").lower() == target:
+                return c
+        return None
+
+    # ------------------------------------------------------------------
+    # Artefatti (DMG Cap. 7) — 2026-07-30
+    # ------------------------------------------------------------------
+
+    def _ensure_artifacts(self) -> None:
+        if self._artifacts is not None:
+            return
+        try:
+            self._artifacts = _load_json(_DATA_DIR / "artifacts.json")
+            logger.debug("Artefatti caricati")
+        except Exception as exc:
+            logger.error("Errore caricamento artifacts.json: %s", exc)
+            self._artifacts = {}
+
+    def get_artifacts_data(self) -> dict[str, Any]:
+        self._ensure_artifacts()
+        return self._artifacts or {}
+
+    def get_artifacts(self) -> list[dict[str, Any]]:
+        """Gli artefatti d'esempio trascritti dalla DMG."""
+        return self.get_artifacts_data().get("artifacts", [])
+
+    def get_artifact(self, name: str) -> dict[str, Any] | None:
+        target = (name or "").strip().lower()
+        for a in self.get_artifacts():
+            if a.get("name", "").strip().lower() == target:
+                return a
+        return None
+
+    def get_artifact_property_table(self, key: str) -> dict[str, Any] | None:
+        """`benefiche_minori` | `benefiche_maggiori` | `nocive_minori` | `nocive_maggiori`."""
+        return self.get_artifacts_data().get("tables", {}).get(key)
+
+    def roll_artifact_property(self, key: str) -> dict[str, Any] | None:
+        """
+        Tira 1d100 su una delle quattro tabelle e risolve la riga.
+
+        Nessun modulo `core/` dedicato: è un singolo lookup su una tabella già
+        pronta, stesso principio già motivato per `roll_madness_effect()`.
+        """
+        import random as _random
+
+        table = self.get_artifact_property_table(key)
+        if not table:
+            return None
+        roll = _random.randint(1, 100)
+        for entry in table.get("entries", []):
+            lo, hi = entry["roll"].split("-")
+            lo_i = int(lo)
+            hi_i = 100 if hi == "00" else int(hi)
+            if lo_i <= roll <= hi_i:
+                return {"roll": roll, "range": entry["roll"], "text": entry["text"]}
+        return None
 
     def _ensure_traps(self) -> None:
         if self._traps is not None:

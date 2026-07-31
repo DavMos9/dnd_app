@@ -13,11 +13,12 @@ import flet as ft
 import logging
 import threading
 import webbrowser
-from typing import Any
+from typing import Any, Callable
 from config.settings import *
+from data.repositories import settings_repo
 from ui import design
 from ui.theme import get_theme, get_dark_theme, title_text, muted_text
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import wrap_dialog_actions, theme_toggle_look, theme_toggle_tooltip
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,14 @@ class DnDApp:
         self.current_character_id: str | None = None
         self.active_section: str = "sheet"
         self._mobile: bool = False
+        # Preferenza di tema ("light"/"dark"/"system"), letta dal DB in
+        # `_setup_page()`. Vedi la sezione "Tema" più sotto.
+        self._theme_pref: str = settings_repo.DEFAULT_THEME_PREFERENCE
+        # Come ricostruire la schermata attualmente a video dopo un cambio di
+        # tema. `None` = schermata non ricostruibile senza perdere stato
+        # (wizard/form di creazione), vedi `_rebuild_current()`.
+        self._rebuild_route: Callable[[], None] | None = None
+        self._master_view: Any = None
 
         self._setup_page()
         self._show_home()
@@ -79,14 +88,122 @@ class DnDApp:
         # I file vivono in `assets/fonts/` e sono raggiungibili perché la Fase A
         # ha collegato `assets_dir` su tutte le piattaforme (vedi main.py).
         self.page.fonts = dict(design.FONT_FILES)
-        # Entrambi i temi sono registrati fin da subito (Fase A del restyle):
-        # il toggle chiaro/scuro della Fase D dovrà solo cambiare
-        # `page.theme_mode` e chiamare `design.set_mode()` + un rebuild.
-        self.page.theme_mode = ft.ThemeMode.LIGHT
+        # Entrambi i temi sono registrati fin da subito (Fase A del restyle);
+        # la Fase D (2026-07-30) ha aggiunto la scelta dell'utente e la sua
+        # persistenza.
         self.page.theme = get_theme()
         self.page.dark_theme = get_dark_theme()
-        self.page.bgcolor = design.T().bg
         self.page.padding = 0
+
+        self._theme_pref = settings_repo.get_theme_preference()
+        self._apply_theme_mode()
+        # Con la preferenza "Sistema" il tema segue il SO anche mentre l'app è
+        # aperta (es. la pianificazione automatica di macOS al tramonto).
+        self.page.on_platform_brightness_change = self._on_system_brightness_change
+
+    # ------------------------------------------------------------------
+    # Tema (Fase D del restyle, 2026-07-30)
+    # ------------------------------------------------------------------
+
+    def _resolve_theme_mode(self) -> str:
+        """
+        Traduce la preferenza dell'utente nella modalità concreta da applicare.
+
+        "system" viene risolta leggendo `page.platform_brightness`
+        (`ft.Brightness.LIGHT`/`DARK`, verificato per introspezione su
+        `flet==0.85.3`). Se il valore non è ancora disponibile — può essere
+        `None` prima del primo layout — si ricade sul tema chiaro, che è anche
+        quello con cui l'app è nata.
+        """
+        if self._theme_pref in ("light", "dark"):
+            return self._theme_pref
+        return "dark" if self.page.platform_brightness == ft.Brightness.DARK else "light"
+
+    def _apply_theme_mode(self) -> bool:
+        """
+        Applica la modalità risolta. Ritorna `True` se è cambiata davvero.
+
+        `page.theme_mode` riceve sempre un valore CONCRETO (LIGHT o DARK), mai
+        `ft.ThemeMode.SYSTEM`, anche quando la preferenza è "Sistema": i colori
+        delle nostre view vengono da `design.T()`, che conosce solo due
+        palette. Lasciare a Flutter la risoluzione di SYSTEM significherebbe
+        poter avere i controlli Material scuri e le nostre superfici chiare.
+        La risoluzione la facciamo qui, una volta sola, per entrambi.
+        """
+        new_mode = self._resolve_theme_mode()
+        changed = new_mode != design.mode()
+        design.set_mode(new_mode)
+        self.page.theme_mode = ft.ThemeMode.DARK if new_mode == "dark" else ft.ThemeMode.LIGHT
+        self.page.bgcolor = design.T().bg
+        return changed
+
+    def _on_system_brightness_change(self, e: Any):
+        """Il SO ha cambiato tema: rilevante solo se la preferenza è "Sistema"."""
+        if self._theme_pref != "system":
+            return
+        if self._apply_theme_mode():
+            self._rebuild_current()
+
+    def _cycle_theme(self, e: Any = None):
+        """Chiaro → Scuro → Sistema → Chiaro. Salva e ricostruisce la vista."""
+        self._theme_pref = settings_repo.next_theme_preference(self._theme_pref)
+        settings_repo.set_theme_preference(self._theme_pref)
+        self._apply_theme_mode()
+        # Sempre, anche quando la modalità risolta non cambia (es. da "Chiaro"
+        # a "Sistema" con il SO già chiaro): l'etichetta del pulsante è
+        # cambiata e va ridisegnata.
+        self._rebuild_current()
+
+    def _rebuild_current(self):
+        """
+        Ricostruisce la schermata a video con la nuova palette.
+
+        Serve un rebuild completo perché i colori delle view sono letti da
+        `design.T()` al momento della costruzione dei controlli: cambiare la
+        palette non ridisegna da solo un albero già costruito.
+
+        Se `_rebuild_route` è `None` siamo nel wizard o nel form di creazione,
+        dove ricostruire vorrebbe dire perdere le scelte fatte a metà: si
+        applica il solo tema Material (già fatto da `_apply_theme_mode`) e le
+        superfici custom si allineano alla schermata successiva. È un caso che
+        oggi può capitare solo con la preferenza "Sistema" e un cambio di tema
+        del SO durante la creazione, dato che lì il pulsante non compare.
+        """
+        route = self._rebuild_route
+        if route is None:
+            self.page.update()
+            return
+        route()
+
+    def _nav_theme_item(self, width: int | None = None, label_size: int = 10) -> ft.Container:
+        """
+        Voce "cambia tema" per la sidebar e la bottom nav.
+
+        Non usa `theme_toggle_pill()`: su fondo scuro della navigazione la
+        forma giusta è quella delle altre voci (icona sopra etichetta), non una
+        pillola. Icona ed etichetta vengono comunque dalla stessa fonte
+        condivisa `theme_toggle_look()`, così i tre punti non divergono.
+        """
+        p = design.T()
+        icon, label = theme_toggle_look(self._theme_pref)
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Icon(icon, color=p.nav_muted, size=22),
+                    ft.Text(label, size=label_size, color=p.nav_muted,
+                            text_align=ft.TextAlign.CENTER),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=3 if width else 2,
+            ),
+            padding=ft.Padding.symmetric(horizontal=6 if width else 4,
+                                         vertical=10 if width else 8),
+            border_radius=8 if width else None,
+            width=width or 68,
+            tooltip=theme_toggle_tooltip(self._theme_pref),
+            on_click=self._cycle_theme,
+            ink=True,
+        )
 
     # ------------------------------------------------------------------
     # Routing di primo livello
@@ -109,17 +226,32 @@ class DnDApp:
             on_create_wizard=self._show_wizard,
             on_create_manual=self._show_manual_form,
             on_open_master=self._show_master_view,
+            on_toggle_theme=self._cycle_theme,
+            theme_preference=self._theme_pref,
         )
         self._home_view = home
+        self._rebuild_route = self._show_home
         self.page.add(home)
         self.page.update()
 
-    def _show_master_view(self):
+    def _show_master_view(self, active_tab: str | None = None):
         """Mostra la Modalità Master — indipendente da ogni personaggio giocante."""
         from ui.views.master.master_view import MasterView
         self._stop_home_polling()
         self.page.controls.clear()
-        master = MasterView(on_back_to_home=self._show_home)
+        master = MasterView(
+            on_back_to_home=self._show_home,
+            on_toggle_theme=self._cycle_theme,
+            theme_preference=self._theme_pref,
+            active_tab=active_tab or "npcs",
+        )
+        self._master_view = master
+        # Il rebuild legge la tab attiva al momento del cambio tema, non ora.
+        # Nota onesta: la tab viene preservata, non lo stato interno di una
+        # sotto-vista (es. un incontro aperto torna alla lista incontri).
+        self._rebuild_route = lambda: self._show_master_view(
+            getattr(self._master_view, "active_tab", "npcs")
+        )
         self.page.add(master)
         self.page.update()
 
@@ -128,6 +260,8 @@ class DnDApp:
         from ui.views.creation_wizard.manual_form import ManualCreationForm
         self._stop_home_polling()
         self.page.controls.clear()
+        # Ricostruire il form a metà compilazione perderebbe le scelte fatte.
+        self._rebuild_route = None
         form = ManualCreationForm(
             on_complete=self._on_character_selected,
             on_cancel=self._show_home,
@@ -140,6 +274,8 @@ class DnDApp:
         from ui.views.creation_wizard.wizard_view import WizardView
         self._stop_home_polling()
         self.page.controls.clear()
+        # Come per il form manuale: nessun rebuild a metà creazione.
+        self._rebuild_route = None
         wizard = WizardView(
             on_complete=self._on_character_selected,
             on_cancel=self._show_home,
@@ -161,6 +297,7 @@ class DnDApp:
         """Mostra il layout con navbar laterale (desktop) o bottom nav (mobile)."""
         self.page.controls.clear()
         self._mobile = self._is_mobile()
+        self._rebuild_route = self._show_main_layout
 
         self.content_area = ft.Container(
             expand=True,
@@ -311,6 +448,7 @@ class DnDApp:
                 *nav_items,
                 ft.Container(expand=True),   # spazio flessibile
                 ft.Divider(color=p.nav_border, height=1),
+                self._nav_theme_item(width=80),
                 switch_btn,
                 ft.Container(height=8),
             ],
@@ -366,12 +504,25 @@ class DnDApp:
                     padding=ft.Padding.symmetric(horizontal=4, vertical=8),
                     on_click=_tap,
                     ink=True,
-                    expand=True,
+                    # Larghezza fissa invece di `expand`: con 9 voci su un
+                    # telefono da 375px la ripartizione a fisarmonica
+                    # scenderebbe a ~41px, sotto i 48dp minimi consigliati per
+                    # un tap-target. Con una larghezza garantita la barra
+                    # scorre orizzontalmente quando non ci stanno tutte.
+                    width=68,
                 )
             )
 
+        # Ottava voce: cambio tema. A 375px di viewport le voci scendono a
+        # ~47px di larghezza, appena sotto i 48dp minimi consigliati per la
+        # larghezza del tap-target — ma l'altezza della barra è 64px, quindi
+        # l'area effettiva resta ben oltre 48×48. La voce è qui e non solo in
+        # Home perché "raggiungibile da tutte le schermate" è un requisito
+        # esplicito della Fase D.
+        items.append(self._nav_theme_item(label_size=9))
+
         return ft.Container(
-            content=ft.Row(items, spacing=0),
+            content=ft.Row(items, spacing=0, scroll=ft.ScrollMode.AUTO),
             bgcolor=p.nav_bg,
             height=64,
             border=ft.Border.only(top=ft.BorderSide(1, p.nav_border)),

@@ -690,3 +690,63 @@ def responsive_dialog_width(page: Any, base_width: int, margin: int = 32, min_wi
     if not page_width:
         return base_width
     return max(min_width, min(base_width, int(page_width) - margin))
+
+
+# ---------------------------------------------------------------------------
+# Cambio tema (Fase D del restyle, 2026-07-30)
+# ---------------------------------------------------------------------------
+
+#: Icona ed etichetta per ciascuna preferenza di tema. Un unico posto, così i
+#: tre punti d'uso (Home, sidebar/bottom nav, Sezione Master) non divergono —
+#: stesso problema già capitato con le 3 copie di `_action_pill`, poi unificate
+#: nella primitiva `design.pill()`.
+#: I nomi icona sono verificati per introspezione su `flet==0.85.3`.
+THEME_TOGGLE_LOOK: dict[str, tuple[ft.IconData, str]] = {
+    "light":  (ft.Icons.LIGHT_MODE,       "Chiaro"),
+    "dark":   (ft.Icons.DARK_MODE,        "Scuro"),
+    "system": (ft.Icons.BRIGHTNESS_AUTO,  "Sistema"),
+}
+
+
+def theme_toggle_look(preference: str) -> tuple[ft.IconData, str]:
+    """
+    Icona ed etichetta da mostrare per la preferenza corrente.
+
+    Una preferenza non riconosciuta ricade su "system" invece di sollevare:
+    il pulsante resta usabile anche partendo da uno stato sporco, e cliccarlo
+    riporta comunque il ciclo su un valore valido (vedi
+    `settings_repo.next_theme_preference`).
+    """
+    return THEME_TOGGLE_LOOK.get(preference, THEME_TOGGLE_LOOK["system"])
+
+
+def theme_toggle_tooltip(preference: str) -> str:
+    """Testo del tooltip: dice sia lo stato attuale sia cosa fa il click."""
+    _, label = theme_toggle_look(preference)
+    return f"Tema: {label} — clicca per cambiare (Chiaro → Scuro → Sistema)"
+
+
+def theme_toggle_pill(preference: str,
+                      on_click: Callable[[Any], None],
+                      *, color: str | None = None) -> ft.Container:
+    """
+    Pillola di cambio tema per i contesti a pillole (Home, Sezione Master).
+
+    Mostra **icona + etichetta**, mai un'icona muta: è il principio "nulla di
+    nascosto" già stabilito per il progetto — chi apre l'app per la prima volta
+    deve capire cosa fa il pulsante senza doverlo premere. L'etichetta è lo
+    stato ATTUALE ("Chiaro"/"Scuro"/"Sistema"), non l'azione, coerente con il
+    fatto che il ciclo ha tre stati e non è un semplice interruttore.
+
+    La sidebar e la bottom nav non usano questa pillola ma la stessa coppia
+    icona/etichetta tramite `theme_toggle_look()`, perché lì la forma corretta
+    è quella delle altre voci di navigazione (colonna icona sopra etichetta su
+    fondo scuro), non una pillola.
+    """
+    icon, label = theme_toggle_look(preference)
+    return design.pill(
+        icon, label,
+        color=color or design.T().text_2,
+        on_click=on_click,
+        tooltip=theme_toggle_tooltip(preference),
+    )

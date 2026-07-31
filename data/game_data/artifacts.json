@@ -1,0 +1,428 @@
+{
+  "_source": "Guida del Dungeon Master italiana, Capitolo 7 «Tesori», sezione «Artefatti», pag. 219-225.",
+  "_source_note": "Testo trascritto leggendo visivamente le pagine renderizzate del PDF (pdftoppm -r 150), mai da pdftotext/OCR e mai tradotto dall'inglese.",
+  "intro": "Un artefatto è un oggetto magico unico di vasta potenza e vanta un'origine e una storia speciale. Un artefatto potrebbe essere stato creato da una divinità o da un mortale dotato di grandi poteri.\nSolitamente i personaggi non trovano un artefatto nel corso di una normale avventura. Anzi, gli artefatti compaiono soltanto quando il DM desidera che lo facciano, essendo sia elementi della trama che oggetti magici.",
+  "properties_intro": "Ogni artefatto è dotato di proprietà magiche personali, come gli altri oggetti magici, e in genere si tratta di proprietà di straordinaria potenza. Un artefatto potrebbe essere dotato di altre proprietà benefiche o nocive. Il DM può scegliere quelle proprietà dalle tabelle in questa sezione o determinarle casualmente. Può anche inventare nuove proprietà benefiche e nocive. Queste proprietà solitamente cambiano ogni volta che un artefatto compare nel mondo.\nUn artefatto può avere fino a quattro proprietà benefiche minori e due proprietà benefiche maggiori. Può inoltre avere fino a quattro proprietà nocive minori e due proprietà nocive maggiori.",
+  "tables": {
+    "benefiche_minori": {
+      "label": "Proprietà Benefiche Minori",
+      "die": "d100",
+      "entries": [
+        {
+          "roll": "01-20",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, ottiene competenza in un'abilità a scelta del DM."
+        },
+        {
+          "roll": "21-30",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, è immune alle malattie."
+        },
+        {
+          "roll": "31-40",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, non può essere affascinato o spaventato."
+        },
+        {
+          "roll": "41-50",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, ottiene resistenza contro un tipo di danno a scelta del DM."
+        },
+        {
+          "roll": "51-60",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, può usare un'azione per lanciare con esso un trucchetto (scelto dal DM)."
+        },
+        {
+          "roll": "61-70",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, può usare un'azione per lanciare con esso un incantesimo di 1° livello (scelto dal DM). Dopo avere lanciato l'incantesimo, si tira un d6. Con un risultato di 1-5, il personaggio non può lanciare di nuovo quell'incantesimo fino all'alba successiva."
+        },
+        {
+          "roll": "71-80",
+          "text": "Come il risultato 61-70 soprastante, con la differenza che l'incantesimo è di 2° livello."
+        },
+        {
+          "roll": "81-90",
+          "text": "Come il risultato 61-70 soprastante, con la differenza che l'incantesimo è di 3° livello."
+        },
+        {
+          "roll": "91-00",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, ottiene un bonus di +1 alla Classe Armatura."
+        }
+      ]
+    },
+    "benefiche_maggiori": {
+      "label": "Proprietà Benefiche Maggiori",
+      "die": "d100",
+      "entries": [
+        {
+          "roll": "01-20",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, uno dei suoi punteggi di caratteristica (a scelta del DM) aumenta di 2, fino a un massimo di 24."
+        },
+        {
+          "roll": "21-30",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, egli recupera 1d6 punti ferita all'inizio del suo turno, purché possieda almeno 1 punto ferita."
+        },
+        {
+          "roll": "31-40",
+          "text": "Finché il personaggio è in sintonia con l'artefatto e colpisce con un attacco con arma, il bersaglio subisce 1d6 danni extra del tipo dell'arma."
+        },
+        {
+          "roll": "41-50",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, la sua velocità base sul terreno aumenta di 3 metri."
+        },
+        {
+          "roll": "51-60",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, può usare un'azione per lanciare con esso un incantesimo di 4° livello (scelto dal DM). Dopo avere lanciato l'incantesimo, si tira un d6. Con un risultato di 1-5, il personaggio non può lanciare di nuovo quell'incantesimo fino all'alba successiva."
+        },
+        {
+          "roll": "61-70",
+          "text": "Come il risultato 51-60 soprastante, con la differenza che l'incantesimo è di 5° livello."
+        },
+        {
+          "roll": "71-80",
+          "text": "Come il risultato 51-60 soprastante, con la differenza che l'incantesimo è di 6° livello."
+        },
+        {
+          "roll": "81-90",
+          "text": "Come il risultato 51-60 soprastante, con la differenza che l'incantesimo è di 7° livello."
+        },
+        {
+          "roll": "91-00",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, non può essere accecato, assordato, pietrificato o stordito."
+        }
+      ]
+    },
+    "nocive_minori": {
+      "label": "Proprietà Nocive Minori",
+      "die": "d100",
+      "entries": [
+        {
+          "roll": "01-05",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, subisce svantaggio ai tiri salvezza contro gli incantesimi."
+        },
+        {
+          "roll": "06-10",
+          "text": "La prima volta che il personaggio tocca una gemma o un gioiello mentre è in sintonia con questo artefatto, il valore della gemma o del gioiello è dimezzato."
+        },
+        {
+          "roll": "11-15",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, diventa accecato ogni volta che si trova a più di 3 metri di distanza da esso."
+        },
+        {
+          "roll": "16-20",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, subisce svantaggio ai tiri salvezza contro veleno."
+        },
+        {
+          "roll": "21-30",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, emana un disgustoso fetore percepibile da 3 metri di distanza."
+        },
+        {
+          "roll": "31-35",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, l'acqua santa che si trova entro 3 metri da lui è distrutta."
+        },
+        {
+          "roll": "36-40",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, è fisicamente cagionevole e subisce svantaggio a qualsiasi prova di caratteristica o tiro salvezza che usi Forza o Costituzione."
+        },
+        {
+          "roll": "41-45",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, il suo peso aumenta di 1d4 x 5 kg."
+        },
+        {
+          "roll": "46-50",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, il suo aspetto cambia in un modo determinato dal DM."
+        },
+        {
+          "roll": "51-55",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, diventa assordato ogni volta che si trova a più di 3 metri di distanza da esso."
+        },
+        {
+          "roll": "56-60",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, il suo peso diminuisce di 1d4 x 2,5 kg."
+        },
+        {
+          "roll": "61-65",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, non è in grado di percepire gli odori."
+        },
+        {
+          "roll": "66-70",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, le fiamme non magiche situate entro 9 metri a lui si spengono."
+        },
+        {
+          "roll": "71-80",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, le altre creature non possono completare un riposo breve o lungo mentre si trovano entro 90 metri da lui."
+        },
+        {
+          "roll": "81-85",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, infligge 1d6 danni necrotici a ogni vegetale da lui toccato che non sia una creatura."
+        },
+        {
+          "roll": "86-90",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, gli animali entro 9 metri da lui sono ostili nei suoi confronti."
+        },
+        {
+          "roll": "91-95",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, deve mangiare e bere sei volte le normali quantità previste ogni giorno."
+        },
+        {
+          "roll": "96-00",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, il suo difetto è amplificato in un modo determinato dal DM."
+        }
+      ]
+    },
+    "nocive_maggiori": {
+      "label": "Proprietà Nocive Maggiori",
+      "die": "d100",
+      "entries": [
+        {
+          "roll": "01-05",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, il suo corpo marcisce per un periodo di quattro giorni, dopodiché la putrefazione si interrompe. Il personaggio perde i capelli alla fine del primo giorno, dita dei piedi alla fine del secondo giorno, le labbra e il naso alla fine del terzo giorno e le orecchie alla fine del quarto giorno. Un incantesimo rigenerazione ripristina le parti perdute."
+        },
+        {
+          "roll": "06-10",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, determina il suo allineamento ogni giorno all'alba tirando un d6 due volte. Il risultato del primo dado determina se il personaggio è legale (1-2), neutrale (3-4) o caotico (5-6). Il risultato del secondo dado determina se è buono (1-2), neutrale (3-4) o malvagio (5-6)."
+        },
+        {
+          "roll": "11-15",
+          "text": "Quando il personaggio entra in sintonia con l'artefatto per la prima volta, riceve da esso una missione determinata dal DM. Il personaggio deve portare a termine questa missione come se fosse sotto l'effetto dell'incantesimo costrizione. Una volta completata la missione, il personaggio non è più influenzato da questa proprietà."
+        },
+        {
+          "roll": "16-20",
+          "text": "L'artefatto ospita una forza vitale incorporea che è ostile al personaggio. Ogni volta che il personaggio usa un'azione per usare una proprietà dell'artefatto, c'è una probabilità del 50 per cento che la forza vitale cerchi di abbandonare l'artefatto e di entrare nel suo corpo. Se il personaggio fallisce un tiro salvezza su Carisma con CD 20, la forza vitale riesce nel suo intento e il personaggio diventa un PNG controllato dal DM finché la forza vitale estranea non viene esiliata usando magie come quella dell'incantesimo dissolvi il bene e il male."
+        },
+        {
+          "roll": "21-25",
+          "text": "Le creature con un grado di sfida pari a 0, nonché i vegetali che non sono creature, scendono a 0 punti ferita quando si trovano entro 3 metri dall'artefatto."
+        },
+        {
+          "roll": "26-30",
+          "text": "L'artefatto imprigiona uno slaad della morte (vedi il Monster Manual). Ogni volta che il personaggio usa una proprietà dell'artefatto con un'azione, lo slaad ha una probabilità del 10 per cento di fuggire, nel qual caso compare entro 4,5 metri dal personaggio e lo attacca."
+        },
+        {
+          "roll": "31-35",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, le creature di un tipo particolare che non sia umanoide (a scelta del DM) gli sono sempre ostili."
+        },
+        {
+          "roll": "36-40",
+          "text": "L'artefatto diluisce le pozioni magiche entro 3 metri da esso, che cessano di essere magiche."
+        },
+        {
+          "roll": "41-45",
+          "text": "L'artefatto cancella le pergamene magiche entro 3 metri da esso, che cessano di essere magiche."
+        },
+        {
+          "roll": "46-50",
+          "text": "Prima di usare una proprietà dell'artefatto con un'azione, il personaggio deve usare un'azione bonus per versare del sangue, da se stesso o da una creatura consenziente o incapacitata entro la sua portata, usando un'arma da mischia perforante o tagliente. Il soggetto subisce 1d4 danni del tipo appropriato."
+        },
+        {
+          "roll": "51-60",
+          "text": "Quando il personaggio entra in sintonia con l'artefatto, egli ottiene una nuova forma di follia duratura (vedi il capitolo 8, «Condurre il Gioco»)."
+        },
+        {
+          "roll": "61-65",
+          "text": "Il personaggio subisce 4d10 danni psichici quando entra in sintonia con l'artefatto."
+        },
+        {
+          "roll": "66-70",
+          "text": "Il personaggio subisce 8d10 danni psichici quando entra in sintonia con l'artefatto."
+        },
+        {
+          "roll": "71-75",
+          "text": "Prima di poter entrare in sintonia con l'artefatto, il personaggio deve uccidere una creatura del suo allineamento."
+        },
+        {
+          "roll": "76-80",
+          "text": "Quando il personaggio entra in sintonia con l'artefatto, uno dei suoi punteggi di caratteristica a caso è ridotto di 2. Un incantesimo ristorare superiore riporta la caratteristica alla normalità."
+        },
+        {
+          "roll": "81-85",
+          "text": "Ogni volta che il personaggio entra in sintonia con l'artefatto, invecchia di 3d10 anni. Il personaggio deve superare un tiro salvezza su Costituzione con CD 10, altrimenti il trauma lo uccide. Se il personaggio muore, si trasforma istantaneamente in un wight (vedi il Monster Manual) sotto il controllo del DM e votato a proteggere l'artefatto."
+        },
+        {
+          "roll": "86-90",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, non è più in grado di parlare."
+        },
+        {
+          "roll": "91-95",
+          "text": "Finché il personaggio è in sintonia con l'artefatto, ha vulnerabilità a tutti i danni."
+        },
+        {
+          "roll": "96-00",
+          "text": "Quando il personaggio entra in sintonia con l'artefatto, c'è una probabilità del 10 per cento che attiri l'attenzione di un dio, che invierà un avatar a impossessarsi dell'artefatto. L'avatar ha lo stesso allineamento del suo creatore e le statistiche di un empireo (vedi il Monster Manual). Una volta ottenuto l'artefatto, l'avatar svanisce."
+        }
+      ]
+    }
+  },
+  "destruction": {
+    "intro": "Un artefatto deve essere distrutto in modo speciale, altrimenti è impervio a qualsiasi forma di danno.\nOgni artefatto è afflitto da una debolezza che consente di disfare la sua creazione. Per scoprire questa debolezza potrebbe essere necessario condurre lunghe ricerche o completare con successo una missione. Spetta al DM decidere in che modo un particolare artefatto può essere distrutto. Di seguito sono forniti alcuni suggerimenti:",
+    "suggestions": [
+      "L'artefatto deve essere fuso nel vulcano, nella forgia o nel crogiolo in cui fu creato.",
+      "L'artefatto deve essere immerso nel Fiume Stige.",
+      "L'artefatto deve essere inghiottito e digerito dal tarrasque o da qualche altra antica creatura.",
+      "L'artefatto deve essere immerso nel sangue di un dio o di un angelo.",
+      "L'artefatto deve essere colpito e infranto da un'arma speciale, creata a tale scopo.",
+      "L'artefatto deve essere polverizzato tra i titanici ingranaggi di Mechanus.",
+      "L'artefatto deve essere restituito al suo creatore, che potrà distruggerlo con un semplice tocco."
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "Ascia dei Signori dei Nani",
+      "subtitle": "Arma (ascia da battaglia), artefatto (richiede sintonia)",
+      "source_page": 221,
+      "lore": "Di fronte al pericolo che incombeva sul suo popolo, un giovane nano principe ritenne che ci fosse bisogno di qualcosa che unisse la sua gente. A tale scopo intraprese un viaggio per forgiare un'arma che potesse diventare questo simbolo.\nAvventurandosi nelle profondità delle montagne, fin dove nessun nano si era mai spinto, il giovane principe raggiunse il cuore ardente di un enorme vulcano. Con l'aiuto di Moradin, la divinità nanica della creazione, creò per prima cosa quattro magnifici strumenti: il Piccone Brutale, la Forgia del Focolare della Terra, l'Incudine del Canto e il Martello Plasmatore. Usando quegli strumenti, forgiò l'Ascia dei Signori dei Nani.\nBrandendo l'artefatto, il principe fece ritorno ai clan nanici e riportò la pace. L'ascia metteva fine ai rancori e raddrizzava i torti subiti. I clan divennero alleati, respinsero i loro nemici e conobbero un periodo di prosperità. Il giovane nano viene ricordato come il Primo Re. Invecchiando, passò la sua arma, ormai divenuta il suo simbolo personale, al suo erede. L'ascia fu tramandata in questo modo per numerose generazioni da un erede all'altro.\nSuccessivamente, in un'epoca oscura segnata da inganni e malvagità, l'ascia andò perduta in una sanguinaria guerra civile fomentata dal desiderio di ottenere il potere e il prestigio che essa conferiva. Da allora sono passati molti secoli, ma i nani continuano ancora a cercarla: molti avventurieri hanno fatto carriera indagando sulle dicerie e depredando antiche cripte alla sua ricerca.",
+      "properties": [
+        {
+          "name": "Arma Magica",
+          "text": "L'Ascia dei Signori dei Nani è un'arma magica che conferisce un bonus di +3 ai tiri per colpire e ai tiri per i danni effettuati con essa. L'ascia funziona anche come una cintura nanica, un martello nanico da lancio e una spada affilata."
+        },
+        {
+          "name": "Proprietà Casuali",
+          "text": "L'ascia possiede le seguenti proprietà da determinare casualmente:\n• 2 proprietà benefiche minori\n• 1 proprietà benefica maggiore\n• 2 proprietà nocive minori"
+        },
+        {
+          "name": "Benedizioni di Moradin",
+          "text": "Se il personaggio è un nano in sintonia con l'ascia, ottiene i benefici seguenti:\n• Immunità ai danni da veleno.\n• Il raggio della sua scurovisione aumenta di 18 metri.\n• Ottiene competenza negli strumenti da artigiano: da fabbro, da mescitore e da costruttore."
+        },
+        {
+          "name": "Evoca Elementale della Terra",
+          "text": "Finché il personaggio impugna l'ascia, può usare un'azione per lanciare con essa l'incantesimo evoca elementale, evocando un elementale della terra. Non può riutilizzare questa proprietà fino all'alba successiva."
+        },
+        {
+          "name": "Viaggio nelle Profondità",
+          "text": "Il personaggio può usare un'azione per toccare con l'ascia un pezzo di pietra lavorata dai nani e lanciare con l'ascia l'incantesimo teletrasporto. Se la destinazione desiderata si trova sottoterra, non c'è possibilità di errore o di finire in un luogo inaspettato. Il personaggio non può riutilizzare questa proprietà finché non sono trascorsi 3 giorni."
+        },
+        {
+          "name": "Maledizione",
+          "text": "L'ascia racchiude una maledizione che colpisce qualsiasi personaggio che non sia un nano e che entri in sintonia con lei. Anche se la sintonia termina, la maledizione rimane. A ogni giorno che passa, l'aspetto fisico e la statura della creatura diventano sempre più simili a quelli di un nano. Dopo sette giorni, l'aspetto della creatura è quello di un tipico nano, ma la creatura non perde i suoi tratti razziali, né ottiene quelli di un nano. I cambiamenti fisici provocati dall'ascia non sono considerati di natura magica (e quindi non possono essere dissolti), ma possono essere annullati da qualsiasi effetto che rimuova una maledizione, come per esempio gli incantesimi ristorare superiore o rimuovi maledizione."
+        },
+        {
+          "name": "Distruggere l'Ascia",
+          "text": "L'unico modo per distruggere l'ascia è fonderla all'interno della Forgia del Focolare della Terra, dove è stata creata. Deve rimanere nella forgia incandescente per cinquant'anni prima di essere consumata dalle fiamme."
+        }
+      ]
+    },
+    {
+      "name": "Bacchetta di Orcus",
+      "subtitle": "Bacchetta, artefatto (richiede sintonia)",
+      "source_page": 222,
+      "lore": "È raro che la terrificante Bacchetta di Orcus si separi da Orcus. Questo strumento, malvagio quanto il suo creatore, condivide lo stesso obiettivo del principe dei demoni, vale a dire la soppressione di tutte le forme di vita e la sottomissione del Piano Materiale alla stasi della non morte. Di tanto in tanto, Orcus consente alla bacchetta di allontanarsi dalla sua presa. Quando lo fa, essa appare ovunque il suo padrone percepisca l'opportunità di conseguire qualche scopo malvagio.\nLa bacchetta, fatta di ossa dure come il ferro, è sormontata da un teschio ingrandito con la magia che un tempo apparteneva a un eroe umano ucciso da Orcus. La bacchetta può cambiare dimensione magicamente per meglio adattarsi alla presa di chi la usa. In presenza della bacchetta i vegetali appassiscono, le acque si imputridiscono, la carne marcisce e i parassiti fremono.\nQualsiasi creatura, ad eccezione di Orcus, che tenti di entrare in sintonia con la bacchetta deve effettuare un tiro salvezza su Costituzione con CD 17. Se lo supera, la creatura subisce 10d6 danni necrotici, mentre se lo fallisce, muore e torna in vita come zombi.\nNelle mani di chi è in sintonia con essa, la bacchetta può essere impugnata come una mazza magica che conferisce un bonus di +3 ai tiri per colpire e ai tiri per i danni effettuati con essa. La bacchetta infligge 2d12 danni necrotici extra quando colpisce.",
+      "properties": [
+        {
+          "name": "Proprietà Casuali",
+          "text": "La Bacchetta di Orcus possiede le proprietà casuali seguenti:\n• 2 proprietà benefiche minori\n• 1 proprietà benefica maggiore\n• 2 proprietà nocive minori\n• 1 proprietà nociva maggiore\n\nLe proprietà nocive della Bacchetta di Orcus vengono soppresse mentre la bacchetta è in sintonia con Orcus in persona."
+        },
+        {
+          "name": "Protezione",
+          "text": "Il personaggio ottiene un bonus di +3 alla Classe Armatura quando impugna la bacchetta."
+        },
+        {
+          "name": "Incantesimi",
+          "text": "La bacchetta possiede 7 cariche. Quando il personaggio la impugna, può usare un'azione e spendere 1 o più cariche per lanciare con essa uno degli incantesimi seguenti (CD 18 del tiro salvezza): animare morti (1 carica), cerchio di morte (3 cariche), dito della morte (3 cariche), inaridire (2 cariche), parlare con i morti (1 carica) o parola del potere uccidere (4 cariche). La bacchetta recupera 1d4 + 3 cariche spese ogni giorno all'alba.\nFinché Orcus o un seguace che gode della sua benedizione è in sintonia con la bacchetta, può lanciare ogni incantesimo della bacchetta usando 2 cariche in meno (fino a un minimo di 0)."
+        },
+        {
+          "name": "Richiamare Non Morti",
+          "text": "Finché il personaggio impugna la bacchetta, può usare un'azione per evocare scheletri e zombi, richiamandone il maggior numero che è possibile ottenere ripartendo un massimo di 500 punti ferita, calcolando che ogni mostro abbia i punti ferita medi (vedi il Monster Manual per le statistiche). I non morti emergono magicamente dal terreno o si formano negli spazi liberi entro 90 metri dal personaggio; obbediscono agli ordini del personaggio finché non vengono distrutti o fino all'alba del giorno seguente, quando si sfalderanno in un cumulo inerte di ossa e cadaveri marcescenti. Una volta che il personaggio ha usato questa proprietà della bacchetta, non può riutilizzarla fino all'alba successiva.\nFinché è in sintonia con la bacchetta, Orcus può evocare qualsiasi tipo di non morto, senza limitarsi a scheletri e zombi. In questo caso, i non morti non vengono distrutti e non svaniscono all'alba del giorno successivo: permangono finché Orcus non li congeda."
+        },
+        {
+          "name": "Senziente",
+          "text": "La Bacchetta di Orcus è un oggetto senziente caotico malvagio con Intelligenza 16, Saggezza 12 e Carisma 16. È dotata di udito e scurovisione entro un raggio di 36 metri.\nLa bacchetta comunica telepaticamente con il suo possessore ed è in grado di parlare, leggere e capire l'Abissale e il Comune."
+        },
+        {
+          "name": "Personalità",
+          "text": "Lo scopo della bacchetta è aiutare Orcus a soddisfare il suo desiderio di uccidere tutto ciò che esiste nel multiverso. La bacchetta è fredda, crudele, nichilista e priva di qualsiasi senso dell'umorismo.\nPer favorire gli obiettivi del suo padrone, la bacchetta finge devozione a chi la sta usando e fa grandi promesse che non ha alcuna intenzione di mantenere, come ad esempio prometterglì di aiutarlo a spodestare Orcus."
+        },
+        {
+          "name": "Distruggere la Bacchetta",
+          "text": "Per distruggere la Bacchetta di Orcus è necessario che sia portata sul Piano dell'Energia Positiva dall'antico eroe il cui teschio ora la sormonta. Affinché questo accada, l'eroe scomparso tanto tempo fa deve prima essere riportato in vita (compito tutt'altro che facile dal momento che Orcus ha imprigionato la sua anima e la tiene nascosta e ben protetta).\nSe la bacchetta viene immersa nell'energia positiva, va in frantumi ed esplode, ma se le condizioni soprastanti non sono state soddisfatte, la bacchetta si riforma istantaneamente nello strato dell'Abisso di Orcus."
+        }
+      ]
+    },
+    {
+      "name": "Globo dei Draghi",
+      "subtitle": "Oggetto meraviglioso, artefatto (richiede sintonia)",
+      "source_page": 222,
+      "lore": "Molti secoli fa, nel mondo di Krynn, gli elfi e gli umani combatterono una terribile guerra contro i draghi malvagi. Quando il mondo sembrava ormai condannato, i maghi delle Torri dell'Alta Stregoneria si riunirono e crearono la loro più grande opera di magia, forgiando cinque Globi dei Draghi per contribuire alla sconfitta dei draghi. Ognuno di essi fu portato a una delle cinque torri, dove fu usato per ribaltare le sorti della guerra. I maghi usarono i globi per attirare i draghi a loro e poi distruggerli con le loro potenti magie.\nQuando le Torri dell'Alta Stregoneria caddero, secoli dopo, i globi furono distrutti o svanirono nell'oblio; si crede che ne esistano ancora soltanto tre. Nei secoli la loro magia subì varie trasformazioni e mutamenti: anche se la loro funzione primaria di richiamare i draghi persiste, ora essi conferiscono anche un certo grado di controllo su quelle creature.\nOgni globo contiene l'essenza di un drago malvagio, una presenza che non gradisce alcun tentativo di uso della propria magia. Chi non ha una forza di volontà sufficientemente potente rischia di cadere a sua volta sotto il controllo del globo.\nIl globo è un cristallo intagliato del diametro di circa 25 cm. Quando viene usato, cresce fino a raggiungere 50 cm di diametro e al suo interno è visibile una nebbia turbinante.\nQuando il personaggio è in sintonia con il globo, può usare un'azione per scrutare nelle sue profondità e pronunciare la sua parola d'ordine. Dovrà poi effettuare una prova di Carisma con CD 15. Se ha successo, il personaggio ottiene il controllo sul globo fintanto che rimane in sintonia con esso. Se fallisce, il personaggio è affascinato dal globo finché rimane in sintonia con esso.\nFinché è affascinato dal globo, il personaggio non può interrompere volontariamente la sintonia con esso e il globo lancia suggestione su di lui a volontà (CD 18 del tiro salvezza), incitandolo ad agire per favorire i suoi scopi malvagi. L'essenza del drago all'interno del globo potrebbe desiderare molte cose: l'annientamento di un popolo particolare, la liberazione dal globo, seminare sofferenza nel mondo, promuovere il culto di Takhisis (il nome con cui Tiamat è nota su Krynn) o qualsiasi altra cosa il DM decida.",
+      "properties": [
+        {
+          "name": "Proprietà Casuali",
+          "text": "Un Globo dei Draghi possiede le seguenti proprietà casuali:\n• 2 proprietà benefiche minori\n• 1 proprietà nociva minore\n• 1 proprietà nociva maggiore"
+        },
+        {
+          "name": "Incantesimi",
+          "text": "Il globo possiede 7 cariche e recupera 1d4 + 3 cariche spese all'alba del giorno successivo. Se il personaggio controlla il globo, può usare un'azione e spendere 1 o più cariche per lanciare con esso uno degli incantesimi seguenti (CD 18 del tiro salvezza): cura ferite (versione di 5° livello, 3 cariche), interdizione alla morte (2 cariche), luce diurna (1 carica) o scrutare (3 cariche).\nIl personaggio può usare un'azione anche per lanciare con il globo l'incantesimo individuazione del magico senza usare alcuna carica."
+        },
+        {
+          "name": "Richiamare Draghi",
+          "text": "Finché il personaggio controlla il globo, può usare un'azione per obbligare l'artefatto a inviare un richiamo telepatico che si estende in tutte le direzioni per 60 km. I draghi malvagi situati entro quel raggio sono obbligati a raggiungere il globo il più velocemente possibile lungo il percorso più diretto. Le divinità dei draghi come Tiamat sono immuni a questo richiamo. I draghi attirati dal globo potrebbero essere ostili nei confronti del personaggio per essere stati obbligati ad agire contro il loro volere. Una volta che il personaggio ha usato questa proprietà, non può riutilizzarla per 1 ora."
+        },
+        {
+          "name": "Distruggere un Globo",
+          "text": "Il Globo dei Draghi sembra fragile ma è resistente alla maggior parte dei danni, inclusi gli attacchi e le armi a soffio dei draghi. Tuttavia, l'incantesimo disintegrazione o un colpo inflitto con un'arma magica +3 è sufficiente a distruggerlo."
+        }
+      ]
+    },
+    {
+      "name": "Libro delle Fosche Tenebre",
+      "subtitle": "Oggetto meraviglioso, artefatto (richiede sintonia)",
+      "source_page": 223,
+      "lore": "I contenuti di questo orribile manoscritto di indescrivibile malvagità sono i ferri del mestiere per chi ha deciso di porsi al servizio del male. Nessun mortale era destinato a conoscere i segreti in esso contenuti: le conoscenze racchiuse nelle pagine scarabocchiate disordinatamente del libro sono talmente terribili che un semplice sguardo può indurre alla pazzia.\nI più credono che sia stato Vecna, il dio-lich, a stilare il Libro delle Fosche Tenebre, trascrivendo in quelle pagine ogni idea malata, ogni pensiero malsano e ogni esempio delle magie più oscure che aveva concepito o in cui si era imbattuto. Vecna trattò ogni argomento spregevole possibile, facendo del libro un raccapricciante compendio di tutte le malvagità mortali.\nAltri praticanti del male, una volta entrati in possesso del libro, hanno aggiunto le loro abiette conoscenze a questo compendio di conoscenze infami. Le loro aggiunte risultano evidenti, in quanto gli autori delle aggiunte cucirono le loro pagine all'interno del tomo o, in certi casi, trascrissero le loro note e approfondimenti a margine del testo esistente. In alcuni punti mancano delle pagine, strappate del tutto o ricoperte di inchiostro, sangue e cancellature a tal punto da rendere il testo originale incomprensibile.\nLa natura non riesce a tollerare la presenza del libro. In sua presenza, i vegetali comuni appassiscono, gli animali non osano avvicinarsi e il libro distrugge gradualmente tutto ciò che tocca. Persino le pietre si sgretolano e si trasformano in polvere se il libro rimane a lungo su di esse.\nUna creatura in sintonia con il libro deve trascorrere 80 ore a leggere e studiare il libro per assimilarne i contenuti e ottenerne i benefici. La creatura può modificare i contenuti del libro liberamente, purché le sue modifiche accrescano il male e amplino le conoscenze già contenute al suo interno.\nOgni volta che una creatura non malvagia entra in sintonia con il Libro delle Fosche Tenebre, essa deve effettuare un tiro salvezza su Carisma con CD 17; se lo fallisce, il suo allineamento diventa neutrale malvagio.\nIl Libro delle Fosche Tenebre rimane con il personaggio fintanto che egli si impegna a diffondere il male nel mondo. Se il personaggio non riesce a compiere almeno un atto malvagio nell'arco di 10 giorni o se compie volutamente una buona azione, il libro scompare. Se il personaggio è in sintonia con il libro quando muore, una delle entità malvagie più potenti reclama la sua anima. Il personaggio non può essere riportato in vita in alcun modo finché la sua anima resta imprigionata.",
+      "properties": [
+        {
+          "name": "Proprietà Casuali",
+          "text": "Il Libro delle Fosche Tenebre possiede le seguenti proprietà casuali:\n• 3 proprietà benefiche minori\n• 1 proprietà benefica maggiore\n• 3 proprietà nocive minori\n• 2 proprietà nocive maggiori"
+        },
+        {
+          "name": "Modifica dei Punteggi di Caratteristica",
+          "text": "Dopo che il personaggio ha trascorso il tempo richiesto a leggere e studiare il libro, uno dei suoi punteggi di caratteristica a sua scelta aumenta di 2, fino a un massimo di 24. Un altro punteggio di caratteristica a sua scelta è ridotto di 2, fino a un minimo di 3. Il libro non può modificare di nuovo i punteggi di caratteristica del personaggio."
+        },
+        {
+          "name": "Marchio dell'Oscurità",
+          "text": "Dopo che il personaggio ha trascorso il tempo richiesto a leggere e studiare il libro, il suo aspetto viene sfigurato a rappresentare la sua devozione alle fosche tenebre. Una runa malvagia potrebbe comparire sul volto, gli occhi potrebbero diventare completamente neri e lucidi, dalla fronte potrebbero spuntare delle corna. In alternativa, il suo intero corpo potrebbe diventare avvizzito e orrendo, tutti i lineamenti potrebbero scomparire dal volto, la lingua potrebbe diventare biforcuta o qualche altro tratto potrebbe essere soggetto ad altri cambiamenti a discrezione del DM. Il marchio dell'oscurità fornisce al personaggio vantaggio alle prove di Carisma (Persuasione) effettuate per interagire con le creature malvagie e alle prove di Carisma (Intimidire) effettuate per interagire con personaggi non malvagi."
+        },
+        {
+          "name": "Comandare il Male",
+          "text": "Finché il personaggio è in sintonia con il libro e lo impugna, può usare un'azione per lanciare l'incantesimo dominare mostri su un bersaglio malvagio (CD 18 del tiro salvezza). Non può riutilizzare questa proprietà fino all'alba del giorno successivo."
+        },
+        {
+          "name": "Conoscenza Oscura",
+          "text": "Il personaggio può consultare il Libro delle Fosche Tenebre ogni volta che effettua una prova di Intelligenza per ricordare informazioni riguardo a un qualsiasi aspetto del male, come per esempio per apprendere informazioni riguardo ai demoni. Quando lo fa, raddoppia il bonus di competenza alla prova."
+        },
+        {
+          "name": "Lingua Oscura",
+          "text": "Finché il personaggio è in sintonia con il Libro delle Fosche Tenebre e lo porta con sé, può usare un'azione per recitare un passaggio in un empio linguaggio osceno conosciuto come la Lingua Oscura. Ogni volta che lo fa, subisce 1d12 danni psichici e tutte le creature non malvagie entro 4,5 metri da lui subiscono 3d6 danni psichici."
+        },
+        {
+          "name": "Distruggere il Libro",
+          "text": "È possibile strappare le pagine dal Libro delle Fosche Tenebre, ma le conoscenze malvagie contenute in quelle pagine riescono in qualche modo a tornare nel libro prima o poi, solitamente quando un nuovo autore aggiunge altre pagine.\nSe un solar strappa in due il libro, lo distrugge per 1d100 anni, dopodiché esso ricompare tutto intero in qualche oscuro angolo del multiverso.\nUna creatura rimasta in sintonia con il libro per cento anni può scoprire una frase nascosta nel testo originale che, se tradotta in Celestiale e pronunciata ad alta voce, distrugge sia chi la pronuncia sia il libro in un accecante lampo di luce. Tuttavia, fintanto che il male esiste nel multiverso, il libro ricomparirà 1d10 x 100 anni più tardi.\nSe tutto il male nel multiverso viene annientato, il libro si sbriciola in cenere ed è distrutto per sempre."
+        }
+      ]
+    },
+    {
+      "name": "Libro delle Imprese Eroiche",
+      "subtitle": "Oggetto meraviglioso, artefatto (richiede sintonia con una creatura di allineamento buono)",
+      "source_page": 224,
+      "lore": "Il leggendario Libro delle Imprese Eroiche, il trattato per eccellenza su tutto ciò che esiste di buono nel multiverso, ha un ruolo fondamentale in molte religioni. Invece di essere uno scritto rivolto a una fede in particolare, i vari autori del libro hanno riempito le pagine con le loro visioni della virtù allo stato puro, offrendo preziose indicazioni su come sconfiggere il male.\nIl Libro delle Imprese Eroiche raramente permane a lungo nello stesso posto. Non appena il libro viene letto, esso svanisce per ricomparire in un altro angolo del multiverso dove la sua guida morale può portare la luce in un mondo attanagliato dall'oscurità. Sebbene siano stati condotti vari tentativi di trascriverne i contenuti, nessuno di questi tentativi è riuscito a catturare la sua natura magica o a tradurre i benefici che esso offre ai puri di cuore e ai risoluti.\nUna pesante fibbia scolpita a forma di ali d'angelo tiene al sicuro i contenuti del libro. Solo una creatura di allineamento buono in sintonia con il libro può aprire la fibbia che lo cinge. Una volta aperto, la creatura in sintonia con il libro deve trascorrere 80 ore a leggerlo e studiarlo per assimilarne i contenuti e ottenerne i benefici. Le altre creature che cercano di osservare le pagine aperte del libro riescono a leggere il testo ma non riescono a coglierne il vero significato e non ottengono alcun beneficio. Se una creatura malvagia tenta di leggere il libro, subisce 24d6 danni radiosi. Questi danni ignorano ogni resistenza e immunità, e non possono essere ridotti o evitati in alcun modo. Se una creatura scende a 0 punti ferita a seguito di questi danni, essa scompare in un lampo accecante, è distrutta e lascia dietro di sé tutto ciò che possedeva.\nI benefici forniti dal Libro delle Imprese Eroiche permangono soltanto finché il personaggio si impegna a fare del bene. Se il personaggio non riesce a compiere almeno un atto di misericordia o di generosità nell'arco di 10 giorni, o se compie volutamente un atto malvagio, perde tutti i benefici concessi dal libro.",
+      "properties": [
+        {
+          "name": "Proprietà Casuali",
+          "text": "Il Libro delle Imprese Eroiche possiede le seguenti proprietà casuali:\n• 2 proprietà benefiche minori\n• 2 proprietà benefiche maggiori"
+        },
+        {
+          "name": "Saggezza Aumentata",
+          "text": "Dopo che il personaggio ha trascorso il tempo richiesto a leggere e studiare il libro, il suo punteggio di Saggezza aumenta di 2 fino a un massimo di 24. Non può ottenere questo beneficio dal libro più di una volta."
+        },
+        {
+          "name": "Magia Illuminata",
+          "text": "Dopo che il personaggio ha letto e studiato il libro, ogni slot incantesimo che spende per lanciare un incantesimo da chierico o da paladino è considerato uno slot incantesimo superiore di un livello rispetto a quello effettivo."
+        },
+        {
+          "name": "Aureola",
+          "text": "Dopo che il personaggio ha letto e studiato il libro, ottiene un'aureola protettiva che proietta luce intensa in un raggio di 3 metri e luce fioca per altri 3 metri. È possibile congedare o manifestare l'aureola con un'azione bonus. Finché è presente, l'aureola fornisce al personaggio vantaggio alle prove di Carisma (Persuasione) effettuate per interagire con le creature buone e alle prove di Carisma (Intimidire) effettuate per interagire con le creature malvagie. Inoltre, gli immondi e i non morti entro il raggio di luce intensa dell'aureola subiscono svantaggio ai tiri per colpire effettuati contro il personaggio."
+        },
+        {
+          "name": "Distruggere il Libro",
+          "text": "Si narra che il Libro delle Imprese Eroiche non possa essere distrutto fintanto che esisterà del bene nel multiverso. Tuttavia, immergendo il libro nel Fiume Stige, tutte le scritte e le immagini contenute nelle pagine scompaiono, rendendo il libro privo di poteri per 1d100 anni."
+        }
+      ]
+    }
+  ],
+  "examples_intro": "Gli artefatti presentati in questa sezione sono comparsi in uno o più mondi di D&D. Il DM può usarli come modelli quando crea i propri artefatti o modificarli come ritiene più opportuno.",
+  "_incomplete_note": "Trascritti 5 dei ~7 artefatti d'esempio della DMG. Mancano ancora «Occhio e Mano di Vecna» (pag. 225-226) e «Spada di Kas» (pag. 226): le loro pagine non sono ancora state lette visivamente, e per la regola del progetto non vanno scritte a memoria. Le 4 tabelle d100 delle proprietà e le regole di distruzione sono invece complete e verificate."
+}

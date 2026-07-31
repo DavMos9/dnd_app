@@ -1,0 +1,210 @@
+{
+  "_source": "Manuale del Giocatore italiano, Appendice A «Condizioni», pag. 290-292.",
+  "_source_note": "Testo trascritto leggendo visivamente le pagine renderizzate del PDF (pdftoppm), mai da pdftotext/OCR e mai tradotto dall'inglese — la terminologia italiana non e' deducibile per traduzione (es. Restrained -> Trattenuto, Grappled -> Afferrato). L'Indebolimento non e' qui: ha sei livelli cumulativi invece di essere on/off, ed e' gia' tracciato su characters.exhaustion_level.",
+  "_effects_note": "Il campo `effects` NON e' testo del manuale: e' la stessa informazione dei bullet resa leggibile dal codice, per mostrare i promemoria contestuali (es. «svantaggio» accanto ai tiri per colpire). L'app non applica nulla automaticamente, si limita a segnalare.",
+  "conditions": [
+    {
+      "key": "accecato",
+      "name": "Accecato",
+      "bullets": [
+        "Una creatura accecata non è in grado di vedere e fallisce automaticamente qualsiasi prova di caratteristica che richieda l'uso della vista.",
+        "I tiri per colpire contro la creatura dispongono di vantaggio, mentre i tiri per colpire della creatura subiscono svantaggio."
+      ],
+      "effects": {
+        "attack_disadvantage": true,
+        "attacked_advantage": true
+      },
+      "description": "• Una creatura accecata non è in grado di vedere e fallisce automaticamente qualsiasi prova di caratteristica che richieda l'uso della vista.\n• I tiri per colpire contro la creatura dispongono di vantaggio, mentre i tiri per colpire della creatura subiscono svantaggio."
+    },
+    {
+      "key": "affascinato",
+      "name": "Affascinato",
+      "bullets": [
+        "Una creatura affascinata non può attaccare o bersagliare colui che l'ha affascinata con capacità o effetti magici dannosi.",
+        "Colui che ha affascinato la creatura dispone di vantaggio a qualsiasi prova di caratteristica effettuata per interagire socialmente con essa."
+      ],
+      "effects": {},
+      "description": "• Una creatura affascinata non può attaccare o bersagliare colui che l'ha affascinata con capacità o effetti magici dannosi.\n• Colui che ha affascinato la creatura dispone di vantaggio a qualsiasi prova di caratteristica effettuata per interagire socialmente con essa."
+    },
+    {
+      "key": "afferrato",
+      "name": "Afferrato",
+      "bullets": [
+        "La velocità di una creatura afferrata diventa 0 e non può beneficiare di alcun bonus alla velocità.",
+        "La condizione termina se il lottatore che ha afferrato la creatura è incapacitato (vedi la relativa condizione).",
+        "La condizione termina anche se un effetto rimuove la creatura afferrata dalla portata del lottatore che l'ha afferrata o dall'effetto afferrante, come per esempio quando una creatura viene scagliata via dall'incantesimo onda tonante."
+      ],
+      "effects": {
+        "speed_zero": true
+      },
+      "description": "• La velocità di una creatura afferrata diventa 0 e non può beneficiare di alcun bonus alla velocità.\n• La condizione termina se il lottatore che ha afferrato la creatura è incapacitato (vedi la relativa condizione).\n• La condizione termina anche se un effetto rimuove la creatura afferrata dalla portata del lottatore che l'ha afferrata o dall'effetto afferrante, come per esempio quando una creatura viene scagliata via dall'incantesimo onda tonante."
+    },
+    {
+      "key": "assordato",
+      "name": "Assordato",
+      "bullets": [
+        "Una creatura assordata non è in grado di sentire e fallisce automaticamente qualsiasi prova di caratteristica che richieda l'uso dell'udito."
+      ],
+      "effects": {},
+      "description": "• Una creatura assordata non è in grado di sentire e fallisce automaticamente qualsiasi prova di caratteristica che richieda l'uso dell'udito."
+    },
+    {
+      "key": "avvelenato",
+      "name": "Avvelenato",
+      "bullets": [
+        "Una creatura avvelenata subisce svantaggio ai tiri per colpire e alle prove di caratteristica."
+      ],
+      "effects": {
+        "attack_disadvantage": true,
+        "ability_check_disadvantage": true
+      },
+      "description": "• Una creatura avvelenata subisce svantaggio ai tiri per colpire e alle prove di caratteristica."
+    },
+    {
+      "key": "incapacitato",
+      "name": "Incapacitato",
+      "bullets": [
+        "Una creatura incapacitata non può effettuare azioni o reazioni."
+      ],
+      "effects": {
+        "incapacitated": true
+      },
+      "description": "• Una creatura incapacitata non può effettuare azioni o reazioni."
+    },
+    {
+      "key": "invisibile",
+      "name": "Invisibile",
+      "bullets": [
+        "Una creatura invisibile è impossibile da vedere senza l'aiuto della magia o di sensi speciali. Agli effetti del nascondersi, una creatura invisibile è considerata pesantemente oscurata. L'ubicazione della creatura può essere intuita dai rumori che emette o dalle tracce che lascia.",
+        "I tiri per colpire contro la creatura subiscono svantaggio, mentre i tiri per colpire della creatura ottengono vantaggio."
+      ],
+      "effects": {
+        "attack_advantage": true,
+        "attacked_disadvantage": true
+      },
+      "description": "• Una creatura invisibile è impossibile da vedere senza l'aiuto della magia o di sensi speciali. Agli effetti del nascondersi, una creatura invisibile è considerata pesantemente oscurata. L'ubicazione della creatura può essere intuita dai rumori che emette o dalle tracce che lascia.\n• I tiri per colpire contro la creatura subiscono svantaggio, mentre i tiri per colpire della creatura ottengono vantaggio."
+    },
+    {
+      "key": "paralizzato",
+      "name": "Paralizzato",
+      "bullets": [
+        "Una creatura paralizzata è incapacitata (vedi la relativa condizione) e non può muoversi o parlare.",
+        "La creatura fallisce automaticamente i tiri salvezza su Forza e Destrezza.",
+        "I tiri per colpire contro la creatura ottengono vantaggio.",
+        "Ogni attacco che colpisce la creatura è un colpo critico se l'attaccante è situato entro 1,5 metri dalla creatura."
+      ],
+      "effects": {
+        "incapacitated": true,
+        "attacked_advantage": true,
+        "auto_fail_saves": [
+          "str",
+          "dex"
+        ]
+      },
+      "description": "• Una creatura paralizzata è incapacitata (vedi la relativa condizione) e non può muoversi o parlare.\n• La creatura fallisce automaticamente i tiri salvezza su Forza e Destrezza.\n• I tiri per colpire contro la creatura ottengono vantaggio.\n• Ogni attacco che colpisce la creatura è un colpo critico se l'attaccante è situato entro 1,5 metri dalla creatura."
+    },
+    {
+      "key": "pietrificato",
+      "name": "Pietrificato",
+      "bullets": [
+        "Una creatura pietrificata viene trasformata, assieme a ogni oggetto non magico che stia trasportando o indossando, in una sostanza solida inanimata (solitamente la pietra). La creatura cessa di invecchiare e il suo peso viene decuplicato.",
+        "La creatura è incapacitata (vedi la relativa condizione), non può muoversi o parlare e non è consapevole di ciò che accade attorno a lei.",
+        "I tiri per colpire contro la creatura ottengono vantaggio.",
+        "La creatura fallisce automaticamente i tiri salvezza su Forza e Destrezza.",
+        "La creatura dispone di resistenza a tutti i danni.",
+        "La creatura è immune ai veleni e alle malattie, ma gli eventuali veleni o malattie già presenti nel suo sistema vengono solo sospesi, non neutralizzati."
+      ],
+      "effects": {
+        "incapacitated": true,
+        "attacked_advantage": true,
+        "auto_fail_saves": [
+          "str",
+          "dex"
+        ]
+      },
+      "description": "• Una creatura pietrificata viene trasformata, assieme a ogni oggetto non magico che stia trasportando o indossando, in una sostanza solida inanimata (solitamente la pietra). La creatura cessa di invecchiare e il suo peso viene decuplicato.\n• La creatura è incapacitata (vedi la relativa condizione), non può muoversi o parlare e non è consapevole di ciò che accade attorno a lei.\n• I tiri per colpire contro la creatura ottengono vantaggio.\n• La creatura fallisce automaticamente i tiri salvezza su Forza e Destrezza.\n• La creatura dispone di resistenza a tutti i danni.\n• La creatura è immune ai veleni e alle malattie, ma gli eventuali veleni o malattie già presenti nel suo sistema vengono solo sospesi, non neutralizzati."
+    },
+    {
+      "key": "privo_di_sensi",
+      "name": "Privo di Sensi",
+      "bullets": [
+        "Una creatura priva di sensi è incapacitata (vedi la relativa condizione), non può muoversi o parlare e non è consapevole di ciò che accade attorno a lei.",
+        "La creatura lascia cadere tutto ciò che impugnava e cade a terra prona.",
+        "La creatura fallisce automaticamente i tiri salvezza su Forza e Destrezza.",
+        "I tiri per colpire contro la creatura ottengono vantaggio.",
+        "Ogni attacco che colpisce la creatura è un colpo critico se l'attaccante è situato entro 1,5 metri dalla creatura."
+      ],
+      "effects": {
+        "incapacitated": true,
+        "attacked_advantage": true,
+        "auto_fail_saves": [
+          "str",
+          "dex"
+        ]
+      },
+      "description": "• Una creatura priva di sensi è incapacitata (vedi la relativa condizione), non può muoversi o parlare e non è consapevole di ciò che accade attorno a lei.\n• La creatura lascia cadere tutto ciò che impugnava e cade a terra prona.\n• La creatura fallisce automaticamente i tiri salvezza su Forza e Destrezza.\n• I tiri per colpire contro la creatura ottengono vantaggio.\n• Ogni attacco che colpisce la creatura è un colpo critico se l'attaccante è situato entro 1,5 metri dalla creatura."
+    },
+    {
+      "key": "prono",
+      "name": "Prono",
+      "bullets": [
+        "L'unica opzione di movimento di una creatura prona è strisciare, a meno che non si rialzi in piedi, ponendo in quel modo fine alla sua condizione.",
+        "La creatura subisce svantaggio ai tiri per colpire.",
+        "Un tiro per colpire contro la creatura ottiene vantaggio se l'attaccante si trova entro 1,5 metri dalla creatura. Altrimenti, il tiro per colpire subisce svantaggio."
+      ],
+      "effects": {
+        "attack_disadvantage": true
+      },
+      "description": "• L'unica opzione di movimento di una creatura prona è strisciare, a meno che non si rialzi in piedi, ponendo in quel modo fine alla sua condizione.\n• La creatura subisce svantaggio ai tiri per colpire.\n• Un tiro per colpire contro la creatura ottiene vantaggio se l'attaccante si trova entro 1,5 metri dalla creatura. Altrimenti, il tiro per colpire subisce svantaggio."
+    },
+    {
+      "key": "spaventato",
+      "name": "Spaventato",
+      "bullets": [
+        "Una creatura spaventata subisce svantaggio alle prove di caratteristica e ai tiri per colpire finché la fonte della sua paura rimane entro linea di vista.",
+        "La creatura non può muoversi per avvicinarsi volontariamente alla fonte della sua paura."
+      ],
+      "effects": {
+        "attack_disadvantage": true,
+        "ability_check_disadvantage": true
+      },
+      "description": "• Una creatura spaventata subisce svantaggio alle prove di caratteristica e ai tiri per colpire finché la fonte della sua paura rimane entro linea di vista.\n• La creatura non può muoversi per avvicinarsi volontariamente alla fonte della sua paura."
+    },
+    {
+      "key": "stordito",
+      "name": "Stordito",
+      "bullets": [
+        "Una creatura stordita è incapacitata (vedi la relativa condizione), non può muoversi e può parlare soltanto a fatica.",
+        "La creatura fallisce automaticamente i tiri salvezza su Forza e Destrezza.",
+        "I tiri per colpire contro la creatura ottengono vantaggio."
+      ],
+      "effects": {
+        "incapacitated": true,
+        "attacked_advantage": true,
+        "auto_fail_saves": [
+          "str",
+          "dex"
+        ]
+      },
+      "description": "• Una creatura stordita è incapacitata (vedi la relativa condizione), non può muoversi e può parlare soltanto a fatica.\n• La creatura fallisce automaticamente i tiri salvezza su Forza e Destrezza.\n• I tiri per colpire contro la creatura ottengono vantaggio."
+    },
+    {
+      "key": "trattenuto",
+      "name": "Trattenuto",
+      "bullets": [
+        "La velocità di una creatura trattenuta diventa 0 e non può beneficiare di alcun bonus alla velocità.",
+        "I tiri per colpire contro la creatura ottengono vantaggio, mentre i tiri per colpire della creatura subiscono svantaggio.",
+        "La creatura subisce svantaggio ai tiri salvezza su Destrezza."
+      ],
+      "effects": {
+        "speed_zero": true,
+        "attack_disadvantage": true,
+        "attacked_advantage": true,
+        "save_disadvantage": [
+          "dex"
+        ]
+      },
+      "description": "• La velocità di una creatura trattenuta diventa 0 e non può beneficiare di alcun bonus alla velocità.\n• I tiri per colpire contro la creatura ottengono vantaggio, mentre i tiri per colpire della creatura subiscono svantaggio.\n• La creatura subisce svantaggio ai tiri salvezza su Destrezza."
+    }
+  ]
+}

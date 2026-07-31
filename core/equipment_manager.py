@@ -52,6 +52,7 @@ giocatore.pdf", Capitolo 5 "Equipaggiamento" e Capitolo 9 "Combattimento"):
 """
 
 from dataclasses import dataclass
+from typing import Iterable
 
 
 @dataclass
@@ -236,3 +237,68 @@ def resolve_armor_equip(armors: list["ArmorCandidate"], target_id: str) -> set[s
         kept.add(a.id)  # postazione diversa: non tocca
 
     return kept | {target.id}
+
+
+# ---------------------------------------------------------------------------
+# Sintonia con gli oggetti magici (Fase 4, feature 3 — DMG p.138)
+# ---------------------------------------------------------------------------
+
+#: "Una creatura può essere in sintonia con un massimo di tre oggetti magici
+#: contemporaneamente. Ogni tentativo di entrare in sintonia con un quarto
+#: oggetto fallisce." (Guida del Dungeon Master, pag. 138)
+MAX_ATTUNED_ITEMS = 3
+
+
+@dataclass
+class AttunementCandidate:
+    """Vista minima di un oggetto d'inventario ai fini della sintonia."""
+    id: str
+    name: str
+    requires_attunement: bool
+    is_attuned: bool
+
+
+def attuned_count(items: Iterable[AttunementCandidate]) -> int:
+    return sum(1 for it in items if it.is_attuned)
+
+
+def can_attune(items: Iterable[AttunementCandidate], target_id: str) -> tuple[bool, str]:
+    """
+    Verifica se il personaggio può entrare in sintonia con l'oggetto indicato.
+
+    Ritorna `(ok, motivo)`; `motivo` è vuoto quando `ok` è `True`, altrimenti
+    contiene il testo da mostrare all'utente — il limite è una regola del
+    manuale e va spiegato, non applicato in silenzio.
+
+    Le due regole applicate, entrambe da DMG p.138:
+      * massimo tre oggetti in sintonia contemporaneamente;
+      * "una creatura non può entrare in sintonia con più di una copia di un
+        determinato oggetto" — qui riconosciuta per nome, che è l'unico
+        criterio disponibile su un inventario scritto a mano.
+    """
+    catalog = list(items)
+    target = next((it for it in catalog if it.id == target_id), None)
+    if target is None:
+        return False, "Oggetto non trovato."
+    if not target.requires_attunement:
+        return False, "Questo oggetto non richiede sintonia."
+    if target.is_attuned:
+        return False, "Sei già in sintonia con questo oggetto."
+
+    same_name = [it for it in catalog
+                 if it.is_attuned and it.name.strip().lower() == target.name.strip().lower()]
+    if same_name:
+        return False, (
+            f"Sei già in sintonia con «{target.name}»: una creatura non può "
+            "entrare in sintonia con più di una copia di un determinato oggetto.\n"
+            "Guida del Master, pag. 138."
+        )
+
+    if attuned_count(catalog) >= MAX_ATTUNED_ITEMS:
+        return False, (
+            f"Sei già in sintonia con {MAX_ATTUNED_ITEMS} oggetti: ogni tentativo "
+            "di entrare in sintonia con un quarto oggetto fallisce.\n"
+            "Interrompi prima la sintonia con uno di essi.\n"
+            "Guida del Master, pag. 138."
+        )
+    return True, ""

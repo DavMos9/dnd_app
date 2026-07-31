@@ -32,10 +32,23 @@ _TABS: list[dict[str, Any]] = [
 class MasterView(ft.Column):
     """Shell di navigazione della Sezione Master: header + tab bar + contenuto."""
 
-    def __init__(self, on_back_to_home):
+    def __init__(self, on_back_to_home, on_toggle_theme=None,
+                 theme_preference: str = "system", active_tab: str = "npcs"):
+        """
+        `on_toggle_theme` (Fase D del restyle, 2026-07-30): se assente la
+        pillola del tema non compare — stesso comportamento "nascosto se
+        assente" già usato per `on_open_master` in `HomeView`, così una
+        costruzione legacy senza questo argomento resta valida.
+
+        `active_tab` permette a `DnDApp` di riaprire la Sezione Master sulla
+        stessa tab dopo un cambio di tema, che ricostruisce la vista da zero.
+        """
         super().__init__(expand=True, spacing=0)
         self.on_back_to_home = on_back_to_home
-        self.active_tab: str = "npcs"
+        self.on_toggle_theme = on_toggle_theme
+        self.theme_preference = theme_preference
+        valid = {t["key"] for t in _TABS}
+        self.active_tab: str = active_tab if active_tab in valid else "npcs"
         self._content_area = ft.Container(expand=True, bgcolor=design.T().bg)
         self._build()
 
@@ -64,6 +77,7 @@ class MasterView(ft.Column):
                         content=title_text("Modalità Master", size=20),
                         expand=True,
                     ),
+                    *self._theme_action(),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -80,6 +94,13 @@ class MasterView(ft.Column):
         self.controls.append(self._build_tab_bar())
         self.controls.append(self._content_area)
 
+    def _theme_action(self) -> list[ft.Control]:
+        """Pillola di cambio tema nell'header, o lista vuota se non collegata."""
+        if self.on_toggle_theme is None:
+            return []
+        from ui.widgets import theme_toggle_pill
+        return [theme_toggle_pill(self.theme_preference, self.on_toggle_theme)]
+
     def _build_tools_row(self) -> ft.Container:
         """Barra di pillole sempre visibili per i 4 generatori/riferimenti del
         Master (2026-07-24, redesign su richiesta di Davide: il menu a tre
@@ -93,6 +114,7 @@ class MasterView(ft.Column):
             self._tool_pill(ft.Icons.WARNING_AMBER_OUTLINED, "Trappola", self._open_traps_dialog),
             self._tool_pill(ft.Icons.SICK_OUTLINED, "Veleni", self._open_health_hazards_dialog),
             self._tool_pill(ft.Icons.FOREST_OUTLINED, "Ambiente", self._open_forest_encounters_dialog),
+            self._tool_pill(ft.Icons.DIAMOND, "Artefatti", self._open_artifacts_dialog),
         ]
         return ft.Container(
             content=ft.Row(cast(list[ft.Control], pills), spacing=8, wrap=True),
@@ -185,6 +207,13 @@ class MasterView(ft.Column):
             return
         from ui.views.master.master_forest_encounters_dialog import show_forest_encounters_dialog
         show_forest_encounters_dialog(cast(ft.Page, page))
+
+    def _open_artifacts_dialog(self) -> None:
+        page = self.page
+        if page is None:
+            return
+        from ui.views.master.master_artifacts_dialog import show_artifacts_dialog
+        show_artifacts_dialog(cast(ft.Page, page))
 
     def _on_tab_click(self, key: str):
         if key == self.active_tab:
