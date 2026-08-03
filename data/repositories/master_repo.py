@@ -98,6 +98,24 @@ def get_npcs(query: str = "") -> list[MasterNpc]:
         return []
 
 
+def get_npc_by_id(npc_id: str) -> MasterNpc | None:
+    """
+    Singolo NPC di rubrica per id — usato da `MasterEncounterView` per
+    risolvere lo stat block completo di un membro `kind="npc"` (2026-08-03,
+    richiesta di Davide: consultare la scheda/tirare i dadi di un NPC/mostro
+    direttamente dal tracker di combattimento, senza dover tornare alla
+    Rubrica NPC).
+    """
+    try:
+        conn = get_connection()
+        row = conn.execute("SELECT * FROM master_npcs WHERE id=?", (npc_id,)).fetchone()
+        conn.close()
+        return _row_to_npc(row) if row else None
+    except Exception as e:
+        logger.error(f"Errore get_npc_by_id: {e}")
+        return None
+
+
 def create_npc(
     name: str,
     role: str = "",

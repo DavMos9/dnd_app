@@ -103,12 +103,19 @@ class MasterView(ft.Column):
         return [theme_toggle_pill(self.theme_preference, self.on_toggle_theme)]
 
     def _build_tools_row(self) -> ft.Container:
-        """Barra di pillole sempre visibili per i 4 generatori/riferimenti del
+        """Barra di pillole sempre visibili per i 6 generatori/riferimenti del
         Master (2026-07-24, redesign su richiesta di Davide: il menu a tre
         puntini/"Strumenti" nascondeva le azioni dietro un click in più — qui
         sono tutte visibili subito). `wrap=True` sulla Row: su schermi stretti
         (smartphone) le pillole vanno semplicemente a capo su più righe invece
-        di traboccare o restare irraggiungibili."""
+        di traboccare o restare irraggiungibili.
+
+        **Etichetta "Generatori Rapidi" (2026-08-03, segnalazione di Davide)**:
+        senza un titolo sopra, le pillole si confondevano con la tab bar
+        sottostante e non era chiaro a cosa servissero. L'icona
+        `CASINO_OUTLINED` (dado) rinforza il significato "genera qualcosa a
+        caso", coerente con le icone già usate per i tiri di dado altrove
+        nell'app."""
         pills = [
             self._tool_pill(ft.Icons.DIAMOND_OUTLINED, "Tesoro", self._open_treasure_dialog),
             self._tool_pill(ft.Icons.AUTO_AWESOME, "Oggetto Magico", self._open_magic_item_generator_dialog),
@@ -118,7 +125,24 @@ class MasterView(ft.Column):
             self._tool_pill(ft.Icons.DIAMOND, "Artefatti", self._open_artifacts_dialog),
         ]
         return ft.Container(
-            content=ft.Row(cast(list[ft.Control], pills), spacing=8, wrap=True),
+            content=ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Icon(ft.Icons.CASINO_OUTLINED, size=13, color=design.T().text_3),
+                            ft.Container(width=6),
+                            ft.Text(
+                                "GENERATORI RAPIDI", size=11, weight=ft.FontWeight.BOLD,
+                                color=design.T().text_3, font_family=design.Font.BODY,
+                            ),
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Container(height=4),
+                    ft.Row(cast(list[ft.Control], pills), spacing=8, wrap=True),
+                ],
+                spacing=0,
+            ),
             padding=ft.Padding.symmetric(horizontal=design.Space.LG,
                                          vertical=design.Space.MD),
         )

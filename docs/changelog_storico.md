@@ -4376,6 +4376,66 @@
   **Verificato per entrambi**: `python3 -m pyflakes`/`py_compile` puliti, nessun conflitto `wrap=True`+`expand=True`
   (bug della voce precedente) nei file toccati, import completo di `ui.app` senza eccezioni.
 
+- **5 richieste sulla sezione "Incontri" e sui generatori del Master, segnalate da Davide (2026-08-03).**
+
+  1. **Nessun modo di consultare la scheda di un npc/mostro dentro un incontro, né di tirare i suoi dadi** — a
+     differenza della scheda del personaggio (Fase 4, `core/character_stats.py` + `ui/components/roll_panel.py`).
+     Aggiunti due `IconButton` ("Vedi scheda"/"Tira dadi") su ogni riga combattente `kind` npc/adhoc in
+     `MasterEncounterView._member_card()` (mai per `kind="character"`: i PG restano gestiti dal giocatore sulla
+     propria scheda). Risoluzione dello stat block completo, mai inventata quando manca:
+       - `kind="npc"` → nuova `master_repo.get_npc_by_id()` (mancava, stesso pattern di `get_encounter_by_id`) +
+         `has_stat_block`, convertito con `creature_entry_dict()` già esistente in `monster_picker.py`;
+       - `kind="adhoc"` da "Mostro dal Bestiario" → il nome (al netto del suffisso numerico "Goblin 2" → "Goblin",
+         estratto in `_strip_copy_suffix()` per essere condiviso con `_on_roll_all_initiative()`, che duplicava la
+         stessa logica come funzione locale `_base_name`) risolve in `monsters.json`;
+       - `kind="adhoc"` da "Creazione Rapida" → nessuno stat block esiste da nessuna parte: "Vedi scheda" mostra
+         solo CA/PF/mod. Destrezza/PE già tracciati con una nota esplicita, "Tira dadi" offre solo Prova/TS
+         Destrezza (l'unico dato noto) più il tiro personalizzato.
+     "Tira dadi" riusa **lo stesso motore già esistente per il personaggio** invece di duplicarlo:
+     `core/dice.py` (formule, vantaggio/svantaggio, critico), `RollSpec` di `core/character_stats.py`,
+     `ui/components/roll_panel.show_roll()` (pannello persistente in `page.overlay`, funziona già mentre un
+     `AlertDialog` è aperto — verificato che il pattern fosse già in uso da `combattimento_tab.roll_hit_dice()`
+     prima di riusarlo qui). Prove di caratteristica sempre tutte e 6 (mod. grezzo, PHB Cap.7); Tiri Salvezza
+     mostrati **solo per le caratteristiche stampate** nello stat block (bonus già finale, mai ricalcolato dal
+     GS/proficiency bonus — quelle non stampate equivalgono per regolamento alla prova di caratteristica, niente
+     riga duplicata); Abilità per ogni voce stampata in `skills`. Attacchi/danni restano testo libero nello stat
+     block (mai un numero strutturato in `monsters.json`): un campo "Tiro personalizzato" (validato con
+     `dice_engine.parse_formula()` prima di tirare, altrimenti `show_snack` di errore) copre quel caso senza
+     inventare un parser di prosa italiana.
+
+  2. **Non era chiaro che il numero nella pillola a sinistra di ogni combattente fosse l'iniziativa** — aggiunta
+     un'etichetta "INIZIATIVA" (maiuscolo, 8px, `text_3`) sopra il badge numerico in `_member_card()`, in una
+     `Column` che sostituisce il precedente `Container` isolato.
+
+  3. **Le pillole dei generatori rapidi (Tesoro/Oggetto Magico/Trappola/Veleni/Ambiente/Artefatti) in cima alla
+     Sezione Master non si distinguevano dalla tab bar sottostante** — aggiunta un'etichetta di sezione "GENERATORI
+     RAPIDI" (maiuscolo, icona dado) sopra la riga di pillole in `MasterView._build_tools_row()`.
+
+  4. **L'archivio degli incontri ("Termina Incontro") non era consultabile da nessuna parte dell'interfaccia** —
+     aggiunto uno switch "Attivi"/"Archiviati" in `MasterEncounterListView`, stesso pill-switch già in uso in
+     `MasterLootView` per Archivio/Deposito. Filtro **client-side** su `MasterEncounter.is_archived` (nessuna
+     nuova funzione di repository: `master_repo.get_encounters(include_archived=True)` già restituiva tutto). In
+     "Archiviati" la creazione di nuovi incontri è nascosta (creerebbe un incontro attivo mentre si guarda una
+     vista di sola consultazione, comportamento confuso) e ogni riga offre "Riapri"
+     (`master_repo.archive_encounter(id, archived=False)`, già supportato come "house rule" dal repository fin
+     dalla sua scrittura originale) oltre all'eliminazione definitiva già esistente.
+
+  **Verificato end-to-end su DB temporaneo isolato** (monkeypatch di `data.database.get_db_path`, non si può
+  toccare `HOME` in sessione: romperebbe la risoluzione del pacchetto `flet` installato in user-site, legato
+  all'`HOME` reale): creato un incontro con un membro `npc` (da `create_npc_from_monster`, stat block completo),
+  due membri `adhoc` da bestiario con suffisso di copia ("Goblin 1"/"Goblin 2"), un membro `adhoc` da Creazione
+  Rapida; risolti correttamente tutti e 3 i casi di stat block (npc → rubrica, adhoc/bestiario → `monsters.json`
+  via nome ripulito dal suffisso, adhoc/manuale → `None` senza eccezioni). Istanziate a mano `MasterEncounterView`,
+  `MasterEncounterListView` (incluso lo switch Attivi/Archiviati) e `MasterView` sulla tab "encounters": nessuna
+  eccezione in costruzione. Richiamati `_open_stat_block_click()`/`_open_dice_click()` per tutti e 4 i combattenti
+  di prova con una `FakePage` che intercetta `show_dialog()`: 8 dialoghi costruiti senza eccezioni. Verificato
+  l'archivio: creato un secondo incontro, archiviato, confermato che compaia nel filtro "Archiviati" e non in
+  "Attivi", riaperto, confermato il ritorno tra gli "Attivi". `python3 -m pyflakes`/`py_compile` puliti su tutti i
+  file toccati. Nessun conflitto `wrap=True`+`expand=True` nei blocchi nuovi (verificato anche con lo script di
+  bilanciamento delle parentesi già in uso nella voce precedente — le uniche corrispondenze trovate erano righe
+  preesistenti già verificate, non toccate da questa modifica). **La resa visiva finale nel client Flutter reale
+  resta da confermare da Davide**, come per ogni modifica UI verificata in sessione headless.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

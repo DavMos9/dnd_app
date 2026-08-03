@@ -19,17 +19,48 @@ from typing import Any
 import flet as ft
 
 from core import dice as dice_engine
-from config.settings import get_level_from_xp
+from config.settings import ABILITY_KEYS, get_level_from_xp
+from core.character_stats import RollSpec, ability_abbr, ability_label
 from core.encounter_calculator import calculate_difficulty, DIFFICULTY_LABELS
 from data.game_data.game_data_loader import parse_monster_xp
 from data.models import MasterEncounter
 from data.repositories import character_repo, master_repo
-from ui.components.monster_picker import load_monsters, show_monster_picker, monster_display_name
+from ui.components.monster_picker import (
+    creature_entry_dict, load_monsters, monster_display_name,
+    show_monster_picker, show_stat_block_dialog,
+)
+from ui.components.roll_panel import show_roll
 from ui.theme import title_text, muted_text, primary_button
 from ui import design
-from ui.widgets import wrap_dialog_actions, responsive_dialog_width
+from ui.widgets import wrap_dialog_actions, responsive_dialog_width, show_snack
 
 logger = logging.getLogger(__name__)
+
+#: Abbreviazione italiana stampata nello stat block (es. "Cos", "Sag") → chiave
+#: interna usata da `core.character_stats` — case-insensitive al confronto.
+_ABBR_TO_ABILITY_KEY: dict[str, str] = {
+    "FOR": "str", "DES": "dex", "COS": "con", "INT": "int", "SAG": "wis", "CAR": "cha",
+}
+
+
+def _ability_key_from_abbr(abbr: str) -> str:
+    return _ABBR_TO_ABILITY_KEY.get((abbr or "").strip().upper(), "")
+
+
+def _strip_copy_suffix(name: str) -> str:
+    """"Goblin 2" → "Goblin": toglie il numero progressivo aggiunto quando si
+    creano più copie dello stesso mostro/NPC in un colpo solo, per poter
+    risalire al nome originale nel bestiario o in rubrica."""
+    parts = (name or "").rsplit(" ", 1)
+    return parts[0] if len(parts) == 2 and parts[1].isdigit() else (name or "")
+
+
+def _dice_chip(label: str, on_click) -> ft.Control:
+    """Bottone di tiro — stessa forma in tutto il dialog "Dadi"."""
+    return ft.OutlinedButton(
+        label, icon=ft.Icons.CASINO_OUTLINED, on_click=on_click,
+        style=ft.ButtonStyle(color=design.T().primary, side=ft.BorderSide(1, design.T().primary)),
+    )
 
 
 
@@ -273,20 +304,40 @@ class MasterEncounterView(ft.Column):
             if resolved.get("xp"):
                 stats_row.append(design.chip(f"{resolved['xp']} PE", "neutral"))
 
+        # "Vedi scheda"/"Tira dadi" hanno senso solo per npc/adhoc: i PG restano
+        # gestiti dal giocatore sulla propria scheda (regola del progetto).
+        extra_actions: list[ft.Control] = []
+        if source in ("npc", "adhoc"):
+            extra_actions.append(ft.IconButton(
+                icon=ft.Icons.MENU_BOOK_OUTLINED, icon_color=design.T().text_3, icon_size=18,
+                tooltip="Vedi scheda", on_click=lambda e, r=resolved: self._open_stat_block_click(r),
+            ))
+            extra_actions.append(ft.IconButton(
+                icon=ft.Icons.CASINO_OUTLINED, icon_color=design.T().text_3, icon_size=18,
+                tooltip="Tira dadi", on_click=lambda e, r=resolved: self._open_dice_click(r),
+            ))
+
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(
-                        content=ft.Text(str(m.initiative), size=15, weight=ft.FontWeight.BOLD,
-                                         color=design.T().on_primary if is_current else design.T().text,
-                                         text_align=ft.TextAlign.CENTER),
-                        width=38, height=38, alignment=ft.Alignment.CENTER,
-                        bgcolor=design.T().primary if is_current else design.T().surface_alt,
-                        border_radius=design.Radius.PILL,
-                        shadow=design.elevation(1) if is_current else None,
-                        on_click=lambda e, mm=m: self._on_edit_initiative(mm),
-                        tooltip="Modifica iniziativa",
-                        ink=True,
+                    ft.Column(
+                        [
+                            ft.Text("INIZIATIVA", size=8, weight=ft.FontWeight.W_600,
+                                    color=design.T().text_3, text_align=ft.TextAlign.CENTER),
+                            ft.Container(
+                                content=ft.Text(str(m.initiative), size=15, weight=ft.FontWeight.BOLD,
+                                                 color=design.T().on_primary if is_current else design.T().text,
+                                                 text_align=ft.TextAlign.CENTER),
+                                width=38, height=38, alignment=ft.Alignment.CENTER,
+                                bgcolor=design.T().primary if is_current else design.T().surface_alt,
+                                border_radius=design.Radius.PILL,
+                                shadow=design.elevation(1) if is_current else None,
+                                on_click=lambda e, mm=m: self._on_edit_initiative(mm),
+                                tooltip="Modifica iniziativa",
+                                ink=True,
+                            ),
+                        ],
+                        spacing=2, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     ft.Container(width=design.Space.MD),
                     ft.Icon(icon, color=icon_color, size=20),
@@ -302,6 +353,7 @@ class MasterEncounterView(ft.Column):
                         ],
                         spacing=design.Space.XS, expand=True,
                     ),
+                    *extra_actions,
                     ft.IconButton(
                         icon=ft.Icons.CLOSE, icon_color=design.T().text_3, icon_size=18,
                         tooltip="Rimuovi dall'incontro",
@@ -321,6 +373,238 @@ class MasterEncounterView(ft.Column):
             border_radius=design.Radius.MD,
             animate=ft.Animation(design.Duration.BASE, design.CURVE),
         )
+
+    # ------------------------------------------------------------------
+    # Scheda / dadi del mostro (2026-08-03, richiesta di Davide: dentro
+    # l'incontro non si poteva consultare lo stat block di un npc/mostro né
+    # tirare i suoi dadi, a differenza della scheda del personaggio).
+    # ------------------------------------------------------------------
+
+    def _resolve_monster_stat_block(self, resolved: dict) -> dict | None:
+        """
+        Stat block "risolto" (forma di `build_stat_block_column`) per un
+        membro npc/adhoc, o `None` se non risolvibile — mai inventato:
+
+          * kind="npc": legge `master_npcs` per `npc_id`, solo se
+            `has_stat_block` (un NPC di solo ruolo non ha altro da mostrare);
+          * kind="adhoc" da "Mostro dal Bestiario": il nome (al netto del
+            suffisso numerico delle copie multiple) risolve in `monsters.json`,
+            stessa tecnica di `master_forest_encounters_dialog._resolve_creature`;
+          * kind="adhoc" da "Creazione Rapida": nessuno stat block esiste da
+            nessuna parte, `None`.
+        """
+        m = resolved["member"]
+        if resolved["source"] == "npc" and m.npc_id:
+            npc = master_repo.get_npc_by_id(m.npc_id)
+            if npc and npc.has_stat_block:
+                return creature_entry_dict(npc)
+            return None
+        if resolved["source"] == "adhoc":
+            base = _strip_copy_suffix(m.display_name).strip().lower()
+            if not base:
+                return None
+            for mon in load_monsters():
+                if str(mon.get("name", "")).strip().lower() == base:
+                    return mon
+        return None
+
+    def _open_stat_block_click(self, resolved: dict):
+        if not self._page:
+            return
+        page = self._page
+        m = resolved["member"]
+        data = self._resolve_monster_stat_block(resolved)
+        if data is not None:
+            show_stat_block_dialog(page, resolved["name"], data)
+            return
+        # Nessuno stat block risolvibile — tipicamente un combattente creato
+        # con "Creazione Rapida": si mostrano solo i pochi dati tracciati,
+        # niente viene inventato per riempire il vuoto.
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title(resolved["name"]),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(
+                            "Nessuna scheda completa disponibile: questo combattente "
+                            "è stato creato con «Creazione Rapida» e non ha uno stat "
+                            "block del bestiario o della Rubrica NPC collegato.",
+                            size=12, color=design.T().text_2,
+                        ),
+                        ft.Divider(height=1, color=design.T().border),
+                        ft.Text(f"CA {resolved['ac']}", size=13, color=design.T().text),
+                        ft.Text(f"PF {resolved['hp_current']}/{resolved['hp_max']}",
+                                size=13, color=design.T().text),
+                        ft.Text(f"Mod. Destrezza {dice_engine.format_modifier(int(getattr(m, 'dex_mod', 0) or 0))}",
+                                size=13, color=design.T().text),
+                        ft.Text(f"PE {resolved.get('xp', 0)}", size=13, color=design.T().text),
+                    ],
+                    spacing=8, tight=True,
+                ),
+                width=responsive_dialog_width(page, 320),
+            ),
+            actions=[ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog())],
+        ))
+
+    def _open_dice_click(self, resolved: dict):
+        """
+        Dialog "Dadi — {nome}": riusa lo stesso motore della scheda del
+        personaggio (`core/dice.py` + `RollSpec` + il pannello persistente
+        `ui/components/roll_panel.py`) invece di duplicarlo. Le prove/i TS/le
+        abilità usano **solo i valori già stampati** nello stat block (mai
+        ricalcolati dal GS): un tiro salvezza non stampato equivale alla prova
+        di caratteristica corrispondente, per regolamento (PHB).
+
+        Gli attacchi/danni restano testo libero nello stat block (mai un
+        numero strutturato in `monsters.json`): il campo "Tiro personalizzato"
+        copre quel caso senza inventare un parser di prosa italiana.
+        """
+        if not self._page:
+            return
+        page = self._page
+        name = resolved["name"]
+        m = resolved["member"]
+        data = self._resolve_monster_stat_block(resolved)
+
+        def _roll_now(spec: RollSpec):
+            show_roll(page, spec)
+
+        sections: list[ft.Control] = []
+
+        if data is not None:
+            ability_row = ft.Row(spacing=6, wrap=True)
+            for key in ABILITY_KEYS:
+                score = int(data.get(f"{key}_score", 10) or 10)
+                mod = _mod_from_score(score)
+                spec = RollSpec(
+                    kind="ability", label=f"{name} — Prova di {ability_label(key)}",
+                    modifier=mod, ability=key,
+                    note=f"{ability_abbr(key)} {dice_engine.format_modifier(mod)}",
+                )
+                ability_row.controls.append(_dice_chip(
+                    f"{ability_abbr(key)} {dice_engine.format_modifier(mod)}",
+                    lambda e, s=spec: _roll_now(s),
+                ))
+            sections.append(ft.Text("Prove di Caratteristica", size=12,
+                                     weight=ft.FontWeight.BOLD, color=design.T().primary))
+            sections.append(ability_row)
+
+            st_dict = data.get("saving_throws", {}) or {}
+            save_row = ft.Row(spacing=6, wrap=True)
+            if isinstance(st_dict, dict):
+                for abbr_key, printed in st_dict.items():
+                    ability_key = _ability_key_from_abbr(abbr_key)
+                    if not ability_key:
+                        continue
+                    try:
+                        mod = int(str(printed).strip())
+                    except ValueError:
+                        continue
+                    spec = RollSpec(
+                        kind="save", label=f"{name} — TS {ability_label(ability_key)}",
+                        modifier=mod, ability=ability_key, proficient=True,
+                        note=f"TS {ability_abbr(ability_key)} {dice_engine.format_modifier(mod)} (competente)",
+                    )
+                    save_row.controls.append(_dice_chip(
+                        f"TS {ability_abbr(ability_key)} {dice_engine.format_modifier(mod)}",
+                        lambda e, s=spec: _roll_now(s),
+                    ))
+            if save_row.controls:
+                sections.append(ft.Divider(height=1, color=design.T().border))
+                sections.append(ft.Text("Tiri Salvezza (competenti)", size=12,
+                                         weight=ft.FontWeight.BOLD, color=design.T().primary))
+                sections.append(save_row)
+                sections.append(ft.Text(
+                    "Gli altri tiri salvezza non stampati equivalgono alla prova "
+                    "di caratteristica qui sopra (nessun bonus di competenza).",
+                    size=10, italic=True, color=design.T().text_3,
+                ))
+
+            sk_dict = data.get("skills", {}) or {}
+            skill_row = ft.Row(spacing=6, wrap=True)
+            if isinstance(sk_dict, dict):
+                for skill_name, printed in sk_dict.items():
+                    try:
+                        mod = int(str(printed).strip())
+                    except ValueError:
+                        continue
+                    spec = RollSpec(
+                        kind="skill", label=f"{name} — {skill_name}",
+                        modifier=mod, note=f"{skill_name} {dice_engine.format_modifier(mod)}",
+                    )
+                    skill_row.controls.append(_dice_chip(
+                        f"{skill_name} {dice_engine.format_modifier(mod)}",
+                        lambda e, s=spec: _roll_now(s),
+                    ))
+            if skill_row.controls:
+                sections.append(ft.Divider(height=1, color=design.T().border))
+                sections.append(ft.Text("Abilità", size=12, weight=ft.FontWeight.BOLD,
+                                         color=design.T().primary))
+                sections.append(skill_row)
+        else:
+            dex_mod = int(getattr(m, "dex_mod", 0) or 0)
+            sections.append(ft.Text(
+                "Nessuno stat block collegato: qui è tirabile solo il "
+                "modificatore di Destrezza tracciato per questo combattente.",
+                size=12, color=design.T().text_2,
+            ))
+            spec_ability = RollSpec(
+                kind="ability", label=f"{name} — Prova di Destrezza",
+                modifier=dex_mod, ability="dex",
+                note=f"DES {dice_engine.format_modifier(dex_mod)}",
+            )
+            spec_save = RollSpec(
+                kind="save", label=f"{name} — TS Destrezza",
+                modifier=dex_mod, ability="dex",
+                note=f"DES {dice_engine.format_modifier(dex_mod)} (competenza non nota)",
+            )
+            sections.append(ft.Row(
+                [
+                    _dice_chip(f"Prova DES {dice_engine.format_modifier(dex_mod)}",
+                               lambda e: _roll_now(spec_ability)),
+                    _dice_chip(f"TS DES {dice_engine.format_modifier(dex_mod)}",
+                               lambda e: _roll_now(spec_save)),
+                ],
+                spacing=6, wrap=True,
+            ))
+
+        formula_tf = ft.TextField(label="Formula (es. 1d20+5, 2d6+3)", dense=True,
+                                   **design.field_style())
+
+        def _on_custom_roll(_e: Any):
+            text = (formula_tf.value or "").strip()
+            if not text:
+                return
+            try:
+                dice_engine.parse_formula(text)
+            except ValueError:
+                show_snack(page, f"Formula non valida: {text!r}", tone="warning")
+                return
+            _roll_now(RollSpec(kind="custom", label=f"{name} — tiro personalizzato", formula=text))
+
+        sections.append(ft.Divider(height=1, color=design.T().border))
+        sections.append(ft.Text(
+            "Tiro personalizzato — per attacchi e danni: leggi il bonus o i "
+            "dadi già stampati nell'azione e digitali qui.",
+            size=10, italic=True, color=design.T().text_3,
+        ))
+        sections.append(ft.Row(
+            [
+                ft.Container(content=formula_tf, expand=True),
+                ft.IconButton(ft.Icons.CASINO, icon_color=design.T().primary,
+                              tooltip="Tira", on_click=_on_custom_roll),
+            ],
+            spacing=8,
+        ))
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title(f"Dadi — {name}"),
+            content=ft.Container(
+                content=ft.Column(sections, spacing=8, scroll=ft.ScrollMode.AUTO, tight=True),
+                width=responsive_dialog_width(page, 380), height=420,
+            ),
+            actions=[ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog())],
+        ))
 
     # ------------------------------------------------------------------
     # Azioni header
@@ -395,15 +679,11 @@ class MasterEncounterView(ft.Column):
         # a meno del numero progressivo ("Goblin 1", "Goblin 2" → "Goblin").
         group_cb = ft.Checkbox(label="Gruppi identici tirano insieme", value=False)
 
-        def _base_name(name: str) -> str:
-            parts = (name or "").rsplit(" ", 1)
-            return parts[0] if len(parts) == 2 and parts[1].isdigit() else (name or "")
-
         def _do_roll(_e: Any):
             shared: dict[str, int] = {}
             for m in rollable:
                 if group_cb.value:
-                    key = _base_name(m.display_name)
+                    key = _strip_copy_suffix(m.display_name)
                     if key not in shared:
                         shared[key] = _roll_initiative(m.dex_mod)
                     value = shared[key]
