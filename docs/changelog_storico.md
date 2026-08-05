@@ -4857,6 +4857,38 @@
   introdotta qui. Da riverificare comunque da Davide sul suo ambiente reale, dove l'intera batteria era
   già stata eseguita con successo il 2026-08-05.
 
+- **Bug reale nel selettore mondo appena aggiunto, segnalato da Davide sia su web sia in locale
+  (2026-08-06)**: `The application encountered an error: Dropdown.__init__() got an unexpected keyword
+  argument 'prefix_icon'`. Causa: in `master_view.py._world_selector()` avevo scritto
+  `ft.Dropdown(prefix_icon=ft.Icons.PUBLIC, ...)` per analogia con `ft.TextField(prefix_icon=...)`, già
+  usato altrove nel progetto (`magic_items_view.py`, `master_npc_list_view.py`,
+  `ui/components/monster_picker.py`) — ma `ft.Dropdown` **non ha** `prefix_icon`: il parametro giusto è
+  `leading_icon` (accetta `IconData`, es. `ft.Icons.X`, o un `Control`). Verificato con
+  `inspect.signature(ft.Dropdown.__init__).parameters` sul pacchetto realmente installato — non un'altra
+  supposizione. **A differenza dei bug wrap+expand/SharedPreferences già documentati, questo è un
+  `TypeError` Python puro, sollevato alla semplice costruzione del controllo**: identico su web e locale
+  (stesso identico codice Python, nessuna differenza di piattaforma coinvolta), niente a che fare con un
+  client Flutter che non riconosce un controllo — un motivo di più per cui bastava un test di costruzione,
+  mai scritto prima per `MasterView`, per intercettarlo prima che Davide lo vedesse.
+
+  Fix: `prefix_icon` → `leading_icon` nell'unico punto in cui compariva su un `Dropdown`. Verificato con
+  un controllo statico (AST) su tutti i `ft.Dropdown(...)` di `ui/` che nessun altro kwarg invalido fosse
+  presente (nessuno trovato) — stesso controllo esteso a Checkbox/Container/Column/Row/TextField/Text/
+  IconButton/OutlinedButton/ElevatedButton/AlertDialog nei file toccati in questa sessione (nessuno trovato).
+
+  **Prevenzione, non solo il fix puntuale** (richiesta esplicita di Davide: "non ripetiamo errori vecchi se
+  no perdiamo solo tempo"): esteso `test_regressione_wrap_expand.py` con `test_master_view()` — costruisce
+  `MasterView` per tutte e 5 le tab, con e senza un mondo selezionato, in entrambi i temi (20 combinazioni),
+  cosa mai fatta prima per questa vista. Cattura sia conflitti wrap+expand sia (novità) qualunque eccezione
+  sollevata durante la costruzione, quindi anche `TypeError` come questo. Verificato che il test intercetta
+  davvero il bug: reintrodotto temporaneamente `prefix_icon`, tutte e 12 le combinazioni con mondo
+  selezionato/non selezionato sono fallite con il messaggio esatto riportato da Davide, poi ripristinato il
+  fix e riverificato verde. Aggiunta una regola generale in `regole_flet_api.md`: verificare SEMPRE con
+  `inspect.signature()` prima di aggiungere un kwarg "plausibile per analogia" con un altro controllo — è
+  esattamente come è nato questo bug (TextField ha `prefix_icon`, Dropdown no). Rieseguite tutte le batterie
+  della sessione: `test_regressione_wrap_expand.py` 33/33, `test_master_world_scoping.py` 25/25,
+  `test_mondo_senza_rete.py` 139/139, `test_lan_host_client.py` 92/92 — nessuna regressione.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

@@ -20,6 +20,17 @@ Va esteso man mano che si aggiungono nuove view con liste/card, non solo
 le due già colpite da questo bug — è un controllo strutturale, non
 specifico di una schermata.
 
+**Dal 2026-08-06 copre anche la sola COSTRUZIONE di `MasterView`** (senza
+ancora aver aggiunto nulla al controllo wrap+expand): un secondo bug reale,
+di natura diversa (`TypeError` Python puro alla creazione del controllo,
+`Dropdown(prefix_icon=...)` — kwarg inesistente su `ft.Dropdown`, quello
+corretto è `leading_icon`), sollevato dal nuovo selettore mondo
+dell'header e segnalato da Davide sia su web sia in locale. `MasterView`
+non aveva mai avuto un test di costruzione: costruire ogni tab (con e
+senza mondo selezionato) in questo file la esercita comunque, quindi vale
+la pena farlo qui piuttosto che aprire un quarto file di test per un
+singolo `try/except`.
+
 Eseguire con:
     PYTHONPATH=".venv/lib/python3.13/site-packages:." python3 test_regressione_wrap_expand.py
 """
@@ -174,6 +185,55 @@ def test_worlds_view() -> None:
     d.set_mode("light")
 
 
+def test_master_view() -> None:
+    """
+    Costruzione di `MasterView` — aggiunta il 2026-08-06 dopo un bug reale
+    segnalato da Davide (`Dropdown.__init__() got an unexpected keyword
+    argument 'prefix_icon'` nel nuovo selettore mondo dell'header): a
+    differenza del bug wrap+expand, quell'errore è un `TypeError` Python
+    puro, sollevato già alla semplice costruzione del controllo — non
+    serviva nemmeno ispezionare l'albero, bastava istanziare la vista una
+    volta. `MasterView` non aveva MAI avuto un test di costruzione prima
+    d'ora (a differenza di `HomeView`/`WorldsView` sopra): qui si copre lo
+    stesso terreno per tutte e 5 le tab, con e senza un mondo selezionato
+    (i due path di `_world_selector()` sono diversi: senza mondi
+    masterabili disponibili same come con almeno uno).
+    """
+    print("\n[3] MasterView — costruzione di tutte le tab, con e senza mondo selezionato")
+    from ui.views.master.master_view import MasterView, _TABS
+
+    device_id = "dev-masterview"
+    world = world_repo.create_world("Mondo MasterView", device_id, "Tester")
+    check("mondo di test creato", world is not None)
+
+    for mode in ("light", "dark"):
+        d.set_mode(mode)
+        for active_world_id in ("", world.id if world else ""):
+            for tab in _TABS:
+                key = tab["key"]
+                try:
+                    mv = MasterView(on_back_to_home=lambda: None, active_tab=key,
+                                    active_world_id=active_world_id)
+                    # Bypassa la risoluzione asincrona di did_mount() (stesso
+                    # principio di wv.device_id sopra): imposta direttamente
+                    # lo stato che _init_identity() avrebbe popolato, poi
+                    # ricostruisce per esercitare _world_selector() con
+                    # _masterable_worlds non vuoto.
+                    mv.device_id = device_id
+                    mv._masterable_worlds = [world] if world else []
+                    mv._build()
+                    conflicts = find_wrap_expand_conflicts(mv, path=f"MasterView.{key}")
+                    check(f"[{mode}][mondo={'sì' if active_world_id else 'no'}] "
+                          f"tab '{key}' costruita senza errori né conflitti wrap+expand: {conflicts}",
+                          conflicts == [])
+                except Exception as e:  # noqa: BLE001 — vogliamo il messaggio esatto nel report
+                    check(f"[{mode}][mondo={'sì' if active_world_id else 'no'}] "
+                          f"tab '{key}' costruita senza sollevare eccezioni: {type(e).__name__}: {e}",
+                          False)
+
+    d.set_mode("light")
+
+
 def main() -> int:
     print("=" * 62)
     print("Regressione — wrap=True + figlio expand=True (riquadro grigio)")
@@ -183,6 +243,7 @@ def main() -> int:
     init_db()
     test_home_view()
     test_worlds_view()
+    test_master_view()
 
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

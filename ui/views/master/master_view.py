@@ -188,7 +188,7 @@ class MasterView(ft.Column):
                 value=current,
                 options=options,
                 dense=True,
-                prefix_icon=ft.Icons.PUBLIC,
+                leading_icon=ft.Icons.PUBLIC,
                 border_color=design.T().border, focused_border_color=design.T().primary,
                 bgcolor=design.T().surface_alt, label_style=ft.TextStyle(color=design.T().text_3, size=11),
                 border_radius=design.field_style()['border_radius'],

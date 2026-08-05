@@ -36,6 +36,12 @@ ft.BoxFit.COVER                          # NON ft.ImageFit.COVER (rinominato)
 # DROPDOWN
 ft.DropdownOption(key=x, text=str(x))   # NON ft.dropdown.Option(x)
 # on_select= invece di on_change= (solo per Dropdown — NavigationRail usa ancora on_change)
+# Icona iniziale: ft.Dropdown(leading_icon=ft.Icons.X)   # NON prefix_icon= (quello è di ft.TextField)
+# leading_icon accetta IconData (es. ft.Icons.PUBLIC) o un Control — errore reale, Davide 2026-08-06:
+# "Dropdown.__init__() got an unexpected keyword argument 'prefix_icon'" — arrivava dal client (web E
+# locale, stesso identico Dropdown Python), non un try/except da aggiungere: il kwarg semplicemente
+# non esiste sulla classe. Verificare SEMPRE con `inspect.signature(ft.Dropdown.__init__).parameters`
+# prima di aggiungere un kwarg "plausibile" per analogia con un altro controllo (qui: TextField).
 
 # BUTTON TEXT
 ft.ElevatedButton("Testo", icon=..., on_click=...)   # testo come 1° positional, NON text="Testo"
