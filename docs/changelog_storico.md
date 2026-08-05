@@ -4889,6 +4889,45 @@
   della sessione: `test_regressione_wrap_expand.py` 33/33, `test_master_world_scoping.py` 25/25,
   `test_mondo_senza_rete.py` 139/139, `test_lan_host_client.py` 92/92 — nessuna regressione.
 
+- **FilePicker: assunzione "funziona su Android nativo" parzialmente smentita da un vero dispositivo
+  (2026-08-06)** — Davide ha segnalato la barra rossa "Unknown control: FilePicker" su Android, comparsa
+  **subito all'apertura della Home**, senza toccare nulla. Chiesta la localizzazione esatta prima di
+  intervenire (ambiguo: 4 punti diversi del codice registrano un FilePicker) — risposta: "subito
+  all'apertura dell'app / Home", non un'azione specifica.
+
+  **Causa**: `HomeView.did_mount()` registrava un `ft.FilePicker()` in `page.overlay` in modo EAGER
+  (incondizionato) ogni volta che `page.platform` è Android/iOS, ancora prima che l'utente tocchi
+  Esporta/Importa. Stesso identico pattern, copiato letteralmente, in `maps_view.py.did_mount()` e
+  `profilo_tab.py.did_mount()` (verificato con grep — 3 siti, non solo quello segnalato). L'affermazione
+  "ft.FilePicker su MOBILE funziona correttamente", scritta a suo tempo in `regole_flet_api.md`, **non era
+  mai stata verificata su un vero dispositivo** — dedotta dalla sintassi corretta (letta dal sorgente Flet
+  installato: `docstring` di `_on_mobile_export()` in `home_view.py` lo dichiara esplicitamente), mai da un
+  test end-to-end, perché fino a questa sessione Davide non aveva ancora potuto testare le app locali
+  (bloccato dal problema di build). Il parallelo con web mode è diretto e già documentato: lì "TUTTE le
+  strategie di registrazione falliscono nello stesso modo... la registrazione anticipata in did_mount()
+  produce lo stesso errore, solo mostrato prima" — lo stesso principio vale qui.
+
+  **Fix applicato, minimo e sicuro**: rimossa la registrazione eager in tutti e 3 i `did_mount()`
+  (`home_view.py`, `maps_view.py`, `profilo_tab.py` — quest'ultimo con uno storico di commento già a 4
+  capitoli di debugging precedenti, esteso con un quinto). In tutti e tre resta SOLO il fallback lazy già
+  presente (crea il FilePicker al primo tocco reale del pulsante, se non già registrato) — nessuna funzione
+  nuova scritta, il meccanismo di ripiego esisteva già ovunque, semplicemente non era più l'unico percorso.
+
+  **Nota onesta, non ancora risolta**: questo fix elimina con certezza l'errore immediato al mount (bug
+  riprodotto al 100%, ora impossibile per costruzione — non c'è più alcuna registrazione lì). **Non
+  garantisce** che l'uso interattivo (tap sul pulsante → crea il FilePicker → `pick_files()`) funzioni
+  davvero su Android: se il problema fosse strutturale come su desktop/web (dove ANCHE il click falliva,
+  solo più tardi), il banner ricomparirebbe al primo tap di Esporta/Importa/foto profilo/immagine mappa —
+  nel qual caso servirebbe un redesign (es. lo stesso approccio "libreria immagini su filesystem server"
+  già usato per il web) e non un altro aggiustamento di timing. Segnalato esplicitamente a Davide: serve
+  ancora testare quei tre flussi interattivi su un vero Android per saperlo con certezza.
+
+  Verificato: `py_compile` sui 3 file, `test_regressione_wrap_expand.py` 33/33 (esercita comunque
+  `HomeView`/`MasterView`), `test_mondo_senza_rete.py` 139/139, `test_master_world_scoping.py` 25/25,
+  `test_lan_host_client.py` 92/92 — nessuna regressione. Nessun test automatico può verificare il
+  comportamento REALE su Android (limite già noto e accettato per l'intera area Multiplayer/mobile di
+  questo progetto).
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

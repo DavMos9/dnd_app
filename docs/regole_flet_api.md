@@ -75,8 +75,23 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 # FILE PICKER
 # ft.FilePicker su DESKTOP Flet 0.85.3 → "Unknown control: FilePicker" — NON usare
 # ft.FilePicker su MOBILE (Android/iOS, build nativa "flet build apk/ipa") →
-#   funziona correttamente E può leggere e.files[0].path DIRETTAMENTE, perché
-#   Python gira sullo stesso dispositivo del client (nessun upload necessario).
+#   ⚠️ PARZIALMENTE SMENTITO (2026-08-06): la CREAZIONE ANTICIPATA in
+#   did_mount() (subito all'apertura della view, prima di ogni interazione)
+#   è CONFERMATA rotta anche su un vero Android — stesso "Unknown control:
+#   FilePicker" già visto in desktop/web, segnalato da Davide con la barra
+#   rossa che compariva già alla semplice apertura della Home. L'affermazione
+#   "funziona correttamente" qui sotto non era mai stata verificata su un
+#   vero dispositivo — era dedotta dalla sintassi corretta (letta dal
+#   sorgente Flet installato), non da un test end-to-end. Fix applicato:
+#   rimossa la registrazione eager in did_mount() in home_view.py/
+#   maps_view.py/profilo_tab.py — resta solo il fallback lazy (crea il
+#   controllo al primo tocco reale del pulsante, se non già presente).
+#   **Ancora NON verificato** se anche l'uso lazy/interattivo (tap → crea →
+#   pick_files()) funzioni davvero su Android reale, o se il problema sia
+#   strutturale come su desktop/web (nel qual caso servirebbe un redesign,
+#   non un altro aggiustamento di timing) — in attesa del test di Davide.
+#   Se confermato: può leggere e.files[0].path DIRETTAMENTE, perché Python
+#   gira sullo stesso dispositivo del client (nessun upload necessario).
 # ft.FilePicker su WEB (ft.AppView.WEB_BROWSER, es. deploy Docker) → NON
 #   USARE AFFATTO, in nessuna forma. Bug upstream CONFERMATO e non
 #   risolvibile lato applicazione (2026-07-12, verificato con fonte

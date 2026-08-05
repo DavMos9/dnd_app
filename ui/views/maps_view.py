@@ -232,39 +232,23 @@ class MapsView(ft.Column):
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
 
-        # Registra il FilePicker SUBITO al mount, non al click — MA SOLO su
-        # mobile (Android/iOS). NOTA (2026-07-12, stesso changelog di
-        # profilo_tab.py did_mount()): ricerca diretta sulla issue tracker
-        # upstream di Flet (flet-dev/flet#6040/#6250/#6251) conferma che i
-        # controlli "Service" come FilePicker sono strutturalmente rotti in
-        # web mode (server-side rendering) a partire da Flet ^0.80.1 (qui:
-        # 0.85.3) — il solo aggiungerli a page.overlay produce "Unknown
-        # control", indipendentemente da quando/come vengono registrati o
-        # usati. Non è quindi risolvibile lato applicazione in web mode —
-        # vedi _pick_from_library() più sotto per il sostituto.
-        # FIX (2026-07-16, stesso bug segnalato da Davide su profilo_tab.py
-        # lanciando l'app nativa da terminale): la condizione `not
-        # self._page.web` usata qui fino ad ora escludeva solo il web, ma
-        # il desktop soffre ESATTAMENTE dello stesso problema (il solo
-        # registrare FilePicker in page.overlay fa comparire "Unknown
-        # control: FilePicker" già al mount, prima di ogni click) — coerente
-        # con la primissima regola scritta in cima a CLAUDE.md ("ft.FilePicker
-        # su DESKTOP Flet 0.85.3 → 'Unknown control: FilePicker' — NON
-        # usare"), mai applicata a questo did_mount() finora. Il desktop usa
-        # già un dialogo nativo via subprocess (vedi pick_image() più sotto)
-        # e non ha mai avuto bisogno di FilePicker. Fix: registrare SOLO sui
-        # platform Android/iOS, mai su desktop o web.
-        if (
-            self._file_picker is None
-            and self._page is not None
-            and self._page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS)
-        ):
-            self._file_picker = ft.FilePicker()
-            self._page.overlay.append(self._file_picker)
-            try:
-                self._page.update()  # type: ignore[unused-coroutine]
-            except RuntimeError:
-                pass
+        # NON registra più il FilePicker qui (fix 2026-08-06). Storia di
+        # questo blocco, per chi legge il changelog: nato per registrare
+        # "SUBITO al mount, solo su mobile (Android/iOS)" — poi corretto il
+        # 2026-07-16 per escludere anche il desktop (stesso errore lì).
+        # L'assunzione residua "su Android/iOS funziona" non era mai stata
+        # verificata su un vero dispositivo: Davide ha segnalato la STESSA
+        # barra rossa "Unknown control: FilePicker" anche su un Android
+        # reale, apparsa già alla semplice apertura della Home (v. fix
+        # gemello in home_view.py, stesso giorno) — nessuna interazione
+        # richiesta per riprodurla. Coerente con quanto già osservato in web
+        # mode (`dnd_app/docs/regole_flet_api.md`): la registrazione
+        # anticipata mostra prima lo stesso errore che la registrazione al
+        # click mostrerebbe comunque, non è un fix, è solo un ritardo.
+        # Il fallback lazy in _pick_mobile() (registra al primo uso reale,
+        # se non già presente) resta l'unico punto di registrazione — se
+        # anche quello fallisce, il problema è più profondo e va affrontato
+        # a parte, non qui.
 
     # ------------------------------------------------------------------
     # Build root

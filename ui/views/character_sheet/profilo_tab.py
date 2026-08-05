@@ -175,18 +175,23 @@ class ProfiloTab(ScrollMemoryListView):
         #    registrazione ai soli platform Android/iOS (stessa condizione
         #    già usata da _pick_photo() per instradare la UI), mai su
         #    desktop o web.
-        if (
-            self._file_picker is None
-            and self._page is not None
-            and self._page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS)
-        ):
-            self._file_picker = ft.FilePicker()
-            self._file_picker.on_result = self._on_mobile_file_picked  # type: ignore[assignment]
-            self._page.overlay.append(self._file_picker)
-            try:
-                self._page.update()  # type: ignore[unused-coroutine]
-            except RuntimeError:
-                pass
+        # 5) (2026-08-06) Davide ha segnalato lo STESSO identico banner rosso
+        #    "Unknown control: FilePicker" — stavolta su Android reale,
+        #    apparso già alla semplice apertura della Home (non di questa
+        #    tab: ma home_view.py aveva lo stesso identico blocco "registra
+        #    al mount su Android/iOS", copiato da qui). L'assunzione del
+        #    punto 4 ("su Android/iOS funziona") non era mai stata
+        #    verificata su un vero dispositivo — il codice era corretto
+        #    nella sintassi (letta dal sorgente Flet installato), mai
+        #    testato end-to-end. Coerente col punto 3 (registrazione
+        #    anticipata = stesso errore del click, solo mostrato prima): tolta
+        #    la registrazione eager anche qui. Resta SOLO il fallback lazy in
+        #    `_pick_photo_mobile()` sotto (registra al primo tocco reale del
+        #    pulsante foto, se non già presente) — se anche quello fallisce
+        #    con lo stesso errore, il problema è più profondo (FilePicker
+        #    non utilizzabile affatto su questa build Android) e va
+        #    affrontato a parte con un redesign, non con un altro
+        #    aggiustamento di timing.
 
     # ------------------------------------------------------------------
     # Header foto + XP + Level Up

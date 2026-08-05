@@ -96,16 +96,26 @@ class HomeView(ft.Column):
 
     def did_mount(self):
         """
-        Registra il FilePicker SUBITO al mount, solo su mobile nativo —
-        stesso principio già stabilito nel progetto (profilo_tab.py,
-        maps_view.py): su desktop e in web mode ft.FilePicker come
-        controllo non è utilizzabile (bug upstream confermato, vedi
-        CLAUDE.md), quindi non va MAI registrato lì, nemmeno per Export/
-        Import di personaggi.
+        NON registra più il FilePicker qui (fix 2026-08-06, bug reale
+        segnalato da Davide: barra rossa "Unknown control: FilePicker" già
+        alla semplice apertura della Home su un vero dispositivo Android,
+        prima di qualunque interazione). La registrazione "subito al mount,
+        solo su mobile nativo" era basata su un'assunzione MAI verificata su
+        un vero dispositivo (il codice era stato scritto leggendo il
+        sorgente Flet per la sintassi corretta, non testato end-to-end — la
+        differenza tra "sintassi corretta" e "funziona davvero" è esattamente
+        il punto). Il parallelo con il bug già confermato in web mode è
+        diretto: lì la registrazione anticipata in did_mount() produceva lo
+        STESSO errore della registrazione al click, solo mostrato prima
+        (vedi `dnd_app/docs/regole_flet_api.md`). Qui il fix minimo e sicuro
+        è non registrare nulla finché non serve davvero: `_ensure_file_picker()`
+        resta comunque chiamato in modo lazy da `_on_mobile_export()`/
+        `_on_mobile_import()` al primo tocco reale di quei pulsanti — se
+        anche quello fallisce con lo stesso errore, il problema è più
+        profondo (FilePicker non utilizzabile affatto su questa build
+        Android) e va affrontato a parte, non qui.
         """
         page = self.page
-        if page is not None and page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
-            self._ensure_file_picker()
         self._start_polling()
         if page is not None:
             page.run_task(self._init_identity)
