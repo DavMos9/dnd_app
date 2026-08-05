@@ -118,10 +118,14 @@ def _initiative_options() -> tuple[ft.Checkbox, ft.Checkbox, ft.Control]:
 
 
 class MasterEncounterView(ft.Column):
-    def __init__(self, encounter_id: str, on_back_to_list):
+    def __init__(self, encounter_id: str, on_back_to_list, world_id: str = ""):
         super().__init__(expand=True, spacing=0)
         self.encounter_id = encounter_id
         self.on_back_to_list = on_back_to_list
+        #: Mondo correntemente selezionato in `MasterView` (2026-08-06) — ""
+        #: per la modalità locale. Determina quali PG compaiono nel picker
+        #: "Personaggio Giocante" (_open_add_character_dialog).
+        self._world_id = world_id
         self._page: ft.Page | None = None
         self.encounter: MasterEncounter | None = None
         self._members: list[dict] = []  # resolved, vedi master_repo.get_encounter_members_resolved
@@ -1121,7 +1125,7 @@ class MasterEncounterView(ft.Column):
         if not self._page:
             return
         page = self._page
-        chars = character_repo.get_all()
+        chars = character_repo.get_master_visible_characters(self._world_id)
         already_ids = {
             resolved["member"].character_id for resolved in
             master_repo.get_encounter_members_resolved(self.encounter_id, active_only=False)

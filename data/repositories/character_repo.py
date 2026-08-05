@@ -134,6 +134,46 @@ def get_all() -> list[Character]:
         return []
 
 
+def get_master_visible_characters(world_id: str = "") -> list[Character]:
+    """
+    Personaggi rilevanti per il contesto correntemente selezionato nella
+    Modalità Master (2026-08-06) — fix di due bug segnalati da Davide con
+    un'unica causa: i picker personaggi della Sezione Master (Tesoro,
+    Oggetto Magico, Bottino, partecipanti a un Incontro) chiamavano
+    `get_all()`, che non ha mai filtrato per mondo.
+
+    A differenza di `get_all()` (usato da `HomeView`, che mostra insieme
+    personaggi locali E istanze, partizionati in sezioni distinte), qui i due
+    insiemi sono SEMPRE mutuamente esclusivi, in base al mondo che il Master
+    sta correntemente gestendo:
+
+    - `world_id == ""` ("Nessun mondo" / modalità locale, default): solo i
+      personaggi locali (`characters.world_id == ''`). Le istanze di
+      QUALSIASI mondo restano escluse — risolve "in Master escono i
+      personaggi di ogni mondo mescolati".
+    - `world_id` valorizzato: solo le istanze DI QUEL mondo
+      (`characters.world_id == world_id`). L'originale locale da cui
+      un'istanza è nata non compare mai accanto alla sua istanza — risolve
+      "il player entrato in un mondo appare duplicato".
+    """
+    try:
+        conn = get_connection()
+        if world_id:
+            rows = conn.execute(
+                "SELECT * FROM characters WHERE world_id = ? ORDER BY updated_at DESC",
+                (world_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM characters WHERE world_id = '' ORDER BY updated_at DESC"
+            ).fetchall()
+        conn.close()
+        return [_row_to_character(r) for r in rows]
+    except Exception as e:
+        logger.error(f"Errore nel recupero personaggi (contesto Master, world_id={world_id!r}): {e}")
+        return []
+
+
 def get_by_id(character_id: str) -> Optional[Character]:
     """Restituisce un personaggio per ID, None se non trovato."""
     try:
@@ -179,6 +219,7 @@ def create(character: Character) -> bool:
                 age, height, weight, eyes, skin, hair,
                 personality_traits, ideals, bonds, flaws,
                 backstory, allies_organizations, additional_traits, appearance_notes,
+                world_id, origin_character_id, owner_device_id, is_replica, world_seq,
                 created_at, updated_at
             ) VALUES (
                 :id, :name, :player_name, :class_name, :subclass, :level,
@@ -199,6 +240,7 @@ def create(character: Character) -> bool:
                 :age, :height, :weight, :eyes, :skin, :hair,
                 :personality_traits, :ideals, :bonds, :flaws,
                 :backstory, :allies_organizations, :additional_traits, :appearance_notes,
+                :world_id, :origin_character_id, :owner_device_id, :is_replica, :world_seq,
                 :created_at, :updated_at
             )
         """, {
@@ -268,6 +310,23 @@ def create(character: Character) -> bool:
             "frenzy_active": int(character.frenzy_active),
             "concentrating_spell": character.concentrating_spell or "",
             "concentrating_since": character.concentrating_since or "",
+            # Mondi condivisi (2026-08-06 — bug reale trovato mentre si
+            # verificava il fix della Modalità Master world-scoped: queste 5
+            # colonne esistono su `Character` e sono già scritte da
+            # `update()`, ma `create()` non le aveva MAI incluse nell'INSERT,
+            # quindi passare un `Character` con `world_id` già valorizzato a
+            # `create()` lo perdeva silenziosamente — invisibile finché
+            # nessun chiamante lo faceva: l'unico punto di scrittura reale,
+            # `core/character_instances.py._link_to_world()`, aggira il
+            # problema con un UPDATE separato subito dopo il create(). Corretto
+            # qui alla radice per coerenza con `update()` e per non lasciare
+            # la trappola per il prossimo chiamante che si aspetti — a
+            # ragione — che `create()` persista l'intero oggetto passato.
+            "world_id": _s(character.world_id),
+            "origin_character_id": _s(character.origin_character_id),
+            "owner_device_id": _s(character.owner_device_id),
+            "is_replica": int(character.is_replica),
+            "world_seq": character.world_seq,
             "created_at": character.created_at,
             "updated_at": character.updated_at,
         })

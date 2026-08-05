@@ -47,14 +47,18 @@ logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
 
 
-def show_magic_item_generator_dialog(page: ft.Page) -> None:
+def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
     """Apre il dialog "Genera Oggetto Magico". Nessun valore ritornato —
     tutta la logica di stato vive nella closure, stesso pattern già in uso
-    per gli altri dialog generatore della Sezione Master."""
+    per gli altri dialog generatore della Sezione Master.
+
+    `world_id` (2026-08-06): il mondo correntemente selezionato in
+    `MasterView` — "" per la modalità locale, vedi
+    `character_repo.get_master_visible_characters()`."""
 
     all_items = _loader.get_magic_items()
     category_options = mig.get_category_options(all_items)
-    characters = character_repo.get_all()
+    characters = character_repo.get_master_visible_characters(world_id)
 
     result_state: dict[str, Any] = {"items": []}
 
@@ -246,7 +250,7 @@ def show_magic_item_generator_dialog(page: ft.Page) -> None:
         items = _build_loot_items()
         if not items:
             return
-        show_loot_assign_dialog(page, items)
+        show_loot_assign_dialog(page, items, world_id=world_id)
 
     def _on_save_to_archive(ev: Any) -> None:
         from ui.views.master.master_loot_assign_dialog import save_items_to_stash

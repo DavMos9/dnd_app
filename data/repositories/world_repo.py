@@ -218,20 +218,31 @@ def get_world_by_join_code(join_code: str) -> World | None:
         return None
 
 
-def get_worlds_for_device(device_id: str) -> list[World]:
+def get_worlds_for_device(device_id: str, roles: tuple[str, ...] | None = None) -> list[World]:
     """Tutti i mondi in cui questo dispositivo è owner o membro, i più
-    recenti per ultimo aggiornamento per primi."""
+    recenti per ultimo aggiornamento per primi.
+
+    `roles` (2026-08-06, Modalità Master world-scoped): se passato, limita ai
+    mondi in cui il ruolo di questo dispositivo è tra quelli elencati — es.
+    `(ROLE_OWNER, ROLE_MASTER)` per popolare il selettore "mondo da
+    masterare" in `MasterView` (un semplice `player` non deve poter
+    "masterare" un mondo in cui è solo un giocatore). Filtro qui e non in
+    Python lato chiamante: stessa query, un `IN (...)` in più, evita N
+    round-trip su `get_member()` per ogni mondo del dispositivo."""
     try:
         conn = get_connection()
-        rows = conn.execute(
-            """
+        query = """
             SELECT DISTINCT w.* FROM worlds w
             JOIN world_members m ON m.world_id = w.id
             WHERE m.device_id = ?
-            ORDER BY w.updated_at DESC
-            """,
-            (_s(device_id),),
-        ).fetchall()
+        """
+        params: list = [_s(device_id)]
+        if roles:
+            placeholders = ",".join("?" for _ in roles)
+            query += f" AND m.role IN ({placeholders})"
+            params.extend(roles)
+        query += " ORDER BY w.updated_at DESC"
+        rows = conn.execute(query, params).fetchall()
         conn.close()
         return [_row_to_world(r) for r in rows]
     except Exception as e:

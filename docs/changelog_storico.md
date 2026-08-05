@@ -4729,6 +4729,134 @@
   Riverificato `test_mondo_senza_rete.py` (139/139, inclusa la sezione `[6] ui/device_identity`): nessuna
   regressione, la firma pubblica di `resolve_device_id()` non è cambiata.
 
+- **Build GitHub Actions falliva su Windows/macOS/Linux (7-13s ciascuna), segnalato da Davide con uno
+  screenshot (2026-08-06)**: solo `build-android` completava (8m23s). Causa, confermata leggendo la cronologia
+  git (`git ls-tree -d HEAD`, `git ls-tree HEAD -- version.py pyproject.toml`, `git show 3915642 --
+  .github/workflows/release.yml`): lo step "Inject version from git tag", introdotto da Davide stesso il
+  3 luglio 2026 (commit `3915642`, release v0.1.15) in `build-windows`/`build-macos`/`build-linux`, leggeva e
+  riscriveva `dnd_app/version.py` e `dnd_app/pyproject.toml` — ma il repository Git ha questi due file
+  **direttamente alla radice**, senza una sottocartella `dnd_app/` annidata (confermato: non esiste nel repo,
+  esiste solo come nome della cartella genitore sul filesystem di Davide, fuori dal repository). Lo step
+  falliva quindi immediatamente con un errore di file non trovato — coerente con le durate di 7-13s osservate.
+  `build-android` non aveva mai avuto questo step, motivo per cui era l'unico a completare (ma restava anche
+  l'unico a **non** ricevere mai la versione dal tag: l'APK pubblicato avrebbe sempre riportato
+  `APP_VERSION = "0.1.15"` da `version.py`, indipendentemente dal tag effettivo).
+
+  Fix in `.github/workflows/release.yml`: rimosso il prefisso `dnd_app/` nei tre step esistenti (ora
+  `version.py`/`pyproject.toml`, percorsi relativi alla radice del checkout, corretti). **Aggiunto anche lo
+  stesso step a `build-android`**, prima assente — non solo per coerenza tra le quattro piattaforme, ma perché
+  è un gap funzionale reale: `core/update_checker.py` confronta `APP_VERSION` (da `version.py`) con l'ultima
+  release GitHub per notificare in-app gli aggiornamenti disponibili; senza l'iniezione, un'installazione
+  Android avrebbe sempre visto la propria versione come "0.1.15", risultando in falsi positivi di
+  aggiornamento disponibile ad ogni release successiva. Nessun test automatico possibile per questo fix (la
+  correttezza dipende dall'esecuzione reale su GitHub Actions, non riproducibile in sandbox): verifica
+  rimandata al prossimo tag pushato da Davide, da controllare su
+  `https://github.com/DavMos9/dnd_app/actions`.
+
+- **Modalità Master world-scoped (2026-08-06)** — Davide ha segnalato (screenshot GitHub Actions + testo)
+  tre problemi in un unico messaggio: (1) build CI rotta (voce sopra), (2) "quando aggiungo il player ad un
+  mondo, quel player viene duplicato" in modalità web, (3) "nella versione del master escono tutti [i
+  personaggi], il master deve selezionare il mondo da masterare e gestire i personaggi del mondo".
+
+  **Diagnosi**: causa unica per (2) e (3). Nessun file di `ui/views/master/` aveva mai avuto un concetto di
+  "mondo" — `character_repo.get_all()` (ogni personaggio mai creato, nessun filtro) era chiamato da 5 punti
+  diversi: `master_treasure_dialog.py`, `master_magic_item_generator_dialog.py`,
+  `master_loot_assign_dialog.py`, `master_encounter_generator_dialog.py`,
+  `master_encounter_view.py._open_add_character_dialog`. Quando un giocatore entra in un mondo (passo 3 del
+  Multiplayer, 2026-08-05) nasce una **seconda riga** in `characters` (l'istanza, per design — vedi §6 di
+  `multiplayer_design.md`, decisione già chiusa: il personaggio locale resta riusabile altrove). Con
+  `get_all()` senza filtro, quella seconda riga compariva ACCANTO all'originale locale in ogni picker
+  personaggi della Sezione Master — da qui "il player viene duplicato". E senza alcun filtro per mondo, ogni
+  istanza di ogni mondo compariva sempre — da qui "escono tutti".
+
+  **Decisioni chieste a Davide e ricevute (AskUserQuestion) prima di scrivere codice**, coerente con la
+  regola del progetto "se il requisito è ambiguo non scegliere arbitrariamente":
+  1. Ampiezza del fix — tre opzioni proposte (solo i picker personaggi / + deposito del gruppo del Bottino,
+     che aveva `world_id=""` fisso in codice, gap noto e già documentato come "passo 6 bloccato sul
+     Multiplayer" / + visibilità per-nota delle Note di Campagna, progettata in `multiplayer_design.md` §7 ma
+     mai implementata). **Scelta: "Tutto, incluse le Note di Campagna."**
+  2. Persistenza della selezione mondo nella Modalità Master — sessione vs tra sessioni. **Scelta: solo per
+     sessione** (si azzera riaprendo la Modalità Master, per non rischiare di restare sul mondo sbagliato).
+
+  **Implementazione**:
+
+  - `data/repositories/character_repo.py`: nuova `get_master_visible_characters(world_id="")` — `world_id==""`
+    restituisce SOLO i personaggi locali (`characters.world_id==''`), un world_id valorizzato restituisce
+    SOLO le istanze di quel mondo. I due insiemi sono sempre mutuamente esclusivi (a differenza di
+    `get_all()`, usato da `HomeView`, che li mostra entrambi partizionati in sezioni — semantica diversa,
+    voluta: la Home deve mostrare tutto ciò che il dispositivo possiede, il Master deve vedere solo il
+    contesto che sta correntemente gestendo).
+  - `data/repositories/world_repo.py`: `get_worlds_for_device()` guadagna un parametro opzionale
+    `roles: tuple[str,...] | None` (filtro SQL `IN (...)`, non un post-filtro Python) — usato per popolare il
+    selettore "mondo da masterare" con solo i mondi in cui questo dispositivo è `owner`/`master`, mai quelli
+    in cui è solo `player`.
+  - `ui/views/master/master_view.py`: nuovo selettore mondo SEMPRE visibile nell'header (un `ft.Dropdown`,
+    mai un menu nascosto — coerenza con la regola già stabilita per la barra "Generatori Rapidi"). Risoluzione
+    `device_id` asincrona in `did_mount()` (stesso pattern di `HomeView._init_identity`), validazione che il
+    mondo selezionato resti tra quelli masterabili (mondo eliminato/espulsione/degradazione → torna a
+    "Nessun mondo" invece di restare silenziosamente su un `world_id` invalido). La selezione sopravvive al
+    rebuild causato dal cambio tema tramite lo stesso meccanismo già esistente per `active_tab`
+    (`ui/app.py._show_master_view`/`_rebuild_route`), ma si azzera riaprendo la Modalità Master dalla Home
+    (per scelta esplicita di Davide, decisione 2 sopra).
+  - `world_id` inoltrato dal selettore a: `MasterEncounterListView`/`MasterEncounterView` (picker "Personaggio
+    Giocante"), `MasterNotesView`, `MasterLootView`, e alle 6 funzioni `show_x_dialog()` dei generatori
+    (Tesoro, Oggetto Magico, Bottino-assegna, Incontro Casuale, Artefatti, Veleni — le ultime due non
+    chiamavano `get_all()` direttamente ma aprono comunque il dialogo di assegnazione bottino, quindi
+    necessitavano comunque del parametro).
+  - **Bottino ("Deposito del Gruppo")**: `MasterLootView`/`master_loot_assign_dialog.py` ora passano
+    `world_id` a `loot_repo.get_entries()`/`create_entry()` **solo per `stash_kind="party"`**;
+    `stash_kind="master"` (l'archivio privato del Master) resta **sempre** `world_id=""`, per scelta di
+    design già scritta nel docstring di `LootStashEntry` (l'archivio è privato del dispositivo, mai
+    condiviso via mondo — non va confuso col deposito). Con "Nessun mondo" selezionato il Deposito del Gruppo
+    si comporta esattamente come prima (comportamento locale, world_id="", nessuna rottura per chi non usa il
+    Multiplayer) — sblocca di fatto il "passo 6" di `loot_design.md` §8, prima bloccato in attesa di questo
+    selettore.
+  - **Note di Campagna — visibilità per-nota** (`multiplayer_design.md` §7): 3 nuove colonne su
+    `master_campaign_notes` (`world_id`, `visibility` "private"/"all"/"selected", `visible_to_device_ids`
+    JSON) via `_add_column()` (stesso meccanismo di migrazione incrementale già in uso per ogni colonna
+    aggiunta dal 2026-07-09 in poi). `MasterCampaignNote` in `data/models.py` estesa con gli stessi 3 campi.
+    `master_repo.get_master_campaign_notes(category="", world_id=None)` — `None` non filtra (compatibilità
+    con la firma precedente), `""` solo note locali, un id solo quelle di quel mondo — stessa convenzione di
+    `get_master_visible_characters()`. `create_master_campaign_note()`/`update_master_campaign_note()`
+    estese; `world_id` NON è tra i campi modificabili dopo la creazione (una nota non cambia mondo, stessa
+    scelta già fatta per `origin_character_id` sulle istanze). UI in `master_notes_view.py`: il selettore
+    "Visibilità" (con l'elenco spuntabile dei membri `role="player"` del mondo attivo quando si sceglie
+    "Solo i giocatori selezionati") compare SOLO quando la vista è legata a un mondo — in modalità locale una
+    nota è per definizione privata, niente da scegliere.
+
+    **Nota onesta, dichiarata esplicitamente a Davide**: questo passo registra correttamente l'INTENZIONE del
+    Master (i 3 campi sono persistiti e rileggibili) ma **non implementa ancora la consegna effettiva ai
+    dispositivi dei giocatori** — servirebbero un nuovo tipo di evento nel giornale del mondo (il comando
+    `note.share` esiste già come slot riservato in `core/world_permissions.py` dal passo 2, mai collegato a
+    un handler) più una schermata lato giocatore che oggi non esiste in nessuna forma. Segnalato come lavoro
+    a sé, non ancora pianificato, non fatto passare per completo.
+
+  **Bug reale trovato durante la verifica, non correlato al selettore mondo ma scoperto grazie ad esso** —
+  `data/repositories/character_repo.py.create()`: l'INSERT era una lista di colonne scritta a mano che non
+  includeva MAI le 5 colonne mondo (`world_id`/`origin_character_id`/`owner_device_id`/`is_replica`/
+  `world_seq`), mentre `update()` le scrive correttamente da anni (dal passo 2, 2026-08-05). Passare a
+  `create()` un `Character` con `world_id` già valorizzato lo perdeva silenziosamente. **Mai emerso finora**
+  perché l'unico chiamante che crea istanze di mondo,
+  `core/character_instances.py._link_to_world()`, aggira il problema con un `UPDATE` diretto subito dopo il
+  `create()` — un workaround funzionante ma che nascondeva l'incoerenza. Trovato scrivendo
+  `test_master_world_scoping.py` (sotto): un test che costruiva un `Character(world_id=...)` e lo passava a
+  `create()` falliva in modo silenzioso e contro-intuitivo. Corretto aggiungendo le 5 colonne all'INSERT,
+  stesso identico set già presente in `update()` — nessuna funzionalità esistente rotta (i valori di default
+  restano gli stessi impliciti del DB), ma ora `create()` è coerente con `update()` e con la promessa del
+  dataclass `Character`.
+
+  **Verifica**: nuovo `test_master_world_scoping.py` (25 controlli — mutua esclusione locale/istanze per
+  mondo, filtro ruolo di `get_worlds_for_device`, CRUD/filtro/visibilità delle note di campagna), nessuna
+  dipendenza da Flet (solo repository/core, evita l'artefatto ambientale del sandbox descritto sotto).
+  Rieseguite le tre batterie esistenti: `test_mondo_senza_rete.py` 139/139, `test_lan_host_client.py` 92/92,
+  `test_istanze_personaggio.py` 61/62 con **un solo fallimento pre-esistente e non correlato**: il
+  sub-check `[8]` di quel file lancia `test_mondo_senza_rete.py` in un sottoprocesso via `subprocess.run`, e
+  in QUESTO sandbox quel sottoprocesso non trova il modulo `flet` (probabile artefatto di risoluzione
+  user-site-packages quando `HOME` è sovrascritto su una cartella temporanea prima dello spawn) — non
+  presente eseguendo `test_mondo_senza_rete.py` direttamente (139/139 verde), quindi non una regressione
+  introdotta qui. Da riverificare comunque da Davide sul suo ambiente reale, dove l'intera batteria era
+  già stata eseguita con successo il 2026-08-05.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

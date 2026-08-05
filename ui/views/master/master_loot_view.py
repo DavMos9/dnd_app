@@ -67,15 +67,29 @@ def _coin_summary(entry: LootStashEntry) -> str:
 class MasterLootView(ft.Column):
     """Tab «Bottino»: archivio del Master + deposito del gruppo."""
 
-    def __init__(self) -> None:
+    def __init__(self, world_id: str = "") -> None:
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
+        #: Mondo correntemente selezionato in `MasterView` (2026-08-06) — ""
+        #: per la modalità locale (comportamento di sempre: un unico deposito
+        #: condiviso da chiunque usi questo dispositivo). Significativo SOLO
+        #: per `stash_kind="party"`: l'archivio del Master resta sempre
+        #: world_id="" per scelta di design (vedi `LootStashEntry` in
+        #: data/models.py — l'archivio è privato del dispositivo, mai
+        #: condiviso via mondo).
+        self._world_id = world_id
         self._active_kind: str = "master"  # "master" | "party"
         self._list_col = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
         self._build()
 
     def did_mount(self) -> None:
         self._page = cast(ft.Page, self.page)
+
+    def _effective_world_id(self) -> str:
+        """Il `world_id` da usare per l'elenco/le nuove voci correnti — solo
+        il Deposito del Gruppo è mai scoped a un mondo, vedi il commento nel
+        costruttore."""
+        return self._world_id if self._active_kind == "party" else ""
 
     # ------------------------------------------------------------------
 
@@ -153,7 +167,7 @@ class MasterLootView(ft.Column):
     # ------------------------------------------------------------------
 
     def _populate_list(self) -> None:
-        entries = loot_repo.get_entries(self._active_kind, world_id="")
+        entries = loot_repo.get_entries(self._active_kind, world_id=self._effective_world_id())
         self._list_col.controls.clear()
         if not entries:
             self._list_col.controls.append(design.empty_state(
@@ -245,7 +259,8 @@ class MasterLootView(ft.Column):
         if page is None:
             return
         from ui.views.master.master_loot_assign_dialog import item_from_stash_entry, show_loot_assign_dialog
-        show_loot_assign_dialog(page, [item_from_stash_entry(entry)], on_committed=self._refresh_list_only)
+        show_loot_assign_dialog(page, [item_from_stash_entry(entry)], on_committed=self._refresh_list_only,
+                                 world_id=self._world_id)
 
     def _on_move(self, entry: LootStashEntry) -> None:
         new_kind = "party" if self._active_kind == "master" else "master"
@@ -418,6 +433,7 @@ class MasterLootView(ft.Column):
                     self._active_kind, "coins", source_note=(note_tf.value or "").strip(),
                     copper=values["copper"], silver=values["silver"], electrum=values["electrum"],
                     gold=values["gold"], platinum=values["platinum"],
+                    world_id=self._effective_world_id(),
                 )
             else:
                 name = (name_tf.value or "").strip()
@@ -431,6 +447,7 @@ class MasterLootView(ft.Column):
                 loot_repo.create_entry(
                     self._active_kind, kind, name=name, description=(desc_tf.value or "").strip(),
                     quantity=qty, source_note=(note_tf.value or "").strip(),
+                    world_id=self._effective_world_id(),
                 )
             page.pop_dialog()
             self._refresh_list_only()

@@ -197,14 +197,22 @@ def show_loot_assign_dialog(
     items: list[dict[str, Any]],
     *,
     on_committed: Callable[[], None] | None = None,
+    world_id: str = "",
 ) -> None:
     """
     Apre il dialog di assegnazione per `items` (costruiti con
     `simple_item()`/`coins_item()`/`item_from_stash_entry()`). `on_committed`
     viene richiamato dopo una conferma andata a buon fine (es. per far
     ricaricare la lista alla scheda «Bottino»).
+
+    `world_id` (2026-08-06): il mondo correntemente selezionato in
+    `MasterView` — "" per la modalità locale. Determina sia l'elenco dei
+    personaggi destinatari (`character_repo.get_master_visible_characters()`)
+    sia il mondo a cui viene assegnata una voce spedita al "Deposito del
+    Gruppo" (mai all'"Archivio": resta sempre privato del dispositivo del
+    Master, vedi `LootStashEntry` in `data/models.py`).
     """
-    characters = character_repo.get_all()
+    characters = character_repo.get_master_visible_characters(world_id)
     char_options = [(c.id, f"{c.name} (Lv.{c.level})") for c in characters]
     dest_options = char_options + [(DEST_PARTY, "Deposito del Gruppo"), (DEST_ARCHIVE, "Archivio")]
 
@@ -505,6 +513,7 @@ def show_loot_assign_dialog(
                             "party" if dest == DEST_PARTY else "master", it["entry_kind"],
                             name=it.get("name", ""), description=it.get("description", ""),
                             quantity=qty, source_note=it.get("source_note", ""),
+                            world_id=world_id if dest == DEST_PARTY else "",
                         )
                 else:
                     character_repo.create_inventory_item(
@@ -524,6 +533,7 @@ def show_loot_assign_dialog(
                             "party" if dest == DEST_PARTY else "master", it["entry_kind"],
                             name=it.get("name", ""), description=it.get("description", ""),
                             quantity=share, source_note=it.get("source_note", ""),
+                            world_id=world_id if dest == DEST_PARTY else "",
                         )
                     else:
                         character_repo.create_inventory_item(

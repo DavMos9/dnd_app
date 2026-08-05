@@ -700,26 +700,40 @@ def _row_to_campaign_note(row) -> MasterCampaignNote:
         linked_npc_id=d.get("linked_npc_id") or "",
         created_at=d.get("created_at", ""),
         updated_at=d.get("updated_at", ""),
+        world_id=d.get("world_id", ""),
+        visibility=d.get("visibility") or "private",
+        visible_to_device_ids=d.get("visible_to_device_ids") or "[]",
     )
 
 
-def get_master_campaign_notes(category: str = "") -> list[MasterCampaignNote]:
+def get_master_campaign_notes(category: str = "", world_id: str | None = None) -> list[MasterCampaignNote]:
     """
     Note di campagna del Master. `category` (opzionale) filtra per categoria
     esatta; senza filtro, ordina prima per categoria poi per data di
     creazione (stesso pattern di `character_repo.get_campaign_notes`).
+
+    `world_id` (2026-08-06, Modalità Master world-scoped): `None` (default)
+    non filtra per mondo — compatibilità con eventuali chiamate future che
+    vogliono l'elenco completo. `""` restituisce solo le note locali/di
+    nessun mondo; un id valorizzato restituisce solo le note di quel mondo —
+    stessa convenzione già stabilita per
+    `character_repo.get_master_visible_characters()`.
     """
     try:
         conn = get_connection()
+        clauses: list[str] = []
+        params: list[str] = []
         if category:
-            rows = conn.execute(
-                "SELECT * FROM master_campaign_notes WHERE category=? ORDER BY created_at ASC",
-                (category,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM master_campaign_notes ORDER BY category, created_at ASC"
-            ).fetchall()
+            clauses.append("category=?")
+            params.append(category)
+        if world_id is not None:
+            clauses.append("world_id=?")
+            params.append(world_id)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = conn.execute(
+            f"SELECT * FROM master_campaign_notes{where} ORDER BY category, created_at ASC",
+            params,
+        ).fetchall()
         conn.close()
         return [_row_to_campaign_note(r) for r in rows]
     except Exception as e:
@@ -734,6 +748,9 @@ def create_master_campaign_note(
     status: str = "",
     tags: str = "",
     linked_npc_id: str = "",
+    world_id: str = "",
+    visibility: str = "private",
+    visible_to_device_ids: str = "[]",
 ) -> MasterCampaignNote | None:
     import uuid as _uuid
     note_id = str(_uuid.uuid4())
@@ -742,10 +759,12 @@ def create_master_campaign_note(
         conn = get_connection()
         conn.execute(
             """INSERT INTO master_campaign_notes
-               (id, category, name, description, status, tags, linked_npc_id, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
+               (id, category, name, description, status, tags, linked_npc_id,
+                world_id, visibility, visible_to_device_ids, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
             (note_id, _s(category) or "npc", _s(name), _s(description), _s(status),
-             _s(tags), linked_npc_id or None, now, now),
+             _s(tags), linked_npc_id or None, _s(world_id),
+             _s(visibility) or "private", _s(visible_to_device_ids) or "[]", now, now),
         )
         conn.commit()
         row = conn.execute(
@@ -765,14 +784,23 @@ def update_master_campaign_note(
     status: str = "",
     tags: str = "",
     linked_npc_id: str = "",
+    visibility: str = "private",
+    visible_to_device_ids: str = "[]",
 ) -> bool:
+    """`world_id` non è tra i parametri modificabili: una nota non cambia
+    mondo dopo la creazione (stessa scelta di design già fatta per
+    `origin_character_id` sulle istanze di personaggio — l'appartenenza a un
+    mondo è decisa alla nascita, non un campo editabile in un secondo
+    momento)."""
     try:
         conn = get_connection()
         conn.execute(
             """UPDATE master_campaign_notes
-               SET name=?, description=?, status=?, tags=?, linked_npc_id=?, updated_at=?
+               SET name=?, description=?, status=?, tags=?, linked_npc_id=?,
+                   visibility=?, visible_to_device_ids=?, updated_at=?
                WHERE id=?""",
             (_s(name), _s(description), _s(status), _s(tags), linked_npc_id or None,
+             _s(visibility) or "private", _s(visible_to_device_ids) or "[]",
              datetime.now().isoformat(), note_id),
         )
         conn.commit()

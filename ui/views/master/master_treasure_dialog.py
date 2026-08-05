@@ -42,15 +42,20 @@ logger = logging.getLogger(__name__)
 _CR_LABELS = {"0-4": "Sfida 0-4", "5-10": "Sfida 5-10", "11-16": "Sfida 11-16", "17+": "Sfida 17 o più"}
 
 
-def show_treasure_generator_dialog(page: ft.Page) -> None:
+def show_treasure_generator_dialog(page: ft.Page, world_id: str = "") -> None:
     """Apre il dialog "Genera Tesoro". Nessun valore ritornato — tutta la
     logica di stato vive nella closure, tipico pattern già in uso nel
-    progetto per i dialog Flet complessi (vedi profilo_tab.py/wizard_view.py)."""
+    progetto per i dialog Flet complessi (vedi profilo_tab.py/wizard_view.py).
+
+    `world_id` (2026-08-06): il mondo correntemente selezionato in
+    `MasterView` — "" per la modalità locale. Determina quali personaggi
+    compaiono come destinatari, vedi
+    `character_repo.get_master_visible_characters()`."""
 
     mode_state: dict[str, str] = {"mode": "individual", "cr_band": "0-4"}
     result_state: dict[str, Any] = {}
     trinket_state: dict[str, Any] = {}
-    characters = character_repo.get_all()
+    characters = character_repo.get_master_visible_characters(world_id)
 
     mode_group = ft.RadioGroup(
         value="individual",
@@ -272,7 +277,7 @@ def show_treasure_generator_dialog(page: ft.Page) -> None:
         items = _build_loot_items()
         if not items:
             return
-        show_loot_assign_dialog(page, items)
+        show_loot_assign_dialog(page, items, world_id=world_id)
 
     def _on_save_to_archive(ev: Any) -> None:
         from ui.views.master.master_loot_assign_dialog import save_items_to_stash

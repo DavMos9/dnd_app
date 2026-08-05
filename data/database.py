@@ -335,6 +335,24 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "characters", "owner_device_id",     "TEXT DEFAULT ''")
     _add_column(cur, "characters", "is_replica",          "INTEGER DEFAULT 0")
     _add_column(cur, "characters", "world_seq",           "INTEGER DEFAULT 0")
+    # Modalità Master world-scoped (2026-08-06, fix bug segnalato da Davide:
+    # "il player entrato in un mondo appare duplicato" / "in Master escono i
+    # personaggi di ogni mondo mescolati" — causa: nessun picker personaggi
+    # della Sezione Master filtrava mai per mondo). Le Note di Campagna del
+    # Master seguono lo stesso principio (scelta esplicita di Davide,
+    # 2026-08-06: includere anche la visibilità per-nota di
+    # multiplayer_design.md §7 in questo stesso giro):
+    # '' = nota locale/di nessun mondo (comportamento di sempre). `visibility`
+    # è significativa solo quando `world_id` è valorizzato: "private" (solo il
+    # Master, default) | "all" (tutti i membri del mondo) | "selected" (solo i
+    # device_id in visible_to_device_ids, JSON list). NOTA ONESTA: questa
+    # colonna registra l'INTENZIONE del Master; la consegna effettiva ai
+    # dispositivi dei giocatori (nuovo tipo di evento nel giornale del mondo +
+    # una schermata lato giocatore che oggi non esiste) resta un passo a sé,
+    # non ancora implementato — vedi CLAUDE.md.
+    _add_column(cur, "master_campaign_notes", "world_id", "TEXT DEFAULT ''")
+    _add_column(cur, "master_campaign_notes", "visibility", "TEXT DEFAULT 'private'")
+    _add_column(cur, "master_campaign_notes", "visible_to_device_ids", "TEXT DEFAULT '[]'")
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:

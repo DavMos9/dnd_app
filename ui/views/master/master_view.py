@@ -5,18 +5,38 @@ parte del Dungeon Master. Vedi `dnd_app/docs/master_section_design.md`
 per il design completo e `CLAUDE.md` (TODO "Sezione Master") per lo stato
 di avanzamento.
 
-Struttura: header (torna alla Home) + tab bar interna a 2 sezioni —
-"Rubrica NPC" e "Incontri". Le viste reali (`MasterNpcListView`,
-`MasterEncounterListView`/`MasterEncounterView`) sono innestate qui via
-`_get_tab_content()`; finché non sono implementate (task successivi della
-Sezione Master) questa vista mostra un placeholder "in costruzione" per
-ciascuna tab, senza bloccare la navigazione.
+Struttura: header (torna alla Home) + selettore "mondo da masterare" +
+tab bar interna a 5 sezioni. Le viste reali (`MasterNpcListView`,
+`MasterEncounterListView`/`MasterEncounterView`, ...) sono innestate qui via
+`_get_tab_content()`; finché non sono implementate questa vista mostra un
+placeholder "in costruzione" per ciascuna tab, senza bloccare la
+navigazione.
+
+**Selettore mondo (2026-08-06)** — fix di due bug segnalati da Davide
+("il player entrato in un mondo appare duplicato nei picker" / "in Master
+escono i personaggi di ogni mondo mescolati"): prima di questa modifica la
+Modalità Master non aveva ALCUN concetto di mondo, e i picker personaggi
+(Tesoro, Oggetto Magico, Bottino, partecipanti a un Incontro) leggevano
+sempre `character_repo.get_all()` — ogni personaggio mai creato, locali e
+istanze di ogni mondo mescolati. Ora il Master sceglie esplicitamente quale
+mondo sta gestendo (o "Nessun mondo", il comportamento locale di sempre) da
+un menu SEMPRE visibile nell'header — mai un menu nascosto dietro un'icona
+aggiuntiva, stessa convenzione già stabilita per la barra "Generatori
+Rapidi". La scelta vive SOLO per la sessione (decisione di Davide,
+2026-08-06: si azzera ogni volta che si riapre la Modalità Master, per non
+rischiare di restare per errore sul mondo sbagliato) ma sopravvive al
+rebuild della vista causato dal cambio tema, con lo stesso meccanismo già
+usato per `active_tab` (vedi `ui/app.py._show_master_view`).
 """
 
 from typing import Any, cast
 
 import flet as ft
 
+from core.world_permissions import ROLE_MASTER, ROLE_OWNER
+from data.models import World
+from data.repositories import world_repo
+from ui.device_identity import resolve_device_id
 from ui.theme import title_text, muted_text
 from ui import design
 
@@ -29,12 +49,21 @@ _TABS: list[dict[str, Any]] = [
     {"key": "loot", "label": "Bottino", "icon": ft.Icons.INVENTORY_2_OUTLINED},
 ]
 
+#: Ruoli che abilitano un mondo a comparire nel selettore "mondo da
+#: masterare" — un dispositivo che è solo `player` in un mondo non lo mastera.
+_MASTERABLE_ROLES = (ROLE_OWNER, ROLE_MASTER)
+
+#: Valore convenzionale per "Nessun mondo" nel Dropdown — non può coincidere
+#: con un id di mondo reale (UUID), usato solo come chiave del controllo.
+_NO_WORLD_KEY = ""
+
 
 class MasterView(ft.Column):
     """Shell di navigazione della Sezione Master: header + tab bar + contenuto."""
 
     def __init__(self, on_back_to_home, on_toggle_theme=None,
-                 theme_preference: str = "system", active_tab: str = "npcs"):
+                 theme_preference: str = "system", active_tab: str = "npcs",
+                 active_world_id: str = ""):
         """
         `on_toggle_theme` (Fase D del restyle, 2026-07-30): se assente la
         pillola del tema non compare — stesso comportamento "nascosto se
@@ -43,6 +72,9 @@ class MasterView(ft.Column):
 
         `active_tab` permette a `DnDApp` di riaprire la Sezione Master sulla
         stessa tab dopo un cambio di tema, che ricostruisce la vista da zero.
+
+        `active_world_id` (2026-08-06): stesso principio di `active_tab`, ma
+        per il mondo correntemente selezionato — vedi il docstring del modulo.
         """
         super().__init__(expand=True, spacing=0)
         self.on_back_to_home = on_back_to_home
@@ -50,8 +82,48 @@ class MasterView(ft.Column):
         self.theme_preference = theme_preference
         valid = {t["key"] for t in _TABS}
         self.active_tab: str = active_tab if active_tab in valid else "npcs"
+
+        # Selettore mondo — vedi docstring del modulo. `device_id` è risolto
+        # in modo asincrono in did_mount() (stesso pattern di HomeView):
+        # finché è None il selettore mostra solo "Nessun mondo", nessun
+        # blocco dell'apertura della Modalità Master in attesa della rete/
+        # del servizio di storage.
+        self._active_world_id: str = active_world_id
+        self.device_id: str | None = None
+        self._masterable_worlds: list[World] = []
+
         self._content_area = ft.Container(expand=True, bgcolor=design.T().bg)
         self._build()
+
+    def did_mount(self) -> None:
+        page = self.page
+        if page is not None:
+            page.run_task(self._init_identity)
+
+    async def _init_identity(self) -> None:
+        """Risolve `device_id` e carica i mondi che questo dispositivo può
+        masterare (ruolo owner/master) — vedi `ui/device_identity.py` per il
+        motivo per cui questa risoluzione è asincrona."""
+        page = self.page
+        if page is None:
+            return
+        self.device_id = await resolve_device_id(page)
+        self._masterable_worlds = world_repo.get_worlds_for_device(
+            self.device_id, roles=_MASTERABLE_ROLES,
+        )
+        # Se il mondo selezionato in precedenza non è (più) tra quelli
+        # masterabili da questo dispositivo (mondo eliminato, espulsione,
+        # degradazione di ruolo), torna a "Nessun mondo" invece di restare
+        # silenziosamente su un world_id ormai invalido.
+        if self._active_world_id and not any(
+            w.id == self._active_world_id for w in self._masterable_worlds
+        ):
+            self._active_world_id = _NO_WORLD_KEY
+        self._build()
+        try:
+            self.update()
+        except RuntimeError:
+            pass
 
     # ------------------------------------------------------------------
     # Build layout
@@ -78,6 +150,7 @@ class MasterView(ft.Column):
                         content=title_text("Modalità Master", size=20),
                         expand=True,
                     ),
+                    self._world_selector(),
                     *self._theme_action(),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -94,6 +167,46 @@ class MasterView(ft.Column):
         self.controls.append(self._build_tools_row())
         self.controls.append(self._build_tab_bar())
         self.controls.append(self._content_area)
+
+    def _world_selector(self) -> ft.Control:
+        """
+        Menu SEMPRE visibile (mai dietro un'icona aggiuntiva) per scegliere
+        quale mondo il Master sta gestendo — vedi docstring del modulo.
+        Mostra sempre "Nessun mondo" come prima opzione anche quando la
+        lista dei mondi masterabili è ancora vuota (identità non risolta, o
+        semplicemente nessun mondo posseduto): nessuna sorpresa per chi non
+        usa il Multiplayer.
+        """
+        options = [ft.DropdownOption(key=_NO_WORLD_KEY, text="Nessun mondo (locale)")]
+        options += [ft.DropdownOption(key=w.id, text=w.name) for w in self._masterable_worlds]
+        current = self._active_world_id if any(
+            w.id == self._active_world_id for w in self._masterable_worlds
+        ) else _NO_WORLD_KEY
+        return ft.Container(
+            width=220,
+            content=ft.Dropdown(
+                value=current,
+                options=options,
+                dense=True,
+                prefix_icon=ft.Icons.PUBLIC,
+                border_color=design.T().border, focused_border_color=design.T().primary,
+                bgcolor=design.T().surface_alt, label_style=ft.TextStyle(color=design.T().text_3, size=11),
+                border_radius=design.field_style()['border_radius'],
+                text_style=design.field_style()['text_style'],
+                on_select=self._on_world_change,
+            ),
+        )
+
+    def _on_world_change(self, e: Any) -> None:
+        new_world_id = e.control.value or _NO_WORLD_KEY
+        if new_world_id == self._active_world_id:
+            return
+        self._active_world_id = new_world_id
+        self._build()
+        try:
+            self.update()
+        except RuntimeError:
+            pass
 
     def _theme_action(self) -> list[ft.Control]:
         """Pillola di cambio tema nell'header, o lista vuota se non collegata."""
@@ -203,14 +316,14 @@ class MasterView(ft.Column):
         if page is None:
             return
         from ui.views.master.master_treasure_dialog import show_treasure_generator_dialog
-        show_treasure_generator_dialog(cast(ft.Page, page))
+        show_treasure_generator_dialog(cast(ft.Page, page), world_id=self._active_world_id)
 
     def _open_magic_item_generator_dialog(self) -> None:
         page = self.page
         if page is None:
             return
         from ui.views.master.master_magic_item_generator_dialog import show_magic_item_generator_dialog
-        show_magic_item_generator_dialog(cast(ft.Page, page))
+        show_magic_item_generator_dialog(cast(ft.Page, page), world_id=self._active_world_id)
 
     def _open_traps_dialog(self) -> None:
         page = self.page
@@ -224,7 +337,7 @@ class MasterView(ft.Column):
         if page is None:
             return
         from ui.views.master.master_health_hazards_dialog import show_health_hazards_dialog
-        show_health_hazards_dialog(cast(ft.Page, page))
+        show_health_hazards_dialog(cast(ft.Page, page), world_id=self._active_world_id)
 
     def _open_forest_encounters_dialog(self) -> None:
         page = self.page
@@ -238,7 +351,7 @@ class MasterView(ft.Column):
         if page is None:
             return
         from ui.views.master.master_artifacts_dialog import show_artifacts_dialog
-        show_artifacts_dialog(cast(ft.Page, page))
+        show_artifacts_dialog(cast(ft.Page, page), world_id=self._active_world_id)
 
     def _on_tab_click(self, key: str):
         if key == self.active_tab:
@@ -267,7 +380,7 @@ class MasterView(ft.Column):
         elif key == "encounters":
             try:
                 from ui.views.master.master_encounter_list_view import MasterEncounterListView
-                return MasterEncounterListView()
+                return MasterEncounterListView(world_id=self._active_world_id)
             except ImportError:
                 return self._placeholder(
                     ft.Icons.SHIELD_OUTLINED, "Incontri",
@@ -276,7 +389,7 @@ class MasterView(ft.Column):
         elif key == "notes":
             try:
                 from ui.views.master.master_notes_view import MasterNotesView
-                return MasterNotesView()
+                return MasterNotesView(world_id=self._active_world_id)
             except ImportError:
                 return self._placeholder(
                     ft.Icons.MENU_BOOK_OUTLINED, "Note di Campagna",
@@ -294,7 +407,7 @@ class MasterView(ft.Column):
         elif key == "loot":
             try:
                 from ui.views.master.master_loot_view import MasterLootView
-                return MasterLootView()
+                return MasterLootView(world_id=self._active_world_id)
             except ImportError:
                 return self._placeholder(
                     ft.Icons.INVENTORY_2_OUTLINED, "Bottino",

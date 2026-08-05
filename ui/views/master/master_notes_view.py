@@ -23,12 +23,20 @@ from typing import Any, cast
 
 import flet as ft
 
-from data.models import MasterCampaignNote, MasterNpc
-from data.repositories import master_repo
+from data.models import MasterCampaignNote, MasterNpc, WorldMember
+from data.repositories import master_repo, world_repo
 from ui.widgets import wrap_dialog_actions
 from ui import design
 
 logger = logging.getLogger(__name__)
+
+#: Opzioni del selettore "Visibilità" — significativo solo quando la vista è
+#: legata a un mondo (`world_id` non vuoto), vedi il docstring della classe.
+_VISIBILITY_OPTIONS: list[tuple[str, str]] = [
+    ("private", "Privata (solo il Master)"),
+    ("all", "Tutti i giocatori del mondo"),
+    ("selected", "Solo i giocatori selezionati"),
+]
 
 # ── Costanti visive (stesse di DiaryView, per coerenza) ─────────────────────
 
@@ -125,11 +133,33 @@ def _cat_meta(key: str) -> dict[str, Any]:
 class MasterNotesView(ft.Column):
     """Vista Note di Campagna del Master, due pannelli — stesso layout di
     `DiaryView` ma senza Cronaca e senza `character_id` (indipendente da ogni
-    personaggio)."""
+    personaggio).
 
-    def __init__(self):
+    **`world_id` (2026-08-06)** — il mondo correntemente selezionato in
+    `MasterView`, "" per la modalità locale. Determina:
+
+    1. quali note sono visibili qui (`get_master_campaign_notes(world_id=...)`
+       — una nota nasce legata al mondo attivo al momento della creazione e
+       non lo cambia più, stessa scelta di `create_master_campaign_note()`);
+    2. se il selettore "Visibilità" compare nell'editor — solo con un mondo
+       selezionato ha senso scegliere chi tra i giocatori può vedere una
+       nota (vedi `multiplayer_design.md` §7).
+
+    **Nota onesta**: questo passo registra correttamente l'intenzione del
+    Master (`visibility`/`visible_to_device_ids`, persistite nel DB), ma NON
+    ancora la consegna effettiva ai dispositivi dei giocatori — serve un
+    nuovo tipo di evento nel giornale del mondo più una schermata lato
+    giocatore che oggi non esiste. Vedi CLAUDE.md."""
+
+    def __init__(self, world_id: str = ""):
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
+        self._world_id = world_id
+        #: Membri del mondo attivo, per il selettore "Solo i giocatori
+        #: selezionati" — vuoto se `world_id == ""` (modalità locale).
+        self._world_members: list[WorldMember] = (
+            world_repo.get_members(world_id) if world_id else []
+        )
 
         self._active_cat: str = "npc"
         self._notes: dict[str, list[MasterCampaignNote]] = {}
@@ -143,6 +173,10 @@ class MasterNotesView(ft.Column):
         self._nf_tags:   ft.TextField = ft.TextField(**design.field_style())
         self._nf_desc:   ft.TextField = ft.TextField(**design.field_style())
         self._nf_npc:    ft.Dropdown = ft.Dropdown(**design.field_style())
+        self._nf_visibility: ft.Dropdown = ft.Dropdown(**design.field_style())
+        #: Checkbox per membro, ricostruite ad ogni apertura editor — solo
+        #: se `_nf_visibility.value == "selected"`.
+        self._nf_member_checks: dict[str, ft.Checkbox] = {}
 
         self._detail_container: ft.Container = ft.Container(expand=True)
         self._left_list_lv: ft.Column = ft.Column(spacing=2)
@@ -159,11 +193,13 @@ class MasterNotesView(ft.Column):
 
     def _load_all(self) -> None:
         for cat in CATEGORIES:
-            self._notes[cat["key"]] = master_repo.get_master_campaign_notes(cat["key"])
+            self._notes[cat["key"]] = master_repo.get_master_campaign_notes(
+                cat["key"], world_id=self._world_id,
+            )
         self._npcs = master_repo.get_npcs()
 
     def _load_notes(self, cat: str) -> None:
-        self._notes[cat] = master_repo.get_master_campaign_notes(cat)
+        self._notes[cat] = master_repo.get_master_campaign_notes(cat, world_id=self._world_id)
 
     def _npc_name(self, npc_id: str) -> str:
         for n in self._npcs:
@@ -426,6 +462,23 @@ class MasterNotesView(ft.Column):
             page_content_items.append(ft.Row(status_row, alignment=ft.MainAxisAlignment.CENTER))
             page_content_items.append(ft.Container(height=10))
 
+        # Indicatore di visibilità (2026-08-06) — solo se legata a un mondo:
+        # senza, ogni nota è per definizione "solo locale", ridondante da
+        # ripetere. Promemoria onesto: registra l'intenzione del Master, la
+        # consegna ai giocatori non è ancora implementata (vedi CLAUDE.md).
+        if self._world_id and note.visibility != "private":
+            vis_label = ("Visibile a tutti i giocatori" if note.visibility == "all"
+                         else "Visibile a giocatori selezionati")
+            page_content_items.append(ft.Row(
+                [
+                    ft.Icon(ft.Icons.VISIBILITY_OUTLINED, size=12, color=design.T().magic),
+                    ft.Container(width=4),
+                    ft.Text(vis_label, size=11, color=design.T().magic, italic=True),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+            ))
+            page_content_items.append(ft.Container(height=6))
+
         page_content_items += [
             ft.Text(note.name or "Senza nome", size=22, weight=ft.FontWeight.BOLD,
                     color=design.T().text, text_align=ft.TextAlign.CENTER, italic=True),
@@ -492,6 +545,91 @@ class MasterNotesView(ft.Column):
             spacing=0, expand=True,
         )
 
+    # ──────────────────────────────────────────────────────────────────────
+    # Visibilità (2026-08-06) — solo con un mondo selezionato
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _build_visibility_section(self, current_visibility: str, current_ids_json: str) -> ft.Control:
+        """
+        Selettore "Visibilità" + elenco spuntabile dei giocatori del mondo
+        attivo (solo se `value == 'selected'`). Ritorna un `ft.Container`
+        vuoto se `self._world_id` è "" (modalità locale — non ha senso
+        scegliere dei giocatori senza un mondo). Aggiorna
+        `self._nf_visibility`/`self._nf_member_checks`, letti da
+        `_collect_visibility_fields()` al salvataggio.
+        """
+        if not self._world_id:
+            self._nf_visibility = ft.Dropdown(value="private")  # non mostrato, ma sempre presente
+            self._nf_member_checks = {}
+            return ft.Container(height=0)
+
+        import json
+        try:
+            selected_ids = set(json.loads(current_ids_json) or [])
+        except (ValueError, TypeError):
+            selected_ids = set()
+
+        players = [m for m in self._world_members if m.role == "player"]
+        members_col = ft.Column(spacing=2)
+        self._nf_member_checks = {}
+
+        def _rebuild_members() -> None:
+            members_col.controls.clear()
+            if not players:
+                members_col.controls.append(ft.Text(
+                    "Nessun giocatore in questo mondo (solo owner/master).",
+                    size=11, color=design.T().text_3, italic=True,
+                ))
+            for m in players:
+                cb = ft.Checkbox(
+                    label=m.display_name or "(senza nome)",
+                    value=m.device_id in selected_ids,
+                )
+                self._nf_member_checks[m.device_id] = cb
+                members_col.controls.append(cb)
+            try:
+                members_col.update()
+            except RuntimeError:
+                pass
+
+        self._nf_visibility = ft.Dropdown(
+            label="Visibilità",
+            value=current_visibility or "private",
+            options=[ft.DropdownOption(key=k, text=label) for k, label in _VISIBILITY_OPTIONS],
+            border_color=design.T().border, focused_border_color=design.T().primary,
+            bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
+            border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'],
+        )
+
+        def _on_change(e: Any) -> None:
+            members_container.visible = self._nf_visibility.value == "selected"
+            try:
+                members_container.update()
+            except RuntimeError:
+                pass
+
+        self._nf_visibility.on_select = _on_change
+        _rebuild_members()
+        members_container = ft.Container(
+            content=members_col, padding=ft.Padding.only(left=8, top=4),
+            visible=(current_visibility == "selected"),
+        )
+        return ft.Column([self._nf_visibility, members_container], spacing=6)
+
+    def _collect_visibility_fields(self) -> tuple[str, str]:
+        """Legge lo stato corrente dei controlli di visibilità costruiti da
+        `_build_visibility_section()`. Ritorna sempre `("private", "[]")` se
+        `self._world_id` è vuoto (nessun mondo selezionato — coerenza
+        difensiva anche se l'editor non mostra il selettore in quel caso)."""
+        if not self._world_id:
+            return "private", "[]"
+        import json
+        visibility = self._nf_visibility.value or "private"
+        if visibility != "selected":
+            return visibility, "[]"
+        chosen = [device_id for device_id, cb in self._nf_member_checks.items() if cb.value]
+        return visibility, json.dumps(chosen)
+
     def _build_note_edit_panel(self, note: MasterCampaignNote) -> ft.Column:
         opts = STATUS_OPTIONS.get(self._active_cat, [])
         self._nf_name = ft.TextField(
@@ -531,6 +669,7 @@ class MasterNotesView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
             border_radius=design.field_style()['border_radius'])
+        visibility_section = self._build_visibility_section(note.visibility, note.visible_to_device_ids)
 
         action_bar = ft.Container(
             content=ft.Row(
@@ -555,7 +694,8 @@ class MasterNotesView(ft.Column):
             [
                 ft.Container(
                     content=ft.Column(
-                        [self._nf_name, self._nf_status, self._nf_npc, self._nf_tags, self._nf_desc],
+                        [self._nf_name, self._nf_status, self._nf_npc, self._nf_tags,
+                         visibility_section, self._nf_desc],
                         spacing=14, scroll=ft.ScrollMode.AUTO,
                     ),
                     expand=True, bgcolor=design.T().parchment,
@@ -637,7 +777,11 @@ class MasterNotesView(ft.Column):
         tags   = (self._nf_tags.value or "").strip()
         desc   = (self._nf_desc.value or "").strip()
         npc_id = (self._nf_npc.value or "").strip()
-        master_repo.update_master_campaign_note(note.id, name, desc, status, tags, npc_id)
+        visibility, visible_ids = self._collect_visibility_fields()
+        master_repo.update_master_campaign_note(
+            note.id, name, desc, status, tags, npc_id,
+            visibility=visibility, visible_to_device_ids=visible_ids,
+        )
         logger.info("Master campaign note aggiornata: %s", note.id)
         self._note_edit = False
         self._load_notes(self._active_cat)
@@ -712,6 +856,7 @@ class MasterNotesView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
             border_radius=design.field_style()['border_radius'])
+        visibility_section = self._build_visibility_section("private", "[]")
 
         def save(ev: Any) -> None:
             if page is None:
@@ -720,7 +865,11 @@ class MasterNotesView(ft.Column):
             status = (f_status.value or "").strip()
             desc   = (f_desc.value or "").strip()
             npc_id = (f_npc.value or "").strip()
-            master_repo.create_master_campaign_note(cat, name, desc, status, "", npc_id)
+            visibility, visible_ids = self._collect_visibility_fields()
+            master_repo.create_master_campaign_note(
+                cat, name, desc, status, "", npc_id,
+                world_id=self._world_id, visibility=visibility, visible_to_device_ids=visible_ids,
+            )
             page.pop_dialog()
             self._load_notes(cat)
             notes = self._notes.get(cat, [])
@@ -734,6 +883,7 @@ class MasterNotesView(ft.Column):
             fields.append(f_status)
         if self._npcs:
             fields.append(f_npc)
+        fields.append(visibility_section)
         fields.append(f_desc)
 
         page.show_dialog(ft.AlertDialog(

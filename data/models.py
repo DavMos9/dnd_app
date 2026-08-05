@@ -634,6 +634,16 @@ class MasterCampaignNote:
     created_at: str = ""
     updated_at: str = ""
 
+    # Modalità Master world-scoped (2026-08-06). '' = nota locale/di nessun
+    # mondo. `visibility` conta solo se `world_id` è valorizzato:
+    # "private" (solo il Master) | "all" (tutti i membri del mondo) |
+    # "selected" (solo i device_id elencati in `visible_to_device_ids`,
+    # JSON list di stringhe). Non riassegnabile dopo la creazione (una nota
+    # non "cambia mondo").
+    world_id: str = ""
+    visibility: str = "private"
+    visible_to_device_ids: str = "[]"
+
 
 @dataclass
 class CharacterCondition:

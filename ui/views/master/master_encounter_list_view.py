@@ -42,9 +42,13 @@ class MasterEncounterListView(ft.Column):
     """Lista incontri (non archiviati) + creazione. Innesta `MasterEncounterView`
     a schermo intero quando un incontro viene aperto."""
 
-    def __init__(self):
+    def __init__(self, world_id: str = ""):
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
+        #: Mondo correntemente selezionato in `MasterView` (2026-08-06) — ""
+        #: per la modalità locale. Inoltrato al generatore di incontri e a
+        #: `MasterEncounterView` (picker "Personaggio Giocante").
+        self._world_id = world_id
         self._encounters: list[MasterEncounter] = []
         self._show_archived: bool = False
         self._open_encounter_id: str | None = None
@@ -66,6 +70,7 @@ class MasterEncounterListView(ft.Column):
             self._body_area.content = MasterEncounterView(
                 encounter_id=self._open_encounter_id,
                 on_back_to_list=self._close_encounter,
+                world_id=self._world_id,
             )
             self.controls.append(self._body_area)
             return
@@ -271,7 +276,7 @@ class MasterEncounterListView(ft.Column):
             self.refresh()
             self._open_encounter(encounter_id)
 
-        show_encounter_generator_dialog(page, _on_created)
+        show_encounter_generator_dialog(page, _on_created, world_id=self._world_id)
 
     def _on_new_click(self, e: Any):
         if not self._page:

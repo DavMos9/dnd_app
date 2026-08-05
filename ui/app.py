@@ -236,7 +236,7 @@ class DnDApp:
         self.page.add(home)
         self.page.update()
 
-    def _show_master_view(self, active_tab: str | None = None):
+    def _show_master_view(self, active_tab: str | None = None, active_world_id: str | None = None):
         """Mostra la Modalità Master — indipendente da ogni personaggio giocante."""
         from ui.views.master.master_view import MasterView
         self._stop_home_polling()
@@ -246,13 +246,16 @@ class DnDApp:
             on_toggle_theme=self._cycle_theme,
             theme_preference=self._theme_pref,
             active_tab=active_tab or "npcs",
+            active_world_id=active_world_id or "",
         )
         self._master_view = master
-        # Il rebuild legge la tab attiva al momento del cambio tema, non ora.
-        # Nota onesta: la tab viene preservata, non lo stato interno di una
-        # sotto-vista (es. un incontro aperto torna alla lista incontri).
+        # Il rebuild legge la tab/il mondo attivi al momento del cambio tema,
+        # non ora. Nota onesta: solo questi due valori vengono preservati, non
+        # lo stato interno di una sotto-vista (es. un incontro aperto torna
+        # alla lista incontri).
         self._rebuild_route = lambda: self._show_master_view(
-            getattr(self._master_view, "active_tab", "npcs")
+            getattr(self._master_view, "active_tab", "npcs"),
+            getattr(self._master_view, "_active_world_id", ""),
         )
         self.page.add(master)
         self.page.update()

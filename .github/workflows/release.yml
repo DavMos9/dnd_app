@@ -27,9 +27,9 @@ jobs:
           import re, os
           ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
           for path, pattern, repl in [
-              ('dnd_app/version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
-              ('dnd_app/pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
-              ('dnd_app/pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
+              ('version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
+              ('pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
+              ('pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
           ]:
               content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
               open(path, 'w').write(content)
@@ -79,9 +79,9 @@ jobs:
           import re, os
           ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
           for path, pattern, repl in [
-              ('dnd_app/version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
-              ('dnd_app/pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
-              ('dnd_app/pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
+              ('version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
+              ('pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
+              ('pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
           ]:
               content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
               open(path, 'w').write(content)
@@ -143,9 +143,9 @@ jobs:
           import re, os
           ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
           for path, pattern, repl in [
-              ('dnd_app/version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
-              ('dnd_app/pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
-              ('dnd_app/pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
+              ('version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
+              ('pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
+              ('pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
           ]:
               content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
               open(path, 'w').write(content)
@@ -201,6 +201,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Inject version from git tag
+        shell: python
+        run: |
+          import re, os
+          ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
+          for path, pattern, repl in [
+              ('version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
+              ('pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
+              ('pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
+          ]:
+              content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
+              open(path, 'w').write(content)
+          print(f'Version set to: {ver}')
 
       - name: Setup Java
         uses: actions/setup-java@v4
