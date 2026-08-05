@@ -67,6 +67,7 @@ class DnDApp:
         # (wizard/form di creazione), vedi `_rebuild_current()`.
         self._rebuild_route: Callable[[], None] | None = None
         self._master_view: Any = None
+        self._worlds_view: Any = None
 
         self._setup_page()
         self._show_home()
@@ -228,6 +229,7 @@ class DnDApp:
             on_open_master=self._show_master_view,
             on_toggle_theme=self._cycle_theme,
             theme_preference=self._theme_pref,
+            on_open_worlds=self._show_worlds_view,
         )
         self._home_view = home
         self._rebuild_route = self._show_home
@@ -253,6 +255,22 @@ class DnDApp:
             getattr(self._master_view, "active_tab", "npcs")
         )
         self.page.add(master)
+        self.page.update()
+
+    def _show_worlds_view(self):
+        """Mostra la Sezione Mondi (Multiplayer, passo 2) — indipendente da
+        ogni personaggio, stesso trattamento di `_show_master_view`."""
+        from ui.views.world.world_view import WorldsView
+        self._stop_home_polling()
+        self.page.controls.clear()
+        worlds = WorldsView(
+            on_back_to_home=self._show_home,
+            on_toggle_theme=self._cycle_theme,
+            theme_preference=self._theme_pref,
+        )
+        self._worlds_view = worlds
+        self._rebuild_route = self._show_worlds_view
+        self.page.add(worlds)
         self.page.update()
 
     def _show_manual_form(self):

@@ -191,6 +191,21 @@ Router principale. ThemeMode.LIGHT (tema marmo chiaro).
   vecchio `FilePicker.on_result` — inesistente in flet==0.85.3 — non viene più usato per questa feature; non ancora
   testato su un vero dispositivo, vedi TODO). Import mostra un dialog di conflitto a 3 scelte (Sovrascrivi/Crea
   copia/Annulla) quando l'id del personaggio nel file esiste già sul dispositivo.
+- **Home raggruppata per mondo** (Multiplayer passo 3, 2026-08-05, vedi anche `core/character_instances.py` più
+  sotto): `did_mount()` avvia `page.run_task(self._init_identity)` che risolve `self.device_id` via
+  `ui/device_identity.py::resolve_device_id()` e forza un refresh appena pronto. `_partition_characters(characters)`
+  separa i personaggi locali (`world_id == ""`) dalle istanze possedute da QUESTO dispositivo, raggruppate per
+  `world_id` — filtro sempre su `owner_device_id == self.device_id`, mai solo su `world_id`, perché nello stesso
+  DB (web mode multi-scheda) possono comparire istanze di ALTRI dispositivi che non devono mai apparire qui.
+  `refresh()`: se non ci sono gruppi (nessuna istanza posseduta, o identità non ancora risolta) renderizza la
+  lista piatta di sempre — zero cambiamento visivo per chi non usa il Multiplayer; altrimenti una sezione per
+  mondo (ordine di `world_repo.get_worlds_for_device()`, il più recente per primo) più una sezione "Non in un
+  mondo" per i locali, tramite l'helper `_section_label()`. `_character_card()` ora accetta
+  `available_worlds`/`is_instance`: un personaggio locale con almeno un mondo disponibile mostra l'azione
+  "Aggiungi a un mondo" (`_open_add_to_world_dialog`, dropdown mondo + porta com'è/ricomincia dal 1° livello →
+  `core.character_instances.create_or_resume_instance()`); un'istanza mostra invece "Aggiorna il mio foglio"
+  (`_open_refresh_dialog`, riepilogo diff via `ci.preview_refresh()` + conferma → `ci.apply_refresh()`) — mai
+  entrambe sulla stessa card. `_list_signature()` include ora anche `world_id`/`owner_device_id`.
 
 ### `ui/views/creation_wizard/manual_form.py` — `ManualCreationForm` (RISCRITTO ✅)
 **Flusso in 5 fasi** — shell identico al wizard (progress bar, `_set_content()`, `_on_back()`):
@@ -1002,6 +1017,190 @@ file come dato non collegato, da sistemare insieme quando affronteremo quel "blo
 `py_compile` su tutto l'albero; tutti i 12 file classe restano JSON validi;
 `get_weapon_names()`/`get_tool_categories()` testati end-to-end con gli stessi identici risultati di prima del
 refactor.
+
+---
+
+### Multiplayer, passo 2 — "Modello mondo, senza rete" (2026-08-05)
+
+Vedi `dnd_app/docs/multiplayer_design.md` per il progetto completo e
+`dnd_app/docs/changelog_storico.md` per il changelog dettagliato di questo
+passo. Qui solo l'elenco dei moduli e cosa espongono.
+
+**`data/repositories/world_repo.py`** — CRUD `worlds`/`world_members` +
+giornale eventi. `create_world(name, owner_device_id, owner_display_name,
+description="")` crea il mondo E registra l'owner tra i membri in
+un'unica transazione. `join_world_by_code(join_code, device_id,
+display_name)` è idempotente: un secondo ingresso dello stesso `device_id`
+ritorna il membro esistente, non ne crea uno nuovo. `append_event(...)` /
+`get_events_since(world_id, since_seq, limit=200)` / `get_latest_seq(...)` —
+la sincronizzazione incrementale che userà il passo 4. `generate_join_code()`
+— 6 caratteri, alfabeto senza `0/O/1/I/L`. `rename_world`/`update_member_role`/
+`remove_member` sono scritture dirette **non pensate per essere chiamate
+dalla UI**: la validazione dei permessi vive solo in `core/world_backend.py`.
+
+**`core/world_permissions.py`** — puro, no Flet, no DB. `can_perform(role,
+command_kind) -> bool`, fail-closed per comandi sconosciuti (owner incluso).
+`OWNER_ONLY_COMMANDS`/`MASTER_AND_OWNER_COMMANDS` codificano l'elenco chiuso
+di §7 del design doc. `FORBIDDEN_CHARACTER_FIELDS`/
+`CHANGE_REQUEST_ALLOWED_FIELDS` — campi di `characters` vietati a chiunque
+non sia il giocatore, e il sottoinsieme negoziabile con una richiesta di
+modifica (§7.1, non ancora usata: serve il passo 3).
+
+**`core/world_backend.py`** — `WorldBackend` (ABC) + `LocalBackend` (unica
+implementazione fino al passo 4). `LocalBackend.send_command(world_id,
+actor_device_id, kind, payload, target_type="", target_id="") ->
+CommandResult`: risolve SEMPRE il ruolo del mittente da `world_members` (mai
+fidato dal chiamante), valida con `world_permissions.can_perform`, applica
+via l'handler registrato, scrive l'evento. `register_handler(kind)` —
+decoratore per aggiungere comandi senza toccare la classe (Open/Closed); i
+passi successivi lo useranno per le azioni di §7 sulle istanze di
+personaggio. Handler operativi oggi: `world.rename`,
+`world.join_code.regenerate`, `member.promote`, `member.demote`,
+`member.kick` (guardia: l'owner non si espelle), `world.transfer_ownership`,
+`world.delete` (nessun evento scritto: CASCADE lo farebbe sparire subito).
+
+**`ui/device_identity.py`** — `resolve_device_id(page) -> str` (async, va
+chiamata via `page.run_task`). Desktop/mobile: `app_settings["device_id"]`,
+stabile per installazione. Web: tenta `ft.SharedPreferences` (avvolto in
+try/except — è un controllo `Service`, stessa categoria di `ft.FilePicker`
+già documentato come rotto in web mode in `regole_flet_api.md`, **non ancora
+verificato empiricamente per SharedPreferences**), ricade su un id tenuto
+come attributo su `page` (sopravvive alla sessione, si perde al refresh).
+
+**`ui/views/world/world_view.py`** — `WorldsView(on_back_to_home,
+on_toggle_theme=None, theme_preference="system")`. Risolve l'identità in
+`did_mount()` via `page.run_task`, poi elenco mondi (`_render_list`) o
+dettaglio di uno (`_render_detail`) secondo `self._current_world`. Ogni
+pulsante di azione (promuovi/retrocedi/espelli/rinomina/elimina) è mostrato
+solo se `world_permissions.can_perform(my_role, ...)` è vero — mai un
+controllo hardcoded sul ruolo. Tutte le mutazioni passano da
+`self.backend.send_command(...)`, mai una scrittura diretta su `world_repo`.
+
+**`core/character_instances.py`** (Multiplayer passo 3, 2026-08-05) — no
+Flet, ma usa repository/DB direttamente (come `world_backend.py`).
+`InstanceMode = Literal["as_is", "fresh"]`. `create_or_resume_instance(
+world_id, local_character_id, owner_device_id, mode) -> InstanceResult`:
+`find_existing_instance()` cerca prima una riga `characters` con la terna
+esatta (mondo, origine, dispositivo) — se c'è, ritorna con `resumed=True`
+senza copiare nulla (§6 "Riprendi" è automatico, `mode` viene ignorato in
+quel caso). Altrimenti `_copy_character()` (riusa `character_export`,
+introspezione di schema — stesso meccanismo di `.dndchar`) +
+`_link_to_world()` (UPDATE diretto delle 3 colonne di collegamento) + se
+`mode="fresh"`, `_reset_to_level_one()`. Guardia: `origin.world_id` già
+valorizzato → rifiutato, non si crea mai l'istanza di un'istanza.
+
+`_reset_to_level_one(character_id)` — reset completo (non solo la lista
+minima del design doc), confermato da Davide: `character_repo.undo_level()`
+chiamato una volta per livello da rimuovere (inverte ASI/talenti/competenze
+bonus, legge `bonus_data`+`level_obtained` su `character_proficiencies`),
+poi livello=1/PE=0/PF ricalcolati con la formula esatta di 1° livello (`max(1,
+dado_vita + mod_costituzione)`), indebolimento e stato di sessione/
+combattimento azzerati, `diary_entries` svuotate (le `campaign_notes`
+restano intatte), inventario/armi/monete azzerati e riassegnati con
+`_assign_default_starting_equipment()` (versione non interattiva
+dell'assegnazione del wizard: ogni `"type": "choice"` risolve su
+`options[0]`, le armi a scelta per categoria su `_weapon_choice_default()`
+— piccola duplicazione voluta e commentata dell'algoritmo di
+`CreationSharedMixin._init_weapon_choice()`, non importabile da `core/`
+perché quel modulo porta `import flet`; i placeholder "(a scelta)" degli
+strumenti si risolvono contro le competenze tool già registrate sul
+personaggio). Risincronizza slot incantesimo/risorse di classe/CA con le
+stesse funzioni di self-healing già usate dal level-up/level-down.
+
+`preview_refresh(instance_id) -> RefreshPreview | None` / `apply_refresh(
+instance_id) -> InstanceResult` (§6.1, "Aggiorna il mio foglio", sempre
+manuale) — `preview_refresh` legge origine e istanza senza scrivere nulla
+(riepilogo prima/dopo per la conferma); `apply_refresh` esporta l'istanza e
+reimporta con `mode="overwrite", target_id=origin_id` (o `mode="copy"` se
+l'origine è stata eliminata nel frattempo — comportamento esplicito, non un
+fallback silenzioso). `import_character()` azzera sempre le colonne mondo
+(§14.1), quindi il risultato è sempre un personaggio locale a tutti gli
+effetti, mai un'altra istanza.
+
+**`network/protocol.py`** (Multiplayer passo 4, 2026-08-05, prima cartella
+popolata di `network/`) — nessuna logica, solo il formato condiviso tra
+host e client: `PROTOCOL_VERSION`, `DEFAULT_PORT_RANGE` (8765-8770),
+`LONG_POLL_TIMEOUT_S`/`LONG_POLL_INTERVAL_S`, `event_to_dict`/
+`event_from_dict`/`world_to_dict`/`member_to_dict`/`member_from_dict`. Un
+solo punto di verità per non disallineare host (`host_server.py`), client
+(`world_backend.RemoteBackend`) e applicazione della replica
+(`world_sync.py`).
+
+**`network/host_server.py`** — `WorldHostServer(world_id, backend=None,
+port_range=..., long_poll_timeout=...)`. `start()`/`stop()` gestiscono un
+`http.server.ThreadingHTTPServer` (stdlib, `daemon_threads=True`,
+`allow_reuse_address=True`) su un thread daemon dedicato; `start()`
+genera un nuovo PIN a 6 cifre (`_generate_pin()`) e prova le porte
+dell'intervallo in ordine. Stato in memoria, azzerato ad ogni `stop()`:
+`self.pin`, `self._tokens` (token → device_id), `self._pending`
+(`PendingJoinRequest` in attesa). `list_pending()`/`approve(request_id)`/
+`reject(request_id)` sono chiamate dirette (NON rotte HTTP: girano nello
+stesso processo della UI del master). Rotte HTTP gestite da
+`_RequestHandler` (dispatcher puro, `do_GET`/`do_POST`) che delega alla
+logica di dominio su `WorldHostServer` (`world_info`/`handle_join`/
+`join_status`/`handle_events`/`handle_command`/`handle_snapshot`/
+`handle_leave`) — separazione voluta: quei metodi sono testabili anche
+senza socket, passando token/body a mano. `handle_events` implementa
+l'attesa lunga con un ciclo che ripolla `world_repo.get_events_since`
+ogni `LONG_POLL_INTERVAL_S` (200 ms) tenendo la connessione aperta fino a
+un evento o al timeout — non una vera notifica push, nessuna dipendenza
+nuova. `handle_join`: dispositivo già membro → token immediato; nuovo →
+`PendingJoinRequest` in coda, nessuna riga in `world_members` finché il
+master non chiama `approve()` (che a quel punto chiama
+`world_repo.join_world_by_code()`, la stessa funzione usata per l'ingresso
+locale/web — nessuna duplicazione della logica di ingresso). Anche
+`local_ip_hint()` vive qui: apre una connessione UDP verso un indirizzo
+pubblico solo per far scegliere al sistema operativo l'interfaccia di
+uscita e leggerne l'IP locale, nessun pacchetto inviato davvero.
+
+**`core/world_backend.py` — `RemoteBackend`** (Multiplayer passo 4,
+aggiunta allo stesso file di `LocalBackend`/`WorldBackend`) — seconda
+implementazione dell'interfaccia, parla HTTP con `http.client` (stdlib)
+invece di scrivere sul proprio DB. `check_world()` (verifica
+raggiungibilità + versione protocollo), `join()`/`poll_join_status()`
+(il ciclo pending → approvato/rifiutato, `JoinOutcome`),
+`reconnect_with_token()` (riprova un token esistente via `GET /snapshot`;
+fallisce esplicitamente — mai un retry automatico con credenziali scadute
+— se l'host è stato riavviato, dato che PIN/token vivono in memoria e si
+azzerano a ogni `WorldHostServer.stop()`), `leave()`, `get_snapshot()`.
+`send_command`/`fetch_events`/`connection_state` implementano
+`WorldBackend` esattamente come `LocalBackend`: un 401 dall'host azzera
+`self.token` e riporta `connection_state()` a `"disconnected"`, mai un
+errore silenzioso.
+
+**`core/world_sync.py`** (Multiplayer passo 4) — l'unico punto che
+combina `RemoteBackend` (trasporto) e `world_repo` (scrittura della
+replica): la UI non applica mai un evento da sola.
+`apply_event_to_replica(local_world_id, event)` — uno switch su
+`event.kind`, sei tipi gestiti (world.rename/member.promote/
+member.demote/member.kick/world.transfer_ownership/world.created), un
+`kind` sconosciuto viene loggato e ignorato (mai un'eccezione: un client
+con versione più vecchia non deve bloccarsi). `sync_replica(remote_backend,
+local_world_id, refresh_members=True)` — ciclo incrementale da
+`last_synced_seq`, con un refresh completo dei membri via `/snapshot` di
+default (più robusto di fidarsi solo degli eventi conosciuti).
+`start_lan_join`/`finish_pending_join`/`_finalize_join` — orchestrazione
+lato client dell'ingresso: `LanJoinResult` (dataclass di ritorno pensata
+per la UI) porta `success`/`world`/`backend`/`pending_request_id`/`error`.
+`_finalize_join` semina la replica locale con l'intero snapshot (mondo +
+membri + giornale), non solo dal prossimo evento in poi — leggibile
+offline fin dal primo momento (§6).
+
+**`ui/views/world/world_view.py` — hosting LAN** (Multiplayer passo 4) —
+`self._host_server: WorldHostServer | None`, un solo hosting attivo per
+sessione della view. `_hosting_section(world)`: visibile solo se
+`is_owner and world.is_local_host`; non avviato → pulsante "Avvia
+hosting"; avviato → indirizzo (`local_ip_hint()`) + porta + PIN, elenco
+`host.list_pending()` con approva/rifiuta per riga, "Aggiorna
+richieste"/"Ferma hosting". `will_unmount()` ferma il server se l'utente
+lascia la sezione senza fermarlo esplicitamente (§9.4: nessuna porta
+aperta di default). `_open_lan_join_dialog()`: a differenza di "Unisciti
+con un codice" (scrittura diretta sullo stesso DB, valida solo in web
+mode multi-scheda) chiama `world_sync.start_lan_join()`; se l'esito è
+`pending`, il dialogo NON si chiude — passa in uno stato di attesa con un
+pulsante "Controlla di nuovo" che richiama `finish_pending_join()`,
+riusando lo stesso `RemoteBackend` già connesso invece di far reinserire
+tutti i campi.
 
 ---
 

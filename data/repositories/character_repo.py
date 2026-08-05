@@ -112,6 +112,11 @@ def _row_to_character(row) -> Character:
         appearance_notes=d["appearance_notes"],
         created_at=d["created_at"],
         updated_at=d["updated_at"],
+        world_id=d.get("world_id", "") or "",
+        origin_character_id=d.get("origin_character_id", "") or "",
+        owner_device_id=d.get("owner_device_id", "") or "",
+        is_replica=bool(d.get("is_replica", 0) or 0),
+        world_seq=d.get("world_seq", 0) or 0,
     )
 
 
@@ -344,6 +349,11 @@ def update(character: Character) -> bool:
                 frenzy_active=:frenzy_active,
                 concentrating_spell=:concentrating_spell,
                 concentrating_since=:concentrating_since,
+                world_id=:world_id,
+                origin_character_id=:origin_character_id,
+                owner_device_id=:owner_device_id,
+                is_replica=:is_replica,
+                world_seq=:world_seq,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -413,6 +423,11 @@ def update(character: Character) -> bool:
             "frenzy_active": int(character.frenzy_active),
             "concentrating_spell": character.concentrating_spell or "",
             "concentrating_since": character.concentrating_since or "",
+            "world_id": _s(character.world_id),
+            "origin_character_id": _s(character.origin_character_id),
+            "owner_device_id": _s(character.owner_device_id),
+            "is_replica": int(character.is_replica),
+            "world_seq": character.world_seq,
             "updated_at": character.updated_at,
         })
         conn.commit()

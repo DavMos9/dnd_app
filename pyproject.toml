@@ -18,9 +18,27 @@ app.build_number = 1
 # Icona app (stessa per tutte le piattaforme; flet build la ridimensiona automaticamente)
 app.icon = "assets/icons/dnd_logo.png"
 
-[tool.flet.android]
-# Permessi minimi necessari (offline-first, nessuna rete richiesta)
-permissions = []
+[tool.flet.android.permission]
+# Multiplayer / LAN party (dnd_app/docs/multiplayer_design.md §3.4/§14.5):
+# il master ospita un piccolo server HTTP sulla rete locale, i client vi si
+# collegano (passo 4). L'app non è più "senza rete" per definizione, ma
+# resta utilizzabile offline: il server si accende solo quando il master
+# apre esplicitamente l'hosting (§9.4).
+#
+# NOTA: la vecchia chiave `[tool.flet.android] permissions = []` (plurale,
+# lista) qui prima non aveva alcun effetto — verificato leggendo il sorgente
+# installato di flet_cli 0.85.3 (build_base.py, BuildCommand.apply_icons_and_splash_images):
+# quella versione legge SOLO `tool.flet.android.permission` (singolare, una
+# tabella chiave/booleano), mai `tool.flet.android.permissions`. INTERNET è
+# comunque già incluso di default dal build system a prescindere da questa
+# tabella (`android_permissions = {"android.permission.INTERNET": True}`
+# come base fissa); dichiarato qui comunque per chiarezza e perché il design
+# doc lo richiede esplicitamente.
+"android.permission.INTERNET" = true
+"android.permission.ACCESS_NETWORK_STATE" = true
+# Necessario dal passo 5 (scoperta automatica via broadcast UDP), innocuo
+# dichiararlo già ora insieme agli altri due permessi di rete.
+"android.permission.CHANGE_WIFI_MULTICAST_STATE" = true
 
 [tool.flet.ios]
 team_id = ""  # Da compilare con l'Apple Team ID quando si pubblica su App Store

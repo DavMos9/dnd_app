@@ -9,9 +9,11 @@ import os
 import threading
 from typing import cast
 from data.database import get_character_exports_path, get_web_export_staging_path
-from data.models import Character
-from data.repositories import character_repo, character_export
+from data.models import Character, World
+from data.repositories import character_repo, character_export, world_repo
+from core import character_instances as ci
 from ui.character_transfer import show_character_import_picker
+from ui.device_identity import resolve_device_id
 from ui.theme import muted_text, primary_button, ghost_button
 from ui import design as d
 from ui.widgets import wrap_dialog_actions
@@ -46,6 +48,10 @@ class HomeView(ft.Column):
         on_create_manual()            → apre il form manuale
         on_open_master()              → apre la Modalità Master (indipendente
                                          dai personaggi, vedi ui/views/master/)
+        on_open_worlds()              → apre la Sezione Mondi (Multiplayer, passo
+                                         2 — indipendente dai personaggi, vedi
+                                         ui/views/world/). Nascosta se assente,
+                                         stesso comportamento di `on_open_master`.
         on_toggle_theme(e)            → cicla Chiaro/Scuro/Sistema (Fase D del
                                          restyle). Se assente la pillola del
                                          tema non compare, stesso comportamento
@@ -54,7 +60,7 @@ class HomeView(ft.Column):
     """
 
     def __init__(self, on_select, on_create_wizard, on_create_manual, on_open_master=None,
-                 on_toggle_theme=None, theme_preference: str = "system"):
+                 on_toggle_theme=None, theme_preference: str = "system", on_open_worlds=None):
         super().__init__(expand=True, spacing=0)
         self.on_select = on_select
         self.on_create_wizard = on_create_wizard
@@ -62,6 +68,7 @@ class HomeView(ft.Column):
         self.on_open_master = on_open_master
         self.on_toggle_theme = on_toggle_theme
         self.theme_preference = theme_preference
+        self.on_open_worlds = on_open_worlds
 
         self._char_list_column = ft.Column(spacing=12, scroll=ft.ScrollMode.AUTO)
         self._stop_event = threading.Event()
@@ -75,6 +82,12 @@ class HomeView(ft.Column):
         # (Android/iOS) — registrato in did_mount(), MAI su desktop/web
         # (vedi _ensure_file_picker() e nota 2026-07-24 più sotto).
         self._file_picker: ft.FilePicker | None = None
+        # Identità del dispositivo (Multiplayer passo 3) — risolta in modo
+        # asincrono in did_mount(), None finché non è pronta. Finché è None
+        # la Home mostra la lista piatta di sempre (nessuna sezione per
+        # mondo): mai bloccare l'apertura della Home in attesa della rete/
+        # del servizio di storage.
+        self.device_id: str | None = None
         self._build()
         self.refresh()
         # Il polling parte in did_mount(), non qui: serve `self.page` per sapere
@@ -94,6 +107,21 @@ class HomeView(ft.Column):
         if page is not None and page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
             self._ensure_file_picker()
         self._start_polling()
+        if page is not None:
+            page.run_task(self._init_identity)
+
+    async def _init_identity(self):
+        """Risolve `device_id` (Multiplayer passo 3) e ricostruisce la lista
+        raggruppata per mondo una volta pronta — vedi `ui/device_identity.py`."""
+        page = self.page
+        if page is None:
+            return
+        self.device_id = await resolve_device_id(page)
+        if self.refresh(force=True):
+            try:
+                page.update()
+            except RuntimeError:
+                pass
 
     def _start_polling(self):
         """
@@ -241,6 +269,9 @@ class HomeView(ft.Column):
         `master_view.py` e `master_encounter_view.py`)."""
         p = d.T()
         actions: list[ft.Control] = []
+        if self.on_open_worlds is not None:
+            actions.append(d.pill(ft.Icons.PUBLIC, "Mondi",
+                                  color=p.magic, on_click=lambda e: self.on_open_worlds()))
         if self.on_open_master is not None:
             actions.append(d.pill(ft.Icons.CASTLE_OUTLINED, "Modalità Master",
                                   color=p.magic,
@@ -263,9 +294,36 @@ class HomeView(ft.Column):
         """
         Firma sintetica della lista personaggi, per capire se è cambiato
         qualcosa senza ricostruire le card. Include `updated_at` così una
-        modifica fatta in un'altra sessione web viene comunque rilevata.
+        modifica fatta in un'altra sessione web viene comunque rilevata, e
+        `world_id`/`owner_device_id` (Multiplayer passo 3) così un
+        personaggio appena entrato in un mondo sposta sezione.
         """
-        return "|".join(f"{c.id}:{c.updated_at}" for c in characters)
+        return "|".join(
+            f"{c.id}:{c.updated_at}:{c.world_id}:{c.owner_device_id}" for c in characters
+        )
+
+    def _partition_characters(
+        self, characters: list[Character],
+    ) -> tuple[list[Character], dict[str, list[Character]]]:
+        """
+        Separa i personaggi locali dalle istanze possedute da QUESTO
+        dispositivo, raggruppate per mondo (Multiplayer passo 3, §6 —
+        "Home raggruppata per mondo, personaggio locale in una sezione
+        'Non in un mondo'").
+
+        Un'istanza di un altro giocatore, presente nello stesso DB solo
+        perché condiviso (web mode multi-scheda), non compare mai qui: si
+        confronta sempre `owner_device_id` con `self.device_id`, mai solo
+        `world_id`.
+        """
+        locals_: list[Character] = []
+        by_world: dict[str, list[Character]] = {}
+        for c in characters:
+            if not c.world_id:
+                locals_.append(c)
+            elif self.device_id and c.owner_device_id == self.device_id:
+                by_world.setdefault(c.world_id, []).append(c)
+        return locals_, by_world
 
     def refresh(self, force: bool = True):
         """
@@ -289,10 +347,43 @@ class HomeView(ft.Column):
             if not characters:
                 self._char_list_column.controls.append(self._empty_state())
             else:
-                for char in characters:
-                    self._char_list_column.controls.append(
-                        self._character_card(char)
-                    )
+                locals_, by_world = self._partition_characters(characters)
+                available_worlds = (
+                    world_repo.get_worlds_for_device(self.device_id) if self.device_id else []
+                )
+
+                if not by_world:
+                    # Nessuna istanza posseduta da questo dispositivo (o
+                    # identità non ancora risolta): lista piatta identica a
+                    # sempre, nessuna sezione — nessuna sorpresa visiva per
+                    # chi non usa il Multiplayer.
+                    for char in locals_:
+                        self._char_list_column.controls.append(
+                            self._character_card(char, available_worlds=available_worlds)
+                        )
+                else:
+                    # Un mondo per sezione, il più recentemente attivo per
+                    # primo (stesso ordine di world_repo.get_worlds_for_device).
+                    ordered_world_ids = [w.id for w in available_worlds if w.id in by_world]
+                    for world_id in ordered_world_ids:
+                        world = next((w for w in available_worlds if w.id == world_id), None)
+                        if world is None:
+                            continue
+                        self._char_list_column.controls.append(self._section_label(world.name))
+                        for char in by_world[world_id]:
+                            self._char_list_column.controls.append(
+                                self._character_card(char, is_instance=True)
+                            )
+                        self._char_list_column.controls.append(ft.Container(height=d.Space.MD))
+
+                    if locals_:
+                        self._char_list_column.controls.append(
+                            self._section_label("Non in un mondo")
+                        )
+                        for char in locals_:
+                            self._char_list_column.controls.append(
+                                self._character_card(char, available_worlds=available_worlds)
+                            )
 
             # update() è valido solo dopo il mount sulla page
             try:
@@ -301,16 +392,44 @@ class HomeView(ft.Column):
                 pass  # chiamata da __init__, il render avviene con page.add()
             return True
 
+    @staticmethod
+    def _section_label(text: str) -> ft.Control:
+        """Intestazione di sezione leggera per il raggruppamento per mondo —
+        non `design.section()` (pensato per pannelli a sé, troppo pesante
+        ripetuto più volte in una lista che scorre)."""
+        p = d.T()
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.PUBLIC, size=13, color=p.magic),
+                    ft.Text(text.upper(), size=d.Size.LABEL, weight=ft.FontWeight.BOLD,
+                            color=p.text_2, font_family=d.Font.BODY,
+                            style=ft.TextStyle(letter_spacing=1.5)),
+                ],
+                spacing=d.Space.XS,
+            ),
+            padding=ft.Padding.only(top=d.Space.SM, bottom=d.Space.XS, left=d.Space.XS),
+        )
+
     # ------------------------------------------------------------------
     # Card personaggio
     # ------------------------------------------------------------------
 
-    def _character_card(self, char: Character) -> ft.Container:
+    def _character_card(
+        self, char: Character, *,
+        available_worlds: list[World] | None = None,
+        is_instance: bool = False,
+    ) -> ft.Container:
         """
         Card personaggio — riscritta nella Fase E del restyle (2026-07-26)
         usando le primitive di `ui/design.py`: ritratto più grande e
         arrotondato, ombra al posto del bordo 1px, chip semantici per
         livello/classe/razza, accento crimson sul bordo sinistro.
+
+        `available_worlds`/`is_instance` (Multiplayer passo 3): un
+        personaggio locale con almeno un mondo disponibile mostra "Aggiungi
+        a un mondo"; un'istanza mostra invece "Aggiorna il mio foglio"
+        (§6.1) — mai entrambe, un personaggio è l'uno o l'altro.
         """
         p = d.T()
         AV = 76
@@ -366,28 +485,159 @@ class HomeView(ft.Column):
             expand=True,
         )
 
-        actions = ft.Row(
-            [
-                ft.IconButton(icon=ft.Icons.PLAY_CIRCLE_FILL, icon_color=p.primary,
-                              icon_size=30, tooltip="Gioca con questo personaggio",
-                              on_click=lambda e, cid=char.id: self.on_select(cid)),
-                ft.IconButton(icon=ft.Icons.IOS_SHARE, icon_color=p.text_3,
-                              tooltip="Esporta personaggio (file .dndchar)",
-                              on_click=lambda e, c=char: self._on_export_click(c)),
-                ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=p.danger,
-                              tooltip="Elimina personaggio",
-                              on_click=lambda e, c=char: self._confirm_delete(c)),
-            ],
-            spacing=0,
-        )
+        action_controls: list[ft.Control] = [
+            ft.IconButton(icon=ft.Icons.PLAY_CIRCLE_FILL, icon_color=p.primary,
+                          icon_size=30, tooltip="Gioca con questo personaggio",
+                          on_click=lambda e, cid=char.id: self.on_select(cid)),
+        ]
+        if is_instance:
+            action_controls.append(ft.IconButton(
+                icon=ft.Icons.SYNC, icon_color=p.magic,
+                tooltip="Aggiorna il mio foglio personale da questa istanza",
+                on_click=lambda e, c=char: self._open_refresh_dialog(c),
+            ))
+        elif available_worlds:
+            action_controls.append(ft.IconButton(
+                icon=ft.Icons.PUBLIC, icon_color=p.magic,
+                tooltip="Aggiungi a un mondo",
+                on_click=lambda e, c=char: self._open_add_to_world_dialog(c, available_worlds),
+            ))
+        action_controls += [
+            ft.IconButton(icon=ft.Icons.IOS_SHARE, icon_color=p.text_3,
+                          tooltip="Esporta personaggio (file .dndchar)",
+                          on_click=lambda e, c=char: self._on_export_click(c)),
+            ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=p.danger,
+                          tooltip="Elimina personaggio",
+                          on_click=lambda e, c=char: self._confirm_delete(c)),
+        ]
+        actions = ft.Row(action_controls, spacing=0, wrap=True)
 
         return d.card(
+            # NIENTE wrap=True qui: `info` sotto ha expand=True, e
+            # wrap=True su una Row con un figlio expand=True produce un
+            # riquadro grigio senza errori Python (bug già documentato in
+            # dnd_app/docs/regole_flet_api.md, trovato la prima volta nel
+            # dialogo di assegnazione del Bottino — reintrodotto qui per
+            # errore il 2026-08-05 aggiungendo le azioni contestuali dei
+            # Mondi, corretto lo stesso giorno).
             ft.Row([avatar, ft.Container(width=d.Space.LG), info, actions],
                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            accent=p.primary,
+            accent=p.magic if is_instance else p.primary,
             on_click=lambda e, cid=char.id: self.on_select(cid),
             tooltip="Apri la scheda",
         )
+
+    # ------------------------------------------------------------------
+    # Multiplayer passo 3 — aggiungi a un mondo / aggiorna il mio foglio
+    # ------------------------------------------------------------------
+
+    def _open_add_to_world_dialog(self, char: Character, worlds: list[World]):
+        p = d.T()
+        world_dd = ft.Dropdown(
+            label="Mondo", value=worlds[0].id,
+            options=[ft.DropdownOption(key=w.id, text=w.name) for w in worlds],
+            **d.field_style(),
+        )
+        mode_dd = ft.Dropdown(
+            label="Come entra", value="as_is",
+            options=[
+                ft.DropdownOption(key="as_is", text="Porta com'è (copia integrale)"),
+                ft.DropdownOption(key="fresh", text="Ricomincia dal 1° livello"),
+            ],
+            **d.field_style(),
+        )
+
+        def _confirm(e):
+            world_id = world_dd.value or worlds[0].id
+            mode = mode_dd.value or "as_is"
+            if self.device_id is None:
+                self._show_error("Identità del dispositivo non ancora pronta — riprova tra poco.")
+                return
+            result = ci.create_or_resume_instance(world_id, char.id, self.device_id, mode=mode)
+            self.page.pop_dialog()
+            if not result.success:
+                self._show_error(result.error or "Impossibile aggiungere il personaggio al mondo.")
+                return
+            self.on_select(result.character_id)
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f'"{char.name}" entra in un mondo', ft.Icons.PUBLIC),
+            content=ft.Column(
+                [
+                    d.muted(
+                        "Il personaggio locale resta com'è: nasce una copia "
+                        "indipendente dentro il mondo scelto (§6 del design "
+                        "doc). I progressi nel mondo non si riflettono qui "
+                        "finché non usi \"Aggiorna il mio foglio\".",
+                    ),
+                    ft.Container(height=d.Space.SM),
+                    world_dd, mode_dd,
+                ],
+                tight=True, spacing=d.Space.SM,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Entra nel mondo", icon=ft.Icons.LOGIN, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _open_refresh_dialog(self, instance: Character):
+        p = d.T()
+        preview = ci.preview_refresh(instance.id)
+        if preview is None:
+            self._show_error("Impossibile calcolare l'anteprima dell'aggiornamento.")
+            return
+
+        if preview.origin_exists:
+            summary_lines = [
+                f"Livello {preview.level_before} → {preview.level_after}",
+                f"PE {preview.xp_before} → {preview.xp_after}",
+                f"Oggetti/armi: {preview.item_count_before} → {preview.item_count_after}",
+            ]
+            body = ft.Column(
+                [ft.Text(f'Il personaggio locale "{preview.origin_name}" verrà sovrascritto '
+                         f"con lo stato di questa istanza:", size=13, color=p.text)]
+                + [ft.Text(f"• {line}", size=12, color=p.text_2) for line in summary_lines],
+                tight=True, spacing=4,
+            )
+            confirm_label = "Sovrascrivi il mio foglio"
+        else:
+            body = ft.Text(
+                "Il personaggio locale di origine non esiste più: verrà creato "
+                "un nuovo personaggio locale con lo stato attuale di questa istanza.",
+                size=13, color=p.text,
+            )
+            confirm_label = "Crea personaggio locale"
+
+        def _confirm(e):
+            result = ci.apply_refresh(instance.id)
+            self.page.pop_dialog()
+            if not result.success:
+                self._show_error(result.error or "Aggiornamento fallito.")
+                return
+            self.refresh()
+            try:
+                self.page.update()
+            except RuntimeError:
+                pass
+            self._show_success("Foglio personale aggiornato.")
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Aggiorna il mio foglio", ft.Icons.SYNC),
+            content=body,
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton(confirm_label, icon=ft.Icons.SYNC, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
     # Stato vuoto

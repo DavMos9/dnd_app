@@ -324,6 +324,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "inventory_items", "requires_attunement", "INTEGER DEFAULT 0")
     _add_column(cur, "inventory_items", "is_attuned", "INTEGER DEFAULT 0")
     _add_column(cur, "master_encounter_members", "xp", "INTEGER DEFAULT 0")
+    # Mondi condivisi (2026-08-05, passo 2 — vedi multiplayer_design.md §8).
+    # '' / 0 su tutte e cinque = personaggio locale, comportamento identico
+    # a oggi: un personaggio esistente non entra mai in un mondo da solo.
+    # Un'istanza di mondo (passo 3) e' un record di questa stessa tabella
+    # con queste colonne valorizzate — vedi la nota "Perche' l'istanza e'
+    # un record di characters" nel design doc.
+    _add_column(cur, "characters", "world_id",            "TEXT DEFAULT ''")
+    _add_column(cur, "characters", "origin_character_id", "TEXT DEFAULT ''")
+    _add_column(cur, "characters", "owner_device_id",     "TEXT DEFAULT ''")
+    _add_column(cur, "characters", "is_replica",          "INTEGER DEFAULT 0")
+    _add_column(cur, "characters", "world_seq",           "INTEGER DEFAULT 0")
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
@@ -891,4 +902,95 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_loot_stash_entries_kind
         ON loot_stash_entries(stash_kind, world_id)
+    """)
+
+    # ------------------------------------------------------------------
+    # Mondi condivisi / LAN party (2026-08-05, passo 2 di
+    # dnd_app/docs/multiplayer_design.md — "Modello mondo, senza rete").
+    # Queste 4 tabelle esistono con lo STESSO schema su ogni dispositivo:
+    # chi ospita ci tiene lo stato autoritativo, chi si collega ci tiene la
+    # replica (§8 del design doc). Nessuna riga di trasporto di rete qui —
+    # solo il modello: mondo, membri/ruoli, giornale eventi, richieste di
+    # modifica. Il passo 4 (rete) le riempirà da un altro dispositivo, non
+    # cambierà lo schema.
+    # ------------------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS worlds (
+            id                TEXT PRIMARY KEY,
+            name              TEXT NOT NULL,
+            description       TEXT NOT NULL DEFAULT '',
+            owner_device_id   TEXT NOT NULL,
+            join_code         TEXT NOT NULL DEFAULT '',
+            is_local_host     INTEGER NOT NULL DEFAULT 0,
+            last_seen_host    TEXT NOT NULL DEFAULT '',
+            last_synced_seq   INTEGER NOT NULL DEFAULT 0,
+            created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS world_members (
+            id            TEXT PRIMARY KEY,
+            world_id      TEXT NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
+            device_id     TEXT NOT NULL,
+            display_name  TEXT NOT NULL DEFAULT '',
+            role          TEXT NOT NULL DEFAULT 'player',
+            is_connected  INTEGER NOT NULL DEFAULT 0,
+            last_seen_at  TEXT NOT NULL DEFAULT '',
+            created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (world_id, device_id)
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_world_members_world
+        ON world_members(world_id)
+    """)
+
+    # Il giornale: sincronizzazione E registro delle azioni, insieme (§5).
+    # `seq` e' l'AUTOINCREMENT che garantisce l'ordine totale degli eventi
+    # di un mondo; `id` (UUID) e' l'identificatore stabile per riferimenti
+    # esterni (es. dedup in un futuro invio di rete).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS world_events (
+            seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT NOT NULL UNIQUE,
+            world_id        TEXT NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
+            actor_device_id TEXT NOT NULL,
+            actor_name      TEXT NOT NULL DEFAULT '',
+            kind            TEXT NOT NULL,
+            target_type     TEXT NOT NULL DEFAULT '',
+            target_id       TEXT NOT NULL DEFAULT '',
+            summary         TEXT NOT NULL DEFAULT '',
+            payload         TEXT NOT NULL DEFAULT '{}',
+            before_state    TEXT NOT NULL DEFAULT '{}',
+            created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_world_events_world_seq
+        ON world_events(world_id, seq)
+    """)
+
+    # Richieste del master che il giocatore deve approvare (§7.1, valvola di
+    # sfogo per le house rule sui campi altrimenti vietati). Non usata dal
+    # passo 2 (non esistono ancora istanze di personaggio su cui applicarle),
+    # ma la tabella nasce ora insieme al resto dello schema mondo.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS world_change_requests (
+            id             TEXT PRIMARY KEY,
+            world_id       TEXT NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
+            character_id   TEXT NOT NULL,
+            requested_by   TEXT NOT NULL,
+            payload        TEXT NOT NULL,
+            reason         TEXT NOT NULL DEFAULT '',
+            status         TEXT NOT NULL DEFAULT 'pending',
+            created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            resolved_at    TEXT NOT NULL DEFAULT ''
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_world_change_requests_world_status
+        ON world_change_requests(world_id, status)
     """)

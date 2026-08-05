@@ -142,6 +142,17 @@ class Character:
     created_at: str = ""
     updated_at: str = ""
 
+    # Mondi condivisi (2026-08-05, Multiplayer passo 2/3 — vedi
+    # dnd_app/docs/multiplayer_design.md §8). '' / 0 su tutte e cinque =
+    # personaggio locale: un personaggio creato da wizard/form manuale non
+    # valorizza mai questi campi da solo, li imposta solo
+    # core/character_instances.py quando nasce un'istanza di mondo.
+    world_id: str = ""              # '' = personaggio locale
+    origin_character_id: str = ""   # da quale personaggio locale nasce questa istanza
+    owner_device_id: str = ""       # device_id di chi possiede questo personaggio/istanza
+    is_replica: bool = False        # True = l'autorità sui dati è altrove (rete, passo 4)
+    world_seq: int = 0              # ultimo evento del mondo applicato a questa scheda
+
 
 @dataclass
 class CharacterProficiency:
@@ -680,3 +691,98 @@ class LootStashEntry:
     added_by_device_id: str = ""  # placeholder per il Multiplayer, vuoto oggi
     created_at: str = ""
     updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Mondi condivisi / LAN party (2026-08-05)
+#
+# Vedi dnd_app/docs/multiplayer_design.md per il progetto completo. Queste
+# quattro dataclass rispecchiano le tabelle omonime create in
+# data/database.py — nessuna logica qui, solo struttura dati (stesso
+# principio di tutto questo file).
+# ---------------------------------------------------------------------------
+
+@dataclass
+class World:
+    """
+    Una campagna condivisa. Vive nel DB di chi la ospita
+    (`is_local_host=True`); sui dispositivi dei membri e' una replica
+    aggiornata dal giornale eventi (`world_events`).
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
+    description: str = ""
+    owner_device_id: str = ""       # device_id di chi ha creato il mondo
+    join_code: str = ""             # 6 caratteri, significativo solo sull'host
+    is_local_host: bool = False     # True = il mondo autoritativo vive su QUESTO dispositivo
+    last_seen_host: str = ""        # "192.168.1.7:8765" — per la riconnessione (passo 4)
+    last_synced_seq: int = 0        # ultimo world_events.seq applicato (solo lato replica)
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class WorldMember:
+    """
+    Un dispositivo dentro un mondo, con un ruolo (§4 del design doc).
+
+    role: "owner" (uno solo, chi ospita) | "master" (co-master promossi
+    dall'owner) | "player". Nessun ruolo spettatore — scelta di Davide.
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    world_id: str = ""
+    device_id: str = ""
+    display_name: str = ""
+    role: str = "player"
+    is_connected: bool = False   # significativo solo dal passo 4 (rete) in poi
+    last_seen_at: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class WorldEvent:
+    """
+    Una riga del giornale del mondo — sincronizzazione E registro delle
+    azioni insieme (§5). `seq` e' l'ordine totale assegnato dall'host
+    (AUTOINCREMENT); `kind` identifica il tipo di evento (es. "world.renamed",
+    "member.role_changed", "xp.grant" nei passi successivi del piano).
+
+    `summary` e' gia' la riga leggibile per il registro mostrato al
+    giocatore ("Il Master ha rinominato il mondo in 'La Costa di Smeraldo'");
+    `payload` e `before_state` sono JSON per l'applicazione/l'eventuale undo,
+    non per la visualizzazione diretta.
+    """
+    seq: int = 0
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    world_id: str = ""
+    actor_device_id: str = ""
+    actor_name: str = ""          # copiato al momento dell'evento: leggibile
+                                   # anche dopo un'espulsione del membro
+    kind: str = ""
+    target_type: str = ""         # "world" | "member" | "character" | ...
+    target_id: str = ""
+    summary: str = ""
+    payload: str = "{}"
+    before_state: str = "{}"
+    created_at: str = ""
+
+
+@dataclass
+class WorldChangeRequest:
+    """
+    Richiesta del master di modificare un campo altrimenti vietato (§7.1) —
+    punteggi, competenze, talenti, livello, scelte di classe. Il giocatore
+    accetta o rifiuta; non usata prima del passo 3 (non esistono ancora
+    istanze di personaggio su cui applicarla), ma vive nello schema fin da
+    ora insieme al resto del modello mondo.
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    world_id: str = ""
+    character_id: str = ""
+    requested_by: str = ""        # device_id del master richiedente
+    payload: str = "{}"           # JSON: {"campo": nuovo_valore, ...}
+    reason: str = ""
+    status: str = "pending"       # "pending" | "accepted" | "rejected" | "expired"
+    created_at: str = ""
+    resolved_at: str = ""

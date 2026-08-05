@@ -112,6 +112,25 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 #   quel caso il ramo corretto è sempre quello "web" (page.web == True),
 #   mai il subprocess nativo — già gestito da `_pick_photo()`.
 
+# CLIENT_STORAGE — page.client_storage NON esiste in Flet 0.85.3
+# `page.client_storage.get/set(...)` ← SBAGLIATO → AttributeError, l'attributo
+#   non esiste su ft.Page in questa versione (verificato per introspezione sul
+#   pacchetto installato, 2026-08-05). Sostituito da `ft.SharedPreferences`,
+#   un controllo che eredita da `Service` — la STESSA classe base di
+#   `ft.FilePicker`, documentato qui sopra come strutturalmente rotto in web
+#   mode (flet-dev/flet#6040/#6250/#6251). Verificato empiricamente con una
+#   FakePage che il tentativo fallisce fuori da una pagina montata
+#   ("Control must be added to the page first") — **il comportamento in un
+#   vero browser web NON è stato ancora verificato**, va fatto da Davide
+#   prima di fidarsene per qualunque dato importante.
+# Uso corretto (vedi ui/device_identity.py, Multiplayer 2026-08-05):
+#   prefs = ft.SharedPreferences(); page.overlay.append(prefs); page.update()
+#   value = await prefs.get(key)   # async — SEMPRE via page.run_task
+#   await prefs.set(key, value)
+# SEMPRE avvolto in try/except con un ripiego funzionante: se si rivela rotto
+# in web mode come FilePicker, l'app non deve bloccarsi né fallire in
+# silenzio.
+
 # HELPER THEME (ui/theme.py) — parametri supportati
 label_text(text, size=10)
 body_text(text, size=14, color=..., weight=...)

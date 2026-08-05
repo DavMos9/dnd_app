@@ -257,7 +257,7 @@ def _insert_row(
     conn.execute(f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})", values)
 
 
-def import_character(data: dict[str, Any], mode: str) -> str | None:
+def import_character(data: dict[str, Any], mode: str, target_id: str | None = None) -> str | None:
     """
     Importa un personaggio da un dict di export (stessa forma prodotta da
     export_character()).
@@ -268,14 +268,23 @@ def import_character(data: dict[str, Any], mode: str) -> str | None:
                       (IntegrityError) e la funzione ritorna None — la UI
                       deve SEMPRE controllare character_id_exists() prima
                       di usare questa modalità.
-        "overwrite" → elimina il personaggio esistente con lo stesso id
-                      (CASCADE rimuove automaticamente tutte le righe
-                      figlio) e lo reinserisce da zero con gli id originali
-                      del file.
+        "overwrite" → elimina il personaggio esistente e lo reinserisce da
+                      zero con gli id originali del file (CASCADE rimuove
+                      automaticamente tutte le righe figlio). Sovrascrive
+                      l'id nel file stesso, a meno che `target_id` non sia
+                      passato esplicitamente (vedi sotto).
         "copy"      → genera un nuovo id per il personaggio (e nuovi id per
                       ogni riga figlio che ne ha uno), creando un
                       personaggio distinto anche se il file aveva lo stesso
                       id di uno già presente.
+
+    target_id: onorato SOLO con mode="overwrite" — sovrascrive un id
+        DIVERSO da quello presente nel file esportato invece dell'id del
+        file stesso. Introdotto per il Multiplayer (passo 3, «Aggiorna il
+        mio foglio»): esporta l'istanza di un mondo e reimportala sopra al
+        personaggio locale di origine, che ha un id diverso dall'istanza.
+        Ignorato (con un warning) per "new"/"copy", dove genererebbe
+        ambiguità su quale id il chiamante si aspetta davvero.
 
     Operazione atomica: un'unica connessione/transazione, commit solo a
     fine funzione, rollback su qualsiasi eccezione — nessuno stato parziale
@@ -291,12 +300,23 @@ def import_character(data: dict[str, Any], mode: str) -> str | None:
     if mode not in ("new", "overwrite", "copy"):
         logger.error(f"import_character: mode non valido: {mode!r}")
         return None
+    if target_id and mode != "overwrite":
+        logger.warning(
+            "import_character: target_id=%r ignorato — onorato solo con mode='overwrite' "
+            "(mode richiesto: %r)", target_id, mode,
+        )
+        target_id = None
 
     char_row: dict[str, Any] = dict(data["character"])
     related: dict[str, list[dict[str, Any]]] = data.get("related", {})
 
     source_id = str(char_row.get("id") or "")
-    target_id = str(uuid.uuid4()) if mode == "copy" else source_id
+    if mode == "copy":
+        target_id = str(uuid.uuid4())
+    elif mode == "overwrite" and target_id:
+        pass  # override esplicito del chiamante, non l'id del file
+    else:
+        target_id = source_id
     if not target_id:
         logger.error("import_character: id personaggio mancante nel file")
         return None
@@ -309,7 +329,23 @@ def import_character(data: dict[str, Any], mode: str) -> str | None:
                 conn.execute("DELETE FROM characters WHERE id = ?", (target_id,))
 
             live_char_cols = _table_columns(conn, "characters")
-            _insert_row(conn, "characters", char_row, live_char_cols, {"id": target_id})
+            _insert_row(conn, "characters", char_row, live_char_cols, {
+                "id": target_id,
+                # Un personaggio importato è SEMPRE locale, mai legato al
+                # mondo di provenienza (multiplayer_design.md §14.1): senza
+                # questo azzeramento un file esportato dall'istanza di un
+                # mondo porterebbe con sé world_id/is_replica=1, e il
+                # personaggio importato risulterebbe una replica di un mondo
+                # inesistente — in sola lettura e non riparabile
+                # dall'interfaccia. Vale per tutti e tre i modi (new/
+                # overwrite/copy): l'importazione è sempre un "porta com'è"
+                # verso un personaggio locale, mai verso un mondo.
+                "world_id": "",
+                "origin_character_id": "",
+                "owner_device_id": "",
+                "is_replica": 0,
+                "world_seq": 0,
+            })
 
             for table in CHILD_TABLES:
                 rows = related.get(table) or []
