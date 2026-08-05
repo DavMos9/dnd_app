@@ -63,7 +63,7 @@ class MasterView(ft.Column):
 
     def __init__(self, on_back_to_home, on_toggle_theme=None,
                  theme_preference: str = "system", active_tab: str = "npcs",
-                 active_world_id: str = ""):
+                 active_world_id: str = "", is_mobile: bool = False):
         """
         `on_toggle_theme` (Fase D del restyle, 2026-07-30): se assente la
         pillola del tema non compare — stesso comportamento "nascosto se
@@ -75,11 +75,24 @@ class MasterView(ft.Column):
 
         `active_world_id` (2026-08-06): stesso principio di `active_tab`, ma
         per il mondo correntemente selezionato — vedi il docstring del modulo.
+
+        `is_mobile` (2026-08-06): decide lo stile della tab bar (icona+testo
+        o solo icona) — vedi il docstring di `_build_tab_bar()`. Passato da
+        `DnDApp` con lo stesso breakpoint (`_MOBILE_BP = 600`, `ui/app.py`)
+        già usato per sidebar/bottom-nav. Diversamente da `active_tab`, NON
+        si aggiorna da solo se la finestra viene ridimensionata mentre la
+        Sezione Master è aperta (`MasterView` non vive dentro il layout con
+        sidebar/content_area che risponde a `page.on_resize` — sostituisce
+        l'intera pagina via `_navigate()`): resta fissato al valore letto
+        all'apertura o all'ultimo rebuild (es. cambio tema). Limite noto,
+        accettabile: nessuna sessione finora ha segnalato di ridimensionare
+        la finestra a metà mentre è in Modalità Master.
         """
         super().__init__(expand=True, spacing=0)
         self.on_back_to_home = on_back_to_home
         self.on_toggle_theme = on_toggle_theme
         self.theme_preference = theme_preference
+        self._compact_tabs = is_mobile
         valid = {t["key"] for t in _TABS}
         self.active_tab: str = active_tab if active_tab in valid else "npcs"
 
@@ -288,56 +301,98 @@ class MasterView(ft.Column):
     def _build_tab_bar(self) -> ft.Container:
         """Controllo segmentato: stesso linguaggio della tab bar della scheda.
 
-        `wrap=True` sulla Row esterna + pillole NON `expand` (2026-08-06, bug
-        reale segnalato da Davide con screenshot: 5 pillole — "Rubrica NPC",
-        "Note di Campagna", "Oggetti Magici" comprese — con `expand=True`
-        forzavano una sola riga su smartphone stretto, l'ellissi tagliava il
-        testo a una sola lettera, illeggibile). Stesso identico fix applicato
-        a `SheetView._make_tab_button()`/`_build_header_and_tabs()`: MAI
-        `wrap=True` su una Row con figli `expand=True` (crash Flutter
-        silenzioso, vedi `regole_flet_api.md`), quindi le pillole qui sotto
-        si dimensionano sul contenuto invece di dividersi lo spazio in parti
-        uguali — stesso principio già in uso per "Generatori Rapidi"
-        (`design.pill()`, mai `expand`).
+        STORIA:
+        1) Primo fix (2026-08-06) — `wrap=True` sulla Row esterna + pillole
+           NON `expand`, per il bug segnalato da Davide con screenshot (5
+           pillole — "Rubrica NPC", "Note di Campagna", "Oggetti Magici"
+           comprese — con `expand=True` forzavano una sola riga su
+           smartphone stretto, l'ellissi tagliava il testo a una sola
+           lettera, illeggibile). Risolveva il crash/troncamento ma
+           produceva lo stesso identico difetto visivo poi trovato nella
+           tab bar gemella della scheda personaggio: le pillole in eccesso
+           finivano su una riga in più a piena larghezza, allungando
+           verticalmente la barra ("si prende tutto lo schermo").
+        2) Secondo fix, stesso giorno — `wrap=True` sostituito con `scroll=
+           ft.ScrollMode.AUTO` sulla Row, dentro un Container con
+           `bgcolor=surface_alt` (la "pista" beige dietro le pillole).
+           Risolveva l'altezza, ma un nuovo screenshot di Davide ha
+           mostrato quella pista allungarsi ben oltre le pillole vere,
+           quasi fino al bordo della finestra ("quel alone allungato").
+           Causa: un `SingleChildScrollView` orizzontale (quello che Flet
+           genera per `scroll=...`) non si restringe MAI al contenuto
+           lungo l'asse di scroll — prende sempre la larghezza massima
+           concessa dal genitore, comportamento noto di Flutter, non un
+           errore di configurazione. Il `Container` che gli dava lo sfondo
+           beige, senza una larghezza propria, ereditava quella stessa
+           larghezza "gonfiata" e la disegnava visibilmente anche dove non
+           c'era nessuna pillola.
+        3) Terzo fix, stesso giorno: tolto lo sfondo/bordo dall'involucro
+           esterno — resta una Row scorrevole "nuda", nessun contenitore
+           colorato che possa allargarsi in modo visibile. Ogni pillola
+           porta il proprio sfondo quando attiva (`bgcolor=p.surface`,
+           invariato: contrasta già bene con lo sfondo della pagina, non
+           serviva cambiarlo qui — diverso da `SheetView`, il cui header è
+           già `p.surface` e ha richiesto `p.surface_alt` per non sparire).
+           Stesso principio di "Generatori Rapidi" (`design.pill()`): ogni
+           pillola ha il proprio bordo/sfondo, MAI un contenitore che le
+           racchiude tutte.
+        4) FIX DEFINITIVO (qui), sempre lo stesso giorno: lo scroll di per
+           sé restava sbagliato — Davide ha fatto notare che, restringendo
+           la finestra, le pillole "vengono tagliate o scompaiono", in
+           contrasto con la preferenza già nota di questo progetto per
+           un'interfaccia sempre visibile, mai azioni nascoste dietro uno
+           scroll non scoperto. Sotto il breakpoint mobile dell'app
+           (`self._compact_tabs`, passato da `DnDApp` con lo stesso
+           `_MOBILE_BP = 600` di `ui/app.py`), ogni pillola mostra SOLO
+           l'icona (tooltip con l'etichetta completa) — 5 pillole
+           icona-sola stanno comodamente su una riga anche a 360-375px.
+           Sopra il breakpoint, icona + etichetta come prima. `scroll=
+           ft.ScrollMode.AUTO` resta solo come rete di sicurezza per casi
+           patologici, non più come meccanismo primario.
         """
         p = design.T()
         items: list[ft.Control] = []
         for t in _TABS:
             is_sel = t["key"] == self.active_tab
+            row_children: list[ft.Control] = [
+                ft.Icon(t["icon"], size=15,
+                        color=p.primary if is_sel else p.text_3),
+            ]
+            if not self._compact_tabs:
+                row_children.append(ft.Container(width=6))
+                row_children.append(
+                    ft.Text(
+                        t["label"], size=design.Size.LABEL + 1,
+                        weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.W_500,
+                        color=p.primary if is_sel else p.text_2,
+                        font_family=design.Font.BODY,
+                        no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS,
+                    )
+                )
             items.append(
                 ft.Container(
                     content=ft.Row(
-                        [
-                            ft.Icon(t["icon"], size=15,
-                                    color=p.primary if is_sel else p.text_3),
-                            ft.Container(width=6),
-                            ft.Text(
-                                t["label"], size=design.Size.LABEL + 1,
-                                weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.W_500,
-                                color=p.primary if is_sel else p.text_2,
-                                font_family=design.Font.BODY,
-                                no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS,
-                            ),
-                        ],
+                        row_children,
                         alignment=ft.MainAxisAlignment.CENTER,
                         tight=True,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    padding=ft.Padding.symmetric(horizontal=design.Space.MD,
-                                                 vertical=design.Space.SM),
+                    padding=ft.Padding.symmetric(
+                        horizontal=design.Space.SM if self._compact_tabs else design.Space.MD,
+                        vertical=design.Space.SM,
+                    ),
                     border_radius=design.Radius.PILL,
                     bgcolor=p.surface if is_sel else "transparent",
                     shadow=design.elevation(1) if is_sel else None,
                     on_click=lambda e, k=t["key"]: self._on_tab_click(k),
                     ink=True,
                     animate=ft.Animation(design.Duration.BASE, design.CURVE),
+                    tooltip=t["label"] if self._compact_tabs else None,
                 )
             )
         return ft.Container(
-            content=ft.Row(items, spacing=design.Space.XS, wrap=True),
-            bgcolor=design.T().surface_alt,
-            border_radius=design.Radius.PILL,
-            padding=design.Space.XS,
+            content=ft.Row(items, spacing=design.Space.XS,
+                           scroll=ft.ScrollMode.AUTO),
             margin=ft.Margin.only(left=design.Space.LG, right=design.Space.LG,
                                   bottom=design.Space.MD),
         )

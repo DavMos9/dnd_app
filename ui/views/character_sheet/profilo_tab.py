@@ -23,6 +23,7 @@ from data.database import get_connection
 from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
 from ui.image_library import show_image_library_picker
+from ui.mobile_webview_picker import pick_file_via_webview
 from ui.theme import section_header, muted_text, show_error_dialog
 from ui.widgets import (
     CardPicker, ScrollMemoryListView, spell_card_options, feat_card_options,
@@ -84,10 +85,11 @@ class ProfiloTab(ScrollMemoryListView):
         self._level_up_btn: ft.Control | None = None
         self._level_down_btn: ft.Control | None = None
 
-        # FilePicker persistente (foto profilo) — vedi did_mount() e
-        # _pick_photo_mobile() per il motivo per cui NON viene più creato
-        # al volo dentro il click handler.
-        self._file_picker: ft.FilePicker | None = None
+        # NOTA (2026-08-06): non c'è più un self._file_picker qui. ft.FilePicker
+        # è stato abbandonato per la selezione mobile — confermato non
+        # funzionante su build Android reali (vedi _pick_photo_mobile() e
+        # dnd_app/docs/changelog_storico.md, sezione FILE PICKER). Su
+        # Android/iOS la selezione ora passa da ui/mobile_webview_picker.py.
 
         self._build()
 
@@ -192,6 +194,22 @@ class ProfiloTab(ScrollMemoryListView):
         #    non utilizzabile affatto su questa build Android) e va
         #    affrontato a parte con un redesign, non con un altro
         #    aggiustamento di timing.
+        # 6) (2026-08-06, stessa giornata) Confermato con un log adb logcat
+        #    reale: il punto 5 aveva ragione fino in fondo. Dopo aver
+        #    corretto un vero bug Python indipendente (un `await` mancante
+        #    su `pick_files()`, vedi vecchia versione di `_pick_photo_mobile()`
+        #    più sotto nello storico git), un secondo log ha mostrato che la
+        #    chiamata arriva al bridge Dart ma va in `TimeoutException:
+        #    Timeout waiting for invoke method listener` — nessuna Activity
+        #    nativa Android viene mai avviata (verificato sul log completo,
+        #    non filtrato). `ft.FilePicker` non è utilizzabile su questa
+        #    build, senza appello. **Non si usa più affatto qui**: la
+        #    registrazione lazy di cui sopra è stata rimossa insieme a
+        #    `self._file_picker` — `_pick_photo_mobile()` ora usa
+        #    `ui/mobile_webview_picker.py` (WebView locale + `<input
+        #    type=file>`, meccanismo del tutto diverso, non condivide questo
+        #    bug). Punti 1-5 lasciati intatti per lo storico della diagnosi,
+        #    come da convenzione di questo progetto.
 
     # ------------------------------------------------------------------
     # Header foto + XP + Level Up
@@ -4259,53 +4277,45 @@ class ProfiloTab(ScrollMemoryListView):
 
     async def _pick_photo_mobile(self):
         """
-        Apre il file picker nativo Android/iOS tramite ft.FilePicker.
-        Funziona su Flet mobile nativo; NON usare su desktop nativo (causa
-        "Unknown control") né in web mode (stesso errore, bug upstream
-        confermato — vedi _pick_photo(), che intercetta page.web PRIMA di
-        arrivare qui e usa show_image_library_picker() al suo posto).
+        Apre il selettore immagine su Android/iOS tramite WebView locale
+        (`ui/mobile_webview_picker.py`), NON più `ft.FilePicker`.
 
-        **Fix reale del bug "il file picker non funziona" (2026-08-06,
-        trovato con un log `adb logcat` reale, non un'altra ipotesi)**: le
-        sessioni precedenti sospettavano un bug di packaging Android
-        upstream di Flet (mai confermato). Il log ha mostrato invece un
-        `RuntimeWarning: coroutine 'FilePicker.pick_files' was never
-        awaited` — `pick_files()` in Flet 0.86.5 è un metodo `async` che
-        restituisce la selezione DIRETTAMENTE tramite `await` (verificato
-        per introspezione sul pacchetto installato: `FilePicker` non ha
-        MAI avuto un evento `on_result` in questa versione, solo
-        `on_upload`). Il vecchio codice chiamava `pick_files()` senza
-        `await` e assegnava un `on_result` che nessuno leggeva mai: la
-        coroutine veniva creata e scartata, il picker nativo non si apriva
-        MAI — non un problema di Flutter/Android, un `await` mancante nel
-        nostro Python. Stesso identico bug, stesso fix, in
-        `maps_view.py::_pick_mobile()`. Ora `_pick_photo()` schedula questo
-        metodo con `page.run_task()` (era una chiamata sincrona diretta,
-        impossibile da lì dentro un `async def`).
+        **Perché non FilePicker (2026-08-06, log `adb logcat` reale)**: un
+        primo log aveva rivelato un vero bug Python (`await` mancante su
+        `pick_files()`, corretto — stesso bug in `maps_view.py::
+        _pick_mobile()`), ma un secondo log, preso DOPO quel fix, ha
+        mostrato che il problema è più a fondo: `pick_files()` arriva
+        correttamente al bridge Dart ma va in `TimeoutException: Timeout
+        waiting for invoke method listener` — **nessuna Activity nativa
+        Android viene mai avviata** (verificato sul log completo, non
+        filtrato: nessun picker di sistema, nessun dialogo di permesso).
+        `ft.FilePicker` non è utilizzabile su questa build, senza appello
+        — non è un problema risolvibile cambiando il codice attorno alla
+        chiamata. Vedi punto 6 del changelog in `did_mount()` sopra e
+        `dnd_app/docs/changelog_storico.md`.
 
-        Riusa SEMPRE self._file_picker, già registrato in did_mount().
-        Fallback difensivo: se per qualche motivo did_mount() non l'ha
-        ancora creato (page non pronta), lo crea qui al volo — sicuro solo
-        perché questo metodo è raggiungibile esclusivamente dal ramo mobile
-        nativo di _pick_photo().
+        Il rimpiazzo mostra una WebView locale (nessuna rete coinvolta,
+        vedi il docstring di modulo di `mobile_webview_picker.py`) con un
+        `<input type=file>`, che apre il selettore nativo di sistema
+        tramite l'infrastruttura WebView di Android — un meccanismo
+        completamente diverso da `ft.FilePicker`, molto più maturo/testato.
         """
         page = self._page
         if page is None:
             return
-        if self._file_picker is None:
-            self._file_picker = ft.FilePicker()
-            page.overlay.append(self._file_picker)
-            page.update()
-        files = await self._file_picker.pick_files(
-            allow_multiple=False,
-            file_type=ft.FilePickerFileType.CUSTOM,
-            allowed_extensions=["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+        result = await pick_file_via_webview(
+            page, accept="image/*", title="Scegli foto profilo",
         )
-        if not files:
-            return  # utente ha annullato, nessun errore da mostrare
-        f = files[0]
-        if f.path:
-            self._load_photo(f.path)
+        if result is None:
+            return  # utente ha annullato, o errore già loggato nel modulo
+        _name, b64_content = result
+        try:
+            raw = base64.b64decode(b64_content)
+        except Exception as ex:
+            logger.error(f"Foto profilo: base64 non decodificabile: {ex}")
+            show_error_dialog(self._page, "Immagine non valida. Riprova.")
+            return
+        self._save_photo_bytes(raw)
 
     def _show_path_input_dialog(self):
         """
@@ -4361,24 +4371,42 @@ class ProfiloTab(ScrollMemoryListView):
 
     def _load_photo(self, path: str):
         """
-        Legge il file immagine, lo normalizza in JPEG via PIL e lo salva
-        come base64 nel DB. La conversione JPEG garantisce un formato uniforme
-        compatibile con il data URI usato da ft.Image(src=...) in Flet 0.85.3.
+        Legge il file immagine da un percorso locale (desktop, o mobile con
+        path reale come nel vecchio ft.FilePicker) e delega a
+        _save_photo_bytes() la normalizzazione e il salvataggio.
+        """
+        try:
+            with open(path, "rb") as f:
+                raw = f.read()
+        except Exception as ex:
+            logger.error(f"Errore nel caricamento foto: {ex}")
+            return
+        self._save_photo_bytes(raw)
+
+    def _save_photo_bytes(self, raw: bytes):
+        """
+        Normalizza i bytes immagine in JPEG via PIL e li salva come base64
+        nel DB. La conversione JPEG garantisce un formato uniforme
+        compatibile con il data URI usato da ft.Image(src=...).
+
+        Estratto da _load_photo() il 2026-08-06 per essere condiviso anche
+        dal flusso WebView (_pick_photo_mobile()), che riceve i bytes
+        dell'immagine direttamente (via FileReader lato browser, nessun
+        percorso file locale) invece di un path da aprire.
         """
         try:
             import io
             from PIL import Image as PILImage  # type: ignore[import-untyped]
-            with PILImage.open(path) as img:
+            with PILImage.open(io.BytesIO(raw)) as img:
                 img = img.convert("RGB")          # rimuovi alpha per JPEG
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG", quality=85)
                 raw = buf.getvalue()
         except ImportError:
-            # PIL non disponibile: usa i bytes raw
-            with open(path, "rb") as f:
-                raw = f.read()
+            pass  # PIL non disponibile: usa i bytes raw così come sono
         except Exception as ex:
-            logger.error(f"Errore nel caricamento foto: {ex}")
+            logger.error(f"Errore nella normalizzazione foto: {ex}")
+            show_error_dialog(self._page, "Immagine non valida. Riprova.")
             return
 
         encoded = base64.b64encode(raw).decode("utf-8")

@@ -25,11 +25,11 @@ from ui.components.roll_panel import show_roll
 logger = logging.getLogger(__name__)
 
 SHEET_TABS = [
-    {"key": "profilo",       "label": "Profilo"},
-    {"key": "combattimento", "label": "Combattimento"},
-    {"key": "esplorazione",  "label": "Esplorazione"},
-    {"key": "inventario",    "label": "Inventario"},
-    {"key": "diario",        "label": "Diario"},
+    {"key": "profilo",       "label": "Profilo",       "icon": ft.Icons.PERSON_OUTLINE},
+    {"key": "combattimento", "label": "Combattimento", "icon": ft.Icons.SHIELD_OUTLINED},
+    {"key": "esplorazione",  "label": "Esplorazione",  "icon": ft.Icons.EXPLORE_OUTLINED},
+    {"key": "inventario",    "label": "Inventario",    "icon": ft.Icons.BACKPACK_OUTLINED},
+    {"key": "diario",        "label": "Diario",        "icon": ft.Icons.MENU_BOOK_OUTLINED},
 ]
 
 
@@ -39,12 +39,23 @@ class SheetView(ft.Column):
     Gestisce la mini stat bar fissa e il routing tra i 5 tab.
     """
 
-    def __init__(self, character: Character, proficiencies: list[CharacterProficiency]):
+    def __init__(self, character: Character, proficiencies: list[CharacterProficiency],
+                 is_mobile: bool = False):
+        """
+        `is_mobile` (2026-08-06): decide lo stile della tab bar — vedi il
+        docstring di `_build_header_and_tabs()`. Passato da `DnDApp` con lo
+        stesso breakpoint (`_MOBILE_BP = 600`, `ui/app.py`) già usato per
+        scegliere tra sidebar e bottom nav — nessun nuovo concetto di
+        "mobile", si riusa quello che l'app ha già. Default `False` per
+        restare compatibile con i costruttori esistenti (test, chiamate
+        legacy) che non lo passano.
+        """
         super().__init__(expand=True, spacing=0)
         self.character = character
         self.proficiencies = proficiencies
         self.active_tab = "profilo"
         self._tab_buttons: dict[str, ft.Container] = {}
+        self._compact_tabs = is_mobile
         self._page: ft.Page | None = None
         self._stat_bar_container: ft.Container | None = None
         self._header_container: ft.Container | None = None
@@ -234,7 +245,7 @@ class SheetView(ft.Column):
         tab_row = []
         self._tab_buttons = {}
         for tab in SHEET_TABS:
-            btn = self._make_tab_button(tab["key"], tab["label"])
+            btn = self._make_tab_button(tab["key"], tab["label"], tab["icon"])
             self._tab_buttons[tab["key"]] = btn
             tab_row.append(btn)
 
@@ -250,25 +261,44 @@ class SheetView(ft.Column):
                                                 top=design.Space.MD,
                                                 bottom=design.Space.MD),
                     ),
-                    # Controllo segmentato (pillole) invece dei tab sottolineati:
-                    # stesso linguaggio delle pillole usate in Home e Master.
-                    # `wrap=True` + pillole NON `expand` (2026-08-06, bug reale
-                    # segnalato da Davide con screenshot: su smartphone stretto
-                    # 5 pillole "Combattimento"/"Esplorazione" con expand=True
-                    # forzavano una sola riga, l'ellissi tagliava il testo a
-                    # "Co...", "Espl..." — illeggibile). MAI combinare
-                    # `wrap=True` sulla Row con figli `expand=True`: crash
-                    # Flutter silenzioso (vedi `regole_flet_api.md`, sezione
-                    # WRAP=True+expand=True) — qui infatti `_make_tab_button()`
-                    # non imposta più `expand` sul Container della pillola,
-                    # stesso pattern già in uso e verificato per le pillole
-                    # "Generatori Rapidi" del Master (`design.pill()`, mai
-                    # `expand`).
+                    # Controllo segmentato (pillole) invece dei tab sottolineati.
+                    #
+                    # STORIA (per chi legge il changelog — tre round nella
+                    # stessa giornata, 2026-08-06):
+                    # 1) `wrap=True` + pillole senza `expand`: le pillole in
+                    #    eccesso finivano su una riga in più a piena
+                    #    larghezza ("si prende tutto lo schermo").
+                    # 2) `scroll=ft.ScrollMode.AUTO` al posto di `wrap=True`:
+                    #    altezza fissa, ma lo sfondo `surface_alt` che dava
+                    #    l'aspetto di "pista" si allargava ben oltre le
+                    #    pillole vere (un `SingleChildScrollView` orizzontale
+                    #    non si restringe mai al contenuto — comportamento
+                    #    noto di Flutter). Tolto lo sfondo dall'involucro,
+                    #    lasciato solo sulla singola pillola attiva.
+                    # 3) Lo scroll di per sé restava comunque sbagliato:
+                    #    Davide ha fatto notare che, restringendo la
+                    #    finestra, le pillole "vengono tagliate o
+                    #    scompaiono" — in contrasto con la preferenza già
+                    #    nota di questo progetto per un'interfaccia sempre
+                    #    visibile, mai azioni nascoste dietro uno scroll non
+                    #    scoperto. FIX DEFINITIVO (qui): niente più scroll
+                    #    NÉ wrap multi-riga — la barra ora è DAVVERO
+                    #    responsive, non solo "meno peggio". Sotto il
+                    #    breakpoint mobile dell'app (`is_mobile`, passato da
+                    #    `DnDApp` con lo stesso `_MOBILE_BP = 600` di
+                    #    `ui/app.py`), ogni pillola mostra SOLO l'icona
+                    #    (tooltip con l'etichetta completa, sempre
+                    #    raggiungibile) — 5 pillole icona-sola stanno
+                    #    comodamente su una riga anche a 360-375px, la
+                    #    larghezza minima comune di uno smartphone. Sopra il
+                    #    breakpoint, icona + etichetta come prima. `scroll=
+                    #    ft.ScrollMode.AUTO` resta solo come rete di
+                    #    sicurezza per casi patologici (font di sistema
+                    #    enormi, finestra sotto i 360px), non più come
+                    #    meccanismo primario.
                     ft.Container(
-                        content=ft.Row(tab_row, spacing=design.Space.XS, wrap=True),
-                        bgcolor=p.surface_alt,
-                        border_radius=design.Radius.PILL,
-                        padding=design.Space.XS,
+                        content=ft.Row(tab_row, spacing=design.Space.XS,
+                                       scroll=ft.ScrollMode.AUTO),
                         margin=ft.Margin.only(left=design.Space.MD,
                                               right=design.Space.MD,
                                               bottom=design.Space.MD),
@@ -281,38 +311,84 @@ class SheetView(ft.Column):
         )
 
     def _style_tab_button(self, btn: ft.Container, active: bool) -> None:
-        """Stile della pillola di tab — usato sia in costruzione sia al cambio tab."""
+        """Stile della pillola di tab — usato sia in costruzione sia al cambio tab.
+
+        `p.surface_alt` per la pillola attiva, NON `p.surface` (2026-08-06,
+        fix dell'"alone allungato"): l'header che contiene questa barra ha
+        già `bgcolor=p.surface` (vedi `_build_header_and_tabs()`) — da
+        quando l'involucro esterno beige è stato tolto, una pillola attiva
+        con `bgcolor=p.surface` sarebbe risultata invisibile (bianco su
+        bianco). `surface_alt` è lo stesso colore che prima dava lo sfondo
+        all'intera barra: qui identifica solo la pillola selezionata,
+        risultato visivo pressoché identico a prima ma senza il contenitore
+        che si allargava oltre il contenuto.
+
+        `btn.data` porta i riferimenti a icona/testo (impostati in
+        `_make_tab_button()`) invece di leggere `btn.content` direttamente
+        — necessario da quando la pillola può contenere solo un'icona
+        (modalità compatta, `self._compact_tabs`), non più sempre un
+        `ft.Text` isolato.
+        """
         p = design.T()
-        label = cast(ft.Text, btn.content)
-        label.color = p.primary if active else p.text_2
-        label.weight = ft.FontWeight.BOLD if active else ft.FontWeight.W_500
-        btn.bgcolor = p.surface if active else "transparent"
+        refs = cast(dict, btn.data)
+        icon_ctrl = cast(ft.Icon, refs["icon"])
+        text_ctrl = cast("ft.Text | None", refs["text"])
+        color = p.primary if active else p.text_2
+        icon_ctrl.color = color
+        if text_ctrl is not None:
+            text_ctrl.color = color
+            text_ctrl.weight = ft.FontWeight.BOLD if active else ft.FontWeight.W_500
+        btn.bgcolor = p.surface_alt if active else "transparent"
         btn.shadow = design.elevation(1) if active else None
 
-    def _make_tab_button(self, key: str, label: str) -> ft.Container:
-        # Niente `expand=True`: il Container si dimensiona sul contenuto,
-        # com'è già `design.pill()` — necessario perché il genitore usa
-        # `wrap=True` (vedi `_build_header_and_tabs()`), e `expand=True` su
-        # un figlio di una Row con `wrap=True` produce un crash Flutter
-        # silenzioso (`regole_flet_api.md`). `no_wrap`/`overflow=ELLIPSIS`
-        # restano come rete di sicurezza per larghezze patologicamente strette,
-        # non più come unico argine.
-        btn = ft.Container(
-            content=ft.Text(
+    def _make_tab_button(self, key: str, label: str, icon: ft.IconData) -> ft.Container:
+        """
+        Pillola di tab — icona sempre presente, etichetta testuale SOLO se
+        `self._compact_tabs` è `False` (2026-08-06, fix definitivo della
+        tab bar — vedi lo storico nel commento di `_build_header_and_tabs()`).
+        In modalità compatta l'etichetta completa resta comunque
+        raggiungibile via `tooltip`, non è mai persa, solo non sempre
+        visibile a colpo d'occhio: nessuna voce viene nascosta o rimossa
+        dal controllo, tutte e 5 restano cliccabili sulla stessa riga.
+
+        Niente `expand=True`: il Container si dimensiona sul contenuto,
+        com'è già `design.pill()` — il genitore è una Row (con `scroll=
+        ft.ScrollMode.AUTO` come sola rete di sicurezza, vedi sopra): ogni
+        pillola deve restare larga quanto il proprio contenuto.
+        """
+        icon_ctrl = ft.Icon(icon, size=15)
+        row_children: list[ft.Control] = [icon_ctrl]
+        text_ctrl: ft.Text | None = None
+        if not self._compact_tabs:
+            text_ctrl = ft.Text(
                 label,
                 size=design.Size.LABEL + 1,
                 text_align=ft.TextAlign.CENTER,
                 font_family=design.Font.BODY,
                 no_wrap=True,
                 overflow=ft.TextOverflow.ELLIPSIS,
+            )
+            row_children.append(ft.Container(width=6))
+            row_children.append(text_ctrl)
+
+        btn = ft.Container(
+            content=ft.Row(
+                row_children, spacing=0, tight=True,
+                alignment=ft.MainAxisAlignment.CENTER,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.symmetric(horizontal=design.Space.MD, vertical=design.Space.SM),
+            padding=ft.Padding.symmetric(
+                horizontal=design.Space.SM if self._compact_tabs else design.Space.MD,
+                vertical=design.Space.SM,
+            ),
             border_radius=design.Radius.PILL,
             on_click=lambda e, k=key: self._switch_tab(k),
             ink=True,
             alignment=ft.Alignment.CENTER,
             animate=ft.Animation(design.Duration.BASE, design.CURVE),
+            tooltip=label if self._compact_tabs else None,
         )
+        btn.data = {"icon": icon_ctrl, "text": text_ctrl}
         self._style_tab_button(btn, key == self.active_tab)
         return btn
 

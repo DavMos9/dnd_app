@@ -17,6 +17,14 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "flet==0.86.5",
     "Pillow>=10.0.0",
+    # Aggiunto il 2026-08-06: bypass per ft.FilePicker, confermato non
+    # funzionante su build Android reali via log adb logcat (TimeoutException
+    # lato Dart, nessuna Activity nativa avviata — non un problema risolvibile
+    # nel nostro codice attorno a FilePicker, vedi dnd_app/docs/
+    # changelog_storico.md e regole_flet_api.md, sezione FILE PICKER). Usato
+    # da ui/mobile_webview_picker.py. Stessa versione di `flet` per restare in
+    # lockstep con le release core (estensione ufficiale, mantenuta insieme).
+    "flet-webview==0.86.5",
 ]
 
 [tool.flet]

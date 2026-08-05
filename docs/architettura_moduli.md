@@ -1202,6 +1202,53 @@ pulsante "Controlla di nuovo" che richiama `finish_pending_join()`,
 riusando lo stesso `RemoteBackend` già connesso invece di far reinserire
 tutti i campi.
 
+**`ui/mobile_webview_picker.py`** (2026-08-06, import di `flet_webview`
+corretto a import ritardato più sotto lo stesso giorno dopo un crash
+desktop reale — vedi `changelog_storico.md`) — bypass di `ft.FilePicker`
+per la selezione file su Android/iOS, dopo la diagnosi definitiva via log
+`adb logcat` reale: `pick_files()`/`save_file()` arrivano al bridge Dart
+ma vanno in `TimeoutException: Timeout waiting for invoke method
+listener` — nessuna Activity nativa Android viene mai avviata, bug non
+risolvibile lato applicazione (dettaglio completo in
+`changelog_storico.md`). `async pick_file_via_webview(page, *,
+accept="*/*", title="...") -> Optional[tuple[str, str]]` (nome file,
+contenuto base64) o `None` se annullato/errore. Usa `flet_webview.WebView`
+(pacchetto separato `flet-webview==0.86.5`, stesso lockstep di release del
+core) per mostrare, dentro un `ft.AlertDialog`, una paginetta HTML
+**locale** (mai rete: passata come `data:` URI via il parametro
+costruttore `url=`, mai `load_html()` — evita la race "monta poi invoca"
+dello stesso `BaseControl.page`/`_invoke_method` che affligge
+`FilePicker`) con un `<input type=file>` che apre il selettore nativo di
+sistema tramite l'infrastruttura WebView di Android (meccanismo maturo,
+usato da milioni di app — non condivide il bug di `FilePicker`). **Import
+di `flet_webview` volutamente RITARDATO dentro `pick_file_via_webview()`**,
+non in cima al modulo: un import eager renderebbe il pacchetto un
+requisito per l'avvio dell'app su QUALUNQUE piattaforma (questo modulo è
+importato da `profilo_tab.py`/`maps_view.py`/`home_view.py`, tutti
+caricati all'avvio), mentre serve solo sul ramo mobile — bug reale
+riprodotto su desktop ("No module named 'flet_webview'"), corretto lo
+stesso giorno. `from __future__ import annotations` + un blocco `if
+TYPE_CHECKING:` permettono comunque di annotare i tipi senza un secondo
+import eager. Il file scelto è letto in memoria con
+`FileReader.readAsDataURL()` (JS standard, nessun upload) e rimandato a
+Python tramite `WebView.on_console_message`
+(evento di prima classe di `flet-webview`, non un URL-hack), con un
+protocollo a prefisso di stringa (`FLET_PICKER_RESULT:`/
+`FLET_PICKER_ERROR:` + JSON) e un `asyncio.Future` a fare da ponte
+sincrono→asincrono. Copre solo la SELEZIONE (non il salvataggio: un
+download via WebView è un meccanismo diverso, mai verificato — resta su
+`ft.FilePicker.save_file()`, non ancora migrato). Usato da:
+`profilo_tab.py::_pick_photo_mobile()` (`accept="image/*"` → `
+_save_photo_bytes()`, nuova funzione estratta da `_load_photo()` per
+condividere la normalizzazione PIL→JPEG→base64 tra path locale e bytes
+diretti), `maps_view.py::_pick_mobile()` (stesso pattern,
+`_normalize_image_bytes_to_base64()` estratta da `_load_image_base64()`),
+`home_view.py::_on_mobile_import()` (`accept=".dndchar,.json,
+application/json"`, decodifica UTF-8 e delega a `_do_import_from_text()`
+— `_on_mobile_export()` resta su `FilePicker.save_file()`, non migrato,
+probabilmente soggetto allo stesso bug ma non confermato con un log
+dedicato).
+
 ---
 
 

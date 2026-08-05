@@ -208,28 +208,33 @@ def test_master_view() -> None:
 
     for mode in ("light", "dark"):
         d.set_mode(mode)
-        for active_world_id in ("", world.id if world else ""):
-            for tab in _TABS:
-                key = tab["key"]
-                try:
-                    mv = MasterView(on_back_to_home=lambda: None, active_tab=key,
-                                    active_world_id=active_world_id)
-                    # Bypassa la risoluzione asincrona di did_mount() (stesso
-                    # principio di wv.device_id sopra): imposta direttamente
-                    # lo stato che _init_identity() avrebbe popolato, poi
-                    # ricostruisce per esercitare _world_selector() con
-                    # _masterable_worlds non vuoto.
-                    mv.device_id = device_id
-                    mv._masterable_worlds = [world] if world else []
-                    mv._build()
-                    conflicts = find_wrap_expand_conflicts(mv, path=f"MasterView.{key}")
-                    check(f"[{mode}][mondo={'sì' if active_world_id else 'no'}] "
-                          f"tab '{key}' costruita senza errori né conflitti wrap+expand: {conflicts}",
-                          conflicts == [])
-                except Exception as e:  # noqa: BLE001 — vogliamo il messaggio esatto nel report
-                    check(f"[{mode}][mondo={'sì' if active_world_id else 'no'}] "
-                          f"tab '{key}' costruita senza sollevare eccezioni: {type(e).__name__}: {e}",
-                          False)
+        # `is_mobile` in (False, True) aggiunto il 2026-08-06 insieme al fix
+        # della tab bar responsive (pillole icona-sola sotto il breakpoint
+        # mobile): copre anche il nuovo ramo `self._compact_tabs=True` di
+        # `_build_tab_bar()`, mai esercitato prima da questo test.
+        for is_mobile in (False, True):
+            for active_world_id in ("", world.id if world else ""):
+                for tab in _TABS:
+                    key = tab["key"]
+                    try:
+                        mv = MasterView(on_back_to_home=lambda: None, active_tab=key,
+                                        active_world_id=active_world_id, is_mobile=is_mobile)
+                        # Bypassa la risoluzione asincrona di did_mount() (stesso
+                        # principio di wv.device_id sopra): imposta direttamente
+                        # lo stato che _init_identity() avrebbe popolato, poi
+                        # ricostruisce per esercitare _world_selector() con
+                        # _masterable_worlds non vuoto.
+                        mv.device_id = device_id
+                        mv._masterable_worlds = [world] if world else []
+                        mv._build()
+                        conflicts = find_wrap_expand_conflicts(mv, path=f"MasterView.{key}")
+                        check(f"[{mode}][mobile={is_mobile}][mondo={'sì' if active_world_id else 'no'}] "
+                              f"tab '{key}' costruita senza errori né conflitti wrap+expand: {conflicts}",
+                              conflicts == [])
+                    except Exception as e:  # noqa: BLE001 — vogliamo il messaggio esatto nel report
+                        check(f"[{mode}][mobile={is_mobile}][mondo={'sì' if active_world_id else 'no'}] "
+                              f"tab '{key}' costruita senza sollevare eccezioni: {type(e).__name__}: {e}",
+                              False)
 
     d.set_mode("light")
 
@@ -290,14 +295,31 @@ def test_sheet_view() -> None:
 
     for mode in ("light", "dark"):
         d.set_mode(mode)
-        try:
-            sheet = SheetView(char, profs)
-            conflicts = find_wrap_expand_conflicts(sheet, path="SheetView")
-            check(f"[{mode}] SheetView costruita senza errori né conflitti "
-                  f"wrap+expand: {conflicts}", conflicts == [])
-        except Exception as e:  # noqa: BLE001
-            check(f"[{mode}] SheetView costruita senza sollevare eccezioni: "
-                  f"{type(e).__name__}: {e}", False)
+        # `is_mobile` in (False, True) aggiunto il 2026-08-06 insieme al fix
+        # della tab bar responsive (pillole icona-sola sotto il breakpoint
+        # mobile): copre anche il nuovo ramo `self._compact_tabs=True` di
+        # `_make_tab_button()`/`_style_tab_button()` (btn.data con icona+testo
+        # opzionale), mai esercitato prima da questo test.
+        for is_mobile in (False, True):
+            try:
+                sheet = SheetView(char, profs, is_mobile=is_mobile)
+                conflicts = find_wrap_expand_conflicts(sheet, path="SheetView")
+                check(f"[{mode}][mobile={is_mobile}] SheetView costruita senza errori né conflitti "
+                      f"wrap+expand: {conflicts}", conflicts == [])
+                # Verifica aggiuntiva mirata (2026-08-06): _style_tab_button()
+                # legge ora btn.data (icona/testo) invece di btn.content
+                # direttamente — un refactor che la sola ispezione
+                # strutturale dell'albero sopra non avrebbe intercettato se
+                # sbagliato. Chiamata diretta invece di _switch_tab() per
+                # non richiedere un vero page.update() (SheetView qui non è
+                # mai montata su una pagina reale).
+                other_btn = sheet._tab_buttons["combattimento"]
+                sheet._style_tab_button(other_btn, True)
+                check(f"[{mode}][mobile={is_mobile}] _style_tab_button() su tab non attiva "
+                      f"non solleva eccezioni", True)
+            except Exception as e:  # noqa: BLE001
+                check(f"[{mode}][mobile={is_mobile}] SheetView costruita senza sollevare eccezioni: "
+                      f"{type(e).__name__}: {e}", False)
 
     d.set_mode("light")
 

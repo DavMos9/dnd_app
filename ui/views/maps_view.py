@@ -14,7 +14,9 @@ Funzionalità:
 Regole Flet 0.85.3:
   - ft.Image(src=data_uri), NON src_base64
   - page.show_dialog / page.pop_dialog
-  - ft.FilePicker SOLO mobile; desktop → subprocess nativo
+  - Selezione immagine: WebView locale su mobile (ui/mobile_webview_picker.py,
+    ft.FilePicker abbandonato dal 2026-08-06, confermato inutilizzabile su
+    Android reale), subprocess nativo su desktop
   - expand=True su Column dentro Row dentro ListView → crash silenzioso → NON usare
   - ft.Paint / ft.PaintingStyle / ft.StrokeCap in flet principale, NON in flet.canvas
   - DragStartEvent / DragUpdateEvent usano local_position.x/.y (Offset object)
@@ -34,6 +36,7 @@ import flet.canvas as cv
 from data.models import Character, GameMap
 from data.repositories import maps_repo
 from ui.image_library import show_image_library_picker
+from ui.mobile_webview_picker import pick_file_via_webview
 from ui import design
 from ui.widgets import wrap_dialog_actions
 
@@ -223,32 +226,28 @@ class MapsView(ft.Column):
         self._fs_ersub_refs:   list[ft.Container] = []
         self._fs_toolbar_body: ft.Container | None = None
 
-        # FilePicker persistente (upload immagine mappa) — vedi did_mount()
-        # e _pick_mobile(); non creato al volo dentro il click handler.
-        self._file_picker: ft.FilePicker | None = None
+        # NOTA (2026-08-06): non c'è più un self._file_picker qui.
+        # ft.FilePicker è stato abbandonato per la selezione mobile —
+        # confermato non funzionante su build Android reali (log adb
+        # logcat: TimeoutException, nessuna Activity nativa mai avviata,
+        # vedi _pick_mobile() sotto e dnd_app/docs/changelog_storico.md,
+        # sezione FILE PICKER). Su Android/iOS la selezione ora passa da
+        # ui/mobile_webview_picker.py.
 
         self._build()
 
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
 
-        # NON registra più il FilePicker qui (fix 2026-08-06). Storia di
-        # questo blocco, per chi legge il changelog: nato per registrare
-        # "SUBITO al mount, solo su mobile (Android/iOS)" — poi corretto il
-        # 2026-07-16 per escludere anche il desktop (stesso errore lì).
-        # L'assunzione residua "su Android/iOS funziona" non era mai stata
-        # verificata su un vero dispositivo: Davide ha segnalato la STESSA
-        # barra rossa "Unknown control: FilePicker" anche su un Android
-        # reale, apparsa già alla semplice apertura della Home (v. fix
-        # gemello in home_view.py, stesso giorno) — nessuna interazione
-        # richiesta per riprodurla. Coerente con quanto già osservato in web
-        # mode (`dnd_app/docs/regole_flet_api.md`): la registrazione
-        # anticipata mostra prima lo stesso errore che la registrazione al
-        # click mostrerebbe comunque, non è un fix, è solo un ritardo.
-        # Il fallback lazy in _pick_mobile() (registra al primo uso reale,
-        # se non già presente) resta l'unico punto di registrazione — se
-        # anche quello fallisce, il problema è più profondo e va affrontato
-        # a parte, non qui.
+        # Storico (fino al 2026-08-06): questo blocco registrava
+        # ft.FilePicker in page.overlay, con vari tentativi di timing
+        # (subito al mount, solo su mobile, poi anche quello scartato dopo
+        # un test su Android reale — vedi git blame per il dettaglio).
+        # Rimosso perché non più rilevante: FilePicker non è più usato
+        # affatto in questo file, sostituito da una WebView locale (vedi
+        # _pick_mobile()) dopo la diagnosi definitiva del 2026-08-06 (log
+        # adb logcat: nessuna Activity nativa Android viene mai avviata,
+        # bug non risolvibile lato applicazione).
 
     # ------------------------------------------------------------------
     # Build root
@@ -1445,22 +1444,39 @@ class MapsView(ft.Column):
 
 # ── File picker helpers ────────────────────────────────────────────────────
 
-def _load_image_base64(path: str) -> str:
+def _normalize_image_bytes_to_base64(raw: bytes) -> str:
+    """
+    Normalizza bytes immagine in JPEG via PIL e li codifica in base64.
+
+    Estratto da _load_image_base64() il 2026-08-06 per essere condiviso
+    anche dal flusso WebView (_pick_mobile()), che riceve i bytes
+    dell'immagine direttamente (FileReader lato browser) invece di un
+    percorso file locale da aprire.
+    """
     try:
         from PIL import Image as PILImage  # type: ignore[import-untyped]
         import io
-        with PILImage.open(path) as im:
+        with PILImage.open(io.BytesIO(raw)) as im:
             if im.mode not in ("RGB", "L"):
                 im = im.convert("RGB")
             buf = io.BytesIO()
             im.save(buf, format="JPEG", quality=85)
             return base64.b64encode(buf.getvalue()).decode()
     except ImportError:
+        return base64.b64encode(raw).decode()
+    except Exception as exc:
+        logger.error("_normalize_image_bytes_to_base64: %s", exc)
+        return ""
+
+
+def _load_image_base64(path: str) -> str:
+    try:
         with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
+            raw = f.read()
     except Exception as exc:
         logger.error("_load_image_base64(%s): %s", path, exc)
         return ""
+    return _normalize_image_bytes_to_base64(raw)
 
 
 def _update_preview(b64: str, label: ft.Text,
@@ -1504,46 +1520,43 @@ def _pick_from_library(view: "MapsView", img_data: list[str],
 async def _pick_mobile(view: "MapsView", img_data: list[str],
                        label: ft.Text, preview: ft.Container) -> None:
     """
-    Apre il file picker nativo Android/iOS. Chiamata SOLO dal ramo mobile
-    nativo di pick_image() nei due dialog crea/modifica mappa — il ramo web
-    non arriva mai qui, vedi _pick_from_library().
+    Apre il selettore immagine su Android/iOS tramite WebView locale
+    (`ui/mobile_webview_picker.py`), NON più `ft.FilePicker`. Chiamata SOLO
+    dal ramo mobile nativo di pick_image() nei due dialog crea/modifica
+    mappa — il ramo web non arriva mai qui, vedi _pick_from_library().
 
-    **Fix reale del bug "il file picker non funziona" (2026-08-06, trovato
-    con un log `adb logcat` reale)**: stesso identico difetto di
-    `profilo_tab.py::_pick_photo_mobile()` (vedi il suo docstring per la
-    diagnosi completa) — `pick_files()` veniva chiamato senza `await` e il
-    risultato instradato tramite un `on_result` che in Flet 0.86.5 non
-    esiste (mai esistito in questa versione, solo `on_upload`): la
-    coroutine veniva creata e scartata, il picker nativo non si apriva
-    MAI. Non un bug di packaging Android — un `await` mancante. Fix: la
-    funzione è ora `async`, schedulata dai due `pick_image()` chiamanti
-    con `page.run_task()`, e legge il risultato direttamente da `await
-    pick_files()` invece che da un evento. Corretto anche un secondo bug
-    minore scoperto nello stesso punto: `allowed_extensions` ha effetto
-    solo con `file_type=FilePickerFileType.CUSTOM` (documentazione
-    ufficiale), mai passato prima — il filtro estensioni non aveva mai
-    avuto effetto.
+    **Perché non FilePicker (2026-08-06, log `adb logcat` reale)**: un
+    primo log aveva rivelato un vero bug Python (`await` mancante su
+    `pick_files()`, corretto — stesso identico difetto di
+    `profilo_tab.py::_pick_photo_mobile()`, vedi il suo docstring), ma un
+    secondo log preso DOPO quel fix ha mostrato che il problema è più a
+    fondo: `pick_files()` arriva correttamente al bridge Dart ma va in
+    `TimeoutException: Timeout waiting for invoke method listener` —
+    nessuna Activity nativa Android viene mai avviata (verificato sul log
+    completo, non filtrato). `ft.FilePicker` non è utilizzabile su questa
+    build, senza appello — non un problema risolvibile lato applicazione.
+    Vedi `dnd_app/docs/changelog_storico.md`.
 
-    Riusa SEMPRE view._file_picker, registrato una sola volta in
-    MapsView.did_mount() (mai in web mode, vedi il commento lì).
+    Il rimpiazzo mostra una WebView locale (nessuna rete coinvolta) con un
+    `<input type=file accept="image/*">`, che apre il selettore nativo di
+    sistema tramite l'infrastruttura WebView di Android — meccanismo
+    completamente diverso da `ft.FilePicker`, molto più maturo/testato.
     """
     page = view._page
     if page is None:
         return
-    if view._file_picker is None:
-        # Fallback difensivo se did_mount() non l'ha ancora registrato.
-        view._file_picker = ft.FilePicker()
-        page.overlay.append(view._file_picker)
-        page.update()
-    picker = view._file_picker
-    files = await picker.pick_files(
-        file_type=ft.FilePickerFileType.CUSTOM,
-        allowed_extensions=["jpg", "jpeg", "png", "gif", "webp"],
+    result = await pick_file_via_webview(
+        page, accept="image/*", title="Scegli immagine mappa",
     )
-    if not files:
-        return  # utente ha annullato, nessun errore da mostrare
-    f = files[0]
-    b64 = _load_image_base64(f.path)
+    if result is None:
+        return  # utente ha annullato, o errore già loggato nel modulo
+    _name, b64_content = result
+    try:
+        raw = base64.b64decode(b64_content)
+    except Exception as exc:
+        logger.error("_pick_mobile: base64 non decodificabile: %s", exc)
+        return
+    b64 = _normalize_image_bytes_to_base64(raw)
     if b64:
         img_data[0] = b64
         _update_preview(b64, label, preview, page)

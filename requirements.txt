@@ -4,3 +4,11 @@
 # changelog_storico.md per il perché.
 flet==0.86.5
 Pillow>=10.0.0
+
+# Aggiunto il 2026-08-06: ft.FilePicker confermato non funzionante su build
+# Android reali (TimeoutException lato Dart, nessuna Activity nativa avviata
+# — vedi changelog_storico.md e regole_flet_api.md, sezione FILE PICKER).
+# flet-webview è l'estensione ufficiale usata come bypass (ui/
+# mobile_webview_picker.py): stessa versione di `flet` per restare in
+# lockstep con le release core, come da convenzione di questo file.
+flet-webview==0.86.5

@@ -268,6 +268,7 @@ class DnDApp:
             theme_preference=self._theme_pref,
             active_tab=active_tab or "npcs",
             active_world_id=active_world_id or "",
+            is_mobile=self._is_mobile(),
         )
         self._master_view = master
         # Il rebuild legge la tab/il mondo attivi al momento del cambio tema,
@@ -582,7 +583,7 @@ class DnDApp:
             char = character_repo.get_by_id(self.current_character_id)
             profs = character_repo.get_proficiencies(self.current_character_id)
             if char:
-                return SheetView(char, profs)
+                return SheetView(char, profs, is_mobile=self._mobile)
             return self._placeholder_view("Personaggio non trovato", ft.Icons.ERROR_OUTLINE, "")
         elif key == "spells":
             from data.repositories import character_repo

@@ -3,6 +3,7 @@ Schermata Home: selezione, creazione ed eliminazione dei personaggi.
 È la prima schermata che l'utente vede all'avvio.
 """
 
+import base64
 import flet as ft
 import logging
 import os
@@ -14,6 +15,7 @@ from data.repositories import character_repo, character_export, world_repo
 from core import character_instances as ci
 from ui.character_transfer import show_character_import_picker
 from ui.device_identity import resolve_device_id
+from ui.mobile_webview_picker import pick_file_via_webview
 from ui.theme import muted_text, primary_button, ghost_button
 from ui import design as d
 from ui.widgets import wrap_dialog_actions
@@ -809,35 +811,42 @@ class HomeView(ft.Column):
         self.page.show_dialog(snack)
 
     # ------------------------------------------------------------------
-    # Export / Import personaggio (2026-07-24)
+    # Export / Import personaggio
     #
-    # Stesso principio cross-platform già stabilito nel progetto per la
-    # selezione immagini (profilo_tab.py/maps_view.py): ft.FilePicker non è
-    # utilizzabile né su desktop né in web mode in Flet 0.85.3 (bug
-    # upstream confermato, vedi CLAUDE.md 2026-07-12) — qui va inoltre
-    # notato che il metodo pick_files()/save_file() di questa esatta
-    # versione di Flet non espone nemmeno un evento on_result utilizzabile
-    # per il ramo mobile (verificato leggendo il sorgente del pacchetto
-    # installato: FilePicker in flet==0.85.3 ha solo metodi async con
-    # valore di ritorno diretto, nessun attributo on_result) — il codice
-    # mobile già presente altrove nel progetto per le foto si basa su
-    # quell'attributo e non è mai stato verificato con una vera build
-    # mobile. Per non introdurre un percorso mobile scritto ma mai
-    # verificabile in questa sessione, Export/Import mostrano un messaggio
-    # esplicito "non ancora disponibile" su Android/iOS invece di tentare
-    # un codice non testato — scelta di onestà tecnica, non una lacuna
-    # nascosta. Desktop e Web sono invece pienamente implementati e testati.
+    # Stato al 2026-08-06 — DIVERSO tra i due, leggere con attenzione:
+    #
+    # IMPORT (_on_mobile_import): riscritto per usare una WebView locale
+    # (ui/mobile_webview_picker.py), NON più ft.FilePicker. Motivo: un log
+    # `adb logcat` reale (preso per il caso foto profilo, diagnosi
+    # applicabile a QUALUNQUE uso di ft.FilePicker su questa build Android)
+    # ha mostrato che pick_files()/save_file() arrivano al bridge Dart ma
+    # vanno in TimeoutException — nessuna Activity nativa viene mai
+    # avviata. Il codice qui scritto il 2026-07-24 usava correttamente
+    # l'`await` (a differenza del bug trovato in profilo_tab.py/
+    # maps_view.py), ma un `await` corretto non basta se il controllo
+    # sottostante non è utilizzabile affatto. Vedi dnd_app/docs/
+    # changelog_storico.md.
+    #
+    # EXPORT (_on_mobile_export): **NON ancora migrato**, resta su
+    # ft.FilePicker.save_file() — fuori scope in questa sessione (un
+    # download via WebView richiede intercettare un meccanismo diverso da
+    # quello usato per la selezione, mai verificato). Per la stessa
+    # diagnosi di cui sopra è MOLTO PROBABILE che vada in errore allo
+    # stesso modo (TimeoutException) su un vero dispositivo — non ancora
+    # confermato con un log dedicato. Se fallisce, il `try/except` già
+    # presente lo intercetta e mostra un errore invece di bloccarsi in
+    # silenzio, ma la funzionalità resta di fatto non disponibile su
+    # mobile finché non viene affrontata a parte. Desktop e Web restano
+    # pienamente implementati e testati per entrambi.
     # ------------------------------------------------------------------
 
     def _ensure_file_picker(self) -> ft.FilePicker | None:
         """
-        Ritorna il FilePicker mobile — normalmente già registrato in
-        did_mount(); se per qualche motivo non lo fosse ancora (pagina non
-        pronta al momento del mount), lo crea e registra qui al volo,
-        stesso fallback difensivo già in uso in profilo_tab.py/
-        maps_view.py per lo stesso identico controllo. Raggiungibile SOLO
-        dai due metodi mobile qui sotto (_on_mobile_export/_on_mobile_import),
-        mai da desktop/web.
+        Ritorna il FilePicker mobile — usato ORA SOLO da _on_mobile_export()
+        (vedi nota sopra: _on_mobile_import() è passato a WebView e non lo
+        usa più). Normalmente già registrato in did_mount(); se per qualche
+        motivo non lo fosse ancora (pagina non pronta al momento del
+        mount), lo crea e registra qui al volo.
         """
         page = self.page
         if page is None:
@@ -1214,40 +1223,49 @@ class HomeView(ft.Column):
 
     async def _on_mobile_import(self):
         """
-        Import su Android/iOS (2026-07-24) — stessa API corretta di
-        _on_mobile_export(). `pick_files(with_data=True)` restituisce
-        direttamente i byte del file scelto: a differenza di desktop/web,
-        su mobile non serve mai un path locale raggiungibile dal processo
-        Python (che qui gira sullo stesso dispositivo del client, ma il
-        path del file scelto dal picker di sistema non è comunque sempre
-        garantito — vedi nota su FilePickerFile.path nel sorgente Flet),
-        quindi si passa direttamente al testo in memoria.
+        Import su Android/iOS tramite WebView locale
+        (`ui/mobile_webview_picker.py`), NON più `ft.FilePicker`.
+
+        **Perché non FilePicker (2026-08-06)**: questo metodo era stato
+        scritto il 2026-07-24 usando correttamente l'API async di
+        `pick_files()` — a differenza del vecchio codice foto in
+        profilo_tab.py/maps_view.py, qui l'`await` non era mai mancato. Ma
+        un log `adb logcat` reale (preso per il caso foto, diagnosi
+        applicabile a QUALUNQUE uso di `ft.FilePicker` su questa build) ha
+        mostrato che il problema è più a fondo dell'`await`: la chiamata
+        arriva al bridge Dart ma va in `TimeoutException: Timeout waiting
+        for invoke method listener` — nessuna Activity nativa Android
+        viene mai avviata. Un `await` corretto non basta: il controllo
+        `FilePicker` stesso non è utilizzabile su questa build, per
+        qualunque suo metodo. Vedi `dnd_app/docs/changelog_storico.md`.
+
+        Il rimpiazzo mostra una WebView locale con un
+        `<input type=file accept=".dndchar,.json,application/json">` —
+        stesso meccanismo già in uso per foto profilo/immagine mappa.
         """
-        picker = self._ensure_file_picker()
-        if picker is None:
+        page = self.page
+        if page is None:
             return
+        result = await pick_file_via_webview(
+            page, accept=".dndchar,.json,application/json",
+            title="Importa personaggio",
+        )
+        if result is None:
+            return  # utente ha annullato, o errore già loggato nel modulo
+        filename, b64_content = result
         try:
-            files = await picker.pick_files(
-                dialog_title="Importa personaggio",
-                file_type=ft.FilePickerFileType.CUSTOM,
-                allowed_extensions=["dndchar", "json"],
-                allow_multiple=False,
-                with_data=True,
-            )
+            raw = base64.b64decode(b64_content)
         except Exception as exc:
-            logger.error(f"Errore FilePicker.pick_files (mobile): {exc}")
-            self._show_error(f"Errore durante la selezione del file:\n{exc}")
-            return
-        if not files:
-            return  # utente ha annullato, nessun errore da mostrare
-        picked = files[0]
-        if picked.bytes is None:
-            self._show_error("Impossibile leggere il contenuto del file selezionato.")
+            logger.error(f"Import mobile: base64 non decodificabile: {exc}")
+            self._show_error("File non valido. Riprova.")
             return
         try:
-            text = picked.bytes.decode("utf-8")
+            text = raw.decode("utf-8")
         except UnicodeDecodeError:
-            self._show_error("Il file selezionato non è un file di testo valido (UTF-8 atteso).")
+            self._show_error(
+                f"Il file selezionato ({filename}) non è un file di testo "
+                "valido (UTF-8 atteso)."
+            )
             return
         self._do_import_from_text(text)
 

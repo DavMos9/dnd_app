@@ -110,7 +110,54 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 #   `async def`, i chiamanti usano `page.run_task(fn, ...)` invece di `fn(...)`.
 #   Dettaglio completo in `changelog_storico.md`.
 #
-# Il ragionamento (SBAGLIATO nella conclusione, lasciato per la cronologia):
+# ⚠️ SECONDA CORREZIONE, STESSO GIORNO (2026-08-06) — il fix dell'`await` era
+#   corretto ma INSUFFICIENTE. Un secondo log `adb logcat`, preso DOPO aver
+#   applicato il fix sopra (confermato dal numero di riga citato nel log,
+#   coerente col codice corretto), ha mostrato un errore diverso e più a
+#   fondo:
+#     `RuntimeError: TimeoutException after 0:00:10.000000: Timeout waiting
+#     for invoke method listener for FilePicker(N).pick_files`
+#   La chiamata Python arriva correttamente al bridge Dart (l'`await` ora
+#   funziona) ma **nessuna Activity nativa Android viene mai avviata** —
+#   verificato leggendo il log COMPLETO, non solo quello filtrato: nessun
+#   picker di sistema, nessun dialogo di permesso, nessuna traccia di un
+#   Intent lanciato durante i 10 secondi di attesa. Questo combacia esattamente
+#   con la classe di bug "packaging" + "platform: android" già documentata
+#   più sotto in questo file (punti 3-4 del ragionamento SBAGLIATO — SBAGLIATO
+#   nella diagnosi iniziale del banner "Unknown control", ma la CAUSA DI FONDO
+#   che quei punti descrivevano era comunque reale, solo manifestata con un
+#   sintomo diverso una volta corretto l'await): `ft.FilePicker` non è
+#   utilizzabile su questa build Android, per NESSUNO dei suoi metodi
+#   (`pick_files`, `save_file`, `get_directory_path` — stesso controllo
+#   `Service`, stesso bridge). Non è un problema risolvibile scrivendo il
+#   codice Python diversamente attorno a `FilePicker`.
+#
+#   **Decisione presa con Davide (2026-08-06), dopo aver valutato le
+#   alternative**: bypassare del tutto `ft.FilePicker` su mobile con
+#   `ft.WebView` (estensione ufficiale `flet-webview`, un controllo
+#   `LayoutControl` — non `Service` — con un meccanismo di rendering
+#   completamente diverso, non condivide questo bug) che mostra una pagina
+#   HTML locale con un `<input type=file>`, lo stesso elemento standard che
+#   ogni browser usa per allegare un file — apre il selettore nativo tramite
+#   l'infrastruttura WebView di Android, un pezzo di codice molto più maturo
+#   e testato dell'integrazione Service di FilePicker. Zero rete coinvolta
+#   (HTML passato come `data:` URI, `FileReader.readAsDataURL()` legge il
+#   file in memoria lato browser). Implementato in
+#   `ui/mobile_webview_picker.py` (dettaglio completo in
+#   `architettura_moduli.md` e `changelog_storico.md`), usato da
+#   `profilo_tab.py`, `maps_view.py`, `home_view.py::_on_mobile_import()`.
+#   Alternative valutate e scartate: Pyjnius (Java diretto, ma nessun modo
+#   pulito di riportare un risultato Intent async in puro Python senza glue
+#   Kotlin/Java); estensione Flutter nativa custom (costo molto più alto,
+#   stesso risultato ottenibile con WebView a costo minore).
+#   **Ancora fuori scope**: `home_view.py::_on_mobile_export()` (save_file)
+#   non è stato migrato — un download via WebView è un meccanismo diverso
+#   (mai verificato), probabilmente soggetto allo stesso bug ma non ancora
+#   confermato con un log dedicato.
+#
+# Il ragionamento (SBAGLIATO nella diagnosi del banner "Unknown control",
+# ma la causa di fondo — FilePicker non utilizzabile su questa build
+# Android — si è poi rivelata comunque corretta, vedi sopra):
 # ft.FilePicker su MOBILE (Android/iOS, build nativa "flet build apk/ipa") →
 #   ⚠️ SMENTITO DEL TUTTO (confermato 2026-08-06, screenshot di Davide su un
 #   vero Android): anche l'uso lazy/interattivo (tap sul pulsante → crea il
@@ -233,6 +280,29 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 #   quel caso il ramo corretto è sempre quello "web" (page.web == True),
 #   mai il subprocess nativo — già gestito da `_pick_photo()`.
 
+# WEBVIEW (flet_webview, pacchetto separato flet-webview==0.86.5) — usato
+# in ui/mobile_webview_picker.py come bypass di ft.FilePicker (vedi sopra).
+# - `WebView` è un `LayoutControl` (widget visibile, va dimensionato con
+#   width/height o expand=True), NON un `Service` come `FilePicker` — non
+#   condivide la stessa classe di bug.
+# - Caricare HTML locale via il parametro COSTRUTTORE `url=` come
+#   `data:text/html;charset=utf-8;base64,<...>`, non tramite il metodo
+#   async `load_html()` chiamato dopo il mount: `load_html()` richiede il
+#   controllo già montato sulla pagina (stesso vincolo `BaseControl.page`
+#   che affligge i metodi di `FilePicker`), passare l'HTML già pronto nel
+#   costruttore evita del tutto la sequenza "monta, poi invoca" e la race
+#   di timing che ne deriva.
+# - `on_console_message: EventHandler[WebViewConsoleMessageEvent]` (campo
+#   `.message: str`) è un canale JS→Python di prima classe, verificato per
+#   introspezione sul pacchetto installato — usare `console.log(...)` nella
+#   pagina HTML per restituire dati a Python, con un prefisso di stringa
+#   per distinguere il proprio protocollo da log innocui del motore di
+#   rendering.
+# - Nessun evento/metodo dedicato per intercettare un download avviato
+#   dalla pagina (es. un `<a download>` o `Blob` + click) — non verificato,
+#   non usato: questo modulo copre solo la SELEZIONE di file esistenti
+#   (`<input type=file>`), non il salvataggio.
+
 # CLIENT_STORAGE — page.client_storage NON esiste in Flet 0.85.3
 # `page.client_storage.get/set(...)` ← SBAGLIATO → AttributeError, l'attributo
 #   non esiste su ft.Page in questa versione (verificato per introspezione sul
@@ -307,6 +377,74 @@ muted_text(text, size=12, text_align=..., weight=...)
 # Fix: MAI wrap=True su una Row/Column che ha un figlio con expand=True. Per troncare un
 # testo lungo in quella posizione: no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS (senza
 # expand, oppure expand SENZA wrap sulla Row — mai entrambi insieme).
+#
+# TAB BAR / BARRE DI PILLOLE CON TROPPE VOCI PER LO SCHERMO — non usare wrap=True
+#   (2026-08-06): il fix "sicuro" (`wrap=True` + pillole senza `expand`, per evitare il
+#   crash sopra) evita il crash ma introduce un difetto visivo diverso, segnalato da
+#   Davide come "bruttissima, si prende tutto lo schermo": le pillole in eccesso vanno
+#   su una riga in più A PIENA LARGHEZZA del contenitore, allungando verticalmente una
+#   barra che deve restare una striscia sottile fissa (tab bar di SheetView/MasterView,
+#   entrambe colpite). Fix corretto: `scroll=ft.ScrollMode.AUTO` sulla Row (NON `wrap`),
+#   pillole senza `expand` — riga UNICA di altezza fissa, scorre ORIZZONTALMENTE quando
+#   il contenuto non ci sta. Pattern già in uso e collaudato da tempo nella bottom nav
+#   dell'app (`ui/app.py::_build_bottom_nav()`, 9 voci su smartphone stretto) — riusato,
+#   non inventato ad-hoc. `wrap=True` va bene per contenuto che DEVE restare tutto
+#   visibile senza scorrimento (es. chip di riepilogo, filtri) dove crescere in altezza
+#   è accettabile; per una tab bar/barra di navigazione, dove l'altezza deve restare
+#   fissa, usare sempre `scroll=ft.ScrollMode.AUTO`, mai `wrap=True`.
+#
+# ⚠️ SEGUITO (stesso giorno): `scroll=ft.ScrollMode.AUTO` risolve l'altezza ma NON
+#   mettere mai un `bgcolor`/bordo/sfondo colorato sul `Container` che avvolge una Row
+#   con `scroll=...`, se quel Container non ha una propria larghezza esplicita. Motivo
+#   (comportamento noto di Flutter, non un bug Flet): un `SingleChildScrollView`
+#   orizzontale (quello che Flet genera per `scroll=...`) NON si restringe MAI al
+#   contenuto lungo l'asse di scroll — prende sempre la larghezza MASSIMA concessa dal
+#   genitore, anche quando il contenuto reale è molto più stretto. Un `Container` senza
+#   `width` esplicita eredita quella larghezza "gonfiata" e, se ha un `bgcolor`, la
+#   disegna visibilmente anche dove non c'è alcun contenuto — un "alone" colorato che si
+#   allunga fino al bordo dello schermo/finestra (segnalato da Davide su un vero
+#   screenshot desktop: la pista beige dietro le 5 pillole della tab bar arrivava quasi
+#   al bordo della finestra, molto oltre le pillole vere). Nota bene: con `wrap=True` lo
+#   stesso problema NON si vede, perché il widget `Wrap` di Flutter SI restringe al
+#   contenuto per riga — motivo per cui non era stato notato nel fix precedente.
+#   Fix: NON dare mai un `bgcolor` al Container che avvolge la Row scorrevole. Se serve
+#   un indicatore visivo di "gruppo" (tab bar, barra pillole), applicarlo a ogni singola
+#   pillola (bordo/sfondo quando attiva/selezionata), mai a un contenitore che le
+#   racchiude tutte — esattamente il pattern già in uso per "Generatori Rapidi"
+#   (`design.pill()`, MasterView): nessuno sfondo di gruppo, ogni pillola ha il proprio.
+#
+# SEGUITO 2 (stesso giorno): anche `scroll=ft.ScrollMode.AUTO` si è rivelato sbagliato
+#   per una tab bar — risolve l'altezza e l'alone, ma NASCONDE le voci che non ci stanno
+#   dietro uno scroll orizzontale non scoperto (segnalato da Davide: "le selezioni vengono
+#   tagliate o scompaiono, non si adattano alla pagina"). In questo progetto la preferenza
+#   esplicita è per un'interfaccia sempre visibile, senza contenuto nascosto dietro un
+#   gesto non ovvio (vedi la memoria persistente su "no hidden UI actions"). Per un
+#   controllo con troppe voci per la larghezza minima da supportare, la sequenza di
+#   tentativi corretta è: (1) provare a far entrare TUTTO restringendo il contenuto
+#   stesso (qui: pillole icona-sola invece di icona+testo sotto un breakpoint, non
+#   riduzione di font/padding — con etichette italiane lunghe una riduzione cosmetica non
+#   basta comunque a farle stare in ~360px), PRIMA di (2) `wrap` (cresce in verticale) o
+#   (3) `scroll` (nasconde). Il breakpoint per "sotto quale larghezza passare alla
+#   versione compatta" va riusato da uno già esistente nel progetto se c'è (qui:
+#   `ui/app.py::_MOBILE_BP = 600`, già usato per sidebar/bottom-nav), non inventato — un
+#   secondo valore diverso creerebbe un'esperienza incoerente tra due parti dell'app che
+#   cambiano "modalità mobile" a soglie diverse.
+#
+# page.on_resize È UN SINGOLO HANDLER, NON UN EVENTO A CUI CI SI PUÒ ISCRIVERE IN PIÙ PUNTI
+#   `page.on_resize = f` SOVRASCRIVE qualunque handler già assegnato — non esiste un
+#   equivalente di `addEventListener`. In questo progetto `page.on_resize` è di proprietà
+#   esclusiva di `DnDApp._on_page_resize()` (`ui/app.py`), che lo usa per switchare tra
+#   sidebar e bottom nav al breakpoint mobile. Se una vista figlia (es. `SheetView`,
+#   `MasterView`) deve sapere "lo schermo è stretto?" per un proprio scopo (qui: la
+#   modalità compatta della tab bar), NON deve assegnare un proprio `page.on_resize` —
+#   romperebbe silenziosamente lo switch sidebar/bottom-nav. Corretto: calcolare il flag
+#   (`is_mobile`) nel punto che già possiede `page.on_resize` (`DnDApp`) e passarlo giù
+#   come parametro al costruttore della vista figlia. Limite accettato: la vista figlia
+#   non si aggiorna da sola se ridimensionata DOPO essere stata costruita, a meno che il
+#   punto che la costruisce non venga già richiamato dal resize esistente (vero per
+#   `SheetView`, che vive dentro `content_area` e viene ricostruita da
+#   `_show_main_layout()`; falso per `MasterView`, che sostituisce l'intera pagina via
+#   `_navigate()` e quindi resta fissata al valore letto alla sua apertura).
 
 # EXPAND=True su Column dentro Row dentro ListView → stesso crash silenzioso
 # ft.Column([...], expand=True) dentro ft.Row(..., vertical_alignment=STRETCH)

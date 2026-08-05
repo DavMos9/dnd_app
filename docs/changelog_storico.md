@@ -5154,6 +5154,46 @@
   riconfermare). `regole_flet_api.md` corretto con la vera causa (la vecchia diagnosi "bug di
   packaging Android upstream" è stata lasciata visibile ma marcata come smentita, non cancellata).
 
+- **Il fix dell'`await` era corretto ma insufficiente — un secondo log rivela un problema più
+  profondo, genuinamente lato Android (2026-08-06, stessa sessione)** — Davide ha ricompilato (versione
+  interna passata da 0.1.21 a 0.1.23, confermando questa volta una build reale con il fix) e rimandato
+  un nuovo log. **Prima verifica di controllo**: il numero di riga nel traceback (`profilo_tab.py:4299`,
+  non più 4282) conferma che questa volta il log riflette davvero il codice corretto — l'`await` è
+  presente e funziona: non c'è più alcun `RuntimeWarning: never awaited`.
+
+  **Il nuovo errore, però**:
+
+  ```
+  RuntimeError: TimeoutException after 0:00:10.000000: Timeout waiting for invoke method listener
+  for FilePicker(5244).pick_files
+  ```
+
+  Verificato per introspezione che questa NON è la stessa eccezione già vista nella diagnosi
+  precedente (`page.overlay`/timing) — è un timeout Python che scade DOPO aver correttamente inviato
+  la richiesta lato Dart bridge, in attesa di una risposta che non arriva mai in 10 secondi.
+  **Controllo aggiuntivo, decisivo**: letto il log COMPLETO non filtrato nella finestra dei 10 secondi
+  precedenti l'eccezione (dal tap alle 00:31:21.221 all'eccezione alle 00:31:31.426) — nessuna riga
+  `ActivityTaskManager: START` per un'Activity di sistema (nessun picker file/foto nativo, nessun
+  dialogo di richiesta permesso `GrantPermissionsActivity` o simile). L'unica attività registrata è il
+  tocco stesso (`ViewRootImpl: ViewRoot's Touch Event`) dentro la nostra app. **Conclusione**: la
+  richiesta non arriva MAI al lato nativo Android — non è un permesso negato o un dialogo bloccato in
+  attesa, è il meccanismo di dispatch lato Flutter/Dart che non risponde affatto alla chiamata
+  `pick_files()` per questo controllo. Coerente con la classe di bug "packaging" + "platform: android"
+  già documentata per `Clipboard`/`Flashlight` nel repository upstream — semplicemente mascherata,
+  nelle sessioni precedenti, dal bug Python dell'`await` mancante (che falliva PRIMA di poter mai
+  arrivare a questo timeout).
+
+  (Nota separata trovata nello stesso log, non correlata: due errori `Dart_PostCObject_DL failed` alle
+  00:31:16-19, causati dal Play/Package Installer che sostituiva l'APK precedente mentre il vecchio
+  processo Python era ancora vivo in background — rumore dell'installazione stessa, non del bug.)
+
+  **Non ancora deciso il prossimo passo** — presentate a Davide le opzioni con pro/contro (tentare una
+  singola istanza `FilePicker` creata al volo invece che riutilizzata per sessione, pattern più vicino
+  a quello mostrato nella documentazione ufficiale corrente, costo basso ma probabilità di successo
+  ridotta vista l'evidenza; segnalare il bug upstream con questa evidenza precisa; investire in
+  un'estensione Flutter nativa alternativa, costosa e richiede il loop di build/test di Davide;
+  rimandare la selezione file su Android). Nessuna scelta ancora fatta.
+
 - **5 pillole di tab troncate illeggibili su smartphone stretto — stesso bug in due punti indipendenti
   (2026-08-06)** — Davide ha mandato screenshot di due schermate: la scheda personaggio ("Pro...",
   "Co...", "Espl...", "Inve...", "Diario" — solo l'ultima per caso abbastanza corta da stare intera) e
@@ -5192,6 +5232,277 @@
   non eredita l'ambiente Python con `flet` installato) — non correlato a queste modifiche, verificato
   eseguendo `test_mondo_senza_rete.py` da solo nello stesso ambiente (139/139 verde). **Non verificabile
   da qui**: la resa visiva reale su un vero smartphone stretto — solo Davide può confermarlo.
+
+- **2026-08-06 — Bypass di `ft.FilePicker` su Android: WebView locale al posto del controllo rotto.**
+  Continuazione diretta delle due voci precedenti (await mancante trovato e corretto; poi il secondo log
+  che ha rivelato il problema più a fondo). Un secondo log `adb logcat` di Davide, preso DOPO il fix
+  dell'`await`, ha mostrato che `pick_files()` ora arriva correttamente al bridge Dart ma va in
+  `RuntimeError: TimeoutException after 0:00:10.000000: Timeout waiting for invoke method listener for
+  FilePicker(N).pick_files` — **nessuna Activity nativa Android viene mai avviata**, verificato leggendo
+  il log COMPLETO (non solo quello filtrato): nessun picker di sistema, nessun dialogo di permesso,
+  nessuna traccia di un Intent lanciato durante i 10 secondi di attesa. Conclusione: `ft.FilePicker` non
+  è utilizzabile su questa build Android, per nessuno dei suoi metodi — non un problema risolvibile
+  scrivendo il codice Python diversamente attorno alla chiamata, come già sospettato (ma mai confermato
+  con un log) nelle sessioni precedenti che avevano trovato la stessa classe di bug "packaging" +
+  "platform: android" nel repository upstream di Flet per altri controlli `Service` (Clipboard,
+  Flashlight).
+
+  Davide ha chiesto esplicitamente di valutare **tutte le alternative possibili, anche le più estreme**,
+  prima di scegliere una strada, trattandosi di una funzionalità importante (scelta dell'immagine).
+  Ricerca condotta: (1) Pyjnius — supportato ufficialmente da Flet per accesso Java diretto, ma nessun
+  modo pulito di riportare un risultato Intent asincrono (`onActivityResult`) in puro Python senza glue
+  Kotlin/Java scritto a mano; (2) estensione Flutter nativa custom via la "Enhanced Extensions API" di
+  Flet — tecnicamente la soluzione più solida, ma costo di sviluppo molto più alto, richiede toolchain
+  Dart/Flutter; (3) `ft.WebView` (estensione ufficiale separata `flet-webview`, mantenuta in lockstep di
+  release col pacchetto `flet` core) con un `<input type=file>` — costo contenuto, riusa un meccanismo
+  di selezione file (il file-chooser di WebView) enormemente più maturo e testato di qualunque controllo
+  `Service` di Flet, perché usato da milioni di app con una WebView integrata. Scelta: opzione 3,
+  rapporto costo/probabilità di successo migliore.
+
+  **Chiarimento importante dato a Davide prima di procedere**: il progetto è offline-first
+  (`CLAUDE.md`, principio architetturale dichiarato) e Davide ha giustamente chiesto conferma che
+  `WebView` non introducesse una dipendenza da internet. Confermato che non è così: la pagina HTML è
+  costruita interamente in Python e passata alla WebView come `data:` URI locale (mai un URL remoto,
+  mai una richiesta di rete), e il file scelto viene letto in memoria dal browser con
+  `FileReader.readAsDataURL()` (API JavaScript standard, zero upload, zero rete) — l'unico "confine"
+  attraversato è lo stesso dispositivo, tramite `console.log()` → `WebView.on_console_message`.
+  Approvato da Davide dopo questo chiarimento.
+
+  **Implementato**: nuovo modulo `ui/mobile_webview_picker.py` —
+  `async pick_file_via_webview(page, *, accept="*/*", title="...") -> Optional[tuple[str, str]]`
+  (nome file, contenuto base64) o `None` se annullato/errore. Mostra un `ft.AlertDialog` (pattern
+  `design.dialog_title()`/`wrap_dialog_actions()` già in uso nel progetto) contenente una `WebView` con
+  `url=` impostato a un `data:text/html;charset=utf-8;base64,<...>` (scelto invece del metodo async
+  `load_html()` post-mount per evitare la stessa race "monta poi invoca" che affligge `FilePicker` —
+  `load_html()` richiede comunque il controllo già montato). La pagina HTML contiene un
+  `<input type=file accept="{accept}">` nascosto, attivato da un bottone visibile stilizzato; alla
+  scelta, `FileReader` legge il file e lo rimanda a Python con `console.log('FLET_PICKER_RESULT:' +
+  JSON.stringify({{name, dataUrl}}))`, intercettato da `on_console_message` e portato al chiamante
+  `async` tramite un `asyncio.Future` (ponte sincrono→asincrono dal callback dell'evento).
+
+  Aggiunta la dipendenza `flet-webview==0.86.5` a `pyproject.toml` e `requirements.txt` (stessa versione
+  di `flet`, per restare in lockstep come da convenzione già in uso per queste due liste).
+
+  **Wiring** (tre siti, tutti verificati con `py_compile`/`compileall`):
+  - `profilo_tab.py::_pick_photo_mobile()` — `accept="image/*"`. `_load_photo(path)` (storico) è stato
+    diviso in `_load_photo(path)` (apre un path locale, invariato per il ramo desktop) + nuova
+    `_save_photo_bytes(raw: bytes)` (la normalizzazione PIL→JPEG→base64 + salvataggio DB, estratta per
+    essere condivisa col nuovo flusso WebView che riceve bytes diretti, non un path).
+  - `maps_view.py::_pick_mobile()` — stesso pattern: `_load_image_base64(path)` diviso in sé stesso
+    (ora un thin wrapper che apre il path) + nuova `_normalize_image_bytes_to_base64(raw: bytes)`.
+  - `home_view.py::_on_mobile_import()` — `accept=".dndchar,.json,application/json"`, decodifica UTF-8
+    e delega a `_do_import_from_text()` già esistente. Questa funzione, scritta il 2026-07-24, usava
+    già correttamente l'`await` (non aveva il primo bug) — ma essendo comunque basata su
+    `ft.FilePicker.pick_files()`, era ugualmente esposta al bug di fondo appena diagnosticato: un
+    `await` corretto non basta se il controllo sottostante non è utilizzabile affatto su questa build.
+
+  In tutti e tre i punti rimossi `self._file_picker` (l'attributo, la creazione lazy, i commenti storici
+  del "did_mount() non registra più nulla" ormai superati) dove non più necessario; `home_view.py`
+  mantiene `self._file_picker`/`_ensure_file_picker()` perché ancora usato da `_on_mobile_export()`.
+
+  **Esplicitamente fuori scope in questa sessione**: `home_view.py::_on_mobile_export()` (save_file) —
+  un download via WebView è un meccanismo diverso (intercettare un `<a download>`/Blob lato browser),
+  mai verificato in questo progetto. Resta su `ft.FilePicker.save_file()`; per la stessa diagnosi è
+  MOLTO PROBABILE che fallisca allo stesso modo su un vero dispositivo (TimeoutException), ma non
+  ancora confermato con un log dedicato — il `try/except` già presente lo intercetterebbe comunque
+  mostrando un errore invece di un blocco silenzioso. Segnalato chiaramente nei commenti del file e da
+  affrontare a parte se Davide lo richiede.
+
+  **Verificato**: `python3 -m py_compile` su tutti i file toccati, `python3 -m compileall` sull'intero
+  albero (esclusa `build/`), import reale di `ui.mobile_webview_picker` nel sandbox (con
+  `flet-webview==0.86.5` installato per la verifica), introspezione di `WebView.__init__`/
+  `WebViewConsoleMessageEvent` per confermare i parametri usati. Tutte e 4 le batterie di test:
+  `test_regressione_wrap_expand.py` 37/37, `test_master_world_scoping.py` 25/25,
+  `test_mondo_senza_rete.py` 139/139, `test_lan_host_client.py` 92/92,
+  `test_istanze_personaggio.py` 61/62 (stesso artefatto ambientale del sandbox già annotato in sessioni
+  precedenti — il subprocess che lancia non eredita `flet` dall'ambiente del sandbox, non correlato a
+  queste modifiche). Nessuna regressione.
+
+  **Non verificabile da qui**: se il selettore WebView si apre davvero e funziona end-to-end su un vero
+  dispositivo Android — richiede un rebuild (`flet build apk`, non disponibile in questo sandbox: niente
+  Android SDK/NDK) e un test di Davide sul dispositivo reale, sui tre punti (foto profilo, immagine
+  mappa, import personaggio).
+
+  **Tab bar (pillole selezione tab) — NON ancora corretta oltre il fix precedente**: Davide ha segnalato
+  che il fix `wrap=True` di `sheet_view.py`/`master_view.py` (voce precedente in questo changelog) è
+  visivamente "bruttissima, si prende tutto lo schermo" su un vero smartphone. Non è stato tentato un
+  secondo fix alla cieca in questa sessione: è stato chiesto a Davide uno screenshot per diagnosticare
+  con precisione invece di ipotizzare di nuovo — lezione diretta dal ciclo di misdiagnosi del FilePicker
+  appena concluso in questa stessa sessione. In attesa dello screenshot.
+
+- **2026-08-06 (stessa giornata) — bug reale trovato da Davide: l'app crashava anche su DESKTOP dopo
+  l'introduzione del picker WebView.** Screenshot di Davide: `python main.py` su macOS mostrava subito
+  "The application encountered an error: No module named 'flet_webview'" — l'app non arrivava nemmeno
+  alla Home. Causa: `ui/mobile_webview_picker.py` importava `from flet_webview import WebView,
+  WebViewConsoleMessageEvent` in cima al modulo (import "eager"), e quel modulo è importato a sua volta
+  in cima a `profilo_tab.py`/`maps_view.py`/`home_view.py` — tre file caricati all'avvio su QUALUNQUE
+  piattaforma, non solo Android/iOS. Il pacchetto `flet-webview` serve SOLO al ramo mobile (l'unico che
+  chiama `pick_file_via_webview()`; desktop/web instradano sempre altrove — `_pick_photo_desktop()`,
+  `show_image_library_picker()`, ecc.), ma l'import eager lo rendeva un requisito per l'avvio dell'app
+  su QUALUNQUE piattaforma, desktop compreso — dove il pacchetto non è (né deve essere) necessariamente
+  installato. Un difetto di progettazione introdotto dalla sessione stessa che ha scritto il modulo, non
+  notato perché la verifica di quella sessione aveva installato `flet-webview` nel sandbox prima di
+  testare l'import, mascherando il problema.
+
+  **Fix**: import di `flet_webview` spostato DENTRO `pick_file_via_webview()` (import ritardato a
+  runtime, eseguito solo quando la funzione viene davvero chiamata — cioè solo sul ramo mobile). Per
+  poter comunque annotare il tipo `WebViewConsoleMessageEvent` nella funzione interna
+  `_on_console_message()` senza un secondo import eager, aggiunto `from __future__ import annotations`
+  in cima al file (valuta le annotazioni pigramente, mai richiesto a runtime) e un blocco `if
+  TYPE_CHECKING:` per l'import visibile solo agli strumenti di analisi statica, mai eseguito.
+
+  **Verificato in modo specifico per questo bug** (non solo un compileall): disinstallato
+  `flet-webview` dal sandbox e reimportati `ui.mobile_webview_picker` +
+  `ui.views.character_sheet.profilo_tab` + `ui.views.maps_view` + `ui.views.home_view` — tutti importano
+  senza errore SENZA il pacchetto installato, confermando che desktop/web non ne hanno più bisogno per
+  avviarsi. Reinstallato `flet-webview` e ripetuto `compileall` + `test_regressione_wrap_expand.py`
+  (37/37) + `test_master_world_scoping.py` (25/25) — nessuna regressione. **Non verificabile da qui**:
+  che l'app si avvii ora pulita sul Mac di Davide (bastano gli import qui sopra a prevederlo con buona
+  sicurezza, ma solo un lancio reale lo conferma) — e resta comunque da confermare, come sempre, il
+  comportamento del picker vero e proprio su un Android reale.
+
+- **2026-08-06 (stessa giornata) — tab bar: da `wrap=True` a riga singola scorrevole, in entrambe le
+  sezioni.** Davide ha ripreso la segnalazione ancora aperta ("fissa enorme che occupa tutto lo spazio,
+  brutta da vedere") chiedendo esplicitamente di adattare la sezione giocatore (`SheetView`) come già
+  fatto, a suo dire, nella sezione Master. Verifica del codice: `MasterView._build_tab_bar()` non era
+  MAI stata toccata dopo il primo fix `wrap=True` della sessione precedente — struttura identica,
+  pillola per pillola, a `SheetView._build_header_and_tabs()`. Nessuna delle due sezioni era quindi
+  "già sistemata"; probabile che Davide avesse notato meno il problema in Master (5 etichette in media
+  leggermente più corte, ma comunque soggette allo stesso identico difetto) piuttosto che una reale
+  differenza di codice.
+
+  **Causa del difetto visivo** (deduttiva dal comportamento noto di `wrap=True` su Flutter, coerente col
+  commento stesso che l'aveva introdotto nella sessione precedente): `wrap=True` con 5 pillole
+  "Combattimento"/"Esplorazione"/"Rubrica NPC"/"Note di Campagna" che non ci stanno su una riga manda
+  quelle in eccesso su una SECONDA (a volte terza) riga a piena larghezza del contenitore — per una tab
+  bar, che deve restare una striscia sottile in alto, questo significa raddoppiare o triplicare la sua
+  altezza e spingere giù tutto il resto: esattamente "si prende tutto lo schermo".
+
+  **Fix**: sostituito `wrap=True` con `scroll=ft.ScrollMode.AUTO` sulla `Row` delle pillole, in
+  ENTRAMBI i file (`sheet_view.py::_build_header_and_tabs()` e `master_view.py::_build_tab_bar()`) —
+  non una scelta inventata sul momento: è lo STESSO pattern già scelto da Davide e collaudato da tempo
+  nella bottom nav dell'app (`ui/app.py::_build_bottom_nav()`, 9 voci su un telefono stretto, commento
+  originale: "con 9 voci... la barra scorre orizzontalmente quando non ci stanno tutte" — larghezza
+  fissa per voce, mai `wrap`). Risultato: la tab bar resta sempre un'unica riga di altezza fissa: le
+  pillole che non ci stanno restano semplicemente fuori vista finché l'utente non scorre lateralmente,
+  invece di allungare la barra verticalmente. Le pillole restano senza `expand=True` (si dimensionano
+  sul proprio contenuto, non si dividono lo spazio) — irrilevante ai fini del bug Flutter
+  `wrap=True`+`expand=True` già documentato in `regole_flet_api.md`, dato che ora `wrap` non compare più
+  affatto in nessuno dei due punti.
+
+  Applicato a entrambe le sezioni per coerenza (lo stesso identico problema, la stessa identica causa,
+  la stessa soluzione già in uso altrove nel progetto) — non solo alla sezione giocatore esplicitamente
+  richiesta, per evitare di lasciare la sezione Master con un difetto equivalente non corretto.
+
+  **Verificato**: `py_compile` su entrambi i file, `test_regressione_wrap_expand.py` 37/37 (nessuna
+  modifica necessaria al test: cammina la struttura cercando l'anti-pattern `wrap`+`expand`
+  co-presenti, che ora non c'è più in nessuno dei due punti, quindi continua a non trovarlo), nessuna
+  regressione sulle altre 3 batterie (25/25, 139/139, 92/92). **Non verificabile da qui**: la resa reale
+  su un vero smartphone stretto — solo Davide può confermare che la barra ora scorre invece di
+  allungarsi.
+
+  **Superata dalla voce successiva**: Davide ha poi segnalato che lo scroll stesso era sbagliato
+  ("le selezioni vengono tagliate o scompaiono, non si adattano alla pagina") — vedi la terza voce più
+  sotto per il fix definitivo (pillole icona-sola sotto un breakpoint), che sostituisce lo scroll come
+  meccanismo primario.
+
+- **2026-08-06 (stessa giornata) — la barra scorrevole introduceva un nuovo difetto: "alone allungato".**
+  Davide ha inviato uno screenshot DESKTOP della Sezione Master mostrando che la pista beige
+  (`bgcolor=surface_alt`) dietro le pillole si estendeva ben oltre le 5 pillole reali, quasi fino al
+  bordo destro della finestra — "si deve adattare allo schermo la pagina, se fa quel alone allungato non
+  va bene, è brutto".
+
+  **Causa** (comportamento noto di Flutter, non un errore di configurazione): un `SingleChildScrollView`
+  orizzontale — quello che Flet genera internamente per `ft.Row(..., scroll=ft.ScrollMode.AUTO)`, il fix
+  della voce precedente — NON si restringe mai al contenuto lungo l'asse di scroll: prende sempre la
+  larghezza massima concessa dal genitore, anche quando il contenuto reale (le 5 pillole) è molto più
+  stretto. Il `Container` che dava lo sfondo `surface_alt` a quella Row, non avendo una larghezza
+  propria, ereditava quella stessa larghezza "gonfiata" e la disegnava visibilmente — da cui l'alone.
+  Lo stesso identico meccanismo era presente anche PRIMA di questa sessione, con `wrap=True`: lì però il
+  widget `Wrap` di Flutter SI restringe al contenuto per riga, mascherando il problema finché il
+  contenuto stava su una riga sola — motivo per cui probabilmente non era mai stato notato.
+
+  **Fix**: tolti `bgcolor`/`border_radius`/`padding` dal `Container` esterno che avvolge la Row
+  scorrevole, in ENTRAMBI i file (`sheet_view.py::_build_header_and_tabs()` e
+  `master_view.py::_build_tab_bar()`) — resta solo il `margin` per lo spazio dai bordi. Nessun
+  contenitore colorato avvolge più l'intera barra: ogni pillola porta il proprio sfondo quando attiva,
+  esattamente il principio già usato con successo per "Generatori Rapidi" (`design.pill()`, visibile
+  nello stesso screenshot di Davide senza alcun difetto) — MAI un contenitore che raggruppa
+  visivamente tutte le pillole con un colore di sfondo.
+
+  Per `MasterView`, la pillola attiva restava `bgcolor=p.surface` (invariato: contrasta già bene con lo
+  sfondo della pagina dietro la barra, confermato dallo stesso screenshot). Per `SheetView` è stato
+  necessario un piccolo aggiustamento in più: l'header che contiene la barra ha già
+  `bgcolor=p.surface` — una pillola attiva con lo stesso colore sarebbe risultata invisibile (bianco su
+  bianco) una volta tolto l'involucro beige che prima la faceva risaltare. Cambiato a `p.surface_alt`
+  (lo stesso colore che prima dava lo sfondo all'INTERA barra, ora usato solo per la pillola selezionata)
+  — risultato visivo pressoché identico a prima, senza il contenitore che si allargava oltre il
+  contenuto.
+
+  **Verificato**: `py_compile` + `compileall` su entrambi i file, tutte e 4 le batterie di test
+  (`test_regressione_wrap_expand.py` 37/37, `test_master_world_scoping.py` 25/25,
+  `test_mondo_senza_rete.py` 139/139, `test_lan_host_client.py` 92/92) — nessuna regressione. **Non
+  verificabile da qui**: solo un lancio reale (desktop e mobile) può confermare che l'alone sia
+  davvero sparito e che il contrasto della pillola selezionata resti leggibile in entrambi i temi
+  chiaro/scuro.
+
+- **2026-08-06 (stessa giornata) — fix DEFINITIVO: tab bar davvero responsive, non più uno scroll che
+  taglia contenuto.** Davide ha segnalato, restringendo la finestra desktop, che le pillole "vengono
+  tagliate o scompaiono, non si adattano alla pagina" — cioè lo `scroll=ft.ScrollMode.AUTO` della voce
+  precedente, per quanto tecnicamente corretto e privo dell'alone, andava comunque contro la preferenza
+  già nota di questo progetto per un'interfaccia sempre visibile, senza contenuto nascosto dietro un
+  gesto di scroll non scoperto (`[[feedback_dnd_app_ui_no_hidden_actions]]` nella memoria persistente:
+  "self-evident UI, no overflow/hamburger menus; prefer always-visible wrapping pills").
+
+  Il vincolo reale però resta: 5-6 pillole con etichette italiane lunghe ("Combattimento",
+  "Esplorazione", "Note di Campagna", "Oggetti Magici") non stanno fisicamente su una riga sola alla
+  larghezza minima comune di uno smartphone (360-375px), qualunque sia il meccanismo scelto — né
+  riducendo il font né stringendo il padding: servono decine di caratteri di spazio che a quella
+  larghezza semplicemente non ci sono. `wrap=True` (primo tentativo) le mostrava tutte ma allungava la
+  barra in verticale; lo scroll (secondo/terzo tentativo) le teneva compatte ma le nascondeva.
+
+  **Fix**: reso lo spazio richiesto compatibile con lo spazio disponibile, invece di continuare a
+  scegliere tra "alto" e "nascosto". Aggiunta un'icona a ogni tab (`SHEET_TABS` ne era privo, `_TABS` di
+  Master già le aveva) e una modalità compatta — sotto il breakpoint mobile che l'app usa già per
+  scegliere tra sidebar e bottom nav (`_MOBILE_BP = 600`, `ui/app.py::_is_mobile()`), ogni pillola mostra
+  SOLO l'icona (etichetta completa nel `tooltip`, mai persa — un'informazione sempre raggiungibile non è
+  "nascosta" nel senso della regola sopra, un'AZIONE dietro un menu overflow lo sarebbe stata); sopra il
+  breakpoint, icona + etichetta come prima. 5-6 pillole icona-sola occupano collettivamente meno di
+  250px, ben dentro anche i telefoni più stretti — la Row torna quindi a stare su una riga sola senza
+  bisogno di scorrere né di andare a capo. `scroll=ft.ScrollMode.AUTO` resta sulla Row solo come rete di
+  sicurezza per casi patologici (font di sistema molto ingranditi, finestre sotto i 360px), non più come
+  meccanismo primario.
+
+  **Wiring del breakpoint** (nessun nuovo meccanismo di resize introdotto, per non rischiare di scavalcare
+  `page.on_resize` — già di proprietà esclusiva di `DnDApp._on_page_resize()` per lo switch
+  sidebar/bottom-nav, un secondo handler l'avrebbe sovrascritto): `SheetView.__init__`/`MasterView.__init__`
+  guadagnano un parametro opzionale `is_mobile: bool = False` (default compatibile con le chiamate
+  esistenti nei test). `ui/app.py::_get_section_view()` passa `is_mobile=self._mobile` (il flag che l'app
+  già mantiene); `_show_master_view()` passa `is_mobile=self._is_mobile()`. Nota onesta, documentata nel
+  docstring di `MasterView.__init__`: a differenza di `SheetView` (che vive dentro `content_area`,
+  ricostruita automaticamente quando `_on_page_resize()` fa scattare `_show_main_layout()`), `MasterView`
+  sostituisce l'intera pagina via `_navigate()` e NON viene ricostruita se la finestra cambia larghezza
+  mentre la Modalità Master è già aperta — resta fissata al valore letto all'apertura o all'ultimo
+  rebuild (es. cambio tema). Limite noto e accettato, non un bug nascosto.
+
+  **Refactor collaterale in `SheetView`** (necessario per supportare icona+testo opzionali): `_make_tab_button()`
+  ora costruisce icona (sempre) e testo (solo se non compatta) come controlli separati, salvati in
+  `btn.data = {"icon": ..., "text": ...}`; `_style_tab_button()` legge da lì invece che da `btn.content`
+  direttamente (prima un `ft.Text` isolato, garantito). `MasterView._build_tab_bar()` non ha avuto
+  bisogno dello stesso refactor: ricostruisce sempre l'intera barra da zero a ogni cambio tab
+  (`_on_tab_click()` chiama `self._build()`), quindi non manteneva comunque riferimenti diretti ai
+  singoli controlli da aggiornare in-place.
+
+  **Verificato**: `py_compile`/`compileall` su tutti i file toccati (`sheet_view.py`, `master_view.py`,
+  `app.py`). `test_regressione_wrap_expand.py` esteso da 37 a 63 controlli: `test_master_view()` e
+  `test_sheet_view()` ora iterano anche `is_mobile in (False, True)`, esercitando per la prima volta il
+  ramo `self._compact_tabs=True` mai toccato prima da nessun test; aggiunta anche una verifica mirata
+  che chiama `_style_tab_button()` direttamente (bypassando `_switch_tab()`, che richiederebbe un vero
+  `page.update()` non disponibile in un test di sola costruzione) per coprire il refactor `btn.data`.
+  63/63 verdi. Nessuna regressione sulle altre 3 batterie (25/25, 139/139, 92/92) — 319 controlli totali,
+  in crescita da 293 grazie alla nuova copertura, non per un ampliamento delle batterie esistenti.
+  **Non verificabile da qui**: la resa reale su un vero smartphone stretto e su una finestra desktop
+  ridimensionata a mano — solo Davide può confermare che le pillole restino leggibili e mai tagliate.
 
 ---
 
