@@ -234,6 +234,42 @@ def test_master_view() -> None:
     d.set_mode("light")
 
 
+def test_esplorazione_tab() -> None:
+    """
+    Costruzione di `EsplorazioneTab` — aggiunta il 2026-08-05 dopo la
+    segnalazione di Davide "anche le abilità non si leggono bene da
+    smartphone": la sezione Abilità era divisa in due colonne FISSE via
+    slicing Python (`skill_items[:mid]`/`skill_items[mid:]`), col nome
+    abilità `expand=True` ma senza `no_wrap`/`overflow`/`max_lines` — sullo
+    stesso schema del bug del titolo "MODALITÀ MASTER" (Text espanso dentro
+    un contenitore schiacciato, nessuna eccezione Python, solo un layout
+    illeggibile). Fix: `ft.ResponsiveRow` con `col={"xs": 12, "sm": 6}` per
+    riga abilità (una colonna sotto i 576px, due sopra — valutato lato
+    client, non da `page.width` in Python) più la stessa protezione
+    `no_wrap`/`overflow`/`max_lines` sul nome come rete di sicurezza.
+    Questo test verifica solo che la costruzione non sollevi eccezioni
+    (`ft.ResponsiveRow`/`col` sono API reali, verificate per introspezione
+    prima dell'uso, ma un controllo end-to-end costa poco ed è la stessa
+    disciplina già applicata a `MasterView` sopra).
+    """
+    print("\n[4] EsplorazioneTab — costruzione con la sezione Abilità responsive")
+    from ui.views.character_sheet.esplorazione_tab import EsplorazioneTab
+
+    char = _make_guerriero("Esplorazione WrapExpand")
+    for mode in ("light", "dark"):
+        d.set_mode(mode)
+        try:
+            tab = EsplorazioneTab(char)
+            conflicts = find_wrap_expand_conflicts(tab, path="EsplorazioneTab")
+            check(f"[{mode}] EsplorazioneTab costruita senza errori né conflitti "
+                  f"wrap+expand: {conflicts}", conflicts == [])
+        except Exception as e:  # noqa: BLE001
+            check(f"[{mode}] EsplorazioneTab costruita senza sollevare eccezioni: "
+                  f"{type(e).__name__}: {e}", False)
+
+    d.set_mode("light")
+
+
 def main() -> int:
     print("=" * 62)
     print("Regressione — wrap=True + figlio expand=True (riquadro grigio)")
@@ -244,6 +280,7 @@ def main() -> int:
     test_home_view()
     test_worlds_view()
     test_master_view()
+    test_esplorazione_tab()
 
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

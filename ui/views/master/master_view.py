@@ -132,6 +132,21 @@ class MasterView(ft.Column):
     def _build(self):
         self.controls.clear()
 
+        title = title_text("Modalità Master", size=20)
+        # `no_wrap` + `overflow=ELLIPSIS` + `max_lines=1`: senza questi tre,
+        # un `ft.Text` dentro un `Container(expand=True)` va semplicemente a
+        # capo quando lo spazio disponibile si stringe — su uno smartphone
+        # stretto lo spazio può ridursi al punto che ogni parola (persino
+        # ogni lettera) finisce sulla propria riga, producendo un titolo
+        # verticale illeggibile (bug reale segnalato da Davide con
+        # screenshot, 2026-08-06 — il commento precedente qui affermava
+        # erroneamente che `expand=True` da solo bastasse a troncare il
+        # titolo: falso, `design.title()`/`ft.Text` non ha mai impostato
+        # queste tre proprietà di default).
+        title.no_wrap = True
+        title.overflow = ft.TextOverflow.ELLIPSIS
+        title.max_lines = 1
+
         header = ft.Container(
             content=ft.Row(
                 [
@@ -143,14 +158,7 @@ class MasterView(ft.Column):
                     ),
                     ft.Icon(ft.Icons.CASTLE_OUTLINED, color=design.T().primary, size=22),
                     ft.Container(width=8),
-                    # expand=True + no_wrap: il titolo si tronca con "..." invece di
-                    # spingere il resto dell'header fuori dalla finestra su schermi
-                    # stretti (smartphone).
-                    ft.Container(
-                        content=title_text("Modalità Master", size=20),
-                        expand=True,
-                    ),
-                    self._world_selector(),
+                    ft.Container(content=title, expand=True),
                     *self._theme_action(),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -164,18 +172,26 @@ class MasterView(ft.Column):
         self._content_area.content = self._get_tab_content(self.active_tab)
 
         self.controls.append(header)
+        # Selettore mondo su una riga a sé, SOTTO l'header (2026-08-06, fix
+        # della regressione sopra): infilarlo nella Row dell'header ne
+        # contendeva lo spazio col titolo, causa diretta del bug appena
+        # descritto. Su una riga propria può essere largo quanto serve senza
+        # mai mettere a rischio nient'altro — stesso principio già seguito
+        # per la barra "Generatori Rapidi" subito sotto.
+        self.controls.append(self._world_selector_row())
         self.controls.append(self._build_tools_row())
         self.controls.append(self._build_tab_bar())
         self.controls.append(self._content_area)
 
-    def _world_selector(self) -> ft.Control:
+    def _world_selector_row(self) -> ft.Control:
         """
         Menu SEMPRE visibile (mai dietro un'icona aggiuntiva) per scegliere
         quale mondo il Master sta gestendo — vedi docstring del modulo.
         Mostra sempre "Nessun mondo" come prima opzione anche quando la
         lista dei mondi masterabili è ancora vuota (identità non risolta, o
         semplicemente nessun mondo posseduto): nessuna sorpresa per chi non
-        usa il Multiplayer.
+        usa il Multiplayer. Riga propria (non nell'header): vedi il
+        commento in _build() sul perché.
         """
         options = [ft.DropdownOption(key=_NO_WORLD_KEY, text="Nessun mondo (locale)")]
         options += [ft.DropdownOption(key=w.id, text=w.name) for w in self._masterable_worlds]
@@ -183,11 +199,14 @@ class MasterView(ft.Column):
             w.id == self._active_world_id for w in self._masterable_worlds
         ) else _NO_WORLD_KEY
         return ft.Container(
-            width=220,
+            padding=ft.Padding.only(left=design.Space.LG, right=design.Space.LG,
+                                    top=design.Space.SM, bottom=design.Space.XS),
             content=ft.Dropdown(
+                label="Mondo da masterare",
                 value=current,
                 options=options,
                 dense=True,
+                expand=True,
                 leading_icon=ft.Icons.PUBLIC,
                 border_color=design.T().border, focused_border_color=design.T().primary,
                 bgcolor=design.T().surface_alt, label_style=ft.TextStyle(color=design.T().text_3, size=11),

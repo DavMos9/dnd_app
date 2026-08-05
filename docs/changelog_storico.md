@@ -4928,6 +4928,131 @@
   comportamento REALE su Android (limite già noto e accettato per l'intera area Multiplayer/mobile di
   questo progetto).
 
+- **5 problemi di leggibilità su smartphone segnalati con screenshot, indagati e corretti dove possibile
+  (2026-08-05, sessione con Davide dopo il primo vero test su Android)** — Davide ha mandato 5 screenshot in
+  un unico messaggio: nome/info illeggibili sulla card personaggio in Home, l'errore FilePicker anche
+  cliccando davvero (non solo all'apertura), pulsanti/testo illeggibili su schermo stretto, la parte
+  superiore della scheda sovrapposta a tacca/barra di stato, abilità in Esplorazione illeggibili, Sezione
+  Master "completamente illeggibile" (titolo verticale, una lettera per riga). Più la richiesta generale
+  "l'app si deve adattare bene alla finestra che sia smartphone o pc o tablet". Indagati tutti e 5 prima di
+  correggere, poi Davide ha scelto priorità e approccio via domande mirate.
+
+  1. **Titolo "MODALITÀ MASTER" verticale** — causato dal Dropdown mondo aggiunto nell'header nella sessione
+     precedente lo stesso giorno: `title_text()`/`design.title()` non ha mai impostato `no_wrap`/`overflow`/
+     `max_lines` nonostante un commento (sbagliato) dicesse il contrario, e il nuovo Dropdown a larghezza
+     fissa nella stessa `Row` ha schiacciato il titolo abbastanza da far avvenire l'a-capo carattere per
+     carattere. Fix: `no_wrap=True`/`overflow=ELLIPSIS`/`max_lines=1` esplicito sul titolo in
+     `master_view.py`, selettore mondo spostato dall'header a una riga propria (`_world_selector_row()`,
+     rinominata da `_world_selector()`) con `expand=True` esplicito sul Dropdown (non assunto: verificato
+     che `ft.Dropdown`/`ft.Container` hanno entrambi il parametro `expand` prima di usarlo).
+
+  2. **FilePicker rotto anche all'uso interattivo (non solo all'apertura)** — indagine approfondita, non
+     un altro tentativo di aggiustare il timing. Verificato leggendo `flet/controls/services/service.py`
+     installato che il pattern Python del progetto (`page.overlay.append(fp); page.update()`) è
+     meccanicamente CORRETTO in Flet 0.85.3/0.86.5: `Service.init()` si autoregistra da solo in
+     `context.page._services.register_service(self)` al mount, qualunque sia il contenitore — l'ipotesi
+     "andava usato `page.services` invece di `page.overlay`" è stata verificata e scartata. "Unknown
+     control: X" per i controlli `Service` è quindi un problema lato client, non lato Python. Confermato
+     con fonti dirette (non per analogia) che è una classe di bug NOTA e RICORRENTE nel repository
+     ufficiale `flet-dev/flet`, etichettata esplicitamente "packaging" + "platform: android": stesso
+     identico sintomo già segnalato per `ft.Clipboard` (issue #2900, dal 2024) e `ft.Flashlight` (#3599) —
+     "funziona su desktop, Unknown control sull'APK compilato con `flet build apk`". Non risolvibile
+     cambiando il nostro codice (già verificato corretto). Trovato anche un gap reale indipendente:
+     `pyproject.toml` non dichiarava nessun permesso di lettura immagini.
+
+     Davide ha scelto di tentare il fix più promettente, non un aggiramento: **aggiornamento Flet 0.85.3 →
+     0.86.5**, la cui release ufficiale dichiara un "completely re-designed Android packaging". Fatto,
+     nello stesso giro:
+     - `pyproject.toml`: `flet==0.86.5`; `requires-python = ">=3.12,<3.13"` (fissa il Python imbarcato a
+       3.12 — la stessa versione usata implicitamente da TUTTE le build precedenti — invece di lasciare che
+       0.86 scelga di default l'ultimo stabile, 3.14: isola l'aggiornamento al solo repackaging Android,
+       senza aggiungere anche l'incognita "Pillow ha ruote 3.14 pronte per Android/iOS?", non verificabile
+       da questo sandbox).
+     - Permesso mancante corretto con la scelta MIGLIORE trovata durante l'indagine, non quella ovvia:
+       non il permesso Android grezzo `READ_MEDIA_IMAGES` a cui si pensava all'inizio, ma il gruppo
+       cross-platform `photo_library` (`[tool.flet] permissions = ["photo_library"]`, chiave verificata
+       leggendo `flet_cli/commands/build_base.py` 0.86.5 installato — distinta da
+       `tool.flet.android.permission` già presente) → su Android mappa su
+       `android.permission.READ_MEDIA_VISUAL_USER_SELECTED` (permesso di "selezione parziale", commentato
+       nel sorgente flet_cli come quello richiesto dalla policy Play Store "Photo and Video Permissions"
+       per un caso d'uso come il nostro — scegliere una foto, non accesso libero alla libreria), copre
+       anche iOS (`NSPhotoLibraryUsageDescription`) gratis.
+     - `python3 -m compileall` sull'intero albero + tutte e 4 le batterie di test (289/289) verdi contro
+       0.86.5. Verificato anche che i tre pattern più a rischio con lo storage riorganizzato di 0.86
+       (`app files ship unpacked in a read-only bundle`) sono già sicuri: `data/database.py::get_db_path()`
+       usa variabili d'ambiente Android note, mai la cwd; `data/game_data/game_data_loader.py::_DATA_DIR`
+       e `data/database.py::get_assets_path()` sono già basati su `Path(__file__)`, non sulla cwd.
+     - **Nota onesta, esplicita**: questo NON dimostra che il bug su Android sia risolto — richiede una
+       build APK reale (`flet build apk`, impossibile in questo sandbox: nessun Android SDK/NDK) e un test
+       di Davide su dispositivo, stesso limite già noto per tutta l'area Multiplayer/mobile del progetto.
+       Verificato solo: nessuna rottura d'API Python rilevabile da qui.
+
+  3. **Card personaggio in Home illeggibile su schermo stretto** — causa reale: la `Row` aveva avatar fisso
+     (76px) + testo (`expand=True`) + fino a 4 `IconButton` che non si comprimono mai; su schermo stretto le
+     azioni "mangiavano" lo spazio e nome/chip si schiacciavano. Fix in `home_view.py::_character_card()`:
+     riga superiore avatar+info, riga azioni separata sotto (`ft.Column` invece di un'unica `ft.Row`) — così
+     `info` è squeezato solo dall'avatar (largo fisso e noto), mai anche dalle azioni. Le azioni restano
+     `wrap=True` (nessun figlio `expand=True` al suo interno, quindi sicuro rispetto al bug wrap+expand già
+     documentato).
+
+  4. **Barra caratteristiche sovrapposta a tacca/barra di stato Android** — causa: l'app non usava MAI
+     `ft.SafeArea` da nessuna parte (verificato che esiste davvero in Flet 0.85.3/0.86.5 per introspezione,
+     non assunto). Trovato che `ui/app.py` aveva **6 punti quasi identici** (`_show_home`,
+     `_show_master_view`, `_show_worlds_view`, `_show_manual_form`, `_show_wizard`, `_show_main_layout`),
+     ognuno con lo stesso terzetto `page.controls.clear() / page.add(X) / page.update()` — duplicazione
+     esattamente del tipo che CLAUDE.md chiede di eliminare, e il punto giusto per risolvere la
+     sovrapposizione UNA VOLTA per tutte le viste invece che vista per vista. Aggiunto `DnDApp._navigate()`,
+     un solo punto che avvolge il contenuto in `ft.SafeArea(content=control, expand=True)` prima di
+     montarlo; i 6 metodi di routing ora chiamano solo `self._navigate(X)`. `SafeArea` è un no-op su
+     desktop/web (dove `MediaQuery` non riporta intrusioni di sistema), quindi nessun rischio di padding
+     indesiderato lì.
+
+  5. **Abilità in Esplorazione illeggibili su schermo stretto** — stesso schema del bug #1 (titolo Master),
+     versione "a due colonne": `_section_skills()` in `esplorazione_tab.py` divideva le 18 abilità in due
+     colonne FISSE via slicing Python, col nome abilità `expand=True` ma senza `no_wrap`/`overflow`/
+     `max_lines` — su schermo stretto ogni colonna aveva ~150px, troppo poco perché il nome restasse
+     leggibile. Fix più robusto del solo "aggiungere l'ellissi": sostituita la coppia di `ft.Column` fisse
+     con `ft.ResponsiveRow` (`col={"xs": 12, "sm": 6}` per riga abilità) — una colonna sotto i 576px
+     (default Flet), due sopra, valutato lato client in base alla larghezza REALE del contenitore, non da
+     `page.width` letto in Python (che per `EsplorazioneTab`, come per la card Home, non è comunque
+     affidabile a costruzione: il controllo viene spesso costruito prima del mount). Aggiunta anche la
+     stessa protezione `no_wrap`/`overflow`/`max_lines` sul nome come rete di sicurezza. Nuovo test
+     `test_esplorazione_tab()` in `test_regressione_wrap_expand.py` (prima `EsplorazioneTab` non aveva mai
+     avuto un test di costruzione).
+
+  **Verificato in totale**: `py_compile` su tutti i file toccati, `test_regressione_wrap_expand.py` esteso
+  da 33 a 35 controlli (nuovo test Esplorazione), 291/291 controlli verdi su tutte e 4 le batterie
+  (35+139+25+92) — nessuna regressione sul lavoro Multiplayer/LAN delle sessioni precedenti. **Non
+  verificabile da questo sandbox, per Davide**: se l'aggiornamento a Flet 0.86.5 risolve davvero il bug
+  FilePicker su un vero Android, e la resa visiva dei 4 fix di layout su un vero dispositivo (schermo
+  stretto reale, tacca reale).
+
+- **Trovato e corretto un gap reale nella pipeline di release, stessa sessione (2026-08-05)** — Davide ha
+  chiesto se poteva continuare a buildare "normalmente" (git tag → push → GitHub Actions, come da
+  `RELEASE.md`) dopo l'aggiornamento Flet sopra. Verifica prima di rispondere: `.github/workflows/
+  release.yml` **non legge affatto `pyproject.toml`/`requirements.txt`** — la versione di `flet` è
+  hardcoded `pip install flet==0.85.3 "Pillow>=10.0.0"` **in 4 punti indipendenti** (job Windows/macOS/
+  Linux/Android), quindi senza questo fix la release reale avrebbe continuato silenziosamente a compilare
+  con la versione vecchia, vanificando tutto il lavoro sopra senza alcun errore visibile. Anche
+  `flutter-version: "3.41.7"` era hardcoded nei 4 job: verificato per via empirica, non assunto dal
+  changelog di Flet, che versione di Flutter serve davvero eseguendo `flet --version` in un venv pulito
+  con solo `flet==0.85.3`/`flet==0.86.5` installato — stampa la Flutter bundlata (`0.85.3` → Flutter
+  `3.41.7`, confermando che il valore già in CI non era casuale ma allineato di proposito; `0.86.5` →
+  Flutter `3.44.8`, non i "3.44.2" arrotondati citati nel blog post). Anche scoperto nello stesso giro,
+  per completezza (non ancora agito): `flet-cli` NON è mai stato un requisito pip esplicito né in 0.85.3
+  né in 0.86.5 (è un `extra` opzionale, `flet[cli]`) — il comando `flet` della release CI ha sempre
+  funzionato perché **si auto-installa `flet-cli` al primo utilizzo** (comportamento reale del pacchetto,
+  verificato eseguendo `flet --version` su un'installazione bare e osservando "Installing flet-cli ...
+  package...OK" in output), non perché fosse dichiarato da qualche parte.
+
+  Fix applicato: aggiornati tutti e 4 i job in `release.yml` a `flet==0.86.5` + `flutter-version:
+  "3.44.8"`, con un commento in testa al file che spiega perché queste due cose vanno tenute allineate a
+  mano (nessuna lettura automatica da `pyproject.toml`) — per non ripetere lo stesso gap alla prossima
+  release. **Trovato ma NON ancora toccato, da decidere con Davide**: `Dockerfile` (deploy web) ha una
+  TERZA occorrenza indipendente di `flet==0.85.3`, usata solo per il deploy Docker/web (separato dalla
+  release desktop/mobile) — lasciato invariato per ora, la richiesta di Davide riguardava esplicitamente
+  il flusso di release "come fatto finora", non il deploy web.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

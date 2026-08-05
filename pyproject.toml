@@ -2,9 +2,20 @@
 name = "dnd-companion"
 version = "0.1.15"
 description = "D&D 5e Companion App — Compagno digitale per giocatori"
-requires-python = ">=3.9"
+# NOTA (2026-08-05, upgrade Flet 0.85.3 → 0.86.5): da 0.86 flet build sceglie
+# il Python da imbarcare in base a questo campo, e di default userebbe l'ultimo
+# stabile (3.14) se lasciassimo ">=3.9". Fissato a 3.12 — la stessa versione
+# che TUTTE le build precedenti (Android/iOS/desktop) hanno sempre usato
+# implicitamente (serious_python 1.x era mono-versione, sempre 3.12) — per
+# isolare questo aggiornamento al solo repackaging Android che ci interessa,
+# senza aggiungere anche l'incognita "Pillow ha ruote 3.14 pronte per
+# Android/iOS?" (non verificabile da qui, nessun ambiente di build reale a
+# disposizione). Non cambia lo sviluppo locale: questo campo guida solo
+# `flet build`/`flet publish`, non l'interprete usato da `python main.py`.
+# Guida ufficiale: https://flet.dev/docs/updates/breaking-changes/v0-86-0/default-bundled-python-3-14
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "flet==0.85.3",
+    "flet==0.86.5",
     "Pillow>=10.0.0",
 ]
 
@@ -17,6 +28,29 @@ app.build_number = 1
 
 # Icona app (stessa per tutte le piattaforme; flet build la ridimensiona automaticamente)
 app.icon = "assets/icons/dnd_logo.png"
+
+# Permesso mancante trovato il 2026-08-05 indagando il bug "Unknown control:
+# FilePicker" su Android segnalato da Davide: pyproject.toml non dichiarava
+# ALCUN permesso di lettura immagini, necessario perché la selezione foto
+# profilo (ProfiloTab._pick_photo_mobile()) funzioni una volta risolto il
+# problema di fondo (probabile bug di packaging upstream di Flet — vedi
+# dnd_app/docs/regole_flet_api.md, sezione FILE PICKER). Non è, da sola, la
+# causa di "Unknown control" (un permesso mancante darebbe un errore DOPO
+# l'apertura del picker, non un tipo di controllo sconosciuto PRIMA), ma va
+# comunque corretta.
+#
+# Scelto il gruppo cross-platform "photo_library" (chiave `tool.flet.
+# permissions`, distinta da `tool.flet.android.permission` sotto — letta da
+# flet_cli 0.86.5, commands/build_base.py, BuildCommand.cross_platform_
+# permissions) invece del permesso Android grezzo `READ_MEDIA_IMAGES`:
+# mappa su `android.permission.READ_MEDIA_VISUAL_USER_SELECTED`, il permesso
+# "selezione parziale" introdotto da Google proprio per l'uso che ne
+# facciamo (scegliere UNA foto, non un accesso libero alla libreria) — il
+# commento nel sorgente flet_cli cita esplicitamente la policy Play Store
+# "Photo and Video Permissions" che rifiuta permessi media ampi senza un
+# caso d'uso che li giustifichi. Copre gratis anche iOS
+# (NSPhotoLibraryUsageDescription) per quando servirà.
+permissions = ["photo_library"]
 
 [tool.flet.android.permission]
 # Multiplayer / LAN party (dnd_app/docs/multiplayer_design.md §3.4/§14.5):

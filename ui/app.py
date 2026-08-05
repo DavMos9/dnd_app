@@ -76,6 +76,30 @@ class DnDApp:
     def _is_mobile(self) -> bool:
         return (self.page.width or 0) < self._MOBILE_BP
 
+    def _navigate(self, control: ft.Control) -> None:
+        """
+        Punto unico di navigazione di primo livello: azzera la pagina e monta
+        `control` (Fix layout 2026-08-05, segnalato da Davide su Android:
+        barra caratteristiche/header sovrapposti alla tacca e alla barra di
+        stato).
+
+        Prima ognuna delle 6 viste di primo livello (Home, Master, Mondi,
+        form manuale, wizard, layout principale) ripeteva lo stesso terzetto
+        `page.controls.clear() / page.add(X) / page.update()` — nessun punto
+        avvolgeva mai in `ft.SafeArea`, quindi ogni header/barra superiore
+        finiva sotto l'area di sistema su un telefono con tacca/notch.
+        Centralizzare qui vuol dire risolverlo UNA VOLTA per tutte le viste
+        presenti e future, invece di doverlo ricordare ad ogni nuova vista.
+
+        `ft.SafeArea` esiste davvero in Flet 0.85.3/0.86.5 (verificato per
+        introspezione, non assunto) ed è un no-op su desktop/web dove
+        `MediaQuery` non riporta intrusioni di sistema — nessun rischio di
+        aggiungere padding indesiderato lì.
+        """
+        self.page.controls.clear()
+        self.page.add(ft.SafeArea(content=control, expand=True))
+        self.page.update()
+
     # ------------------------------------------------------------------
     # Setup pagina
     # ------------------------------------------------------------------
@@ -221,7 +245,6 @@ class DnDApp:
         """Mostra la schermata di selezione/creazione personaggi."""
         from ui.views.home_view import HomeView
         self._stop_home_polling()
-        self.page.controls.clear()
         home = HomeView(
             on_select=self._on_character_selected,
             on_create_wizard=self._show_wizard,
@@ -233,14 +256,12 @@ class DnDApp:
         )
         self._home_view = home
         self._rebuild_route = self._show_home
-        self.page.add(home)
-        self.page.update()
+        self._navigate(home)
 
     def _show_master_view(self, active_tab: str | None = None, active_world_id: str | None = None):
         """Mostra la Modalità Master — indipendente da ogni personaggio giocante."""
         from ui.views.master.master_view import MasterView
         self._stop_home_polling()
-        self.page.controls.clear()
         master = MasterView(
             on_back_to_home=self._show_home,
             on_toggle_theme=self._cycle_theme,
@@ -257,15 +278,13 @@ class DnDApp:
             getattr(self._master_view, "active_tab", "npcs"),
             getattr(self._master_view, "_active_world_id", ""),
         )
-        self.page.add(master)
-        self.page.update()
+        self._navigate(master)
 
     def _show_worlds_view(self):
         """Mostra la Sezione Mondi (Multiplayer, passo 2) — indipendente da
         ogni personaggio, stesso trattamento di `_show_master_view`."""
         from ui.views.world.world_view import WorldsView
         self._stop_home_polling()
-        self.page.controls.clear()
         worlds = WorldsView(
             on_back_to_home=self._show_home,
             on_toggle_theme=self._cycle_theme,
@@ -273,36 +292,31 @@ class DnDApp:
         )
         self._worlds_view = worlds
         self._rebuild_route = self._show_worlds_view
-        self.page.add(worlds)
-        self.page.update()
+        self._navigate(worlds)
 
     def _show_manual_form(self):
         """Mostra il form di creazione manuale."""
         from ui.views.creation_wizard.manual_form import ManualCreationForm
         self._stop_home_polling()
-        self.page.controls.clear()
         # Ricostruire il form a metà compilazione perderebbe le scelte fatte.
         self._rebuild_route = None
         form = ManualCreationForm(
             on_complete=self._on_character_selected,
             on_cancel=self._show_home,
         )
-        self.page.add(form)
-        self.page.update()
+        self._navigate(form)
 
     def _show_wizard(self):
         """Avvia il wizard guidato."""
         from ui.views.creation_wizard.wizard_view import WizardView
         self._stop_home_polling()
-        self.page.controls.clear()
         # Come per il form manuale: nessun rebuild a metà creazione.
         self._rebuild_route = None
         wizard = WizardView(
             on_complete=self._on_character_selected,
             on_cancel=self._show_home,
         )
-        self.page.add(wizard)
-        self.page.update()
+        self._navigate(wizard)
 
     def _on_character_selected(self, character_id: str):
         """Carica la scheda del personaggio selezionato."""
@@ -316,7 +330,6 @@ class DnDApp:
 
     def _show_main_layout(self):
         """Mostra il layout con navbar laterale (desktop) o bottom nav (mobile)."""
-        self.page.controls.clear()
         self._mobile = self._is_mobile()
         self._rebuild_route = self._show_main_layout
 
@@ -328,30 +341,26 @@ class DnDApp:
 
         if self._mobile:
             self.bottom_nav = self._build_bottom_nav()
-            self.page.add(
-                ft.Column(
-                    [self.content_area, self.bottom_nav],
-                    expand=True,
-                    spacing=0,
-                )
+            layout: ft.Control = ft.Column(
+                [self.content_area, self.bottom_nav],
+                expand=True,
+                spacing=0,
             )
         else:
             self.nav_rail = self._build_nav_rail()
-            self.page.add(
-                ft.Row(
-                    controls=[
-                        self.nav_rail,
-                        ft.VerticalDivider(width=1, color=design.T().border),
-                        self.content_area,
-                    ],
-                    expand=True,
-                    spacing=0,
-                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
-                )
+            layout = ft.Row(
+                controls=[
+                    self.nav_rail,
+                    ft.VerticalDivider(width=1, color=design.T().border),
+                    self.content_area,
+                ],
+                expand=True,
+                spacing=0,
+                vertical_alignment=ft.CrossAxisAlignment.STRETCH,
             )
 
         self.page.on_resize = self._on_page_resize
-        self.page.update()
+        self._navigate(layout)
 
     def _on_page_resize(self, e: Any):
         """Ricostruisce il layout se si supera il breakpoint mobile/desktop."""

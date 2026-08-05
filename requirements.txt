@@ -1,3 +1,6 @@
 # Versioni pinnate per riproducibilità — aggiornare con attenzione
-flet==0.85.3
+# Aggiornato a 0.86.5 il 2026-08-05 insieme a pyproject.toml (stessa versione
+# in entrambi i file, per non farli divergere) — vedi dnd_app/docs/
+# changelog_storico.md per il perché.
+flet==0.86.5
 Pillow>=10.0.0

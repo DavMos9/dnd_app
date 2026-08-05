@@ -800,50 +800,63 @@ class EsplorazioneTab(ScrollMemoryListView):
             abbr = ABILITY_ABBR[ABILITY_KEYS.index(stat_key)]
 
             skill_items.append(
-                ft.Row(
-                    [
-                        ft.Text(indicator, size=11, color=ind_color, width=14),
-                        ft.Text(
-                            total_str,
-                            size=12,
-                            weight=ft.FontWeight.BOLD,
-                            color=design.T().text if is_prof else design.T().text_3,
-                            font_family=design.Font.MONO,
-                            width=32,
-                            text_align=ft.TextAlign.RIGHT,
-                        ),
-                        ft.Text(
-                            skill_name,
-                            size=12,
-                            color=design.T().text if is_prof else design.T().text_2,
-                            expand=True,
-                        ),
-                        muted_text(abbr, 10),
-                        roll_button(
-                            (lambda s=skill_name: cs.skill_roll(
-                                self.character, self._profs, s)),
-                            lambda: self._page,
-                            tooltip=f"Tira {skill_name} ({spec.note})",
-                            icon_size=15,
-                        ),
-                    ],
-                    spacing=4,
+                ft.Container(
+                    # `col`: griglia responsive (fix 2026-08-05, segnalato da
+                    # Davide — "anche le abilità non si leggono bene da
+                    # smartphone"). Prima le 18 righe erano divise in due
+                    # colonne FISSE con un semplice slicing Python: su uno
+                    # schermo stretto ogni colonna aveva ~150px, e il nome
+                    # abilità (expand=True, senza protezione dal testo
+                    # lungo) veniva schiacciato a pochi caratteri. `col` è
+                    # valutato lato client in base alla larghezza reale del
+                    # ResponsiveRow che lo contiene (non richiede leggere
+                    # `page.width` in Python, cosa che qui non sarebbe
+                    # comunque affidabile — vedi nota in home_view.py sullo
+                    # stesso problema): sotto la soglia "sm" (576px, default
+                    # Flet) una riga intera per abilità, sopra due colonne
+                    # come prima.
+                    col={"xs": 12, "sm": 6},
+                    content=ft.Row(
+                        [
+                            ft.Text(indicator, size=11, color=ind_color, width=14),
+                            ft.Text(
+                                total_str,
+                                size=12,
+                                weight=ft.FontWeight.BOLD,
+                                color=design.T().text if is_prof else design.T().text_3,
+                                font_family=design.Font.MONO,
+                                width=32,
+                                text_align=ft.TextAlign.RIGHT,
+                            ),
+                            ft.Text(
+                                skill_name,
+                                size=12,
+                                color=design.T().text if is_prof else design.T().text_2,
+                                expand=True,
+                                no_wrap=True,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                                max_lines=1,
+                            ),
+                            muted_text(abbr, 10),
+                            roll_button(
+                                (lambda s=skill_name: cs.skill_roll(
+                                    self.character, self._profs, s)),
+                                lambda: self._page,
+                                tooltip=f"Tira {skill_name} ({spec.note})",
+                                icon_size=15,
+                            ),
+                        ],
+                        spacing=4,
+                    ),
                 )
             )
 
-        mid = (len(skill_items) + 1) // 2
-        col_left = skill_items[:mid]
-        col_right = skill_items[mid:]
-
         return ft.Container(
-            content=ft.Row(
-                [
-                    ft.Column(cast(list[ft.Control], col_left), spacing=6, expand=True),
-                    ft.Container(width=1, bgcolor=design.T().border),
-                    ft.Column(cast(list[ft.Control], col_right), spacing=6, expand=True),
-                ],
+            content=ft.ResponsiveRow(
+                cast(list[ft.Control], skill_items),
+                columns=12,
                 spacing=10,
-                vertical_alignment=ft.CrossAxisAlignment.START,
+                run_spacing=6,
             ),
             bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=12, vertical=12),

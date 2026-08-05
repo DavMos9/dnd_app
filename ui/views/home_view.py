@@ -520,18 +520,35 @@ class HomeView(ft.Column):
                           tooltip="Elimina personaggio",
                           on_click=lambda e, c=char: self._confirm_delete(c)),
         ]
-        actions = ft.Row(action_controls, spacing=0, wrap=True)
+        actions = ft.Row(action_controls, spacing=0, wrap=True,
+                          alignment=ft.MainAxisAlignment.END)
 
         return d.card(
-            # NIENTE wrap=True qui: `info` sotto ha expand=True, e
-            # wrap=True su una Row con un figlio expand=True produce un
-            # riquadro grigio senza errori Python (bug già documentato in
-            # dnd_app/docs/regole_flet_api.md, trovato la prima volta nel
-            # dialogo di assegnazione del Bottino — reintrodotto qui per
-            # errore il 2026-08-05 aggiungendo le azioni contestuali dei
-            # Mondi, corretto lo stesso giorno).
-            ft.Row([avatar, ft.Container(width=d.Space.LG), info, actions],
-                   vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            # Riga superiore avatar+info, riga azioni separata sotto (fix
+            # 2026-08-05, segnalato da Davide: su smartphone nome/chip erano
+            # illeggibili). Prima erano tutti sulla STESSA riga: avatar fisso
+            # (76px) + fino a 4 IconButton non comprimibili lasciavano a
+            # `info` pochissimo spazio su schermo stretto — il nome veniva
+            # ellissato a poche lettere e i chip andavano a capo uno per
+            # riga. Separando le azioni su una riga propria, `info` è
+            # squeezato solo dall'avatar (largo fisso, noto), mai anche
+            # dalle azioni.
+            #
+            # NIENTE wrap=True sulla riga avatar+info: `info` ha
+            # expand=True, e wrap=True su una Row con un figlio expand=True
+            # produce un riquadro grigio senza errori Python (bug già
+            # documentato in dnd_app/docs/regole_flet_api.md). `actions`
+            # invece resta wrap=True (nessun figlio expand=True al suo
+            # interno) — sicuro, ed è la riga che deve poter andare a capo
+            # su più righe se anche da sola non basta lo spazio per 4 icone.
+            ft.Column(
+                [
+                    ft.Row([avatar, ft.Container(width=d.Space.LG), info],
+                           vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    actions,
+                ],
+                spacing=d.Space.SM,
+            ),
             accent=p.magic if is_instance else p.primary,
             on_click=lambda e, cid=char.id: self.on_select(cid),
             tooltip="Apri la scheda",

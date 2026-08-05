@@ -1,8 +1,16 @@
-# Regole Critiche: API Flet 0.85.3
+# Regole Critiche: API Flet 0.85.3 → 0.86.5
 
-> Consultare questo file **prima di scrivere o modificare qualunque codice UI Flet** in questo progetto. Ogni voce qui documenta una breaking change reale tra la firma/API "intuitiva" di Flet e quella effettiva della versione 0.85.3 pinnata (`requirements.txt`), già riscontrata e corretta nel codebase — non re-introdurre questi errori.
+> Consultare questo file **prima di scrivere o modificare qualunque codice UI Flet** in questo progetto. Ogni voce qui documenta una breaking change reale tra la firma/API "intuitiva" di Flet e quella effettiva della versione pinnata in `pyproject.toml`, già riscontrata e corretta nel codebase — non re-introdurre questi errori.
+>
+> **Aggiornato a `flet==0.86.5` il 2026-08-05** (prima `0.85.3`, vedi
+> `dnd_app/docs/changelog_storico.md` per il perché — tentativo di fix per un
+> bug di packaging Android). Tutte le voci sotto restano valide: verificate
+> per introspezione anche contro 0.86.5 e riconfermate da `python3 -m
+> compileall` + le 4 batterie di test (291/291) senza modifiche. Le voci
+> aggiunte da questa data in poi indicano esplicitamente se una API è nuova
+> di 0.86.
 
-## Regole Critiche: API Flet 0.85.3
+## Regole Critiche: API Flet 0.85.3 → 0.86.5
 
 Tutte queste breaking changes sono già state corrette nel codebase. Rispettarle per ogni nuovo codice.
 
@@ -75,23 +83,86 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 # FILE PICKER
 # ft.FilePicker su DESKTOP Flet 0.85.3 → "Unknown control: FilePicker" — NON usare
 # ft.FilePicker su MOBILE (Android/iOS, build nativa "flet build apk/ipa") →
-#   ⚠️ PARZIALMENTE SMENTITO (2026-08-06): la CREAZIONE ANTICIPATA in
-#   did_mount() (subito all'apertura della view, prima di ogni interazione)
-#   è CONFERMATA rotta anche su un vero Android — stesso "Unknown control:
-#   FilePicker" già visto in desktop/web, segnalato da Davide con la barra
-#   rossa che compariva già alla semplice apertura della Home. L'affermazione
-#   "funziona correttamente" qui sotto non era mai stata verificata su un
-#   vero dispositivo — era dedotta dalla sintassi corretta (letta dal
-#   sorgente Flet installato), non da un test end-to-end. Fix applicato:
-#   rimossa la registrazione eager in did_mount() in home_view.py/
-#   maps_view.py/profilo_tab.py — resta solo il fallback lazy (crea il
-#   controllo al primo tocco reale del pulsante, se non già presente).
-#   **Ancora NON verificato** se anche l'uso lazy/interattivo (tap → crea →
-#   pick_files()) funzioni davvero su Android reale, o se il problema sia
-#   strutturale come su desktop/web (nel qual caso servirebbe un redesign,
-#   non un altro aggiustamento di timing) — in attesa del test di Davide.
-#   Se confermato: può leggere e.files[0].path DIRETTAMENTE, perché Python
-#   gira sullo stesso dispositivo del client (nessun upload necessario).
+#   ⚠️ SMENTITO DEL TUTTO (confermato 2026-08-06, screenshot di Davide su un
+#   vero Android): anche l'uso lazy/interattivo (tap sul pulsante → crea il
+#   controllo al primo tocco reale → pick_files()) mostra lo stesso "Unknown
+#   control: FilePicker" — non era quindi (solo) un problema di timing della
+#   creazione anticipata in did_mount() (quel fix resta corretto e necessario,
+#   ha eliminato il crash garantito all'apertura, ma non basta).
+#
+#   Indagine di causa fatta lo stesso giorno, letture dirette (non ipotesi):
+#   1. Il pattern Python `page.overlay.append(fp); page.update()` è
+#      MECCANICAMENTE CORRETTO in Flet 0.85.3 — verificato leggendo
+#      controls/services/service.py del pacchetto installato: `Service.init()`
+#      chiama da solo `context.page._services.register_service(self)` non
+#      appena il controllo viene montato, qualunque sia il contenitore
+#      (overlay compreso). `ft.Page` non espone affatto una lista pubblica
+#      `page.services` da popolare a mano — l'ipotesi "va usato page.services
+#      invece di page.overlay" è stata verificata e SCARTATA.
+#   2. "Unknown control: X" per controlli `Service` è quindi un problema
+#      lato CLIENT (il controllo Flutter compilato nell'app non riconosce
+#      il tipo), non lato Python — combacia con l'errore già documentato in
+#      web mode (flet-dev/flet#6040/#6250/#6251).
+#   3. Su Android è una classe di bug NOTA e RICORRENTE nel repository
+#      upstream flet-dev/flet, con le etichette esplicite "packaging" +
+#      "platform: android" — non specifica di FilePicker: stesso identico
+#      errore già segnalato per ft.Clipboard (#2900, dal 2024, Flet 0.21.1)
+#      e ft.Flashlight (#3599), sempre "funziona su desktop, Unknown control
+#      sull'APK compilato con flet build apk". Conclusione onesta: molto
+#      probabilmente un problema di come `flet_cli` impacchetta/registra
+#      certi plugin `Service` nella build Android, non qualcosa risolvibile
+#      cambiando il nostro codice Python (già verificato corretto al punto 1).
+#   4. Pista di fix concreta, NON ancora verificata: Flet 0.86.0 (uscito dopo
+#      la 0.85.3 che usiamo) dichiara nel changelog ufficiale un "completely
+#      re-designed Android packaging" (dart-bridge, FFI al posto del socket).
+#      Potenzialmente rilevante per questa classe di bug — va verificato con
+#      un aggiornamento di versione mirato e un vero test su Android, non
+#      assunto. Un aggiornamento di Flet è un cambio ampio (tocca l'intero
+#      progetto, non solo il file picker) e va deciso con Davide, non fatto
+#      di riflesso.
+#   5. Trovato anche un gap indipendente e reale, da correggere comunque:
+#      pyproject.toml non dichiara ALCUN permesso di lettura media/storage
+#      (`READ_MEDIA_IMAGES` su Android 13+, o `READ_EXTERNAL_STORAGE` sotto).
+#      Non spiega da solo "Unknown control" (un permesso mancante di norma dà
+#      un errore di permesso DOPO l'apertura del picker, non "tipo di
+#      controllo sconosciuto" PRIMA), ma è comunque necessario perché la
+#      selezione immagine funzioni una volta risolto il problema di fondo.
+#
+#   Se confermato (dopo un fix): può leggere e.files[0].path DIRETTAMENTE,
+#   perché Python gira sullo stesso dispositivo del client (nessun upload
+#   necessario).
+#
+#   AGGIORNAMENTO 2026-08-05 — tentativo di fix, Flet 0.85.3 → 0.86.5:
+#   Davide ha scelto di provare l'aggiornamento (release ufficiale che
+#   dichiara un "completely re-designed Android packaging", pista di fix
+#   più promettente del riscrivere ancora il nostro codice, già verificato
+#   corretto). Fatto: pyproject.toml `flet==0.86.5`, `requires-python =
+#   ">=3.12,<3.13"` (fissa il Python imbarcato a 3.12, la stessa versione
+#   usata implicitamente da TUTTE le build precedenti — 0.86 di default
+#   userebbe 3.14, ma le ruote native di Pillow per Android/iOS su 3.14 non
+#   sono verificabili da qui: isolare la sola variabile "packaging Android"
+#   che ci interessa). `python3 -m compileall` + tutte e 4 le batterie di
+#   test (289/289) verdi contro 0.86.5 — nessuna rottura d'API Python
+#   rilevabile da qui. **Ancora NON verificato**: se questo risolve
+#   davvero "Unknown control" su un vero APK — richiede una build reale
+#   (`flet build apk`, non disponibile in questo sandbox: niente Android
+#   SDK/NDK) e un test di Davide su dispositivo, stesso limite già noto per
+#   tutto il lavoro Multiplayer/LAN (vedi CLAUDE.md).
+#
+#   Trovato durante l'indagine, migliore del previsto: flet_cli 0.86.5
+#   (commands/build_base.py, `BuildCommand.cross_platform_permissions` +
+#   `self.get_pyproject("tool.flet.permissions")`) espone un gruppo di
+#   permessi cross-platform pronto "photo_library" → mappa su Android su
+#   `android.permission.READ_MEDIA_VISUAL_USER_SELECTED` (permesso di
+#   "selezione parziale", non `READ_MEDIA_IMAGES` a cui avevo pensato
+#   inizialmente) e su iOS su `NSPhotoLibraryUsageDescription` insieme.
+#   Il commento nel sorgente flet_cli spiega perché: la policy Play Store
+#   "Photo and Video Permissions" rifiuta permessi media ampi senza un
+#   caso d'uso puntuale, e READ_MEDIA_VISUAL_USER_SELECTED è pensato
+#   esattamente per "scegli una foto", il nostro caso. Aggiunto in
+#   pyproject.toml come `[tool.flet] permissions = ["photo_library"]`
+#   (chiave distinta da `tool.flet.android.permission`, verificata nel
+#   sorgente prima di scriverla, non per analogia).
 # ft.FilePicker su WEB (ft.AppView.WEB_BROWSER, es. deploy Docker) → NON
 #   USARE AFFATTO, in nessuna forma. Bug upstream CONFERMATO e non
 #   risolvibile lato applicazione (2026-07-12, verificato con fonte
@@ -234,6 +305,32 @@ muted_text(text, size=12, text_align=..., weight=...)
 # TYPE STUBS — Checkbox.label è StrOrControl, non str
 # cb.label or "" non è str per Pylance → usare str(cb.label) if cb.label else ""
 # join() richiede Iterable[str] — usare list comprehension [...] non generator (...)
+
+# SAFE AREA — ft.SafeArea esiste davvero (verificato per introspezione,
+# Flet 0.85.3 e 0.86.5), non un'API inventata. Evita che header/barre in
+# cima allo schermo finiscano sotto tacca/barra di stato su Android — no-op
+# su desktop/web (MediaQuery non riporta intrusioni lì, nessun padding
+# indesiderato). In questo progetto va SEMPRE e SOLO nel punto unico di
+# navigazione `DnDApp._navigate()` in ui/app.py (2026-08-05) — non
+# aggiungerlo dentro le singole view: se ogni vista lo facesse per conto
+# proprio si tornerebbe alla stessa duplicazione già eliminata introducendo
+# `_navigate()`.
+
+# RESPONSIVE ROW — ft.ResponsiveRow + il parametro `col` su ogni Control
+# (dict per breakpoint, es. `col={"xs": 12, "sm": 6}`) esistono davvero
+# (verificato per introspezione). Breakpoint DEFAULT di Flet (letti dal
+# sorgente installato, non assunti): xs=0, sm=576, md=768, lg=992, xl=1200,
+# xxl=1400 px — valutati lato client sulla larghezza REALE del
+# ResponsiveRow al momento del render, non da `page.width` letto in Python.
+# Preferirlo a un controllo `page.width` in Python ogni volta che il
+# controllo può essere costruito PRIMA del mount sulla pagina (es. card in
+# una lista costruita in `__init__`/`refresh()`, come `HomeView` e i tab
+# della scheda): `self.page` in quei punti è spesso `None`, quindi un
+# controllo `if (self.page.width or 0) < soglia` lì sarebbe silenziosamente
+# sbagliato (sempre `False`) — non un'ipotesi, verificato leggendo
+# `HomeView.__init__()`: `_build()`/`refresh()` girano prima che il
+# controllo sia aggiunto a `page.controls`. Usato per la prima volta in
+# `esplorazione_tab.py::_section_skills()` (2026-08-05).
 ```
 
 ---
