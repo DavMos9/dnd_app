@@ -115,21 +115,32 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 # CLIENT_STORAGE — page.client_storage NON esiste in Flet 0.85.3
 # `page.client_storage.get/set(...)` ← SBAGLIATO → AttributeError, l'attributo
 #   non esiste su ft.Page in questa versione (verificato per introspezione sul
-#   pacchetto installato, 2026-08-05). Sostituito da `ft.SharedPreferences`,
-#   un controllo che eredita da `Service` — la STESSA classe base di
-#   `ft.FilePicker`, documentato qui sopra come strutturalmente rotto in web
-#   mode (flet-dev/flet#6040/#6250/#6251). Verificato empiricamente con una
-#   FakePage che il tentativo fallisce fuori da una pagina montata
-#   ("Control must be added to the page first") — **il comportamento in un
-#   vero browser web NON è stato ancora verificato**, va fatto da Davide
-#   prima di fidarsene per qualunque dato importante.
-# Uso corretto (vedi ui/device_identity.py, Multiplayer 2026-08-05):
-#   prefs = ft.SharedPreferences(); page.overlay.append(prefs); page.update()
-#   value = await prefs.get(key)   # async — SEMPRE via page.run_task
-#   await prefs.set(key, value)
-# SEMPRE avvolto in try/except con un ripiego funzionante: se si rivela rotto
-# in web mode come FilePicker, l'app non deve bloccarsi né fallire in
-# silenzio.
+#   pacchetto installato, 2026-08-05). "Sostituito" da `ft.SharedPreferences` —
+#   ma vedi la voce subito sotto: in web mode va evitato del tutto, non solo
+#   usato con cautela.
+#
+# SHAREDPREFERENCES — CONFERMATO ROTTO in web mode, mai crearlo se page.web
+#   `ft.SharedPreferences` eredita da `Service`, la STESSA classe base di
+#   `ft.FilePicker` (documentato sopra come strutturalmente rotto in web mode,
+#   flet-dev/flet#6040/#6250/#6251). Confermato empiricamente da Davide su un
+#   vero deploy web (2026-08-06): `page.overlay.append(ft.SharedPreferences());
+#   page.update()` produce **"Unknown control: SharedPreferences"**.
+#   Punto sottile: l'errore arriva dal client Flutter via websocket DOPO che
+#   la chiamata Python è già "riuscita" — un try/except sincrono in Python
+#   NON lo intercetta (stesso identico comportamento già visto per FilePicker
+#   nei tre tentativi falliti documentati sopra). Un ripiego "prova e ricadi
+#   sull'eccezione" non funziona per questa classe di bug: bisogna evitare la
+#   creazione del controllo a monte con un `if page.web:` PRIMA di istanziarlo,
+#   non un try/except attorno.
+# Fix applicato in ui/device_identity.py: in web mode `resolve_device_id()`
+#   non tenta più affatto SharedPreferences, va dritto a un'identità di sola
+#   sessione tenuta come attributo su `page` (si perde al refresh della
+#   pagina — limite noto, non un bug). Stesso pattern già in uso per
+#   FilePicker in web mode (vedi sopra: "NON creare/registrare mai
+#   ft.FilePicker quando page.web è True").
+# Regola generale per QUALSIASI controllo `Service` non ancora provato in web
+#   mode: non fidarsi finché non è verificato su un vero browser. Un
+#   try/except attorno alla creazione dà un falso senso di sicurezza.
 
 # HELPER THEME (ui/theme.py) — parametri supportati
 label_text(text, size=10)

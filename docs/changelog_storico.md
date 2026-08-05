@@ -4709,6 +4709,26 @@
   giorno (`test_mondo_senza_rete.py` 139/139, `test_istanze_personaggio.py` 62/62, `test_lan_host_client.py`
   92/92): nessuna regressione.
 
+- **`SharedPreferences` confermato rotto in web mode, segnalato da Davide (2026-08-06)**: sul deploy web reale,
+  aprire l'app produceva `Unknown control: SharedPreferences`. Era esattamente il rischio dichiarato ma non
+  ancora verificato nel passo 2 (2026-08-05): `ft.SharedPreferences` eredita da `Service`, la stessa classe base
+  di `ft.FilePicker`, già documentato come strutturalmente rotto in web mode (flet-dev/flet#6040/#6250/#6251).
+  Il punto sottile, la ragione per cui il `try/except` già presente in `ui/device_identity.py` non bastava:
+  l'errore arriva dal client Flutter via websocket DOPO che la chiamata Python (`page.overlay.append(...)` +
+  `page.update()`) è già "riuscita" — un `try/except` sincrono in Python non può intercettare un fallimento che
+  avviene lato client in un momento successivo. Stesso comportamento già osservato nei tre tentativi falliti di
+  `FilePicker` documentati in `regole_flet_api.md`. Fix, stesso pattern già in uso per `FilePicker`: in
+  `ui/device_identity.py`, `resolve_device_id()` in web mode NON tenta più affatto `SharedPreferences` — va
+  dritto all'identità di sola sessione (id generato una volta e tenuto come attributo su `page`, si perde al
+  refresh della pagina — limite noto e accettato, non un bug: il caso d'uso primario del Multiplayer resta
+  desktop/mobile via LAN, dove `app_settings` è stabile). Rimossa la funzione `_get_or_create_web_device_id()`
+  (il tentativo SharedPreferences) invece di lasciarla come codice morto mai raggiunto. Aggiornato
+  `regole_flet_api.md` con una regola generale: per qualunque controllo `Service` non ancora provato in web
+  mode, un `try/except` attorno alla creazione dà un falso senso di sicurezza — va evitata la creazione a monte
+  con un `if page.web:` PRIMA di istanziare il controllo, non un tentativo con ripiego sull'eccezione.
+  Riverificato `test_mondo_senza_rete.py` (139/139, inclusa la sezione `[6] ui/device_identity`): nessuna
+  regressione, la firma pubblica di `resolve_device_id()` non è cambiata.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
