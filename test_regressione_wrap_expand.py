@@ -270,6 +270,38 @@ def test_esplorazione_tab() -> None:
     d.set_mode("light")
 
 
+def test_sheet_view() -> None:
+    """
+    Costruzione di `SheetView` — aggiunta il 2026-08-06 dopo la stessa
+    segnalazione di Davide che ha portato al fix di `MasterView._build_tab_bar()`
+    sopra: la tab bar a 5 pillole (Profilo/Combattimento/Esplorazione/
+    Inventario/Diario) aveva lo stesso identico difetto — `expand=True` su
+    ogni pillola dentro una Row a riga singola, con solo `no_wrap`+`ELLIPSIS`
+    come argine — e su smartphone stretto troncava "Combattimento" a "Co...",
+    "Esplorazione" a "Espl...". Fix: `wrap=True` sulla Row esterna, pillole
+    senza `expand` (si dimensionano sul contenuto, come `design.pill()`).
+    `SheetView` non aveva mai avuto un test di costruzione in questo file.
+    """
+    print("\n[5] SheetView — costruzione tab bar a 5 pillole")
+    from ui.views.character_sheet.sheet_view import SheetView
+
+    char = _make_guerriero("Sheet WrapExpand")
+    profs = character_repo.get_proficiencies(char.id)
+
+    for mode in ("light", "dark"):
+        d.set_mode(mode)
+        try:
+            sheet = SheetView(char, profs)
+            conflicts = find_wrap_expand_conflicts(sheet, path="SheetView")
+            check(f"[{mode}] SheetView costruita senza errori né conflitti "
+                  f"wrap+expand: {conflicts}", conflicts == [])
+        except Exception as e:  # noqa: BLE001
+            check(f"[{mode}] SheetView costruita senza sollevare eccezioni: "
+                  f"{type(e).__name__}: {e}", False)
+
+    d.set_mode("light")
+
+
 def main() -> int:
     print("=" * 62)
     print("Regressione — wrap=True + figlio expand=True (riquadro grigio)")
@@ -281,6 +313,7 @@ def main() -> int:
     test_worlds_view()
     test_master_view()
     test_esplorazione_tab()
+    test_sheet_view()
 
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

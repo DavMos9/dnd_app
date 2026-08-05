@@ -252,8 +252,20 @@ class SheetView(ft.Column):
                     ),
                     # Controllo segmentato (pillole) invece dei tab sottolineati:
                     # stesso linguaggio delle pillole usate in Home e Master.
+                    # `wrap=True` + pillole NON `expand` (2026-08-06, bug reale
+                    # segnalato da Davide con screenshot: su smartphone stretto
+                    # 5 pillole "Combattimento"/"Esplorazione" con expand=True
+                    # forzavano una sola riga, l'ellissi tagliava il testo a
+                    # "Co...", "Espl..." — illeggibile). MAI combinare
+                    # `wrap=True` sulla Row con figli `expand=True`: crash
+                    # Flutter silenzioso (vedi `regole_flet_api.md`, sezione
+                    # WRAP=True+expand=True) — qui infatti `_make_tab_button()`
+                    # non imposta più `expand` sul Container della pillola,
+                    # stesso pattern già in uso e verificato per le pillole
+                    # "Generatori Rapidi" del Master (`design.pill()`, mai
+                    # `expand`).
                     ft.Container(
-                        content=ft.Row(tab_row, spacing=design.Space.XS),
+                        content=ft.Row(tab_row, spacing=design.Space.XS, wrap=True),
                         bgcolor=p.surface_alt,
                         border_radius=design.Radius.PILL,
                         padding=design.Space.XS,
@@ -278,6 +290,13 @@ class SheetView(ft.Column):
         btn.shadow = design.elevation(1) if active else None
 
     def _make_tab_button(self, key: str, label: str) -> ft.Container:
+        # Niente `expand=True`: il Container si dimensiona sul contenuto,
+        # com'è già `design.pill()` — necessario perché il genitore usa
+        # `wrap=True` (vedi `_build_header_and_tabs()`), e `expand=True` su
+        # un figlio di una Row con `wrap=True` produce un crash Flutter
+        # silenzioso (`regole_flet_api.md`). `no_wrap`/`overflow=ELLIPSIS`
+        # restano come rete di sicurezza per larghezze patologicamente strette,
+        # non più come unico argine.
         btn = ft.Container(
             content=ft.Text(
                 label,
@@ -287,11 +306,10 @@ class SheetView(ft.Column):
                 no_wrap=True,
                 overflow=ft.TextOverflow.ELLIPSIS,
             ),
-            padding=ft.Padding.symmetric(horizontal=design.Space.SM, vertical=design.Space.SM),
+            padding=ft.Padding.symmetric(horizontal=design.Space.MD, vertical=design.Space.SM),
             border_radius=design.Radius.PILL,
             on_click=lambda e, k=key: self._switch_tab(k),
             ink=True,
-            expand=True,
             alignment=ft.Alignment.CENTER,
             animate=ft.Animation(design.Duration.BASE, design.CURVE),
         )

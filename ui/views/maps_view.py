@@ -1236,7 +1236,10 @@ class MapsView(ft.Column):
             if page.web:
                 _pick_from_library(self, img_data, img_label, img_preview)
             elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
-                _pick_mobile(self, img_data, img_label, img_preview)
+                # _pick_mobile è async (fix 2026-08-06, vedi il suo
+                # docstring): va schedulata, non chiamata direttamente da
+                # un on_click sincrono.
+                page.run_task(_pick_mobile, self, img_data, img_label, img_preview)
             else:
                 import platform as _sys
                 threading.Thread(
@@ -1346,7 +1349,10 @@ class MapsView(ft.Column):
             if page.web:
                 _pick_from_library(self, img_data, img_label, img_preview)
             elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
-                _pick_mobile(self, img_data, img_label, img_preview)
+                # _pick_mobile è async (fix 2026-08-06, vedi il suo
+                # docstring): va schedulata, non chiamata direttamente da
+                # un on_click sincrono.
+                page.run_task(_pick_mobile, self, img_data, img_label, img_preview)
             else:
                 import platform as _sys
                 threading.Thread(
@@ -1495,40 +1501,52 @@ def _pick_from_library(view: "MapsView", img_data: list[str],
     show_image_library_picker(page, on_select=on_select)
 
 
-def _pick_mobile(view: "MapsView", img_data: list[str],
-                 label: ft.Text, preview: ft.Container):
+async def _pick_mobile(view: "MapsView", img_data: list[str],
+                       label: ft.Text, preview: ft.Container) -> None:
     """
     Apre il file picker nativo Android/iOS. Chiamata SOLO dal ramo mobile
     nativo di pick_image() nei due dialog crea/modifica mappa — il ramo web
     non arriva mai qui, vedi _pick_from_library().
 
+    **Fix reale del bug "il file picker non funziona" (2026-08-06, trovato
+    con un log `adb logcat` reale)**: stesso identico difetto di
+    `profilo_tab.py::_pick_photo_mobile()` (vedi il suo docstring per la
+    diagnosi completa) — `pick_files()` veniva chiamato senza `await` e il
+    risultato instradato tramite un `on_result` che in Flet 0.86.5 non
+    esiste (mai esistito in questa versione, solo `on_upload`): la
+    coroutine veniva creata e scartata, il picker nativo non si apriva
+    MAI. Non un bug di packaging Android — un `await` mancante. Fix: la
+    funzione è ora `async`, schedulata dai due `pick_image()` chiamanti
+    con `page.run_task()`, e legge il risultato direttamente da `await
+    pick_files()` invece che da un evento. Corretto anche un secondo bug
+    minore scoperto nello stesso punto: `allowed_extensions` ha effetto
+    solo con `file_type=FilePickerFileType.CUSTOM` (documentazione
+    ufficiale), mai passato prima — il filtro estensioni non aveva mai
+    avuto effetto.
+
     Riusa SEMPRE view._file_picker, registrato una sola volta in
-    MapsView.did_mount() (mai in web mode, vedi il commento lì). Ogni
-    chiamata riassegna solo on_result (diverso per ogni dialog aperto),
-    non ricrea/riaggiunge il controllo.
+    MapsView.did_mount() (mai in web mode, vedi il commento lì).
     """
     page = view._page
     if page is None:
         return
-
-    def on_result(ev: Any):  # ft.FilePickerResultEvent non in stubs 0.85.3
-        if not ev.files:
-            return
-        f = ev.files[0]
-        b64 = _load_image_base64(f.path)
-        if b64:
-            img_data[0] = b64
-            _update_preview(b64, label, preview, page)
-
     if view._file_picker is None:
         # Fallback difensivo se did_mount() non l'ha ancora registrato.
         view._file_picker = ft.FilePicker()
         page.overlay.append(view._file_picker)
         page.update()
-    cast(Any, view._file_picker).on_result = on_result
-    cast(Any, view._file_picker).pick_files(  # type: ignore[unused-coroutine]
-        allowed_extensions=["jpg", "jpeg", "png", "gif", "webp"]
+    picker = view._file_picker
+    files = await picker.pick_files(
+        file_type=ft.FilePickerFileType.CUSTOM,
+        allowed_extensions=["jpg", "jpeg", "png", "gif", "webp"],
     )
+    if not files:
+        return  # utente ha annullato, nessun errore da mostrare
+    f = files[0]
+    b64 = _load_image_base64(f.path)
+    if b64:
+        img_data[0] = b64
+        _update_preview(b64, label, preview, page)
 
 
 def _pick_desktop(system: str, img_data: list[str],

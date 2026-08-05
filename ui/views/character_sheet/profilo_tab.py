@@ -4193,7 +4193,7 @@ class ProfiloTab(ScrollMemoryListView):
             return
         platform = self._page.platform
         if platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
-            self._pick_photo_mobile()
+            self._page.run_task(self._pick_photo_mobile)
         else:
             import platform as sys_platform
             system = sys_platform.system()
@@ -4257,13 +4257,31 @@ class ProfiloTab(ScrollMemoryListView):
             # Nessun gestore dialogo trovato: fallback testo
             self._show_path_input_dialog()
 
-    def _pick_photo_mobile(self):
+    async def _pick_photo_mobile(self):
         """
         Apre il file picker nativo Android/iOS tramite ft.FilePicker.
         Funziona su Flet mobile nativo; NON usare su desktop nativo (causa
         "Unknown control") né in web mode (stesso errore, bug upstream
         confermato — vedi _pick_photo(), che intercetta page.web PRIMA di
         arrivare qui e usa show_image_library_picker() al suo posto).
+
+        **Fix reale del bug "il file picker non funziona" (2026-08-06,
+        trovato con un log `adb logcat` reale, non un'altra ipotesi)**: le
+        sessioni precedenti sospettavano un bug di packaging Android
+        upstream di Flet (mai confermato). Il log ha mostrato invece un
+        `RuntimeWarning: coroutine 'FilePicker.pick_files' was never
+        awaited` — `pick_files()` in Flet 0.86.5 è un metodo `async` che
+        restituisce la selezione DIRETTAMENTE tramite `await` (verificato
+        per introspezione sul pacchetto installato: `FilePicker` non ha
+        MAI avuto un evento `on_result` in questa versione, solo
+        `on_upload`). Il vecchio codice chiamava `pick_files()` senza
+        `await` e assegnava un `on_result` che nessuno leggeva mai: la
+        coroutine veniva creata e scartata, il picker nativo non si apriva
+        MAI — non un problema di Flutter/Android, un `await` mancante nel
+        nostro Python. Stesso identico bug, stesso fix, in
+        `maps_view.py::_pick_mobile()`. Ora `_pick_photo()` schedula questo
+        metodo con `page.run_task()` (era una chiamata sincrona diretta,
+        impossibile da lì dentro un `async def`).
 
         Riusa SEMPRE self._file_picker, già registrato in did_mount().
         Fallback difensivo: se per qualche motivo did_mount() non l'ha
@@ -4276,31 +4294,16 @@ class ProfiloTab(ScrollMemoryListView):
             return
         if self._file_picker is None:
             self._file_picker = ft.FilePicker()
-            self._file_picker.on_result = self._on_mobile_file_picked  # type: ignore[assignment]
             page.overlay.append(self._file_picker)
-            page.update()  # type: ignore[unused-coroutine]
-        self._file_picker.pick_files(  # type: ignore[unused-coroutine]
+            page.update()
+        files = await self._file_picker.pick_files(
             allow_multiple=False,
             file_type=ft.FilePickerFileType.CUSTOM,
             allowed_extensions=["png", "jpg", "jpeg", "gif", "webp", "bmp"],
         )
-
-    def _on_mobile_file_picked(self, e):
-        """
-        Callback di pick_files() — chiamata SOLO dal ramo mobile nativo
-        (Android/iOS) di _pick_photo(); il ramo web non arriva mai qui,
-        vedi _pick_photo() (usa show_image_library_picker() invece).
-
-        Mobile nativo (Android/iOS, build "flet build apk/ipa"): Python
-        gira SULLO STESSO dispositivo del client, quindi e.files[0].path
-        e' gia' leggibile direttamente da questo processo.
-
-        Il picker NON viene rimosso dall'overlay dopo l'uso: resta
-        registrato per essere riutilizzato alla prossima modifica foto.
-        """
-        if not e.files:
-            return
-        f = e.files[0]
+        if not files:
+            return  # utente ha annullato, nessun errore da mostrare
+        f = files[0]
         if f.path:
             self._load_photo(f.path)
 

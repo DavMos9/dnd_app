@@ -82,6 +82,35 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 
 # FILE PICKER
 # ft.FilePicker su DESKTOP Flet 0.85.3 → "Unknown control: FilePicker" — NON usare
+#
+# ⚠️ CORREZIONE 2026-08-06 (log `adb logcat` reale, non un'altra ipotesi) — TUTTO
+#   il blocco "MOBILE" qui sotto, scritto in due sessioni precedenti (2026-08-05/06),
+#   diagnosticava la causa SBAGLIATA. Non cancellato (si vede il ragionamento e
+#   perché sembrava plausibile), ma la conclusione era falsa: NON è un bug di
+#   packaging Android upstream di Flet. La causa vera, trovata leggendo un log
+#   `adb logcat` reale durante la riproduzione (mai fatto prima — le sessioni
+#   precedenti avevano solo lo screenshot del banner nell'app, mai il log nativo):
+#     `RuntimeWarning: coroutine 'FilePicker.pick_files' was never awaited`
+#   `pick_files()`/`save_file()`/`get_directory_path()` sono metodi `async` (Flet
+#   1.0/v0.8x — verificato per introspezione: `inspect.iscoroutinefunction(...)`
+#   è `True`) che restituiscono il risultato DIRETTAMENTE tramite `await`. Il
+#   codice di `profilo_tab.py::_pick_photo_mobile()` e `maps_view.py::_pick_mobile()`
+#   li chiamava SENZA `await`, da un `on_click` sincrono, assegnando anche un
+#   `on_result` che questa versione di FilePicker non ha mai avuto (solo
+#   `on_upload`, verificato sui campi del dataclass installato). La coroutine
+#   veniva creata e scartata subito: il picker nativo non si apriva MAI, silenziosamente
+#   — nessun banner "Unknown control", nessuna eccezione visibile nell'app, solo
+#   quel `RuntimeWarning` nel log nativo (invisibile senza `adb logcat`/Console.app).
+#   **Regola generale da questo bug**: qualunque metodo di un controllo Flet che
+#   sia `async def` (verificare con `inspect.iscoroutinefunction`, non assumere
+#   dal nome) va SEMPRE chiamato con `await` dentro una funzione `async def`
+#   schedulata con `page.run_task(...)` — mai come fire-and-forget da un
+#   `on_click` sincrono, anche se in apparenza "funziona" (nessun errore a
+#   runtime, il bug è silenzioso). Fix applicato: entrambe le funzioni sono ora
+#   `async def`, i chiamanti usano `page.run_task(fn, ...)` invece di `fn(...)`.
+#   Dettaglio completo in `changelog_storico.md`.
+#
+# Il ragionamento (SBAGLIATO nella conclusione, lasciato per la cronologia):
 # ft.FilePicker su MOBILE (Android/iOS, build nativa "flet build apk/ipa") →
 #   ⚠️ SMENTITO DEL TUTTO (confermato 2026-08-06, screenshot di Davide su un
 #   vero Android): anche l'uso lazy/interattivo (tap sul pulsante → crea il

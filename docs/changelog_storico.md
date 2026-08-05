@@ -5053,6 +5053,146 @@
   release desktop/mobile) — lasciato invariato per ora, la richiesta di Davide riguardava esplicitamente
   il flusso di release "come fatto finora", non il deploy web.
 
+- **FilePicker ancora rotto su Android dopo l'aggiornamento a Flet 0.86.5 (2026-08-06)** — Davide ha
+  testato l'app su un vero dispositivo Android e riportato che il file picker "attualmente non
+  funziona" ancora, oltre a un problema di leggibilità sulle pillole di tab in Sezione Master e nella
+  scheda personaggio (vedi voce successiva). **Verificato prima di agire** (non un altro tentativo alla
+  cieca): `pyproject.toml` ha davvero `flet==0.86.5` e `permissions = ["photo_library"]` come da fix
+  precedente; `flet==0.86.5` esiste realmente su PyPI (rilasciato il 1° agosto 2026, non ritirato —
+  verificato con una fetch diretta della pagina versione, non assunto da una cache stale della pagina
+  progetto principale che mostrava ancora "0.85.3" come ultima release). Cercato anche un fix noto più
+  recente lato `flet-dev/flet` (issue tracker, PyPI cronologia versioni, ricerca web su eventuali
+  changelog 0.86.x/0.87 relativi al packaging Android dei controlli `Service`): nessun fix ulteriore
+  noto oltre al redesign già tentato in 0.86.0 ("completely re-designed Android packaging").
+
+  **Chiesto a Davide** (non assunto): l'APK testato era stato ricompilato DOPO l'aggiornamento a
+  0.86.5. Risposta confermata: sì, ricompilato dopo il fix, il bug persiste comunque su tutti e tre i
+  punti interattivi (foto profilo, immagine mappa, export/import personaggio). **Questo esclude con
+  certezza l'ipotesi "build vecchia"**: il redesign del packaging Android di Flet 0.86.0 non risolve
+  questa classe di bug.
+
+  **Seconda indagine, stessa sessione, prima di concludere che serva un redesign**: verificato se
+  esiste un pattern d'uso di `ft.FilePicker` più recente/diverso da quello già in uso nel progetto.
+  Trovato che la documentazione ufficiale corrente (`flet.dev/docs/services/filepicker/`) mostra un
+  pattern più semplice — `ft.FilePicker()` creato al volo dentro l'handler e usato subito
+  (`await ft.FilePicker().pick_files(...)`), senza mai registrarlo esplicitamente in
+  `page.overlay`/`page.services`. **Verificato per introspezione diretta sul pacchetto 0.86.5
+  installato** (non assunto dalla sola documentazione, che potrebbe essere semplificata a scopo
+  didattico): `BaseControl.page` (proprietà usata da `_invoke_method`, chiamata da `pick_files()`)
+  risale l'albero `.parent` finché non trova una `Page`, sollevando `RuntimeError` se non la trova —
+  un `ft.FilePicker()` mai aggiunto da nessuna parte non ha alcun genitore, quindi l'esempio della
+  documentazione così com'è scritto solleverebbe lo stesso errore. **Conclusione**: il pattern già in
+  uso nel progetto (registrazione in `page.overlay`, poi riuso dell'istanza) resta l'unico
+  meccanicamente valido nella versione installata — non è un pattern superato, è tuttora necessario.
+  Nessun fix di codice nuovo da questa pista: conferma, con una seconda verifica indipendente da quella
+  della sessione precedente (che aveva letto `service.py`), che il codice Python del progetto è
+  corretto e il problema è lato client Flutter/Android, non lato Python.
+
+  **Conclusione della sessione, dopo aver esaurito ogni pista verificabile da qui**: nessun fix di
+  codice o di versione noto risolve la classe di bug "Unknown control: X" per i controlli `Service` sui
+  build APK Android — confermato che affligge `Clipboard`, `Flashlight` e ora anche `FilePicker` dopo
+  il redesign 0.86.0, su un arco di più anni nel repository ufficiale `flet-dev/flet`, senza una
+  risoluzione nota. **Prossimo passo proposto a Davide, non ancora deciso**: raccogliere un log
+  `adb logcat` reale durante la riproduzione del bug (Davide, dispositivo fisico via USB) — il banner
+  rosso "Unknown control: X" è quasi certamente un messaggio di fallback generico che nasconde
+  un'eccezione più specifica lato Flutter (es. `MissingPluginException`, un canale non registrato);
+  finora nessuna sessione ha mai visto il log nativo reale, solo il banner sull'app. Diagnosticare
+  dall'evidenza reale prima di tentare un'altra ipotesi alla cieca (redesign nativo con un plugin
+  Flutter alternativo, richiederebbe comunque un loop di build/test su dispositivo che solo Davide può
+  fare).
+
+- **RISOLTO — la vera causa del bug FilePicker era un `await` mancante, non un bug di packaging
+  Android (2026-08-06, stessa sessione, dopo il log `adb logcat` di Davide)** — Davide ha seguito la
+  procedura passo-passo data (installare `adb`, attivare debug USB, `adb logcat -c` +
+  `adb logcat > file.txt` durante la riproduzione, `grep` filtrato) e mandato due file di log
+  raccolti riproducendo "foto profilo". **La riga decisiva**:
+
+  ```
+  08-05 23:46:54.619 ... E flet.python: /tmp/serious_python_.../ui/views/character_sheet/profilo_tab.py:4282:
+    RuntimeWarning: coroutine 'FilePicker.pick_files' was never awaited
+  ```
+
+  Nessun "Unknown control" nel log — nessuna delle tre sessioni precedenti aveva mai visto questo, solo
+  il banner nell'app (probabilmente un sintomo di una fase precedente, già corretta, e mai più
+  ricontrollato con un log reale). **Causa reale**: `pick_files()`/`save_file()`/
+  `get_directory_path()` in Flet 0.86.5 sono metodi `async` che restituiscono il risultato
+  DIRETTAMENTE tramite `await` (confermato per introspezione: `inspect.iscoroutinefunction(...)` →
+  `True`; `FilePicker` non ha mai avuto un evento `on_result` in questa versione, verificato sui campi
+  del dataclass installato — solo `on_upload`). `profilo_tab.py::_pick_photo_mobile()` (riga 4282) e
+  `maps_view.py::_pick_mobile()` chiamavano `pick_files()` **senza `await`**, da un `on_click`
+  sincrono, assegnando anche un `on_result` che nessuno ha mai letto — la coroutine veniva creata e
+  scartata dal garbage collector, il picker nativo non si apriva MAI. Bug silenzioso: nessuna
+  eccezione, nessun banner, il tap sul pulsante semplicemente non faceva nulla. Il marker
+  `# type: ignore[unused-coroutine]` già presente su quelle righe era la spia che il type-checker
+  aveva segnalato esattamente questo, silenziata invece che investigata quando scritta.
+
+  **Perché le tre sessioni precedenti non l'hanno trovato**: nessuna aveva mai avuto un log nativo
+  reale, solo screenshot del banner "Unknown control" nell'app — evidenza indiretta che ha portato a
+  ipotizzare (con verifiche Python-side genuinamente accurate, solo sulla domanda sbagliata) un bug di
+  packaging upstream. Il log `adb logcat`, proposto esplicitamente come prossimo passo invece di
+  un'altra ipotesi alla cieca, ha risolto in una lettura quello che tre sessioni di ipotesi (peraltro
+  ciascuna correttamente verificata nei propri termini) non avevano trovato.
+
+  **Fix applicato**, identico nei due file: `_pick_photo_mobile()`/`_pick_mobile()` sono ora `async
+  def`, chiamano `await picker.pick_files(...)` e processano la lista di file restituita
+  direttamente (niente più `on_result`), i chiamanti sincroni (`_pick_photo()` in profilo_tab.py, i
+  due `pick_image()` nei dialog crea/modifica mappa) le schedulano con `page.run_task(...)` invece di
+  chiamarle direttamente — stesso pattern già corretto e verificato in `home_view.py`
+  (`_on_mobile_export`/`_on_mobile_import`, scritte il 2026-07-24 con l'API async corretta fin
+  dall'inizio: **non erano il problema**, nonostante Davide le avesse indicate tra le azioni rotte —
+  o testate prima del fix del 2026-07-24, o un bug diverso non ancora riprodotto in un log; da
+  riverificare dopo questo fix). Corretto anche un secondo bug minore trovato nello stesso punto di
+  `maps_view.py`: `allowed_extensions` ha effetto solo con `file_type=FilePickerFileType.CUSTOM`
+  (documentazione ufficiale), mai passato prima — il filtro estensioni non aveva mai avuto effetto.
+
+  Verificato: `py_compile` su entrambi i file; `inspect.iscoroutinefunction()` conferma che
+  `ProfiloTab._pick_photo_mobile`/`_pick_mobile` sono ora vere coroutine; `page.run_task` esiste
+  davvero sul pacchetto 0.86.5 installato (non assunto); tutte e 4 le batterie di test
+  (37+25+139+92 = 293) verdi, nessuna regressione. **Non verificabile da qui**: che il picker si apra
+  davvero adesso su un vero Android — richiede un altro giro di test da parte di Davide, sui tre punti
+  (foto profilo, immagine mappa, export/import — quest'ultimo già scritto correttamente, ma da
+  riconfermare). `regole_flet_api.md` corretto con la vera causa (la vecchia diagnosi "bug di
+  packaging Android upstream" è stata lasciata visibile ma marcata come smentita, non cancellata).
+
+- **5 pillole di tab troncate illeggibili su smartphone stretto — stesso bug in due punti indipendenti
+  (2026-08-06)** — Davide ha mandato screenshot di due schermate: la scheda personaggio ("Pro...",
+  "Co...", "Espl...", "Inve...", "Diario" — solo l'ultima per caso abbastanza corta da stare intera) e
+  la tab bar interna della Sezione Master (icone con lettere singole troncate, "Rubrica NPC"/"Note di
+  Campagna"/"Oggetti Magici" irriconoscibili). **Causa identica in entrambi i file**, non un fix
+  puntuale copiato alla cieca: `SheetView._make_tab_button()`
+  (`ui/views/character_sheet/sheet_view.py`) e `MasterView._build_tab_bar()`
+  (`ui/views/master/master_view.py`) costruivano 5 pillole ciascuna con `expand=True` per forzarle a
+  dividersi in parti uguali su UNA riga sola, con `no_wrap=True`+`overflow=ELLIPSIS` come unico argine —
+  su uno smartphone stretto lo spazio per pillola scende sotto quanto serve anche solo per "Combattimento"
+  o "Note di Campagna", e l'ellissi taglia a poche lettere.
+
+  **Fix**, identico nei due file e coerente con un pattern già in uso e verificato altrove nell'app
+  (le pillole "Generatori Rapidi" del Master, `design.pill()`, non hanno mai usato `expand`): tolto
+  `expand=True` da ogni pillola (si dimensiona sul contenuto, come `design.pill()`), aggiunto
+  `wrap=True` alla Row che le contiene — su schermi stretti le pillole vanno a capo su più righe invece
+  di restare forzate su una sola riga illeggibile; su schermi larghi il comportamento visivo resta
+  sostanzialmente identico (i 5 tab restano affiancati, semplicemente non più costretti a dividersi
+  esattamente lo spazio disponibile). **Rispettata la regola già documentata in `regole_flet_api.md`**
+  ("MAI `wrap=True` su una Row/Column con un figlio `expand=True` → crash Flutter silenzioso, riquadro
+  vuoto senza errore Python", trovata nel dialogo Bottino il 2026-07-31): qui infatti `wrap` ed
+  `expand` non sono mai compresenti sullo stesso figlio, verificato non solo a occhio ma con un
+  controllo automatico strutturale (sotto).
+
+  `no_wrap=True`+`overflow=ELLIPSIS` sul `ft.Text` di ogni pillola restano come rete di sicurezza per
+  larghezze patologicamente strette, non più come unico argine.
+
+  Verificato: `py_compile` su entrambi i file, `test_regressione_wrap_expand.py` esteso da 35 a 37
+  controlli con un nuovo `test_sheet_view()` (SheetView non aveva mai avuto un test di costruzione in
+  questo file — `test_master_view()` esisteva già dal 2026-08-06 precedente e cammina comunque l'intero
+  albero di `MasterView`, quindi ha ri-validato il fix di `_build_tab_bar()` per costruzione, senza
+  bisogno di scriverne uno nuovo). 37/37 verdi. Nessuna regressione sulle altre batterie:
+  `test_master_world_scoping.py` 25/25, `test_mondo_senza_rete.py` 139/139, `test_lan_host_client.py`
+  92/92. `test_istanze_personaggio.py` ha continuato a fallire per lo stesso artefatto ambientale del
+  sandbox già annotato nella sessione precedente (lancia `test_mondo_senza_rete.py` come subprocess che
+  non eredita l'ambiente Python con `flet` installato) — non correlato a queste modifiche, verificato
+  eseguendo `test_mondo_senza_rete.py` da solo nello stesso ambiente (139/139 verde). **Non verificabile
+  da qui**: la resa visiva reale su un vero smartphone stretto — solo Davide può confermarlo.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

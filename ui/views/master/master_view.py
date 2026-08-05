@@ -286,7 +286,20 @@ class MasterView(ft.Column):
         return design.pill(icon, label, on_click=lambda e: on_click())
 
     def _build_tab_bar(self) -> ft.Container:
-        """Controllo segmentato: stesso linguaggio della tab bar della scheda."""
+        """Controllo segmentato: stesso linguaggio della tab bar della scheda.
+
+        `wrap=True` sulla Row esterna + pillole NON `expand` (2026-08-06, bug
+        reale segnalato da Davide con screenshot: 5 pillole — "Rubrica NPC",
+        "Note di Campagna", "Oggetti Magici" comprese — con `expand=True`
+        forzavano una sola riga su smartphone stretto, l'ellissi tagliava il
+        testo a una sola lettera, illeggibile). Stesso identico fix applicato
+        a `SheetView._make_tab_button()`/`_build_header_and_tabs()`: MAI
+        `wrap=True` su una Row con figli `expand=True` (crash Flutter
+        silenzioso, vedi `regole_flet_api.md`), quindi le pillole qui sotto
+        si dimensionano sul contenuto invece di dividersi lo spazio in parti
+        uguali — stesso principio già in uso per "Generatori Rapidi"
+        (`design.pill()`, mai `expand`).
+        """
         p = design.T()
         items: list[ft.Control] = []
         for t in _TABS:
@@ -317,12 +330,11 @@ class MasterView(ft.Column):
                     shadow=design.elevation(1) if is_sel else None,
                     on_click=lambda e, k=t["key"]: self._on_tab_click(k),
                     ink=True,
-                    expand=True,
                     animate=ft.Animation(design.Duration.BASE, design.CURVE),
                 )
             )
         return ft.Container(
-            content=ft.Row(items, spacing=design.Space.XS),
+            content=ft.Row(items, spacing=design.Space.XS, wrap=True),
             bgcolor=design.T().surface_alt,
             border_radius=design.Radius.PILL,
             padding=design.Space.XS,
