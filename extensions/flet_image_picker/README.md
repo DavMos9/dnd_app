@@ -70,21 +70,39 @@ pacchetti ufficiali `flet-camera`/`flet-audio-recorder`. La sezione
 `[tool.setuptools.package-data]` funziona quindi come previsto, non era
 necessario rigenerare lo scaffold con `flet create --template extension`.
 
-**Ancora NON verificato** (questa è la parte che richiede davvero
-Flutter/Dart, irriducibile senza un dispositivo/toolchain reale):
+**Verificato il 2026-08-06 (stesso giorno, run CI reale di Davide su
+GitHub Actions)** — risolve anche il punto 1 sopra: il log del job
+`build-android` mostra `Registering Flutter user extensions... Registered
+Flutter user extensions OK`, poi `Resolving dependencies... Got
+dependencies!` con `flet_image_picker` elencato tra i pacchetti risolti da
+`pub`. **`flet build` individua e collega correttamente
+`flutter/flet_image_picker/` come dipendenza Flutter** — non solo il
+packaging Python, anche l'aggancio lato Flutter funziona, senza bisogno di
+alcun intervento manuale.
 
-1. Se il tooling di `flet build` individua e collega davvero
-   `flutter/flet_image_picker/` come dipendenza Flutter del progetto
-   generato (il packaging Python è confermato corretto, ma non è la stessa
-   cosa di "Flutter compila il plugin dentro l'app").
-2. Se il codice Dart stesso (`extension.dart`, `image_picker_service.dart`)
-   compila senza errori — mai passato da `dart analyze`/`flutter pub get`
-   in nessuna forma.
-3. Se `pick_image()` funziona davvero a runtime su un dispositivo Android/
-   iOS reale.
+La build è arrivata fino a `Running Gradle task 'assembleRelease'` (174s)
+prima di fallire con un vero errore di compilazione Dart:
+```
+image_picker_service.dart:25:5: Error: The method 'debugPrint' isn't
+defined for the type 'ImagePickerService'.
+```
+Causa: `debugPrint` è definito in `package:flutter/foundation.dart`, mai
+importato in `image_picker_service.dart` (il file da cui ho copiato il
+pattern, `audio_recorder_service.dart` di flet-audio-recorder, lo importa
+tramite `package:flutter/widgets.dart` — importo mancato nella trascrizione).
+**Corretto**: aggiunto `import 'package:flutter/foundation.dart' show
+debugPrint;`. Nessun altro errore riportato dal compilatore per
+`extension.dart`/`image_picker_service.dart` in questo run — il resto del
+codice (import di `flet`/`image_picker`, dispatch `_invokeMethod`,
+`parseInt`/`parseDouble`, ciclo di vita `FletService`) è quindi risultato
+corretto al primo vero tentativo di compilazione. **Non ancora
+verificato**: se questo fix è sufficiente a far compilare l'APK per
+intero (richiede un altro run CI/build di Davide) e se `pick_image()`
+funziona a runtime su un dispositivo reale.
 
-Prossimo passo per Davide: `flet build apk` (o `ipa`) e testare
-`pick_image()` su un dispositivo reale (foto profilo, immagine mappa).
+Prossimo passo per Davide: rilanciare la build (`flet build apk` o
+tramite CI) e, se completa, testare `pick_image()` su un dispositivo
+reale (foto profilo, immagine mappa).
 
 ## Riferimenti
 

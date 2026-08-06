@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flet/flet.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:image_picker/image_picker.dart';
 
 /// Implementazione nativa del controllo Python `ImagePicker`.

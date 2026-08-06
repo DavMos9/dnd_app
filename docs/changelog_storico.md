@@ -5797,6 +5797,45 @@ in locale). Dettaglio completo della verifica in
 `dnd_app/docs/regole_flet_api.md` (nuova voce sul meccanismo
 `tool.flet.dev_packages`).
 
+**Stato al 2026-08-06 (stessa sessione) — primo vero tentativo di build
+Android, il fix `dev_packages` confermato dal log CI**: Davide ha
+rilanciato `flet build apk` (via CI) e mandato il log completo. Conferma
+diretta che il fix precedente funziona: `Registering Flutter user
+extensions... Registered Flutter user extensions OK`, poi `Resolving
+dependencies... Got dependencies!` con `flet_image_picker` tra i pacchetti
+risolti da `pub` — non solo il packaging Python (già verificato in
+sandbox), anche l'aggancio lato Flutter/pub funziona, senza intervento
+manuale. La build è arrivata fino a `Running Gradle task
+'assembleRelease'` (174s) — molto oltre qualunque tentativo precedente su
+questa estensione — prima di fallire con un vero errore di compilazione
+Dart, non più un problema di packaging/dipendenze:
+```
+image_picker_service.dart:25:5: Error: The method 'debugPrint' isn't
+defined for the type 'ImagePickerService'.
+```
+(stesso errore ripetuto alle righe 30 e 60, cioè in `init()`,
+`_invokeMethod()` e `dispose()` — gli unici tre punti del file che
+chiamano `debugPrint`). Causa reale, non un'altra ipotesi: `debugPrint` è
+definito in `package:flutter/foundation.dart`, un import mai aggiunto in
+`image_picker_service.dart` — il file sorgente da cui avevo copiato il
+pattern (`audio_recorder_service.dart` di flet-audio-recorder, letto
+riga per riga prima di scrivere questo codice) lo importa tramite
+`package:flutter/widgets.dart`, import perso nella trascrizione. Fix:
+aggiunto `import 'package:flutter/foundation.dart' show debugPrint;` in
+cima al file. **Nessun altro errore riportato dal compilatore Dart in
+questo run** per `extension.dart`/`image_picker_service.dart` — il resto
+del codice (import di `flet`/`image_picker`, il dispatch
+`_invokeMethod`, `parseInt`/`parseDouble`, il ciclo di vita
+`FletService`) è risultato corretto al primo vero tentativo di
+compilazione, un segnale forte (anche se non una controprova assoluta:
+un compilatore Dart può comunque interrompersi prima di riportare errori
+più a valle) che il resto dell'estensione è scritto correttamente.
+**Non ancora verificato**: se questo fix basta a completare la build per
+intero, e se `pick_image()` funziona a runtime su un dispositivo reale —
+serve un altro run di Davide. Dettaglio completo in
+`dnd_app/extensions/flet_image_picker/README.md` (aggiornato con
+l'esito preciso del log).
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

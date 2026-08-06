@@ -377,7 +377,29 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 #   `Path.as_uri()` — portabile per costruzione, non per convenzione da
 #   rispettare a mano. Esiste anche `tool.flet.<piattaforma>.dev_packages`
 #   per un override specifico di una sola piattaforma, non necessario in
-#   questo caso. Dettaglio completo in `changelog_storico.md`.
+#   questo caso. Dettaglio completo in `changelog_storico.md`. **Confermato
+#   funzionante da un vero run CI (2026-08-06)**: il log di
+#   `flet build apk` mostra `Registering Flutter user extensions...
+#   Registered Flutter user extensions OK` seguito da `pub` che risolve
+#   correttamente `flet_image_picker` — il meccanismo aggancia DAVVERO il
+#   pacchetto Flutter nel progetto generato, non solo il pacchetto Python.
+#
+# `debugPrint` IN UNA ESTENSIONE FLET/DART → richiede un import esplicito
+#   Non è una funzione "globale" del linguaggio Dart: vive in
+#   `package:flutter/foundation.dart` (ri-esportata anche da
+#   `package:flutter/widgets.dart`/`material.dart`). Un `Service`/
+#   `LayoutControl` scritto per un'estensione Flet che lo chiama senza
+#   importare uno dei due va in errore di compilazione ("The method
+#   'debugPrint' isn't defined for the type..."), scoperto SOLO al primo
+#   vero `flet build apk` (nessun modo di intercettarlo prima senza un
+#   toolchain Flutter/Dart locale). Successo in `dnd_app/extensions/
+#   flet_image_picker/src/flutter/flet_image_picker/lib/src/
+#   image_picker_service.dart` (2026-08-06): fix `import
+#   'package:flutter/foundation.dart' show debugPrint;`. Se si trascrive
+#   un pattern da un pacchetto Flet ufficiale (`flet-camera`,
+#   `flet-audio-recorder`, ecc.) che usa `debugPrint`, copiare SEMPRE
+#   anche il suo import di `package:flutter/widgets.dart` (o
+#   `foundation.dart`), non solo la logica.
 
 # CLIENT_STORAGE — page.client_storage NON esiste in Flet 0.85.3
 # `page.client_storage.get/set(...)` ← SBAGLIATO → AttributeError, l'attributo
