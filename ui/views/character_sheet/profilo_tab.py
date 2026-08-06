@@ -298,55 +298,83 @@ class ProfiloTab(ScrollMemoryListView):
             height=30,
         )
 
+        # NOTA (2026-08-06, bug report Davide su smartphone reale — screenshot):
+        # i pulsanti Level up/Level down erano incolonnati DENTRO la Column
+        # accanto all'avatar, cioè figli di una Column che è a sua volta figlia
+        # della Row esterna [avatar, spacer, Column]. Una Row Flutter dà ai
+        # figli non-Expanded una larghezza massima ILLIMITATA lungo l'asse
+        # principale (non essendoci alcun `expand=True` sulla Column, vietato
+        # qui perché Column con expand=True dentro Row dentro ListView fa
+        # sparire i widget successivi in silenzio, vedi regole_flet_api.md) —
+        # quindi anche la Row interna con `wrap=True` riceveva una larghezza
+        # illimitata dalla Column che la conteneva, e un `Wrap` con vincolo di
+        # larghezza infinito non va mai a capo (nulla "eccede" un limite
+        # infinito): il risultato è una riga più larga del vero schermo fisico,
+        # tagliata dalla viewport reale. Fix strutturale, non solo `wrap=True`
+        # (già presente e già insufficiente da solo): i due pulsanti escono
+        # dalla Column-accanto-all'avatar e diventano una riga propria, figlia
+        # diretta della Column ESTERNA che è a sua volta l'unico contenuto del
+        # Container della card — quella Column eredita davvero la larghezza
+        # limitata del Container (che a sua volta la eredita, vincolata, dalla
+        # sua posizione di elemento della ListView) e la propaga ai figli, per
+        # cui la Row dei pulsanti riceve finalmente un vincolo di larghezza
+        # reale e `wrap=True` (lasciato come rete di sicurezza) può davvero
+        # scattare se necessario.
         return ft.Container(
-            content=ft.Row(
+            content=ft.Column(
                 [
-                    avatar,
-                    ft.Container(width=14),
-                    ft.Column(
+                    ft.Row(
                         [
-                            ft.Text(c.name or "—", size=18, weight=ft.FontWeight.BOLD,
-                                    color=design.T().text, font_family=design.Font.DISPLAY),
-                            ft.Row(
+                            avatar,
+                            ft.Container(width=14),
+                            ft.Column(
                                 [
-                                    ft.Text(f"Lv.{c.level}", size=11, color=design.T().primary,
-                                            weight=ft.FontWeight.BOLD),
-                                    ft.Text(f"  Comp. +{pb}", size=11, color=design.T().text_2),
-                                    ft.Container(width=10),
-                                    self._level_up_btn,
-                                    self._level_down_btn,
-                                ],
-                                spacing=8,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                                # su schermi stretti/smartphone i due pulsanti vanno a capo
-                                # invece di uscire dal bordo destro insieme ad avatar+nome
-                                # (bug report Davide, 2026-07-24).
-                                wrap=True,
-                            ),
-                            ft.Text(
-                                (c.class_name or "—")
-                                + (f" ({c.subclass})" if c.subclass else "")
-                                + f"  •  {c.race or '—'}",
-                                size=12, color=design.T().text_2,
-                            ),
-                            ft.Row(
-                                [
-                                    ft.Text("XP:", size=12, color=design.T().text_2),
-                                    self._xp_field,
-                                    ft.TextButton(
-                                        "Salva",
-                                        on_click=self._on_save_xp,
-                                        style=ft.ButtonStyle(color=design.T().magic),
+                                    ft.Text(c.name or "—", size=18, weight=ft.FontWeight.BOLD,
+                                            color=design.T().text, font_family=design.Font.DISPLAY),
+                                    ft.Row(
+                                        [
+                                            ft.Text(f"Lv.{c.level}", size=11, color=design.T().primary,
+                                                    weight=ft.FontWeight.BOLD),
+                                            ft.Text(f"  Comp. +{pb}", size=11, color=design.T().text_2),
+                                        ],
+                                        spacing=0,
+                                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                     ),
                                 ],
-                                spacing=6,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                spacing=3,
                             ),
                         ],
-                        spacing=3,
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                    ),
+                    ft.Container(height=10),
+                    ft.Row(
+                        [self._level_up_btn, self._level_down_btn],
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        wrap=True,
+                    ),
+                    ft.Container(height=6),
+                    ft.Text(
+                        (c.class_name or "—")
+                        + (f" ({c.subclass})" if c.subclass else "")
+                        + f"  •  {c.race or '—'}",
+                        size=12, color=design.T().text_2,
+                    ),
+                    ft.Row(
+                        [
+                            ft.Text("XP:", size=12, color=design.T().text_2),
+                            self._xp_field,
+                            ft.TextButton(
+                                "Salva",
+                                on_click=self._on_save_xp,
+                                style=ft.ButtonStyle(color=design.T().magic),
+                            ),
+                        ],
+                        spacing=6,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                 ],
-                vertical_alignment=ft.CrossAxisAlignment.START,
+                spacing=3,
             ),
             bgcolor=design.T().surface,
             padding=16,

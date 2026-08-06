@@ -68,6 +68,18 @@ class DnDApp:
         self._rebuild_route: Callable[[], None] | None = None
         self._master_view: Any = None
         self._worlds_view: Any = None
+        # Vista di primo livello corrente in grado di aggiornarsi "in place"
+        # su un resize dal vivo tramite un proprio `set_mobile(bool)` (oggi:
+        # `MasterView`) — `None` quando siamo su Home/form/wizard/layout
+        # principale, che non ne hanno bisogno o si gestiscono da soli.
+        # `_on_main_layout` distingue il caso speciale del layout principale
+        # (sidebar/bottom-nav), l'unico che richiede un rebuild completo
+        # invece di un aggiornamento in place. Introdotti 2026-08-06 per il
+        # bug segnalato da Davide: ridimensionare la finestra MENTRE la
+        # Modalità Master era già aperta non aveva alcun effetto (tab bar,
+        # layout Note di Campagna) — vedi `_on_page_resize()`.
+        self._active_top_view: Any = None
+        self._on_main_layout: bool = False
 
         self._setup_page()
         self._show_home()
@@ -125,6 +137,15 @@ class DnDApp:
         # Con la preferenza "Sistema" il tema segue il SO anche mentre l'app è
         # aperta (es. la pianificazione automatica di macOS al tramonto).
         self.page.on_platform_brightness_change = self._on_system_brightness_change
+        # Assegnato UNA SOLA VOLTA qui, non più dentro `_show_main_layout()`
+        # (2026-08-06): `page.on_resize` deve restare attivo per TUTTA la
+        # sessione, non solo mentre si guarda la scheda personaggio, perché
+        # ora propaga il resize anche a `MasterView`/`WorldsView` tramite
+        # `_active_top_view` — vedi `_on_page_resize()`. `page.on_resize` è
+        # comunque di proprietà esclusiva di questo unico punto (nessun'altra
+        # vista deve mai assegnarlo, romperebbe questo meccanismo in modo
+        # silenzioso — vedi `regole_flet_api.md`).
+        self.page.on_resize = self._on_page_resize
 
     # ------------------------------------------------------------------
     # Tema (Fase D del restyle, 2026-07-30)
@@ -256,6 +277,8 @@ class DnDApp:
         )
         self._home_view = home
         self._rebuild_route = self._show_home
+        self._active_top_view = None
+        self._on_main_layout = False
         self._navigate(home)
 
     def _show_master_view(self, active_tab: str | None = None, active_world_id: str | None = None):
@@ -279,6 +302,8 @@ class DnDApp:
             getattr(self._master_view, "active_tab", "npcs"),
             getattr(self._master_view, "_active_world_id", ""),
         )
+        self._active_top_view = master
+        self._on_main_layout = False
         self._navigate(master)
 
     def _show_worlds_view(self):
@@ -293,6 +318,13 @@ class DnDApp:
         )
         self._worlds_view = worlds
         self._rebuild_route = self._show_worlds_view
+        # `WorldsView` non espone ancora un proprio `set_mobile()`: tenerla
+        # comunque come `_active_top_view` non cambia nulla oggi (vedi
+        # `_on_page_resize()`, che chiama `set_mobile` solo se esiste) e
+        # rende il futuro aggiornamento a costo zero se questa vista
+        # svilupperà una propria esigenza di layout mobile/desktop.
+        self._active_top_view = worlds
+        self._on_main_layout = False
         self._navigate(worlds)
 
     def _show_manual_form(self):
@@ -305,6 +337,8 @@ class DnDApp:
             on_complete=self._on_character_selected,
             on_cancel=self._show_home,
         )
+        self._active_top_view = None
+        self._on_main_layout = False
         self._navigate(form)
 
     def _show_wizard(self):
@@ -317,6 +351,8 @@ class DnDApp:
             on_complete=self._on_character_selected,
             on_cancel=self._show_home,
         )
+        self._active_top_view = None
+        self._on_main_layout = False
         self._navigate(wizard)
 
     def _on_character_selected(self, character_id: str):
@@ -360,14 +396,44 @@ class DnDApp:
                 vertical_alignment=ft.CrossAxisAlignment.STRETCH,
             )
 
-        self.page.on_resize = self._on_page_resize
+        # `page.on_resize` NON viene più assegnato qui (2026-08-06): è
+        # assegnato una sola volta in `_setup_page()`, così resta attivo
+        # anche fuori dal layout principale — vedi il commento lì e
+        # `_on_page_resize()` sotto.
+        self._active_top_view = None
+        self._on_main_layout = True
         self._navigate(layout)
 
     def _on_page_resize(self, e: Any):
-        """Ricostruisce il layout se si supera il breakpoint mobile/desktop."""
+        """
+        Reagisce al ridimensionamento della finestra, per QUALUNQUE vista
+        di primo livello attualmente a video — non solo il layout
+        principale (2026-08-06, bug segnalato da Davide: ridimensionare la
+        finestra mentre la Modalità Master era già aperta non aveva alcun
+        effetto, perché prima di questo fix `page.on_resize` veniva
+        assegnato solo dentro `_show_main_layout()` e quindi non era
+        nemmeno attivo se si entrava in Master direttamente dalla Home).
+
+        Due rami distinti:
+        - Layout principale (scheda personaggio): richiede un rebuild
+          completo quando si attraversa il breakpoint, perché sidebar e
+          bottom-nav sono due alberi di widget strutturalmente diversi, non
+          un semplice riflusso — `_show_main_layout()` se ne occupa già.
+        - Qualunque altra vista di primo livello con un proprio
+          `set_mobile(bool)` (oggi solo `MasterView`): aggiornamento "in
+          place", chiamato ad OGNI resize (non solo quando si attraversa il
+          breakpoint — `set_mobile()` verifica da sé se c'è davvero
+          qualcosa da cambiare ed è quindi economico chiamarlo sempre).
+        """
         now_mobile = self._is_mobile()
-        if now_mobile != self._mobile:
-            self._show_main_layout()
+        if self._on_main_layout:
+            if now_mobile != self._mobile:
+                self._show_main_layout()
+            return
+        if self._active_top_view is not None:
+            set_mobile = getattr(self._active_top_view, "set_mobile", None)
+            if set_mobile is not None:
+                set_mobile(now_mobile)
 
     def _build_char_avatar(self) -> ft.Control:
         """Icona del personaggio corrente per la sidebar."""

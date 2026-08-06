@@ -24,7 +24,7 @@ dentro una vista di sola consultazione) e ogni riga offre "Riapri"
 """
 
 import logging
-from typing import Any
+from typing import Any, Callable, Optional
 
 import flet as ft
 
@@ -42,13 +42,22 @@ class MasterEncounterListView(ft.Column):
     """Lista incontri (non archiviati) + creazione. Innesta `MasterEncounterView`
     a schermo intero quando un incontro viene aperto."""
 
-    def __init__(self, world_id: str = ""):
+    def __init__(self, world_id: str = "",
+                 on_focus_change: Optional[Callable[[bool], None]] = None):
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
         #: Mondo correntemente selezionato in `MasterView` (2026-08-06) — ""
         #: per la modalità locale. Inoltrato al generatore di incontri e a
         #: `MasterEncounterView` (picker "Personaggio Giocante").
         self._world_id = world_id
+        #: Notifica a `MasterView` (2026-08-06) quando questa vista passa
+        #: alla modalità "incontro aperto" (True) o torna alla lista (False)
+        #: — permette a `MasterView` di nascondere la propria chrome
+        #: (selettore mondo/Generatori Rapidi/tab bar) mentre il tracker di
+        #: combattimento è a schermo intero, senza che questa vista debba
+        #: sapere nulla di `MasterView`. `None` se instanziata fuori da
+        #: `MasterView` (nessun comportamento diverso, solo nessuna notifica).
+        self._on_focus_change = on_focus_change
         self._encounters: list[MasterEncounter] = []
         self._show_archived: bool = False
         self._open_encounter_id: str | None = None
@@ -317,6 +326,8 @@ class MasterEncounterListView(ft.Column):
     def _open_encounter(self, encounter_id: str):
         self._open_encounter_id = encounter_id
         self._build()
+        if self._on_focus_change is not None:
+            self._on_focus_change(True)
         try:
             self.update()
         except RuntimeError:
@@ -325,4 +336,6 @@ class MasterEncounterListView(ft.Column):
     def _close_encounter(self):
         self._open_encounter_id = None
         self._build()
+        if self._on_focus_change is not None:
+            self._on_focus_change(False)
         self.refresh()

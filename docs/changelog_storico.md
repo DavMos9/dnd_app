@@ -5836,6 +5836,322 @@ serve un altro run di Davide. Dettaglio completo in
 `dnd_app/extensions/flet_image_picker/README.md` (aggiornato con
 l'esito preciso del log).
 
+**Stato al 2026-08-06 (stessa sessione, dopo la conferma del picker
+nativo) — 3 bug di responsività reali segnalati da Davide con
+screenshot da smartphone Android**: dopo aver confermato "funziona alla
+grande, adesso posso caricare le foto da android", Davide ha segnalato
+tre problemi distinti, tutti riconducibili allo stesso principio
+generale che ha enunciato esplicitamente: *"l'app deve adattarsi alla
+finestra in cui si trova... deve essere adattabile e fruibile in modo
+coerente e bello su tutti i dispositivi di qualsiasi dimensione"*.
+Nessuno dei tre era stato notato prima perché il primo vero test su un
+telefono fisico, a schermo stretto, è di questa sessione (fino a qui
+tutta la verifica visiva era desktop). Le tre correzioni sono
+indipendenti tra loro, dettagliate qui sotto in ordine.
+
+**1) `ProfiloTab` — riga "Level up"/"Level down" tagliata al bordo
+schermo.** Diagnosi: la Row con i due pulsanti aveva già `wrap=True`
+(pattern corretto in astratto), ma non bastava — era annidata dentro la
+`Column` figlia non-`expand` di una `Row` esterna (avatar + dati
+personaggio). Una `Row` di Flutter dà ai figli non-`Expanded` una
+larghezza MASSIMA illimitata lungo l'asse principale: la `Column`
+interna ereditava quella larghezza illimitata, quindi la `Wrap` generata
+da `wrap=True` non trovava mai un punto in cui andare a capo — il
+contenuto veniva semplicemente disegnato oltre il bordo fisico dello
+schermo, invisibile ma non "rotto" in senso Flutter (nessun overflow
+rosso, il constraint era davvero infinito). Non è un'istanza isolata del
+solito bug "wrap dimenticato": è un caso nuovo, ora documentato in
+`regole_flet_api.md`, perché la causa è strutturale (annidamento in una
+`Row` non-expand) non l'assenza del flag. Fix: ristrutturato
+`_build_photo_header()` in `ui/views/character_sheet/profilo_tab.py` —
+la Row con `wrap=True` dei pulsanti level up/down è stata spostata fuori
+dalla Row avatar+dati, a essere figlia diretta della `Column` esterna
+(quella che è l'unico contenuto del `Container` con `padding=16`, quindi
+correttamente vincolata in larghezza). **Non poteva usare `expand=True`**
+sulla Column interna come alternativa più ovvia, perché `ProfiloTab`
+estende `ft.ListView` e quel pattern (`Column(expand=True)` dentro `Row`
+dentro `ListView`) è il bug già documentato "widget successivi
+scompaiono silenziosamente" — si sarebbe scambiato un bug con un altro.
+
+**2) Master → Incontri — nome dei combattenti illeggibile, icone
+sovrapposte, area lista fissa e minuscola.** Due cause distinte, non una:
+  - *Card combattente illeggibile*: `_member_card()` in
+    `ui/views/master/master_encounter_view.py` metteva badge iniziativa,
+    icona tipo, nome, tutte le statistiche e tutte le azioni (inclusi
+    `IconButton` — che Material non restringe mai sotto la propria area
+    di tocco minima) in un'unica `Row` non a capo. Con più di 2-3 azioni
+    visibili il totale supera qualunque larghezza di smartphone: è un
+    vero overflow Flutter (`RenderFlex`), che in release mode si
+    manifesta come icone sovrapposte invece che come banda rossa di
+    debug — da schermata sembrava un problema estetico, era un overflow
+    reale. Fix: la card è stata divisa in due righe — una riga "identità"
+    sempre leggibile (badge iniziativa, icona tipo, nome con
+    `no_wrap=True, max_lines=1, overflow=ELLIPSIS, expand=True` così il
+    nome tronca con "…" invece di spingere fuori il resto) e una riga
+    "statistiche + azioni" con `wrap=True` che va a capo quando serve.
+  - *Area lista fissa e minuscola*: causa architetturale, non di stile.
+    `MasterEncounterView` era già documentata come vista "a schermo
+    intero" nel design, ma `MasterView` non lo sapeva — continuava a
+    disegnare sopra di lei il proprio selettore mondo, la riga strumenti
+    e la barra delle tab, sempre, qualunque cosa mostrasse il contenuto.
+    Su schermo stretto questo chrome persistente occupa una frazione
+    enorme dell'altezza disponibile, lasciando alla lista combattenti
+    solo il rettangolo residuo che Davide ha descritto. Fix: aggiunto un
+    meccanismo di callback `on_focus_change(bool)` — `MasterView` salva i
+    riferimenti ai tre controlli di chrome (`_world_selector_container`,
+    `_tools_row_container`, `_tab_bar_container`) e li nasconde/mostra
+    (`.visible = not focused; self.update()`) quando il figlio segnala di
+    essere entrato/uscito da un "focus" a schermo intero.
+    `MasterEncounterListView` ora accetta `on_focus_change` nel
+    costruttore e lo invoca in `_open_encounter(True)`/
+    `_close_encounter(False)`. Deliberatamente si usa il toggle di
+    `.visible`, MAI una nuova chiamata a `_build()`: `_build()`
+    ricostruirebbe `MasterEncounterListView` da zero via
+    `_get_tab_content()`, perdendo lo stato di navigazione interno
+    (`_open_encounter_id`) e tornando sempre alla lista. Il fix si
+    applica a QUALUNQUE larghezza di schermo, non solo mobile: è la
+    correzione di un disallineamento reale tra intento architetturale
+    ("a schermo intero") e comportamento effettivo, non una nuova regola
+    responsive. Non viola la convenzione del progetto "nessuna azione
+    nascosta": la vista figlia ha già un proprio pulsante indietro
+    sempre visibile, il chrome del genitore era solo ridondante mentre
+    lei è aperta.
+
+**3) Master → Note di Campagna — layout fisso a due colonne non si
+adatta, note tagliate.** `MasterNotesView` (le "finestre fisse" di cui
+parla Davide, non un vero diario — la vista con le categorie PNG
+Incontrati/PNG da Cercare/Luoghi/Da Esplorare/Missioni/Fazioni) aveva
+sempre una `Row` a due pannelli fissi (colonna categorie+lista a
+`width=200`, pannello di dettaglio `expand`) indipendentemente dalla
+larghezza reale — su smartphone il pannello di dettaglio si comprime
+sotto il minimo leggibile e il testo/i bottoni interni (padding
+orizzontale fisso a 56px in lettura, 48px in modifica) escono dallo
+schermo. Fix: applicato lo stesso pattern "drill-down mobile" già in uso
+per la coppia `MasterEncounterListView`/`MasterEncounterView` (terza
+occorrenza dello stesso pattern nel progetto, non una soluzione nuova
+inventata per l'occasione) — `MasterNotesView` accetta ora
+`is_mobile: bool = False` dal costruttore (valorizzato da `MasterView`
+con `self._compact_tabs`, lo stesso breakpoint a 600px già condiviso da
+tutto il resto dell'app, non un secondo valore inventato) e uno stato
+interno `_mobile_show_detail: bool`. Su mobile `_build()` mostra UN
+pannello alla volta — categorie+lista, oppure il dettaglio di una nota
+con un pulsante "indietro" al posto dell'icona categoria nell'header — e
+i quattro punti che cambiano quale nota è selezionata
+(`_on_cat_click`, `_on_sel_note`, `_on_mobile_back`, l'eliminazione nota,
+la creazione nota) aggiornano `_mobile_show_detail` in modo coerente
+(torna alla lista quando si cambia categoria/si elimina/si preme
+indietro, mostra il dettaglio quando si seleziona/si crea una nota). Il
+padding orizzontale fisso di lettura/modifica nota è stato reso
+condizionale (56/48px su desktop, 16px su mobile) e la larghezza del
+dialogo "Nuova nota" (`width=400` fisso) ora passa da
+`responsive_dialog_width(page, 400)`, lo stesso helper già usato altrove
+nel progetto (`master_encounter_view.py`) per questo identico scopo — non
+lasciato fisso come nell'unico punto rimasto scoperto.
+
+**Verifica eseguita**: tutti e 5 i file toccati
+(`profilo_tab.py`, `master_view.py`, `master_encounter_list_view.py`,
+`master_encounter_view.py`, `master_notes_view.py`) compilano puliti
+(`python3 -m py_compile`). Rieseguite tutte e 5 le batterie di
+regressione esistenti: `test_regressione_wrap_expand.py` 63/63,
+`test_mondo_senza_rete.py` 139/139, `test_lan_host_client.py` 92/92,
+`test_master_world_scoping.py` 25/25, `test_istanze_personaggio.py`
+61/62 (l'unico fallimento è lo stesso artefatto ambientale del sandbox
+già noto e non correlato — un sottoprocesso di test che reinvoca
+`python3` fuori dal virtualenv e non trova `flet`, non una regressione
+introdotta qui). Nessun test dedicato aggiunto per questi 3 fix (nessuna
+batteria esistente costruisce `MasterEncounterView`/`MasterNotesView`/
+`ProfiloTab` a schermo stretto e ne ispeziona il layout risultante —
+sarebbe lavoro a sé). **Nessuno dei tre fix è verificato su un vero
+dispositivo**: tutta la verifica qui è compilazione + lettura del codice
++ ragionamento sui vincoli di Flutter, coerente con il limite dichiarato
+di questo sandbox (nessun rendering reale disponibile) — serve un altro
+giro di Davide su Android per confermare visivamente tutti e tre.
+
+**Stato al 2026-08-06 (sessione successiva, da PC) — 2 dei 3 fix sopra
+erano insufficienti su desktop, causa reale diversa: nessuna reattività al
+resize dal vivo.** Davide ha testato da PC (macOS) e segnalato con
+screenshot: (1) la tab bar della Modalità Master continua a tagliare le
+etichette ("Rubrica NPC", "Incontri", poi "No..." troncato senza nulla
+dopo) — non solo su smartphone; (2) la scheda Note di Campagna, se si
+ridimensiona la finestra MENTRE è già aperta, continua a tagliare il
+testo — il fix del turno precedente (`is_mobile` a due pannelli/drill-down)
+funzionava solo se la vista veniva ricostruita da zero a una nuova
+larghezza, non se la finestra cambiava dimensione a vista già aperta.
+Diagnosi delle due cause, distinte tra loro:
+
+1. **Tab bar — causa reale: `scroll=ft.ScrollMode.AUTO` nascondeva
+   contenuto anche su desktop, non solo su smartphone.** Le 5 etichette
+   della Modalità Master ("Rubrica NPC", "Incontri", "Note di Campagna",
+   "Oggetti Magici", "Bottino") sono più lunghe, in totale, di quelle
+   gemelle della scheda personaggio — lo scroll orizzontale (introdotto lo
+   stesso giorno del turno precedente come "rete di sicurezza") si
+   attivava già a finestre desktop di larghezza moderata, nascondendo le
+   ultime pillole senza alcuna indicazione visiva che ce ne fossero altre:
+   la stessa violazione di "nessuna azione nascosta" già corretta per il
+   caso smartphone, riemersa qui in un caso che quel fix non copriva. Fix:
+   `scroll=ft.ScrollMode.AUTO` sostituito da `wrap=True` (+ `run_spacing`)
+   sia in `ui/views/master/master_view.py::_build_tab_bar()` sia — per
+   parità e perché il difetto latente era identico, solo non ancora
+   innescato dalle etichette più corte — in
+   `ui/views/character_sheet/sheet_view.py::_build_header_and_tabs()`.
+   `wrap=True` non nasconde mai contenuto: se le pillole non entrano su
+   una riga, quelle in eccesso vanno sulla riga sotto. **Bonus scoperto
+   verificando questo fix**: a differenza dello scroll, `wrap=True` si
+   ridispone da solo a ogni ridimensionamento della finestra — è Flutter
+   stesso a ricalcolare dove andare a capo ad ogni resize, senza alcun
+   codice Python coinvolto — quindi risolve anche il ridimensionamento dal
+   vivo per la tab bar, senza bisogno del meccanismo del punto 2. Verificato
+   che il contenitore che avvolge questa Row riceve davvero una larghezza
+   vincolata (non infinita) dalla Column esterna — la stessa prova
+   empirica già usata nel turno precedente per il bug "alone allungato"
+   (un `SingleChildScrollView` si allarga fino al bordo della finestra
+   SOLO se il genitore gli offre un vincolo finito): questo esclude che si
+   tratti dello stesso bug strutturale corretto in `profilo_tab.py` lo
+   stesso giorno del turno precedente (`wrap` annidato dentro una Row
+   non-expand, larghezza illimitata) — qui la Row è un figlio diretto
+   della Column, non annidata dentro un'altra Row.
+
+2. **Note di Campagna — causa reale: nessuna vista di primo livello
+   reagiva a un resize dal vivo, per un problema architetturale a monte,
+   non specifico di questa vista.** `page.on_resize` era assegnato SOLO
+   dentro `DnDApp._show_main_layout()` (`ui/app.py`) — cioè attivo solo
+   mentre si guarda la scheda personaggio. Se si entrava in Modalità
+   Master direttamente dalla Home (il percorso normale), l'handler di
+   resize non era nemmeno collegato: ridimensionare la finestra non
+   produceva ALCUN evento verso il codice Python di `MasterView`, che
+   quindi restava fissata al valore di `is_mobile` letto alla costruzione
+   — esattamente il "limite noto, accettabile" scritto nel vecchio
+   docstring del costruttore di `MasterView` ("nessuna sessione finora ha
+   segnalato di ridimensionare la finestra a metà"), rivelatosi non più
+   vero. Fix architetturale in tre parti:
+   - `self.page.on_resize = self._on_page_resize` spostato da
+     `_show_main_layout()` a `_setup_page()` (chiamato una sola volta
+     nell'`__init__` di `DnDApp`): resta l'unico punto che assegna
+     `page.on_resize` (nessuna violazione della regola "proprietà
+     esclusiva", vedi `regole_flet_api.md`), ma ora è attivo per l'intera
+     sessione, non solo dentro il layout principale.
+   - Due nuovi attributi di stato in `DnDApp`: `_on_main_layout: bool`
+     (True solo mentre è a video il layout scheda con sidebar/bottom-nav —
+     l'unico caso che richiede un rebuild completo, perché sidebar e
+     bottom-nav sono due alberi di widget strutturalmente diversi) e
+     `_active_top_view: Any` (riferimento alla vista di primo livello
+     corrente — `MasterView`/`WorldsView` — capace di aggiornarsi "in
+     place"). Impostati alla fine di ognuno dei 6 metodi `_show_*()`.
+   - `_on_page_resize()` ora chiama, su OGNI resize,
+     `self._active_top_view.set_mobile(now_mobile)` se il metodo esiste
+     (duck typing via `getattr(..., "set_mobile", None)`, nessun crash se
+     la vista non lo implementa — oggi solo `MasterView` lo fa,
+     `WorldsView` è tenuta come `_active_top_view` ma resta un no-op
+     silenzioso finché non svilupperà un proprio bisogno di layout
+     mobile/desktop).
+
+   Nuovo `MasterView.set_mobile(is_mobile)`: aggiornamento mirato, non un
+   `_build()` completo (che perderebbe lo stato "mondo selezionato"/tab
+   attiva solo per costruzione, ma soprattutto ricostruirebbe da zero la
+   vista della tab corrente, perdendo il suo stato interno — es. la nota
+   selezionata in Note di Campagna). Ricostruisce solo il contenitore
+   della tab bar (per il passaggio tra modalità icona-sola e
+   icona+etichetta, sotto/sopra i 600px — il solo `wrap=True` del punto 1
+   non basta per QUESTO passaggio, perché lì cambia la struttura dei
+   widget stessa, non solo la loro disposizione) e propaga la nuova
+   modalità alla vista mostrata nel tab attivo SE quella vista espone a
+   sua volta un proprio `set_mobile()` (stesso pattern duck-typing).
+
+   Nuovo `MasterNotesView.set_mobile(is_mobile)`: passa dal layout a due
+   colonne al drill-down (o viceversa) SENZA perdere la categoria/nota
+   selezionata — si azzera solo `_mobile_show_detail` (quale pannello
+   mostrare in modalità mobile), che non ha un significato da preservare
+   passando da un layout all'altro.
+
+   **Perché il testo si "tagliava" specificamente in Note di Campagna e
+   non solo si stringeva**: il testo della nota in sé va comunque a capo
+   (`ft.Text` senza `no_wrap`, dentro una `Column` con
+   `scroll=ft.ScrollMode.AUTO`) — non è mai stato un vero clipping del
+   contenuto testuale. Il problema reale era il pannello a sinistra a
+   `width=200` fisso più il padding fisso di 56px per lato del pannello di
+   lettura: se la finestra veniva ridimensionata sotto sui ~450-500px
+   SENZA che `MasterNotesView` si ricostruisse (perché nessun evento di
+   resize la raggiungeva, vedi sopra), lo spazio residuo per il pannello
+   di dettaglio poteva ridursi al punto da produrre un vero overflow
+   Flutter (`RenderFlex`) tra colonna fissa e padding fisso — visivamente
+   indistinguibile da "il testo viene tagliato".
+
+   **Verifica eseguita**: `python3 -m py_compile` pulito su
+   `ui/app.py`, `ui/views/master/master_view.py`,
+   `ui/views/master/master_notes_view.py`,
+   `ui/views/character_sheet/sheet_view.py`. Aggiunta una nuova sezione
+   `[6]` dedicata a `test_regressione_wrap_expand.py` — la transizione
+   `set_mobile()` è codice nuovo, mai esercitato da nessuna batteria
+   esistente (quelle esistenti coprono solo la costruzione INIZIALE con
+   un valore fisso di `is_mobile`, non la transizione dal vivo): verifica
+   che la transizione non sollevi eccezioni, che lo stato interno
+   (`_compact_tabs`/`_is_mobile`) rifletta davvero il nuovo valore, che il
+   contenitore della tab bar venga effettivamente sostituito in
+   `self.controls` (non solo mutato in memoria), che una seconda chiamata
+   con lo stesso valore sia un no-op economico, e che
+   `MasterNotesView.set_mobile()` preservi la categoria/nota selezionata
+   attraverso la transizione. 22 nuovi controlli, batteria a 85/85.
+   Rieseguite tutte e 5 le batterie di regressione: 85+139+92+25/25, più
+   61/62 di `test_istanze_personaggio.py` (stesso artefatto ambientale del
+   sandbox già noto, non correlato). **Non verificato su un vero
+   dispositivo**: se il resize dal vivo e il wrap della tab bar si vedono
+   e si sentono bene su un vero Mac di Davide — solo compilazione + test
+   automatici + ragionamento sui vincoli di Flutter qui.
+
+**Stato al 2026-08-06 (stessa sessione) — indagine sull'aggiornamento
+automatico in-app, rimandata da Davide.** Davide ha chiesto che il banner
+"Aggiornamento disponibile" (già esistente, `DnDApp._show_update_banner()`
+in `ui/app.py`) mostri, premendo "Scarica", una finestra con barra di
+progresso reale, applichi l'aggiornamento in automatico al termine, e
+mostri "Aggiornamento completato" (o "non completato" con l'errore, in
+caso di fallimento) invece del comportamento attuale — che si limita ad
+aprire la pagina della release su GitHub nel browser
+(`webbrowser.open(url)`), lasciando scaricare/sostituire i file a mano
+all'utente. Prima di scrivere codice, verificati i fatti concreti (non
+ipotizzati) su come l'app viene distribuita oggi, leggendo
+`RELEASE.md` e `.github/workflows/release.yml`:
+
+- **Nessun installer, nessun updater esistente.** Ogni piattaforma
+  desktop produce solo uno zip/tar da scompattare a mano
+  (`dnd-companion-windows.zip`, `dnd-companion-macos.zip`,
+  `dnd-companion-linux.tar.gz`) più un apk per Android
+  (`dnd-companion-android.apk`) — tutti allegati alla GitHub Release da
+  `release.yml`. `RELEASE.md` conferma esplicitamente il processo
+  manuale attuale per ogni piattaforma (Windows: scompattare + doppio
+  clic; macOS: scompattare + trascinare in Applicazioni + clic destro
+  "Apri" per bypassare Gatekeeper la prima volta; Android: sideload
+  manuale con "Fonti sconosciute").
+- **"Applica in automatico" per desktop richiede uno scambio file mentre
+  l'app è in esecuzione** — un eseguibile non può sovrascrivere se stesso
+  mentre gira. Il pattern corretto (usato da qualunque updater di app
+  portabili, non un'invenzione) è: scaricare lo zip con una barra di
+  progresso reale, estrarlo in una cartella di staging, poi far uscire
+  l'app e lanciare un piccolo processo helper separato che aspetta la
+  chiusura, scambia i file, e rilancia l'app aggiornata. È lavoro reale e
+  **specifico per ogni sistema operativo** (Windows: nessun problema di
+  firma per un helper .exe locale; macOS: il file scaricato porta
+  l'attributo xattr "quarantena" che richiede lo stesso bypass Gatekeeper
+  già menzionato in `RELEASE.md`, quindi va gestito esplicitamente o
+  l'utente si ritroverebbe bloccato all'apertura successiva; Linux: mai
+  distribuito/documentato oltre il tar.gz, formato non ancora
+  verificato). Comporta un rischio concreto e diverso da un bug di
+  layout: se lo scambio file va storto a metà, l'app potrebbe non
+  ripartire più.
+- **Android non può MAI installarsi da solo in modo silenzioso** — è un
+  vincolo del sistema operativo (modello di sicurezza Android), non un
+  limite di questo progetto: anche nella migliore implementazione
+  possibile, l'utente deve comunque toccare "Installa" nella finestra di
+  sistema che compare dopo aver aperto l'apk scaricato.
+
+**Decisione di Davide (chiesto esplicitamente prima di procedere, dato il
+rischio reale di un'app che non riparte)**: rimandare l'intera funzionalità
+"scarica e applica in automatico" — sia per desktop sia per Android — a
+un secondo momento, mantenendo per ora il comportamento attuale del
+banner (link alla pagina della release nel browser). Nessun codice
+scritto per questo punto in questa sessione, solo l'indagine sopra,
+verbatim, così da non doverla rifare quando si riprenderà il lavoro.
+Vedi anche il promemoria in `CLAUDE.md`.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

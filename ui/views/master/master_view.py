@@ -106,6 +106,17 @@ class MasterView(ft.Column):
         self._masterable_worlds: list[World] = []
 
         self._content_area = ft.Container(expand=True, bgcolor=design.T().bg)
+        #: Riferimenti ai tre controlli di chrome persistente (selettore
+        #: mondo, Generatori Rapidi, tab bar) — salvati per poterne
+        #: nascondere/mostrare la visibilità SENZA richiamare `_build()`.
+        #: Vedi `_on_child_focus_change()` per il motivo: un `_build()`
+        #: ricostruirebbe anche `_content_area.content` da zero (nuova
+        #: istanza di `MasterEncounterListView` via `_get_tab_content()`),
+        #: perdendo lo stato interno "incontro aperto" — chiuderebbe da solo
+        #: l'incontro appena aperto dal Master.
+        self._world_selector_container: ft.Control | None = None
+        self._tools_row_container: ft.Control | None = None
+        self._tab_bar_container: ft.Control | None = None
         self._build()
 
     def did_mount(self) -> None:
@@ -191,10 +202,112 @@ class MasterView(ft.Column):
         # descritto. Su una riga propria può essere largo quanto serve senza
         # mai mettere a rischio nient'altro — stesso principio già seguito
         # per la barra "Generatori Rapidi" subito sotto.
-        self.controls.append(self._world_selector_row())
-        self.controls.append(self._build_tools_row())
-        self.controls.append(self._build_tab_bar())
+        self._world_selector_container = self._world_selector_row()
+        self._tools_row_container = self._build_tools_row()
+        self._tab_bar_container = self._build_tab_bar()
+        self.controls.append(self._world_selector_container)
+        self.controls.append(self._tools_row_container)
+        self.controls.append(self._tab_bar_container)
         self.controls.append(self._content_area)
+
+    def _on_child_focus_change(self, focused: bool) -> None:
+        """
+        Nasconde/mostra selettore mondo + Generatori Rapidi + tab bar quando
+        una vista figlia (oggi: `MasterEncounterListView`, quando un incontro
+        è aperto) passa a schermo intero.
+
+        **Perché esiste** (bug report di Davide, 2026-08-06, screenshot da
+        smartphone): `MasterEncounterView` è documentata come "tracker di
+        combattimento a schermo intero", ma prima di questo fix veniva
+        comunque renderizzata SOTTO l'header di `MasterView`, il selettore
+        mondo, la barra Generatori Rapidi e la tab bar — tutta chrome
+        persistente e sempre visibile per costruzione. Su desktop restava
+        leggibile per lo spazio abbondante; su uno smartphone quella chrome
+        da sola occupa gran parte dell'altezza disponibile, lasciando alla
+        lista combattenti "un piccolo rettangolo" con scroll (parole di
+        Davide) invece dello schermo intero promesso dal modulo. Non è un
+        problema specifico del solo mobile: è un'incoerenza reale tra
+        l'intento dichiarato del componente e come viene effettivamente
+        composto in `MasterView` — corretto per ogni dimensione di finestra,
+        non dietro un controllo `is_mobile`.
+
+        Nascondere questi tre controlli quando si è "dentro" un incontro non
+        viola la convenzione "nessuna azione nascosta" di questo progetto:
+        quella regola riguarda azioni interattive di cui l'utente potrebbe
+        aver bisogno subito (pulsanti, tab) infilate dietro un tap in più —
+        qui invece la vista figlia ha già il proprio pulsante "← torna alla
+        lista" ben visibile, e mondo/tab restano semplicemente non pertinenti
+        finché si è concentrati sul combattimento in corso, esattamente come
+        un normale drill-down a schermo intero.
+
+        Aggiorna solo la proprietà `visible` dei tre controlli già costruiti
+        — MAI una chiamata a `_build()`/`_get_tab_content()` qui: quella
+        ricreerebbe una `MasterEncounterListView` nuova di zecca, perdendo lo
+        stato "incontro aperto" che questa stessa vista figlia sta segnalando
+        di avere appena impostato (richiuderebbe l'incontro da solo).
+        """
+        for ctrl in (self._world_selector_container, self._tools_row_container,
+                     self._tab_bar_container):
+            if ctrl is not None:
+                ctrl.visible = not focused
+        try:
+            self.update()
+        except RuntimeError:
+            pass
+
+    def set_mobile(self, is_mobile: bool) -> None:
+        """
+        Aggiorna la modalità mobile "in place", senza ricostruire l'intera
+        vista, quando la finestra viene ridimensionata MENTRE la Modalità
+        Master è già aperta (2026-08-06, bug report Davide: "se cambio
+        dimensione [la scheda Note di Campagna] taglia il testo" — prima di
+        questo metodo `_compact_tabs` restava fissato al valore letto
+        all'apertura o all'ultimo cambio tema, perché `MasterView`
+        sostituisce l'intera pagina via `_navigate()` e non viveva dentro
+        il layout con `content_area` che risponde a `page.on_resize` (vedi
+        il vecchio docstring del costruttore, ora superato — il limite
+        "nessuna sessione ha segnalato di ridimensionare a metà" non è più
+        vero). Chiamato da `DnDApp._on_page_resize()`.
+
+        La tab bar (che ora usa `wrap=True`, non più `scroll`) in realtà
+        NON ha bisogno di questo metodo per il solo effetto "le pillole
+        vanno a capo quando non entrano": quello lo fa già Flutter da solo
+        ad ogni resize. Questo metodo serve per il passaggio TRA modalità
+        icona-sola e icona+etichetta (sotto/sopra i 600px), e soprattutto
+        per propagare la modalità mobile alla vista attualmente mostrata
+        nel tab attivo, così che layout strutturalmente diversi (es. il
+        drill-down a un pannello di `MasterNotesView` sotto i 600px, contro
+        i due pannelli fissi fianco a fianco sopra) si aggiornino anche
+        loro dal vivo — cosa che il solo `wrap=True` di Flutter non può
+        fare, perché lì la struttura dei widget stessa deve cambiare, non
+        solo il loro posizionamento.
+
+        Aggiorna solo la tab bar (rebuild mirato, non l'intero `_build()`:
+        non tocca header/selettore mondo/riga strumenti) e propaga la
+        nuova modalità alla vista corrente nell'area contenuto SE quella
+        vista sa aggiornarsi da sola (espone un proprio `set_mobile()`,
+        oggi solo `MasterNotesView`). Le viste che non lo supportano ancora
+        (es. `MasterEncounterListView`) restano come sono state costruite
+        l'ultima volta — nessun crash, solo nessun aggiornamento dal vivo
+        per quella tab specifica: un limite onesto, non peggiore del
+        comportamento di prima di questo fix.
+        """
+        if is_mobile == self._compact_tabs:
+            return
+        self._compact_tabs = is_mobile
+        new_tab_bar = self._build_tab_bar()
+        if self._tab_bar_container is not None and self._tab_bar_container in self.controls:
+            idx = self.controls.index(self._tab_bar_container)
+            self.controls[idx] = new_tab_bar
+        self._tab_bar_container = new_tab_bar
+        content = self._content_area.content
+        content_set_mobile = getattr(content, "set_mobile", None)
+        if content_set_mobile is not None:
+            content_set_mobile(is_mobile)
+        try:
+            self.update()
+        except RuntimeError:
+            pass
 
     def _world_selector_row(self) -> ft.Control:
         """
@@ -336,7 +449,7 @@ class MasterView(ft.Column):
            Stesso principio di "Generatori Rapidi" (`design.pill()`): ogni
            pillola ha il proprio bordo/sfondo, MAI un contenitore che le
            racchiude tutte.
-        4) FIX DEFINITIVO (qui), sempre lo stesso giorno: lo scroll di per
+        4) FIX DEFINITIVO, sempre lo stesso giorno: lo scroll di per
            sé restava sbagliato — Davide ha fatto notare che, restringendo
            la finestra, le pillole "vengono tagliate o scompaiono", in
            contrasto con la preferenza già nota di questo progetto per
@@ -346,9 +459,39 @@ class MasterView(ft.Column):
            `_MOBILE_BP = 600` di `ui/app.py`), ogni pillola mostra SOLO
            l'icona (tooltip con l'etichetta completa) — 5 pillole
            icona-sola stanno comodamente su una riga anche a 360-375px.
-           Sopra il breakpoint, icona + etichetta come prima. `scroll=
-           ft.ScrollMode.AUTO` resta solo come rete di sicurezza per casi
-           patologici, non più come meccanismo primario.
+           Sopra il breakpoint, icona + etichetta come prima.
+        5) FIX 2026-08-06 (sessione successiva) — `scroll=ft.ScrollMode.AUTO`
+           sostituito da `wrap=True`: a schermo intero desktop la lista di 5
+           etichette italiane di questa vista ("Rubrica NPC", "Incontri",
+           "Note di Campagna", "Oggetti Magici", "Bottino") è più lunga di
+           quella gemella della scheda personaggio, e lo scroll nascondeva
+           silenziosamente le ultime pillole già a finestre desktop di
+           larghezza moderata (non solo su smartphone) — bug reale
+           segnalato da Davide con screenshot ("vengono tagliate le tab"),
+           esattamente la stessa violazione di "nessuna azione nascosta"
+           già corretta al punto 4 per il caso mobile, qui riemersa in un
+           caso che quel fix non copriva. `wrap=True` non nasconde mai
+           nulla: se le pillole non entrano su una riga, quelle in eccesso
+           vanno sulla riga sotto — e lo fa in modo nativamente reattivo al
+           ridimensionamento della finestra (è Flutter stesso a
+           ricalcolare dove andare a capo ad ogni resize, nessun codice
+           Python coinvolto), risolvendo anche il ridimensionamento dal
+           vivo senza bisogno di ricostruire la vista. Il contenitore che
+           avvolge questa Row è un figlio diretto della Column esterna
+           (`self`, `MasterView(ft.Column, expand=True)`), quindi riceve
+           già una larghezza vincolata dalla pagina — verificato
+           empiricamente dal comportamento del vecchio bug "alone
+           allungato" del punto 2 (uno `SingleChildScrollView` che si
+           allarga fino al bordo della finestra lo fa SOLO se il genitore
+           gli offre un vincolo di larghezza finito, non infinito): non è
+           il caso strutturale già corretto in `profilo_tab.py` lo stesso
+           giorno (`wrap=True` annidato dentro una Row non-expand, che dà
+           larghezza illimitata). La modalità icona-sola sotto i 600px
+           resta invariata (evita che 5 pillole con etichetta si
+           impilino su altrettante righe su un telefono stretto): il wrap
+           qui entra in gioco solo per la modalità con etichetta, sopra il
+           breakpoint, quando la finestra desktop è comunque troppo stretta
+           per contenerle tutte su una riga.
         """
         p = design.T()
         items: list[ft.Control] = []
@@ -392,7 +535,7 @@ class MasterView(ft.Column):
             )
         return ft.Container(
             content=ft.Row(items, spacing=design.Space.XS,
-                           scroll=ft.ScrollMode.AUTO),
+                           run_spacing=design.Space.XS, wrap=True),
             margin=ft.Margin.only(left=design.Space.LG, right=design.Space.LG,
                                   bottom=design.Space.MD),
         )
@@ -466,7 +609,10 @@ class MasterView(ft.Column):
         elif key == "encounters":
             try:
                 from ui.views.master.master_encounter_list_view import MasterEncounterListView
-                return MasterEncounterListView(world_id=self._active_world_id)
+                return MasterEncounterListView(
+                    world_id=self._active_world_id,
+                    on_focus_change=self._on_child_focus_change,
+                )
             except ImportError:
                 return self._placeholder(
                     ft.Icons.SHIELD_OUTLINED, "Incontri",
@@ -475,7 +621,10 @@ class MasterView(ft.Column):
         elif key == "notes":
             try:
                 from ui.views.master.master_notes_view import MasterNotesView
-                return MasterNotesView(world_id=self._active_world_id)
+                return MasterNotesView(
+                    world_id=self._active_world_id,
+                    is_mobile=self._compact_tabs,
+                )
             except ImportError:
                 return self._placeholder(
                     ft.Icons.MENU_BOOK_OUTLINED, "Note di Campagna",

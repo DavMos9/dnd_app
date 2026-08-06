@@ -324,6 +324,110 @@ def test_sheet_view() -> None:
     d.set_mode("light")
 
 
+def test_master_view_set_mobile() -> None:
+    """
+    Aggiornamento "in place" via `MasterView.set_mobile()`/
+    `MasterNotesView.set_mobile()` — aggiunta il 2026-08-06 insieme al fix
+    per il bug segnalato da Davide: ridimensionare la finestra MENTRE la
+    Modalità Master era già aperta non aveva alcun effetto (tab bar, layout
+    a due colonne di "Note di Campagna"), perché `_compact_tabs`/`_is_mobile`
+    venivano letti una sola volta alla costruzione. I test sopra
+    (`test_master_view`) coprono solo la costruzione INIZIALE con un valore
+    fisso di `is_mobile` — nessuno di quelli esercita la TRANSIZIONE dal
+    vivo, che è codice nuovo, mai passato prima da un test automatico.
+
+    Verifica tre cose che una semplice ricostruzione da zero non
+    intercetterebbe: (1) nessuna eccezione durante la transizione, (2) lo
+    stato interno (`_compact_tabs`/`_is_mobile`) riflette davvero il nuovo
+    valore, (3) il contenitore della tab bar viene sostituito con una nuova
+    istanza (non semplicemente mutato — `MasterView.set_mobile()` fa un
+    rebuild mirato SOLO della tab bar, se restasse la vecchia istanza
+    vorrebbe dire che lo swap in `self.controls` è silenziosamente fallito).
+    """
+    print("\n[6] MasterView.set_mobile() / MasterNotesView.set_mobile() — aggiornamento dal vivo")
+    from ui.views.master.master_view import MasterView
+    from ui.views.master.master_notes_view import MasterNotesView
+
+    # --- MasterView, sul tab "notes": la propagazione end-to-end che
+    #     interessa di più (è il caso segnalato da Davide) ---
+    for start_mobile, target_mobile in ((False, True), (True, False)):
+        try:
+            mv = MasterView(on_back_to_home=lambda: None, active_tab="notes",
+                             is_mobile=start_mobile)
+            old_tab_bar = mv._tab_bar_container
+            old_content = mv._content_area.content
+            check(f"[notes] stato iniziale _compact_tabs={start_mobile} rispettato",
+                  mv._compact_tabs == start_mobile)
+            check(f"[notes] contenuto iniziale è MasterNotesView con _is_mobile allineato",
+                  isinstance(old_content, MasterNotesView)
+                  and old_content._is_mobile == start_mobile)
+
+            mv.set_mobile(target_mobile)
+
+            check(f"[notes] set_mobile({target_mobile}) non solleva eccezioni "
+                  f"(già vero se siamo arrivati qui)", True)
+            check(f"[notes] _compact_tabs aggiornato a {target_mobile}",
+                  mv._compact_tabs == target_mobile)
+            check("[notes] tab bar ricostruita (nuova istanza, non la stessa)",
+                  mv._tab_bar_container is not old_tab_bar)
+            check("[notes] tab bar sostituita anche dentro self.controls",
+                  mv._tab_bar_container in mv.controls and old_tab_bar not in mv.controls)
+            new_content = mv._content_area.content
+            check(f"[notes] MasterNotesView aggiornata in place (stessa istanza) "
+                  f"con _is_mobile propagato a {target_mobile}",
+                  new_content is old_content and getattr(new_content, "_is_mobile", None) == target_mobile)
+
+            # Chiamare di nuovo con lo stesso valore deve essere un no-op
+            # economico (early return), non un secondo rebuild silenzioso.
+            tab_bar_before_noop = mv._tab_bar_container
+            mv.set_mobile(target_mobile)
+            check("[notes] set_mobile() con lo stesso valore è un no-op "
+                  "(nessun secondo rebuild della tab bar)",
+                  mv._tab_bar_container is tab_bar_before_noop)
+        except Exception as e:  # noqa: BLE001
+            check(f"[notes] transizione {start_mobile}->{target_mobile} senza eccezioni: "
+                  f"{type(e).__name__}: {e}", False)
+
+    # --- MasterView su una tab che NON espone ancora set_mobile() (es.
+    #     "npcs"/"encounters"/"magic_items"/"loot"): deve restare un no-op
+    #     silenzioso sul contenuto, senza mai sollevare eccezioni — la
+    #     garanzia esplicita documentata nel docstring di set_mobile(). ---
+    try:
+        mv2 = MasterView(on_back_to_home=lambda: None, active_tab="npcs", is_mobile=False)
+        mv2.set_mobile(True)
+        check("[npcs] set_mobile() su una tab senza set_mobile() proprio "
+              "non solleva eccezioni", True)
+        check("[npcs] _compact_tabs comunque aggiornato (riguarda solo la tab bar)",
+              mv2._compact_tabs is True)
+    except Exception as e:  # noqa: BLE001
+        check(f"[npcs] set_mobile() su tab senza supporto dedicato: "
+              f"{type(e).__name__}: {e}", False)
+
+    # --- MasterNotesView in isolamento: preserva la nota/categoria
+    #     selezionata attraverso la transizione, azzera solo quale
+    #     pannello mostrare (vedi il docstring del metodo). ---
+    try:
+        notes_view = MasterNotesView(world_id="", is_mobile=False)
+        notes_view._active_cat = "npc"
+        notes_view._mobile_show_detail = True  # valore che DEVE azzerarsi
+        cat_before = notes_view._active_cat
+
+        notes_view.set_mobile(True)
+
+        check("[MasterNotesView] set_mobile(True) da desktop a mobile: "
+              "_is_mobile aggiornato", notes_view._is_mobile is True)
+        check("[MasterNotesView] _mobile_show_detail azzerato dalla transizione",
+              notes_view._mobile_show_detail is False)
+        check("[MasterNotesView] categoria attiva preservata attraverso la transizione",
+              notes_view._active_cat == cat_before)
+        conflicts = find_wrap_expand_conflicts(notes_view, path="MasterNotesView.set_mobile")
+        check(f"[MasterNotesView] nessun conflitto wrap+expand dopo la transizione: {conflicts}",
+              conflicts == [])
+    except Exception as e:  # noqa: BLE001
+        check(f"[MasterNotesView] set_mobile() in isolamento senza eccezioni: "
+              f"{type(e).__name__}: {e}", False)
+
+
 def main() -> int:
     print("=" * 62)
     print("Regressione — wrap=True + figlio expand=True (riquadro grigio)")
@@ -336,6 +440,7 @@ def main() -> int:
     test_master_view()
     test_esplorazione_tab()
     test_sheet_view()
+    test_master_view_set_mobile()
 
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

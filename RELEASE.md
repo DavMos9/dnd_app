@@ -105,6 +105,19 @@ L'app controlla automaticamente GitHub Releases all'avvio.
 Se disponibile una versione più recente, appare un banner in basso con il tasto "Scarica"
 che apre direttamente la pagina del rilascio nel browser.
 
+**Nota (2026-08-06)**: Davide ha chiesto un download con barra di progresso
++ applicazione automatica dell'update (invece di aprire solo il browser).
+Indagine fatta, implementazione rimandata su richiesta esplicita di
+Davide — vedi `dnd_app/docs/changelog_storico.md` per l'analisi completa.
+In sintesi: non esiste oggi alcun installer/updater, solo zip/tar da
+scompattare a mano per Windows/macOS/Linux più un apk per Android;
+"applicare in automatico" per desktop richiederebbe uno scambio file
+mentre l'app è in esecuzione (scarica → estrai → chiudi l'app → helper
+esterno scambia i file → rilancia), lavoro reale e specifico per ogni
+sistema operativo con un rischio concreto di app che non riparte se lo
+scambio va storto; Android non può installarsi da solo in modo silenzioso
+per vincolo del sistema operativo, non di questo progetto.
+
 ---
 
 ## Checklist pre-rilascio

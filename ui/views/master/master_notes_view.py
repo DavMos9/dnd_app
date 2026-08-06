@@ -25,7 +25,7 @@ import flet as ft
 
 from data.models import MasterCampaignNote, MasterNpc, WorldMember
 from data.repositories import master_repo, world_repo
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import wrap_dialog_actions, responsive_dialog_width
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -149,12 +149,34 @@ class MasterNotesView(ft.Column):
     Master (`visibility`/`visible_to_device_ids`, persistite nel DB), ma NON
     ancora la consegna effettiva ai dispositivi dei giocatori — serve un
     nuovo tipo di evento nel giornale del mondo più una schermata lato
-    giocatore che oggi non esiste. Vedi CLAUDE.md."""
+    giocatore che oggi non esiste. Vedi CLAUDE.md.
 
-    def __init__(self, world_id: str = ""):
+    **`is_mobile` (2026-08-06, bug report Davide su smartphone reale —
+    screenshot)**: il layout a due pannelli fissi ("SEZIONI" a 200px +
+    pannello di lettura con 56px di padding orizzontale per lato) presumeva
+    implicitamente una finestra larga almeno ~500-600px. Su uno smartphone
+    stretto (~360-380px) il pannello di lettura restava con appena 40-50px
+    utili — non "un po' stretto", davvero insufficiente a mostrare testo,
+    da cui "le note vengono tagliate ed escono fuori dallo schermo" (parole
+    di Davide). Fix: sotto il breakpoint mobile (`_MOBILE_BP = 600`,
+    riusato da `MasterView._compact_tabs`, non un valore nuovo — stesso
+    principio già seguito per la tab bar) i due pannelli non stanno più
+    fianco a fianco ma si alternano a schermo intero (categorie+lista, poi
+    il dettaglio di una nota, con un pulsante "← indietro" per tornare) —
+    stesso pattern di drill-down già in uso per `MasterEncounterListView` ↔
+    `MasterEncounterView`. Il padding generoso del pannello "pergamena"
+    (56px orizzontali) resta invariato su schermi larghi, dove è
+    un'intenzione estetica valida, e si riduce solo sotto il breakpoint."""
+
+    def __init__(self, world_id: str = "", is_mobile: bool = False):
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
         self._world_id = world_id
+        self._is_mobile = is_mobile
+        #: Solo rilevante se `_is_mobile`: quale dei due pannelli mostrare
+        #: (False = categorie+lista, True = dettaglio nota). Ignorato su
+        #: desktop/tablet, dove sono sempre entrambi visibili fianco a fianco.
+        self._mobile_show_detail: bool = False
         #: Membri del mondo attivo, per il selettore "Solo i giocatori
         #: selezionati" — vuoto se `world_id == ""` (modalità locale).
         self._world_members: list[WorldMember] = (
@@ -220,15 +242,24 @@ class MasterNotesView(ft.Column):
 
         self._detail_container = ft.Container(expand=True, content=self._build_detail_panel())
 
-        body = ft.Row(
-            [
-                self._build_left_panel(),
-                ft.VerticalDivider(width=1, color=design.T().border),
-                self._detail_container,
-            ],
-            expand=True, spacing=0,
-            vertical_alignment=ft.CrossAxisAlignment.STRETCH,
-        )
+        if self._is_mobile:
+            # Drill-down a schermo intero invece di due pannelli fissi
+            # fianco a fianco — vedi il docstring della classe. Un solo
+            # pannello alla volta, mai i due insieme: eviterebbe comunque
+            # il vero problema (padding/larghezze pensate per uno spazio
+            # condiviso con l'altro pannello, non per lo schermo intero).
+            body: ft.Control = self._detail_container if self._mobile_show_detail \
+                else self._build_left_panel()
+        else:
+            body = ft.Row(
+                [
+                    self._build_left_panel(),
+                    ft.VerticalDivider(width=1, color=design.T().border),
+                    self._detail_container,
+                ],
+                expand=True, spacing=0,
+                vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+            )
 
         self.controls.append(self._build_header())
         self.controls.append(ft.Divider(height=1, color=design.T().border))
@@ -241,11 +272,26 @@ class MasterNotesView(ft.Column):
     def _build_header(self) -> ft.Container:
         meta = _cat_meta(self._active_cat)
         total = len(self._notes.get(self._active_cat, []))
+        # Su mobile, mentre si legge/modifica una nota specifica, l'icona di
+        # categoria lascia il posto a un pulsante "indietro" verso
+        # categorie+lista (drill-down, vedi docstring della classe e
+        # _build()) — su desktop/tablet i due pannelli sono sempre entrambi
+        # visibili, l'icona di categoria resta sempre quella giusta.
+        show_back = self._is_mobile and self._mobile_show_detail
+        leading: list[ft.Control] = (
+            [ft.IconButton(
+                icon=ft.Icons.ARROW_BACK, icon_color=design.T().text_2, icon_size=20,
+                tooltip="Torna alla lista",
+                on_click=lambda e: self._on_mobile_back(),
+            )]
+            if show_back else
+            [ft.Icon(meta["icon_on"], color=design.T().primary, size=20),
+             ft.Container(width=10)]
+        )
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(meta["icon_on"], color=design.T().primary, size=20),
-                    ft.Container(width=10),
+                    *leading,
                     ft.Column(
                         [
                             ft.Text("Note di Campagna", size=15, weight=ft.FontWeight.BOLD,
@@ -321,7 +367,14 @@ class MasterNotesView(ft.Column):
                               padding=ft.Padding.only(left=4, right=4, bottom=12))],
                 expand=True, spacing=0, scroll=ft.ScrollMode.AUTO,
             ),
-            width=200, bgcolor=design.T().parchment_alt,
+            # Larghezza fissa 200px SOLO quando condivide la riga col
+            # pannello di dettaglio (desktop/tablet, vedi _build()) — su
+            # mobile questo pannello è l'unico visibile e deve prendersi
+            # tutta la larghezza dello schermo, non restare bloccato a
+            # 200px (bug report Davide, vedi docstring della classe).
+            width=(None if self._is_mobile else 200),
+            expand=self._is_mobile,
+            bgcolor=design.T().parchment_alt,
         )
 
     def _cat_button(self, cat: dict[str, Any]) -> ft.Container:
@@ -538,8 +591,18 @@ class MasterNotesView(ft.Column):
 
         return ft.Column(
             [
-                ft.Container(content=page_content, expand=True, bgcolor=design.T().parchment,
-                             padding=ft.Padding.symmetric(horizontal=56, vertical=32)),
+                ft.Container(
+                    content=page_content, expand=True, bgcolor=design.T().parchment,
+                    # 56/32px di margine "pergamena" è un'intenzione estetica
+                    # valida quando il pannello condivide la finestra col
+                    # riquadro categorie (desktop/tablet) — su mobile, dove
+                    # questo pannello prende tutto lo schermo, lasciava
+                    # appena 40-50px utili al testo su un telefono stretto:
+                    # ridotto (bug report Davide, vedi docstring classe).
+                    padding=ft.Padding.symmetric(
+                        horizontal=(16 if self._is_mobile else 56),
+                        vertical=(20 if self._is_mobile else 32)),
+                ),
                 action_bar,
             ],
             spacing=0, expand=True,
@@ -699,7 +762,10 @@ class MasterNotesView(ft.Column):
                         spacing=14, scroll=ft.ScrollMode.AUTO,
                     ),
                     expand=True, bgcolor=design.T().parchment,
-                    padding=ft.Padding.symmetric(horizontal=48, vertical=28),
+                    # Stesso motivo del pannello di lettura sopra.
+                    padding=ft.Padding.symmetric(
+                        horizontal=(16 if self._is_mobile else 48),
+                        vertical=(20 if self._is_mobile else 28)),
                 ),
                 action_bar,
             ],
@@ -750,6 +816,17 @@ class MasterNotesView(ft.Column):
             n.id == self._sel_note_id for n in self._notes.get(key, [])
         ):
             self._sel_note_id = None
+        # Su mobile, cambiare sezione riporta sempre alla lista della nuova
+        # sezione (non ha senso restare sul dettaglio di una nota di una
+        # categoria diversa da quella appena scelta).
+        if self._is_mobile:
+            self._mobile_show_detail = False
+        self._refresh()
+
+    def _on_mobile_back(self) -> None:
+        """Solo mobile: dal dettaglio di una nota torna a categorie+lista."""
+        self._mobile_show_detail = False
+        self._note_edit = False
         self._refresh()
 
     # ──────────────────────────────────────────────────────────────────────
@@ -757,10 +834,16 @@ class MasterNotesView(ft.Column):
     # ──────────────────────────────────────────────────────────────────────
 
     def _on_sel_note(self, note_id: str) -> None:
-        if note_id == self._sel_note_id and not self._note_edit:
+        already_showing = note_id == self._sel_note_id and not self._note_edit
+        # Su mobile va comunque fatto il drill-down al dettaglio anche se la
+        # nota era già quella selezionata (es. preselezionata da _build()):
+        # da fermi sulla lista, toccarla deve portare alla pagina di lettura.
+        if already_showing and (not self._is_mobile or self._mobile_show_detail):
             return
         self._sel_note_id = note_id
         self._note_edit = False
+        if self._is_mobile:
+            self._mobile_show_detail = True
         self._refresh()
 
     def _on_note_start_edit(self) -> None:
@@ -804,6 +887,10 @@ class MasterNotesView(ft.Column):
             notes = self._notes.get(self._active_cat, [])
             self._sel_note_id = notes[0].id if notes else None
             self._note_edit = False
+            # Su mobile, dopo l'eliminazione torna alla lista invece di
+            # restare su un pannello di dettaglio ora vuoto o cambiato.
+            if self._is_mobile:
+                self._mobile_show_detail = False
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
@@ -876,6 +963,10 @@ class MasterNotesView(ft.Column):
             if notes:
                 self._sel_note_id = notes[-1].id
             self._note_edit = False
+            # Su mobile, dopo la creazione mostra subito il dettaglio della
+            # nuova nota invece di lasciare l'utente sulla lista.
+            if self._is_mobile:
+                self._mobile_show_detail = True
             self._refresh()
 
         fields: list[ft.Control] = [f_name]
@@ -888,7 +979,8 @@ class MasterNotesView(ft.Column):
 
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title(meta["add_label"]),
-            content=ft.Column(fields, spacing=10, scroll=ft.ScrollMode.AUTO, width=400),
+            content=ft.Column(fields, spacing=10, scroll=ft.ScrollMode.AUTO,
+                              width=responsive_dialog_width(page, 400)),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
@@ -908,6 +1000,29 @@ class MasterNotesView(ft.Column):
             self._detail_container.update()
         except RuntimeError:
             pass
+
+    def set_mobile(self, is_mobile: bool) -> None:
+        """
+        Aggiornamento "in place" quando la finestra viene ridimensionata
+        MENTRE questa vista è già a video (2026-08-06, chiamato da
+        `MasterView.set_mobile()` — vedi il suo docstring per il contesto
+        completo del bug: prima d'ora il layout a due colonne fisse restava
+        quello scelto all'apertura, quindi ridimensionare la finestra dal
+        vivo non aveva alcun effetto e il testo del pannello di dettaglio
+        poteva restare tagliato).
+
+        Passa dal layout a due colonne al drill-down (o viceversa) SENZA
+        perdere la categoria/nota correntemente selezionata (`_active_cat`/
+        `_sel_note_id` non vengono toccate). L'unica cosa che si azzera è
+        `_mobile_show_detail` — quale dei due pannelli mostrare in modalità
+        mobile — perché non ha un significato da preservare quando si
+        passa da un layout all'altro: si riparte sempre dalla lista.
+        """
+        if is_mobile == self._is_mobile:
+            return
+        self._is_mobile = is_mobile
+        self._mobile_show_detail = False
+        self._refresh()
 
     def _refresh(self) -> None:
         self._build()

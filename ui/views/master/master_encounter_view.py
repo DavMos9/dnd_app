@@ -321,51 +321,74 @@ class MasterEncounterView(ft.Column):
                 tooltip="Tira dadi", on_click=lambda e, r=resolved: self._open_dice_click(r),
             ))
 
+        close_btn = ft.IconButton(
+            icon=ft.Icons.CLOSE, icon_color=design.T().text_3, icon_size=18,
+            tooltip="Rimuovi dall'incontro",
+            on_click=lambda e, mm=m: self._on_remove_member(mm),
+        )
+
+        # NOTA (2026-08-06, bug report Davide su smartphone reale —
+        # screenshot: "il nome non si legge, le icone si sovrappongono"):
+        # la card era UNA sola Row con badge iniziativa + icona tipo + nome
+        # (in una Column expand=True) + fino a 3 IconButton azione (Vedi
+        # scheda/Tira dadi/Rimuovi, nessuno dei quali si restringe mai sotto
+        # la propria area di tocco minima ~40px) tutti sulla stessa riga.
+        # Su schermi larghi il totale delle parti a larghezza fissa
+        # (badge+icona+2-3 pulsanti ≈ 190-240px) lasciava comunque spazio a
+        # nome/chip; su uno smartphone stretto quel margine si azzera o va
+        # negativo, e Flet/Flutter non "restringe" ulteriormente un
+        # IconButton oltre la sua area minima — il risultato è un vero
+        # overflow della Row (non solo testo troncato), che in release si
+        # traduce in elementi disegnati oltre il bordo reale, sovrapposti.
+        # Fix STRUTTURALE (non un ennesimo `wrap=True` sulla singola Row,
+        # già presente altrove e insufficiente qui): due righe invece di
+        # una. Riga 1 = SOLO badge + icona + nome (tre elementi, margine
+        # ampio anche su schermi stretti, nome sempre leggibile con
+        # ellissi). Riga 2 = chip statistiche + pulsanti azione + Rimuovi,
+        # in un'unica Row con `wrap=True` che ora può davvero andare a capo
+        # (nessun'altra Row/Column senza vincoli di larghezza in mezzo,
+        # stesso principio già verificato per il fix dell'header di
+        # ProfiloTab lo stesso giorno).
+        top_row = ft.Row(
+            [
+                ft.Column(
+                    [
+                        ft.Text("INIZIATIVA", size=8, weight=ft.FontWeight.W_600,
+                                color=design.T().text_3, text_align=ft.TextAlign.CENTER),
+                        ft.Container(
+                            content=ft.Text(str(m.initiative), size=15, weight=ft.FontWeight.BOLD,
+                                             color=design.T().on_primary if is_current else design.T().text,
+                                             text_align=ft.TextAlign.CENTER),
+                            width=38, height=38, alignment=ft.Alignment.CENTER,
+                            bgcolor=design.T().primary if is_current else design.T().surface_alt,
+                            border_radius=design.Radius.PILL,
+                            shadow=design.elevation(1) if is_current else None,
+                            on_click=lambda e, mm=m: self._on_edit_initiative(mm),
+                            tooltip="Modifica iniziativa",
+                            ink=True,
+                        ),
+                    ],
+                    spacing=2, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Container(width=design.Space.MD),
+                ft.Icon(icon, color=icon_color, size=20),
+                ft.Container(width=design.Space.SM),
+                ft.Text(name, size=15, weight=ft.FontWeight.BOLD,
+                        color=design.T().text, font_family=design.Font.DISPLAY,
+                        no_wrap=True, max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                        expand=True),
+            ],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        bottom_row = ft.Row(
+            [*stats_row, *extra_actions, close_btn],
+            spacing=design.Space.SM, wrap=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
         return ft.Container(
-            content=ft.Row(
-                [
-                    ft.Column(
-                        [
-                            ft.Text("INIZIATIVA", size=8, weight=ft.FontWeight.W_600,
-                                    color=design.T().text_3, text_align=ft.TextAlign.CENTER),
-                            ft.Container(
-                                content=ft.Text(str(m.initiative), size=15, weight=ft.FontWeight.BOLD,
-                                                 color=design.T().on_primary if is_current else design.T().text,
-                                                 text_align=ft.TextAlign.CENTER),
-                                width=38, height=38, alignment=ft.Alignment.CENTER,
-                                bgcolor=design.T().primary if is_current else design.T().surface_alt,
-                                border_radius=design.Radius.PILL,
-                                shadow=design.elevation(1) if is_current else None,
-                                on_click=lambda e, mm=m: self._on_edit_initiative(mm),
-                                tooltip="Modifica iniziativa",
-                                ink=True,
-                            ),
-                        ],
-                        spacing=2, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                    ft.Container(width=design.Space.MD),
-                    ft.Icon(icon, color=icon_color, size=20),
-                    ft.Container(width=design.Space.SM),
-                    ft.Column(
-                        [
-                            ft.Text(name, size=15, weight=ft.FontWeight.BOLD,
-                                    color=design.T().text, font_family=design.Font.DISPLAY,
-                                    no_wrap=True, max_lines=1,
-                                    overflow=ft.TextOverflow.ELLIPSIS),
-                            ft.Row(stats_row, spacing=design.Space.SM, wrap=True,
-                                   vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                        ],
-                        spacing=design.Space.XS, expand=True,
-                    ),
-                    *extra_actions,
-                    ft.IconButton(
-                        icon=ft.Icons.CLOSE, icon_color=design.T().text_3, icon_size=18,
-                        tooltip="Rimuovi dall'incontro",
-                        on_click=lambda e, mm=m: self._on_remove_member(mm),
-                    ),
-                ],
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
+            content=ft.Column([top_row, ft.Container(height=design.Space.SM), bottom_row], spacing=0),
             padding=ft.Padding.all(design.Space.MD),
             bgcolor=design.T().surface,
             # Il combattente di turno è l'unico con accento pieno e ombra più

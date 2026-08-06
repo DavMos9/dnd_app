@@ -581,6 +581,130 @@ muted_text(text, size=12, text_align=..., weight=...)
 # proprio si tornerebbe alla stessa duplicazione già eliminata introducendo
 # `_navigate()`.
 
+# WRAP=True DENTRO UNA ROW NON-EXPAND → NON basta il flag, conta l'annidamento
+# (trovato 2026-08-06 correggendo ProfiloTab, "Level up/Level down" tagliato
+# al bordo su smartphone — vedi changelog_storico.md stessa data)
+# Una ft.Row(...) di Flutter dà ai figli che NON hanno expand=True una
+# larghezza MASSIMA lungo l'asse principale che è ILLIMITATA (unbounded),
+# non la larghezza residua della Row. Se uno di quei figli non-expand è a
+# sua volta un Column che contiene una Row con wrap=True, quella Row
+# interna eredita il constraint illimitato e la sua Wrap non trova MAI un
+# punto in cui andare a capo — il contenuto viene disegnato oltre il bordo
+# fisico dello schermo, senza generare un overflow rosso di debug (il
+# constraint è infinito, non superato). `wrap=True` da solo non è
+# sufficiente a garantire che il contenuto vada a capo: bisogna verificare
+# che la Row con wrap=True sia figlia diretta di un antenato che ha una
+# larghezza REALMENTE vincolata (es. una Column che è l'unico contenuto di
+# un Container con padding, o un figlio expand=True di una Row/Column
+# genitore). Fix generale: quando un `wrap=True` non produce l'effetto
+# atteso, non aggiungere altri flag alla cieca — risalire l'albero dei
+# widget genitori e verificare dove la larghezza smette di essere
+# vincolata, poi spostare/ristrutturare in modo che la Row da "wrappare"
+# sia un figlio diretto di un contenitore vincolato.
+
+# CALLBACK on_focus_change PER VISTE "A SCHERMO INTERO" DENTRO UNA SHELL
+# (pattern introdotto 2026-08-06, MasterView + MasterEncounterListView —
+# vedi changelog_storico.md stessa data)
+# Quando una vista figlia entra in una modalità concettualmente "a schermo
+# intero" (es. `MasterEncounterView`, aperta dentro `MasterEncounterListView`
+# dentro `MasterView`), il genitore che possiede il proprio chrome fisso
+# (selettore mondo, riga strumenti, barra tab) deve nascondere quel chrome
+# mentre il figlio è a fuoco, altrimenti su schermo stretto il figlio eredita
+# solo il rettangolo residuo. NON risolvere ricostruendo il genitore
+# (`_build()`) quando il figlio cambia stato: `_build()` richiama
+# `_get_tab_content()`, che ricrea il figlio da zero e ne perde lo stato di
+# navigazione interno (es. quale elemento è aperto). Pattern corretto:
+# passare al costruttore del figlio un callback `on_focus_change(bool)`;
+# il genitore lo implementa salvando riferimenti ai propri controlli di
+# chrome come attributi di istanza, e nel callback fa solo
+# `ctrl.visible = not focused` seguito da `self.update()` — mai un rebuild.
+# Il figlio invoca il callback nei propri punti di ingresso/uscita dal
+# focus (qui: `_open_encounter()`/`_close_encounter()`).
+
+# DRILL-DOWN MOBILE — pannello singolo invece di due colonne fisse
+# (pattern usato 3 volte nel progetto: SheetView/MasterView per la tab bar
+# compatta, MasterEncounterListView/MasterEncounterView per la lista
+# incontri, MasterNotesView per Note di Campagna — quest'ultima 2026-08-06)
+# Per una vista con layout a due pannelli fissi (lista/categorie a sinistra,
+# dettaglio a destra) che su smartphone comprime il pannello di dettaglio
+# sotto la soglia leggibile: NON restringere entrambe le colonne in
+# proporzione (il pannello di dettaglio resta comunque troppo stretto per
+# testo/pulsanti). Fix: un parametro `is_mobile: bool = False` nel
+# costruttore, valorizzato dal chiamante con lo stesso breakpoint condiviso
+# dell'app (`ui/app.py::_MOBILE_BP = 600`, mai un secondo valore), più uno
+# stato interno che ricorda quale pannello mostrare. Sotto la soglia, la
+# vista mostra UN pannello alla volta (lista, oppure dettaglio con un
+# pulsante "indietro" al posto dell'icona/intestazione normale
+# dell'header) invece della Row a due colonne; sopra la soglia, il layout a
+# due colonne resta invariato. Ogni punto che cambia la selezione
+# (click su un elemento, creazione, eliminazione, tasto indietro) deve
+# aggiornare esplicitamente lo stato "quale pannello mostro" in modo
+# coerente con l'azione (es.: elimina → torna alla lista; crea → mostra il
+# nuovo dettaglio), altrimenti l'utente resta bloccato su un pannello
+# vuoto o disallineato dopo l'azione.
+
+# scroll=ft.ScrollMode.AUTO SU UNA ROW NASCONDE CONTENUTO, wrap=True NO
+# (trovato 2026-08-06 da PC, la tab bar della Modalità Master tagliava le
+# etichette anche su un desktop di larghezza moderata, non solo mobile —
+# vedi changelog_storico.md stessa data)
+# Uno scroll orizzontale (`scroll=ft.ScrollMode.AUTO`) su una Row che non
+# entra nello spazio disponibile NON avvisa in alcun modo che c'è altro
+# contenuto fuori vista — viola la convenzione di questo progetto "nessuna
+# azione nascosta" ogni volta che scatta, indipendentemente dalla
+# larghezza dello schermo che lo fa scattare. `wrap=True` (+ `run_spacing`
+# per lo spazio verticale tra le righe) è la scelta corretta ogni volta
+# che il contenitore riceve davvero una larghezza vincolata (vedi la voce
+# sotto su come verificarlo): non nasconde mai nulla, il contenuto in
+# eccesso va semplicemente a capo. Bonus verificato: `wrap=True` è
+# nativamente reattivo al ridimensionamento della finestra DAL VIVO, senza
+# alcun coinvolgimento di codice Python — è Flutter stesso a ricalcolare i
+# punti di interruzione a ogni resize — mentre una decisione presa in
+# Python al momento della costruzione (es. `is_mobile` letto una volta)
+# resta fissa finché qualcosa non ricostruisce esplicitamente il controllo.
+
+# COME VERIFICARE SE UNA Row/Container HA UNA LARGHEZZA DAVVERO VINCOLATA
+# (utile prima di scegliere tra wrap=True "funziona" o "produce l'identico
+# bug ProfiloTab" — vedi la voce WRAP=True più sotto)
+# Non c'è introspezione diretta da Python per interrogare i constraint di
+# Flutter. Una prova empirica affidabile, usata più volte in questo
+# progetto: se un `ft.Row(..., scroll=ft.ScrollMode.AUTO)` messo nello
+# stesso identico punto dell'albero mostra il proprio `SingleChildScrollView`
+# allargarsi fino a un bordo FINITO (es. il bordo della finestra), allora
+# quel punto riceve una larghezza vincolata finita dal genitore — uno
+# scroll view orizzontale si allarga fino al MASSIMO consentito dal
+# genitore, mai oltre, e mai fino all'infinito se il genitore stesso non è
+# infinito. Se invece si estendesse oltre il bordo fisico dello schermo
+# (o semplicemente disegnasse contenuto invisibile senza mai fermarsi),
+# il genitore starebbe dando una larghezza illimitata: lì `wrap=True` da
+# solo NON basterebbe (serve la ristrutturazione già documentata per
+# ProfiloTab: spostare il contenuto fuori dalla Row non-expand che lo
+# rende illimitato).
+
+# page.on_resize — PROPAGARE A VISTE DI PRIMO LIVELLO SENZA VIOLARNE LA
+# PROPRIETÀ ESCLUSIVA (pattern introdotto 2026-08-06, DnDApp + MasterView —
+# vedi changelog_storico.md stessa data)
+# `page.on_resize` resta un singolo handler assegnato in UN SOLO punto
+# (`DnDApp._setup_page()`, chiamato una volta sola nell'`__init__`) — la
+# regola "proprietà esclusiva" già documentata sotto non cambia. Il modo
+# corretto per far reagire anche viste di primo livello che sostituiscono
+# l'intera pagina (`MasterView`/`WorldsView`, che via `_navigate()` NON
+# vivono dentro il `content_area` che il layout principale già ricostruisce
+# sul resize) è: (1) `DnDApp` tiene un riferimento alla vista di primo
+# livello correntemente a video (`self._active_top_view`, impostato alla
+# fine di ognuno dei metodi `_show_*()`); (2) il singolo `_on_page_resize()`
+# chiama `getattr(self._active_top_view, "set_mobile", None)`, e se il
+# metodo esiste lo invoca con il nuovo valore di `is_mobile` — duck typing,
+# nessun crash per le viste che non lo implementano ancora. Ogni vista che
+# vuole aggiornarsi dal vivo implementa il proprio `set_mobile(is_mobile)`
+# SENZA mai assegnare un proprio `page.on_resize`: dentro fa un
+# aggiornamento mirato (rebuild solo delle parti che dipendono da
+# `is_mobile`, preservando lo stato interno che un `_build()` completo
+# perderebbe — es. quale nota è selezionata), non un rebuild totale da
+# zero. Distinguere un caso speciale che RICHIEDE un rebuild completo (qui:
+# il layout principale sidebar/bottom-nav, due alberi di widget
+# strutturalmente diversi) con un flag dedicato (`_on_main_layout: bool`),
+# non riusando `_active_top_view is None` in modo ambiguo.
+
 # RESPONSIVE ROW — ft.ResponsiveRow + il parametro `col` su ogni Control
 # (dict per breakpoint, es. `col={"xs": 12, "sm": 6}`) esistono davvero
 # (verificato per introspezione). Breakpoint DEFAULT di Flet (letti dal
