@@ -41,23 +41,37 @@ dependencies = [
     # (nessuna Activity nativa avviata, log adb logcat reale) sia del
     # fallback WebView (webview_flutter non implementa
     # onShowFileChooser su Android — vedi dnd_app/docs/changelog_storico.md
-    # e regole_flet_api.md, sezione FILE PICKER). Dipendenza path-based
-    # verso dnd_app/extensions/flet_image_picker/ (non pubblicata su PyPI:
-    # è codice scritto per questo progetto, non un pacchetto di terze
-    # parti). ⚠️ NON compilata/testata da questo sandbox — nessun
-    # toolchain Flutter/Dart disponibile, vedi il README della cartella.
-    # Usata da ui/native_image_picker.py, con fallback automatico su
+    # e regole_flet_api.md, sezione FILE PICKER). Non pubblicata su PyPI (è
+    # codice scritto per questo progetto): il percorso locale va dichiarato
+    # in `[tool.flet.dev_packages]` più sotto, NON qui — qui va SOLO il
+    # nome del pacchetto, altrimenti `flet build` prova a risolverlo da
+    # PyPI (o, se scritto come URI assoluto, produce un percorso valido
+    # solo sulla macchina di chi l'ha scritto — bug reale corretto il
+    # 2026-08-06, vedi changelog_storico.md: rompeva TUTTE le build CI,
+    # Windows/macOS/Linux/Android, perché puntava a un path assoluto
+    # esistente solo sul Mac di Davide). Usata da
+    # ui/native_image_picker.py, con fallback automatico su
     # ui/mobile_webview_picker.py se questa estensione non è disponibile
-    # o fallisce.
-    #
-    # NOTA sul percorso: URI assoluto con lo spazio in "D&D project"
-    # percent-encoded (%20, obbligatorio in un file:// URI valido) — se
-    # la cartella del progetto viene spostata o rinominata, questo valore
-    # va aggiornato di conseguenza (nessun modo portabile/relativo di
-    # riferirsi a un path locale in [project.dependencies] per PEP 508
-    # verificato per questo build system).
-    "flet-image-picker @ file:///Users/davide/D%26D%20project/dnd_app/extensions/flet_image_picker",
+    # o fallisce. ⚠️ NON compilata/testata da questo sandbox — nessun
+    # toolchain Flutter/Dart disponibile, vedi il README della cartella.
+    "flet-image-picker",
 ]
+
+# Dipendenze "dev/path" — pacchetti locali non pubblicati su PyPI, risolti
+# da `flet build` con un percorso relativo alla cartella del progetto
+# (quella con questo stesso pyproject.toml), NON un URI assoluto scritto a
+# mano. Meccanismo verificato leggendo il sorgente installato di
+# `flet_cli==0.86.5` (`commands/build_base.py`, attorno a
+# `dev_packages_configured`): per ogni voce di `[project.dependencies]` il
+# cui nome pacchetto compare qui, flet_cli risolve il percorso (relativo
+# alla project dir se non assoluto), lo converte in un `file://` URI
+# corretto per piattaforma con `Path.as_uri()` (gestisce da solo le lettere
+# di unità Windows) e lo passa al packaging — esattamente il meccanismo che
+# mancava quando avevamo scritto l'URI a mano in `[project.dependencies]`
+# (funzionava in locale, rompeva ogni build CI: vedi il commento lì sopra e
+# changelog_storico.md, voce 2026-08-06 "CI rotta da un path assoluto").
+[tool.flet.dev_packages]
+flet-image-picker = "extensions/flet_image_picker"
 
 [tool.flet]
 app.module_name = "main"

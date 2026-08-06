@@ -353,6 +353,31 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 #   ("Try Online") su https://flet.dev/docs/services/audiorecorder, che fa
 #   esattamente questo (`recorder = far.AudioRecorder(...)`, mai aggiunto
 #   a nessuna lista).
+#
+# ⚠️ DIPENDENZE LOCALI/PATH-BASED in [project.dependencies] → MAI un URI
+#   assoluto scritto a mano, usare [tool.flet.dev_packages] — bug reale
+#   (2026-08-06) che ha rotto TUTTE le build CI (Windows/macOS/Linux/
+#   Android) dopo aver aggiunto `flet-image-picker` come
+#   `"nome @ file:///Users/davide/.../extensions/flet_image_picker"` in
+#   `[project.dependencies]`: funziona in locale (il path esiste sul Mac di
+#   chi l'ha scritto), ma `flet build` gira anche su un runner CI dove quel
+#   path non esiste — `pip install` fallisce, sulle 4 piattaforme allo
+#   stesso modo (stesso meccanismo, stesso errore). Il modo CORRETTO,
+#   verificato leggendo il sorgente installato di `flet_cli==0.86.5`
+#   (`commands/build_base.py`): mettere in `[project.dependencies]` SOLO il
+#   nome nudo del pacchetto (`"flet-image-picker"`, nessun `@ url`), e il
+#   percorso locale in una tabella dedicata:
+#   ```toml
+#   [tool.flet.dev_packages]
+#   flet-image-picker = "extensions/flet_image_picker"   # relativo alla cartella con pyproject.toml
+#   ```
+#   `flet_cli` risolve da solo il percorso (relativo alla project dir, la
+#   stessa sia in locale sia dopo un `actions/checkout` in CI) e lo
+#   converte in un `file://` URI corretto per piattaforma con
+#   `Path.as_uri()` — portabile per costruzione, non per convenzione da
+#   rispettare a mano. Esiste anche `tool.flet.<piattaforma>.dev_packages`
+#   per un override specifico di una sola piattaforma, non necessario in
+#   questo caso. Dettaglio completo in `changelog_storico.md`.
 
 # CLIENT_STORAGE — page.client_storage NON esiste in Flet 0.85.3
 # `page.client_storage.get/set(...)` ← SBAGLIATO → AttributeError, l'attributo

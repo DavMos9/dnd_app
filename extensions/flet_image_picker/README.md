@@ -54,22 +54,37 @@ che "il plugin sottostante esiste ed è maturo".
 
 Questo sandbox non ha Flutter/Dart installati (`which flutter dart` non
 trova nulla) e quindi **nessuna riga di codice Dart in questa cartella è
-mai stata compilata o eseguita**. Il lato Python è verificato solo per
+mai stata compilata o eseguita**. Il lato Python è verificato per
 importazione/costruzione contro `flet==0.86.5` (stessa versione già
-pinnata nell'app). Prima di fidarsi che tutto funzioni:
+pinnata nell'app).
 
-1. Da una macchina con Flutter + Flet CLI installati, verificare che
-   `pip install -e .` di questa cartella imbarchi davvero
-   `src/flutter/flet_image_picker/**` nel pacchetto (la sezione
-   `[tool.setuptools.package-data]` replica quella reale di
-   flet-audio-recorder, ma il meccanismo esatto con cui viene risolta non è
-   stato testato qui — se non funziona, rigenerare lo scaffold con
-   `flet create --template extension --project-name flet_image_picker` e
-   travasare questi file Python/Dart).
-2. Aggiungere questa cartella come dipendenza path-based nel
-   `pyproject.toml` dell'app (vedi commento lì).
-3. `flet build apk` (o `ipa`) e testare `pick_image()` su un dispositivo
-   reale.
+**Verificato il 2026-08-06** (aggiornamento rispetto alla nota originale
+qui sotto): il packaging Python imbarca davvero
+`src/flutter/flet_image_picker/**` nel pacchetto installato — confermato
+con un vero `pip install --target ...` in sandbox (bypassando solo il
+vincolo `requires-python` non soddisfatto dal Python locale, `>=3.10` in
+una copia di prova invece di `>=3.12`): la wheel risultante installa sia
+`flet_image_picker/` (Python) sia `flutter/flet_image_picker/` (con
+`pubspec.yaml` e tutto `lib/`) fianco a fianco, esattamente come nei
+pacchetti ufficiali `flet-camera`/`flet-audio-recorder`. La sezione
+`[tool.setuptools.package-data]` funziona quindi come previsto, non era
+necessario rigenerare lo scaffold con `flet create --template extension`.
+
+**Ancora NON verificato** (questa è la parte che richiede davvero
+Flutter/Dart, irriducibile senza un dispositivo/toolchain reale):
+
+1. Se il tooling di `flet build` individua e collega davvero
+   `flutter/flet_image_picker/` come dipendenza Flutter del progetto
+   generato (il packaging Python è confermato corretto, ma non è la stessa
+   cosa di "Flutter compila il plugin dentro l'app").
+2. Se il codice Dart stesso (`extension.dart`, `image_picker_service.dart`)
+   compila senza errori — mai passato da `dart analyze`/`flutter pub get`
+   in nessuna forma.
+3. Se `pick_image()` funziona davvero a runtime su un dispositivo Android/
+   iOS reale.
+
+Prossimo passo per Davide: `flet build apk` (o `ipa`) e testare
+`pick_image()` su un dispositivo reale (foto profilo, immagine mappa).
 
 ## Riferimenti
 

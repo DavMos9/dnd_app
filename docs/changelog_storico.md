@@ -5739,6 +5739,64 @@ flet_image_picker/README.md`. Prossimo passo: Davide costruisce l'APK
 (`profilo_tab.py`, `maps_view.py`; l'import personaggio in `home_view.py`
 resta volutamente sul fallback WebView, fuori scope di questo giro).
 
+**Stato al 2026-08-06 (sessione successiva) — bug reale trovato: la CI
+rompeva TUTTE le build** (Windows/macOS/Linux/Android, screenshot di
+Davide del run GitHub Actions #25: 4 build fallite in 1m38s-3m11s, job
+`release` mai partito perché dipende da tutte e 4). Causa, diagnosticata
+leggendo il sorgente REALE installato di `flet_cli==0.86.5`
+(`commands/build_base.py`, non ipotizzata): la dipendenza
+`flet-image-picker` in `[project.dependencies]` era scritta come URI
+assoluto (`file:///Users/davide/D%26D%20project/dnd_app/extensions/
+flet_image_picker`) — un percorso che esiste SOLO sul Mac di Davide.
+`flet build <piattaforma>` legge `[project.dependencies]` e lo passa,
+riga per riga, a `serious_python:main package` per installare le
+dipendenze Python DENTRO l'app pacchettizzata — su un runner CI (Windows:
+`D:\a\...`, macOS: `/Users/runner/work/...`, Linux:
+`/home/runner/work/...`) quel percorso non esiste mai: `pip install`
+fallisce, sulle 4 piattaforme allo stesso modo, esattamente quanto visto
+nello screenshot. Bug introdotto nella sessione precedente senza mai
+considerare l'ambiente CI — errore di disciplina (verificare l'ambiente di
+esecuzione reale, non solo la sintassi) più che di sintassi.
+
+**Fix, il meccanismo CORRETTO trovato leggendo lo stesso sorgente**:
+`flet_cli` supporta nativamente le dipendenze locali/dev tramite una
+tabella dedicata `[tool.flet.dev_packages]` (o `tool.flet.<piattaforma>.
+dev_packages` per un override per piattaforma) — per ogni voce di
+`[project.dependencies]` il cui nome pacchetto compare in questa tabella,
+`flet_cli` risolve da solo il percorso locale (relativo alla cartella del
+progetto se non assoluto — `self.python_app_path`, la cartella con
+`pyproject.toml`, IDENTICA sia in locale sia dopo un `actions/checkout`
+in CI) e lo converte in un `file://` URI corretto per piattaforma con
+`Path.as_uri()` (gestisce da solo anche le lettere di unità Windows,
+verificato dal commento nel sorgente stesso). Applicato:
+`[project.dependencies]` ora contiene solo `"flet-image-picker"` (nome
+nudo, nessun URL scritto a mano), il percorso vive in
+`[tool.flet.dev_packages]` come `flet-image-picker = "extensions/
+flet_image_picker"` (relativo). **Verificato end-to-end, non solo per
+lettura**: eseguita in sandbox la stessa identica logica di risoluzione
+di `build_base.py` (import diretto di `flet_cli.utils.pyproject_toml` e
+`project_dependencies`, più la sostituzione `dev_packages` copiata
+dal sorgente) contro il `pyproject.toml` reale del progetto — risolve
+correttamente il percorso relativo e produce un `file://` URI valido,
+puntando a una cartella che esiste davvero. In aggiunta, un vero
+`pip install --target ... .` dell'estensione (in una copia con
+`requires-python` temporaneamente allentato per bypassare solo il
+Python 3.10 del sandbox, non un problema del pacchetto) conferma che il
+packaging bundla correttamente sia `flet_image_picker/` (Python) sia
+`flutter/flet_image_picker/` (pubspec.yaml + lib/ Dart) fianco a fianco —
+la stessa domanda lasciata aperta nel README dell'estensione la sessione
+precedente, ora risolta con una prova reale, non un'ipotesi. Resta
+**non verificabile da qui** solo l'ultimo miglio, quello che richiede
+davvero Flutter/Dart: se il tooling di `flet build` collega questo
+pacchetto Flutter nel progetto generato e se il codice Dart compila.
+`requirements.txt` non toccato (non letto da `flet build` quando
+`[project.dependencies]` non è vuoto — verificato nello stesso sorgente —
+resta comunque corretto così com'era per `pip install -r requirements.txt`
+in locale). Dettaglio completo della verifica in
+`dnd_app/extensions/flet_image_picker/README.md` (aggiornato) e
+`dnd_app/docs/regole_flet_api.md` (nuova voce sul meccanismo
+`tool.flet.dev_packages`).
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

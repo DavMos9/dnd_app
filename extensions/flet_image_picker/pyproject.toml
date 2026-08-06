@@ -8,17 +8,15 @@ dependencies = [
     "flet==0.86.5",
 ]
 
-# ATTENZIONE — vedi README.md in questa cartella prima di fidarti ciecamente
-# di questa sezione: replica il pyproject.toml REALE del pacchetto ufficiale
+# Replica il pyproject.toml REALE del pacchetto ufficiale
 # flet-audio-recorder (stesso schema, stessa chiave
-# "flutter.<nome_pacchetto>"), ma il meccanismo esatto con cui setuptools
-# individua ed impacchetta src/flutter/flet_image_picker/ non è stato
-# verificato eseguendo una build vera in questo sandbox (nessun toolchain
-# Flutter/Dart disponibile). Se `pip install` di questo pacchetto non
-# imbarca pubspec.yaml/lib/**, la soluzione più affidabile è rigenerare lo
-# scaffold con `flet create --template extension --project-name
-# flet_image_picker` su una macchina con Flet CLI installato e travasare i
-# file Python/Dart scritti a mano da questa cartella in quello scaffold.
+# "flutter.<nome_pacchetto>"). VERIFICATO il 2026-08-06 con un vero
+# `pip install --target ...` in sandbox: la wheel risultante imbarca
+# davvero `flutter/flet_image_picker/` (pubspec.yaml + tutto `lib/`) fianco
+# a fianco col pacchetto Python — vedi README.md in questa cartella per il
+# dettaglio. Non verificato invece (richiede un vero toolchain Flutter/
+# Dart, non disponibile qui): se `flet build` collega davvero questo
+# pacchetto Flutter nel progetto generato, e se il codice Dart compila.
 [tool.setuptools.package-data]
 "flutter.flet_image_picker" = [
     "pubspec.yaml",
