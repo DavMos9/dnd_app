@@ -6543,6 +6543,82 @@ Davide su un dispositivo Android/iOS reale, nella stessa build dei passi
 
 ---
 
+## 2026-08-06 (sessione successiva) — Icona dell'app sostituita col logo D&D ufficiale
+
+Davide ha fornito `Logo_app.png` (alla radice del progetto, fuori da
+`dnd_app/`) — il logo ufficiale Dungeons & Dragons di Wizards of the Coast
+(wordmark rossa "D&D" col drago), 254×127px, RGBA con sfondo trasparente —
+e ha chiesto di sostituire l'icona dell'app, ancora quella di default di
+Flet nonostante `pyproject.toml` dichiarasse già `app.icon =
+"assets/icons/dnd_logo.png"` (verificato aprendo l'icona 1024×1024 dentro
+`dnd_app/build/flutter/ios/.../Icon-App-1024x1024@1x.png` di una build
+precedente: era davvero ancora il logo Flet — quella build risale a prima
+che `dnd_logo.png`, un placeholder fatto in casa — cerchio rosso/oro con
+scritta "D&D" — venisse impostato come icona, o comunque non l'aveva mai
+recepito; da verificare con la prossima build se ora la raccoglie).
+
+Segnalato a Davide (nota, non un blocco): quel logo è un marchio
+registrato di Wizards of the Coast/Hasbro — per un'app personale come
+questa non c'è alcun problema, ma andrebbe considerato se in futuro si
+pensasse a una pubblicazione più ampia (Play Store/App Store).
+
+**Problema tecnico**: `Logo_app.png` è rettangolare 2:1, mentre le icone
+app richiedono un'immagine quadrata — usato direttamente sarebbe stato
+schiacciato o tagliato in modo scorretto dalla pipeline di generazione
+icone di `flet build` (`flutter_launcher_icons`, chiamata da `flet_cli`).
+
+**Fix**: rigenerata `dnd_app/assets/icons/dnd_logo.png` (stesso path già
+in `pyproject.toml`, nessuna modifica di configurazione necessaria) a
+partire da `Logo_app.png` — script Pillow one-off (non salvato nel
+repository, operazione di conversione asset una tantum): tela quadrata
+1024×1024 bianca (l'alpha viene appiattito: le icone iOS non ammettono
+trasparenza, l'App Store le rifiuta), logo ridimensionato mantenendo le
+proporzioni e centrato con un margine di sicurezza del 18% per lato —
+necessario perché Android ritaglia le icone "adattive" in un cerchio o
+squircle: senza margine il bordo della scritta "D&D" verrebbe tagliato dal
+ritaglio del sistema operativo. Salvata in RGB (niente canale alpha),
+formato PNG, verificata apribile e con le dimensioni attese.
+
+**Limite dichiarato**: la sorgente fornita da Davide è a bassa risoluzione
+per un'icona 1024px (254px di partenza, poi ingrandita) — il risultato è
+leggibile e pulito alla dimensione delle icone reali (che sono comunque
+piccole, 48-180px a seconda della piattaforma) ma leggermente meno nitido
+di quanto sarebbe con una sorgente vettoriale o già ad alta risoluzione.
+
+**Non verificabile da questo sandbox**: l'icona vera sui dispositivi/nelle
+varie dimensioni per piattaforma si genera solo con un giro reale di `flet
+build` (nessun toolchain Flutter/Dart qui) — da controllare da Davide
+nella prossima build, insieme al resto già in sospeso (fix EXIF, passi 5/6,
+scanner QR).
+
+**Corretto subito dopo, stessa sessione**: Davide ha ripensato al logo
+ufficiale ("te ne ho caricato uno non ufficiale usiamo questo") e caricato
+`Logo_companion_Dnd.png` (radice del progetto) — un'illustrazione originale
+generica a tema fantasy (dado d20, spada, libro con il simbolo "&" del
+drago, bussola), NON il marchio Wizards of the Coast: nessuna riserva sul
+suo uso. Già quadrata (1254×1254, RGB, senza alpha) e a risoluzione più che
+sufficiente — nessuna necessità del trattamento "tela + margine" fatto per
+il tentativo precedente (rettangolare, bassa risoluzione). Copiata così
+com'è su `dnd_app/assets/icons/dnd_logo.png` (stesso path già in
+`pyproject.toml`).
+
+⚠️ Unica particolarità notata: l'immagine ha già angoli arrotondati "cotti"
+dentro il file (spazio nero nei quattro angoli fuori dal rettangolo
+arrotondato dell'illustrazione) — tipico di chi genera un'immagine già "in
+stile icona app". Le pipeline di icone (incluso `flutter_launcher_icons`,
+usato da `flet build`) si aspettano normalmente un quadrato pieno bordo a
+bordo e applicano da sole l'arrotondamento nativo di ciascuna piattaforma
+sopra: con angoli già arrotondati nella sorgente, su piattaforme che
+arrotondano di nuovo (es. iOS) c'è un rischio cosmetico minore di un sottile
+bordo/angolo scuro visibile per un doppio arrotondamento non perfettamente
+allineato. Non corretto in questa sessione (avrebbe richiesto ritagliare/
+alterare l'illustrazione scelta da Davide, una decisione estetica sua, non
+mia) — solo segnalato: se alla prossima build l'icona reale mostra angoli
+poco puliti, la correzione è ritagliare la sola illustrazione interna
+(senza gli angoli neri) ed estenderla a un quadrato pieno.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
