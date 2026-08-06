@@ -25,6 +25,38 @@ dependencies = [
     # da ui/mobile_webview_picker.py. Stessa versione di `flet` per restare in
     # lockstep con le release core (estensione ufficiale, mantenuta insieme).
     "flet-webview==0.86.5",
+    # Aggiunto il 2026-08-06: QR d'ingresso per l'hosting LAN (richiesta di
+    # Davide — collegamento rapido senza copiare indirizzo/codice/PIN a
+    # mano). `qrcode` è puro Python (verificato su PyPI: nessuna libreria
+    # nativa, "Requires: Python <4.0,>=3.9"), sceglie da solo il backend
+    # Pillow — già una dipendenza di questo progetto — per generare
+    # l'immagine PNG, senza bisogno dell'extra `[pil]`. Riguarda solo la
+    # GENERAZIONE lato host: la scansione lato giocatore resta manuale
+    # (nessun controllo camera/QR ufficiale in Flet — vedi
+    # dnd_app/docs/multiplayer_design.md §9, nota sul passo 5).
+    "qrcode==8.2",
+    # Aggiunto il 2026-08-06: estensione Flet nativa scritta su misura per
+    # questo progetto, terzo tentativo di risolvere la selezione immagine
+    # su Android dopo il fallimento CONFERMATO sia di ft.FilePicker
+    # (nessuna Activity nativa avviata, log adb logcat reale) sia del
+    # fallback WebView (webview_flutter non implementa
+    # onShowFileChooser su Android — vedi dnd_app/docs/changelog_storico.md
+    # e regole_flet_api.md, sezione FILE PICKER). Dipendenza path-based
+    # verso dnd_app/extensions/flet_image_picker/ (non pubblicata su PyPI:
+    # è codice scritto per questo progetto, non un pacchetto di terze
+    # parti). ⚠️ NON compilata/testata da questo sandbox — nessun
+    # toolchain Flutter/Dart disponibile, vedi il README della cartella.
+    # Usata da ui/native_image_picker.py, con fallback automatico su
+    # ui/mobile_webview_picker.py se questa estensione non è disponibile
+    # o fallisce.
+    #
+    # NOTA sul percorso: URI assoluto con lo spazio in "D&D project"
+    # percent-encoded (%20, obbligatorio in un file:// URI valido) — se
+    # la cartella del progetto viene spostata o rinominata, questo valore
+    # va aggiornato di conseguenza (nessun modo portabile/relativo di
+    # riferirsi a un path locale in [project.dependencies] per PEP 508
+    # verificato per questo build system).
+    "flet-image-picker @ file:///Users/davide/D%26D%20project/dnd_app/extensions/flet_image_picker",
 ]
 
 [tool.flet]

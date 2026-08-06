@@ -1,0 +1,30 @@
+[project]
+name = "flet-image-picker"
+version = "0.1.0"
+description = "Selettore immagini nativo (Android/iOS) per D&D Companion — estensione Flet su misura, wrapper del plugin Flutter ufficiale image_picker."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "flet==0.86.5",
+]
+
+# ATTENZIONE — vedi README.md in questa cartella prima di fidarti ciecamente
+# di questa sezione: replica il pyproject.toml REALE del pacchetto ufficiale
+# flet-audio-recorder (stesso schema, stessa chiave
+# "flutter.<nome_pacchetto>"), ma il meccanismo esatto con cui setuptools
+# individua ed impacchetta src/flutter/flet_image_picker/ non è stato
+# verificato eseguendo una build vera in questo sandbox (nessun toolchain
+# Flutter/Dart disponibile). Se `pip install` di questo pacchetto non
+# imbarca pubspec.yaml/lib/**, la soluzione più affidabile è rigenerare lo
+# scaffold con `flet create --template extension --project-name
+# flet_image_picker` su una macchina con Flet CLI installato e travasare i
+# file Python/Dart scritti a mano da questa cartella in quello scaffold.
+[tool.setuptools.package-data]
+"flutter.flet_image_picker" = [
+    "pubspec.yaml",
+    "lib/**",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

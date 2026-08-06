@@ -28,7 +28,7 @@ import json
 import logging
 import math
 import threading
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import flet as ft
 import flet.canvas as cv
@@ -37,6 +37,7 @@ from data.models import Character, GameMap
 from data.repositories import maps_repo
 from ui.image_library import show_image_library_picker
 from ui.mobile_webview_picker import pick_file_via_webview
+from ui.native_image_picker import pick_image_native, ImagePickerUnavailable
 from ui import design
 from ui.widgets import wrap_dialog_actions
 
@@ -1520,42 +1521,60 @@ def _pick_from_library(view: "MapsView", img_data: list[str],
 async def _pick_mobile(view: "MapsView", img_data: list[str],
                        label: ft.Text, preview: ft.Container) -> None:
     """
-    Apre il selettore immagine su Android/iOS tramite WebView locale
-    (`ui/mobile_webview_picker.py`), NON più `ft.FilePicker`. Chiamata SOLO
-    dal ramo mobile nativo di pick_image() nei due dialog crea/modifica
-    mappa — il ramo web non arriva mai qui, vedi _pick_from_library().
+    Apre il selettore immagine su Android/iOS. Chiamata SOLO dal ramo
+    mobile nativo di pick_image() nei due dialog crea/modifica mappa — il
+    ramo web non arriva mai qui, vedi _pick_from_library().
 
-    **Perché non FilePicker (2026-08-06, log `adb logcat` reale)**: un
-    primo log aveva rivelato un vero bug Python (`await` mancante su
-    `pick_files()`, corretto — stesso identico difetto di
-    `profilo_tab.py::_pick_photo_mobile()`, vedi il suo docstring), ma un
-    secondo log preso DOPO quel fix ha mostrato che il problema è più a
-    fondo: `pick_files()` arriva correttamente al bridge Dart ma va in
+    **Storico** (perché non `ft.FilePicker`, 2026-08-06, log `adb logcat`
+    reale): un primo log aveva rivelato un vero bug Python (`await`
+    mancante su `pick_files()`, corretto — stesso identico difetto di
+    `profilo_tab.py::_pick_photo_mobile()`), ma un secondo log preso DOPO
+    quel fix ha mostrato che il problema è più a fondo:
     `TimeoutException: Timeout waiting for invoke method listener` —
-    nessuna Activity nativa Android viene mai avviata (verificato sul log
-    completo, non filtrato). `ft.FilePicker` non è utilizzabile su questa
-    build, senza appello — non un problema risolvibile lato applicazione.
-    Vedi `dnd_app/docs/changelog_storico.md`.
+    nessuna Activity nativa Android viene mai avviata. `ft.FilePicker` non
+    è utilizzabile su questa build. Vedi `dnd_app/docs/changelog_storico.md`.
 
-    Il rimpiazzo mostra una WebView locale (nessuna rete coinvolta) con un
-    `<input type=file accept="image/*">`, che apre il selettore nativo di
-    sistema tramite l'infrastruttura WebView di Android — meccanismo
-    completamente diverso da `ft.FilePicker`, molto più maturo/testato.
+    **Tentativo 1 (WebView + `<input type=file>`), anch'esso confermato
+    morto**: `webview_flutter` su Android non implementa di default
+    `WebChromeClient.onShowFileChooser` — nessun selettore nativo si apre
+    mai. Vedi `regole_flet_api.md`.
+
+    **Percorso attuale (2026-08-06)**: estensione Flet nativa scritta su
+    misura (`ui/native_image_picker.py` ->
+    `dnd_app/extensions/flet_image_picker/`). ⚠️ NON verificata end-to-end
+    da questo sandbox — per questo il fallback WebView resta qui sotto,
+    attivato automaticamente se l'estensione solleva
+    `ImagePickerUnavailable`, non rimosso. Stesso identico pattern di
+    `profilo_tab.py::_pick_photo_mobile()`, mantenuto qui in un file
+    diverso perché `_pick_mobile()` è una funzione modulo-level (non un
+    metodo di `MapsView`), condivisa dai due dialog crea/modifica mappa.
     """
     page = view._page
     if page is None:
         return
-    result = await pick_file_via_webview(
-        page, accept="image/*", title="Scegli immagine mappa",
-    )
-    if result is None:
-        return  # utente ha annullato, o errore già loggato nel modulo
-    _name, b64_content = result
+
+    raw: Optional[bytes] = None
     try:
-        raw = base64.b64decode(b64_content)
-    except Exception as exc:
-        logger.error("_pick_mobile: base64 non decodificabile: %s", exc)
-        return
+        raw = await pick_image_native(page)
+    except ImagePickerUnavailable as ex:
+        logger.warning(
+            "_pick_mobile: ImagePicker nativo non disponibile (%s); "
+            "ricado sul fallback WebView.", ex,
+        )
+        result = await pick_file_via_webview(
+            page, accept="image/*", title="Scegli immagine mappa",
+        )
+        if result is None:
+            return  # utente ha annullato, o errore già loggato nel modulo
+        _name, b64_content = result
+        try:
+            raw = base64.b64decode(b64_content)
+        except Exception as exc:
+            logger.error("_pick_mobile: base64 non decodificabile: %s", exc)
+            return
+
+    if raw is None:
+        return  # utente ha annullato la selezione nativa
     b64 = _normalize_image_bytes_to_base64(raw)
     if b64:
         img_data[0] = b64

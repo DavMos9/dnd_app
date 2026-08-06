@@ -1,0 +1,34 @@
+name: flet_image_picker
+description: Flet ImagePicker control — selettore immagini nativo (galleria) per Android/iOS, wrapper del plugin ufficiale image_picker.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.2.3 <4.0.0'
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Versione corrente verificata su pub.dev il 2026-08-06 (1.2.3, publisher
+  # verificato flutter.dev). Vincolo "^" per ricevere fix compatibili senza
+  # bloccarsi su questa esatta patch.
+  image_picker: ^1.2.3
+
+  # Stesso percorso relativo usato dai pacchetti ufficiali flet-camera/
+  # flet-audio-recorder per riferirsi al pacchetto Dart "flet" del
+  # monorepo — QUI NON VERIFICATO: questa estensione non vive dentro il
+  # monorepo flet-dev/flet, quindi questo path relativo è quasi certamente
+  # SBAGLIATO per questo progetto e va corretto puntando alla vera
+  # posizione del pacchetto Dart "flet" nell'albero di build generato da
+  # `flet build` (non ricostruibile senza un toolchain Flutter/Flet reale
+  # a disposizione — vedi README.md). Lasciato come promemoria esplicito
+  # del pezzo mancante, non come valore su cui affidarsi.
+  flet:
+    path: ../../../../../../../packages/flet
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0

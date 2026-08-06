@@ -15,7 +15,7 @@ Usa ft.ListView (non Column scroll=AUTO) per evitare bug height in Flet 0.85.3.
 
 import base64
 import threading
-from typing import Any, Callable, cast
+from typing import Any, Callable, Optional, cast
 import flet as ft
 import logging
 from config.settings import *
@@ -24,6 +24,7 @@ from data.models import Character, CharacterProficiency
 import data.repositories.character_repo as character_repo
 from ui.image_library import show_image_library_picker
 from ui.mobile_webview_picker import pick_file_via_webview
+from ui.native_image_picker import pick_image_native, ImagePickerUnavailable
 from ui.theme import section_header, muted_text, show_error_dialog
 from ui.widgets import (
     CardPicker, ScrollMemoryListView, spell_card_options, feat_card_options,
@@ -4277,44 +4278,65 @@ class ProfiloTab(ScrollMemoryListView):
 
     async def _pick_photo_mobile(self):
         """
-        Apre il selettore immagine su Android/iOS tramite WebView locale
-        (`ui/mobile_webview_picker.py`), NON più `ft.FilePicker`.
+        Apre il selettore immagine su Android/iOS.
 
-        **Perché non FilePicker (2026-08-06, log `adb logcat` reale)**: un
-        primo log aveva rivelato un vero bug Python (`await` mancante su
-        `pick_files()`, corretto — stesso bug in `maps_view.py::
-        _pick_mobile()`), ma un secondo log, preso DOPO quel fix, ha
-        mostrato che il problema è più a fondo: `pick_files()` arriva
-        correttamente al bridge Dart ma va in `TimeoutException: Timeout
-        waiting for invoke method listener` — **nessuna Activity nativa
-        Android viene mai avviata** (verificato sul log completo, non
-        filtrato: nessun picker di sistema, nessun dialogo di permesso).
-        `ft.FilePicker` non è utilizzabile su questa build, senza appello
-        — non è un problema risolvibile cambiando il codice attorno alla
-        chiamata. Vedi punto 6 del changelog in `did_mount()` sopra e
+        **Storico** (perché non `ft.FilePicker`, 2026-08-06, log `adb
+        logcat` reale): un primo log aveva rivelato un vero bug Python
+        (`await` mancante su `pick_files()`, corretto — stesso bug in
+        `maps_view.py::_pick_mobile()`), ma un secondo log, preso DOPO
+        quel fix, ha mostrato che il problema è più a fondo:
+        `pick_files()` arriva correttamente al bridge Dart ma va in
+        `TimeoutException: Timeout waiting for invoke method listener` —
+        **nessuna Activity nativa Android viene mai avviata** (verificato
+        sul log completo, non filtrato). `ft.FilePicker` non è
+        utilizzabile su questa build, senza appello. Dettaglio completo in
         `dnd_app/docs/changelog_storico.md`.
 
-        Il rimpiazzo mostra una WebView locale (nessuna rete coinvolta,
-        vedi il docstring di modulo di `mobile_webview_picker.py`) con un
-        `<input type=file>`, che apre il selettore nativo di sistema
-        tramite l'infrastruttura WebView di Android — un meccanismo
-        completamente diverso da `ft.FilePicker`, molto più maturo/testato.
+        **Tentativo 1 (WebView + `<input type=file>`), anch'esso
+        confermato morto**: `webview_flutter` su Android non implementa di
+        default `WebChromeClient.onShowFileChooser`, quindi il tap su
+        "Scegli file" non apriva alcun selettore nativo — verificato sia
+        via documentazione/issue tracker di `webview_flutter` sia per
+        introspezione diretta su `flet_webview` installato (nessun hook
+        esposto). Vedi `regole_flet_api.md`.
+
+        **Percorso attuale (2026-08-06)**: estensione Flet nativa scritta
+        su misura (`ui/native_image_picker.py` ->
+        `dnd_app/extensions/flet_image_picker/`), che avvolge il plugin
+        Flutter ufficiale `image_picker`. ⚠️ NON verificata end-to-end da
+        questo sandbox (nessun toolchain Flutter/Dart disponibile per
+        compilarla) — per questo il fallback WebView resta qui SOTTO,
+        attivato automaticamente se l'estensione solleva
+        `ImagePickerUnavailable` (pacchetto non presente in questa build,
+        o qualunque errore all'invocazione), non rimosso.
         """
         page = self._page
         if page is None:
             return
-        result = await pick_file_via_webview(
-            page, accept="image/*", title="Scegli foto profilo",
-        )
-        if result is None:
-            return  # utente ha annullato, o errore già loggato nel modulo
-        _name, b64_content = result
+
+        raw: Optional[bytes] = None
         try:
-            raw = base64.b64decode(b64_content)
-        except Exception as ex:
-            logger.error(f"Foto profilo: base64 non decodificabile: {ex}")
-            show_error_dialog(self._page, "Immagine non valida. Riprova.")
-            return
+            raw = await pick_image_native(page)
+        except ImagePickerUnavailable as ex:
+            logger.warning(
+                f"ImagePicker nativo non disponibile ({ex}); ricado sul "
+                "fallback WebView (ui/mobile_webview_picker.py)."
+            )
+            result = await pick_file_via_webview(
+                page, accept="image/*", title="Scegli foto profilo",
+            )
+            if result is None:
+                return  # utente ha annullato, o errore già loggato nel modulo
+            _name, b64_content = result
+            try:
+                raw = base64.b64decode(b64_content)
+            except Exception as ex2:
+                logger.error(f"Foto profilo: base64 non decodificabile: {ex2}")
+                show_error_dialog(self._page, "Immagine non valida. Riprova.")
+                return
+
+        if raw is None:
+            return  # utente ha annullato la selezione nativa
         self._save_photo_bytes(raw)
 
     def _show_path_input_dialog(self):

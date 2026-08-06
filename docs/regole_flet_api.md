@@ -302,6 +302,57 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 #   dalla pagina (es. un `<a download>` o `Blob` + click) — non verificato,
 #   non usato: questo modulo copre solo la SELEZIONE di file esistenti
 #   (`<input type=file>`), non il salvataggio.
+#
+# ⚠️ CONFERMATO ROTTO (2026-08-06, test reale su Android + log adb + ricerca mirata):
+#   `<input type=file>` dentro `ft.WebView` NON apre alcun selettore su Android — il
+#   dialog/la pagina si aprono correttamente (il processo sandboxed Chromium parte, la
+#   pagina renderizza), ma toccare il pulsante non fa scattare nulla, nessun errore
+#   visibile. Causa: `flet-webview` è basato sui pacchetti Flutter ufficiali
+#   `webview_flutter`/`webview_flutter_web` (dichiarato sulla pagina PyPI del
+#   pacchetto) — è un limite NOTO di `webview_flutter` su Android: `<input
+#   type="file">` richiede che l'app ospite implementi esplicitamente il callback
+#   nativo `WebChromeClient.onShowFileChooser` (Kotlin/Java) perché il selettore di
+#   sistema si apra; supporto aggiunto solo di recente e solo come opt-in esplicito
+#   (`AndroidWebViewController.setOnShowFileSelector()`, richiede codice Dart/Kotlin
+#   dedicato). Verificato per introspezione sul pacchetto `flet_webview==0.86.5`
+#   installato: `ft.WebView` NON espone alcun parametro/evento/metodo per questo
+#   (nessun `on_show_file_chooser`, `on_file_chooser` o simile — l'elenco completo dei
+#   parametri del costruttore non contiene nulla del genere). **`ft.WebView` +
+#   `<input type=file>` non è utilizzabile per la selezione file su Android con l'API
+#   Python attuale — non è un problema risolvibile nel nostro codice**, un pezzo di
+#   integrazione che `flet_webview` non ha mai wired, non un bug applicativo.
+#   Lezione generale: "il meccanismo è maturo/testato nel browser" (vero per
+#   `<input type=file>` in un browser reale) NON implica "il wrapper WebView di
+#   questo framework lo abilita per davvero" — le due cose vanno verificate
+#   separatamente, per introspezione sul pacchetto installato, prima di scrivere
+#   codice attorno a un'API di terze parti imbarcata in un controllo Flet.
+#
+# ⚠️ TERZO TENTATIVO (2026-08-06, stessa giornata) — estensione Flet nativa
+#   su misura, `dnd_app/extensions/flet_image_picker/`, wrapper del plugin
+#   Flutter ufficiale `image_picker`. Lato Python verificato per
+#   costruzione/importazione contro `flet==0.86.5` (`ui/
+#   native_image_picker.py`). **Lato Dart NON verificato**: nessun
+#   toolchain Flutter/Dart in questo sandbox. Vedi il dettaglio completo in
+#   `changelog_storico.md` (voce 2026-08-06 "Davide ha scelto l'opzione (b)")
+#   e `dnd_app/extensions/flet_image_picker/README.md`.
+#
+#   Scoperta di API utile per qualunque futura estensione Service scritta
+#   in questo progetto: in Flet 0.86.5 **non esiste più `page.overlay`**
+#   (rimosso rispetto a versioni precedenti di Flet) e `Page._services` è
+#   un `ServiceRegistry` interno, non una lista pubblica — un controllo
+#   `Service` NON va mai registrato esplicitamente
+#   (`page.overlay.append(...)`/`page.services.append(...)` non esistono/
+#   non sono il modo corretto). Si AUTO-registra dentro il proprio `init()`
+#   — chiamato automaticamente da `BaseControl.__post_init__` al momento
+#   della costruzione, purché `context.page` (una contextvar, sempre
+#   impostata durante un handler async schedulato da `page.run_task(...)`)
+#   sia già valorizzata. Basta quindi `picker = ImagePicker()` seguito da
+#   `await picker.pick_image(...)` — confermato sia leggendo il sorgente
+#   installato (`flet/controls/services/service.py`,
+#   `base_control.py::__post_init__`) sia dall'esempio ufficiale eseguibile
+#   ("Try Online") su https://flet.dev/docs/services/audiorecorder, che fa
+#   esattamente questo (`recorder = far.AudioRecorder(...)`, mai aggiunto
+#   a nessuna lista).
 
 # CLIENT_STORAGE — page.client_storage NON esiste in Flet 0.85.3
 # `page.client_storage.get/set(...)` ← SBAGLIATO → AttributeError, l'attributo

@@ -1249,6 +1249,55 @@ application/json"`, decodifica UTF-8 e delega a `_do_import_from_text()`
 probabilmente soggetto allo stesso bug ma non confermato con un log
 dedicato).
 
+**`ui/native_image_picker.py`** (2026-08-06) — terzo tentativo per la
+selezione immagine su Android/iOS, dopo `ft.FilePicker` e il fallback
+WebView sopra, entrambi confermati non funzionanti (vedi i due blocchi
+precedenti e `changelog_storico.md`). Wrapper sottile attorno al
+controllo Flet nativo scritto su misura `ImagePicker`
+(`dnd_app/extensions/flet_image_picker/`, non SDK ufficiale Flet).
+`async pick_image_native(page, *, image_quality=None, max_width=None,
+max_height=None) -> Optional[bytes]` — bytes dell'immagine, o `None` se
+l'utente ha annullato. Solleva `ImagePickerUnavailable` (non
+`ImportError`/eccezione generica: distinzione voluta) se il pacchetto
+`flet_image_picker` non è installato in questa build o se l'invocazione
+fallisce per qualunque motivo — i chiamanti devono intercettarla e
+ricadere su `pick_file_via_webview()` (`ui/mobile_webview_picker.py`,
+sopra), non trattarla come "utente ha annullato". Import di
+`flet_image_picker` volutamente ritardato dentro la funzione, stesso
+motivo/stesso bug-pattern già corretto per `flet_webview`: un import
+eager renderebbe il pacchetto un requisito anche per l'avvio desktop.
+Costruzione del controllo verificata contro `flet==0.86.5` installato
+(`ft.control`, `ft.Service`, `BaseControl._invoke_method`, tutti
+confermati esistere con la firma usata); **nessuna invocazione reale né
+compilazione del lato Dart è stata possibile da questo sandbox** — vedi
+`dnd_app/extensions/flet_image_picker/README.md`. Nessuna registrazione
+esplicita del controllo (niente `page.overlay`/`page.services.append`):
+un `Service` Flet 0.86.5 si auto-registra nel proprio `init()`, chiamato
+alla costruzione se `context.page` è già impostata — vedi il commento
+esteso nel modulo e la voce corrispondente in `regole_flet_api.md`. Usato
+da `profilo_tab.py::_pick_photo_mobile()` e `maps_view.py::_pick_mobile()`
+come primo tentativo, con fallback automatico su
+`pick_file_via_webview()` — `home_view.py::_on_mobile_import()` resta
+volutamente solo sul fallback WebView (fuori scope di questo giro, l'uso
+lì non è un'immagine).
+
+**`dnd_app/extensions/flet_image_picker/`** (2026-08-06) — estensione
+Flet completa (Python + Dart) scritta per questo progetto, non un
+pacchetto di terze parti su PyPI. Controllo `ImagePicker` (categoria
+`Service`), un solo metodo `pick_image()`, wrapper del plugin Flutter
+ufficiale `image_picker`. Struttura e pattern di codice copiati dai
+sorgenti reali di `flet-camera`/`flet-audio-recorder` (repository
+ufficiale `flet-dev/flet`), non inventati — dettaglio completo delle
+fonti verificate in `changelog_storico.md`. Consumata dall'app principale
+come dipendenza path-based in `pyproject.toml`/`requirements.txt`. Lato
+Python (`src/flet_image_picker/`) verificato per costruzione/importazione
+in questo sandbox; lato Dart (`src/flutter/flet_image_picker/`) scritto
+seguendo fedelmente i pattern reali ma **mai compilato né eseguito qui**
+(nessun toolchain Flutter/Dart disponibile) — README.md della cartella
+spiega cosa Davide deve verificare/eventualmente rigenerare
+(`flet create --template extension`) prima di fidarsi che la build vada
+a buon fine.
+
 ---
 
 

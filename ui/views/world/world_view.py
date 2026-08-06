@@ -21,6 +21,7 @@ from core.world_backend import LocalBackend
 from data.models import World, WorldEvent, WorldMember
 from data.repositories import world_repo
 from network.host_server import PendingJoinRequest, WorldHostServer, local_ip_hint
+from network.qr_join import build_join_text, generate_qr_png_base64
 from ui import design as d
 from ui.device_identity import resolve_device_id
 from ui.widgets import wrap_dialog_actions
@@ -450,6 +451,9 @@ class WorldsView(ft.Column):
             ),
         ]
 
+        rows.append(ft.Container(height=d.Space.SM))
+        rows.append(self._hosting_qr_image(world, host, ip))
+
         if pending:
             rows.append(ft.Container(height=d.Space.SM))
             rows.append(d.muted(f"{len(pending)} richiesta/e in attesa di approvazione:"))
@@ -471,6 +475,53 @@ class WorldsView(ft.Column):
         ))
 
         return d.section("Ospita in LAN", ft.Column(rows, spacing=d.Space.XS, tight=True))
+
+    def _hosting_qr_image(self, world: World, host: WorldHostServer, ip: str) -> ft.Control:
+        """
+        QR con indirizzo, porta, codice e PIN già incorporati — per non
+        dover leggere/digitare a mano quei 4 dati (richiesta di Davide,
+        2026-08-06). Contenuto e generazione in `network/qr_join.py`; la
+        scansione lato giocatore resta manuale (nessuno scanner in-app,
+        vedi il docstring di quel modulo).
+
+        Errore mostrato IN UI, non solo loggato (2026-08-06, corretto dopo
+        che Davide non riusciva a vedere il QR e il log su stderr non era
+        raggiungibile dall'app impacchettata che stava usando — un log da
+        solo non è "diagnosticabile" se nessuno lo legge, il primo
+        fallback era di fatto silenzioso quanto quello che voleva evitare).
+        Il PIN testuale sopra resta comunque sufficiente da solo per
+        entrare anche quando il QR fallisce.
+        """
+        p = d.T()
+        try:
+            text = build_join_text(world.name, ip, host.port, world.join_code, host.pin)
+            b64 = generate_qr_png_base64(text)
+        except Exception as e:
+            logger.error("Errore nella generazione del QR d'ingresso: %s", e)
+            return ft.Row(
+                [
+                    ft.Icon(ft.Icons.ERROR_OUTLINE, size=16, color=p.danger),
+                    ft.Text(f"QR non generato: {e}", color=p.danger, size=d.Size.BODY_SM,
+                            expand=True),
+                ],
+                spacing=d.Space.XS, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+
+        return ft.Column(
+            [
+                d.muted("Inquadra per compilare i campi d'ingresso"),
+                ft.Container(
+                    content=ft.Image(
+                        src=f"data:image/png;base64,{b64}",
+                        width=180, height=180, fit=ft.BoxFit.CONTAIN,
+                    ),
+                    bgcolor=ft.Colors.WHITE,
+                    padding=d.Space.SM,
+                    border_radius=d.Radius.SM,
+                ),
+            ],
+            spacing=d.Space.XS,
+        )
 
     def _pending_request_row(self, world: World, req: PendingJoinRequest) -> ft.Control:
         p = d.T()

@@ -5504,6 +5504,241 @@
   **Non verificabile da qui**: la resa reale su un vero smartphone stretto e su una finestra desktop
   ridimensionata a mano — solo Davide può confermare che le pillole restino leggibili e mai tagliate.
 
+- **QR d'ingresso per l'hosting LAN — solo generazione (2026-08-06)** — Davide ha chiesto un modo più rapido di
+  entrare in un mondo ospitato in LAN rispetto a leggere indirizzo/porta/codice/PIN dallo schermo del master e
+  digitarli a mano, proponendo un QR da inquadrare. Prima di scrivere codice, analisi dei rischi (regola del
+  progetto: mai una libreria non verificata) — cercato se Flet avesse un controllo camera/QR ufficiale: **non
+  esiste** (nessun pacchetto `flet-qrcode`/`flet-barcode-scanner`, nessun controllo camera in Flet 0.86.5,
+  verificato via ricerca). Questo divide il lavoro in due parti con rischio molto diverso:
+  - **Generazione lato host**: basso rischio. Verificato su PyPI che `qrcode` (8.2, ultima release) è puro
+    Python — nessuna libreria nativa, `Requires: Python <4.0,>=3.9` — e usa da solo Pillow come backend immagine
+    se già installato (lo è: dipendenza del progetto da prima). Aggiunto come dipendenza esplicita in
+    `pyproject.toml` e `requirements.txt` (`qrcode==8.2`).
+  - **Scansione lato giocatore**: rischio alto, stesso genere di incognita della saga FilePicker (nessuna
+    soluzione ufficiale, l'unica strada percorribile sarebbe `flet-webview` + `getUserMedia` + una libreria JS
+    come jsQR, non verificabile senza un ciclo di test su dispositivo reale).
+
+  **Decisione di Davide** (fatta scegliere esplicitamente prima di scrivere codice, con i due rischi separati
+  davanti): procedere SOLO con la generazione lato host per ora. La scansione resta un'azione manuale — il
+  giocatore continua a inserire i 4 dati nel dialogo "Unisciti in LAN" — ma può leggerli/copiarli da un QR
+  invece di trascriverli a mano dallo schermo del master, il che riduce comunque l'attrito e gli errori di
+  trascrizione del PIN.
+
+  **Implementazione**: nuovo modulo `network/qr_join.py` (nessuna dipendenza da Flet, come tutto `network/*.py`)
+  — `build_join_text()` costruisce un testo semplice leggibile (non un URI/deep link, così qualunque fotocamera
+  del telefono lo mostra come testo senza bisogno di un'app dedicata) con mondo/host/porta/codice/PIN;
+  `generate_qr_png_base64()` genera il PNG e lo ritorna in base64, senza fallback silenziosi — solleva
+  l'eccezione originale, la gestisce chi chiama. `ui/views/world/world_view.py::_hosting_qr_image()` lo mostra
+  nella sezione "Ospita in LAN" accanto al PIN testuale già esistente, con `ft.Image(src="data:image/png;
+  base64,...")` — **mai `src_base64`**, non esiste in questa versione di Flet (regola già nota, vedi
+  `regole_flet_api.md`). Un errore di generazione viene loggato e la sezione resta comunque utilizzabile: il
+  PIN testuale non dipende dal QR.
+
+  **Verificato**: `py_compile` su `network/qr_join.py` e `ui/views/world/world_view.py`. Generazione del QR
+  testata end-to-end in un venv pulito (import del modulo, generazione, verifica della firma PNG nei byte
+  risultanti). Import completo di `ui.views.world.world_view` (quindi anche di `flet`, `data.database`,
+  `ui.design`, ecc.) in un venv con le dipendenze reali del progetto installate da `requirements.txt`, senza
+  errori — verifica che i nomi usati (`ft.Colors.WHITE`, `ft.BoxFit.CONTAIN`, `d.Radius.SM`) esistano davvero
+  nella versione installata, non assunti. Rieseguite le 5 batterie di test esistenti più rilevanti
+  (`test_lan_host_client.py` 92/92, `test_mondo_senza_rete.py` 139/139, `test_master_world_scoping.py` 25/25,
+  `test_istanze_personaggio.py` 62/62, `test_regressione_wrap_expand.py` 35/35 — quest'ultima con un numero
+  diverso da quello riportato più sopra perché a quella data non includeva ancora l'estensione a 63 poi
+  descritta altrove nel changelog, valore confermato dall'esecuzione reale in questa sessione): nessuna
+  regressione.
+
+  **Non verificabile da qui**: la resa reale del QR su un vero smartphone (leggibilità, contrasto in tema
+  scuro — l'immagine ha comunque uno sfondo bianco proprio, indipendente dal tema dell'app) e se un lettore QR
+  generico di un vero telefono lo interpreta come previsto — solo Davide può confermarlo. La scansione in-app
+  resta esplicitamente fuori scope, da riprendere solo su richiesta esplicita.
+
+  **Bug reale trovato subito da Davide, stessa sessione**: hosting avviato correttamente (PIN visibile,
+  screenshot confermato: "In ascolto su 192.168.1.202:8765", PIN "300776", sezione "Ospita in LAN"
+  pienamente funzionante), ma **nessun QR visibile** — non un riquadro vuoto, proprio nessuno spazio
+  riservato, segno che `_hosting_qr_image()` stava ritornando `None` (il ramo d'errore silenzioso).
+  Causa del difetto di **design**, non ancora della causa a monte: `generate_qr_png_base64()` solleva
+  un'eccezione quando fallisce, ma `_hosting_qr_image()` la catturava con `logger.error(...)` e basta —
+  e `main.py` configura `logging.basicConfig()` **senza alcun `FileHandler`**, quindi quel log va solo su
+  stderr. Per un'app lanciata senza un terminale visibile aperto (il caso di Davide, a giudicare dallo
+  screenshot: una finestra `python main.py` già in esecuzione, non una shell), quel log è **irraggiungibile
+  quanto nessun log affatto** — il primo fallback era silenzioso esattamente quanto quello che il progetto
+  vieta esplicitamente, solo spostato da "nessun log" a "un log che nessuno può leggere".
+
+  **Fix**: `_hosting_qr_image()` non ritorna più `None` — ritorna sempre un `ft.Control`: il QR se la
+  generazione riesce, altrimenti una riga rossa con l'icona di errore e il messaggio dell'eccezione
+  (`f"QR non generato: {e}"`), visibile direttamente nella sezione "Ospita in LAN" senza bisogno di un
+  terminale. Il PIN testuale sopra resta comunque sufficiente da solo per entrare anche quando il QR
+  fallisce. `_hosting_section()` semplificato di conseguenza (il controllo `is not None` sul valore di
+  ritorno era diventato morto). **Causa a monte non ancora confermata**: l'ipotesi più probabile è che
+  l'ambiente Python di Davide non avesse ancora ricevuto `pip install -r requirements.txt` dopo l'aggiunta
+  di `qrcode==8.2` — ma è un'ipotesi, non un fatto verificato: con il fix sopra, il prossimo tentativo di
+  Davide mostrerà il messaggio d'errore esatto direttamente in UI, invece di dover indovinare una seconda
+  volta alla cieca (lezione diretta dalla saga FilePicker, citata anche altrove in questo changelog: mai
+  ipotizzare due volte senza prova reale). Verificato `py_compile` + import completo di
+  `ui.views.world.world_view` in un venv con le dipendenze reali, nessuna regressione. **Non verificabile
+  da qui**: il messaggio d'errore esatto che comparirà sullo schermo di Davide.
+
+  **Causa a monte confermata dal messaggio d'errore reale** (`QR non generato: No module named 'PIL'`,
+  screenshot di Davide): NON un bug nel codice del progetto — `qrcode==8.2` ha zero dipendenze
+  obbligatorie proprie (verificato: `pip show qrcode` → `Requires:` vuoto), sia `Pillow` sia `pypng` sono
+  extra opzionali, e la scelta automatica del backend immagine (`qrcode/main.py::make_image()`, riga 364:
+  `from qrcode.image.pil import Image, PilImage`) fa un `import` non protetto da try/except — se Pillow
+  non è importabile, l'eccezione risale fino al chiamante invece di ripiegare su `pypng` come la pagina
+  PyPI del progetto lascia intendere (comportamento verificato leggendo il sorgente installato, non
+  assunto dalla sola documentazione). Pillow è però già una dipendenza OBBLIGATORIA di questo progetto da
+  prima di questa sessione (`Pillow>=10.0.0`, usata direttamente da `ui/image_library.py`,
+  `ui/views/maps_view.py`, `ui/views/character_sheet/profilo_tab.py` per le foto profilo e le immagini
+  delle mappe) — se manca davvero nell'ambiente da cui Davide lancia l'app, è un problema di installazione
+  delle dipendenze più ampio del solo QR, non qualcosa da aggirare nel codice di `qr_join.py`. Deciso di
+  NON rendere `qr_join.py` indipendente da Pillow (es. forzando `PyPNGImage`): mascherebbe il sintomo qui
+  ma lascerebbe le foto profilo/mappe silenziosamente rotte per lo stesso motivo altrove.
+
+  **Confermato risolto da Davide** dopo `pip install -r requirements.txt` nel venv corretto
+  (`.venv/bin/pip`, verificato con `import PIL` → Pillow 12.3.0 presente). Un problema SEPARATO emerso
+  subito dopo, stessa sessione: il primo riavvio dell'app restava bloccato a tempo indeterminato su una
+  schermata "Working..." col titolo generico "Flet" (mai "D&D Companion") — non un errore nel codice del
+  progetto: il log dedicato (`~/Documents/dnd_debug.log`, già esistente in `main.py` per la diagnostica su
+  iOS) mostrava 4 avvii consecutivi arrivati puliti fino a `[8] calling ft.run()` senza mai un `FAILED`,
+  ma `run_app()`/`DnDApp.__init__()` non avevano alcuna istrumentazione propria — aggiunti temporaneamente
+  dei checkpoint nello stesso file per isolare se il blocco fosse lì o più a valle, PRIMA di proporre un
+  secondo fix alla cieca (stessa disciplina della saga FilePicker). Non serviti: al riavvio successivo
+  Davide ha riportato che l'app "ha fatto un'installazione" ed è ripartita normalmente — ipotesi più
+  probabile, mai verificata nel dettaglio perché il problema si è risolto da solo: Flet scarica/prepara il
+  proprio runtime desktop al primo avvio dopo un cambio di dipendenze rilevante, e quella schermata era
+  quell'attesa, non un blocco. Checkpoint di debug rimossi da `ui/app.py` subito dopo la conferma, per non
+  lasciare diagnostica temporanea nel codice permanente (erano esplicitamente documentati come "da
+  rimuovere una volta isolata la causa reale").
+
+  **QR verificato funzionante end-to-end da Davide** (hosting attivo, PIN e QR entrambi generati e
+  visibili). Chiuso.
+
+- **2026-08-06 — Secondo vicolo cieco confermato: anche il picker WebView non funziona su Android, causa
+  diversa dal FilePicker ma altrettanto definitiva.** Davide ha testato il fix precedente (bypass di
+  `ft.FilePicker` con `ft.WebView` + `<input type=file>`, vedi le voci precedenti) su un vero Android:
+  il dialog SI APRE correttamente (confermato anche dal log — il processo sandboxed di Chromium
+  `com.google.android.webview:sandboxed_process0` parte regolarmente, la pagina HTML viene renderizzata),
+  ma **toccare il pulsante "Scegli file" non fa assolutamente nulla** — nessun selettore di sistema si
+  apre, nessun errore visibile.
+
+  **Causa, confermata con ricerca mirata (non un'altra ipotesi)**: `flet-webview` è basato sui pacchetti
+  Flutter ufficiali `webview_flutter`/`webview_flutter_web` (dichiarato esplicitamente sulla pagina PyPI
+  del pacchetto). È un limite NOTO e ben documentato di `webview_flutter` su Android: `<input
+  type="file">` non fa scattare alcun selettore di sistema a meno che l'app ospite non implementi
+  esplicitamente il callback nativo `WebChromeClient.onShowFileChooser` (lato Kotlin/Java) — un supporto
+  che è stato aggiunto solo di recente e solo in modo opzionale/manuale a `webview_flutter_android`
+  (`AndroidWebViewController.setOnShowFileSelector()`, richiede codice Dart/Kotlin dedicato, non
+  automatico). Verificato per introspezione diretta sul pacchetto `flet_webview==0.86.5` installato:
+  **`ft.WebView` non espone alcun parametro, evento o metodo relativo alla selezione file** (`on_show_
+  file_chooser`, `on_file_chooser` o simili — nessuno dei due esiste; l'elenco completo dei parametri del
+  costruttore non contiene nulla del genere). `flet_webview` non ha mai wired questo pezzo: usare `<input
+  type=file>` dentro `ft.WebView` su Android non può funzionare con l'API Python attuale, punto — non è
+  un problema risolvibile lato nostro codice Python, esattamente come il vicolo cieco precedente di
+  `ft.FilePicker`, ma con una causa tecnica completamente diversa e più a monte (un pezzo di
+  integrazione mai scritto in `flet_webview`, non un bug).
+
+  **Onestà sul design precedente**: la scelta di `ft.WebView` era stata motivata (nella sessione
+  precedente) con "il file-chooser di un browser è un meccanismo maturo, usato da milioni di app" — un
+  ragionamento corretto per un VERO browser o una WebView con l'integrazione nativa completa, ma che
+  avrebbe dovuto essere verificato ANCHE per l'implementazione specifica di Flet/webview_flutter su
+  Android prima di scrivere il codice, non solo dopo — la stessa disciplina già applicata con successo
+  altrove in questo progetto (verificare per introspezione prima di usare un'API, mai assumere). Lezione
+  per il futuro: "il meccanismo esiste ed è maturo nel browser" non implica "il wrapper che lo espone in
+  questo framework lo abilita per davvero" — vanno verificate entrambe le cose separatamente.
+
+  **Stato**: nessun terzo tentativo scritto alla cieca in questa sessione. Le opzioni restanti valutate
+  (dettaglio completo nella cronologia della chat, non ripetuto qui perché nessuna è ancora stata scelta):
+  (a) riattivare per Android il fallback "incolla il percorso file" già esistente e funzionante
+  (`_show_path_input_dialog()` in `profilo_tab.py`/`maps_view.py`, oggi usato solo su Linux senza
+  zenity/kdialog) — zero rischio, disponibile subito, ma richiede che l'utente sappia recuperare un
+  percorso file su Android (attrito reale); (b) un'estensione Flet nativa scritta ad hoc (Dart/Kotlin)
+  attorno al plugin Flutter `image_picker` (pacchetto diverso da `file_picker`, con una storia di
+  affidabilità molto migliore) — la soluzione "vera" ma un lavoro di sviluppo Flutter/Android reale, non
+  verificabile da questo sandbox (nessun SDK/NDK Android, nessun dispositivo); (c) Pyjnius per lanciare
+  un Intent nativo direttamente — nessuna estensione da compilare, ma non ancora verificato se il
+  runtime Android imbarcato da Flet (`serious_python`) espone un modo per ricevere il risultato
+  dell'Intent (`onActivityResult`) in Python puro, senza codice Kotlin di supporto — rischio concreto di
+  un terzo vicolo cieco se scelta senza prima verificarlo. Decisione rimandata a Davide.
+
+**Stato al 2026-08-06 (stessa giornata) — Davide ha scelto l'opzione (b)**:
+estensione Flet nativa scritta su misura, `dnd_app/extensions/
+flet_image_picker/`, che avvolge il plugin Flutter ufficiale `image_picker`
+(pub.dev, publisher verificato flutter.dev, versione `^1.2.3` — verificata
+su pub.dev il 2026-08-06, non assunta). Prima di scrivere una riga di
+codice, letti i sorgenti REALI di due estensioni ufficiali già in
+produzione nel repository `flet-dev/flet` (non inventato, seguendo la
+stessa disciplina fallita con la WebView): `flet-camera` (per il pattern
+"metodo async che ritorna bytes tramite `_invoke_method`" —
+`take_picture()` -> `file.readAsBytes()`, la prova diretta che NON serve
+il meccanismo `DataChannel` per payload da alcuni MB) e
+`flet-audio-recorder` (per il pattern "Service" completo, Python e Dart:
+`@ft.control("Nome")` + `class X(ft.Service)`, `control.
+addInvokeMethodListener`/`removeInvokeMethodListener` lato Dart,
+`FletExtension.createService`). Struttura di cartelle
+(`src/<pkg>/` Python + `src/flutter/<pkg>/` Dart) e pattern di codice
+copiati 1:1 da questi sorgenti, non inventati.
+
+Lato Python (`src/flet_image_picker/image_picker.py`, classe `ImagePicker`,
+metodo `pick_image()`) **verificato per costruzione/importazione** contro
+`flet==0.86.5` installato in sandbox — inclusi `ft.control`, `ft.Service`
+e `BaseControl._invoke_method`, confermati esistere con la stessa identica
+firma usata dai sorgenti ufficiali. Scoperta importante durante questa
+verifica: in Flet 0.86.5 **non esiste più `page.overlay`** e `Page.
+_services` è un `ServiceRegistry` interno — un `Service` NON va registrato
+esplicitamente da nessuna parte (niente `page.overlay.append(...)`/`page.
+services.append(...)`). Si AUTO-registra dentro il proprio `init()`
+(chiamato automaticamente da `BaseControl.__post_init__` al momento della
+costruzione, se `context.page` — una contextvar, non un parametro — è già
+impostata), confermato leggendo il sorgente installato di `flet/controls/
+services/service.py`/`base_control.py` E dall'esempio ufficiale eseguibile
+("Try Online") su https://flet.dev/docs/services/audiorecorder, che
+costruisce `recorder = far.AudioRecorder(...)` senza mai aggiungerlo a
+nessuna lista esplicita. `ui/native_image_picker.py` (nuovo wrapper Python
+lato app) riflette esattamente questo: basta `ImagePicker()` seguito da
+`await picker.pick_image(...)`.
+
+Wiring: `profilo_tab.py::_pick_photo_mobile()` e `maps_view.py::
+_pick_mobile()` tentano ORA prima `pick_image_native()` (nuovo percorso);
+se solleva `ImagePickerUnavailable` (pacchetto non installato in questa
+build, o qualunque errore all'invocazione — inclusa una build Android
+dove l'estensione non sia stata ancora compilata dentro l'APK), ricadono
+automaticamente sul fallback WebView già esistente
+(`pick_file_via_webview()`), NON rimosso — resta la rete di sicurezza.
+Nessun nuovo permesso Android/iOS necessario: il permesso cross-platform
+`photo_library` già dichiarato in `pyproject.toml` (2026-08-05) copre sia
+`NSPhotoLibraryUsageDescription` su iOS sia, secondo la documentazione
+ufficiale del plugin, il caso Android (che su Android 13+ usa il Photo
+Picker di sistema, "no configuration required"). Scope v1 dichiarato:
+SOLO selezione da galleria, niente cattura fotocamera (avrebbe richiesto
+dichiarare anche il permesso `camera`, non necessario per gli usi attuali:
+foto profilo, immagine mappa).
+
+`pyproject.toml`/`requirements.txt` aggiornati con la nuova dipendenza
+path-based verso `dnd_app/extensions/flet_image_picker/` (non su PyPI:
+codice scritto per questo progetto). 63/63 + 139/139 + 92/92 + 25/25
+controlli verdi sulle 4 batterie di regressione esistenti dopo il wiring
+(l'unico fallimento osservato, in `test_istanze_personaggio.py` punto 8,
+è un artefatto dell'ambiente sandbox — il sottoprocesso che rilancia
+`test_mondo_senza_rete.py` risolve un interprete Python di sistema senza
+`flet` installato invece di quello con i pacchetti del progetto — non
+correlato a questa modifica: lo stesso test, eseguito direttamente invece
+che come sottoprocesso, passa 139/139).
+
+**⚠️ Onestà su cosa NON è verificato**: questo sandbox non ha Flutter/Dart
+installati (`which flutter dart` non trova nulla) — **nessuna riga di
+codice Dart in `dnd_app/extensions/flet_image_picker/src/flutter/` è mai
+stata compilata o eseguita**. Anche la sezione `[tool.setuptools.
+package-data]` del `pyproject.toml` dell'estensione (che replica quella
+reale di `flet-audio-recorder`) non è stata verificata con una build vera:
+se `pip install` non imbarca `src/flutter/flet_image_picker/**` nel
+pacchetto, va rigenerato lo scaffold con `flet create --template
+extension --project-name flet_image_picker` su una macchina con Flutter/
+Flet CLI e travasati questi file scritti a mano. Dettaglio completo,
+incluso l'elenco esplicito di cosa manca prima che Davide possa provare
+questa strada su un dispositivo reale, in `dnd_app/extensions/
+flet_image_picker/README.md`. Prossimo passo: Davide costruisce l'APK
+(`flet build apk`) e testa `pick_image()` end-to-end sui tre punti
+(`profilo_tab.py`, `maps_view.py`; l'import personaggio in `home_view.py`
+resta volutamente sul fallback WebView, fuori scope di questo giro).
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

@@ -12,3 +12,16 @@ Pillow>=10.0.0
 # mobile_webview_picker.py): stessa versione di `flet` per restare in
 # lockstep con le release core, come da convenzione di questo file.
 flet-webview==0.86.5
+
+# Aggiunto il 2026-08-06: QR d'ingresso per l'hosting LAN — puro Python,
+# usa Pillow (già sopra) per generare il PNG. Vedi il commento gemello in
+# pyproject.toml e network/qr_join.py.
+qrcode==8.2
+
+# Aggiunto il 2026-08-06: terzo tentativo per la selezione immagine su
+# Android, dopo il fallimento CONFERMATO sia di ft.FilePicker sia del
+# fallback WebView (flet-webview, sopra) — vedi il commento gemello e più
+# esteso in pyproject.toml. Estensione Flet scritta su misura per questo
+# progetto (non su PyPI), path-based. ⚠️ NON compilata/testata da questo
+# sandbox — vedi dnd_app/extensions/flet_image_picker/README.md.
+-e ./extensions/flet_image_picker
