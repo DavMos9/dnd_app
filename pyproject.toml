@@ -55,6 +55,38 @@ dependencies = [
     # o fallisce. ⚠️ NON compilata/testata da questo sandbox — nessun
     # toolchain Flutter/Dart disponibile, vedi il README della cartella.
     "flet-image-picker",
+    # Aggiunte il 2026-08-06 (sessione successiva): scanner QR in-app per
+    # l'ingresso in un mondo LAN ("inquadri e sei dentro", richiesta di
+    # Davide) — vedi ui/views/world/qr_scanner_view.py per l'analisi
+    # completa. A differenza di flet-image-picker, qui NON serve
+    # un'estensione scritta per questo progetto: sono due pacchetti
+    # UFFICIALI del team Flet, stessa versione di `flet` per restare in
+    # lockstep con le release core.
+    #   - flet-camera: anteprima live + streaming fotogrammi, powered by
+    #     il pacchetto Flutter ufficiale `camera`. Copertura iOS+Android
+    #     (no desktop) — verificato su pypi.org/flet.dev/docs/controls/camera
+    #     prima di aggiungerla. Il pulsante che apre lo scanner in
+    #     world_view.py è mostrato solo su Android/iOS (qr_scanner_supported()).
+    #   - flet-permission-handler: richiesta del permesso fotocamera a
+    #     runtime, raccomandata esplicitamente dalla documentazione
+    #     ufficiale di flet-camera prima di inizializzare il controllo.
+    "flet-camera==0.86.5",
+    "flet-permission-handler==0.86.5",
+    # pyzbar: decodifica dei fotogrammi JPEG in cerca di un QR. Scelta
+    # (invece di scrivere un'estensione nativa attorno a mobile_scanner)
+    # perché elencata tra i pacchetti binari GIÀ pre-compilati per
+    # Android/iOS sull'indice pypi.flet.dev del team Flet (dipendenza
+    # nativa flet-libzbar) — verificato su
+    # https://flet.dev/docs/reference/binary-packages-android-ios prima di
+    # sceglierla: nessuna incognita di packaging nativo come lo era stata
+    # flet_image_picker (due giri di build CI falliti prima di funzionare).
+    # ⚠️ Su desktop (dove flet-camera comunque non è supportata, quindi
+    # questo percorso di codice non viene mai eseguito) pyzbar richiede
+    # la libreria di sistema libzbar, non verificabile da questo sandbox
+    # (nessun accesso root per installarla) — irrilevante in pratica
+    # perché lo scanner è raggiungibile solo su Android/iOS, dove
+    # flet-libzbar è fornito automaticamente da `flet build`.
+    "pyzbar==0.1.9",
 ]
 
 # Dipendenze "dev/path" — pacchetti locali non pubblicati su PyPI, risolti
@@ -104,7 +136,18 @@ app.icon = "assets/icons/dnd_logo.png"
 # "Photo and Video Permissions" che rifiuta permessi media ampi senza un
 # caso d'uso che li giustifichi. Copre gratis anche iOS
 # (NSPhotoLibraryUsageDescription) per quando servirà.
-permissions = ["photo_library"]
+#
+# "camera" aggiunto il 2026-08-06 (sessione successiva) per lo scanner QR
+# in-app (ui/views/world/qr_scanner_view.py) — espande, secondo la stessa
+# documentazione ufficiale (https://flet.dev/docs/publish/#predefined-
+# cross-platform-permission-bundles), in `android.permission.CAMERA` +
+# `NSCameraUsageDescription` (iOS/macOS) + i flag `android.hardware.camera*`
+# marcati "non obbligatori" (così l'app resta installabile anche su un
+# dispositivo senza fotocamera, che semplicemente non vedrà mai il pulsante
+# "Scansiona QR" — vedi `qr_scanner_supported()`). Nessun permesso
+# microfono: lo scanner inizializza la fotocamera con `enable_audio=False`,
+# non registra mai video.
+permissions = ["photo_library", "camera"]
 
 [tool.flet.android.permission]
 # Multiplayer / LAN party (dnd_app/docs/multiplayer_design.md §3.4/§14.5):

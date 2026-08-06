@@ -23,6 +23,7 @@ from data.models import Character, World, WorldEvent, WorldMember
 from data.repositories import character_repo, world_repo
 from network.host_server import PendingJoinRequest, WorldHostServer, local_ip_hint
 from network.qr_join import build_join_text, generate_qr_png_base64
+from ui.views.world.qr_scanner_view import QrScannerView, qr_scanner_supported
 from ui import design as d
 from ui.device_identity import resolve_device_id
 from ui.widgets import wrap_dialog_actions
@@ -1061,6 +1062,44 @@ class WorldsView(ft.Column):
 
         retry_btn.on_click = _retry
 
+        def _on_qr_scanned(parsed: dict):
+            # Il QR non porta il nome del giocatore (§7 di build_join_text:
+            # solo i 4 dati tecnici) — display_field resta quello che
+            # l'utente ha già scritto, se l'ha scritto. Compila e tenta
+            # subito l'ingresso: "inquadri e sei dentro" (richiesta di
+            # Davide, 2026-08-06), non solo "inquadri e poi premi Entra".
+            self.page.pop_dialog()  # chiude lo scanner, il dialogo LAN resta sotto
+            host_field.value = parsed["host"]
+            port_field.value = str(parsed["port"])
+            code_field.value = parsed["join_code"]
+            pin_field.value = parsed["pin"]
+            try:
+                self.page.update()
+            except RuntimeError:
+                pass
+            _attempt(None)
+
+        def _on_qr_cancel():
+            self.page.pop_dialog()  # chiude solo lo scanner, il dialogo LAN resta sotto
+
+        def _open_qr_scan(e):
+            scan_dlg = ft.AlertDialog(
+                modal=True,
+                title=d.dialog_title("Scansiona QR", ft.Icons.QR_CODE_SCANNER, tone="magic"),
+                content=ft.Container(
+                    content=QrScannerView(on_scanned=_on_qr_scanned, on_cancel=_on_qr_cancel),
+                    width=340,
+                ),
+            )
+            self.page.show_dialog(scan_dlg)
+
+        qr_row: list[ft.Control] = []
+        if qr_scanner_supported(self.page):
+            qr_row.append(
+                d.pill(ft.Icons.QR_CODE_SCANNER, "Scansiona QR", filled=True, color=p.magic,
+                       on_click=_open_qr_scan),
+            )
+
         dlg = ft.AlertDialog(
             modal=True,
             title=d.dialog_title("Unisciti in LAN", ft.Icons.WIFI),
@@ -1068,8 +1107,10 @@ class WorldsView(ft.Column):
                 [
                     d.muted(
                         "Chiedi al master l'indirizzo IP, la porta (di norma 8765), il "
-                        "codice a 6 caratteri del mondo e il PIN mostrato sul suo schermo.",
+                        "codice a 6 caratteri del mondo e il PIN mostrato sul suo schermo — "
+                        "oppure inquadra il suo QR d'ingresso.",
                     ),
+                    *qr_row,
                     d.pill(ft.Icons.WIFI_FIND, "Cerca reti nelle vicinanze", color=p.magic,
                            on_click=_search_nearby),
                     discovery_status,

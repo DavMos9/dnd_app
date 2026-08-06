@@ -6399,6 +6399,150 @@ rotazione EXIF (voce precedente) nella stessa sessione di verifica.
 
 ---
 
+## 2026-08-06 (sessione successiva) — Scanner QR live per l'ingresso in LAN
+
+Davide ha confermato che passi 5/6 e il fix EXIF funzionano ("sembra
+funzionare tutto, anche l'immagine non è più ruotata"), poi ha chiesto:
+"adesso manca la possibilità di scansionare il qrcode per entrare nel
+mondo... inquadri il QR code e sei dentro" — un vero mirino live con
+riconoscimento automatico, non lo scatto singolo che era stato lasciato
+come possibile ripiego a fine passo 5.
+
+**Analisi delle alternative, prima di scrivere codice.** La saga
+`FilePicker → WebView → flet_image_picker` (voce precedente, 2026-08-06
+prima sessione) aveva già insegnato che (1) `ft.FilePicker` nativo non
+risponde su Android (bug di canale Dart, non risolvibile lato nostro), e
+(2) un tentativo WebView si era arenato perché `flet_webview` non
+implementa il collegamento nativo (`onShowFileChooser`) che Flutter
+richiede per una singola azione di sistema. La stessa incognita si
+applicava a un ipotetico scanner QR via WebView+`getUserMedia`+libreria JS
+(stesso genere di collegamento nativo mancante, mai scritto in
+`flet_webview`). Presentate a Davide due strade reali via
+`AskUserQuestion`: (A) scatto singolo riusando `flet_image_picker`
+(fotocamera già funzionante) + decodifica Python lato server, rischio
+basso; (B) mirino live fedele alla richiesta, nuova estensione nativa
+(es. attorno a `mobile_scanner`), rischio alto (un altro giro della saga
+già vista, stavolta per un widget con anteprima live invece di un servizio
+headless). **Davide ha scelto (B).**
+
+**Scoperta che ha cambiato la stima di rischio.** Prima di iniziare a
+scrivere Dart, verificato su `flet.dev/docs` (mai assunto per conoscenza
+pregressa, la versione Flet di questo progetto — 0.86.5 — è recente
+abbastanza da avere funzionalità non presenti quando la nota "nessun
+controllo camera/QR ufficiale in Flet" era stata scritta la prima volta):
+esiste un pacchetto **ufficiale** del team Flet, `flet-camera` (0.86.5,
+powered dal pacchetto Flutter ufficiale `camera`), con anteprima live
+E streaming dei fotogrammi (`start_image_stream()`/`on_stream_image`) —
+copertura iOS+Android+Web, non desktop. Verificato anche che `pyzbar` (la
+libreria di decodifica QR più diffusa in Python) è elencata tra i
+pacchetti binari **già pre-compilati per Android/iOS** sull'indice
+`pypi.flet.dev` del team Flet (dipendenza nativa `flet-libzbar`) — la
+stessa categoria di garanzia che PRIMA non esisteva per `flet_image_picker`
+(estensione scritta da zero per questo progetto, due giri di build CI
+falliti prima di funzionare). Risultato pratico: **nessun codice Dart/
+Flutter nuovo da scrivere né compilare** — l'intera "opzione B" si riduce a
+due pacchetti Python ufficiali + un terzo (`flet-permission-handler`,
+anch'esso ufficiale) per il permesso fotocamera a runtime, con un rischio
+di packaging molto più basso di quanto stimato inizialmente nella domanda
+posta a Davide. Riportato a Davide questo cambio di stima prima di
+procedere.
+
+**Implementazione.**
+
+`network/qr_join.py` — aggiunta `parse_join_text()`, l'operazione inversa
+di `build_join_text()` (già in produzione, generazione lato host):
+riconosce il formato testuale del QR (prima riga come "magic" —
+`_JOIN_TEXT_MAGIC`, stesso principio difensivo di
+`network.protocol.DISCOVERY_MAGIC` per gli annunci broadcast — un QR
+inquadrato per sbaglio che non è dei nostri viene scartato subito, non
+genera un errore rumoroso), estrae host/porta/codice/PIN con un parser
+tollerante agli spazi bianchi finali ma fail-closed su tutto il resto (mai
+un dizionario parzialmente valorizzato). Generazione e parsing nello
+stesso modulo apposta — un solo posto dove il formato può cambiare.
+
+`ui/views/world/qr_scanner_view.py` (nuovo) — `QrScannerView`: import
+protetti (`try/except ImportError`) di `flet_camera`/
+`flet_permission_handler`, mai un crash all'avvio se mancano in un
+ambiente che non li ha installati. Ciclo: `did_mount()` → richiede il
+permesso fotocamera (`PermissionHandler.request(Permission.CAMERA)`,
+raccomandato esplicitamente dalla documentazione ufficiale di
+`flet-camera` prima di inizializzare il controllo) → enumera le
+fotocamere, sceglie la posteriore (`CameraLensDirection.BACK`) → inizializza
+con `image_format_group=ImageFormatGroup.JPEG` (stesso parametro
+dell'esempio ufficiale) → `start_image_stream()`. Ogni fotogramma
+(`on_stream_image`) viene decodificato con `pyzbar` (solo se non è già in
+corso una decodifica sul fotogramma precedente — un flag `_decoding`
+scarta i fotogrammi in eccesso invece di accumulare lavoro); al primo QR
+riconosciuto da `parse_join_text()`, ferma lo stream e richiama
+`on_scanned(parsed)` — il chiamante decide cosa farne, questa view non sa
+nulla del resto del dialogo. `will_unmount()` ferma sempre lo stream
+(`page.run_task`, "fire and forget": non c'è più una page ad attendere una
+risposta a quel punto del ciclo di vita) — la fotocamera non deve mai
+restare occupata dopo la chiusura della view. `qr_scanner_supported(page)`
+— gate di visibilità: solo Android/iOS (`flet-camera` non copre desktop)
+E solo se i pacchetti sono davvero importabili.
+
+`ui/views/world/world_view.py::_open_lan_join_dialog` — nuovo pulsante
+«Scansiona QR» (mostrato solo se `qr_scanner_supported()`), apre
+`QrScannerView` in un dialogo impilato sopra quello «Unisciti in LAN»
+(`page.show_dialog`/`pop_dialog` sono nativi di Flet 0.86.5 — verificato
+leggendo `flet/controls/base_page.py` prima di assumerne il
+comportamento — e supportano più dialoghi impilati, `pop_dialog()` chiude
+sempre il più recente ancora aperto). Alla scansione riuscita: chiude lo
+scanner, compila i 4 campi (indirizzo/porta/codice/PIN — non il nome del
+giocatore, che il QR non porta) e chiama SUBITO `_attempt()`, la stessa
+funzione già usata dal pulsante «Entra» — "inquadri e sei dentro", non
+"inquadri e poi premi Entra" (richiesta esplicita di Davide).
+
+`pyproject.toml` — aggiunte `flet-camera==0.86.5`,
+`flet-permission-handler==0.86.5`, `pyzbar==0.1.9` (`[project.dependencies]`,
+NON `[tool.flet.dev_packages]`: sono pacchetti pubblicati normalmente, non
+codice locale come `flet-image-picker`). Aggiunto `"camera"` al bundle
+cross-platform `permissions` (già usato per `"photo_library"`) — verificato
+su `flet.dev/docs/publish/#predefined-cross-platform-permission-bundles`
+cosa espande esattamente (`android.permission.CAMERA` +
+`NSCameraUsageDescription` iOS/macOS + flag hardware "non obbligatori",
+così l'app resta installabile anche su un dispositivo senza fotocamera).
+Nessun permesso microfono: la fotocamera si inizializza con
+`enable_audio=False`, non registra mai video.
+
+**Test.** Nuovo `test_qr_scan.py` (27/27): round trip
+`build_join_text()`↔`parse_join_text()`, tolleranza agli spazi bianchi,
+rifiuto di un QR non nostro/incompleto/con porta non valida (fail-closed),
+`qr_scanner_supported()` per ogni piattaforma E per pacchetti mancanti
+(simulati azzerando temporaneamente i riferimenti al modulo), costruzione
+di `QrScannerView` senza eccezioni, `_try_decode()` che non solleva mai
+indipendentemente dalla disponibilità di `libzbar` in questo ambiente
+(verificato con un controllo esplicito, `_pyzbar_functional()` — stesso
+principio di `_broadcast_available()` in `test_scoperta_lan.py`, mai
+un'assunzione silenziosa). Rieseguita l'intera batteria del progetto dopo
+questa modifica: 939 controlli su 10 file, stessi 2 fallimenti
+pre-esistenti e non correlati di sempre (Artefatti DMG in `test_fase_4.py`,
+subprocess `flet` mancante in `test_istanze_personaggio.py`), zero
+regressioni introdotte.
+
+Corretta anche una dimenticanza trovata per caso mentre si verificava
+`page.show_dialog`/`pop_dialog`: la tabella "Stack Tecnico" e la sezione
+"Convenzioni di Codice" di `CLAUDE.md` dichiaravano ancora "Flet 0.85.3"
+come versione corrente, sei giorni dopo l'aggiornamento reale a 0.86.5
+(2026-08-05) — corretto in entrambi i punti. Aggiunta anche
+`network/discovery.py` (passo 5, voce precedente) alla mappa "Struttura
+File" di `CLAUDE.md`, che non l'aveva mai elencata.
+
+**Non verificabile da questo sandbox** (oltre al solito limite "nessuna
+Wi-Fi reale con due dispositivi", §15 del design doc): nessuna fotocamera
+reale, nessun toolchain di build Android/iOS, e su questo Linux senza
+permessi di root `pyzbar` da PyPI "puro" non trova la libreria di sistema
+`libzbar` (irrilevante in pratica: lo scanner è raggiungibile solo su
+Android/iOS, dove `flet build` fornisce automaticamente `flet-libzbar`
+dall'indice ufficiale — un problema di packaging diverso, già risolto a
+monte dal team Flet, non quello che questo sandbox non può verificare).
+Il ciclo vero fotocamera→pyzbar→ingresso automatico resta da provare da
+Davide su un dispositivo Android/iOS reale, nella stessa build dei passi
+5/6.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
