@@ -59,6 +59,34 @@ def check(label: str, cond: bool) -> None:
         print(f"  FALLITO: {label}")
 
 
+def _texts(control: Any) -> list[str]:
+    """Raccoglie ricorsivamente tutti i valori `ft.Text` sotto un controllo —
+    usata per verificare CHE COSA verrebbe mostrato senza dover attaccare la
+    view a una vera `ft.Page` (§ vedi `test_worlds_view`/
+    `test_worlds_view_remote_actions`: `page` è una property di sola lettura
+    in questa versione di Flet finché il controllo non è davvero montato,
+    quindi qui si verifica solo la COSTRUZIONE dell'albero controlli, mai
+    l'apertura di un dialogo)."""
+    out: list[str] = []
+
+    def _walk(c: Any, depth: int = 0) -> None:
+        if c is None or depth > 40:
+            return
+        if isinstance(c, ft.Text) and isinstance(c.value, str):
+            out.append(c.value)
+        for attr in ("controls", "actions"):
+            kids = getattr(c, attr, None)
+            if isinstance(kids, (list, tuple)):
+                for k in kids:
+                    _walk(k, depth + 1)
+        content = getattr(c, "content", None)
+        if content is not None and not isinstance(content, str):
+            _walk(content, depth + 1)
+
+    _walk(control)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # 1 — Schema
 # ---------------------------------------------------------------------------
@@ -342,9 +370,14 @@ def test_backend() -> None:
     check("mondo eliminato", world_repo.get_world(world_id) is None)
     check("nessun evento residuo", world_repo.get_events_since(world_id, 0) == [])
 
-    # Registro non-handler: comando noto ai permessi ma senza handler in questo passo
+    # Registro non-handler: comando noto ai permessi ma senza handler in questo passo.
+    # CMD_XP_GRANT era l'esempio originale (nessun handler esisteva prima del
+    # passo 6) — dal 2026-08-06 ha un handler vero (core/world_backend.py),
+    # quindi la sonda usa CMD_LOOT_ASSIGN, deliberatamente ancora senza
+    # handler (il Bottino resta locale finché non arriva il suo passo — vedi
+    # "Piano di lavoro attivo" in CLAUDE.md e i commenti in world_backend.py).
     w4 = world_repo.create_world("Mondo Senza Handler", "owner-2", "Owner2")
-    res = backend.send_command(w4.id, "owner-2", perm.CMD_XP_GRANT, {})
+    res = backend.send_command(w4.id, "owner-2", perm.CMD_LOOT_ASSIGN, {})
     check("comando master+owner senza handler ancora registrato fallisce con errore chiaro",
           not res.success and "sconosciuto" in res.error.lower())
 
@@ -498,26 +531,6 @@ def test_worlds_view() -> None:
     home_with = HomeView(on_select=lambda i: None, on_create_wizard=lambda: None,
                          on_create_manual=lambda: None, on_open_worlds=lambda: None)
 
-    def _texts(control) -> list[str]:
-        out = []
-
-        def _walk(c, depth=0):
-            if c is None or depth > 40:
-                return
-            if isinstance(c, ft.Text) and isinstance(c.value, str):
-                out.append(c.value)
-            for attr in ("controls", "actions"):
-                kids = getattr(c, attr, None)
-                if isinstance(kids, (list, tuple)):
-                    for k in kids:
-                        _walk(k, depth + 1)
-            content = getattr(c, "content", None)
-            if content is not None and not isinstance(content, str):
-                _walk(content, depth + 1)
-
-        _walk(control)
-        return out
-
     check("Home con on_open_worlds mostra la pillola 'Mondi'",
           "Mondi" in _texts(home_with))
 
@@ -525,6 +538,103 @@ def test_worlds_view() -> None:
                             on_create_manual=lambda: None)
     check("Home senza on_open_worlds NON mostra la pillola 'Mondi'",
           "Mondi" not in _texts(home_without))
+
+
+# ---------------------------------------------------------------------------
+# 8 — WorldsView: sezione "Interviene a distanza" (passo 6, 2026-08-06)
+# ---------------------------------------------------------------------------
+
+def test_worlds_view_remote_actions() -> None:
+    """
+    Copre `WorldsView._remote_actions_section()`/`_remote_character_row()`
+    (passo 6): costruzione dell'albero controlli senza eccezioni, visibilità
+    per ruolo (master/owner sì, player no — stesso criterio già usato dal
+    backend, `perm.can_perform(ruolo, perm.CMD_XP_GRANT)`, non una lista
+    duplicata qui), stato vuoto, e presenza delle azioni/della condizione
+    attiva nel testo reso. Non apre alcun dialogo (`_open_xp_dialog` e affini
+    richiedono una vera `ft.Page` — `page` è di sola lettura finché il
+    controllo non è montato, vedi `_texts()`), ma i dialoghi stessi non fanno
+    altro che raccogliere un valore e chiamare `self.backend.send_command()`
+    con lo stesso `kind`/payload già testato end-to-end in
+    `test_master_remote_actions.py`.
+    """
+    print("\n[8] WorldsView — sezione «Interviene a distanza»")
+    from ui.views.world.world_view import WorldsView
+
+    world = world_repo.create_world("Mondo con Istanze", "dev-master", "Master")
+
+    wv = WorldsView(on_back_to_home=lambda: None)
+    wv.device_id = "dev-master"
+
+    # Stato vuoto: nessun personaggio ancora nel mondo.
+    empty_section = wv._remote_actions_section(world)
+    check("stato vuoto: nessuna eccezione e messaggio esplicativo",
+          "Nessun personaggio in questo mondo" in " ".join(_texts(empty_section)))
+
+    # Un'istanza di personaggio in questo mondo (stesso pattern SQL di
+    # test_export_fix: nessuna funzione dedicata "crea istanza" esposta da
+    # world_repo/character_repo, la conversione è una UPDATE diretta delle
+    # 5 colonne mondo su characters, qui replicata identica).
+    char = Character(name="Elandor", class_name="Ranger", race="Elfo",
+                      level=5, hp_max=42, hp_current=30, xp=6500)
+    character_repo.create(char)
+    conn = get_connection()
+    conn.execute(
+        "UPDATE characters SET world_id=?, origin_character_id=?, owner_device_id=? "
+        "WHERE id=?",
+        (world.id, char.id, "dev-player", char.id),
+    )
+    conn.commit()
+    conn.close()
+    character_repo.add_condition(char.id, "avvelenato", source="Trappola")
+
+    section = wv._remote_actions_section(world)
+    texts = " ".join(_texts(section))
+    check("il nome del personaggio compare nella sezione", "Elandor" in texts)
+    check("PF correnti/massimi mostrati", "30/42" in texts)
+    check("azione PE presente", "PE" in texts)
+    check("azione Danno presente", "Danno" in texts)
+    check("azione Cura presente", "Cura" in texts)
+    check("azione Condizione presente", "Condizione" in texts)
+    check("il nome della condizione attiva compare come chip", "Avvelenato" in texts)
+
+    # Visibilità per ruolo — un player semplice non deve vedere la sezione
+    # nel dettaglio completo (stesso cancello di `_render_detail`:
+    # `perm.can_perform(my_role, perm.CMD_XP_GRANT)`).
+    world_repo.join_world_by_code(world.join_code, "dev-player-2", "Giocatore")
+    wv._current_world = world
+    wv.device_id = "dev-master"
+    wv._render()
+    # d.section() rende il titolo in maiuscolo (`title_text.upper()`).
+    master_texts = " ".join(_texts(wv._body)).upper()
+    check("il master vede «Interviene a distanza» nel dettaglio",
+          "INTERVIENE A DISTANZA" in master_texts)
+
+    wv.device_id = "dev-player-2"
+    wv._render()
+    player_texts = " ".join(_texts(wv._body)).upper()
+    check("un giocatore semplice NON vede «Interviene a distanza»",
+          "INTERVIENE A DISTANZA" not in player_texts)
+
+    # Il comando dietro la dialog è lo stesso già coperto end-to-end in
+    # test_master_remote_actions.py — qui si verifica solo che
+    # _send_remote_command() lo invii con il target giusto.
+    result_holder: dict[str, Any] = {}
+    orig_send = wv.backend.send_command
+
+    def _spy_send_command(*a, **k):
+        res = orig_send(*a, **k)
+        result_holder["result"] = res
+        return res
+
+    wv.backend.send_command = _spy_send_command  # type: ignore[method-assign]
+    wv.device_id = "dev-master"
+    wv._send_remote_command(world, char, perm.CMD_HP_HEAL, {"amount": 5})
+    check("_send_remote_command invia il comando e riesce",
+          result_holder.get("result") is not None and result_holder["result"].success)
+    updated = character_repo.get_by_id(char.id)
+    check("la cura è stata applicata davvero al personaggio (30 → 35 PF)",
+          updated is not None and updated.hp_current == 35)
 
 
 def main() -> int:
@@ -540,6 +650,7 @@ def main() -> int:
     test_export_fix()
     test_device_identity()
     test_worlds_view()
+    test_worlds_view_remote_actions()
 
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

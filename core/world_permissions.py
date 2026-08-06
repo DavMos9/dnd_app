@@ -86,11 +86,62 @@ MASTER_AND_OWNER_COMMANDS: frozenset[str] = frozenset({
     CMD_COMBAT_TOGGLE_VISIBILITY, CMD_CHANGE_REQUEST_PROPOSE,
 })
 
+# ---------------------------------------------------------------------------
+# Comandi che un giocatore invia sulla PROPRIA istanza — §6.1 e §7.1. Il
+# ruolo minimo è `player` (chiunque nel mondo può inviarli), ma il ruolo da
+# solo non basta: l'handler in `core/world_backend.py` deve SEMPRE
+# verificare in aggiunta che `actor_device_id` sia il proprietario del
+# personaggio bersaglio (`characters.owner_device_id`), altrimenti un
+# giocatore potrebbe rispondere alla richiesta di modifica di un altro. La
+# stessa regola di "riservato al proprietario, mai al master" già decisa
+# per «Aggiorna il mio foglio» (§6.1) — qui codificata come comando invece
+# che come azione locale perché deve poter essere inviata da remoto.
+# ---------------------------------------------------------------------------
+
+CMD_CHANGE_REQUEST_RESPOND = "change_request.respond"
+
+PLAYER_OWNED_COMMANDS: frozenset[str] = frozenset({
+    CMD_CHANGE_REQUEST_RESPOND,
+})
+
 #: Ogni comando conosciuto -> ruolo minimo richiesto per inviarlo.
 _MIN_ROLE_FOR_COMMAND: dict[str, str] = {
     **{k: ROLE_OWNER for k in OWNER_ONLY_COMMANDS},
     **{k: ROLE_MASTER for k in MASTER_AND_OWNER_COMMANDS},
+    **{k: ROLE_PLAYER for k in PLAYER_OWNED_COMMANDS},
 }
+
+
+# ---------------------------------------------------------------------------
+# Sottoinsieme dei comandi sopra che MUTA davvero un'istanza di personaggio
+# (a differenza di, es., `world.rename` o — tra quelli sulle istanze —
+# `change_request.propose`, che crea solo una richiesta in sospeso senza
+# ancora applicare nulla). `core/world_sync.py` lo usa per decidere quando
+# rimaterializzare la replica locale di un personaggio dopo un evento
+# (Multiplayer passo 6): un solo punto di verità, non una lista duplicata
+# nel modulo di sincronizzazione.
+# ---------------------------------------------------------------------------
+
+CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
+    CMD_XP_GRANT, CMD_HP_DAMAGE, CMD_HP_HEAL, CMD_CONDITION_APPLY, CMD_CONDITION_REMOVE,
+    CMD_RESOURCE_CONSUME, CMD_RESOURCE_RESTORE, CMD_CUSTOM_ABILITY_GRANT,
+    CMD_BONUS_SPELL_GRANT, CMD_DIARY_ADD_ENTRY, CMD_CHANGE_REQUEST_RESPOND,
+})
+
+
+def requires_character_ownership(command_kind: str) -> bool:
+    """True se, oltre al ruolo, l'handler deve anche verificare che
+    l'autore del comando sia il proprietario del personaggio bersaglio
+    (§6.1/§7.1) — un controllo che questo modulo non può fare da solo
+    perché non tocca mai il DB (`characters.owner_device_id` va letto dal
+    chiamante)."""
+    return command_kind in PLAYER_OWNED_COMMANDS
+
+
+def is_character_owner(actor_device_id: str, character_owner_device_id: str) -> bool:
+    """Confronto puro, nessun accesso al DB: il chiamante (l'handler in
+    `core/world_backend.py`) ha già letto `characters.owner_device_id`."""
+    return bool(actor_device_id) and actor_device_id == character_owner_device_id
 
 
 def can_perform(role: str, command_kind: str) -> bool:

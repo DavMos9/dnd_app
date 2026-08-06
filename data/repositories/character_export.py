@@ -257,6 +257,131 @@ def _insert_row(
     conn.execute(f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})", values)
 
 
+def _write_character_and_children(
+    conn: sqlite3.Connection,
+    char_row: dict[str, Any],
+    related: dict[str, list[dict[str, Any]]],
+    target_id: str,
+    delete_existing: bool,
+    char_overrides: dict[str, Any],
+) -> None:
+    """
+    Nucleo comune a `import_character()` e `import_replica_character()`:
+    scrive la riga `characters` e tutte le tabelle figlio sulla
+    connessione/transazione già aperta dal chiamante. L'unica differenza tra
+    le due funzioni pubbliche è QUALI colonne di mondo vengono forzate
+    (`char_overrides`) — azzerate per un import `.dndchar` normale, valorizzate
+    per una replica LAN — quindi la logica di scrittura, identica in
+    entrambi i casi, vive qui una volta sola (evita la stessa classe di bug
+    già risolta altrove in questo modulo con l'introspezione dello schema:
+    due copie della stessa logica destinate a divergere).
+    """
+    if delete_existing:
+        # CASCADE rimuove automaticamente tutte le righe figlio.
+        conn.execute("DELETE FROM characters WHERE id = ?", (target_id,))
+
+    live_char_cols = _table_columns(conn, "characters")
+    overrides = {"id": target_id, **char_overrides}
+    _insert_row(conn, "characters", char_row, live_char_cols, overrides)
+
+    for table in CHILD_TABLES:
+        rows = related.get(table) or []
+        if not isinstance(rows, list):
+            continue
+        live_cols = _table_columns(conn, table)
+        has_id_column = "id" in live_cols
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            row_overrides: dict[str, Any] = {"character_id": target_id}
+            if has_id_column:
+                row_overrides["id"] = str(uuid.uuid4())
+            _insert_row(conn, table, row, live_cols, row_overrides)
+
+
+def import_replica_character(
+    data: dict[str, Any], target_id: str, world_seq: int = 0,
+) -> str | None:
+    """
+    Materializza (o rimaterializza per intero) la replica locale di
+    un'istanza di personaggio ricevuta dall'host — Multiplayer passo 6
+    (`dnd_app/docs/multiplayer_design.md` §6: "sul dispositivo del
+    giocatore sono repliche, aggiornate dagli eventi").
+
+    A differenza di `import_character()` (pensata per un file `.dndchar`
+    portato da fuori, che deve SEMPRE azzerare le colonne di mondo — §14.1)
+    questa funzione fa l'opposto: PRESERVA `world_id`/`origin_character_id`/
+    `owner_device_id` esattamente come arrivano nel export (sono già
+    corretti: l'host li ha scritti sulla propria riga autoritativa quando
+    l'istanza è nata, `core/character_instances.py::_link_to_world()`) e
+    forza `is_replica=1` — perché questo è precisamente ciò che sta
+    scrivendo: la copia locale di un'istanza la cui autorità resta
+    sull'host, mai una nuova istanza né un personaggio locale.
+
+    `world_seq`: il numero di sequenza dell'evento del giornale che ha
+    causato questa rimaterializzazione (0 per la semina iniziale al primo
+    ingresso, dove non c'è ancora un evento specifico) — permette in
+    futuro di sapere "questa scheda riflette il mondo fino a
+    almeno l'evento #N", stesso significato dichiarato dalla colonna nello
+    schema (§8) ma finora mai scritto da nessun punto del codice.
+
+    Sempre "sovrascrivi": la replica non ha una storia propria da
+    preservare, è sempre e solo lo specchio dell'ultimo stato noto
+    dell'host. Chiamata sia al primo ingresso (semina iniziale, tramite lo
+    snapshot) sia dopo ogni evento che tocca l'istanza (`core/world_sync.py`).
+
+    Ritorna `target_id` in caso di successo, `None` in caso di errore
+    (loggato) — nessuna scrittura parziale resta applicata (stessa garanzia
+    di `import_character()`: un'unica transazione, rollback su eccezione).
+    """
+    err = validate_export_data(data)
+    if err:
+        logger.error(f"import_replica_character: dati non validi — {err}")
+        return None
+    if not target_id:
+        logger.error("import_replica_character: target_id mancante")
+        return None
+
+    char_row: dict[str, Any] = dict(data["character"])
+    related: dict[str, list[dict[str, Any]]] = data.get("related", {})
+
+    world_id = str(char_row.get("world_id") or "")
+    if not world_id:
+        logger.error(
+            "import_replica_character: il personaggio esportato non ha "
+            "world_id — non è un'istanza di mondo, rifiuto di trattarlo come replica."
+        )
+        return None
+
+    try:
+        conn = get_connection()
+        try:
+            _write_character_and_children(
+                conn, char_row, related, target_id, delete_existing=True,
+                char_overrides={
+                    "world_id": world_id,
+                    "origin_character_id": str(char_row.get("origin_character_id") or ""),
+                    "owner_device_id": str(char_row.get("owner_device_id") or ""),
+                    "is_replica": 1,
+                    "world_seq": int(world_seq),
+                },
+            )
+            conn.commit()
+            logger.info(
+                "import_replica_character: replica aggiornata id=%s (world=%s, seq=%s)",
+                target_id, world_id, world_seq,
+            )
+            return target_id
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error(f"Errore import_replica_character: {e}")
+        return None
+
+
 def import_character(data: dict[str, Any], mode: str, target_id: str | None = None) -> str | None:
     """
     Importa un personaggio da un dict di export (stessa forma prodotta da
@@ -324,43 +449,28 @@ def import_character(data: dict[str, Any], mode: str, target_id: str | None = No
     try:
         conn = get_connection()
         try:
-            if mode == "overwrite":
-                # CASCADE rimuove automaticamente tutte le righe figlio.
-                conn.execute("DELETE FROM characters WHERE id = ?", (target_id,))
-
-            live_char_cols = _table_columns(conn, "characters")
-            _insert_row(conn, "characters", char_row, live_char_cols, {
-                "id": target_id,
-                # Un personaggio importato è SEMPRE locale, mai legato al
-                # mondo di provenienza (multiplayer_design.md §14.1): senza
-                # questo azzeramento un file esportato dall'istanza di un
-                # mondo porterebbe con sé world_id/is_replica=1, e il
-                # personaggio importato risulterebbe una replica di un mondo
-                # inesistente — in sola lettura e non riparabile
-                # dall'interfaccia. Vale per tutti e tre i modi (new/
-                # overwrite/copy): l'importazione è sempre un "porta com'è"
-                # verso un personaggio locale, mai verso un mondo.
-                "world_id": "",
-                "origin_character_id": "",
-                "owner_device_id": "",
-                "is_replica": 0,
-                "world_seq": 0,
-            })
-
-            for table in CHILD_TABLES:
-                rows = related.get(table) or []
-                if not isinstance(rows, list):
-                    continue
-                live_cols = _table_columns(conn, table)
-                has_id_column = "id" in live_cols
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    overrides: dict[str, Any] = {"character_id": target_id}
-                    if has_id_column:
-                        overrides["id"] = str(uuid.uuid4())
-                    _insert_row(conn, table, row, live_cols, overrides)
-
+            _write_character_and_children(
+                conn, char_row, related, target_id,
+                delete_existing=(mode == "overwrite"),
+                char_overrides={
+                    # Un personaggio importato è SEMPRE locale, mai legato al
+                    # mondo di provenienza (multiplayer_design.md §14.1): senza
+                    # questo azzeramento un file esportato dall'istanza di un
+                    # mondo porterebbe con sé world_id/is_replica=1, e il
+                    # personaggio importato risulterebbe una replica di un mondo
+                    # inesistente — in sola lettura e non riparabile
+                    # dall'interfaccia. Vale per tutti e tre i modi (new/
+                    # overwrite/copy): l'importazione è sempre un "porta com'è"
+                    # verso un personaggio locale, mai verso un mondo. Per la
+                    # controparte che valorizza queste colonne invece di
+                    # azzerarle, vedi import_replica_character().
+                    "world_id": "",
+                    "origin_character_id": "",
+                    "owner_device_id": "",
+                    "is_replica": 0,
+                    "world_seq": 0,
+                },
+            )
             conn.commit()
             logger.info(
                 "import_character: personaggio importato con id=%s (mode=%s, source_id=%s)",

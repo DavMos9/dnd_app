@@ -80,7 +80,11 @@ def test_network_protocol() -> None:
     world = world_repo.create_world("Mondo LAN", "dev-owner", "Il Master")
     assert world is not None
 
-    host = WorldHostServer(world.id, long_poll_timeout=2.0)
+    # announce=False (Multiplayer passo 5, 2026-08-06): questa batteria
+    # verifica il protocollo HTTP, non la scoperta broadcast (che ha la sua
+    # batteria dedicata, test_scoperta_lan.py) — evita di aprire un socket
+    # UDP broadcast reale ad ogni esecuzione dei test.
+    host = WorldHostServer(world.id, long_poll_timeout=2.0, announce=False)
     port = host.start()
     check("il server si avvia e riporta una porta valida", isinstance(port, int) and port > 0)
     check("is_running è True dopo start()", host.is_running)

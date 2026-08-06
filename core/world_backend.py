@@ -29,9 +29,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable
 
+from core import damage_rules
 from core import world_permissions as perm
 from data.models import WorldEvent
-from data.repositories import world_repo
+from data.repositories import character_repo, world_repo
 from network import protocol
 
 logger = logging.getLogger(__name__)
@@ -311,6 +312,496 @@ def _handle_world_delete(ctx: HandlerContext) -> CommandResult:
 
 
 # ---------------------------------------------------------------------------
+# Handler dei comandi master/owner sulle istanze di personaggio — §7 del
+# design doc, passo 6 del piano (`multiplayer_design.md` §13). Operativi da
+# qui in poi: le istanze esistono dal passo 3, il trasporto di rete dal
+# passo 4, questo passo aggiunge il pezzo che mancava — le AZIONI vere e
+# proprie che risolvono "il problema di partenza" (§1: il master non ha
+# modo di intervenire sulla scheda di un giocatore su un altro dispositivo).
+#
+# Ogni handler qui sotto:
+#   1. risolve `ctx.target_id` a un personaggio che è DAVVERO un'istanza
+#      di QUESTO mondo (`_resolve_world_character`) — fail-closed, altrimenti
+#      un comando potrebbe toccare un personaggio di un mondo diverso;
+#   2. applica l'effetto con le stesse funzioni di `character_repo.py` già
+#      usate dalla scheda locale (nessuna logica duplicata: dove esisteva
+#      già un algoritmo non banale — il danno/la cura — è stato spostato in
+#      `core/damage_rules.py` ed è riusato qui, non riscritto);
+#   3. scrive un evento con un `summary` leggibile — è il registro
+#      richiesto da Davide, non una tabella a parte (§5).
+#
+# Fuori scope in questo passo (restano nella matrice dei permessi ma senza
+# handler, esattamente come CMD_MAP_PUBLISH/ecc. lo erano prima del passo
+# 3/6 per le istanze — non ridiscutere chi può inviarli, solo aggiungere
+# l'handler quando arriva il loro passo): CMD_LOOT_ASSIGN (il Bottino
+# funziona già in locale, `loot_design.md` passo 6 — deposito lato
+# giocatore — dipende da qui ma è un lavoro a sé), CMD_ENCOUNTER_MANAGE/
+# CMD_COMBAT_TOGGLE_VISIBILITY (passo 7, §6.5), CMD_MAP_PUBLISH/
+# CMD_MAP_DRAW (passo 8, §6.4), CMD_NOTE_SHARE (passo 7, §6.2), CMD_DICE_
+# REQUEST (è una richiesta senza scrittura sul personaggio — richiede un
+# meccanismo di notifica lato giocatore non ancora progettato, valutato a
+# parte).
+# ---------------------------------------------------------------------------
+
+def _resolve_world_character(world_id: str, character_id: str):
+    """
+    Il personaggio bersaglio di un comando sulle istanze — deve esistere ed
+    essere davvero un'istanza DI QUESTO mondo (`characters.world_id ==
+    world_id`), altrimenti un comando (anche da un master legittimo di un
+    ALTRO mondo, o un client che manda un id a caso) potrebbe toccare un
+    personaggio che non gli compete. Fail-closed, nessun default permissivo
+    — stesso principio di `can_perform()`.
+    """
+    if not character_id:
+        return None
+    character = character_repo.get_by_id(character_id)
+    if character is None or character.world_id != world_id:
+        return None
+    return character
+
+
+@register_handler(perm.CMD_XP_GRANT)
+def _handle_xp_grant(ctx: HandlerContext) -> CommandResult:
+    """Assegna PE — già esisteva come azione diretta same-device
+    (`character_repo.add_xp()`, Fase 4); qui passa dal comando per
+    ottenere permessi verificati e un evento nel registro anche quando il
+    personaggio bersaglio è su un dispositivo remoto. Il livello NON viene
+    toccato: sale il giocatore dalla propria scheda (invariato)."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    try:
+        amount = int(ctx.payload.get("amount", 0))
+    except (TypeError, ValueError):
+        return CommandResult(False, "Quantità PE non valida.")
+    if amount == 0:
+        return CommandResult(False, "La quantità di PE non può essere zero.")
+
+    old_xp = character.xp
+    new_xp = character_repo.add_xp(character.id, amount)
+    if new_xp is None:
+        return CommandResult(False, "Assegnazione PE fallita.")
+
+    verb = "assegnato" if amount > 0 else "tolto"
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_XP_GRANT, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha {verb} {abs(amount)} PE a {character.name} "
+                f"({old_xp} → {new_xp}).",
+        payload=json.dumps({"amount": amount}),
+        before_state=json.dumps({"xp": old_xp}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_HP_DAMAGE)
+def _handle_hp_damage(ctx: HandlerContext) -> CommandResult:
+    """Applica danno — stessa regola PHB della scheda locale
+    (`core/damage_rules.apply_damage`, estratta il 2026-08-06 apposta per
+    essere riusata qui senza duplicare l'algoritmo)."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    try:
+        amount = int(ctx.payload.get("amount", 0))
+    except (TypeError, ValueError):
+        return CommandResult(False, "Quantità di danno non valida.")
+    if amount <= 0:
+        return CommandResult(False, "La quantità di danno deve essere positiva.")
+    is_critical = bool(ctx.payload.get("is_critical", False))
+
+    before = {"hp_current": character.hp_current, "hp_temp": character.hp_temp}
+    outcome = damage_rules.apply_damage(character, amount, is_critical=is_critical)
+    character_repo.update_hp(character.id, character.hp_current, character.hp_temp)
+    if outcome.death_note:
+        character_repo.update_death_saves(
+            character.id, character.death_saves_success, character.death_saves_failure,
+        )
+    if outcome.concentration_broken:
+        character_repo.clear_concentration(character.id)
+
+    summary = (
+        f"{ctx.actor_name} ha applicato {outcome.amount_requested} danni a "
+        f"{character.name} ({before['hp_current']} → {character.hp_current} PF)."
+    )
+    if outcome.death_note:
+        summary += " " + outcome.death_note.splitlines()[0]
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_HP_DAMAGE, target_type="character", target_id=character.id,
+        summary=summary,
+        payload=json.dumps({"amount": amount, "is_critical": is_critical}),
+        before_state=json.dumps(before),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_HP_HEAL)
+def _handle_hp_heal(ctx: HandlerContext) -> CommandResult:
+    """Applica cura — `core/damage_rules.apply_heal`, stesso principio del
+    danno."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    try:
+        amount = int(ctx.payload.get("amount", 0))
+    except (TypeError, ValueError):
+        return CommandResult(False, "Quantità di cura non valida.")
+    if amount <= 0:
+        return CommandResult(False, "La quantità di cura deve essere positiva.")
+
+    before_hp = character.hp_current
+    damage_rules.apply_heal(character, amount)
+    character_repo.update_hp(character.id, character.hp_current, character.hp_temp)
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_HP_HEAL, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha curato {character.name} di {amount} PF "
+                f"({before_hp} → {character.hp_current}).",
+        payload=json.dumps({"amount": amount}),
+        before_state=json.dumps({"hp_current": before_hp}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CONDITION_APPLY)
+def _handle_condition_apply(ctx: HandlerContext) -> CommandResult:
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    condition_key = str(ctx.payload.get("condition_key", "")).strip()
+    if not condition_key:
+        return CommandResult(False, "Condizione mancante.")
+
+    from data.game_data.game_data_loader import GameDataLoader
+    condition_data = GameDataLoader().get_condition(condition_key)
+    if condition_data is None:
+        return CommandResult(False, f"Condizione sconosciuta: «{condition_key}».")
+
+    source = str(ctx.payload.get("source", "")) or ctx.actor_name
+    note = str(ctx.payload.get("note", ""))
+    condition_id = character_repo.add_condition(character.id, condition_key, source, note)
+    if condition_id is None:
+        return CommandResult(False, "Applicazione della condizione fallita.")
+
+    condition_name = condition_data.get("name", condition_key)
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CONDITION_APPLY, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha imposto la condizione «{condition_name}» a {character.name}.",
+        payload=json.dumps({"condition_key": condition_key, "source": source, "note": note}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CONDITION_REMOVE)
+def _handle_condition_remove(ctx: HandlerContext) -> CommandResult:
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    condition_id = str(ctx.payload.get("condition_id", "")).strip()
+    if not condition_id:
+        return CommandResult(False, "Condizione da rimuovere non specificata.")
+
+    existing = [c for c in character_repo.get_conditions(character.id) if c.id == condition_id]
+    if not existing:
+        return CommandResult(False, "Condizione non trovata su questo personaggio.")
+    condition = existing[0]
+
+    if not character_repo.remove_condition(condition_id):
+        return CommandResult(False, "Rimozione della condizione fallita.")
+
+    from data.game_data.game_data_loader import GameDataLoader
+    condition_data = GameDataLoader().get_condition(condition.condition_key) or {}
+    condition_name = condition_data.get("name", condition.condition_key)
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CONDITION_REMOVE, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha rimosso la condizione «{condition_name}» da {character.name}.",
+        payload=json.dumps({"condition_id": condition_id}),
+        before_state=json.dumps({"condition_key": condition.condition_key}),
+    )
+    return CommandResult(True, event=event)
+
+
+def _resource_max(resource) -> int:
+    return int(resource.max_value or 0) + int(resource.max_value_bonus or 0)
+
+
+@register_handler(perm.CMD_RESOURCE_CONSUME)
+def _handle_resource_consume(ctx: HandlerContext) -> CommandResult:
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    resource_id = str(ctx.payload.get("resource_id", "")).strip()
+    try:
+        amount = int(ctx.payload.get("amount", 1))
+    except (TypeError, ValueError):
+        return CommandResult(False, "Quantità non valida.")
+    if amount <= 0:
+        return CommandResult(False, "La quantità deve essere positiva.")
+
+    resources = [r for r in character_repo.get_class_resources(character.id) if r.id == resource_id]
+    if not resources:
+        return CommandResult(False, "Risorsa non trovata su questo personaggio.")
+    resource = resources[0]
+
+    old_value = resource.current_value
+    new_value = max(0, old_value - amount)
+    if not character_repo.update_class_resource(resource_id, new_value):
+        return CommandResult(False, "Aggiornamento della risorsa fallito.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_RESOURCE_CONSUME, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha consumato {old_value - new_value} «{resource.name}» "
+                f"di {character.name} ({old_value} → {new_value}).",
+        payload=json.dumps({"resource_id": resource_id, "amount": amount}),
+        before_state=json.dumps({"current_value": old_value}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_RESOURCE_RESTORE)
+def _handle_resource_restore(ctx: HandlerContext) -> CommandResult:
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    resource_id = str(ctx.payload.get("resource_id", "")).strip()
+    try:
+        amount = int(ctx.payload.get("amount", 1))
+    except (TypeError, ValueError):
+        return CommandResult(False, "Quantità non valida.")
+    if amount <= 0:
+        return CommandResult(False, "La quantità deve essere positiva.")
+
+    resources = [r for r in character_repo.get_class_resources(character.id) if r.id == resource_id]
+    if not resources:
+        return CommandResult(False, "Risorsa non trovata su questo personaggio.")
+    resource = resources[0]
+
+    old_value = resource.current_value
+    new_value = min(_resource_max(resource), old_value + amount)
+    if not character_repo.update_class_resource(resource_id, new_value):
+        return CommandResult(False, "Aggiornamento della risorsa fallito.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_RESOURCE_RESTORE, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha ripristinato {new_value - old_value} «{resource.name}» "
+                f"di {character.name} ({old_value} → {new_value}).",
+        payload=json.dumps({"resource_id": resource_id, "amount": amount}),
+        before_state=json.dumps({"current_value": old_value}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CUSTOM_ABILITY_GRANT)
+def _handle_custom_ability_grant(ctx: HandlerContext) -> CommandResult:
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    category = str(ctx.payload.get("category", "")).strip()
+    name = str(ctx.payload.get("name", "")).strip()
+    description = str(ctx.payload.get("description", ""))
+    if category not in ("esplorazione", "combattimento"):
+        return CommandResult(False, "Categoria non valida (esplorazione|combattimento).")
+    if not name:
+        return CommandResult(False, "Nome dell'abilità mancante.")
+
+    ability_id = character_repo.create_custom_ability(character.id, category, name, description)
+    if ability_id is None:
+        return CommandResult(False, "Concessione dell'abilità fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CUSTOM_ABILITY_GRANT, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha concesso a {character.name} l'abilità speciale «{name}».",
+        payload=json.dumps({"category": category, "name": name, "description": description}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_BONUS_SPELL_GRANT)
+def _handle_bonus_spell_grant(ctx: HandlerContext) -> CommandResult:
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    name = str(ctx.payload.get("name", "")).strip()
+    try:
+        level = int(ctx.payload.get("level", 0))
+    except (TypeError, ValueError):
+        return CommandResult(False, "Livello dell'incantesimo non valido.")
+    if not name:
+        return CommandResult(False, "Nome dell'incantesimo mancante.")
+    if not (0 <= level <= 9):
+        return CommandResult(False, "Livello dell'incantesimo fuori intervallo (0-9).")
+
+    ok = character_repo.upsert_known_spell(
+        character.id, name, level, is_prepared=True,
+        school=str(ctx.payload.get("school", "")),
+        casting_time=str(ctx.payload.get("casting_time", "")),
+        spell_range=str(ctx.payload.get("spell_range", "")),
+        components=str(ctx.payload.get("components", "")),
+        duration=str(ctx.payload.get("duration", "")),
+        description=str(ctx.payload.get("description", "")),
+        higher_levels=str(ctx.payload.get("higher_levels", "")),
+        class_list=str(ctx.payload.get("class_list", "")),
+        is_bonus=True,
+    )
+    if not ok:
+        return CommandResult(False, "Concessione dell'incantesimo fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_BONUS_SPELL_GRANT, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha concesso a {character.name} l'incantesimo bonus «{name}».",
+        payload=json.dumps({"name": name, "level": level}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_DIARY_ADD_ENTRY)
+def _handle_diary_add_entry(ctx: HandlerContext) -> CommandResult:
+    """
+    Scrive una voce sul diario del personaggio (§6.2: "il master può anche
+    scrivere una voce sul diario di un personaggio... scrive, non guarda").
+    Deliberatamente nessun comando di LETTURA del diario è mai stato
+    aggiunto alla matrice dei permessi: questo handler chiama solo
+    `create_diary_entry()` (INSERT), mai una funzione che elenchi le voci
+    esistenti — l'asimmetria "scrive, non guarda" è garantita dalla forma
+    stessa del comando, non da un controllo a parte.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    title = str(ctx.payload.get("title", "")).strip()
+    content = str(ctx.payload.get("content", "")).strip()
+    if not title or not content:
+        return CommandResult(False, "Titolo e testo della voce di diario sono obbligatori.")
+    session_date = str(ctx.payload.get("session_date", ""))
+
+    if not character_repo.create_diary_entry(character.id, title, content, session_date):
+        return CommandResult(False, "Scrittura della voce di diario fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_DIARY_ADD_ENTRY, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha scritto una voce sul diario di {character.name}: «{title}».",
+        payload=json.dumps({"title": title}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CHANGE_REQUEST_PROPOSE)
+def _handle_change_request_propose(ctx: HandlerContext) -> CommandResult:
+    """
+    Propone una richiesta di modifica (§7.1) — NON applica nulla: scrive
+    solo la riga `pending` che il giocatore dovrà accettare o rifiutare con
+    `change_request.respond`. Riguarda solo i campi altrimenti vietati
+    (`CHANGE_REQUEST_ALLOWED_FIELDS`); qualunque altro campo nel payload
+    viene rifiutato in blocco — nessuna scrittura parziale su una richiesta
+    parzialmente valida.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    changes = ctx.payload.get("changes")
+    if not isinstance(changes, dict) or not changes:
+        return CommandResult(False, "Nessuna modifica proposta.")
+    reason = str(ctx.payload.get("reason", "")).strip()
+    if not reason:
+        return CommandResult(False, "La richiesta di modifica deve avere una motivazione.")
+
+    invalid = [f for f in changes if not perm.is_change_request_field_allowed(f)]
+    if invalid:
+        return CommandResult(
+            False, f"Campi non proponibili in una richiesta di modifica: {', '.join(invalid)}.",
+        )
+
+    request = world_repo.create_change_request(
+        ctx.world_id, character.id, ctx.actor_device_id,
+        payload=json.dumps(changes), reason=reason,
+    )
+    if request is None:
+        return CommandResult(False, "Creazione della richiesta fallita.")
+
+    fields_desc = ", ".join(f"{k}: {v}" for k, v in changes.items())
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CHANGE_REQUEST_PROPOSE, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha proposto una modifica a {character.name} ({fields_desc}): «{reason}».",
+        payload=json.dumps({"request_id": request.id, "changes": changes, "reason": reason}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CHANGE_REQUEST_RESPOND)
+def _handle_change_request_respond(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore accetta o rifiuta una richiesta di modifica (§7.1) —
+    l'UNICO comando di questo modulo dove il ruolo da solo NON basta:
+    `can_perform()` autorizza qualunque membro del mondo (ruolo minimo
+    `player`), ma qui si verifica IN PIÙ che chi risponde sia il
+    proprietario del personaggio bersaglio (`perm.is_character_owner()`) —
+    altrimenti un giocatore potrebbe accettare/rifiutare una richiesta
+    diretta a un altro. Stesso principio di «Aggiorna il mio foglio» (§6.1):
+    riservato al proprietario, mai al master né a un altro giocatore.
+    """
+    request_id = str(ctx.payload.get("request_id", "")).strip()
+    accept = bool(ctx.payload.get("accept", False))
+    if not request_id:
+        return CommandResult(False, "Richiesta non specificata.")
+
+    request = world_repo.get_change_request(request_id)
+    if request is None or request.world_id != ctx.world_id:
+        return CommandResult(False, "Richiesta di modifica non trovata in questo mondo.")
+    if request.status != "pending":
+        return CommandResult(False, f"Questa richiesta è già stata risolta ({request.status}).")
+
+    character = _resolve_world_character(ctx.world_id, request.character_id)
+    if character is None:
+        return CommandResult(False, "Il personaggio di questa richiesta non esiste più.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può rispondere a questa richiesta.",
+        )
+
+    try:
+        changes: dict = json.loads(request.payload or "{}")
+    except (json.JSONDecodeError, TypeError):
+        changes = {}
+    invalid = [f for f in changes if not perm.is_change_request_field_allowed(f)]
+    if invalid:
+        # Difesa in profondità: anche se create_change_request() ha già
+        # filtrato i campi al momento della proposta, non fidarsi di dati
+        # scritti in precedenza da una versione diversa dell'app.
+        return CommandResult(
+            False, f"Richiesta non applicabile: campi non validi ({', '.join(invalid)}).",
+        )
+
+    if accept and changes:
+        for field_name, value in changes.items():
+            setattr(character, field_name, value)
+        if not character_repo.update(character):
+            return CommandResult(False, "Applicazione della modifica fallita.")
+
+    new_status = "accepted" if accept else "rejected"
+    if not world_repo.resolve_change_request(request_id, new_status):
+        return CommandResult(False, "Aggiornamento dello stato della richiesta fallito.")
+
+    verb = "accettato" if accept else "rifiutato"
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CHANGE_REQUEST_RESPOND, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha {verb} la richiesta di modifica «{request.reason}».",
+        payload=json.dumps({"request_id": request_id, "accept": accept}),
+    )
+    return CommandResult(True, event=event)
+
+
+# ---------------------------------------------------------------------------
 # RemoteBackend — passo 4: host + client in LAN (§9 del design doc).
 # ---------------------------------------------------------------------------
 
@@ -514,6 +1005,26 @@ class RemoteBackend(WorldBackend):
 
         event = protocol.event_from_dict(data["event"]) if data.get("event") else None
         return CommandResult(bool(data.get("success")), str(data.get("error", "")), event)
+
+    def get_character(self, character_id: str) -> dict | None:
+        """`GET /character/<id>` (Multiplayer passo 6) — export integrale
+        di UNA istanza di cui questo dispositivo è proprietario, usato da
+        `core.world_sync` per rimaterializzare la replica locale dopo un
+        evento che l'ha toccata, senza riscaricare l'intero `/snapshot`.
+        Ritorna `None` se non connesso, non raggiungibile, o se il
+        personaggio non è (più) di proprietà di questo dispositivo (403/404
+        dell'host — vedi `WorldHostServer.handle_get_character`)."""
+        if self.token is None or not character_id:
+            return None
+        try:
+            status, data = self._request(
+                "GET", f"/character/{urllib.parse.quote(character_id, safe='')}", authed=True,
+            )
+        except (OSError, http.client.HTTPException):
+            return None
+        if status != 200:
+            return None
+        return data.get("character")
 
     def fetch_events(self, world_id: str, since_seq: int = 0) -> list[WorldEvent]:
         """Interroga senza attesa lunga (`wait=0`): la sincronizzazione

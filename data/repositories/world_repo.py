@@ -739,6 +739,23 @@ def create_change_request(world_id: str, character_id: str, requested_by: str,
         return None
 
 
+def get_change_request(request_id: str) -> WorldChangeRequest | None:
+    """Una singola richiesta per id — usata dall'handler di
+    `change_request.respond` (Multiplayer passo 6) per verificare che
+    esista, sia ancora `pending` e riguardi davvero il personaggio di chi
+    sta rispondendo, prima di risolverla."""
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT * FROM world_change_requests WHERE id=?", (request_id,)
+        ).fetchone()
+        conn.close()
+        return _row_to_change_request(row) if row else None
+    except Exception as e:
+        logger.error(f"Errore get_change_request: {e}")
+        return None
+
+
 def get_pending_change_requests(world_id: str) -> list[WorldChangeRequest]:
     try:
         conn = get_connection()
@@ -752,6 +769,37 @@ def get_pending_change_requests(world_id: str) -> list[WorldChangeRequest]:
     except Exception as e:
         logger.error(f"Errore get_pending_change_requests: {e}")
         return []
+
+
+def save_replica_change_request(request: WorldChangeRequest) -> bool:
+    """
+    Replica locale di una richiesta di modifica (§7.1, Multiplayer passo 6)
+    — stesso principio delle altre `save_replica_*`: scrive lo stato COSÌ
+    COM'È ricevuto dall'host (via `core.world_sync`), riusando l'id
+    originale invece di generarne uno nuovo, `INSERT OR REPLACE` per
+    restare idempotente a una riconnessione. La creazione/risoluzione
+    VALIDATA resta sempre `create_change_request()`/`resolve_change_request()`
+    sull'host — qui si specchia solo il risultato.
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO world_change_requests (
+                id, world_id, character_id, requested_by, payload, reason,
+                status, created_at, resolved_at
+            ) VALUES (?,?,?,?,?,?,?,?,?)
+            """,
+            (request.id, request.world_id, request.character_id,
+             _s(request.requested_by), _s(request.payload), _s(request.reason),
+             request.status, request.created_at or _now(), _s(request.resolved_at)),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore save_replica_change_request: {e}")
+        return False
 
 
 def resolve_change_request(request_id: str, status: str) -> bool:

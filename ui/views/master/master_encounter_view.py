@@ -20,8 +20,10 @@ import flet as ft
 
 from core import dice as dice_engine
 from config.settings import ABILITY_KEYS, get_level_from_xp
+from core import world_permissions as perm
 from core.character_stats import RollSpec, ability_abbr, ability_label
 from core.encounter_calculator import calculate_difficulty, DIFFICULTY_LABELS
+from core.world_backend import LocalBackend
 from data.game_data.game_data_loader import parse_monster_xp
 from data.models import MasterEncounter
 from data.repositories import character_repo, master_repo
@@ -118,7 +120,8 @@ def _initiative_options() -> tuple[ft.Checkbox, ft.Checkbox, ft.Control]:
 
 
 class MasterEncounterView(ft.Column):
-    def __init__(self, encounter_id: str, on_back_to_list, world_id: str = ""):
+    def __init__(self, encounter_id: str, on_back_to_list, world_id: str = "",
+                 device_id: str = ""):
         super().__init__(expand=True, spacing=0)
         self.encounter_id = encounter_id
         self.on_back_to_list = on_back_to_list
@@ -126,6 +129,12 @@ class MasterEncounterView(ft.Column):
         #: per la modalità locale. Determina quali PG compaiono nel picker
         #: "Personaggio Giocante" (_open_add_character_dialog).
         self._world_id = world_id
+        #: Identità di questo dispositivo (2026-08-06, passo 6) — necessaria
+        #: per firmare i comandi remoti (`core.world_backend.send_command`)
+        #: quando "Assegna PE" tocca un'istanza di un mondo: senza device_id
+        #: non si può risolvere il ruolo del mittente in `world_members`.
+        #: Vuota in modalità locale (`world_id == ""`), dove non serve.
+        self._device_id = device_id
         self._page: ft.Page | None = None
         self.encounter: MasterEncounter | None = None
         self._members: list[dict] = []  # resolved, vedi master_repo.get_encounter_members_resolved
@@ -885,7 +894,20 @@ class MasterEncounterView(ft.Column):
         def _do(_e: Any):
             written = 0
             for p in players:
-                if character_repo.add_xp(p.id, each) is not None:
+                if p.world_id:
+                    # Istanza di un mondo (passo 6): passa dalla pipeline
+                    # comando → validazione → evento, non da una scrittura
+                    # diretta — è l'unico modo per cui l'assegnazione finisce
+                    # nel Registro E raggiunge la replica del giocatore se
+                    # connesso in LAN. `character_repo.add_xp()` resta usata
+                    # SOLO internamente dall'handler stesso.
+                    result = LocalBackend().send_command(
+                        p.world_id, self._device_id, perm.CMD_XP_GRANT,
+                        {"amount": each}, target_type="character", target_id=p.id,
+                    )
+                    if result.success:
+                        written += 1
+                elif character_repo.add_xp(p.id, each) is not None:
                     written += 1
             page.pop_dialog()
             self.refresh()

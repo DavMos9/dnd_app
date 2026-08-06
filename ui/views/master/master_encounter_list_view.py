@@ -42,7 +42,7 @@ class MasterEncounterListView(ft.Column):
     """Lista incontri (non archiviati) + creazione. Innesta `MasterEncounterView`
     a schermo intero quando un incontro viene aperto."""
 
-    def __init__(self, world_id: str = "",
+    def __init__(self, world_id: str = "", device_id: str = "",
                  on_focus_change: Optional[Callable[[bool], None]] = None):
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
@@ -50,6 +50,10 @@ class MasterEncounterListView(ft.Column):
         #: per la modalità locale. Inoltrato al generatore di incontri e a
         #: `MasterEncounterView` (picker "Personaggio Giocante").
         self._world_id = world_id
+        #: Identità di questo dispositivo (2026-08-06, passo 6) — inoltrata a
+        #: `MasterEncounterView` per firmare i comandi remoti ("Assegna PE"
+        #: su un'istanza di mondo).
+        self._device_id = device_id
         #: Notifica a `MasterView` (2026-08-06) quando questa vista passa
         #: alla modalità "incontro aperto" (True) o torna alla lista (False)
         #: — permette a `MasterView` di nascondere la propria chrome
@@ -80,6 +84,7 @@ class MasterEncounterListView(ft.Column):
                 encounter_id=self._open_encounter_id,
                 on_back_to_list=self._close_encounter,
                 world_id=self._world_id,
+                device_id=self._device_id,
             )
             self.controls.append(self._body_area)
             return

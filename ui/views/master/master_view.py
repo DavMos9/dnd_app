@@ -611,6 +611,7 @@ class MasterView(ft.Column):
                 from ui.views.master.master_encounter_list_view import MasterEncounterListView
                 return MasterEncounterListView(
                     world_id=self._active_world_id,
+                    device_id=self.device_id or "",
                     on_focus_change=self._on_child_focus_change,
                 )
             except ImportError:

@@ -3126,11 +3126,15 @@ def add_xp(character_id: str, delta: int) -> int | None:
     """
     Somma punti esperienza a un personaggio e ritorna il nuovo totale.
 
-    Usata **solo** dall'assegnazione dei PE lato master (Fase 4, feature 4b):
-    è la prima e unica scrittura del master su un personaggio giocante in tutto
-    il progetto, autorizzata esplicitamente da Davide il 2026-07-30 e sempre
-    preceduta da un dialog di conferma che mostra chi riceve quanto. Gli HP e
-    tutto il resto della scheda restano fuori dalla portata del master.
+    Nata come l'assegnazione PE lato master (Fase 4, feature 4b, autorizzata
+    esplicitamente da Davide il 2026-07-30), sempre preceduta da un dialog di
+    conferma che mostra chi riceve quanto. Dal passo 6 del Multiplayer
+    (2026-08-06) è anche la funzione applicata da
+    `core/world_backend._handle_xp_grant` quando il bersaglio è un'istanza di
+    un mondo condiviso: non più l'unica scrittura del master su un personaggio
+    giocante (vedi gli altri handler in quel modulo per danno/cura/
+    condizioni/risorse/abilità/incantesimi bonus/diario), ma resta l'unico
+    punto che tocca `characters.xp` — nessuna logica duplicata altrove.
 
     Il livello NON viene toccato: sale il giocatore dalla propria scheda, dove
     sceglie HP/ASI/incantesimi. L'app mostra solo il badge "Sali di Livello"

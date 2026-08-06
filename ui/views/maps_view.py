@@ -1456,8 +1456,15 @@ def _normalize_image_bytes_to_base64(raw: bytes) -> str:
     """
     try:
         from PIL import Image as PILImage  # type: ignore[import-untyped]
+        from PIL import ImageOps  # type: ignore[import-untyped]
         import io
         with PILImage.open(io.BytesIO(raw)) as im:
+            # Applica la rotazione EXIF prima di ri-salvare — stesso bug e
+            # stesso fix di profilo_tab.py::_save_photo_bytes() (2026-08-06):
+            # senza questo, immagini scattate in verticale da smartphone
+            # vengono salvate ruotate perché il tag "Orientation" va perso
+            # al salvataggio se non applicato esplicitamente prima.
+            im = ImageOps.exif_transpose(im)
             if im.mode not in ("RGB", "L"):
                 im = im.convert("RGB")
             buf = io.BytesIO()

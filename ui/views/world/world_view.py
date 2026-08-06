@@ -18,8 +18,9 @@ import flet as ft
 from core import world_permissions as perm
 from core import world_sync
 from core.world_backend import LocalBackend
-from data.models import World, WorldEvent, WorldMember
-from data.repositories import world_repo
+from data.game_data.game_data_loader import GameDataLoader
+from data.models import Character, World, WorldEvent, WorldMember
+from data.repositories import character_repo, world_repo
 from network.host_server import PendingJoinRequest, WorldHostServer, local_ip_hint
 from network.qr_join import build_join_text, generate_qr_png_base64
 from ui import design as d
@@ -252,6 +253,8 @@ class WorldsView(ft.Column):
         sections.append(self._join_code_section(world, is_owner))
         if is_owner and world.is_local_host:
             sections.append(self._hosting_section(world))
+        if perm.can_perform(my_role, perm.CMD_XP_GRANT):
+            sections.append(self._remote_actions_section(world))
         sections.append(self._members_section(world, my_role))
         sections.append(self._events_section(world))
 
@@ -402,6 +405,240 @@ class WorldsView(ft.Column):
             ],
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
+
+    # ------------------------------------------------------------------
+    # Interviene a distanza (passo 6, §7 del design doc) — master/owner.
+    #
+    # Sostituisce la vecchia scrittura diretta `character_repo.add_xp()`
+    # (Fase 4, "prima e unica scrittura del master su un personaggio
+    # giocante") con la pipeline comando → validazione → evento: risolve
+    # "il problema di partenza" (§1 di multiplayer_design.md) — il master
+    # non aveva alcun modo di intervenire su una scheda che vive su un
+    # ALTRO dispositivo. Ogni azione qui passa da `self.backend.
+    # send_command()`, mai da una scrittura diretta sul personaggio: è
+    # l'unico modo per cui l'evento finisce nel Registro E raggiunge la
+    # replica del giocatore via `core.world_sync` quando è connesso in LAN.
+    # ------------------------------------------------------------------
+
+    def _remote_actions_section(self, world: World) -> ft.Control:
+        characters = character_repo.get_master_visible_characters(world.id)
+        if not characters:
+            return d.section(
+                "Interviene a distanza",
+                d.muted(
+                    "Nessun personaggio in questo mondo — compariranno qui dopo che "
+                    "un giocatore avrà aggiunto la propria scheda dalla Home.",
+                ),
+            )
+        rows: list[ft.Control] = []
+        for i, character in enumerate(characters):
+            if i > 0:
+                rows.append(ft.Divider(height=1))
+            rows.append(self._remote_character_row(world, character))
+        return d.section(
+            "Interviene a distanza",
+            ft.Column(rows, spacing=d.Space.SM, tight=True),
+        )
+
+    def _remote_character_row(self, world: World, character: Character) -> ft.Control:
+        p = d.T()
+        conditions = character_repo.get_conditions(character.id)
+        loader = GameDataLoader()
+        condition_chips: list[ft.Control] = []
+        for cond in conditions:
+            cond_data = loader.get_condition(cond.condition_key) or {}
+            cond_name = cond_data.get("name", cond.condition_key)
+            condition_chips.append(ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Text(cond_name, size=11, color=p.on_accent),
+                        ft.IconButton(
+                            ft.Icons.CLOSE, icon_size=12, icon_color=p.on_accent,
+                            tooltip="Rimuovi condizione",
+                            on_click=lambda e, w=world, c=character, cid=cond.id:
+                                self._send_remote_command(
+                                    w, c, perm.CMD_CONDITION_REMOVE, {"condition_id": cid}),
+                        ),
+                    ],
+                    spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                bgcolor=p.danger, border_radius=d.Radius.SM,
+                padding=ft.Padding.only(left=8, right=2),
+            ))
+
+        return ft.Column(
+            [
+                ft.Row(
+                    [
+                        ft.Text(character.name, weight=ft.FontWeight.BOLD, color=p.text,
+                                expand=True),
+                        d.muted(f"PF {character.hp_current}/{character.hp_max} · "
+                                f"{character.xp:,} PE".replace(",", ".")),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Row(condition_chips, spacing=d.Space.XS, wrap=True) if condition_chips
+                else ft.Container(height=0),
+                ft.Row(
+                    [
+                        d.pill(ft.Icons.STARS, "PE", color=p.success,
+                               on_click=lambda e, w=world, c=character: self._open_xp_dialog(w, c)),
+                        d.pill(ft.Icons.FAVORITE_BORDER, "Danno", color=p.danger,
+                               on_click=lambda e, w=world, c=character: self._open_damage_dialog(w, c)),
+                        d.pill(ft.Icons.HEALING, "Cura", color=p.primary,
+                               on_click=lambda e, w=world, c=character: self._open_heal_dialog(w, c)),
+                        d.pill(ft.Icons.SICK, "Condizione", color=p.magic,
+                               on_click=lambda e, w=world, c=character: self._open_condition_dialog(w, c)),
+                    ],
+                    spacing=d.Space.XS, wrap=True,
+                ),
+            ],
+            spacing=d.Space.XS, tight=True,
+        )
+
+    def _send_remote_command(self, world: World, character: Character, kind: str,
+                              payload: dict) -> None:
+        result = self.backend.send_command(
+            world.id, self.device_id, kind, payload,
+            target_type="character", target_id=character.id,
+        )
+        if result.success:
+            self._refresh_detail()
+        else:
+            self._show_error(result.error)
+
+    def _open_xp_dialog(self, world: World, character: Character):
+        p = d.T()
+        amount_field = ft.TextField(
+            label="PE (negativo per togliere)", dense=True, value="0",
+            keyboard_type=ft.KeyboardType.NUMBER, **d.field_style(),
+        )
+
+        def _confirm(e):
+            try:
+                amount = int((amount_field.value or "0").strip())
+            except ValueError:
+                self._show_error("Il valore deve essere un numero intero.")
+                return
+            if amount == 0:
+                self._show_error("La quantità di PE non può essere zero.")
+                return
+            self.page.pop_dialog()
+            self._send_remote_command(world, character, perm.CMD_XP_GRANT, {"amount": amount})
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f"Assegna PE — {character.name}", ft.Icons.STARS),
+            content=ft.Column([amount_field], tight=True),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Conferma", icon=ft.Icons.CHECK, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.success, color=p.on_accent)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _open_damage_dialog(self, world: World, character: Character):
+        p = d.T()
+        amount_field = ft.TextField(
+            label="Danno", dense=True, value="0",
+            keyboard_type=ft.KeyboardType.NUMBER, **d.field_style(),
+        )
+        critical_cb = ft.Checkbox(label="Colpo critico", value=False)
+
+        def _confirm(e):
+            try:
+                amount = int((amount_field.value or "0").strip())
+            except ValueError:
+                self._show_error("Il valore deve essere un numero intero.")
+                return
+            if amount <= 0:
+                self._show_error("Il danno deve essere positivo.")
+                return
+            self.page.pop_dialog()
+            self._send_remote_command(world, character, perm.CMD_HP_DAMAGE,
+                                       {"amount": amount, "is_critical": critical_cb.value})
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f"Applica danno — {character.name}", ft.Icons.FAVORITE_BORDER,
+                                  tone="danger"),
+            content=ft.Column([amount_field, critical_cb], tight=True),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Conferma", icon=ft.Icons.CHECK, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.danger, color=p.on_accent)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _open_heal_dialog(self, world: World, character: Character):
+        p = d.T()
+        amount_field = ft.TextField(
+            label="Cura", dense=True, value="0",
+            keyboard_type=ft.KeyboardType.NUMBER, **d.field_style(),
+        )
+
+        def _confirm(e):
+            try:
+                amount = int((amount_field.value or "0").strip())
+            except ValueError:
+                self._show_error("Il valore deve essere un numero intero.")
+                return
+            if amount <= 0:
+                self._show_error("La cura deve essere positiva.")
+                return
+            self.page.pop_dialog()
+            self._send_remote_command(world, character, perm.CMD_HP_HEAL, {"amount": amount})
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f"Applica cura — {character.name}", ft.Icons.HEALING),
+            content=ft.Column([amount_field], tight=True),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Conferma", icon=ft.Icons.CHECK, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.primary, color=p.on_primary)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _open_condition_dialog(self, world: World, character: Character):
+        p = d.T()
+        conditions = GameDataLoader().get_conditions()
+        options = [ft.DropdownOption(key=c["key"], text=c.get("name", c["key"]))
+                   for c in conditions]
+        condition_dd = ft.Dropdown(label="Condizione", options=options, dense=True,
+                                    **d.field_style())
+        note_field = ft.TextField(label="Nota (opzionale)", dense=True, **d.field_style())
+
+        def _confirm(e):
+            key = condition_dd.value
+            if not key:
+                self._show_error("Seleziona una condizione.")
+                return
+            self.page.pop_dialog()
+            self._send_remote_command(
+                world, character, perm.CMD_CONDITION_APPLY,
+                {"condition_key": key, "note": (note_field.value or "").strip()},
+            )
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f"Imponi condizione — {character.name}", ft.Icons.SICK,
+                                  tone="magic"),
+            content=ft.Column([condition_dd, note_field], tight=True, spacing=d.Space.SM),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Conferma", icon=ft.Icons.CHECK, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_accent)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
     # Hosting LAN (passo 4) — solo owner, solo sul mondo che ospita
@@ -715,6 +952,62 @@ class WorldsView(ft.Column):
                                    visible=False)
         pending_state: dict = {"backend": None, "request_id": "", "host_port": ""}
 
+        discovery_results = ft.Column(spacing=d.Space.XS, tight=True)
+        discovery_status = ft.Text("", color=p.text_2, size=12)
+
+        def _pick_discovered(world) -> None:
+            host_field.value = world.host
+            port_field.value = str(world.port)
+            discovery_status.color = p.text_2
+            discovery_status.value = (
+                f'Rete "{world.name}" selezionata — inserisci ancora codice e PIN.'
+            )
+            try:
+                self.page.update()
+            except RuntimeError:
+                pass
+
+        def _discovered_row(world) -> ft.Control:
+            note = "" if world.accepting else " (non accetta ingressi ora)"
+            return ft.Row(
+                [
+                    ft.Icon(ft.Icons.WIFI_TETHERING, size=16, color=p.magic),
+                    ft.Text(f"{world.name} — {world.host}:{world.port}{note}",
+                            color=p.text, size=d.Size.BODY_SM, expand=True),
+                    ft.TextButton("Usa", on_click=lambda e, w=world: _pick_discovered(w)),
+                ],
+                spacing=d.Space.XS, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+
+        def _search_nearby(e):
+            # Bloccante per la durata della ricerca (§9.3), stesso stile
+            # sincrono già usato da _attempt()/_retry() in questo dialogo:
+            # nessuna dipendenza async nuova solo per questo pulsante.
+            discovery_status.color = p.text_2
+            discovery_status.value = "Ricerca in corso…"
+            discovery_results.controls = []
+            try:
+                self.page.update()
+            except RuntimeError:
+                pass
+
+            from network.discovery import discover_worlds
+            found = discover_worlds(timeout=2.5)
+
+            if not found:
+                discovery_status.value = (
+                    "Nessuna rete trovata nelle vicinanze — verifica di essere sulla "
+                    "stessa rete Wi-Fi, o inserisci indirizzo/porta a mano qui sotto."
+                )
+                discovery_results.controls = []
+            else:
+                discovery_status.value = f"{len(found)} rete/i trovata/e:"
+                discovery_results.controls = [_discovered_row(w) for w in found]
+            try:
+                self.page.update()
+            except RuntimeError:
+                pass
+
         def _report(result, keep_dialog_open_on_pending: bool = True):
             if result.success:
                 self.page.pop_dialog()
@@ -777,6 +1070,11 @@ class WorldsView(ft.Column):
                         "Chiedi al master l'indirizzo IP, la porta (di norma 8765), il "
                         "codice a 6 caratteri del mondo e il PIN mostrato sul suo schermo.",
                     ),
+                    d.pill(ft.Icons.WIFI_FIND, "Cerca reti nelle vicinanze", color=p.magic,
+                           on_click=_search_nearby),
+                    discovery_status,
+                    discovery_results,
+                    ft.Divider(height=1),
                     host_field, port_field, code_field, pin_field, display_field,
                     status_text, retry_btn,
                 ],

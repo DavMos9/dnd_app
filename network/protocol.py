@@ -16,7 +16,7 @@ potrebbero disallinearsi.
 
 from __future__ import annotations
 
-from data.models import World, WorldEvent, WorldMember
+from data.models import World, WorldChangeRequest, WorldEvent, WorldMember
 
 #: Incrementare ad ogni cambio non retrocompatibile del formato delle rotte
 #: HTTP o del payload JSON. `GET /world` lo espone; il client lo confronta
@@ -27,6 +27,20 @@ PROTOCOL_VERSION = 1
 #: occupata (es. da un'altra istanza dell'app, o da un mondo ospitato in
 #: precedenza non ancora rilasciato dal sistema operativo).
 DEFAULT_PORT_RANGE = range(8765, 8771)
+
+#: §9.3/§13 (passo 5) — porta UDP dedicata all'annuncio broadcast della
+#: scoperta automatica, distinta dalla porta TCP dell'host (che varia
+#: nell'intervallo sopra): un client in ascolto deve sapere DOVE ascoltare
+#: senza già conoscere la porta specifica scelta dall'host.
+DISCOVERY_PORT = 8766
+
+#: Intervallo tra due annunci broadcast successivi (§9.3: "ogni 2 s").
+DISCOVERY_ANNOUNCE_INTERVAL_S = 2.0
+
+#: Prefisso del payload broadcast — un client che riceve pacchetti UDP non
+#: suoi su questa porta (rumore di rete, un'altra applicazione) li scarta
+#: subito senza tentare `json.loads()` su dati non pertinenti.
+DISCOVERY_MAGIC = "dnd_companion_world_v1"
 
 #: §9.2/§12.3 — durata dell'attesa lunga di GET /events. Stima di partenza,
 #: non un valore misurato su una rete reale: se un router chiude le
@@ -113,4 +127,34 @@ def member_from_dict(d: dict) -> WorldMember:
         role=str(d.get("role", "player")),
         is_connected=bool(d.get("is_connected", False)),
         last_seen_at=str(d.get("last_seen_at", "")),
+    )
+
+
+def change_request_to_dict(request: WorldChangeRequest) -> dict:
+    """Multiplayer passo 6 — trasmette una richiesta di modifica (§7.1) al
+    giocatore proprietario del personaggio bersaglio via `GET /snapshot`."""
+    return {
+        "id": request.id,
+        "world_id": request.world_id,
+        "character_id": request.character_id,
+        "requested_by": request.requested_by,
+        "payload": request.payload,
+        "reason": request.reason,
+        "status": request.status,
+        "created_at": request.created_at,
+        "resolved_at": request.resolved_at,
+    }
+
+
+def change_request_from_dict(d: dict) -> WorldChangeRequest:
+    return WorldChangeRequest(
+        id=str(d.get("id", "")),
+        world_id=str(d.get("world_id", "")),
+        character_id=str(d.get("character_id", "")),
+        requested_by=str(d.get("requested_by", "")),
+        payload=str(d.get("payload", "{}")),
+        reason=str(d.get("reason", "")),
+        status=str(d.get("status", "pending")),
+        created_at=str(d.get("created_at", "")),
+        resolved_at=str(d.get("resolved_at", "")),
     )

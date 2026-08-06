@@ -6178,6 +6178,227 @@ limitare la modifica esattamente al perimetro segnalato.
 
 ---
 
+- **Vincoli di sequenza rispettati durante la revisione 2026-07-26 (storico, per
+  memoria — tutte le fasi sono concluse)**: due vincoli di ordine non ovvi,
+  motivati e poi effettivamente rispettati durante l'esecuzione del piano
+  bug→pulizia→restyle→feature. (1) La pulizia della duplicazione tra
+  `wizard_view.py` e `manual_form.py` (83 funzioni duplicate al 67%) doveva
+  avvenire **prima** del restyle delle view di creazione personaggio, altrimenti
+  si sarebbe dovuto restylare due volte lo stesso codice. (2) Il fix del bug
+  **B10** (rebuild totale del tab ad ogni click, che faceva tornare lo scroll in
+  cima) doveva avvenire **prima** delle animazioni della Fase C del restyle,
+  perché animare un albero ricostruito da zero ad ogni click avrebbe prodotto
+  sfarfallio visibile. Entrambi rispettati nell'ordine corretto.
+
+---
+
+## 2026-08-06 (sessione successiva) — Verifiche del picker nativo confermate, bug reale trovato: rotazione EXIF foto da mobile
+
+Davide ha confermato che il picker immagini nativo (estensione
+`flet_image_picker`, vedi voci precedenti) **funziona**: può scegliere
+foto dalla galleria su Android. Ha confermato anche che la resa
+responsive (revert `wrap=True` sulla scheda giocatore, `wrap=True` su
+Master, fix di resize live) **è coerente e corretta**, sia lato giocatore
+sia lato master, sia da PC sia da smartphone — nessuna azione ulteriore
+richiesta su questi due punti.
+
+Ha però segnalato un problema reale: le foto caricate dalla galleria del
+telefono vengono salvate **ruotate di 90° a sinistra**.
+
+**Causa, verificata leggendo il codice (non ipotizzata)**: il problema non
+è nel picker nativo né nell'estensione Dart — `image_picker_service.dart`
+non chiama `imageQuality`/`maxWidth`/`maxHeight` (passati `None` da
+`ui/native_image_picker.py`), quindi restituisce i bytes JPEG grezzi via
+`File(picked.path).readAsBytes()`, EXIF intatto. Il bug è lato Python, in
+**tre punti che condividono lo stesso pattern**, tutti scritti nella
+sessione del 2026-08-06 quando le foto hanno iniziato ad arrivare da
+smartphone reali invece che da file già "dritti" su desktop:
+
+- `ui/views/character_sheet/profilo_tab.py::_save_photo_bytes()`
+- `ui/views/maps_view.py::_normalize_image_bytes_to_base64()`
+- `ui/image_library.py::_make_thumbnail_b64()`
+
+Tutti e tre fanno `PILImage.open()` → `convert("RGB")` → `save(...,
+format="JPEG")` senza mai leggere il tag EXIF `Orientation`. Le fotocamere
+degli smartphone salvano i pixel nell'orientamento fisico del sensore e
+affidano la rotazione corretta a quel tag; Pillow non lo applica mai in
+automatico in lettura (comportamento documentato, non un bug di Pillow).
+Ri-salvando senza prima applicarlo, il tag va perso insieme
+all'informazione di rotazione — l'immagine risulta ruotata in modo
+permanente, non solo a schermo ma nei bytes salvati nel DB.
+
+**Fix**: aggiunta la chiamata `img = ImageOps.exif_transpose(img)` subito
+dopo `Image.open()`, prima di `convert()`/`save()`, in tutti e tre i
+punti — `ImageOps.exif_transpose()` applica la rotazione fisica ai pixel
+in base al tag e lo rimuove, così il JPEG ri-salvato è corretto senza
+bisogno che nessun lettore successivo (incluso `ft.Image` via data URI)
+debba interpretare l'EXIF. Verificato in isolamento nel sandbox (nessun
+toolchain Flet/Dart disponibile, ma questa è pura logica Python/Pillow,
+testabile senza Flet): creata un'immagine sintetica con tag
+`Orientation=6`, applicato `exif_transpose`, confermato che le dimensioni
+si scambiano (100×200 → 200×100) e il tag sparisce dopo la trasposizione
+— la stessa identica sequenza di chiamate ora presente nel codice di
+produzione. `python3 -m py_compile` pulito sui tre file.
+
+**Non verificabile da qui**: se le foto caricate da galleria Android
+risultano davvero dritte ora — richiede una nuova build e un test di
+Davide sui tre punti (foto profilo, immagine mappa, libreria immagini
+web). Nessun test automatico con Flet aggiunto (il progetto non ha ancora
+un pattern di test che stubba Flet per queste view — se in futuro serve,
+va progettato a sé, non improvvisato qui).
+
+---
+
+## 2026-08-06 (sessione successiva) — Multiplayer passi 5 e 6: scoperta LAN + interventi del master a distanza
+
+Dopo la pulizia di `CLAUDE.md` (voce precedente) e su richiesta esplicita di
+Davide ("procediamo al passo 5 e 6... buildo l'app e testo il fix
+dell'immagine ruotata e il punto 5 e 6 tutto insieme"), implementati i passi
+5 e 6 di `multiplayer_design.md` §13 — backend, UI e test automatici. Lo
+stato riassuntivo è nella tabella "Piano di lavoro attivo" di `CLAUDE.md`;
+qui il dettaglio implementativo.
+
+**Passo 5 — Scoperta e comodità (§9.3).**
+
+Nuovo `network/discovery.py`: `LanAnnouncer` (lato host, thread daemon che
+spedisce un annuncio broadcast UDP ogni `DISCOVERY_ANNOUNCE_INTERVAL_S`
+= 2.0 s sulla porta dedicata `DISCOVERY_PORT` = 8766, costanti aggiunte a
+`network/protocol.py` insieme a `DISCOVERY_MAGIC` per scartare subito
+pacchetti non nostri senza tentare `json.loads()`) e `discover_worlds()`
+(lato client, ascolta per una finestra di tempo — non un ciclo continuo — e
+ritorna i mondi trovati deduplicati per `world_id`, con l'host letto
+dall'indirizzo del mittente del socket, mai da un valore dichiarato nel
+payload). Solo `socket` di stdlib, nessuna dipendenza mDNS/zeroconf (§3.2).
+Fallisce silenziosamente se `SO_BROADCAST` non è concesso dalla piattaforma
+(loggato, non un'eccezione) — la scoperta automatica è un mattone di
+comodità, mai l'unico modo di entrare in un mondo: il codice a 6 caratteri +
+PIN via inserimento manuale resta sempre disponibile.
+
+`network/host_server.py::WorldHostServer` accende un `LanAnnouncer` in
+`start()` e lo ferma in `stop()` — nuovo parametro `announce: bool = True`
+(disattivabile nei test che non vogliono aprire un socket broadcast reale).
+`accepting_fn=lambda: self.accepting` — l'annunciatore rispecchia lo stato
+"accetta ingressi" del server invece di tenerne una copia propria.
+
+UI: pulsante «Cerca reti nelle vicinanze» nel dialogo «Unisciti in LAN»
+(`ui/views/world/world_view.py::_open_lan_join_dialog`) — chiamata
+sincrona e bloccante a `discover_worlds(timeout=2.5)` (stesso stile già
+usato dal resto del dialogo per `start_lan_join`/`finish_pending_join`,
+nessuna dipendenza async nuova solo per questo pulsante), risultati
+elencati con nome/indirizzo/porta e un pulsante «Usa» che precompila
+indirizzo e porta (codice e PIN restano da inserire a mano — non vengono
+mai trasmessi nel broadcast, per non esporli a chiunque ascolti sulla
+rete).
+
+Test: nuovo `test_scoperta_lan.py` (25/25) — ciclo di vita di
+`LanAnnouncer` (start/stop/idempotenza), forma del payload broadcast,
+round trip reale `discover_worlds()`↔`LanAnnouncer` su loopback (non un
+finto socket: verificato che in questo sandbox `SO_BROADCAST` è concesso e
+il round trip funziona davvero), pacchetti non pertinenti scartati,
+deduplica per `world_id`, aggancio al ciclo di vita di `WorldHostServer`
+(con e senza `announce`), degradazione senza eccezioni se il socket
+broadcast non è disponibile (mockato `socket.socket` per sollevare
+`OSError`).
+
+**Passo 6 — Interventi del master a distanza (§7).**
+
+`core/world_backend.py` guadagna 11 handler master/owner sulle istanze di
+un mondo, ciascuno: (1) risolve il bersaglio con `_resolve_world_character`
+(fail-closed — deve essere un'istanza DI QUESTO mondo, altrimenti un master
+legittimo di un mondo diverso o un client con un id a caso non può
+toccarlo), (2) applica l'effetto con le funzioni di `character_repo.py` già
+usate dalla scheda locale (danno/cura via il nuovo `core/damage_rules.py`,
+estratto da `combattimento_tab.py` apposta per essere riusato qui senza
+duplicare l'algoritmo PHB — vedi la voce di changelog dedicata), (3) scrive
+un evento con `summary` leggibile nel Registro. Comandi: `xp.grant`,
+`hp.damage`, `hp.heal`, `condition.apply`, `condition.remove`,
+`resource.consume`, `resource.restore`, `custom_ability.grant`,
+`bonus_spell.grant`, `diary.add_entry`, `change_request.propose` +
+`change_request.respond` (quest'ultimo l'unico dove il ruolo da solo non
+basta: verifica anche `perm.is_character_owner()`, altrimenti un giocatore
+potrebbe rispondere a una richiesta diretta a un altro — stesso principio
+di "Aggiorna il mio foglio" §6.1).
+
+`core/world_permissions.py`: nuovo `CMD_CHANGE_REQUEST_RESPOND`,
+`PLAYER_OWNED_COMMANDS`, `requires_character_ownership()`,
+`is_character_owner()`, `CHARACTER_MUTATING_COMMANDS` (fonte di verità unica
+per `world_sync.py`, sotto). `data/repositories/world_repo.py`:
+`get_change_request()`/`save_replica_change_request()`.
+`character_export.py`: nuovo `import_replica_character()` — materializza
+sul dispositivo di un giocatore la propria istanza ricevuta dall'host,
+leggendo le colonne mondo DALLA riga esportata stessa (non da parametri
+separati che il chiamante dovrebbe già conoscere).
+
+Rete: `network/host_server.py` — `GET /snapshot` ora include anche
+`characters` (export delle istanze di proprietà del chiamante) e
+`change_requests` (le sue richieste pendenti); nuova rotta
+`GET /character/<id>` con controllo di proprietà rigoroso (403/404) per
+rimaterializzare una singola istanza dopo un evento, senza riscaricare
+l'intero snapshot. `core/world_sync.py::apply_event_to_replica()` — nuovo
+parametro opzionale `remote_backend`, nuovo ramo di resync quando l'evento
+tocca `CHARACTER_MUTATING_COMMANDS` (bug reale trovato e corretto durante lo
+sviluppo: la prima versione usava un `elif` che rendeva irraggiungibile la
+risoluzione di stato di `change_request.respond`, dato che è sia
+character-mutating sia richiede l'aggiornamento dello stato della
+richiesta — risolto separando i due controlli in catene `if` indipendenti,
+con un ramo placeholder esplicito per non far comparire un fuorviante "non
+ancora gestito" nel log per eventi già gestiti dal resync).
+
+UI: sezione «Interviene a distanza» nel dettaglio mondo
+(`ui/views/world/world_view.py::_render_detail`, visibile solo a
+master/owner via `perm.can_perform(my_role, perm.CMD_XP_GRANT)`) — un
+pannello per ogni personaggio dell'istanza con PF/PE correnti, chip delle
+condizioni attive (con rimozione inline), e quattro azioni (PE, Danno,
+Cura, Condizione) ciascuna con un piccolo dialog di conferma; tutte passano
+da `self.backend.send_command()`, mai da una scrittura diretta. La vecchia
+azione «Assegna PE» della Sezione Incontri
+(`ui/views/master/master_encounter_view.py`) è stata migrata: se il
+personaggio bersaglio ha `world_id` valorizzato passa dalla stessa pipeline
+comando → validazione → evento (prima era `character_repo.add_xp()`
+diretto, silenzioso verso un'eventuale replica in LAN — il gap che questo
+passo risolve); se `world_id` è vuoto (personaggio locale, uso del Master
+fuori da un Mondo) resta la scrittura diretta, comportamento invariato.
+Richiesto l'inoltro di `device_id` lungo la catena `MasterView` →
+`MasterEncounterListView` → `MasterEncounterView` (nuovo parametro
+`device_id: str = ""` su entrambe le view, serve a firmare il comando).
+
+**Senza UI in questo passo** (handler+permessi già implementati e testati,
+resta solo l'interfaccia): concessione abilità speciale/incantesimo
+bonus/voce di diario, e l'intero flusso di richiesta di modifica §7.1
+(proponi lato master, accetta/rifiuta lato giocatore con verifica di
+proprietà). Non ridiscutere il design — è già chiuso in
+`multiplayer_design.md` §7.1 — solo costruire l'interfaccia mancante in una
+sessione successiva.
+
+Test: `test_master_remote_actions.py` (75/75 — `damage_rules` in
+isolamento, i 19 handler registrati, permessi, fail-closed cross-mondo) e
+l'estensione [8] di `test_mondo_senza_rete.py` (151/151 in totale) —
+costruzione della sezione «Interviene a distanza» con stato vuoto e con
+un'istanza reale (nome, PF, condizione attiva mostrata come chip),
+visibilità per ruolo (master sì, player no — stesso criterio del backend,
+non una lista duplicata in UI), e un invio di comando reale
+(`_send_remote_command` → `hp.heal` → PF effettivamente aggiornati sul
+personaggio, 30 → 35).
+
+**Regressione**: rieseguita l'intera batteria di test del progetto dopo
+tutte le modifiche di questa voce — 912 controlli totali su 9 file,
+2 falliti, entrambi pre-esistenti e non correlati (il controllo di
+completezza onesta degli Artefatti DMG in `test_fase_4.py`, e il
+`ModuleNotFoundError: No module named 'flet'` di un sottoprocesso in
+`test_istanze_personaggio.py` — già documentato più volte in questo file
+come artefatto ambientale del sandbox, non del codice). Aggiornata anche la
+docstring di `character_repo.add_xp()`, che dichiarava (non più vero) di
+essere "la prima e unica scrittura del master su un personaggio giocante in
+tutto il progetto".
+
+**Non verificabile da qui**: il comportamento su una vera rete Wi-Fi con due
+dispositivi fisici distinti (scoperta automatica che trova davvero l'host,
+un intervento del master che raggiunge davvero la replica del giocatore) —
+richiede una build e un test di Davide, in programma insieme al fix
+rotazione EXIF (voce precedente) nella stessa sessione di verifica.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

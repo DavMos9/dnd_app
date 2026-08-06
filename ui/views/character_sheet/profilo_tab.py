@@ -4447,7 +4447,15 @@ class ProfiloTab(ScrollMemoryListView):
         try:
             import io
             from PIL import Image as PILImage  # type: ignore[import-untyped]
+            from PIL import ImageOps  # type: ignore[import-untyped]
             with PILImage.open(io.BytesIO(raw)) as img:
+                # Applica la rotazione EXIF (fotocamere/smartphone salvano i
+                # pixel nell'orientamento del sensore + un tag "Orientation";
+                # Image.open() lo ignora, va applicato esplicitamente prima
+                # di ri-salvare, altrimenti la rotazione corretta si perde
+                # per sempre insieme al tag stesso — bug segnalato da Davide
+                # il 2026-08-06 (foto da galleria Android ruotata 90° a sx).
+                img = ImageOps.exif_transpose(img)
                 img = img.convert("RGB")          # rimuovi alpha per JPEG
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG", quality=85)

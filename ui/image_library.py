@@ -74,7 +74,12 @@ def _make_thumbnail_b64(path: str) -> str:
     """
     try:
         from PIL import Image as PILImage  # type: ignore[import-untyped]
+        from PIL import ImageOps  # type: ignore[import-untyped]
         with PILImage.open(path) as img:
+            # Stesso fix EXIF di profilo_tab.py/maps_view.py (2026-08-06):
+            # senza questo, foto caricate in libreria via SSH da uno
+            # smartphone in verticale risulterebbero ruotate nella miniatura.
+            img = ImageOps.exif_transpose(img)
             img = img.convert("RGB")
             img.thumbnail(_THUMB_MAX_SIZE)
             buf = io.BytesIO()

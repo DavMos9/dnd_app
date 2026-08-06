@@ -41,8 +41,10 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from core.world_backend import LocalBackend
-from data.repositories import world_repo
+from data.repositories import character_repo, world_repo
+from data.repositories import character_export
 from network import protocol
+from network.discovery import LanAnnouncer
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +173,10 @@ class _RequestHandler(BaseHTTPRequestHandler):
             elif path == "/snapshot":
                 status, payload = host.handle_snapshot(self._bearer_token())
                 self._send_json(status, payload)
+            elif path.startswith("/character/"):
+                character_id = path[len("/character/"):]
+                status, payload = host.handle_get_character(self._bearer_token(), character_id)
+                self._send_json(status, payload)
             else:
                 self._send_json(404, {"error": "Rotta sconosciuta."})
         except Exception as e:
@@ -208,11 +214,20 @@ class WorldHostServer:
 
     def __init__(self, world_id: str, backend: LocalBackend | None = None,
                  port_range=protocol.DEFAULT_PORT_RANGE,
-                 long_poll_timeout: float = protocol.LONG_POLL_TIMEOUT_S):
+                 long_poll_timeout: float = protocol.LONG_POLL_TIMEOUT_S,
+                 announce: bool = True):
         self.world_id = world_id
         self.backend = backend or LocalBackend()
         self.port_range = port_range
         self.long_poll_timeout = long_poll_timeout
+        #: Multiplayer passo 5 (§9.3): manda l'annuncio broadcast UDP che
+        #: alimenta `network.discovery.discover_worlds()` lato client.
+        #: Disattivabile (`announce=False`) per i test che non vogliono
+        #: aprire un socket broadcast reale — la scoperta automatica resta
+        #: comunque solo un mattone di comodità, mai l'unico modo di
+        #: entrare in un mondo (§9.3: il codice a 6 caratteri funziona
+        #: sempre).
+        self._announce_enabled = announce
 
         self.pin: str = ""
         self.accepting = False
@@ -220,6 +235,7 @@ class WorldHostServer:
         self._httpd: _WorldHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._port: int | None = None
+        self._announcer: LanAnnouncer | None = None
 
         self._lock = threading.Lock()
         self._tokens: dict[str, str] = {}          # token -> device_id
@@ -266,15 +282,27 @@ class WorldHostServer:
         )
         self._thread.start()
         self.accepting = True
+
+        if self._announce_enabled:
+            world = world_repo.get_world(self.world_id)
+            self._announcer = LanAnnouncer(
+                self.world_id, world.name if world else "", self._port,
+                accepting_fn=lambda: self.accepting,
+            )
+            self._announcer.start()
+
         logger.info("WorldHostServer avviato su porta %d per il mondo %s",
                     self._port, self.world_id)
         return self._port
 
     def stop(self) -> None:
-        """Ferma il server e scarta PIN/token/richieste in sospeso — un
-        prossimo `start()` è una nuova sessione di hosting a tutti gli
-        effetti (§9.4: nuovo PIN ad ogni apertura)."""
+        """Ferma il server, l'annuncio broadcast e scarta PIN/token/
+        richieste in sospeso — un prossimo `start()` è una nuova sessione
+        di hosting a tutti gli effetti (§9.4: nuovo PIN ad ogni apertura)."""
         self.accepting = False
+        if self._announcer is not None:
+            self._announcer.stop()
+            self._announcer = None
         if self._httpd is not None:
             self._httpd.shutdown()
             self._httpd.server_close()
@@ -426,6 +454,21 @@ class WorldHostServer:
         }
 
     def handle_snapshot(self, token: str) -> tuple[int, dict]:
+        """
+        Stato completo del mondo (§9.2) — mondo + membri + giornale, come
+        nel passo 4, **più** (Multiplayer passo 6) l'export integrale delle
+        istanze di personaggio di CUI IL CHIAMANTE È PROPRIETARIO in questo
+        mondo (`characters.owner_device_id == device_id`, mai tutte le
+        istanze: un giocatore vede solo la propria scheda, mai quella di un
+        altro membro).
+
+        Serve a seminare la replica locale al primo ingresso
+        (`core.world_sync._finalize_join()`): senza questo, un dispositivo
+        appena entrato in un mondo LAN non avrebbe alcuna copia locale
+        della propria scheda su cui applicare gli eventi successivi (danno,
+        PE, condizioni, ...) — il gap descritto in
+        `dnd_app/docs/multiplayer_design.md` §6, colmato qui.
+        """
         device_id = self._resolve_device_by_token(token)
         if device_id is None:
             return 401, {"error": "Token non valido: riconnettersi al mondo."}
@@ -435,11 +478,59 @@ class WorldHostServer:
             return 404, {"error": "Mondo non trovato."}
         members = world_repo.get_members(self.world_id)
         events = world_repo.get_events_since(self.world_id, 0)
+        own_characters = [
+            c for c in character_repo.get_master_visible_characters(self.world_id)
+            if c.owner_device_id == device_id
+        ]
+        exports = []
+        for c in own_characters:
+            data = character_export.export_character(c.id)
+            if data is not None:
+                exports.append(data)
+        own_ids = {c.id for c in own_characters}
+        change_requests = [
+            protocol.change_request_to_dict(r)
+            for r in world_repo.get_pending_change_requests(self.world_id)
+            if r.character_id in own_ids
+        ]
         return 200, {
             "world": protocol.world_to_dict(world),
             "members": [protocol.member_to_dict(m) for m in members],
             "events": [protocol.event_to_dict(e) for e in events],
+            "characters": exports,
+            "change_requests": change_requests,
         }
+
+    def handle_get_character(self, token: str, character_id: str) -> tuple[int, dict]:
+        """
+        `GET /character/<id>` — Multiplayer passo 6: export integrale di
+        UNA istanza, per rimaterializzare la replica locale dopo un evento
+        che l'ha toccata (`core.world_sync.apply_event_to_replica`), senza
+        dover riscaricare l'intero `/snapshot` (giornale compreso) per un
+        singolo cambiamento.
+
+        Permesso solo al PROPRIETARIO del personaggio (`owner_device_id`):
+        stessa regola di `handle_snapshot`, un giocatore non può leggere la
+        scheda di un altro tramite questa rotta. Il master/owner del mondo
+        non ne ha bisogno: la sua copia è già quella autoritativa sul
+        proprio DB.
+        """
+        device_id = self._resolve_device_by_token(token)
+        if device_id is None:
+            return 401, {"error": "Token non valido: riconnettersi al mondo."}
+        if not character_id:
+            return 400, {"error": "Id personaggio mancante."}
+
+        character = character_repo.get_by_id(character_id)
+        if character is None or character.world_id != self.world_id:
+            return 404, {"error": "Personaggio non trovato in questo mondo."}
+        if character.owner_device_id != device_id:
+            return 403, {"error": "Non sei il proprietario di questo personaggio."}
+
+        data = character_export.export_character(character_id)
+        if data is None:
+            return 500, {"error": "Esportazione del personaggio fallita."}
+        return 200, {"character": data}
 
     def handle_leave(self, token: str) -> tuple[int, dict]:
         device_id = self._resolve_device_by_token(token)

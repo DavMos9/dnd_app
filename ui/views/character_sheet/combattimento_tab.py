@@ -32,6 +32,7 @@ from ui.theme import section_header, muted_text, show_error_dialog
 from ui.widgets import (CardPicker, ScrollMemoryListView, wrap_dialog_actions,
                         responsive_dialog_width)
 from core.weapon_calculator import AttackContext, compute_attack_total, compute_damage_formula
+from core.damage_rules import apply_damage, apply_heal
 import core.character_stats as cs
 from core.character_stats import RollSpec
 from ui.components.roll_panel import show_roll
@@ -844,87 +845,37 @@ class CombattimentoTab(ScrollMemoryListView):
             except ValueError:
                 return
             c = self.character
-            # Il danno assorbe prima gli HP temporanei
-            if c.hp_temp and c.hp_temp > 0:
-                absorbed = min(c.hp_temp, amt)
-                c.hp_temp -= absorbed
-                amt -= absorbed
-
-            was_at_zero = c.hp_current <= 0
-            # Danno che eccede i PF attuali (PHB p.197, "Morte Istantanea":
-            # "Quando un ammontare di danni porta il personaggio a 0 punti
-            # ferita e restano ancora dei danni da applicare, il personaggio
-            # muore se i danni rimanenti sono pari o superiori al suo massimo
-            # dei punti ferita"). A 0 PF il danno residuo è il danno intero.
-            residual = amt if was_at_zero else max(0, amt - max(0, c.hp_current))
-            instant_death = amt > 0 and c.hp_max > 0 and residual >= c.hp_max
-
-            c.hp_current = max(0, c.hp_current - amt)
-
-            death_note = ""
-            if instant_death:
-                # Nessun campo "morto" nello schema: 3 fallimenti = morte, la
-                # stessa condizione che la UI dei TS contro morte già mostra.
-                c.death_saves_success = 0
-                c.death_saves_failure = 3
-                death_note = (
-                    f"Morte istantanea: i {residual} danni residui sono pari o "
-                    f"superiori al massimo dei punti ferita ({c.hp_max}).\n"
-                    "PHB p.197 — «Morte Istantanea»."
-                )
-            elif was_at_zero and amt > 0:
-                # PHB p.197: danno subito a 0 PF = 1 TS contro morte fallito
-                # (2 se da colpo critico).
-                add = 2 if crit_cb.value else 1
-                c.death_saves_failure = min(3, (c.death_saves_failure or 0) + add)
-                if c.death_saves_failure >= 3:
-                    death_note = (
-                        "Terzo tiro salvezza contro morte fallito: il "
-                        "personaggio muore.\nPHB p.197."
-                    )
-                else:
-                    death_note = (
-                        f"Danno subito a 0 PF: {add} tiro salvezza contro morte "
-                        f"fallito{'i' if add > 1 else ''} "
-                        f"({c.death_saves_failure}/3).\nPHB p.197."
-                    )
+            # Regole PHB (assorbimento HP temp, morte istantanea, TS contro
+            # morte a 0 PF, concentrazione) — core/damage_rules.py, estratto
+            # qui il 2026-08-06 per essere riusato anche dal comando remoto
+            # del master (Multiplayer passo 6). Nessuna regola è cambiata:
+            # stesso algoritmo di prima, solo spostato in una funzione pura.
+            outcome = apply_damage(c, amt, is_critical=bool(crit_cb.value))
 
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
-            if death_note:
+            if outcome.death_note:
                 character_repo.update_death_saves(
                     c.id, c.death_saves_success, c.death_saves_failure
                 )
-
-            # Concentrazione (PHB p.203-204). Due casi distinti:
-            #  * a 0 PF il personaggio è incapacitato → la perde comunque
-            #    ("Incantatore incapacitato o ucciso");
-            #  * altrimenti va tirato un TS di Costituzione con
-            #    CD = max(10, metà dei danni subiti).
-            conc_spell = (c.concentrating_spell or "").strip()
-            conc_prompt = None
-            if conc_spell and amt > 0:
-                if c.hp_current <= 0:
-                    character_repo.clear_concentration(c.id)
-                    c.concentrating_spell = ""
-                    c.concentrating_since = ""
-                else:
-                    conc_prompt = (conc_spell, amt)
+            if outcome.concentration_broken:
+                character_repo.clear_concentration(c.id)
 
             page.pop_dialog()
             self._refresh()
-            if death_note:
+            if outcome.death_note:
                 self._show_rule_notice(
-                    "Tiri Salvezza contro Morte", death_note, design.T().danger
+                    "Tiri Salvezza contro Morte", outcome.death_note, design.T().danger
                 )
-            elif conc_spell and c.hp_current <= 0:
+            elif outcome.concentration_broken:
                 self._show_rule_notice(
                     "Concentrazione interrotta",
-                    f"«{conc_spell}» termina: a 0 punti ferita il personaggio è "
-                    "incapacitato.\nPHB p.204 — «Incantatore incapacitato o ucciso».",
+                    f"«{outcome.concentration_spell}» termina: a 0 punti ferita il "
+                    "personaggio è incapacitato.\nPHB p.204 — «Incantatore "
+                    "incapacitato o ucciso».",
                     design.T().magic,
                 )
-            if conc_prompt:
-                self._prompt_concentration_save(*conc_prompt)
+            if outcome.concentration_check_needed:
+                self._prompt_concentration_save(outcome.concentration_spell, outcome.amount_to_hp)
 
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title("Applica Danno"),
@@ -956,17 +907,14 @@ class CombattimentoTab(ScrollMemoryListView):
             except ValueError:
                 return
             c = self.character
-            was_at_zero = c.hp_current <= 0
-            c.hp_current = min(c.hp_max, c.hp_current + amt)
-            character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
             # PHB p.197: "Il numero di entrambi i tipi torna a zero quando il
             # personaggio recupera dei punti ferita o diventa stabile" — e
             # "Il personaggio riprende i sensi se recupera un qualsiasi
-            # ammontare di punti ferita". Prima di questo fix i pallini dei
-            # tiri salvezza contro morte restavano segnati dopo la cura.
-            if was_at_zero and amt > 0 and c.hp_current > 0:
-                c.death_saves_success = 0
-                c.death_saves_failure = 0
+            # ammontare di punti ferita". core/damage_rules.py, stesso
+            # motivo dell'estrazione della funzione gemella di danno.
+            outcome = apply_heal(c, amt)
+            character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
+            if outcome.death_saves_reset:
                 character_repo.update_death_saves(c.id, 0, 0)
             page.pop_dialog()
             self._refresh()
