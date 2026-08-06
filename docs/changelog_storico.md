@@ -6152,6 +6152,30 @@ scritto per questo punto in questa sessione, solo l'indagine sopra,
 verbatim, così da non doverla rifare quando si riprenderà il lavoro.
 Vedi anche il promemoria in `CLAUDE.md`.
 
+**Stesso giorno, correzione immediata su richiesta di Davide — il fix
+`wrap=True` per parità in `sheet_view.py` (punto 1 sopra) era di troppo.**
+Davide ha chiarito: la tab bar della sezione giocatore andava già bene
+com'era (`scroll=ft.ScrollMode.AUTO`), il problema segnalato riguardava
+SOLO la Sezione Master — applicare lo stesso fix "per parità" alla scheda
+personaggio, senza che fosse mai stato segnalato un problema lì, ha
+prodotto un aspetto peggiore di quello di partenza. Ripristinato
+`scroll=ft.ScrollMode.AUTO` in
+`ui/views/character_sheet/sheet_view.py::_build_header_and_tabs()`,
+rimosso il paragrafo di commento "FIX 2026-08-06" aggiunto per motivarlo,
+aggiunta una nota che rimanda esplicitamente a NON ripetere questo
+intervento lì. `MasterView._build_tab_bar()` resta invariata (`wrap=True`,
+il fix richiesto e confermato buono). Verificato con `python3 -m
+py_compile` e la batteria `test_regressione_wrap_expand.py` (85/85,
+nessuna modifica necessaria ai test: verificano solo l'assenza di
+conflitti wrap+expand, indipendenti da quale delle due strategie — scroll
+o wrap — sia in uso).
+
+**Lezione operativa**: quando un fix è richiesto per UNA vista specifica,
+non estenderlo "per coerenza" a viste gemelle che non hanno ricevuto la
+stessa segnalazione, anche se il codice è duplicato e il ragionamento
+tecnico si applica in astratto a entrambe — chiedere prima, o quantomeno
+limitare la modifica esattamente al perimetro segnalato.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

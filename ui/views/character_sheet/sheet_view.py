@@ -291,25 +291,25 @@ class SheetView(ft.Column):
                     #    raggiungibile) — 5 pillole icona-sola stanno
                     #    comodamente su una riga anche a 360-375px, la
                     #    larghezza minima comune di uno smartphone. Sopra il
-                    #    breakpoint, icona + etichetta come prima.
-                    # 4) FIX 2026-08-06 (sessione successiva, per parità con
-                    #    lo stesso fix applicato a `MasterView`, che aveva lo
-                    #    stesso identico difetto latente con etichette più
-                    #    lunghe): `scroll=ft.ScrollMode.AUTO` sostituito da
-                    #    `wrap=True`. Le 5 etichette di questa vista sono
-                    #    più corte di quelle della Sezione Master e finora
-                    #    non avevano fatto scattare il bug su una finestra
-                    #    desktop tipica, ma il meccanismo che nascondeva le
-                    #    pillole in eccesso dietro uno scroll non scoperto
-                    #    era lo stesso, solo non ancora innescato — corretto
-                    #    qui per lo stesso principio, non solo per
-                    #    l'istanza segnalata. `wrap=True` non nasconde mai
-                    #    nulla e reagisce da solo al ridimensionamento dal
-                    #    vivo della finestra (calcolo nativo di Flutter, non
-                    #    serve alcun codice Python che ascolti il resize).
+                    #    breakpoint, icona + etichetta come prima. `scroll=
+                    #    ft.ScrollMode.AUTO` resta solo come rete di
+                    #    sicurezza per casi patologici (font di sistema
+                    #    enormi, finestra sotto i 360px), non più come
+                    #    meccanismo primario.
+                    #
+                    # NOTA (2026-08-06, sessione successiva): per un difetto
+                    # analogo nella tab bar della Sezione Master (etichette
+                    # più lunghe, tagliate anche su desktop) era stato
+                    # provato — per parità — lo stesso `wrap=True` anche
+                    # qui. Davide ha chiesto di riportare QUESTA tab bar
+                    # (sezione giocatore) esattamente com'era, perché andava
+                    # già bene così: ripristinato `scroll=ft.ScrollMode.AUTO`.
+                    # Il fix con `wrap=True` resta solo in `MasterView`
+                    # (`ui/views/master/master_view.py::_build_tab_bar()`),
+                    # NON toccare più questa Row per lo stesso motivo.
                     ft.Container(
                         content=ft.Row(tab_row, spacing=design.Space.XS,
-                                       run_spacing=design.Space.XS, wrap=True),
+                                       scroll=ft.ScrollMode.AUTO),
                         margin=ft.Margin.only(left=design.Space.MD,
                                               right=design.Space.MD,
                                               bottom=design.Space.MD),

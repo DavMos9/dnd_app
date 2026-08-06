@@ -661,6 +661,15 @@ muted_text(text, size=12, text_align=..., weight=...)
 # punti di interruzione a ogni resize — mentre una decisione presa in
 # Python al momento della costruzione (es. `is_mobile` letto una volta)
 # resta fissa finché qualcosa non ricostruisce esplicitamente il controllo.
+#
+# ATTENZIONE — NON applicare questo fix "per coerenza" a viste gemelle
+# senza una segnalazione esplicita su quelle: applicato inizialmente anche
+# a `ui/views/character_sheet/sheet_view.py` (stesso difetto latente, mai
+# innescato dalle sue etichette più corte), Davide ha chiesto di
+# riportarlo a `scroll=ft.ScrollMode.AUTO` perché quella tab bar andava
+# già bene com'era — il fix resta SOLO in
+# `ui/views/master/master_view.py::_build_tab_bar()`, l'unica vista per
+# cui è stato davvero richiesto. Non ripetere l'estensione "per parità".
 
 # COME VERIFICARE SE UNA Row/Container HA UNA LARGHEZZA DAVVERO VINCOLATA
 # (utile prima di scegliere tra wrap=True "funziona" o "produce l'identico
