@@ -6770,8 +6770,12 @@ nell'interfaccia dell'app stessa (es. `home_view.py`, che mostra il nome
 come `ft.Text`, non tramite un template XML di build) resta invariato:
 non passa dalla stessa pipeline, non c'è alcun rischio lì.
 
-⚠️ Ancora da verificare con una build CI reale — prossimo tag dopo questo
-fix.
+**Confermato da Davide su build CI reale (2026-08-07, tag v0.1.34):
+icona giusta visualizzata.** Rimosso il flag diagnostico `-vv` dallo step
+"Build Android APK" del workflow, non più necessario. Bug chiuso: nome
+prodotto/bundle id/build number/icona ora tutti applicati correttamente
+su tutte e 4 le piattaforme (Windows/macOS/Linux/Android), come da schema
+corretto di `flet_cli` 0.86.5 documentato nella voce precedente.
 
 ---
 

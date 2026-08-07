@@ -250,13 +250,7 @@ jobs:
         run: pip install flet==0.86.5 "Pillow>=10.0.0"
 
       - name: Build Android APK
-        # -vv temporaneo (2026-08-06): diagnosi del bug per cui l'APK CI ha
-        # package com.flet.dnd_companion e icona di default invece della
-        # config in pyproject.toml (app.bundle_id/app.name/app.icon), pur
-        # essendo il file sorgente verificato corretto e valido — vedi
-        # dnd_app/docs/changelog_storico.md una volta chiuso. Da rimuovere
-        # (tornare a --no-rich-output semplice) una volta trovata la causa.
-        run: echo "y" | flet build apk --no-rich-output -vv
+        run: echo "y" | flet build apk --no-rich-output
 
       - name: Find and rename APK
         run: |
