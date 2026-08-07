@@ -102,6 +102,19 @@ MASTER_AND_OWNER_COMMANDS: frozenset[str] = frozenset({
 
 CMD_CHANGE_REQUEST_RESPOND = "change_request.respond"
 
+#: Invio automatico (fix 2026-08-07, Multiplayer §7/step 7 "Condivisione" —
+#: scelta esplicita di Davide dopo un confronto sui pro/contro: "sì, invio
+#: automatico in tempo reale") dei PF che il giocatore stesso modifica sulla
+#: propria scheda (danno subito, cura, riposo, tiri salvezza contro morte,
+#: modifica manuale) — mai un'azione visibile, parte dal client con lo
+#: stesso principio "best effort" di `CMD_CHARACTER_INSTANCE_SYNC`: se fallisce
+#: (host irraggiungibile, cooldown) la scheda locale resta comunque corretta,
+#: il prossimo invio porterà lo stato più recente (idempotente: valori
+#: assoluti, mai un delta). Ruolo minimo `player`, proprietà verificata come
+#: `CMD_CHANGE_REQUEST_RESPOND`/`CMD_CHARACTER_INSTANCE_SYNC` — un giocatore
+#: può aggiornare via rete SOLO la propria istanza.
+CMD_HP_SELF_UPDATE = "hp.self_update"
+
 #: Registra sull'host l'istanza di personaggio appena creata/ripresa in
 #: locale da `core/character_instances.py::create_or_resume_instance()`
 #: (fix 2026-08-07: quella funzione, nata al passo 3 prima che esistesse la
@@ -118,6 +131,7 @@ CMD_CHARACTER_INSTANCE_SYNC = "character_instance.sync"
 PLAYER_OWNED_COMMANDS: frozenset[str] = frozenset({
     CMD_CHANGE_REQUEST_RESPOND,
     CMD_CHARACTER_INSTANCE_SYNC,
+    CMD_HP_SELF_UPDATE,
 })
 
 #: Ogni comando conosciuto -> ruolo minimo richiesto per inviarlo.
@@ -142,6 +156,12 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
     CMD_XP_GRANT, CMD_HP_DAMAGE, CMD_HP_HEAL, CMD_CONDITION_APPLY, CMD_CONDITION_REMOVE,
     CMD_RESOURCE_CONSUME, CMD_RESOURCE_RESTORE, CMD_CUSTOM_ABILITY_GRANT,
     CMD_BONUS_SPELL_GRANT, CMD_DIARY_ADD_ENTRY, CMD_CHANGE_REQUEST_RESPOND,
+    # CMD_HP_SELF_UPDATE (fix 2026-08-07): anche questo evento deve far
+    # rimaterializzare la replica su un TERZO dispositivo (es. un co-master
+    # su un altro telefono, o il device del padrone stesso se un giorno
+    # gira su più dispositivi) — stesso principio già commentato qui sotto
+    # per CMD_CHARACTER_INSTANCE_SYNC.
+    CMD_HP_SELF_UPDATE,
     # Anche questo comando (fix 2026-08-07) rientra qui: per un TERZO
     # dispositivo del mondo (non l'host, non il proprietario — es. un
     # co-master su un altro telefono) `core/world_sync.py` deve sapere di
@@ -177,6 +197,20 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
 MASTER_ACTION_COOLDOWN_S = 3.0
 NETWORK_REQUEST_COOLDOWN_S = 10.0
 
+#: Cooldown DEDICATO a `CMD_HP_SELF_UPDATE` (fix 2026-08-07) — deliberatamente
+#: separato da `MASTER_ACTION_COOLDOWN_S`: quello protegge un'azione con
+#: conferma esplicita dell'utente (una pillola, un dialog), qui invece
+#: l'invio è automatico e silenzioso ad ogni modifica dei PF sulla propria
+#: scheda (danno/cura/riposo/TS morte/modifica manuale — potenzialmente
+#: diversi tocchi ravvicinati durante un combattimento). Il lato client non
+#: BLOCCA mai l'azione locale per questo cooldown (la scheda del giocatore
+#: deve restare sempre reattiva): la usa solo per decidere quando è il
+#: momento di inviare il valore più recente (debounce in `core.world_sync`),
+#: mai per mostrare un errore. Il valore, più corto di
+#: `MASTER_ACTION_COOLDOWN_S`, riflette che qui non c'è alcuna attesa
+#: percepita dall'utente da minimizzare (è tutto in background).
+HP_SELF_UPDATE_COOLDOWN_S = 1.5
+
 #: Le azioni di "Interviene a distanza" (§7) mostrate come pillole in
 #: `ui/views/world/world_view.py::_remote_character_row` — un sottoinsieme
 #: esplicito di `MASTER_AND_OWNER_COMMANDS`, che include anche comandi
@@ -202,15 +236,6 @@ def cooldown_remaining(last_action_at: float, cooldown_s: float) -> float:
     sessione, conta solo il tempo trascorso davvero.
     """
     return cooldown_s - (time.monotonic() - last_action_at)
-
-
-def requires_character_ownership(command_kind: str) -> bool:
-    """True se, oltre al ruolo, l'handler deve anche verificare che
-    l'autore del comando sia il proprietario del personaggio bersaglio
-    (§6.1/§7.1) — un controllo che questo modulo non può fare da solo
-    perché non tocca mai il DB (`characters.owner_device_id` va letto dal
-    chiamante)."""
-    return command_kind in PLAYER_OWNED_COMMANDS
 
 
 def is_character_owner(actor_device_id: str, character_owner_device_id: str) -> bool:
@@ -241,7 +266,14 @@ def can_perform(role: str, command_kind: str) -> bool:
 # Campi di `characters` vietati a chiunque non sia il giocatore stesso (§7,
 # tabella "Vietato a chiunque tranne il giocatore"). Nessun comando può
 # scriverli direttamente, nemmeno l'owner: l'unica via è la richiesta di
-# modifica approvata dal giocatore (§7.1, CMD_CHANGE_REQUEST_PROPOSE).
+# modifica approvata dal giocatore (§7.1, CMD_CHANGE_REQUEST_PROPOSE). La
+# protezione reale è STRUTTURALE (nessun handler in `world_backend.py`
+# scrive questi campi al di fuori del sottoinsieme allow-listato in
+# `CHANGE_REQUEST_ALLOWED_FIELDS` sotto), non un controllo a runtime su
+# questa lista — pulizia 2026-08-07: rimosso `is_forbidden_character_field()`,
+# mai chiamato da nessun handler. La costante resta: documenta §7 in una
+# forma verificabile dal codice (non solo in prosa nel design doc), ed è il
+# riferimento esplicito di `CHANGE_REQUEST_ALLOWED_FIELDS` qui sotto.
 #
 # Competenze e talenti non compaiono come nomi di campo perché non sono
 # colonne di `characters` (vivono in `character_proficiencies`): sono
@@ -269,10 +301,6 @@ CHANGE_REQUEST_ALLOWED_FIELDS: frozenset[str] = frozenset({
     "level",
     "fighting_style", "totem_animal", "land_terrain", "pact_boon", "dragon_ancestry",
 })
-
-
-def is_forbidden_character_field(field_name: str) -> bool:
-    return field_name in FORBIDDEN_CHARACTER_FIELDS
 
 
 def is_change_request_field_allowed(field_name: str) -> bool:

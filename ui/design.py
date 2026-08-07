@@ -355,11 +355,6 @@ def difficulty_color(key: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def display(text: str, color: str | None = None) -> ft.Text:
-    return ft.Text(text, size=Size.DISPLAY, weight=ft.FontWeight.BOLD,
-                   color=color or T().text, font_family=Font.DISPLAY)
-
-
 def title(text: str, size: int = Size.TITLE, color: str | None = None) -> ft.Text:
     return ft.Text(text, size=size, weight=ft.FontWeight.BOLD,
                    color=color or T().text, font_family=Font.DISPLAY)
@@ -384,12 +379,6 @@ def label(text: str, color: str | None = None) -> ft.Text:
     return ft.Text(text.upper(), size=Size.LABEL, weight=ft.FontWeight.BOLD,
                    color=color or T().text_3, font_family=Font.BODY,
                    style=ft.TextStyle(letter_spacing=1))
-
-
-def mono(text: str, size: int = Size.MONO, color: str | None = None,
-         weight: ft.FontWeight | None = ft.FontWeight.W_500) -> ft.Text:
-    return ft.Text(text, size=size, color=color or T().text,
-                   font_family=Font.MONO, weight=weight)
 
 
 # ---------------------------------------------------------------------------
@@ -531,63 +520,6 @@ def chip(text: str, tone: Tone = "neutral", *, icon: ft.IconData | None = None,
         bgcolor=col if filled else ft.Colors.with_opacity(0.12, col),
         border_radius=Radius.PILL,
     )
-
-
-def stat_tile(value: str, label_text: str, *,
-              on_click: Callable[[Any], None] | None = None,
-              color: str | None = None, tooltip: str | None = None,
-              hint_icon: bool = True) -> ft.Container:
-    """
-    Riquadro per un valore numerico (caratteristiche, CA, velocità…).
-    Tap-target ≥44px e, se cliccabile, icona matita esplicita — coerente con la
-    regola del progetto "nessuna azione nascosta".
-    """
-    p = T()
-    head: list[ft.Control] = [
-        ft.Text(label_text.upper(), size=9, weight=ft.FontWeight.BOLD,
-                color=p.text_3, font_family=Font.BODY,
-                style=ft.TextStyle(letter_spacing=1)),
-    ]
-    if on_click is not None and hint_icon:
-        head.append(ft.Container(width=3))
-        head.append(ft.Icon(ft.Icons.EDIT, size=9, color=p.text_3))
-    return ft.Container(
-        content=ft.Column(
-            [
-                ft.Row(head, spacing=0, tight=True,
-                       alignment=ft.MainAxisAlignment.CENTER),
-                ft.Text(value, size=20, weight=ft.FontWeight.BOLD,
-                        color=color or p.text, font_family=Font.MONO,
-                        text_align=ft.TextAlign.CENTER),
-            ],
-            spacing=2, tight=True,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        ),
-        bgcolor=p.surface_alt,
-        border_radius=Radius.SM,
-        padding=ft.Padding.symmetric(horizontal=Space.MD, vertical=Space.SM),
-        on_click=on_click,
-        tooltip=tooltip,
-        ink=bool(on_click),
-        animate_scale=ft.Animation(Duration.FAST, CURVE),
-    )
-
-
-def metric_bar(value: float, maximum: float, *, tone: Tone = "success",
-               height: int = 10) -> ft.Row:
-    """
-    Barra di avanzamento (HP, peso trasportato…), animata.
-
-    Sempre dentro una `Row` con `expand=True`: una `ProgressBar` senza vincolo
-    di larghezza esplicito manda in crash silenzioso il layout Flutter (regola
-    già documentata in CLAUDE.md).
-    """
-    p = T()
-    ratio = 0.0 if maximum <= 0 else max(0.0, min(1.0, value / maximum))
-    return ft.Row([
-        ft.ProgressBar(value=ratio, height=height, border_radius=Radius.SM,
-                       color=tone_color(tone), bgcolor=p.surface_alt, expand=True),
-    ])
 
 
 def hp_tone(current: float, maximum: float) -> Tone:

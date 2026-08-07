@@ -22,8 +22,13 @@ autenticazione vero:
 - Solo HTTP in chiaro, dichiarato (§9.4): accettabile in una LAN domestica,
   la UI deve dirlo esplicitamente.
 
-Il server si accende solo quando il master apre l'hosting e si spegne alla
-chiusura (§9.4: "nessuna porta aperta di default").
+Il server si accende solo quando il master apre l'hosting esplicitamente
+(§9.4: "nessuna porta aperta di default") e si spegne SOLO con "Ferma
+hosting" o alla vera chiusura del processo (thread `daemon=True`) — MAI
+navigando via dalla Sezione Mondi verso un'altra schermata dell'app: era
+così in una sessione precedente, causa di un bug reale (il master perdeva
+l'hosting aprendo la Modalità Master), corretto il 2026-08-07 con
+`HostServerSlot`, vedi il suo docstring.
 """
 
 from __future__ import annotations

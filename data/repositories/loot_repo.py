@@ -73,19 +73,6 @@ def get_entries(stash_kind: str = "master", world_id: str = "") -> list[LootStas
         return []
 
 
-def get_entry_by_id(entry_id: str) -> LootStashEntry | None:
-    try:
-        conn = get_connection()
-        row = conn.execute(
-            "SELECT * FROM loot_stash_entries WHERE id=?", (entry_id,)
-        ).fetchone()
-        conn.close()
-        return _row_to_entry(row) if row else None
-    except Exception as e:
-        logger.error(f"Errore get_entry_by_id: {e}")
-        return None
-
-
 def create_entry(
     stash_kind: str,
     entry_kind: str,
@@ -139,23 +126,6 @@ def create_entry(
     except Exception as e:
         logger.error(f"Errore create_entry: {e}")
         return None
-
-
-def update_entry_quantity(entry_id: str, quantity: int) -> bool:
-    """Aggiorna solo la quantità (clamp a 0 minimo — 0 non elimina la riga,
-    resta visibile come "esaurita" finché non viene rimossa esplicitamente)."""
-    try:
-        conn = get_connection()
-        conn.execute(
-            "UPDATE loot_stash_entries SET quantity=?, updated_at=? WHERE id=?",
-            (max(0, quantity), datetime.now().isoformat(), entry_id),
-        )
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        logger.error(f"Errore update_entry_quantity: {e}")
-        return False
 
 
 def update_entry(

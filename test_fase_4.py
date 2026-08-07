@@ -810,8 +810,8 @@ def test_award_xp() -> None:
           any("Thorin" in t for t in ctx) and any("Elara" in t for t in ctx))
     check("la conferma mostra il passaggio di livello",
           any("sale al livello 5" in t for t in ctx))
-    check("la conferma dichiara che e' l'unica scrittura sui PG",
-          any("unica modifica" in t for t in ctx))
+    check("la conferma dichiara che passa sempre dalla pipeline comando/evento",
+          any("mai una scrittura diretta" in t for t in ctx))
 
     next(b for b in walk(confirm) if isinstance(b, ft.ElevatedButton)
          and str(getattr(b, "content", "")) == "Assegna").on_click(None)
@@ -1154,13 +1154,19 @@ def test_artifacts() -> None:
     check("ogni artefatto dichiara le proprie proprieta' casuali",
           all(any("Casuali" in p.get("name", "") for p in a["properties"])
               for a in arts))
-    check("lookup per nome",
-          game_data.get_artifact("Bacchetta di Orcus") is not None)
-    check("lookup case-insensitive",
-          game_data.get_artifact("bacchetta di orcus") is not None)
-    check("nome inesistente -> None", game_data.get_artifact("zzz") is None)
-    check("il file dichiara onestamente cosa manca ancora",
-          "Occhio e Mano di Vecna" in data.get("_incomplete_note", ""))
+    # I 7 artefatti DMG sono stati completati (2026-07-xx, vedi CLAUDE.md
+    # "Artefatti DMG (7/7)"): "Occhio e Mano di Vecna" prima mancava ed era
+    # dichiarato onestamente in "_incomplete_note", ora è trascritto e la
+    # nota è stata correttamente rimossa dal JSON (la UI gestisce già la sua
+    # assenza, vedi master_artifacts_dialog.py: `if note:`).
+    check("tutti i 7 artefatti DMG sono trascritti, incluso Vecna",
+          {a.get("name") for a in arts} >= {
+              "Ascia dei Signori dei Nani", "Bacchetta di Orcus",
+              "Globo dei Draghi", "Libro delle Fosche Tenebre",
+              "Libro delle Imprese Eroiche", "Occhio e Mano di Vecna",
+              "Spada di Kas"})
+    check("nessuna nota di incompletezza residua (dati completi)",
+          not data.get("_incomplete_note"))
     check("regole di distruzione presenti",
           len(data.get("destruction", {}).get("suggestions", [])) == 7)
 

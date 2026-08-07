@@ -265,9 +265,9 @@ def test_permissions() -> None:
     check("is_valid_role rifiuta uno sconosciuto", not perm.is_valid_role("spettatore"))
 
     for field in ("name", "race", "class_name", "level", "str_score"):
-        check(f"{field} è un campo vietato", perm.is_forbidden_character_field(field))
+        check(f"{field} è un campo vietato", field in perm.FORBIDDEN_CHARACTER_FIELDS)
     check("session_notes NON è un campo vietato",
-          not perm.is_forbidden_character_field("session_notes"))
+          "session_notes" not in perm.FORBIDDEN_CHARACTER_FIELDS)
 
     check("str_score è ammesso in una richiesta di modifica",
           perm.is_change_request_field_allowed("str_score"))

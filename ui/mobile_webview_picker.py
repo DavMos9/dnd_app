@@ -49,17 +49,12 @@ import asyncio
 import base64
 import json
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 import flet as ft
 
 from ui import design
 from ui.widgets import wrap_dialog_actions
-
-if TYPE_CHECKING:
-    # Solo per il type checker — vedi il commento sopra pick_file_via_webview()
-    # sul perché l'import vero è ritardato a runtime, dentro la funzione.
-    from flet_webview import WebViewConsoleMessageEvent
 
 logger = logging.getLogger(__name__)
 

@@ -7683,6 +7683,315 @@ due dispositivi fisici in questo sandbox.
 
 ---
 
+## 2026-08-07 (sessione successiva) — Layout Incontri troppo compresso, azioni master scomode durante un combattimento, PF del giocatore mai sincronizzati col mondo
+
+Davide, dopo aver confermato che il fix precedente funzionava ("mi sono
+collegato ho aggiunto un personaggio e riesco ad aggiungerlo nella sezione
+master"), ha sollevato tre punti da "discutere" con uno screenshot della
+lista Incontri: (1) troppo poco spazio visibile per la lista, tutta la
+chrome sopra (selettore mondo, Generatori Rapidi, tab bar, header di
+Incontri) occupa la maggior parte dello schermo; (2) scomodo per il master
+dover cambiare schermata verso Mondi per dare PE/danno/cura durante un
+incontro; (3) se un personaggio si ferisce sulla propria scheda, quella
+modifica non si riflette mai nel mondo/nell'incontro — "tutte le schede
+devono essere sincronizzate nel mondo dando le stesse statistiche".
+
+**Analisi preliminare (grounded nel codice, non a memoria).** Prima di
+proporre soluzioni, verificato lo stato reale:
+- Il meccanismo per nascondere la chrome di `MasterView` esiste già
+  (`_on_child_focus_change()`, 2026-08-06) ma scatta SOLO aprendo un
+  incontro specifico, mai sulla lista — lo screenshot di Davide era
+  proprio la lista.
+- `master_encounter_view.py::_member_card()` mostra i PF di un PG SEMPRE
+  in sola lettura (`"PF X/Y · giocatore"`), per design dichiarato nel
+  docstring del modulo: "i PG restano sempre gestiti dal giocatore sulla
+  propria scheda" — non un bug, una scelta esplicita già in vigore.
+- `get_encounter_members_resolved()` legge i PF di un "character" SEMPRE
+  live dalla tabella `characters`, mai da un valore cachato sulla riga
+  dell'incontro — quindi un aggiornamento sulla scheda del giocatore, se
+  mai arrivasse fino a quella tabella (sullo stesso dispositivo che
+  ospita), sarebbe già visibile nell'incontro senza altro lavoro: il
+  vero anello mancante era solo "far arrivare" quell'aggiornamento fin
+  lì da un ALTRO dispositivo.
+- Nessun comando esisteva per un aggiornamento PF iniziato dal
+  GIOCATORE: `hp.damage`/`hp.heal` (già networked) partono solo dal
+  master via "Interviene a distanza"; un giocatore che si segna danno da
+  solo sulla propria scheda scrive oggi SOLO in locale.
+
+Tre biforcazioni di design vere, non coperte da `multiplayer_design.md`
+(che tratta solo §6.1 «Aggiorna il mio foglio», manuale e per un resync
+completo — non i soli PF, non automatico) sono state sottoposte a Davide
+via `AskUserQuestion` invece di essere decise arbitrariamente:
+1. Come liberare spazio in Incontri → **"Generatori Rapidi solo fuori da
+   quella tab"** (scelta di Davide, opzione consigliata).
+2. Quali azioni duplicare nell'incontro → **"solo Danno/Cura/Condizione"**
+   (scelta di Davide, opzione consigliata) — abilità/incantesimo bonus/
+   diario/proponi modifica restano solo in Mondi.
+3. Sync dei PF del giocatore → **"sì, invio automatico in tempo reale"**
+   (Davide ha scelto QUESTA, non l'opzione consigliata "resta manuale").
+
+**Fix 1 — Layout (`ui/views/master/master_view.py`).** `_build()` ora
+costruisce `_tools_row_container` (i 6 generatori) SOLO se
+`active_tab != "encounters"`; se `None`, semplicemente non viene
+aggiunto ai `controls` (nessuna azione nascosta: i 6 generatori restano
+sempre visibili nelle altre 4 tab, semplicemente non esistono in una tab
+che ha già i propri pulsanti). `_on_child_focus_change()` resta invariata
+e già a prova di `None` (`if ctrl is not None`).
+
+**Fix 2 — Azioni PG dall'incontro (`data/repositories/master_repo.py`,
+`ui/views/master/master_encounter_view.py`).**
+`get_encounter_members_resolved()` ora espone anche `world_id` per un
+membro "character" (letto dalla stessa riga `characters` già
+interrogata, `""` per un PG locale). `_member_card()`: per un PG con
+`world_id` valorizzato, accanto al chip "PF X/Y · giocatore" compaiono
+tre `IconButton` — Danno/Cura/Condizione — che aprono dialog IDENTICI
+(stesso testo, stessi campi) a quelli già in `world_view.py`, e
+inviano lo STESSO comando attraverso `LocalBackend().send_command()`
+(nuovo `_send_pg_remote_command()`, nuovi `_open_pg_damage_dialog`/
+`_open_pg_heal_dialog`/`_open_pg_condition_dialog`) — stessa pipeline
+comando → validazione → evento, stesso limite anti-spam per personaggio
+(`core.world_sync`, stato di MODULO: condiviso automaticamente con
+`WorldsView`, non serve duplicarlo). Un PG locale (nessun mondo) resta
+di sola lettura, invariato. **Limite preesistente segnalato, non
+introdotto qui**: come "Assegna PE" nello stesso file, usa
+`LocalBackend()` incondizionatamente — corretto quando questo
+dispositivo ospita il mondo (il caso normale), non instrada verso un
+host remoto se il master fosse un co-master collegato come client da un
+altro dispositivo (limite già presente, fuori scope per questa
+richiesta). Aggiornati anche il docstring del modulo e il testo del
+dialog "Assegna PE" (diceva "è l'unica modifica" — non più vero).
+
+**Fix 3 — Invio automatico dei PF del giocatore
+(`core/world_permissions.py`, `core/world_backend.py`,
+`core/world_sync.py`, `ui/views/character_sheet/combattimento_tab.py`).**
+Nuovo comando `hp.self_update`, ruolo minimo `player` ma con verifica di
+proprietà (`perm.is_character_owner`, stesso principio già usato per
+`change_request.respond`/`character_instance.sync`): un giocatore può
+aggiornare via rete SOLO la propria istanza. Payload a **valori
+assoluti** (`hp_current`/`hp_temp`/tiri salvezza contro morte), mai un
+delta: un invio perso non lascia nulla di incoerente, il prossimo invio
+porta comunque lo stato più recente (idempotente). Nuovo handler
+`_handle_hp_self_update()` in `world_backend.py` — NON passa da
+`damage_rules` (il calcolo è già stato fatto dal chiamante sulla propria
+copia locale), scrive il risultato finale con clamp difensivo
+(`0 <= hp_current <= hp_max`, `hp_temp >= 0`, tiri salvezza `0..3`) e
+apre un evento nel registro. Difesa in profondità su tre livelli, stessa
+architettura di ogni altro comando di rete:
+- **Client**: `CombattimentoTab._schedule_hp_world_sync()`, chiamata
+  subito dopo OGNI scrittura locale di PF/PF temp/tiri salvezza contro
+  morte del personaggio (11 punti nel file: tiri salvezza manuali,
+  `_roll_death_save`, danno, cura, HP temp, modifica manuale, riposo
+  breve, riposo lungo, danno spillover da forma selvatica) — MAI
+  bloccante: se il personaggio non è un'istanza di mondo o non c'è una
+  pagina montata, esce subito senza fare nulla. Debounce con un token di
+  generazione (`_hp_sync_generation`): una raffica di click ravvicinati
+  produce UN SOLO invio con l'ultimo valore, non uno per click.
+- **Cooldown client** (`core.world_sync`, `HP_SELF_UPDATE_COOLDOWN_S =
+  1.5s`, deliberatamente più corto di quello del master perché qui non
+  c'è alcuna attesa percepita da minimizzare): usato solo per decidere
+  QUANDO inviare, mai per bloccare l'azione locale.
+- **Host** (`core.world_backend._check_rate_limit`, stesso valore):
+  backstop contro un client modificato, stesso principio già in uso per
+  gli altri comandi di rete.
+Un fallimento dell'invio (host irraggiungibile, cooldown) non mostra MAI
+un errore al giocatore — loggato e basta (`logger.warning`), coerente
+con "best effort, mai bloccante".
+
+**Test.** Nuovo `test_layout_incontri_e_pf_autosync.py` (50/50): layout
+(tools_row assente solo su "encounters", presente altrove, cambio tab
+in-place, `_on_child_focus_change` a prova di `None`); permessi
+`hp.self_update`; handler (proprietario può, master/altri non possono,
+clamp dei valori fuori range, tiri salvezza inclusi); difesa in
+profondità lato host (secondo invio ravvicinato rifiutato, terzo dopo il
+cooldown riesce); cooldown lato client (per personaggio, rewind);
+`CombattimentoTab._schedule_hp_world_sync()` no-op sicuro sia per un
+personaggio locale sia per un'istanza senza pagina montata; `world_id`
+esposto da `get_encounter_members_resolved()`; azioni PG dall'incontro
+end-to-end (danno applicato raggiunge `characters`, `refresh()` lo
+riflette live, difesa in profondità lato host attiva anche bypassando il
+cooldown client). Nessuna regressione sulle 13 suite esistenti toccate
+dai file modificati (tutte rieseguite, tutte verdi).
+
+Resta da verificare da Davide: che l'invio automatico dei PF funzioni
+davvero end-to-end su Wi-Fi reale con due dispositivi fisici (il
+cooldown di 1.5s è una scelta ragionata ma mai provata sotto una vera
+latenza di rete) e che le tre nuove icone Danno/Cura/Condizione
+nell'incontro risultino comode nell'uso reale al tavolo.
+
+---
+
+## Pulizia generale del codice (2026-08-07)
+
+Richiesta esplicita di Davide: "Controlla tutto il codice elimina il
+codice inutilizzato e quello ridondante, ci sono alcune descrizioni non
+vere che abbiamo lasciato prima di implementare i passi 5 e 6 ecc" —
+audit dell'intero codebase, non limitato al Multiplayer. Metodo: inventario
+struttura → `pyflakes`+`vulture` (installati in sandbox, non preinstallati)
+per candidati automatici → triage manuale di ciascun candidato (uno per uno,
+non un cieco "rimuovi tutto ciò che il tool segnala") → grep mirato di frasi
+tipo "non ancora"/"nessuna riga di codice"/TODO nei `docs/*.md` e nei
+docstring → applicazione fix → ricompilazione (`ast.parse`) di ogni file
+toccato → riesecuzione dell'intera suite di test esistente.
+
+**Falsi positivi di `vulture` riconosciuti e NON rimossi** (dispatch via
+reflection del framework, non chiamata diretta): i metodi `did_mount`/
+`will_unmount` di ogni view Flet (~15 file), `do_GET`/`do_POST`/
+`log_message` di `network/host_server.py` (dispatch di `http.server`), e
+tutti gli handler `_handle_*` di `core/world_backend.py` (dispatch tramite
+il dizionario `_HANDLERS`, popolato dal decoratore `@register_handler`, mai
+una chiamata diretta per nome).
+
+**Codice morto rimosso (8 funzioni/metodi, zero chiamanti verificati via
+grep):**
+- `ui/mobile_webview_picker.py` — blocco `if TYPE_CHECKING: from flet_webview
+  import WebViewConsoleMessageEvent` (il nome era già re-importato a runtime
+  altrove nel file, il blocco `TYPE_CHECKING` era un residuo inutilizzato).
+- `ui/design.py` — `display()`, `mono()`, `stat_tile()`, `metric_bar()`:
+  primitive di testo/statistica mai usate da nessuna view (`metric_bar` è
+  verosimilmente superata dalla più specifica `hp_bar()`, tuttora usata in
+  `combattimento_tab.py`). Le costanti `Size.MONO`/`Font.MONO`/
+  `Size.DISPLAY`/`Font.DISPLAY` restano — usate altrove direttamente.
+- `data/game_data/game_data_loader.py` — `get_artifact(name)` (lookup
+  singolo per nome, usato solo da un test, mai dall'app: la UI usa sempre
+  `get_artifacts()`).
+- `data/repositories/loot_repo.py` — `get_entry_by_id()`,
+  `update_entry_quantity()`: la UI usa sempre la più generale
+  `update_entry()`.
+- `ui/views/master/master_loot_assign_dialog.py` — funzione annidata
+  `_dest_label()`, mai chiamata nemmeno nel proprio scope.
+- `core/world_permissions.py` — `requires_character_ownership()` e
+  `is_forbidden_character_field()`: entrambe wrapper mai chiamati (ogni
+  handler in `world_backend.py` fa il controllo direttamente,
+  `perm.is_character_owner(...)`). La costante sottostante
+  `FORBIDDEN_CHARACTER_FIELDS` **resta deliberatamente**: documenta il §7
+  del design doc in una forma verificabile dal codice, anche se oggi nessuna
+  funzione la legge — la protezione reale è strutturale (nessun handler
+  scrive quei campi al di fuori dell'allow-list di
+  `CHANGE_REQUEST_ALLOWED_FIELDS`), non un controllo a runtime su questa
+  lista. Verificato che i 3 handler di `PLAYER_OWNED_COMMANDS`
+  (`_handle_change_request_respond`, `_handle_hp_self_update`,
+  `_handle_character_instance_sync`) fanno ciascuno il proprio controllo di
+  proprietà — nessun buco di sicurezza dalla rimozione del dispatcher.
+
+Test aggiornati di conseguenza in `test_fase_4.py` (rimossi 3 controlli sul
+lookup singolo), `test_layout_incontri_e_pf_autosync.py`,
+`test_master_remote_actions.py`, `test_mondo_senza_rete.py` (i controlli
+sulle due funzioni rimosse riscritti come verifica diretta di appartenenza
+all'insieme/frozenset sottostante, stessa logica, senza passare dal
+wrapper).
+
+**Codice ridondante consolidato:**
+- Formula del CD dei tiri salvezza duplicata inline (`8 + pb + sp_mod`) in
+  `ui/views/spells_view.py` e `ui/views/character_sheet/combattimento_tab.py`
+  invece di usare l'helper condiviso già esistente
+  `core/character_stats.py::spell_save_dc(character)` — entrambi i punti ora
+  chiamano l'helper.
+- Costruzione manuale di `ft.SnackBar` duplicata in `_show_error()` (e
+  `_show_success()` in `home_view.py`) invece dell'helper condiviso
+  `ui/widgets.py::show_snack()` — entrambi i file ora delegano a `show_snack`
+  (`_show_success` in `home_view.py` usa `tone="magic"`, non `"success"`, per
+  preservare esattamente il colore di sfondo originale).
+- I dialoghi Danno/Cura/Condizione per un PG istanza di mondo, appena scritti
+  nella sessione precedente sia in `ui/views/world/world_view.py` sia in
+  `ui/views/master/master_encounter_view.py`, erano duplicati quasi
+  identici. Estratto un nuovo modulo condiviso
+  `ui/components/remote_action_dialogs.py`
+  (`show_damage_dialog`/`show_heal_dialog`/`show_condition_dialog`, ciascuna
+  `(page, character_name, on_confirm: Callable[[dict], None])` — il dialogo
+  possiede solo validazione input e costruzione UI, il chiamante decide cosa
+  fare col payload validato). Entrambi i file originali ora hanno wrapper
+  sottili che delegano a questo modulo.
+
+**Descrizioni non vere corrette (richiesta esplicita di Davide sui passi 5/6
+e "ecc"):**
+- **`docs/multiplayer_design.md`** — il banner in cima dichiarava ancora
+  "Stato: SOLA PROGETTAZIONE, nessuna riga di codice scritta" e "Sette
+  passi" nel testo del §13 nonostante la tabella ne elenchi nove e i passi
+  1-6 siano implementati e in gran parte testati su Wi-Fi reale — il banner
+  più fuorviante trovato in questo giro, riscritto per rimandare a
+  CLAUDE.md come tracker di stato live e a questo documento (§1-§12) come
+  fonte delle decisioni chiuse.
+- **`docs/master_section_design.md`** — banner "Nessun codice scritto
+  ancora — solo progettazione" nonostante la Sezione Master sia implementata
+  per intero salvo il Compendio Oggetti Magici — riscritto di conseguenza.
+- **`docs/revisione_2026_07_26.md`** — tabella "Stato di avanzamento"
+  ferma a Fase 3 parziale e Fase 4 "da fare — 5 decisioni aperte", mentre
+  entrambe sono chiuse da tempo (restyle A-E completo, le 4 feature della
+  Fase 4 tutte implementate) — corretta con una nota che segnala la tabella
+  come stata stale.
+- **`docs/feature_design_2026_07_26.md`** — banner "Nessuna riga di codice
+  applicata" — riscritto per riflettere che le 4 feature sono implementate e
+  chiuse.
+- **`core/world_backend.py`** — docstring di `RemoteBackend.get_snapshot()`
+  e un commento di sezione dichiaravano ancora "le istanze di personaggio/il
+  passo 6 non esistono ancora", mentre sono implementate più sotto nello
+  stesso file — entrambi riscritti per descrivere lo stato reale.
+- **`core/character_instances.py`** — docstring di modulo dichiarava
+  "`is_replica` resta sempre 0, avrà senso solo dal passo 4" in un modo che
+  suggeriva fosse ancora vero oggi — riscritto per chiarire che QUESTO
+  modulo (passo 3) crea sempre con `is_replica=0` per costruzione, mentre
+  `is_replica=1` lo imposta `character_export.py::import_replica_character()`
+  altrove, una volta che il passo 4 (rete) scarica una replica.
+- **`ui/views/master/master_loot_view.py`** — docstring dichiarava il
+  Deposito del Gruppo "comunque utile in locale" senza menzionare che è già
+  world-scoped tramite `_effective_world_id()` — riscritto per descrivere il
+  comportamento reale (confermato leggendo il costruttore e 6+ punti d'uso).
+- **`network/host_server.py`** — docstring di modulo ambiguo su quando il
+  server si ferma ("si spegne alla chiusura") — reso esplicito che si ferma
+  SOLO con "Ferma hosting" esplicito o la chiusura del processo (thread
+  daemon), mai per una navigazione, coerente col fix `HostServerSlot` di una
+  sessione precedente.
+
+**Due bug reali trovati mentre si verificavano i test dopo le rimozioni
+(non erano l'obiettivo della sessione, ma la riesecuzione della suite li ha
+esposti):**
+- `test_fase_4.py` verificava ancora la frase letterale "unica modifica" nel
+  dialogo di conferma di "Assegna PE", frase rimossa quando (sessione
+  precedente) sono state aggiunte le pillole Danno/Cura/Condizione
+  sull'incontro per un PG istanza di mondo — da quel momento "Assegna PE"
+  non è più l'unica scrittura del master su un PG, quindi il testo UI è
+  stato correttamente cambiato in "mai una scrittura diretta" (sempre
+  pipeline comando→evento) ma il test non era stato aggiornato. Corretto il
+  test per verificare la frase attuale.
+- `test_fase_4.py` verificava anche che il JSON degli artefatti dichiarasse
+  onestamente "Occhio e Mano di Vecna" come mancante tramite la chiave
+  `_incomplete_note` — ma i 7 artefatti DMG sono stati completati (vedi
+  CLAUDE.md "Artefatti DMG (7/7)"), quindi quella chiave è stata
+  correttamente rimossa dal JSON (la UI gestisce già la sua assenza,
+  `if note:` in `master_artifacts_dialog.py`) e il test verificava
+  letteralmente l'incompletezza di un dato ormai completo. Corretto per
+  verificare invece che tutti e 7 gli artefatti siano presenti e che non
+  resti alcuna nota di incompletezza.
+
+**Altro:** rimossa una directory vuota accidentale `dnd_app/dnd_app/`
+(3 sottocartelle annidate, 0 file — verosimilmente un artefatto di una
+sessione precedente, nessun riferimento nel codice).
+
+**Verifica finale.** Ricompilati (`ast.parse`) tutti i 20 file toccati,
+nessun errore di sintassi. Riesguita l'intera suite di test esistente (17
+file, 1149 controlli totali): **1146 passati**, 3 falliti — tutti e tre
+**pre-esistenti e non causati da questa pulizia**, confermato isolandoli:
+- `test_istanze_personaggio.py` — 1 fallimento, un test che lancia
+  `test_mondo_senza_rete.py` come sottoprocesso dopo aver impostato
+  `os.environ["HOME"]` a una cartella temporanea per il proprio setup; il
+  sottoprocesso eredita quel `HOME` modificato e non trova più `flet`
+  (installato come pacchetto utente sotto `~/.local`, percorso dipendente da
+  `HOME` in questo sandbox). Eseguendo `test_mondo_senza_rete.py` da solo,
+  o riproducendo lo stesso `subprocess.run` senza il resto del file, il
+  risultato è 151/151 verde — è un artefatto di come questa sandbox ha
+  `flet` installato, non un bug nel codice del progetto.
+- `test_qr_scan.py` — 2 fallimenti, entrambi etichettati dal test stesso
+  come dipendenti dall'ambiente ("pacchetti presenti in questo ambiente"):
+  verificano che `flet-camera`/`pyzbar` (pacchetti nativi Android/iOS) siano
+  installati, cosa non vera in questo sandbox generico Linux.
+
+Nessuno dei tre è legato ai file toccati in questa pulizia. Prima della
+pulizia, con le stesse identiche 2 cause d'ambiente, la suite aveva "2
+fallimenti pre-esistenti non correlati" (vedi sessioni precedenti) — lo
+stato è coerente.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

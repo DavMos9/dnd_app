@@ -6,8 +6,14 @@
 |---|---|
 | 1 · Bug (B1–B12) | ✅ **completata** — vedi il changelog in `CLAUDE.md` → "Revisione 2026-07-26 · FASE 1 COMPLETATA" |
 | 2 · Pulizia (codice morto/duplicato) | ✅ **completata** (con un residuo misurato e documentato: vedi `creation_shared.py`) |
-| 3 · Restyle (`restyle_design.md`) | 🔄 **Fase A completata** (token, primitive, `ft.Theme` completo, `assets_dir`); B/C/D/E da fare |
-| 4 · Feature (`feature_design_2026_07_26.md`) | ⏸ da fare — 5 decisioni aperte da chiedere a Davide |
+| 3 · Restyle (`restyle_design.md`) | ✅ **completata per intero** (A · B · C · D · E, C assorbita in E) — chiusa il 2026-07-30, vedi `restyle_design.md` |
+| 4 · Feature (`feature_design_2026_07_26.md`) | ✅ **completata** — le 4 feature (dadi collegati alla scheda, concentrazione+condizioni, oggetti magici/sintonia, iniziativa/PE lato master) sono chiuse, vedi `CLAUDE.md` |
+
+> Pulizia 2026-08-07: questa tabella era rimasta ferma allo stato del
+> 2026-07-26 (Fase 3 solo "Fase A", Fase 4 "da fare") — ormai falso da
+> settimane, corretto qui. Le due righe sotto restano storicamente accurate
+> per il MOMENTO in cui l'analisi originale fu scritta (§ sotto), non vanno
+> toccate.
 
 > Il documento sotto è l'**analisi originale** che ha prodotto il piano: resta
 > invariato come riferimento. Nessuna modifica al codice era stata applicata al

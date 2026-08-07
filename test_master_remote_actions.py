@@ -488,10 +488,10 @@ def test_permissions() -> None:
     check("player può change_request.respond (il ruolo da solo non è sufficiente:"
           " l'ownership è verificata dall'handler)",
           perm.can_perform(perm.ROLE_PLAYER, perm.CMD_CHANGE_REQUEST_RESPOND))
-    check("requires_character_ownership è True per change_request.respond",
-          perm.requires_character_ownership(perm.CMD_CHANGE_REQUEST_RESPOND))
-    check("requires_character_ownership è False per xp.grant",
-          not perm.requires_character_ownership(perm.CMD_XP_GRANT))
+    check("change_request.respond è tra i comandi con verifica di proprietà",
+          perm.CMD_CHANGE_REQUEST_RESPOND in perm.PLAYER_OWNED_COMMANDS)
+    check("xp.grant NON è tra i comandi con verifica di proprietà",
+          perm.CMD_XP_GRANT not in perm.PLAYER_OWNED_COMMANDS)
 
     check("is_character_owner: stesso device_id",
           perm.is_character_owner("dev-1", "dev-1"))

@@ -68,6 +68,10 @@ logger = logging.getLogger(__name__)
 class _HostCooldownState:
     master_action_last_at: dict[tuple[str, str], float] = field(default_factory=dict)
     instance_sync_last_at: dict[str, float] = field(default_factory=dict)
+    #: hp.self_update (fix 2026-08-07) — chiavato (actor_device_id,
+    #: target_id) come master_action_last_at: stessa granularità per
+    #: personaggio, non un solo timer per l'intero dispositivo.
+    hp_self_update_last_at: dict[tuple[str, str], float] = field(default_factory=dict)
 
 
 _host_cooldowns = _HostCooldownState()
@@ -92,6 +96,14 @@ def rewind_host_master_action_for_tests(actor_device_id: str, target_id: str,
 def rewind_host_instance_sync_for_tests(actor_device_id: str, seconds_ago: float) -> None:
     """SOLO per i test — vedi `rewind_host_master_action_for_tests`."""
     _host_cooldowns.instance_sync_last_at[actor_device_id] = time.monotonic() - seconds_ago
+
+
+def rewind_host_hp_self_update_for_tests(actor_device_id: str, target_id: str,
+                                          seconds_ago: float) -> None:
+    """SOLO per i test — vedi `rewind_host_master_action_for_tests`."""
+    _host_cooldowns.hp_self_update_last_at[(actor_device_id, target_id)] = (
+        time.monotonic() - seconds_ago
+    )
 
 
 @dataclass
@@ -251,6 +263,23 @@ class LocalBackend(WorldBackend):
             _host_cooldowns.instance_sync_last_at[actor_device_id] = now
             return None
 
+        if kind == perm.CMD_HP_SELF_UPDATE:
+            # Stesso principio di difesa in profondità degli altri due rami:
+            # il client si limita già da solo (debounce, `core.world_sync`),
+            # questo è il backstop lato host contro un client modificato.
+            key = (actor_device_id, target_id)
+            remaining = perm.cooldown_remaining(
+                _host_cooldowns.hp_self_update_last_at.get(key, 0.0),
+                perm.HP_SELF_UPDATE_COOLDOWN_S,
+            )
+            if remaining > 0:
+                return (
+                    f"Troppi aggiornamenti PF ravvicinati — "
+                    f"aspetta {int(remaining) + 1} secondi."
+                )
+            _host_cooldowns.hp_self_update_last_at[key] = now
+            return None
+
         return None
 
     def fetch_events(self, world_id: str, since_seq: int = 0) -> list[WorldEvent]:
@@ -261,10 +290,13 @@ class LocalBackend(WorldBackend):
 
 
 # ---------------------------------------------------------------------------
-# Handler dei comandi owner-only (§4) — gli unici operativi in questo passo:
-# non esistono ancora istanze di personaggio (passo 3) su cui applicare le
-# azioni master di §7, quindi quei comandi restano registrati nella matrice
-# dei permessi ma senza handler finché non arriva quel passo.
+# Handler dei comandi owner-only (§4) — gestione del mondo e dei membri
+# (rinomina, rigenera codice, promuovi/retrocedi/espelli, trasferisci
+# proprietà, elimina). Gli handler delle azioni master di §7 sulle istanze
+# di personaggio (PE, danno, cura, condizioni, ...) vivono più sotto in
+# questo stesso file, aggiunti dal passo 6 — pulizia 2026-08-07: questo
+# commento diceva ancora "non esistono ancora istanze di personaggio su cui
+# applicare le azioni di §7", vero solo prima dei passi 3/6, ormai falso.
 # ---------------------------------------------------------------------------
 
 @register_handler(perm.CMD_WORLD_RENAME)
@@ -568,6 +600,72 @@ def _handle_hp_heal(ctx: HandlerContext) -> CommandResult:
                 f"({before_hp} → {character.hp_current}).",
         payload=json.dumps({"amount": amount}),
         before_state=json.dumps({"hp_current": before_hp}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_HP_SELF_UPDATE)
+def _handle_hp_self_update(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore stesso invia lo stato aggiornato dei propri PF/TS contro
+    morte dopo averli già modificati sulla propria scheda (fix 2026-08-07,
+    Multiplayer §7/step 7 — scelta di Davide: sincronizzazione automatica,
+    non più solo manuale come «Aggiorna il mio foglio» §6.1, che resta per
+    il resync completo, non per i soli PF).
+
+    Come `_handle_change_request_respond`: il ruolo da solo non basta,
+    serve anche `perm.is_character_owner()` — altrimenti un giocatore
+    potrebbe scrivere sui PF di un altro. A differenza degli altri
+    handler qui sopra, NON passa da `core/damage_rules.py`: il calcolo
+    (assorbimento HP temp, morte istantanea, tiri salvezza contro morte,
+    concentrazione) è già stato applicato dal chiamante sulla PROPRIA
+    copia locale — qui si scrive il risultato finale, a valori assoluti
+    (mai un delta: un invio perso non lascia lo stato incoerente, il
+    prossimo invio porta comunque il valore più recente, idempotente).
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può aggiornarne i PF.",
+        )
+
+    try:
+        hp_current = int(ctx.payload.get("hp_current", character.hp_current))
+        hp_temp = int(ctx.payload.get("hp_temp", character.hp_temp))
+        death_saves_success = int(ctx.payload.get("death_saves_success",
+                                                    character.death_saves_success))
+        death_saves_failure = int(ctx.payload.get("death_saves_failure",
+                                                    character.death_saves_failure))
+    except (TypeError, ValueError):
+        return CommandResult(False, "Valori PF non validi.")
+
+    hp_current = max(0, min(character.hp_max, hp_current)) if character.hp_max else max(0, hp_current)
+    hp_temp = max(0, hp_temp)
+    death_saves_success = max(0, min(3, death_saves_success))
+    death_saves_failure = max(0, min(3, death_saves_failure))
+
+    before = {
+        "hp_current": character.hp_current, "hp_temp": character.hp_temp,
+        "death_saves_success": character.death_saves_success,
+        "death_saves_failure": character.death_saves_failure,
+    }
+    if not character_repo.update_hp(character.id, hp_current, hp_temp):
+        return CommandResult(False, "Aggiornamento PF fallito.")
+    character_repo.update_death_saves(character.id, death_saves_success, death_saves_failure)
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_HP_SELF_UPDATE, target_type="character", target_id=character.id,
+        summary=f"{character.name}: {before['hp_current']} → {hp_current} PF "
+                f"(aggiornamento dalla scheda).",
+        payload=json.dumps({
+            "hp_current": hp_current, "hp_temp": hp_temp,
+            "death_saves_success": death_saves_success,
+            "death_saves_failure": death_saves_failure,
+        }),
+        before_state=json.dumps(before),
     )
     return CommandResult(True, event=event)
 
@@ -1146,9 +1244,14 @@ class RemoteBackend(WorldBackend):
 
     def get_snapshot(self) -> dict | None:
         """`GET /snapshot` — stato completo del mondo (§9.2: "per il primo
-        ingresso o dopo una lunga assenza"). In questo passo copre mondo +
-        membri + giornale eventi: non esistono ancora comandi sulle
-        istanze di personaggio da sincronizzare (passo 6)."""
+        ingresso o dopo una lunga assenza"): mondo + membri + giornale
+        eventi, più (dal Multiplayer passo 6, vedi
+        `network.host_server.WorldHostServer.handle_snapshot`) l'export
+        delle istanze di personaggio di cui il chiamante è proprietario e le
+        richieste di modifica pendenti che le riguardano — pulizia
+        2026-08-07: questo docstring era rimasto fermo alla descrizione
+        pre-passo-6, ormai falsa (il codice sotto restituisce già tutto
+        quanto sopra, non solo mondo/membri/giornale)."""
         if self.token is None:
             return None
         try:

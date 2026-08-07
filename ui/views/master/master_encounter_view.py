@@ -2,11 +2,20 @@
 Tracker di combattimento a schermo intero per un singolo incontro della
 Modalità Master — round/turno, lista combattenti ordinata per iniziativa
 (evidenziato quello di turno), aggiunta di Personaggio Giocante/NPC dalla
-Rubrica/Mostro dal Bestiario/Creazione Rapida, gestione PF (solo per
-npc/adhoc — i PG restano sempre gestiti dal giocatore sulla propria
-scheda), Calcolatore Difficoltà Incontro. Vedi
+Rubrica/Mostro dal Bestiario/Creazione Rapida, gestione PF (+/- diretto per
+npc/adhoc), Calcolatore Difficoltà Incontro. Vedi
 `dnd_app/docs/master_section_design.md` per il design completo e
 `core/encounter_calculator.py` per la logica pura del calcolo.
+
+Per un PG che è **istanza di un mondo**, i PF restano di sola lettura (il
++/- diretto scrive solo sulla riga dell'incontro, mai su `characters` —
+sbagliato per un PG, che va sempre letto/scritto dalla tabella
+`characters`), ma dal 2026-08-07 (scelta di Davide) compaiono accanto al
+nome tre azioni — Danno/Cura/Condizione — che passano dalla stessa
+pipeline comando → validazione → evento di "Interviene a distanza"
+(`ui/views/world/world_view.py`), per non dover cambiare schermata durante
+un combattimento. Un PG **locale** (nessun mondo) resta invece sempre e
+solo gestito dal giocatore sulla propria scheda, invariato.
 
 Instanziata da `MasterEncounterListView` quando il Master apre un
 incontro — non gestisce da sola la navigazione verso la lista, delega a
@@ -299,6 +308,46 @@ class MasterEncounterView(ft.Column):
         ]
         if source == "character":
             stats_row.append(design.chip(f"PF {hp_current}/{hp_max} · giocatore", "magic"))
+            # Danno/Cura/Condizione (fix 2026-08-07, scelta di Davide) SOLO
+            # per un PG che è istanza di un mondo: per un PG locale non c'è
+            # alcun mondo/registro a cui scrivere, resta di sola lettura
+            # come prima — i PF di un PG locale restano sempre gestiti dal
+            # giocatore sulla propria scheda, invariato.
+            world_id = resolved.get("world_id") or ""
+            if world_id and m.character_id:
+                remaining = self._pg_cooldown_remaining(m.character_id)
+                on_cd = remaining > 0
+                cd_suffix = f" ({int(remaining) + 1}s)" if on_cd else ""
+                cid, cname = m.character_id, name
+                stats_row.append(ft.Row(
+                    [
+                        ft.IconButton(
+                            ft.Icons.FAVORITE_BORDER, icon_size=16,
+                            icon_color=design.T().text_3 if on_cd else design.T().danger,
+                            tooltip=f"Aspetta{cd_suffix}" if on_cd else "Applica danno",
+                            disabled=on_cd,
+                            on_click=(None if on_cd else
+                                      lambda e, i=cid, n=cname: self._open_pg_damage_dialog(i, n)),
+                        ),
+                        ft.IconButton(
+                            ft.Icons.HEALING, icon_size=16,
+                            icon_color=design.T().text_3 if on_cd else design.T().primary,
+                            tooltip=f"Aspetta{cd_suffix}" if on_cd else "Applica cura",
+                            disabled=on_cd,
+                            on_click=(None if on_cd else
+                                      lambda e, i=cid, n=cname: self._open_pg_heal_dialog(i, n)),
+                        ),
+                        ft.IconButton(
+                            ft.Icons.SICK, icon_size=16,
+                            icon_color=design.T().text_3 if on_cd else design.T().magic,
+                            tooltip=f"Aspetta{cd_suffix}" if on_cd else "Imponi condizione",
+                            disabled=on_cd,
+                            on_click=(None if on_cd else
+                                      lambda e, i=cid, n=cname: self._open_pg_condition_dialog(i, n)),
+                        ),
+                    ],
+                    spacing=0, tight=True,
+                ))
         else:
             stats_row.append(
                 ft.Row(
@@ -934,8 +983,11 @@ class MasterEncounterView(ft.Column):
                                 color=design.T().text_2),
                         *rows,
                         ft.Text(
-                            "Questa è l'unica modifica che la Modalità Master "
-                            "applica a una scheda giocante.",
+                            "Il livello resta sempre una scelta del giocatore. Per un "
+                            "PG istanza di un mondo, danno/cura/condizioni restano "
+                            "comunque disponibili qui accanto al suo nome (fix "
+                            "2026-08-07) — passano dalla stessa pipeline comando → "
+                            "evento, mai una scrittura diretta.",
                             size=11, color=design.T().text_3, italic=True),
                     ],
                     spacing=6, tight=True, scroll=ft.ScrollMode.AUTO,
@@ -1085,6 +1137,94 @@ class MasterEncounterView(ft.Column):
         new_hp = max(0, member.hp_current + delta)
         master_repo.update_member_hp(member.id, new_hp)
         self.refresh()
+
+    # ------------------------------------------------------------------
+    # Azioni master su un PG istanza di mondo, direttamente dall'incontro
+    # (fix 2026-08-07, scelta di Davide dopo un confronto sui pro/contro:
+    # solo Danno/Cura/Condizione, non l'intero pannello "Interviene a
+    # distanza" — abilità/incantesimo bonus/diario/proponi modifica restano
+    # solo nella Sezione Mondi, azioni fuori-combattimento). Stessa pipeline
+    # comando -> validazione -> evento di `ui/views/world/world_view.py::
+    # _send_remote_command`, stesso limite anti-spam per personaggio
+    # (`core.world_sync`, stato di MODULO: condiviso automaticamente tra le
+    # due view, non serve duplicarlo).
+    # ------------------------------------------------------------------
+
+    def _pg_cooldown_remaining(self, character_id: str) -> float:
+        from core import world_sync
+        return world_sync.master_action_cooldown_remaining(character_id)
+
+    def _send_pg_remote_command(self, character_id: str, character_name: str,
+                                 kind: str, payload: dict) -> None:
+        """
+        NOTA (limite preesistente, non introdotto qui): come «Assegna PE»
+        poco più sopra in questo stesso file, usa `LocalBackend()`
+        incondizionatamente — corretto quando QUESTO dispositivo ospita il
+        mondo (il caso normale). Un co-master collegato come CLIENT
+        all'host di un altro dispositivo scriverebbe sulla propria replica
+        invece che sull'host reale: stesso limite già presente in «Assegna
+        PE», fuori scope per questa richiesta (Davide ha chiesto Danno/
+        Cura/Condizione dall'incontro, non un refactor del routing
+        comandi di questa view).
+        """
+        page = self._page
+        from core import world_sync
+        remaining = world_sync.master_action_cooldown_remaining(character_id)
+        if remaining > 0:
+            if page:
+                show_snack(
+                    page,
+                    f"Aspetta {int(remaining) + 1} secondi prima della prossima "
+                    f"azione su {character_name}.",
+                    tone="danger",
+                )
+            return
+        world_sync.mark_master_action(character_id)
+        result = LocalBackend().send_command(
+            self._world_id, self._device_id, kind, payload,
+            target_type="character", target_id=character_id,
+        )
+        if result.success:
+            self.refresh()
+        elif page:
+            show_snack(page, result.error, tone="danger")
+
+    def _open_pg_damage_dialog(self, character_id: str, character_name: str) -> None:
+        """Pulizia 2026-08-07: il dialog vive in
+        `ui.components.remote_action_dialogs` (condiviso con
+        `WorldsView._open_damage_dialog`, che invia la stessa identica
+        azione da "Interviene a distanza") — qui resta solo l'invio."""
+        page = self._page
+        if page is None:
+            return
+        from ui.components.remote_action_dialogs import show_damage_dialog
+        show_damage_dialog(
+            page, character_name,
+            lambda payload: self._send_pg_remote_command(
+                character_id, character_name, perm.CMD_HP_DAMAGE, payload),
+        )
+
+    def _open_pg_heal_dialog(self, character_id: str, character_name: str) -> None:
+        page = self._page
+        if page is None:
+            return
+        from ui.components.remote_action_dialogs import show_heal_dialog
+        show_heal_dialog(
+            page, character_name,
+            lambda payload: self._send_pg_remote_command(
+                character_id, character_name, perm.CMD_HP_HEAL, payload),
+        )
+
+    def _open_pg_condition_dialog(self, character_id: str, character_name: str) -> None:
+        page = self._page
+        if page is None:
+            return
+        from ui.components.remote_action_dialogs import show_condition_dialog
+        show_condition_dialog(
+            page, character_name,
+            lambda payload: self._send_pg_remote_command(
+                character_id, character_name, perm.CMD_CONDITION_APPLY, payload),
+        )
 
     def _on_edit_initiative(self, member):
         if not self._page:

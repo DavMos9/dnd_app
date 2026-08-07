@@ -203,10 +203,26 @@ class MasterView(ft.Column):
         # mai mettere a rischio nient'altro — stesso principio già seguito
         # per la barra "Generatori Rapidi" subito sotto.
         self._world_selector_container = self._world_selector_row()
-        self._tools_row_container = self._build_tools_row()
+        # "Generatori Rapidi" SOLO fuori dalla tab Incontri (fix 2026-08-07,
+        # Davide con screenshot: "troppo poco lo spazio in cui è visibile
+        # l'incontro... tutta la parte superiore con tasti ecc prende troppo
+        # spazio"). Non è un'azione nascosta (nessun tap in più da nessuna
+        # parte): quei 6 generatori (Tesoro/Oggetto Magico/Trappola/Veleni/
+        # Ambiente/Artefatti) restano SEMPRE visibili nelle altre 4 tab dove
+        # sono pertinenti — semplicemente non occupano spazio in una tab che
+        # ha già i propri pulsanti ("Genera Incontro Casuale"/"+ Nuovo
+        # Incontro") e un elenco che deve restare la parte dominante dello
+        # schermo. Nessun impatto su `_on_child_focus_change()`: quel
+        # meccanismo nasconde/mostra `_tools_row_container` quando esiste,
+        # qui semplicemente non esiste affatto per questa tab (il controllo
+        # `if ctrl is not None` lì è già a prova di `None`).
+        self._tools_row_container = (
+            self._build_tools_row() if self.active_tab != "encounters" else None
+        )
         self._tab_bar_container = self._build_tab_bar()
         self.controls.append(self._world_selector_container)
-        self.controls.append(self._tools_row_container)
+        if self._tools_row_container is not None:
+            self.controls.append(self._tools_row_container)
         self.controls.append(self._tab_bar_container)
         self.controls.append(self._content_area)
 

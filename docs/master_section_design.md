@@ -8,8 +8,14 @@
 > 3. Iniziativa → **ordine unificato**: il Master vede in un unico ordine turni sia le
 >    proprie creature sia i personaggi giocanti già presenti nel DB.
 
-Nessun codice scritto ancora — solo progettazione. Prossimo passo: conferma di Davide
-prima di iniziare l'implementazione (feature grande, non "poco lavoro").
+> **Stato (aggiornato 2026-08-07 in una pulizia della documentazione — era
+> rimasto fermo a "nessun codice scritto" dal 2026-07-24, ormai falso): la
+> Sezione Master è **implementata per intero** (Rubrica NPC, tracker di
+> combattimento con azioni remote su PG istanza di mondo, Note di Campagna
+> con visibilità, Bottino, i 6 Generatori Rapidi), salvo il **Compendio
+> Oggetti Magici**, mai iniziato. Le decisioni di design qui sotto restano
+> valide e non vanno riprogettate da capo; lo stato di avanzamento vive in
+> `CLAUDE.md`.
 
 ---
 

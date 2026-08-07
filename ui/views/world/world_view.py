@@ -29,7 +29,7 @@ from network.qr_join import build_join_text, generate_qr_png_base64
 from ui.views.world.qr_scanner_view import QrScannerView, qr_scanner_supported
 from ui import design as d
 from ui.device_identity import resolve_device_id
-from ui.widgets import (CardPicker, responsive_dialog_width, spell_card_options,
+from ui.widgets import (CardPicker, responsive_dialog_width, show_snack, spell_card_options,
                         wrap_dialog_actions)
 
 logger = logging.getLogger(__name__)
@@ -877,105 +877,29 @@ class WorldsView(ft.Column):
         self.page.show_dialog(dlg)
 
     def _open_damage_dialog(self, world: World, character: Character):
-        p = d.T()
-        amount_field = ft.TextField(
-            label="Danno", dense=True, value="0",
-            keyboard_type=ft.KeyboardType.NUMBER, **d.field_style(),
+        """Pulizia 2026-08-07: il dialog stesso vive in
+        `ui.components.remote_action_dialogs` (condiviso con
+        `MasterEncounterView`, che invia la stessa azione dal tracker di
+        combattimento) — qui resta solo "cosa fare col payload validato"."""
+        from ui.components.remote_action_dialogs import show_damage_dialog
+        show_damage_dialog(
+            self.page, character.name,
+            lambda payload: self._send_remote_command(world, character, perm.CMD_HP_DAMAGE, payload),
         )
-        critical_cb = ft.Checkbox(label="Colpo critico", value=False)
-
-        def _confirm(e):
-            try:
-                amount = int((amount_field.value or "0").strip())
-            except ValueError:
-                self._show_error("Il valore deve essere un numero intero.")
-                return
-            if amount <= 0:
-                self._show_error("Il danno deve essere positivo.")
-                return
-            self.page.pop_dialog()
-            self._send_remote_command(world, character, perm.CMD_HP_DAMAGE,
-                                       {"amount": amount, "is_critical": critical_cb.value})
-
-        dlg = ft.AlertDialog(
-            modal=True,
-            title=d.dialog_title(f"Applica danno — {character.name}", ft.Icons.FAVORITE_BORDER,
-                                  tone="danger"),
-            content=ft.Column([amount_field, critical_cb], tight=True),
-            actions=wrap_dialog_actions([
-                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
-                              style=ft.ButtonStyle(color=p.text_2)),
-                ft.ElevatedButton("Conferma", icon=ft.Icons.CHECK, on_click=_confirm,
-                                  style=ft.ButtonStyle(bgcolor=p.danger, color=p.on_accent)),
-            ]),
-        )
-        self.page.show_dialog(dlg)
 
     def _open_heal_dialog(self, world: World, character: Character):
-        p = d.T()
-        amount_field = ft.TextField(
-            label="Cura", dense=True, value="0",
-            keyboard_type=ft.KeyboardType.NUMBER, **d.field_style(),
+        from ui.components.remote_action_dialogs import show_heal_dialog
+        show_heal_dialog(
+            self.page, character.name,
+            lambda payload: self._send_remote_command(world, character, perm.CMD_HP_HEAL, payload),
         )
-
-        def _confirm(e):
-            try:
-                amount = int((amount_field.value or "0").strip())
-            except ValueError:
-                self._show_error("Il valore deve essere un numero intero.")
-                return
-            if amount <= 0:
-                self._show_error("La cura deve essere positiva.")
-                return
-            self.page.pop_dialog()
-            self._send_remote_command(world, character, perm.CMD_HP_HEAL, {"amount": amount})
-
-        dlg = ft.AlertDialog(
-            modal=True,
-            title=d.dialog_title(f"Applica cura — {character.name}", ft.Icons.HEALING),
-            content=ft.Column([amount_field], tight=True),
-            actions=wrap_dialog_actions([
-                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
-                              style=ft.ButtonStyle(color=p.text_2)),
-                ft.ElevatedButton("Conferma", icon=ft.Icons.CHECK, on_click=_confirm,
-                                  style=ft.ButtonStyle(bgcolor=p.primary, color=p.on_primary)),
-            ]),
-        )
-        self.page.show_dialog(dlg)
 
     def _open_condition_dialog(self, world: World, character: Character):
-        p = d.T()
-        conditions = GameDataLoader().get_conditions()
-        options = [ft.DropdownOption(key=c["key"], text=c.get("name", c["key"]))
-                   for c in conditions]
-        condition_dd = ft.Dropdown(label="Condizione", options=options, dense=True,
-                                    **d.field_style())
-        note_field = ft.TextField(label="Nota (opzionale)", dense=True, **d.field_style())
-
-        def _confirm(e):
-            key = condition_dd.value
-            if not key:
-                self._show_error("Seleziona una condizione.")
-                return
-            self.page.pop_dialog()
-            self._send_remote_command(
-                world, character, perm.CMD_CONDITION_APPLY,
-                {"condition_key": key, "note": (note_field.value or "").strip()},
-            )
-
-        dlg = ft.AlertDialog(
-            modal=True,
-            title=d.dialog_title(f"Imponi condizione — {character.name}", ft.Icons.SICK,
-                                  tone="magic"),
-            content=ft.Column([condition_dd, note_field], tight=True, spacing=d.Space.SM),
-            actions=wrap_dialog_actions([
-                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
-                              style=ft.ButtonStyle(color=p.text_2)),
-                ft.ElevatedButton("Conferma", icon=ft.Icons.CHECK, on_click=_confirm,
-                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_accent)),
-            ]),
+        from ui.components.remote_action_dialogs import show_condition_dialog
+        show_condition_dialog(
+            self.page, character.name,
+            lambda payload: self._send_remote_command(world, character, perm.CMD_CONDITION_APPLY, payload),
         )
-        self.page.show_dialog(dlg)
 
     def _open_custom_ability_dialog(self, world: World, character: Character):
         """Concede un'abilità speciale personalizzata (§7) — `custom_abilities`,
@@ -2196,6 +2120,9 @@ class WorldsView(ft.Column):
     # ------------------------------------------------------------------
 
     def _show_error(self, message: str):
-        p = d.T()
-        snack = ft.SnackBar(content=ft.Text(message, color=p.text), bgcolor=p.danger)
-        self.page.show_dialog(snack)
+        """Pulizia 2026-08-07: costruiva la propria `ft.SnackBar` invece di
+        riusare `ui.widgets.show_snack()` (già introdotta il 2026-07-31
+        apposta per centralizzare questo identico pattern, duplicato in
+        origine in `home_view.py`) — stesso identico esito visivo, un solo
+        posto in meno dove il pattern SnackBar può disallinearsi."""
+        show_snack(self.page, message, tone="danger")

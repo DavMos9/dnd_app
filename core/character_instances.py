@@ -16,9 +16,15 @@ non importa `ui/views/creation_wizard/creation_shared.py` (che porta `import
 flet`), anche se ne replica l'unico algoritmo rilevante: vedi
 `_init_weapon_choice_default()`.
 
-Nessuna rete in questo passo: `is_replica` resta sempre 0 per le istanze
-create qui (il DB è unico, condiviso — un concetto di "replica" avrà senso
-solo dal passo 4, quando esisteranno DB separati per dispositivo).
+Questo modulo (passo 3) crea SEMPRE l'istanza con `is_replica=0`: nasce sul
+dispositivo di chi la crea, che ne è il record autoritativo. `is_replica=1`
+esiste solo dal passo 4 (rete LAN, ormai implementato) ed è scritto
+altrove, da `data/repositories/character_export.py::import_replica_character()`,
+quando un ALTRO dispositivo scarica questa stessa istanza dall'host — mai
+qui: questo modulo non sa nulla di rete (vedi sopra, "mai Flet" vale anche
+per `core/world_backend.py`/`network/*`) — pulizia 2026-08-07, il commento
+diceva ancora "nessuna rete in questo passo... avrà senso solo dal passo 4",
+vero solo prima che quel passo esistesse.
 """
 
 from __future__ import annotations

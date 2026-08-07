@@ -1,9 +1,16 @@
 # Mondi condivisi e LAN party — documento di progettazione
 
-> **Stato: SOLA PROGETTAZIONE, nessuna riga di codice scritta.**
-> Documento redatto il 2026-07-31 su richiesta di Davide. Va letto e approvato
-> prima di iniziare l'implementazione. Le decisioni marcate «da decidere» in
-> fondo NON vanno risolte a mia discrezione durante l'implementazione.
+> **Stato (aggiornato 2026-08-07 in una pulizia della documentazione — era
+> rimasto fermo a "sola progettazione" da luglio, ormai falso): progettazione
+> **chiusa** (§12) e **in gran parte implementata**. Dei nove passi di §13, i
+> passi 1-6 sono fatti e testati (bottino, modello mondo, istanze di
+> personaggio, host/client LAN, scoperta automatica + QR, interventi del
+> master a distanza) — i passi 7-9 (condivisione, mappe condivise,
+> robustezza/esportazione) restano da fare. Lo stato dettagliato e sempre
+> aggiornato vive in `CLAUDE.md`, sezione "Piano di lavoro attivo" — questo
+> file resta la fonte di verità per le DECISIONI di design (§1-§12, tutte
+> chiuse: non riprogettare da capo), non per l'avanzamento.
+> Documento redatto il 2026-07-31 su richiesta di Davide.
 
 ---
 
@@ -700,8 +707,11 @@ veri, e che **porterò a Davide invece di decidere da solo** quando ci si arriva
 
 ## 13. Piano di lavoro proposto
 
-Sette passi, ciascuno verificabile da solo. I primi due danno già valore anche
+Nove passi, ciascuno verificabile da solo. I primi due danno già valore anche
 senza rete, e il quarto è il primo momento in cui due dispositivi si parlano.
+Lo stato di avanzamento reale (cosa è fatto, cosa resta) non vive qui — è un
+piano, non un tracker — ma nella sezione "Piano di lavoro attivo" di
+`CLAUDE.md`, aggiornata ad ogni sessione.
 
 | # | Passo | Contenuto | Nota |
 |---|---|---|---|

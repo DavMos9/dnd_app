@@ -519,7 +519,7 @@ def get_encounter_members_resolved(encounter_id: str, active_only: bool = True) 
         for m in members:
             if m.kind == "character" and m.character_id:
                 crow = conn.execute(
-                    "SELECT name, ac, hp_current, hp_max FROM characters WHERE id=?",
+                    "SELECT name, ac, hp_current, hp_max, world_id FROM characters WHERE id=?",
                     (m.character_id,),
                 ).fetchone()
                 if crow:
@@ -532,6 +532,12 @@ def get_encounter_members_resolved(encounter_id: str, active_only: bool = True) 
                         "hp_max": cd.get("hp_max", 0),
                         "xp": 0,  # i PG non contano mai come PE mostro
                         "source": "character",
+                        # world_id (fix 2026-08-07, azioni master in Incontro):
+                        # "" per un PG locale, altrimenti l'id del mondo di cui
+                        # questo PG è istanza — usato dalla UI per decidere se
+                        # mostrare le pillole Danno/Cura/Condizione al posto
+                        # del solo chip di sola lettura.
+                        "world_id": cd.get("world_id", "") or "",
                     })
                     continue
                 # Personaggio cancellato nel frattempo — mostra comunque la riga
@@ -541,6 +547,7 @@ def get_encounter_members_resolved(encounter_id: str, active_only: bool = True) 
                     "ac": m.ac, "hp_current": m.hp_current, "hp_max": m.hp_max,
                     "xp": 0,
                     "source": "character",
+                    "world_id": "",
                 })
             elif m.kind == "npc" and m.npc_id:
                 nrow = conn.execute(

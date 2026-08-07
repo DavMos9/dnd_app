@@ -21,7 +21,7 @@ from ui.device_identity import resolve_device_id
 from ui.mobile_webview_picker import pick_file_via_webview
 from ui.theme import muted_text, primary_button, ghost_button
 from ui import design as d
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import show_snack, wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -900,18 +900,17 @@ class HomeView(ft.Column):
         callback()
 
     def _show_error(self, message: str):
-        snack = ft.SnackBar(
-            content=ft.Text(message, color=d.T().text),
-            bgcolor=d.T().danger,
-        )
-        self.page.show_dialog(snack)
+        """Pulizia 2026-08-07: `ui.widgets.show_snack()` esiste apposta dal
+        2026-07-31 per centralizzare QUESTO identico pattern — era rimasto
+        duplicato qui nonostante il suo stesso docstring lo citi come il
+        caso che l'ha motivato. Stesso esito visivo (tono "danger")."""
+        show_snack(self.page, message, tone="danger")
 
     def _show_success(self, message: str):
-        snack = ft.SnackBar(
-            content=ft.Text(message, color=d.T().text),
-            bgcolor=d.T().magic,
-        )
-        self.page.show_dialog(snack)
+        """Vedi `_show_error` sopra. Tono "magic" per restare
+        visivamente identico a prima (non "success": il colore usato qui è
+        sempre stato quello magico dell'app, non quello verde)."""
+        show_snack(self.page, message, tone="magic")
 
     # ------------------------------------------------------------------
     # Export / Import personaggio

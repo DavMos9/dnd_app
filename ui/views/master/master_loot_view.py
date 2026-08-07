@@ -2,10 +2,15 @@
 Vista "Bottino" — quarta tab di `MasterView` (passo 3 di
 `dnd_app/docs/loot_design.md` §8). Due elenchi sulla stessa tabella
 `loot_stash_entries` (`data/repositories/loot_repo.py`), distinti da
-`stash_kind`: **Archivio del Master** (privato) e **Deposito del Gruppo**
-(visibile a tutti i membri — oggi, senza il modello mondo del Multiplayer,
-è comunque utile in locale: un unico dispositivo dove Master e giocatori
-condividono la scheda, coerente con l'architettura attuale dell'app).
+`stash_kind`: **Archivio del Master** (sempre privato del dispositivo,
+`world_id=""` per scelta di design — vedi il costruttore) e **Deposito del
+Gruppo** (`stash_kind="party"`, scoped al mondo correntemente selezionato
+in `MasterView` da quando il modello Mondi esiste — vedi `_effective_world_id()`
+qui sotto; `world_id=""` se il Master lavora in locale, comportamento di
+sempre per chi non usa il Multiplayer). Pulizia 2026-08-07: questo
+docstring diceva ancora "oggi, senza il modello mondo del Multiplayer" —
+falso da quando il passo 2 (modello mondo) esiste, questo stesso file lo
+usa già (parametro `world_id` del costruttore).
 
 Operazioni per voce: **assegna** (apre `master_loot_assign_dialog`),
 **sposta** tra i due contenitori, **modifica**, **elimina** — più

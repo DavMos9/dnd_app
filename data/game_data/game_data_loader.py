@@ -1604,13 +1604,6 @@ class GameDataLoader:
         """Gli artefatti d'esempio trascritti dalla DMG."""
         return self.get_artifacts_data().get("artifacts", [])
 
-    def get_artifact(self, name: str) -> dict[str, Any] | None:
-        target = (name or "").strip().lower()
-        for a in self.get_artifacts():
-            if a.get("name", "").strip().lower() == target:
-                return a
-        return None
-
     def get_artifact_property_table(self, key: str) -> dict[str, Any] | None:
         """`benefiche_minori` | `benefiche_maggiori` | `nocive_minori` | `nocive_maggiori`."""
         return self.get_artifacts_data().get("tables", {}).get(key)

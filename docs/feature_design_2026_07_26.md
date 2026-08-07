@@ -1,7 +1,11 @@
 # Progettazione delle 4 feature autorizzate — 2026-07-26
 
-> Documento di **progettazione**. Nessuna riga di codice applicata.
-> Feature autorizzate da Davide: (1) dadi collegati alla scheda,
+> **Stato (aggiornato 2026-08-07, pulizia documentazione): tutte e 4 le
+> feature sono state implementate e chiuse** — vedi `CLAUDE.md`, elenco
+> "Chiuso e verificato". Questo documento resta il riferimento di design
+> (decisioni, non va riprogettato), non descrive più uno stato "nessuna
+> riga di codice applicata": era vero solo il 2026-07-26.
+> Feature: (1) dadi collegati alla scheda,
 > (2) concentrazione + condizioni PHB, (3) oggetti magici + sintonia lato
 > giocatore, (4) iniziativa e PE lato master.
 > Il multiclasse è progettato separatamente in `multiclasse_design.md`.

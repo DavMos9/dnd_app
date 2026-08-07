@@ -709,7 +709,13 @@ class SpellsView(ScrollMemoryListView):
         pb      = char_prof_bonus(c)
         sp_key  = c.spellcasting_ability or ""
         sp_mod  = get_modifier(_KEY_TO_SCORE.get(sp_key, 10))
-        save_dc = 8 + pb + sp_mod
+        # Formula PHB "8 + competenza + mod" — riusa core/character_stats.py
+        # invece di ricalcolarla qui (era duplicata anche in
+        # combattimento_tab.py: stessa formula in due posti, pulizia
+        # 2026-08-07). `_section_magic_header` è chiamata SOLO se
+        # `c.spellcasting_ability` è valorizzato (vedi `_build()`), quindi
+        # `spell_save_dc()` non ritorna mai `None` qui.
+        save_dc = cs.spell_save_dc(c)
         atk_bon = pb + sp_mod
         atk_str = f"+{atk_bon}" if atk_bon >= 0 else str(atk_bon)
         sp_name = _KEY_TO_NAME.get(sp_key, sp_key)

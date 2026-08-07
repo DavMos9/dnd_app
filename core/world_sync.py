@@ -78,6 +78,10 @@ class _ClientCooldownState:
     master_action_last_at: dict[str, float] = field(default_factory=dict)  # character_id -> float
     network_request_last_at: float = 0.0     # ingresso in un mondo (codice/LAN/QR) + retry
     instance_push_last_at: float = 0.0       # HomeView._push_instance_to_host
+    #: hp.self_update (fix 2026-08-07) — per personaggio come master_action,
+    #: ma usato per DECIDERE quando è il momento di inviare (debounce in
+    #: `CombattimentoTab`), mai per bloccare l'azione locale sulla scheda.
+    hp_self_update_last_at: dict[str, float] = field(default_factory=dict)
 
 
 _client_cooldowns = _ClientCooldownState()
@@ -122,6 +126,19 @@ def mark_instance_push() -> None:
     _client_cooldowns.instance_push_last_at = time.monotonic()
 
 
+def hp_self_update_cooldown_remaining(character_id: str) -> float:
+    """Secondi rimanenti prima del prossimo invio automatico dei PF di
+    QUESTO personaggio verso l'host (`CombattimentoTab`, fix 2026-08-07).
+    Usato solo per decidere quando spedire (debounce), mai per bloccare
+    l'azione locale del giocatore sulla propria scheda."""
+    last_at = _client_cooldowns.hp_self_update_last_at.get(character_id, 0.0)
+    return perm.cooldown_remaining(last_at, perm.HP_SELF_UPDATE_COOLDOWN_S)
+
+
+def mark_hp_self_update(character_id: str) -> None:
+    _client_cooldowns.hp_self_update_last_at[character_id] = time.monotonic()
+
+
 def reset_client_cooldowns_for_tests() -> None:
     """SOLO per i test: azzera lo stato condiviso a livello di processo,
     che altrimenti "perdurerebbe" da una funzione di test all'altra nello
@@ -149,6 +166,11 @@ def rewind_network_request_for_tests(seconds_ago: float) -> None:
 def rewind_instance_push_for_tests(seconds_ago: float) -> None:
     """SOLO per i test — vedi `rewind_master_action_for_tests`."""
     _client_cooldowns.instance_push_last_at = time.monotonic() - seconds_ago
+
+
+def rewind_hp_self_update_for_tests(character_id: str, seconds_ago: float) -> None:
+    """SOLO per i test — vedi `rewind_master_action_for_tests`."""
+    _client_cooldowns.hp_self_update_last_at[character_id] = time.monotonic() - seconds_ago
 
 
 # ---------------------------------------------------------------------------

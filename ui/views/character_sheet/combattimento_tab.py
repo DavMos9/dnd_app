@@ -63,6 +63,18 @@ class CombattimentoTab(ScrollMemoryListView):
         self.character = character
         self._on_refresh = on_refresh
         self._page: ft.Page | None = None
+        # Invio automatico dei PF verso il mondo (fix 2026-08-07, scelta di
+        # Davide — vedi `_schedule_hp_world_sync()`) — solo per un'istanza
+        # di mondo (`character.world_id`), risolto in modo asincrono in
+        # `did_mount()` come già fatto altrove per `device_id`
+        # (`ui/device_identity.py`). `_hp_sync_generation` è il "token" del
+        # debounce: ogni chiamata a `_schedule_hp_world_sync()` lo incrementa,
+        # il ciclo asincrono programmato controlla di essere ancora quello
+        # più recente prima di inviare — così una raffica di click ravvicinati
+        # (es. -1 PF più volte di fila) produce UN SOLO invio con l'ultimo
+        # valore, non uno per click.
+        self._device_id: str | None = None
+        self._hp_sync_generation: int = 0
         # Mistificatore Arcano (Ladro)/Cavaliere Mistico (Guerriero): sync
         # difensivo ad ogni apertura tab, stesso principio di
         # init_class_resources() più sotto — no-op per qualunque altra
@@ -128,6 +140,119 @@ class CombattimentoTab(ScrollMemoryListView):
 
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
+        if self.character.world_id and self._page is not None:
+            self._page.run_task(self._init_device_identity)
+
+    # ------------------------------------------------------------------
+    # Invio automatico dei PF verso il mondo (fix 2026-08-07)
+    #
+    # Multiplayer §7/step 7 "Condivisione": prima di questo fix i PF che un
+    # giocatore si segnava da solo (danno subito, cura, riposo, tiri
+    # salvezza contro morte, modifica manuale) restavano SEMPRE locali — a
+    # differenza delle azioni del master ("Interviene a distanza",
+    # `hp.damage`/`hp.heal`), non esisteva alcun modo per cui il mondo/un
+    # incontro venissero mai a saperlo. Scelta esplicita di Davide dopo un
+    # confronto sui pro/contro: invio automatico in tempo reale, non un
+    # "Aggiorna il mio foglio" manuale (§6.1, che resta per il resync
+    # COMPLETO del personaggio, non per i soli PF).
+    #
+    # Principi seguiti, tutti con un precedente già nel progetto:
+    #   * MAI bloccante — la scheda locale si aggiorna e basta, l'invio è
+    #     "best effort" in background (stesso principio di
+    #     `HomeView._push_instance_to_host`); un fallimento (host
+    #     irraggiungibile, cooldown) non mostra alcun errore all'utente, il
+    #     prossimo invio porterà comunque lo stato più recente.
+    #   * Valori ASSOLUTI, mai un delta (`hp_current`/`hp_temp`/tiri
+    #     salvezza contro morte così come sono DOPO la modifica locale):
+    #     un invio perso non lascia nulla di incoerente da recuperare,
+    #     idempotente per costruzione.
+    #   * Debounce lato client (token `_hp_sync_generation`) + cooldown
+    #     dedicato (`core.world_sync.HP_SELF_UPDATE_COOLDOWN_S`, PIÙ CORTO
+    #     di quello del master perché qui non c'è alcuna attesa percepita
+    #     da minimizzare, è tutto invisibile) + difesa in profondità lato
+    #     host (`core.world_backend._check_rate_limit`) — stessa architettura
+    #     a tre livelli già in uso per ogni altro comando di rete.
+    # ------------------------------------------------------------------
+
+    async def _init_device_identity(self) -> None:
+        page = self._page
+        if page is None:
+            return
+        from ui.device_identity import resolve_device_id
+        self._device_id = await resolve_device_id(page)
+
+    def _schedule_hp_world_sync(self) -> None:
+        """Da richiamare SUBITO dopo ogni scrittura locale di PF/PF
+        temporanei/tiri salvezza contro morte di questo personaggio — vedi
+        il commento sopra. No-op silenzioso se il personaggio non è
+        un'istanza di un mondo: la stragrande maggioranza dei personaggi
+        (gioco in locale) non deve mai nemmeno considerare la rete."""
+        if not self.character.world_id:
+            return
+        page = self._page
+        if page is None:
+            return
+        self._hp_sync_generation += 1
+        page.run_task(self._push_hp_to_world, self._hp_sync_generation)
+
+    async def _push_hp_to_world(self, generation: int) -> None:
+        import asyncio
+
+        from core import world_permissions as perm
+        from core import world_sync
+
+        # Debounce: aspetta che l'utente smetta di toccare i PF prima di
+        # spedire — se nel frattempo è arrivata una chiamata più recente
+        # (generation è cambiato), questa si ferma qui: se ne occuperà
+        # quella più recente, che porta comunque il valore più aggiornato.
+        await asyncio.sleep(perm.HP_SELF_UPDATE_COOLDOWN_S)
+        if generation != self._hp_sync_generation:
+            return
+
+        if self._device_id is None:
+            page = self._page
+            if page is None:
+                return
+            from ui.device_identity import resolve_device_id
+            self._device_id = await resolve_device_id(page)
+        if not self._device_id:
+            return
+
+        remaining = world_sync.hp_self_update_cooldown_remaining(self.character.id)
+        if remaining > 0:
+            # Non riprova da sola: la PROSSIMA modifica dei PF (se ce n'è
+            # una) richiamerà comunque `_schedule_hp_world_sync()` e quindi
+            # un nuovo debounce — nessun invio è "perso" nel senso che
+            # conta, perché i valori sono assoluti, non un delta.
+            return
+
+        from core.world_backend import LocalBackend
+        from data.repositories import world_repo
+        world = world_repo.get_world(self.character.world_id)
+        if world is None:
+            return
+        backend = world_sync.resolve_backend_for_world(
+            world, self._device_id, LocalBackend(), {},
+        )
+        if backend is None:
+            return
+
+        world_sync.mark_hp_self_update(self.character.id)
+        c = self.character
+        try:
+            backend.send_command(
+                world.id, self._device_id or "", perm.CMD_HP_SELF_UPDATE,
+                {
+                    "hp_current": c.hp_current, "hp_temp": c.hp_temp,
+                    "death_saves_success": c.death_saves_success,
+                    "death_saves_failure": c.death_saves_failure,
+                },
+                target_type="character", target_id=c.id,
+            )
+        except Exception as e:
+            # Best effort per definizione (vedi il commento sopra): logga e
+            # basta, non deve mai interrompere l'esperienza sulla scheda.
+            logger.warning("Invio hp.self_update fallito per %s: %s", c.id, e)
 
     # ------------------------------------------------------------------
     # Build principale
@@ -365,11 +490,13 @@ class CombattimentoTab(ScrollMemoryListView):
         def set_success(n: int):
             c.death_saves_success = n if c.death_saves_success != n else n - 1
             character_repo.update_death_saves(c.id, c.death_saves_success, c.death_saves_failure)
+            self._schedule_hp_world_sync()
             self._refresh()
 
         def set_failure(n: int):
             c.death_saves_failure = n if c.death_saves_failure != n else n - 1
             character_repo.update_death_saves(c.id, c.death_saves_success, c.death_saves_failure)
+            self._schedule_hp_world_sync()
             self._refresh()
 
         status_label = (
@@ -465,6 +592,7 @@ class CombattimentoTab(ScrollMemoryListView):
                     msg += "\nTerzo fallimento: il personaggio muore.\nPHB p.197."
                 self._show_rule_notice(title, msg)
 
+            self._schedule_hp_world_sync()
             self._refresh()
 
         show_roll(self._page, cs.death_save_roll(), on_result=_apply)
@@ -860,6 +988,7 @@ class CombattimentoTab(ScrollMemoryListView):
             if outcome.concentration_broken:
                 character_repo.clear_concentration(c.id)
 
+            self._schedule_hp_world_sync()
             page.pop_dialog()
             self._refresh()
             if outcome.death_note:
@@ -916,6 +1045,7 @@ class CombattimentoTab(ScrollMemoryListView):
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
             if outcome.death_saves_reset:
                 character_repo.update_death_saves(c.id, 0, 0)
+            self._schedule_hp_world_sync()
             page.pop_dialog()
             self._refresh()
 
@@ -963,6 +1093,7 @@ class CombattimentoTab(ScrollMemoryListView):
             if not character_repo.update_hp(c.id, c.hp_current, c.hp_temp):
                 show_error_dialog(page, "Impossibile salvare gli HP temporanei.")
                 return
+            self._schedule_hp_world_sync()
             page.pop_dialog()
             self._refresh()
 
@@ -973,6 +1104,7 @@ class CombattimentoTab(ScrollMemoryListView):
             if not character_repo.update_hp(c.id, c.hp_current, c.hp_temp):
                 show_error_dialog(page, "Impossibile salvare gli HP temporanei.")
                 return
+            self._schedule_hp_world_sync()
             page.pop_dialog()
             self._refresh()
 
@@ -1019,6 +1151,7 @@ class CombattimentoTab(ScrollMemoryListView):
             if not character_repo.update(c):
                 show_error_dialog(page)
                 return
+            self._schedule_hp_world_sync()
             page.pop_dialog()
             self._refresh()
 
@@ -2018,7 +2151,12 @@ class CombattimentoTab(ScrollMemoryListView):
         # --- Header statistiche magia ---
         if is_caster:
             sp_mod  = get_modifier(_KEY_TO_SCORE[sp_key])
-            save_dc = 8 + pb + sp_mod
+            # Formula PHB "8 + competenza + mod" — riusa core/character_stats.py
+            # invece di ricalcolarla qui (era duplicata anche in
+            # spells_view.py: stessa formula in due posti, pulizia 2026-08-07).
+            # Il blocco `if is_caster:` sopra garantisce che
+            # `spell_save_dc()` non ritorni mai `None` qui.
+            save_dc = cs.spell_save_dc(c)
             atk_bon = pb + sp_mod
             atk_str = f"+{atk_bon}" if atk_bon >= 0 else str(atk_bon)
             sp_name = _KEY_TO_NAME[sp_key]
@@ -3431,6 +3569,7 @@ class CombattimentoTab(ScrollMemoryListView):
             character_repo.reset_class_resources(c.id, "short_rest")
             if c.class_name.strip().lower() == "warlock":
                 character_repo.reset_all_spell_slots(c.id)
+            self._schedule_hp_world_sync()
             page.pop_dialog()
             self._refresh()
 
@@ -3588,6 +3727,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 show_error_dialog(page)
                 return
             character_repo.update_hp(c.id, c.hp_max, 0)
+            self._schedule_hp_world_sync()
             page.pop_dialog()
             self._refresh()
             if food_cb.value and exh_before > 0:
@@ -3910,6 +4050,7 @@ class CombattimentoTab(ScrollMemoryListView):
 
         def apply(_e: Any) -> None:
             character_repo.update_hp(c.id, new_hp)
+            self._schedule_hp_world_sync()
             page.pop_dialog()
             self._refresh()
 
