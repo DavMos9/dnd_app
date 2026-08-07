@@ -16,6 +16,7 @@ import webbrowser
 from typing import Any, Callable
 from config.settings import *
 from data.repositories import settings_repo
+from network.host_server import HostServerSlot
 from ui import design
 from ui.theme import get_theme, get_dark_theme, title_text, muted_text
 from ui.widgets import wrap_dialog_actions, theme_toggle_look, theme_toggle_tooltip
@@ -68,6 +69,15 @@ class DnDApp:
         self._rebuild_route: Callable[[], None] | None = None
         self._master_view: Any = None
         self._worlds_view: Any = None
+        #: Contenitore condiviso dell'hosting LAN eventualmente attivo —
+        #: creato UNA VOLTA per l'intera sessione dell'app (fix
+        #: 2026-08-07, bug reale su Wi-Fi: prima l'hosting viveva
+        #: sull'istanza di `WorldsView`, che `_navigate()` ricrea ad ogni
+        #: cambio di schermata, e si fermava da solo ad ogni navigazione
+        #: — vedi il docstring di `HostServerSlot` in
+        #: `network/host_server.py` per il dettaglio completo). Passato a
+        #: ogni `WorldsView` creata in `_show_worlds_view()`.
+        self._host_server_slot = HostServerSlot()
         # Vista di primo livello corrente in grado di aggiornarsi "in place"
         # su un resize dal vivo tramite un proprio `set_mobile(bool)` (oggi:
         # `MasterView`) — `None` quando siamo su Home/form/wizard/layout
@@ -315,6 +325,7 @@ class DnDApp:
             on_back_to_home=self._show_home,
             on_toggle_theme=self._cycle_theme,
             theme_preference=self._theme_pref,
+            host_server_slot=self._host_server_slot,
         )
         self._worlds_view = worlds
         self._rebuild_route = self._show_worlds_view

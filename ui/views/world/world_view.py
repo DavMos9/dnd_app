@@ -24,7 +24,7 @@ from core.world_backend import CommandResult, LocalBackend, RemoteBackend, World
 from data.game_data.game_data_loader import GameDataLoader
 from data.models import Character, World, WorldChangeRequest, WorldEvent, WorldMember
 from data.repositories import character_repo, world_repo
-from network.host_server import PendingJoinRequest, WorldHostServer, local_ip_hint
+from network.host_server import HostServerSlot, PendingJoinRequest, WorldHostServer, local_ip_hint
 from network.qr_join import build_join_text, generate_qr_png_base64
 from ui.views.world.qr_scanner_view import QrScannerView, qr_scanner_supported
 from ui import design as d
@@ -93,7 +93,8 @@ class WorldsView(ft.Column):
         on_toggle_theme(e)/theme_preference → stessa pillola tema delle altre sezioni
     """
 
-    def __init__(self, on_back_to_home, on_toggle_theme=None, theme_preference: str = "system"):
+    def __init__(self, on_back_to_home, on_toggle_theme=None, theme_preference: str = "system",
+                 host_server_slot: HostServerSlot | None = None):
         super().__init__(expand=True, spacing=0)
         self.on_back_to_home = on_back_to_home
         self.on_toggle_theme = on_toggle_theme
@@ -109,9 +110,18 @@ class WorldsView(ft.Column):
 
         #: Passo 4 (LAN): al più un hosting attivo per volta in questa
         #: view — coerente con §11.5 ("due dispositivi non possono
-        #: ospitare lo stesso mondo"), qui applicato più semplicemente
-        #: come "un solo hosting alla volta da questa sessione dell'app".
-        self._host_server: WorldHostServer | None = None
+        #: ospitare lo stesso mondo"). Fix 2026-08-07 (bug reale su Wi-Fi:
+        #: l'hosting si fermava da solo ad ogni navigazione — vedi il
+        #: docstring di `HostServerSlot`): NON più un attributo di
+        #: istanza — `self._host_server` è ora una property che legge/
+        #: scrive `self._host_server_slot.server`, un contenitore passato
+        #: da `ui/app.py::DnDApp` che sopravvive alla ricreazione di
+        #: questa view. Se non passato (es. un test che costruisce
+        #: `WorldsView` direttamente, senza passare da `DnDApp`), se ne
+        #: crea uno privato — stesso comportamento di prima per chi non
+        #: ha bisogno di condividerlo.
+        self._host_server_slot = host_server_slot if host_server_slot is not None \
+            else HostServerSlot()
 
         #: Un `RemoteBackend` connesso per mondo non-ospitato, riusato tra
         #: un'azione e l'altra invece di riconnettersi ad ogni comando
@@ -143,6 +153,14 @@ class WorldsView(ft.Column):
         self._build_shell()
         self._render_loading()
 
+    @property
+    def _host_server(self) -> WorldHostServer | None:
+        return self._host_server_slot.server
+
+    @_host_server.setter
+    def _host_server(self, value: WorldHostServer | None) -> None:
+        self._host_server_slot.server = value
+
     def did_mount(self):
         page = self.page
         if page is not None:
@@ -150,12 +168,24 @@ class WorldsView(ft.Column):
 
     def will_unmount(self):
         self._stop_detail_sync()
-        # Il server si accende solo quando il master apre l'hosting e si
-        # spegne alla chiusura (§9.4) — uscire dalla sezione Mondi senza
-        # fermarlo esplicitamente non deve lasciare una porta aperta.
-        if self._host_server is not None:
-            self._host_server.stop()
-            self._host_server = None
+        # Fix 2026-08-07 — bug reale segnalato da Davide su Wi-Fi: QUI
+        # NON si ferma più l'hosting eventualmente attivo. Prima di
+        # questo fix, `will_unmount()` fermava sempre `self._host_server`
+        # ("uscire dalla sezione Mondi senza fermarlo esplicitamente non
+        # deve lasciare una porta aperta") — ma `ui/app.py::_navigate()`
+        # ricrea l'intera pagina ad OGNI navigazione di primo livello
+        # (Home, Modalità Master, cambio tema incluso), quindi
+        # `will_unmount()` scattava ad ogni singola di quelle azioni, non
+        # solo uscendo davvero dalla Sezione Mondi — un master che apriva
+        # un'altra schermata mentre un giocatore era connesso lo
+        # disconnetteva silenziosamente, senza alcun errore a schermo.
+        # L'hosting vive ora in `self._host_server_slot` (vedi il
+        # docstring di `HostServerSlot` in `network/host_server.py`), che
+        # sopravvive alla ricreazione di questa view: si ferma SOLO
+        # tramite `_stop_hosting()` (pulsante "Ferma hosting", azione
+        # esplicita del master) o alla chiusura vera del processo (il
+        # thread del server è `daemon=True`, nessun cleanup necessario
+        # qui per quel caso).
 
     async def _init_identity(self):
         page = self.page

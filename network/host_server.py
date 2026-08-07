@@ -206,11 +206,58 @@ class _RequestHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "Errore interno del server."})
 
 
+class HostServerSlot:
+    """
+    Contenitore mutabile per l'hosting LAN eventualmente attivo in questa
+    sessione dell'app — tenuto da `ui/app.py::DnDApp` (che vive quanto il
+    processo) e condiviso con ogni `ui.views.world.world_view.WorldsView`
+    creata ad ogni navigazione nella Sezione Mondi
+    (`DnDApp._show_worlds_view`).
+
+    Fix 2026-08-07 — bug reale segnalato da Davide dopo un vero test su
+    Wi-Fi: il master approva l'ingresso di un giocatore, poi apre la
+    Modalità Master per aggiungerlo a un incontro (o semplicemente
+    cambia tema, o apre un'altra scheda) — l'hosting si fermava DA SOLO
+    in quel momento, disconnettendo silenziosamente il giocatore appena
+    entrato, che infatti non riusciva più a registrare il proprio
+    personaggio sull'host (nessun errore lato master: l'host era già
+    morto prima ancora che il giocatore ci provasse).
+
+    Causa: prima di questo fix, `WorldHostServer` viveva come un
+    attributo di ISTANZA su `WorldsView`, fermato esplicitamente in
+    `will_unmount()` — scelta deliberata di una sessione precedente
+    ("uscire dalla sezione Mondi senza fermarlo esplicitamente non deve
+    lasciare una porta aperta", vedi il changelog storico). Il problema è
+    che `ui/app.py::_navigate()` azzera e ricostruisce l'intera pagina ad
+    OGNI navigazione di primo livello (Home, Modalità Master, Mondi,
+    cambio tema incluso, non solo un vero "esco dalla Sezione Mondi") —
+    il ciclo di vita standard di Flet fa scattare `will_unmount()` sulla
+    `WorldsView` precedente ad ogni singola di queste navigazioni, non
+    solo quando l'utente lascia davvero la sezione Mondi per restarci
+    fuori. Un master che semplicemente controlla un'altra schermata
+    dell'app, mentre un tavolo di gioco è in corso, non deve MAI
+    disconnettere tutti i giocatori collegati.
+
+    Questo contenitore rompe quell'accoppiamento: l'hosting vive quanto
+    la sessione dell'app (non quanto la singola `WorldsView` che l'ha
+    avviato), e si ferma SOLO su un'azione esplicita del master ("Ferma
+    hosting", `WorldsView._stop_hosting()`) — mai per un semplice cambio
+    di schermata. Sopravvive comunque a una chiusura vera del processo
+    senza bisogno di alcun cleanup qui: `WorldHostServer._thread` è
+    `daemon=True` (§9.2), termina da solo con l'uscita del processo.
+    """
+
+    def __init__(self) -> None:
+        self.server: WorldHostServer | None = None
+
+
 class WorldHostServer:
     """
     Ciclo di vita e stato dell'hosting di UN mondo su questo dispositivo.
     Un'istanza per mondo ospitato — la UI ne crea una quando il master
-    preme "Ospita in LAN" e la ferma alla chiusura (§9.4).
+    preme "Ospita in LAN" e la ferma quando preme "Ferma hosting", non
+    più legata al ciclo di vita di una singola view (fix 2026-08-07, vedi
+    `HostServerSlot`).
     """
 
     def __init__(self, world_id: str, backend: LocalBackend | None = None,

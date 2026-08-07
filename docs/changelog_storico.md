@@ -7603,6 +7603,86 @@ sulle suite esistenti (tutte invariate rispetto alla sessione precedente).
 
 ---
 
+## 2026-08-07 (sessione successiva) — Bug severo: l'hosting LAN si fermava da solo navigando via dalla Sezione Mondi
+
+Davide, dopo aver verificato che la sincronizzazione automatica
+dell'ingresso funziona ("si aggiorna bene in automatico... una volta
+accettato si aggiunge bene"): ha poi provato ad aggiungere un personaggio
+a un incontro dalla Modalità Master, e lì "esce questo messaggio e il
+master non vede nessun personaggio nel mondo" — il push del personaggio
+sull'host falliva con "Personaggio creato, ma non è stato possibile
+registrarlo subito sull'host", e la Sezione Incontri mostrava "Nessun
+personaggio disponibile" per quel mondo.
+
+**Analisi.** Nessuna rete reale disponibile in sandbox per riprodurre
+esattamente lo scenario a due dispositivi, ma il codice ha rivelato la
+causa senza ambiguità: `WorldsView.will_unmount()` fermava SEMPRE
+l'hosting attivo (`self._host_server.stop()`) — una scelta deliberata di
+una sessione precedente, commentata esplicitamente come "uscire dalla
+sezione Mondi senza fermarlo esplicitamente non deve lasciare una porta
+aperta". Il problema: `ui/app.py::_navigate()` azzera e ricostruisce
+l'INTERA pagina ad ogni navigazione di primo livello (Home, Modalità
+Master, Mondi, perfino un cambio tema) — il ciclo di vita standard di
+Flet fa scattare `will_unmount()` sulla `WorldsView` precedente ad OGNI
+singola di quelle navigazioni, non solo quando si esce davvero e per
+restare fuori dalla Sezione Mondi. Quindi: il master approva un ingresso
+mentre è nella Sezione Mondi (hosting attivo, tutto bene) → apre la
+Modalità Master per gestire l'incontro → quella navigazione smonta la
+`WorldsView` e ferma l'hosting SENZA alcun avviso a schermo → il
+giocatore, nel frattempo, tenta di registrare il proprio personaggio
+sull'host ormai morto → fallisce esattamente col messaggio segnalato.
+Non serviva nemmeno un riavvio dell'app: bastava una singola normale
+navigazione del master.
+
+**Fix** (`network/host_server.py`, `ui/views/world/world_view.py`,
+`ui/app.py`): `WorldHostServer` non vive più come attributo di istanza
+su `WorldsView` — vive in un nuovo contenitore condiviso, `HostServerSlot`
+(un semplice oggetto con un campo `server`), creato UNA SOLA VOLTA da
+`DnDApp.__init__` (sopravvive quanto il processo) e passato a ogni
+`WorldsView` costruita in `_show_worlds_view()` ad ogni navigazione.
+`WorldsView._host_server` è diventata una `@property` che legge/scrive
+`self._host_server_slot.server` — nessun altro punto del file (`_start_
+hosting`, `_stop_hosting`, `_hosting_section`, `_approve_join`, `_reject_
+join`, `_detail_signature_of`, ecc., ~10 punti) ha dovuto cambiare, tutti
+continuano a leggere/scrivere `self._host_server` esattamente come prima.
+`will_unmount()` non ferma più l'hosting: si ferma SOLO tramite `_stop_
+hosting()` ("Ferma hosting", azione esplicita del master) o alla vera
+chiusura del processo (il thread del server è `daemon=True`, nessun
+cleanup necessario). Se non viene passato un `host_server_slot` (qualunque
+test o uso che costruisce `WorldsView` direttamente, come fa quasi tutta
+la suite di test esistente), se ne crea uno privato — stesso comportamento
+di isolamento di prima per chi non condivide la view tra più istanze.
+
+Questo capovolge una scelta di design esplicita di una sessione precedente
+("non lasciare una porta aperta uscendo dalla sezione") — segnalato qui
+per trasparenza: la scelta nuova è corretta per l'uso reale (un master non
+deve disconnettere l'intero tavolo spostandosi in un'altra schermata
+dell'app), ma è comunque una revisione di una decisione già presa, non
+solo un fix di un bug mai discusso prima.
+
+**Test.** Nuovo `test_hosting_persistente_navigazione.py` (13/13):
+`will_unmount()` non ferma più l'hosting (con e senza slot condiviso
+esplicito); il caso vero del bug riprodotto con uno slot condiviso tra
+due istanze di `WorldsView` create in sequenza (come farebbe `ui/app.py`
+ad ogni navigazione) — l'hosting avviato sulla prima sopravvive alla sua
+`will_unmount()` ed è DAVVERO raggiungibile in rete dalla seconda (un
+client reale su socket riesce a inviare `POST /join` e la richiesta è
+visibile dalla nuova istanza della view, non solo "l'oggetto esiste
+ancora" — la prova che il bug reale è chiuso); `_stop_hosting()` continua
+a fermarlo per davvero; due `WorldsView` senza slot condiviso restano
+isolate (nessun leak di hosting tra istanze scorrelate); nessuna eccezione
+se `will_unmount()` scatta senza hosting mai avviato. Nessuna modifica
+necessaria a nessun test esistente (verificato: la property è trasparente
+per tutti i punti che già leggevano/scrivevano `wv._host_server`
+direttamente) — nessuna regressione su tutte le altre suite.
+
+Verifica su Wi-Fi reale (approvare un ingresso, poi navigare in Modalità
+Master, poi verificare che il giocatore riesca comunque a registrare il
+personaggio) a carico di Davide — impossibile da riprodurre end-to-end a
+due dispositivi fisici in questo sandbox.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
