@@ -966,6 +966,81 @@ class HomeView(ft.Column):
     # --- Export -----------------------------------------------------------
 
     def _on_export_click(self, char: Character):
+        # Fix 2026-08-07 (Davide, dopo aver chiesto come vengono gestiti
+        # gli accessi/le sessioni tra dispositivi): un personaggio che è
+        # un'istanza di un mondo condiviso (`char.world_id` valorizzato)
+        # perde SEMPRE il collegamento al mondo alla normale importazione
+        # su un altro dispositivo (`character_export.import_character()`
+        # azzera world_id/origin_character_id/owner_device_id/is_replica/
+        # world_seq per design, vedi il suo docstring — un file esportato
+        # da un'istanza di mondo diventerebbe altrimenti una "replica" di
+        # un mondo inesistente sul dispositivo di destinazione, bloccata
+        # in sola lettura e non riparabile dall'interfaccia). Prima questo
+        # avveniva in silenzio: nessun errore, nessun avviso, il
+        # personaggio importato semplicemente "perdeva" il mondo senza che
+        # l'utente lo sapesse. Qui si avvisa PRIMA di esportare — non
+        # blocca l'esportazione (resta comunque utile per un backup locale
+        # o per stampare la scheda), solo la rende una scelta informata.
+        # Nessun avviso per un personaggio locale (`world_id == ""`, il
+        # caso comune): l'app deve restare rapida per l'uso ordinario, non
+        # aggiungere un passaggio in più dove non serve.
+        if char.world_id:
+            self._confirm_export_world_linked(char)
+            return
+        self._proceed_export(char)
+
+    def _confirm_export_world_linked(self, char: Character):
+        page = self.page
+        if page is None:
+            return
+        world = world_repo.get_world(char.world_id)
+        world_name = world.name if world else "un mondo non più presente su questo dispositivo"
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Personaggio collegato a un mondo condiviso",
+                                  ft.Icons.PUBLIC_OFF, tone="danger"),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        f'"{char.name}" è un\'istanza del mondo condiviso "{world_name}".',
+                        color=d.T().text, size=13,
+                    ),
+                    ft.Container(height=8),
+                    muted_text(
+                        "Il file esportato conterrà comunque il collegamento a questo "
+                        "mondo, ma la normale importazione su un altro dispositivo lo "
+                        "azzera sempre: il personaggio importato diventerà una copia "
+                        "locale indipendente, scollegata dal mondo, dai progressi "
+                        "condivisi e da questo dispositivo. Per far partecipare un altro "
+                        "dispositivo allo stesso mondo, fallo entrare come una nuova "
+                        "istanza dalla Sezione Mondi — non tramite questo file.",
+                        size=12,
+                    ),
+                ],
+                tight=True, spacing=0,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton(
+                    "Annulla",
+                    on_click=lambda e: page.pop_dialog(),
+                    style=ft.ButtonStyle(color=d.T().text_2),
+                ),
+                ft.ElevatedButton(
+                    "Esporta comunque",
+                    icon=ft.Icons.WARNING_AMBER_ROUNDED,
+                    on_click=lambda e: self._confirm_export_proceed(char),
+                    style=ft.ButtonStyle(bgcolor=d.T().danger, color=d.T().text),
+                ),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _confirm_export_proceed(self, char: Character):
+        if self.page is not None:
+            self.page.pop_dialog()
+        self._proceed_export(char)
+
+    def _proceed_export(self, char: Character):
         page = self.page
         if page is None:
             return
@@ -1512,6 +1587,73 @@ class HomeView(ft.Column):
             self._show_error("Impossibile leggere i dati del personaggio dal file.")
             return
 
+        # Fix 2026-08-07 — vedi il commento gemello in `_on_export_click`:
+        # stessa causa (`import_character()` azzera SEMPRE world_id/
+        # origin_character_id/owner_device_id/is_replica/world_seq, per
+        # design), stesso avviso speculare lato importazione. `world_id`
+        # è una chiave semplice dentro `data["character"]` (la riga
+        # `characters` esportata così com'è da `export_character()`, senza
+        # alcun filtro), non serve toccare `peek_character_summary()` per
+        # leggerlo qui.
+        world_id = str((data.get("character") or {}).get("world_id") or "")
+        if world_id:
+            self._show_import_world_linked_warning(data, summary, world_id)
+            return
+
+        self._continue_import(data, summary)
+
+    def _show_import_world_linked_warning(self, data: dict, summary: dict, world_id: str):
+        page = self.page
+        if page is None:
+            return
+        world = world_repo.get_world(world_id)
+        world_name = world.name if world else "un mondo non più presente su questo dispositivo"
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Personaggio collegato a un mondo condiviso",
+                                  ft.Icons.PUBLIC_OFF, tone="danger"),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        f'"{summary.get("name") or "?"}" nel file è un\'istanza del '
+                        f'mondo condiviso "{world_name}".',
+                        color=d.T().text, size=13,
+                    ),
+                    ft.Container(height=8),
+                    muted_text(
+                        "Importandolo qui diventerà un personaggio locale indipendente: "
+                        "il collegamento al mondo, ai progressi condivisi e al "
+                        "dispositivo di origine andrà perso e non è recuperabile da "
+                        "questa schermata. Per farlo partecipare di nuovo a quel mondo, "
+                        "fallo entrare come una nuova istanza dalla Sezione Mondi — non "
+                        "tramite questo file.",
+                        size=12,
+                    ),
+                ],
+                tight=True, spacing=0,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton(
+                    "Annulla",
+                    on_click=lambda e: page.pop_dialog(),
+                    style=ft.ButtonStyle(color=d.T().text_2),
+                ),
+                ft.ElevatedButton(
+                    "Importa comunque",
+                    icon=ft.Icons.WARNING_AMBER_ROUNDED,
+                    on_click=lambda e: self._confirm_import_world_linked(data, summary),
+                    style=ft.ButtonStyle(bgcolor=d.T().danger, color=d.T().text),
+                ),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _confirm_import_world_linked(self, data: dict, summary: dict):
+        if self.page is not None:
+            self.page.pop_dialog()
+        self._continue_import(data, summary)
+
+    def _continue_import(self, data: dict, summary: dict):
         if character_export.character_id_exists(summary["id"]):
             self._show_import_conflict_dialog(data, summary)
         else:

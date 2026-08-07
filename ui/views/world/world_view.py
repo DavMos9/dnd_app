@@ -67,6 +67,17 @@ _CHANGE_REQUEST_NUMERIC_FIELDS: frozenset[str] = frozenset({
 #: sovraccarico di rete più basso e beneficia di più reattività.
 _DETAIL_SYNC_INTERVAL_S = 2.0
 
+#: Intervallo del polling automatico di `finish_pending_join()` mentre il
+#: dialogo "Unisciti in LAN" è in stato "in attesa dell'approvazione" (fix
+#: 2026-08-07, bug segnalato da Davide: "al giocatore non esce
+#: l'approvazione del master" — prima serviva premere "Controlla di nuovo"
+#: a mano, per design esplicito di `core.world_sync.finish_pending_join()`
+#: — vedi `_open_lan_join_dialog._poll_pending_join_loop`). Non condiviso
+#: con `_DETAIL_SYNC_INTERVAL_S`: sono due cicli su oggetti diversi (un
+#: dialogo transitorio vs. la scheda di un mondo aperta), un valore proprio
+#: evita un accoppiamento accidentale se in futuro cambia l'uno o l'altro.
+_PENDING_JOIN_POLL_INTERVAL_S = 3.0
+
 #: Anti-spam su "Interviene a distanza"/ingresso-sincronizzazione: le
 #: costanti (3s per-personaggio sul master, 10s condiviso su ingresso/
 #: sync) e lo stato vivono in `core.world_permissions`/`core.world_sync`,
@@ -1625,13 +1636,35 @@ class WorldsView(ft.Column):
         maggioranza dei cambiamenti. Membri e richieste in sospeso restano
         comunque nella firma per coprire i casi limite in cui quelle
         tabelle cambiano senza un `world_events.seq` osservabile qui
-        (es. `member.kick` tocca `world_members`, non i campi di `world`)."""
+        (es. `member.kick` tocca `world_members`, non i campi di `world`).
+
+        Fix 2026-08-07 (bug segnalato da Davide dopo il primo vero test di
+        QUESTA funzionalità su Wi-Fi: "al master non esce la richiesta a
+        meno di un aggiornamento manuale"): le richieste di ingresso in
+        sospeso (`PendingJoinRequest`) NON vivono in nessuna tabella del
+        DB — sono stato in memoria su `WorldHostServer._pending` (§9.4,
+        mai persistito: sono per definizione una fase transitoria prima
+        che il dispositivo diventi membro vero). La firma sopra, basata
+        solo su letture `world_repo`, non poteva quindi MAI cambiare
+        quando arrivava una nuova richiesta di ingresso — architetturalmente
+        invisibile al ciclo di sync in background, a differenza di ogni
+        altro tipo di richiesta (§7.1) che invece passa dal DB. Qui si
+        interroga direttamente `self._host_server` (stesso processo:
+        nessuna chiamata di rete, `list_pending()` è già protetto dal
+        proprio lock interno) SOLO quando questo dispositivo ospita
+        `world` — lo stesso identico controllo già usato da
+        `_hosting_section()` per decidere se mostrarle."""
         latest_seq = world_repo.get_latest_seq(world.id)
         members = world_repo.get_members(world.id)
         member_sig = "|".join(f"{m.device_id}:{m.role}:{int(m.is_connected)}" for m in members)
         pending = world_repo.get_pending_change_requests(world.id)
         pending_sig = "|".join(f"{r.id}:{r.status}" for r in pending)
-        return f"{world.updated_at}|{latest_seq}|{member_sig}|{pending_sig}"
+        host_pending_sig = ""
+        if self._host_server is not None and self._host_server.world_id == world.id:
+            host_pending_sig = "|".join(
+                f"{r.id}:{r.status}" for r in self._host_server.list_pending()
+            )
+        return f"{world.updated_at}|{latest_seq}|{member_sig}|{pending_sig}|{host_pending_sig}"
 
     def _maybe_redraw_detail(self, world_id: str) -> None:
         """
@@ -1822,7 +1855,14 @@ class WorldsView(ft.Column):
         status_text = ft.Text("", color=p.danger, size=12)
         retry_btn = ft.TextButton("Controlla di nuovo", icon=ft.Icons.REFRESH,
                                    visible=False)
-        pending_state: dict = {"backend": None, "request_id": "", "host_port": ""}
+        #: "polling_started" (fix 2026-08-07): evita di avviare più cicli
+        #: di polling automatico sovrapposti se lo stato "in attesa" viene
+        #: rientrato più volte (es. `_attempt()` seguito da un
+        #: `_retry()` manuale mentre il polling è già in corso) — vedi
+        #: `_report()`/`_poll_pending_join_loop` più sotto.
+        pending_state: dict = {
+            "backend": None, "request_id": "", "host_port": "", "polling_started": False,
+        }
 
         discovery_results = ft.Column(spacing=d.Space.XS, tight=True)
         discovery_status = ft.Text("", color=p.text_2, size=12)
@@ -1882,6 +1922,7 @@ class WorldsView(ft.Column):
 
         def _report(result, keep_dialog_open_on_pending: bool = True):
             if result.success:
+                pending_state["backend"] = None  # ferma il polling automatico, vedi sotto
                 self.page.pop_dialog()
                 assert result.world is not None
                 self._open_detail(result.world)
@@ -1892,13 +1933,77 @@ class WorldsView(ft.Column):
                 status_text.color = p.text_2
                 status_text.value = result.error or "In attesa dell'approvazione del master…"
                 retry_btn.visible = True
+                # Fix 2026-08-07 (Davide: "al giocatore non esce
+                # l'approvazione del master" — prima bisognava premere
+                # "Controlla di nuovo" a mano): avvia il polling automatico
+                # UNA sola volta per questo dialogo, non ad ogni giro che
+                # conferma "ancora in attesa".
+                if not pending_state["polling_started"]:
+                    pending_state["polling_started"] = True
+                    self.page.run_task(_poll_pending_join_loop)
             else:
+                # Stato TERMINALE (rifiutato, o un errore che non ha
+                # prodotto un nuovo `pending_request_id`): azzerare
+                # `pending_state["backend"]` è anche il segnale che ferma
+                # `_poll_pending_join_loop` al suo prossimo giro (vedi
+                # sotto) — senza, un rifiuto esplicito del master
+                # lascerebbe comunque il ciclo attivo a interrogare
+                # `poll_join_status` su una richiesta ormai chiusa.
                 status_text.color = p.danger
                 status_text.value = result.error or "Ingresso fallito."
+                retry_btn.visible = False
+                pending_state["backend"] = None
+                pending_state["polling_started"] = False
             try:
                 self.page.update()
             except RuntimeError:
                 pass
+
+        async def _poll_pending_join_loop():
+            """
+            Fix 2026-08-07 — vedi il docstring di `_PENDING_JOIN_POLL_
+            INTERVAL_S`. Ciclo `async` schedulato con `page.run_task()`
+            (mai un `threading.Thread`: già dentro il loop asyncio della
+            sessione, stesso principio di `_network_cooldown_ticker_loop`
+            in questo stesso file), che richiama `finish_pending_join()`
+            a intervalli finché lo stato resta "in attesa" — senza
+            richiedere all'utente di premere "Controlla di nuovo".
+
+            DELIBERATAMENTE non passa da `_network_cooldown_remaining()`/
+            `_mark_network_request()`: quel cancello anti-spam (10s)
+            protegge i TENTATIVI di ingresso (`POST /join`, che consumano
+            una riga `PendingJoinRequest` sull'host e potrebbero essere
+            usati per martellare PIN diversi — vedi `WorldHostServer.
+            _check_join_rate_limit`), non un polling passivo di stato
+            (`GET /join/status`, che l'host stesso non sottopone a
+            nessun limite, per lo stesso motivo: economico e in sola
+            lettura — coerenza tra i due lati, stessa scelta già presa
+            per `WorldHostServer.join_status()`). Un utente che intanto
+            preme "Controlla di nuovo" a mano resta comunque soggetto al
+            cooldown come prima: qui si tratta solo il ciclo automatico
+            dell'app, non l'azione esplicita dell'utente.
+
+            Si ferma da solo quando `pending_state["backend"]` torna
+            `None` — impostato da `_report()` su un esito finale
+            (successo/rifiuto/errore) o dal pulsante "Annulla" qui sotto —
+            o quando `page.update()` fallisce (dialogo chiuso in altro
+            modo). Nessun rischio di ciclo infinito "orfano": è sempre
+            legato al ciclo di vita di QUESTO dialogo, non un timer
+            globale dell'app.
+            """
+            import asyncio
+
+            while True:
+                await asyncio.sleep(_PENDING_JOIN_POLL_INTERVAL_S)
+                if pending_state["backend"] is None:
+                    return
+                result = world_sync.finish_pending_join(
+                    pending_state["backend"], pending_state["request_id"],
+                    pending_state["host_port"],
+                )
+                _report(result)
+                if pending_state["backend"] is None:
+                    return  # _report ha appena risolto lo stato: un giro basta
 
         def _attempt(e):
             host_addr = (host_field.value or "").strip()
@@ -2011,6 +2116,17 @@ class WorldsView(ft.Column):
         enter_btn = ft.ElevatedButton("Entra", icon=ft.Icons.WIFI, on_click=_attempt,
                                        style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary))
 
+        def _cancel(e):
+            # Fix 2026-08-07: azzerare `pending_state["backend"]` PRIMA di
+            # chiudere il dialogo è ciò che ferma `_poll_pending_join_loop`
+            # al suo prossimo risveglio (entro `_PENDING_JOIN_POLL_
+            # INTERVAL_S`) — senza, il ciclo continuerebbe a interrogare
+            # l'host per una richiesta il cui dialogo l'utente ha già
+            # chiuso (innocuo — `page.update()` fallirebbe comunque con
+            # `RuntimeError`, già gestito — ma un giro di rete evitabile).
+            pending_state["backend"] = None
+            self.page.pop_dialog()
+
         dlg = ft.AlertDialog(
             modal=True,
             title=d.dialog_title("Unisciti in LAN", ft.Icons.WIFI),
@@ -2033,7 +2149,7 @@ class WorldsView(ft.Column):
                 tight=True, spacing=d.Space.SM, scroll=ft.ScrollMode.AUTO,
             ),
             actions=wrap_dialog_actions([
-                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                ft.TextButton("Annulla", on_click=_cancel,
                               style=ft.ButtonStyle(color=p.text_2)),
                 enter_btn,
             ]),

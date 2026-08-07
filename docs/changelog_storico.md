@@ -7446,6 +7446,163 @@ dei test manuali suggeriti.
 
 ---
 
+## 2026-08-07 (sessione successiva) — Bug reale sull'ingresso in LAN: né il master né il giocatore vedevano l'ingresso in automatico
+
+Davide, prima ancora di arrivare a provare l'elenco di test manuali
+suggeriti nella sessione precedente: "non si sincronizzano, al master non
+esce la richiesta a meno di un aggiornamento manuale e al giocatore non
+esce l'approvazione del master". Due bug distinti, stessa causa di fondo:
+un pezzo di stato che non passava MAI dal ciclo di sincronizzazione in
+background già esistente (`WorldsView._detail_sync_loop`, ogni 2s).
+
+**Bug 1 — il master non vede una nuova richiesta di ingresso.**
+`WorldsView._detail_signature_of()` (la "firma" che decide se il ciclo di
+sync deve ridisegnare la schermata) leggeva SOLO tabelle del DB
+(`world_events`, `world_members`, `world_change_requests`). Le richieste
+di ingresso in sospeso (`PendingJoinRequest`), però, non vivono nel DB per
+scelta di design (§9.4: sono una fase transitoria prima di diventare un
+vero membro) — vivono in memoria su `network.host_server.
+WorldHostServer._pending`. La firma non poteva quindi MAI cambiare
+all'arrivo di una nuova richiesta: architetturalmente invisibile al ciclo
+di sync, a differenza di ogni altra mutazione del mondo (che passa sempre
+da un evento scritto nel DB, §5). Fix minimo: `_detail_signature_of()`
+ora include anche `self._host_server.list_pending()` (stesso processo,
+nessuna chiamata di rete — `list_pending()` è già protetto dal proprio
+lock interno) quando questo dispositivo ospita il mondo in questione,
+stesso identico controllo già usato da `_hosting_section()` per decidere
+se mostrare la lista.
+
+**Bug 2 — il giocatore non vede l'approvazione del master.**
+Qui non era un bug di "qualcosa che sfugge alla firma": `core.world_sync.
+finish_pending_join()` era per design esplicito "azione manuale della UI,
+non un ciclo automatico" (dal suo stesso docstring) — nessun polling
+automatico è mai esistito, solo il pulsante "Controlla di nuovo". Fix:
+nuovo ciclo `async` in `WorldsView._open_lan_join_dialog`
+(`_poll_pending_join_loop`, schedulato con `page.run_task()` — mai un
+`threading.Thread`, stesso principio del ticker del countdown della
+sessione precedente) che si avvia da solo non appena il dialogo entra in
+stato "in attesa" e richiama `finish_pending_join()` ogni
+`_PENDING_JOIN_POLL_INTERVAL_S` (3s, nuova costante) finché non arriva un
+esito finale o l'utente chiude il dialogo. Due decisioni di design
+esplicite in questo fix:
+- **Non passa dal cancello anti-spam di rete** (i 10s condivisi tra
+  `_join`/`_attempt`/`_retry`): quel limite protegge i TENTATIVI di
+  ingresso (`POST /join`, che consumano una `PendingJoinRequest` e
+  potrebbero martellare PIN diversi), non un polling passivo di stato
+  (`GET /join/status`) — coerente con la scelta, già presa lato host, di
+  non sottoporre `WorldHostServer.join_status()` a nessun rate limit
+  (economico, in sola lettura). Il pulsante manuale "Controlla di nuovo"
+  resta invece soggetto al cooldown come prima: qui si tratta solo il
+  ciclo automatico dell'app, non un'azione esplicita dell'utente che vuole
+  insistere.
+- **Si ferma da solo** quando `pending_state["backend"]` torna `None` —
+  impostato da `_report()` su un esito finale, o dal pulsante "Annulla"
+  (ora un handler dedicato, `_cancel`, invece di un lambda che chiudeva e
+  basta): senza, un rifiuto esplicito del master o la chiusura manuale del
+  dialogo avrebbero lasciato il ciclo a interrogare l'host per una
+  richiesta ormai chiusa. Trovato scrivendo il fix, non segnalato da
+  Davide: `_report()` non azzerava mai `retry_btn.visible` su un esito
+  terminale (rifiuto/errore) — corretto nella stessa occasione, "Controlla
+  di nuovo" restava visibile e cliccabile anche dopo un rifiuto definitivo.
+
+**Test.** Nuovo `test_ingresso_lan_sincronizzazione.py` (31/31), con un
+vero `WorldHostServer` su socket reale (stesso pattern di
+`test_lan_host_client.py`), non una replica della logica:
+- bug 1: `_detail_signature_of()` cambia davvero quando un secondo
+  dispositivo chiama `POST /join` sull'host (stato SOLO in memoria,
+  nessuna tabella coinvolta), cambia di nuovo dopo l'approvazione, resta
+  stabile se nulla cambia, e resta cieca a un `WorldHostServer` che ospita
+  un ALTRO mondo;
+- bug 2: il dialogo «Unisciti in LAN» reale (`WorldsView.
+  _open_lan_join_dialog()`, con una `_FakePage` che intercetta `show_
+  dialog`/`pop_dialog`/`update`/`run_task` — necessaria una patch mirata
+  della PROPRIETÀ `page` di Flet SOLO sulla classe `WorldsView`, che non
+  ha setter e non ha il pattern `self._page` cache-ato di altre view di
+  questo progetto, es. `MasterEncounterView`) rileva l'approvazione E il
+  rifiuto del master con un solo giro del ciclo di polling automatico
+  fatto avanzare manualmente (`asyncio.sleep` sostituito con un no-op per
+  quella singola chiamata, ripristinato subito dopo — nessuna vera attesa
+  nei test), senza alcun click su "Controlla di nuovo"; verificato anche
+  che "Annulla" fermi davvero il ciclo (monkeypatch di `finish_pending_
+  join` per farlo fallire se richiamato dopo la chiusura del dialogo).
+  Nessuna regressione sulle suite esistenti (stessi risultati della
+  sessione precedente, incluso `test_lan_host_client.py` 99/99 — il rate
+  limit su `/join` della sessione precedente non collide con questi nuovi
+  test: ogni scenario usa un `device_id` nuovo).
+
+Bug non ancora possibile da riprodurre in sandbox (nessuna rete reale,
+nessun secondo dispositivo): resta la verifica di Davide su Wi-Fi reale,
+stesso elenco di test manuali già fornito, con l'aggiunta esplicita di
+"ingresso in un mondo LAN da un secondo dispositivo, senza toccare nulla
+sul dispositivo del master né premere 'Controlla di nuovo' sul giocatore".
+
+---
+
+## 2026-08-07 (sessione successiva) — Avviso export/import per un personaggio legato a un mondo condiviso
+
+Davide ha chiesto come sono gestiti gli accessi/le sessioni tra
+dispositivi ("se entro con lo stesso dispositivo la sessione successiva
+riesco a collegarmi sullo stesso personaggio? e se questo personaggio
+viene esportato su un altro dispositivo?"). Rispondendo è emerso un
+comportamento preesistente, mai segnalato prima: `character_export.
+import_character()` (nato 2026-07-24) azzera SEMPRE `world_id`/
+`origin_character_id`/`owner_device_id`/`is_replica`/`world_seq` per
+TUTTE le modalità di importazione — comportamento corretto e voluto (un
+file esportato da un'istanza di mondo, importato senza azzerare quei
+campi, diventerebbe una "replica" di un mondo inesistente sul dispositivo
+di destinazione, bloccata in sola lettura e non riparabile
+dall'interfaccia) — ma questo avveniva **in silenzio**: nessun errore,
+nessun avviso, l'utente scopriva solo dopo che il personaggio aveva
+"perso" il collegamento al mondo. Richiesta esplicita: "aggiungi un
+avviso per l'utente".
+
+**Fix** (`ui/views/home_view.py`), due dialoghi gemelli, entrambi
+opzionali — l'utente può sempre procedere comunque, l'esportazione resta
+utile come backup locale e niente qui impedisce di importare un
+personaggio world-linked, solo lo segnala PRIMA:
+- **Export**: `_on_export_click()` — se `char.world_id` è valorizzato,
+  mostra `_confirm_export_world_linked()` prima di procedere
+  (`_proceed_export()`, il corpo del vecchio `_on_export_click` estratto
+  così com'era, invariato). Nessun dialogo per un personaggio locale (il
+  caso comune): l'app non deve rallentare per un controllo che non serve.
+- **Import**: `_do_import_from_text()` — se `data["character"]["world_id"]`
+  nel file è valorizzato, mostra `_show_import_world_linked_warning()`
+  prima di procedere (`_continue_import()`, il vecchio flusso — controllo
+  conflitto d'id o importazione diretta — estratto così com'era). Stesso
+  principio: nessun dialogo in più per un file locale.
+
+Entrambi i dialoghi mostrano il nome del mondo di origine
+(`world_repo.get_world(world_id)`, con un testo di ripiego se quel mondo
+non esiste più su QUESTO dispositivo — es. mai stato ospitato/visitato
+qui) e spiegano cosa succede se si procede, con lo stesso stile già in
+uso nel progetto (`d.dialog_title(..., tone="danger")`,
+`wrap_dialog_actions`, template ripreso da `_confirm_delete`/
+`_show_import_conflict_dialog` già esistenti nello stesso file).
+
+**Nota a margine, confermata a Davide nella stessa richiesta**: i
+pulsanti di refresh manuale ("Aggiorna richieste" lato master,
+"Controlla di nuovo" lato giocatore) NON sono mai stati rimossi dai fix
+delle sessioni precedenti sulla sincronizzazione automatica — restano
+entrambi presenti come salvagente per i casi estremi in cui l'automatismo
+non scattasse, l'automazione è un'aggiunta accanto ad essi, non una
+sostituzione.
+
+**Test.** Nuovo `test_avviso_export_import_mondo.py` (35/35): nessun
+avviso per un personaggio locale (né export né import, 3 controlli);
+avviso mostrato per un personaggio di un mondo, con «Annulla» che blocca
+davvero l'operazione e «Esporta/Importa comunque» che la fa procedere
+davvero (verificato che l'import risultante abbia REALMENTE `world_id`/
+`owner_device_id` azzerati — riconferma che lo zeroing preesistente non è
+stato toccato da questo fix, il nuovo avviso si limita a informare); testo
+di ripiego quando il mondo di origine non esiste sul dispositivo, sia in
+export sia in import. `HomeView` testata con lo stesso schema di patch
+della proprietà `page` di Flet già introdotto per `WorldsView` in
+`test_ingresso_lan_sincronizzazione.py` (nessun `self._page` cache-ato in
+questa view, a differenza di `MasterEncounterView`). Nessuna regressione
+sulle suite esistenti (tutte invariate rispetto alla sessione precedente).
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
