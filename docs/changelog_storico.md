@@ -6617,6 +6617,39 @@ mia) — solo segnalato: se alla prossima build l'icona reale mostra angoli
 poco puliti, la correzione è ritagliare la sola illustrazione interna
 (senza gli angoli neri) ed estenderla a un quadrato pieno.
 
+**Aggiornamento 2026-08-06, stessa giornata**: Davide ha ritoccato lui
+stesso l'immagine (`Logo_companion_Dnd.png`, root del progetto) risolvendo
+esattamente il problema segnalato sopra — niente più angoli smussati
+precotti, quadrato 1254×1254 pieno bordo a bordo, verificato visivamente.
+Copiata su `dnd_app/assets/icons/dnd_logo.png`, non ancora committata:
+in attesa dell'esito del log verboso (`-vv`) della build Android CI
+(vedi voce successiva, bug bundle-id/icona ignorati) per includere icona
+nuova + eventuale fix nello stesso tag, invece di consumare un'altra
+versione per un cambio che rischierebbe comunque di restare "invisibile".
+
+**Bug aperto, stessa giornata — build Android CI ignora `[tool.flet].app`**:
+Davide segnala che l'APK scaricato dalla release GitHub `v0.1.31` mostra
+ancora l'icona di default di Flet nonostante il commit taggato (`1640abd`)
+contenga la configurazione corretta in `pyproject.toml`
+(`app.bundle_id`/`app.name`/`app.icon`). Diagnosi con `androguard`
+sull'APK caricato da Davide (decodifica `AndroidManifest.xml`): il
+pacchetto installato è `com.flet.dnd_companion` (non
+`com.davmos9.dndcompanion`) e il nome è `dnd-companion` (non "D&D
+Companion") — esattamente lo schema di default che `flet build` genera
+**quando non trova affatto una sezione `[tool.flet].app`**, mentre
+`versionName` nel manifest è corretto (0.1.31, iniettato correttamente
+dallo step "Inject version from git tag"). Verificato che non è un
+problema del sorgente: preso il `pyproject.toml` del commit taggato,
+applicata la stessa sostituzione regex del workflow, il risultato fa
+parsing TOML pulito con `tomli` e produce `tool.flet.app` completo e
+corretto — quindi il file che è entrato nella build era valido, il bug è
+nella pipeline `flet build apk` del job Android della Action, non nel
+progetto. Passo diagnostico in corso: aggiunto `-vv` allo step "Build
+Android APK" di `.github/workflows/release.yml` (tag `v0.1.32`, ancora
+da esaminare) per capire cosa legge davvero `flet_cli` in quell'ambiente.
+Non ancora risolto — vedi "Piano di lavoro attivo" in `CLAUDE.md` per lo
+stato corrente prima di riprendere.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
