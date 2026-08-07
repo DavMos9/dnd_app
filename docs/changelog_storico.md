@@ -6729,6 +6729,50 @@ prossimo passo è ripetere la build con `-vv` (già attivo dalla diagnosi
 precedente) per confermare che `product_name`/`bundle_id`/icona risultino
 ora corretti nei log, poi rimuovere il flag `-vv` una volta confermato.
 
+**Secondo bug trovato dal primo fix, stesso giorno (2026-08-07)** — il tag
+`v0.1.33` con il fix sopra ha fatto fallire `build-android` e `build-macos`
+(non `build-windows`/`build-linux`). Log reale fornito da Davide:
+`ManifestMerger2` → `XmlLoader` → `PositionXmlParser` →
+`SAXParserImpl.parse` risale a `org.xml.sax.SAXParseException; lineNumber:
+33; columnNumber: 27; The reference to entity "D" must end with the ';'
+delimiter.` — un vero errore di parsing XML, non un conflitto di merge
+semantico. Causa: `product = "D&D Companion"` (appena reso effettivo dal
+primo fix — mai applicato prima d'ora, quindi mai stato visto scorrere in
+un file XML) contiene una "e commerciale" grezza; `AndroidManifest.xml`/
+`strings.xml` (Android) e `Info.plist` (macOS, anch'esso XML) la
+interpretano come inizio di un'entità XML (tipo `&amp;`) e falliscono il
+parsing non trovando il `;` di chiusura. Confermato leggendo
+`flet_cli/commands/build_base.py`: il valore di `product`/
+`project.description` viene inserito nei template di piattaforma con una
+sostituzione di stringa semplice (`.replace(...)` puro), senza alcuna
+funzione di escape XML nel mezzo — non è quindi un bug risolvibile lato
+nostro modificando `flet_cli` (libreria di terze parti, patcharla non
+sarebbe manutenibile), e `product_name` non supporta una variante per
+piattaforma in `pyproject.toml` (a differenza di `bundle_id`), quindi non
+è possibile tenere "D&D Companion" solo su Windows/Linux (dove il
+meccanismo non è XML) senza introdurre un nome diverso per piattaforma —
+un'opzione scartata: avrebbe richiesto un'altra build di prova solo per
+verificare un'assunzione non confermata sui file `.rc`/`.desktop`, e
+avrebbe lasciato un'incoerenza di branding tra piattaforme.
+
+Presentate a Davide due alternative (AskUserQuestion): rinominare senza
+"&" ovunque (un solo valore, zero rischio residuo, ma nome visualizzato
+diverso ovunque) oppure nome diverso per piattaforma (mantiene "D&D
+Companion" dove possibile ma più fragile/da verificare). **Scelta di
+Davide: rinominare senza "&" ovunque.** Applicato: `product = "D&D
+Companion"` → `product = "DnD Companion"`; controllato anche
+`[project].description` (stesso meccanismo di inserimento, stessa
+vulnerabilità, non ancora incontrata solo perché non ancora arrivata a un
+punto della pipeline che la esponesse) → `"D&D 5e Companion App — ..."` →
+`"DnD 5e Companion App — ..."`. Nessun altro `&` rimasto in valori di
+`pyproject.toml` (verificato con grep + parsing `tomli`). Il testo "D&D"
+nell'interfaccia dell'app stessa (es. `home_view.py`, che mostra il nome
+come `ft.Text`, non tramite un template XML di build) resta invariato:
+non passa dalla stessa pipeline, non c'è alcun rischio lì.
+
+⚠️ Ancora da verificare con una build CI reale — prossimo tag dopo questo
+fix.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

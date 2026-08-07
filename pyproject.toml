@@ -1,7 +1,7 @@
 [project]
 name = "dnd-companion"
 version = "0.1.15"
-description = "D&D 5e Companion App — Compagno digitale per giocatori"
+description = "DnD 5e Companion App — Compagno digitale per giocatori"
 # NOTA (2026-08-05, upgrade Flet 0.85.3 → 0.86.5): da 0.86 flet build sceglie
 # il Python da imbarcare in base a questo campo, e di default userebbe l'ultimo
 # stabile (3.14) se lasciassimo ">=3.9". Fissato a 3.12 — la stessa versione
@@ -121,7 +121,19 @@ flet-image-picker = "extensions/flet_image_picker"
 # ancora controllato l'icona da vicino. Dettaglio completo in
 # dnd_app/docs/changelog_storico.md.
 app.module = "main"
-product = "D&D Companion"
+# "DnD" senza "&" (2026-08-07): flet_cli inserisce `product`/`project.
+# description` nei template di piattaforma con una sostituzione di stringa
+# semplice, senza escape XML (verificato nel sorgente, nessun
+# `xml.sax.saxutils.escape`/motore che conosca l'XML in mezzo). Con "D&D
+# Companion" la build Android/macOS falliva con un parse error XML reale
+# (`org.xml.sax.SAXParseException: The reference to entity "D" must end
+# with the ';' delimiter` — il parser leggeva "&D" come l'inizio di
+# un'entità XML tipo "&amp;"). `product_name` non ha una variante per
+# piattaforma in pyproject.toml (a differenza di `bundle_id`), quindi non
+# è possibile tenere "&" solo su Windows/Linux senza introdurre un nome
+# diverso per piattaforma — scelta di Davide: un solo nome ovunque, senza
+# "&", niente rischio residuo. Dettaglio in changelog_storico.md.
+product = "DnD Companion"
 bundle_id = "com.davmos9.dndcompanion"
 build_number = 1
 # Icona: assets/icon.png (vedi sopra — nessuna chiave pyproject per questo)
