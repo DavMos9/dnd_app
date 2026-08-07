@@ -106,14 +106,25 @@ dependencies = [
 flet-image-picker = "extensions/flet_image_picker"
 
 [tool.flet]
-app.module_name = "main"
-app.name = "D&D Companion"
-app.bundle_id = "com.davmos9.dndcompanion"
-app.version = "0.1.15"
-app.build_number = 1
-
-# Icona app (stessa per tutte le piattaforme; flet build la ridimensiona automaticamente)
-app.icon = "assets/icons/dnd_logo.png"
+# CORRETTO 2026-08-07: le chiavi sotto `app.*` (app.name/app.bundle_id/
+# app.version/app.build_number/app.icon) sono lo schema di una versione
+# precedente di flet_cli — con flet_cli 0.86.5 non vengono lette affatto
+# (verificato leggendo il sorgente installato,
+# flet_cli/commands/build_base.py): il nome prodotto/bundle id/build number
+# si leggono da `tool.flet.product`/`tool.flet.bundle_id`/
+# `tool.flet.build_number` (senza prefisso "app."), la versione arriva solo
+# da `[project].version`, e l'icona NON ha alcuna chiave pyproject — va
+# individuata per convenzione di nome file `assets/icon.<ext>` (mai in una
+# sottocartella). Bug presente fin dal primo commit della release workflow
+# (2026-06-25, 655b01f): l'app ha sempre avuto nome/bundle id/icona di
+# default di Flet in ogni build CI, mai notato prima perché nessuno aveva
+# ancora controllato l'icona da vicino. Dettaglio completo in
+# dnd_app/docs/changelog_storico.md.
+app.module = "main"
+product = "D&D Companion"
+bundle_id = "com.davmos9.dndcompanion"
+build_number = 1
+# Icona: assets/icon.png (vedi sopra — nessuna chiave pyproject per questo)
 
 # Permesso mancante trovato il 2026-08-05 indagando il bug "Unknown control:
 # FilePicker" su Android segnalato da Davide: pyproject.toml non dichiarava

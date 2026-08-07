@@ -6650,6 +6650,85 @@ da esaminare) per capire cosa legge davvero `flet_cli` in quell'ambiente.
 Non ancora risolto — vedi "Piano di lavoro attivo" in `CLAUDE.md` per lo
 stato corrente prima di riprendere.
 
+**Causa definitiva trovata e corretta, 2026-08-07** — Davide ha segnalato
+che anche lo zip Windows (che non passa da `flutter_launcher_icons`/
+adattatore Android, un meccanismo completamente diverso da quello Android)
+mostrava la stessa icona di default: segnale che il problema non era
+specifico di Android ma di come `flet build` legge `pyproject.toml` in
+generale, su ogni piattaforma. Installato `flet-cli==0.86.5` in locale e
+letto direttamente `flet_cli/commands/build_base.py` (stesso metodo già
+usato con successo il 2026-08-06 per il permesso cross-platform) invece di
+continuare a ipotizzare:
+
+- `product_name` (riga ~918): `self.options.product_name or
+  self.get_pyproject("tool.flet.product") or ...` — legge
+  `tool.flet.product`, **non** `tool.flet.app.name`.
+- `bundle_id` (riga ~1409): `self.get_pyproject(f"tool.flet.
+  {self.config_platform}.bundle_id") or self.get_pyproject("tool.flet.
+  bundle_id")` — legge `tool.flet.bundle_id`, **non**
+  `tool.flet.app.bundle_id`.
+- `build_number` (`commands/build.py` riga 154): legge
+  `tool.flet.build_number`, **non** `tool.flet.app.build_number`.
+- Icona (`customize_icons()` → `find_platform_image()`, righe ~1792-1926 e
+  ~2912-2996): **nessuna chiave pyproject esiste per l'icona**. La funzione
+  fa `glob.glob(str(assets_path.joinpath("icon.*")))` — cerca un file
+  chiamato letteralmente `icon.<ext>` (png/webp/jpg/...) posizionato
+  **direttamente dentro la cartella assets configurata** (default
+  `assets/`), MAI in una sottocartella, e MAI leggendo alcun percorso da
+  `pyproject.toml`. `assets/icons/dnd_logo.png` (sottocartella + nome
+  diverso) non veniva quindi mai trovato, a prescindere da qualsiasi
+  configurazione: l'icona restava sempre quella di default incorporata
+  in `flutter_launcher_icons`/`flet build`. Supporta anche override per
+  piattaforma nella stessa cartella: `icon_android.*`, `icon_ios.*`,
+  `icon_web.*`, `icon_windows.*`, `icon_macos.*` (tutti col fallback a
+  `icon.*` se assenti) — non necessari qui, un'unica icona per tutte le
+  piattaforme come da intento originale del progetto.
+- `tool.flet.app.module` (riga 863) è l'UNICA chiave che resta legittimamente
+  sotto `app.*`, ma con nome `module` non `module_name` — la vecchia chiave
+  `app.module_name` funzionava per puro caso, perché `"main"` è anche il
+  default hardcoded quando la chiave non si trova (`... or "main"`), non
+  perché venisse davvero letta.
+- La versione (`versionName` corretto nel manifest, "0.1.31") non è mai
+  passata da questo bug: arriva esclusivamente da `[project].version`
+  (nessun riferimento a `tool.flet.version`/`tool.flet.app.version` in
+  tutto `flet_cli`), che lo step "Inject version from git tag" del
+  workflow aggiorna correttamente indipendentemente da questo problema.
+
+Grep di conferma su `git blame`: le chiavi sbagliate risalgono al primissimo
+commit della release workflow (`655b01f`, 2026-06-25) — **non è una
+regressione dell'upgrade Flet 0.85.3→0.86.5 del 2026-08-05**, il bug è
+sempre stato presente in ogni release CI dal giorno in cui la workflow è
+stata creata; semplicemente nessuno aveva mai controllato l'icona/bundle id
+da vicino finché Davide non l'ha notato oggi. Controllata la pagina
+ufficiale breaking-changes di Flet 0.86.0
+(flet.dev/docs/updates/breaking-changes/) per completezza: non documenta
+esplicitamente questo spostamento di schema, quindi non c'è modo di sapere
+con certezza in quale versione precedente lo schema `app.*` fosse invece
+quello corretto (irrilevante in pratica: il progetto è sempre stato
+buildato con CI, mai un'installazione locale precedente a verificare).
+
+Fix applicato in `pyproject.toml` (sezione `[tool.flet]`): `app.name` →
+`product`, `app.bundle_id` → `bundle_id`, `app.build_number` → `build_number`,
+`app.module_name` → `app.module` (unica chiave rimasta sotto `app.*`),
+rimossa `app.version` (chiave morta, la versione arriva solo da
+`[project].version`) e rimossa `app.icon` (chiave inesistente per
+`flet_cli`). File icona spostato da `assets/icons/dnd_logo.png` ad
+`assets/icon.png` (root della cartella assets, nome file esatto richiesto)
+— verificato con `grep` che `assets/icons/dnd_logo.png` non era referenziato
+da nessun codice UI (`home_view.py` ha un commento esplicito: "il PNG in
+assets/icons non è mai stato usato", il logo in-app è testo, non
+immagine), quindi lo spostamento è sicuro. Verificato che il nuovo
+`pyproject.toml` fa parsing TOML pulito con `tomli` e produce i valori
+attesi (`product`, `bundle_id`, `build_number`, `app.module` tutti
+risolti correttamente).
+
+⚠️ Non ancora verificato con una build CI reale (bloccata nel pomeriggio del
+2026-08-06 da un'interruzione infrastrutturale di GitHub Actions, status
+page ufficiale — "Incident with Actions", Aug 06 15:22-15:53 UTC) — il
+prossimo passo è ripetere la build con `-vv` (già attivo dalla diagnosi
+precedente) per confermare che `product_name`/`bundle_id`/icona risultino
+ora corretti nei log, poi rimuovere il flag `-vv` una volta confermato.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
