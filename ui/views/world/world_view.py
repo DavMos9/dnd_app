@@ -67,6 +67,13 @@ _CHANGE_REQUEST_NUMERIC_FIELDS: frozenset[str] = frozenset({
 #: sovraccarico di rete più basso e beneficia di più reattività.
 _DETAIL_SYNC_INTERVAL_S = 2.0
 
+#: Anti-spam su "Interviene a distanza"/ingresso-sincronizzazione: le
+#: costanti (3s per-personaggio sul master, 10s condiviso su ingresso/
+#: sync) e lo stato vivono in `core.world_permissions`/`core.world_sync`,
+#: non qui — vedi il docstring di `core.world_sync` per la cronologia
+#: completa dei due fix del 2026-08-07 (stato che sopravvive alla
+#: ricreazione della view, granularità per-personaggio sul master).
+
 
 class WorldsView(ft.Column):
     """
@@ -99,6 +106,14 @@ class WorldsView(ft.Column):
         #: un'azione e l'altra invece di riconnettersi ad ogni comando
         #: (2026-08-07, vedi `_backend_for`).
         self._remote_backends: dict[str, RemoteBackend] = {}
+
+        # NOTA: i timer anti-spam ("Interviene a distanza" + ingresso/sync)
+        # NON vivono più come attributi di istanza qui (bug 2026-08-07: le
+        # istanze di questa view vengono ricreate ad ogni navigazione/cambio
+        # tema, uno stato sull'istanza si azzererebbe ad ogni ricreazione) —
+        # vivono a livello di modulo in `core.world_sync`, richiamati
+        # direttamente da `_send_remote_command`/`_network_cooldown_remaining`/
+        # `_mark_network_request` qui sotto.
 
         #: Sincronizzazione in background della scheda mondo aperta
         #: (2026-08-07, §9.2 "attesa lunga" lato client + rilettura locale
@@ -361,34 +376,16 @@ class WorldsView(ft.Column):
         codice+PIN). Ritorna `None` se non è stato possibile stabilire una
         connessione valida — il chiamante deve mostrare un errore chiaro,
         mai fallire in silenzio.
+
+        Logica vera e propria in `core.world_sync.resolve_backend_for_world`
+        (estratta di qui il 2026-08-07, stesso giorno della sua introduzione,
+        perché serve identica anche a `ui/views/home_view.py`) — questo
+        resta un sottile adattatore che passa `self._remote_backends` come
+        cache persistente di questa view.
         """
-        if world.is_local_host:
-            return self.backend
-
-        cached = self._remote_backends.get(world.id)
-        if cached is not None and cached.connection_state() == "connected":
-            return cached
-
-        if not world.last_seen_host or not world.session_token:
-            return None
-        host, sep, port_text = world.last_seen_host.rpartition(":")
-        if not sep:
-            return None
-        try:
-            port = int(port_text)
-        except ValueError:
-            return None
-
-        remote = RemoteBackend(host, port, self.device_id or "", world_id=world.id)
-        if not remote.reconnect_with_token(world.session_token):
-            # Token non più valido (host riavviato: §9.4, nuovo PIN/token ad
-            # ogni apertura) o host irraggiungibile — mai un ritentativo
-            # automatico con credenziali scadute, l'utente deve rientrare
-            # da "Unisciti in LAN" con codice+PIN aggiornati.
-            self._remote_backends.pop(world.id, None)
-            return None
-        self._remote_backends[world.id] = remote
-        return remote
+        return world_sync.resolve_backend_for_world(
+            world, self.device_id or "", self.backend, self._remote_backends,
+        )
 
     def _send_command(self, world: World, kind: str, payload: dict, *,
                        target_type: str = "", target_id: str = "") -> CommandResult:
@@ -608,6 +605,20 @@ class WorldsView(ft.Column):
 
     def _remote_character_row(self, world: World, character: Character) -> ft.Control:
         p = d.T()
+
+        # Countdown visivo (fix 2026-08-07): se QUESTO personaggio è in
+        # cooldown, tutte le sue azioni (pillole + la "x" di rimozione
+        # condizione qui sotto) diventano disabilitate (nessun on_click,
+        # colore smorzato) e mostrano i secondi rimanenti invece
+        # dell'etichetta normale — al posto del solo messaggio d'errore
+        # reattivo al click. Il tick che tiene aggiornato il countdown è
+        # `_maybe_redraw_detail`/`_any_master_cooldown_active` (thread di
+        # sync già esistente, nessun timer nuovo).
+        cooldown_remaining = world_sync.master_action_cooldown_remaining(character.id)
+        on_cooldown = cooldown_remaining > 0
+        cooldown_suffix = f" ({int(cooldown_remaining) + 1}s)" if on_cooldown else ""
+        muted_color = p.text_3
+
         conditions = character_repo.get_conditions(character.id)
         loader = GameDataLoader()
         condition_chips: list[ft.Control] = []
@@ -620,10 +631,14 @@ class WorldsView(ft.Column):
                         ft.Text(cond_name, size=11, color=p.on_accent),
                         ft.IconButton(
                             ft.Icons.CLOSE, icon_size=12, icon_color=p.on_accent,
-                            tooltip="Rimuovi condizione",
-                            on_click=lambda e, w=world, c=character, cid=cond.id:
-                                self._send_remote_command(
-                                    w, c, perm.CMD_CONDITION_REMOVE, {"condition_id": cid}),
+                            tooltip=(f"Aspetta {int(cooldown_remaining) + 1}s" if on_cooldown
+                                     else "Rimuovi condizione"),
+                            disabled=on_cooldown,
+                            on_click=(None if on_cooldown else
+                                      lambda e, w=world, c=character, cid=cond.id:
+                                          self._send_remote_command(
+                                              w, c, perm.CMD_CONDITION_REMOVE,
+                                              {"condition_id": cid})),
                         ),
                     ],
                     spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -631,6 +646,11 @@ class WorldsView(ft.Column):
                 bgcolor=p.danger, border_radius=d.Radius.SM,
                 padding=ft.Padding.only(left=8, right=2),
             ))
+
+        def _pill(icon: ft.IconData, label: str, color: str, handler) -> ft.Control:
+            if on_cooldown:
+                return d.pill(icon, label + cooldown_suffix, color=muted_color, on_click=None)
+            return d.pill(icon, label, color=color, on_click=handler)
 
         return ft.Column(
             [
@@ -647,26 +667,22 @@ class WorldsView(ft.Column):
                 else ft.Container(height=0),
                 ft.Row(
                     [
-                        d.pill(ft.Icons.STARS, "PE", color=p.success,
-                               on_click=lambda e, w=world, c=character: self._open_xp_dialog(w, c)),
-                        d.pill(ft.Icons.FAVORITE_BORDER, "Danno", color=p.danger,
-                               on_click=lambda e, w=world, c=character: self._open_damage_dialog(w, c)),
-                        d.pill(ft.Icons.HEALING, "Cura", color=p.primary,
-                               on_click=lambda e, w=world, c=character: self._open_heal_dialog(w, c)),
-                        d.pill(ft.Icons.SICK, "Condizione", color=p.magic,
-                               on_click=lambda e, w=world, c=character: self._open_condition_dialog(w, c)),
-                        d.pill(ft.Icons.AUTO_AWESOME, "Abilità", color=p.magic,
-                               on_click=lambda e, w=world, c=character:
-                                   self._open_custom_ability_dialog(w, c)),
-                        d.pill(ft.Icons.MENU_BOOK, "Incantesimo", color=p.magic,
-                               on_click=lambda e, w=world, c=character:
-                                   self._open_bonus_spell_dialog(w, c)),
-                        d.pill(ft.Icons.EDIT_NOTE, "Diario", color=p.text_2,
-                               on_click=lambda e, w=world, c=character:
-                                   self._open_diary_entry_dialog(w, c)),
-                        d.pill(ft.Icons.GAVEL, "Proponi modifica", color=p.warning,
-                               on_click=lambda e, w=world, c=character:
-                                   self._open_change_request_dialog(w, c)),
+                        _pill(ft.Icons.STARS, "PE", p.success,
+                              lambda e, w=world, c=character: self._open_xp_dialog(w, c)),
+                        _pill(ft.Icons.FAVORITE_BORDER, "Danno", p.danger,
+                              lambda e, w=world, c=character: self._open_damage_dialog(w, c)),
+                        _pill(ft.Icons.HEALING, "Cura", p.primary,
+                              lambda e, w=world, c=character: self._open_heal_dialog(w, c)),
+                        _pill(ft.Icons.SICK, "Condizione", p.magic,
+                              lambda e, w=world, c=character: self._open_condition_dialog(w, c)),
+                        _pill(ft.Icons.AUTO_AWESOME, "Abilità", p.magic,
+                              lambda e, w=world, c=character: self._open_custom_ability_dialog(w, c)),
+                        _pill(ft.Icons.MENU_BOOK, "Incantesimo", p.magic,
+                              lambda e, w=world, c=character: self._open_bonus_spell_dialog(w, c)),
+                        _pill(ft.Icons.EDIT_NOTE, "Diario", p.text_2,
+                              lambda e, w=world, c=character: self._open_diary_entry_dialog(w, c)),
+                        _pill(ft.Icons.GAVEL, "Proponi modifica", p.warning,
+                              lambda e, w=world, c=character: self._open_change_request_dialog(w, c)),
                     ],
                     spacing=d.Space.XS, wrap=True,
                 ),
@@ -674,8 +690,111 @@ class WorldsView(ft.Column):
             spacing=d.Space.XS, tight=True,
         )
 
+    # ------------------------------------------------------------------
+    # Anti-spam sulle richieste di rete "semplici" — fix 2026-08-07,
+    # richiesta di Davide dopo il timer sul master: "deve essere attivo su
+    # tutte le richieste anche quelle per cercare di unirsi, e tutte le
+    # richieste online da sincronizzare". Copre `_open_join_dialog._join`,
+    # `_open_lan_join_dialog._attempt`/`_retry` qui sotto, e
+    # `HomeView._push_instance_to_host` (stesso valore di cooldown,
+    # `core.world_permissions.NETWORK_REQUEST_COOLDOWN_S`, ma stato
+    # indipendente — vedi il docstring di `core.world_sync` per l'elenco
+    # completo e cosa NE resta fuori).
+    # Due metodi separati (non uno solo che controlla-e-mostra-l'errore)
+    # perché i chiamanti mostrano l'esito in due modi diversi già esistenti
+    # in questa view: `_join` con `_show_error` (snackbar), `_attempt`/
+    # `_retry` con `status_text` inline (stesso stile già in uso per i loro
+    # altri errori di validazione) — replicare quella scelta, non
+    # introdurne una terza.
+    # ------------------------------------------------------------------
+
+    def _network_cooldown_remaining(self) -> float:
+        return world_sync.network_request_cooldown_remaining()
+
+    def _mark_network_request(self) -> None:
+        # Registrato SUBITO, prima di conoscere l'esito — stesso principio
+        # del timer del master: anche un tentativo fallito ha già generato
+        # traffico di rete, non è aggirabile martellando durante un errore.
+        world_sync.mark_network_request()
+
+    def _start_network_cooldown_ticker(self, btn: ft.Control, base_label: str) -> None:
+        """
+        Countdown visivo (fix 2026-08-07, richiesta di Davide dopo un
+        parere su questa stessa funzionalità) sul pulsante `btn` di un
+        dialogo di ingresso: mentre il timer di rete è attivo, il pulsante
+        resta disabilitato mostrando i secondi rimanenti nell'etichetta,
+        invece del solo messaggio reattivo al click. Da richiamare
+        all'apertura del dialogo (se il timer è già attivo da un tentativo
+        precedente) e subito dopo ogni `_mark_network_request()` riuscito.
+
+        Ciclo `async` schedulato con `page.run_task()` (stesso meccanismo
+        già in uso per `_init_identity`/`_async_redraw_detail` in questo
+        file) — MAI un `threading.Thread`: qui si gira già dentro il loop
+        asyncio della sessione, `page.update()` è sempre sicuro senza
+        bisogno di un ponte verso un altro thread.
+
+        Si ferma da solo quando il cooldown scende a zero (scrive lo stato
+        "riabilitato" una volta e ritorna) o quando `page.update()` fallisce
+        (il dialogo è stato chiuso, il controllo non è più agganciato alla
+        pagina) — **non** tenta di rilevare "il dialogo è ancora aperto"
+        leggendo `dlg.open`: `dnd_app/docs/regole_flet_api.md` documenta
+        che in questa versione di Flet i dialoghi si gestiscono con
+        `page.show_dialog()`/`page.pop_dialog()`, non più con
+        `dlg.open = True/False` — quel flag non è garantito riflettere lo
+        stato reale. Nessun rischio di ciclo infinito comunque: la durata
+        massima è già limitata da `NETWORK_REQUEST_COOLDOWN_S` (~10
+        iterazioni da 1s), un residuo di ciclo dopo la chiusura del
+        dialogo si esaurisce da solo entro quella finestra.
+        """
+        page = self.page
+        if page is None:
+            return
+        page.run_task(self._network_cooldown_ticker_loop, btn, base_label)
+
+    async def _network_cooldown_ticker_loop(self, btn: ft.Control, base_label: str) -> None:
+        import asyncio
+
+        while True:
+            remaining = self._network_cooldown_remaining()
+            if remaining <= 0:
+                btn.disabled = False
+                btn.text = base_label
+                try:
+                    self.page.update()
+                except RuntimeError:
+                    pass
+                return
+            btn.disabled = True
+            btn.text = f"{base_label} ({int(remaining) + 1}s)"
+            try:
+                self.page.update()
+            except RuntimeError:
+                return  # dialogo chiuso — il ciclo termina qui, nessun altro giro
+            await asyncio.sleep(1.0)
+
     def _send_remote_command(self, world: World, character: Character, kind: str,
                               payload: dict) -> None:
+        """Punto unico di invio per OGNI azione di "Interviene a distanza"
+        (PE/danno/cura/condizione/abilità/incantesimo/diario/proponi
+        modifica — vedi `_remote_character_row`) — qui, e solo qui, si
+        applica il timer anti-spam del master, PER PERSONAGGIO (revisione
+        2026-08-07: prima era un solo timer per l'intera sezione, un'area
+        su 4 PG avrebbe costretto il master ad aspettare 3s tra un
+        personaggio e l'altro — ora il limite blocca solo il martellare
+        ripetuto sullo STESSO personaggio)."""
+        remaining = world_sync.master_action_cooldown_remaining(character.id)
+        if remaining > 0:
+            self._show_error(
+                f"Aspetta {int(remaining) + 1} secondi prima della prossima azione su "
+                f"{character.name}."
+            )
+            return
+        # L'istante si registra SUBITO, prima ancora di conoscere l'esito:
+        # anche un tentativo fallito (es. host momentaneamente irraggiungibile)
+        # ha già generato traffico di rete verso l'host — non deve essere
+        # possibile aggirare il limite martellando durante un errore.
+        world_sync.mark_master_action(character.id)
+
         result = self._send_command(
             world, kind, payload, target_type="character", target_id=character.id,
         )
@@ -1515,20 +1634,73 @@ class WorldsView(ft.Column):
         return f"{world.updated_at}|{latest_seq}|{member_sig}|{pending_sig}"
 
     def _maybe_redraw_detail(self, world_id: str) -> None:
+        """
+        Chiamato dal thread di sync in background: calcola la firma (solo
+        letture DB, sicure da qualunque thread) e, se qualcosa è cambiato,
+        NON tocca la UI direttamente — la programma sul loop asyncio della
+        sessione con `page.run_task()`.
+
+        Fix di correttezza (2026-08-07, bug segnalato da Davide: "le
+        richieste e le accettazioni non escono in automatico, bisogna
+        premere il pulsante di refresh"): la prima versione chiamava
+        `self._render()` + `page.update()` direttamente da questo thread —
+        un `threading.Thread` estraneo al loop asyncio della sessione Flet.
+        Verificato leggendo il sorgente di `flet==0.86.5`
+        (`flet/controls/page.py::Page.run_task`): l'UNICO ponte
+        dichiaratamente thread-safe verso quel loop è
+        `asyncio.run_coroutine_threadsafe(...)`, esposto appunto da
+        `run_task()` — lo stesso identico meccanismo già usato correttamente
+        da `_init_identity()` in questo stesso file. Senza, l'aggiornamento
+        arrivava sul DB (i dati erano corretti) ma poteva restare invisibile
+        a schermo finché una normale azione dell'utente non forzava un
+        nuovo giro sul thread giusto — esattamente il sintomo "serve il
+        refresh manuale".
+        """
         world = world_repo.get_world(world_id)
         if world is None:
             return
         signature = self._detail_signature_of(world)
-        if signature == self._detail_signature:
+        signature_changed = signature != self._detail_signature
+        if signature_changed:
+            self._detail_signature = signature
+
+        # Countdown visivo sulle pillole di "Interviene a distanza" (fix
+        # 2026-08-07, richiesta di Davide dopo un parere su questa stessa
+        # funzionalità): se un personaggio è ancora in cooldown, ridisegna
+        # comunque anche se NULLA nel DB è cambiato, così i secondi
+        # mostrati sulle pillole scendono nel tempo invece di restare
+        # fissi finché non arriva un evento vero. Non aggiorna
+        # `self._detail_signature`: un vero cambiamento di stato successivo
+        # resta rilevabile normalmente. Granularità dello stesso ordine di
+        # `_DETAIL_SYNC_INTERVAL_S` (2s) — sufficiente per un conto alla
+        # rovescia leggibile, non serve un timer dedicato più fine.
+        if not signature_changed and not self._any_master_cooldown_active(world):
             return
-        self._detail_signature = signature
 
         page = self.page
         if page is None or self._current_world is None or self._current_world.id != world_id:
             return
+        page.run_task(self._async_redraw_detail, world_id)
+
+    def _any_master_cooldown_active(self, world: World) -> bool:
+        if self.device_id is None:
+            return False
+        my_member = world_repo.get_member(world.id, self.device_id)
+        my_role = my_member.role if my_member else ""
+        if not perm.can_perform(my_role, perm.CMD_XP_GRANT):
+            return False  # un giocatore semplice non vede la sezione: nulla da far scendere a schermo
+        characters = character_repo.get_master_visible_characters(world.id)
+        return any(world_sync.master_action_cooldown_remaining(c.id) > 0 for c in characters)
+
+    async def _async_redraw_detail(self, world_id: str) -> None:
+        """Eseguito sul loop asyncio della sessione (via `page.run_task()`
+        chiamato da `_maybe_redraw_detail`, thread di sync in background) —
+        qui, e solo qui, è sicuro toccare `self._body`/`page.update()`."""
+        if self._current_world is None or self._current_world.id != world_id:
+            return
         self._render()
         try:
-            page.update()
+            self.page.update()
         except RuntimeError:
             pass
 
@@ -1577,18 +1749,37 @@ class WorldsView(ft.Column):
 
         def _join(e):
             code = (code_field.value or "").strip()
+            display_name = (display_field.value or "").strip()
             if not code:
                 self._show_error("Inserisci il codice d'ingresso.")
                 return
-            result = world_repo.join_world_by_code(
-                code, self.device_id, display_field.value.strip() or "Giocatore",
-            )
+            if not display_name:
+                # Fix 2026-08-07 (richiesta di Davide dopo il primo test
+                # reale su Wi-Fi): prima il nome cadeva su "Giocatore" se
+                # lasciato vuoto — nel registro/Sezione Master diventava
+                # impossibile distinguere due giocatori entrambi "senza
+                # nome". Obbligatorio, nessun ripiego silenzioso.
+                self._show_error("Inserisci il tuo nome prima di entrare nel mondo.")
+                return
+            remaining = self._network_cooldown_remaining()
+            if remaining > 0:
+                self._show_error(
+                    f"Aspetta {int(remaining) + 1} secondi prima di riprovare a entrare "
+                    f"in un mondo."
+                )
+                return
+            self._mark_network_request()
+            self._start_network_cooldown_ticker(join_btn, "Unisciti")
+            result = world_repo.join_world_by_code(code, self.device_id, display_name)
             self.page.pop_dialog()
             if result is None:
                 self._show_error("Nessun mondo trovato con questo codice.")
                 return
             world, _member = result
             self._open_detail(world)
+
+        join_btn = ft.ElevatedButton("Unisciti", icon=ft.Icons.LOGIN, on_click=_join,
+                                      style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary))
 
         dlg = ft.AlertDialog(
             modal=True,
@@ -1597,11 +1788,14 @@ class WorldsView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
                               style=ft.ButtonStyle(color=p.text_2)),
-                ft.ElevatedButton("Unisciti", icon=ft.Icons.LOGIN, on_click=_join,
-                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary)),
+                join_btn,
             ]),
         )
         self.page.show_dialog(dlg)
+        # Riflette subito un eventuale cooldown già attivo da un tentativo
+        # precedente (altro dialogo, QR, ecc.) — se non è attivo il ciclo
+        # esce da solo alla prima iterazione, vedi _start_network_cooldown_ticker.
+        self._start_network_cooldown_ticker(join_btn, "Unisciti")
 
     def _open_lan_join_dialog(self):
         """
@@ -1720,17 +1914,54 @@ class WorldsView(ft.Column):
                 status_text.value = "La porta deve essere un numero."
                 self.page.update()
                 return
+            display_name = (display_field.value or "").strip()
+            if not display_name:
+                # Fix 2026-08-07 (richiesta di Davide dopo il primo test
+                # reale su Wi-Fi, stesso principio di _open_join_dialog qui
+                # sopra): prima il nome cadeva su "Giocatore" se lasciato
+                # vuoto — anche qui, obbligatorio senza ripiego silenzioso.
+                # Protegge anche l'ingresso via QR (_on_qr_scanned chiama
+                # questa stessa funzione): se il nome non è ancora stato
+                # scritto, l'inquadratura del QR non entra più in silenzio
+                # come "Giocatore", mostra questo stesso errore.
+                status_text.color = p.danger
+                status_text.value = "Inserisci il tuo nome prima di entrare nel mondo."
+                self.page.update()
+                return
+            remaining = self._network_cooldown_remaining()
+            if remaining > 0:
+                status_text.color = p.danger
+                status_text.value = (
+                    f"Aspetta {int(remaining) + 1} secondi prima di riprovare a entrare "
+                    f"in un mondo."
+                )
+                self.page.update()
+                return
+            self._mark_network_request()
+            self._start_network_cooldown_ticker(enter_btn, "Entra")
+            self._start_network_cooldown_ticker(retry_btn, "Controlla di nuovo")
             pending_state["host_port"] = f"{host_addr}:{port}"
             result = world_sync.start_lan_join(
                 host_addr, port, (code_field.value or "").strip(),
                 (pin_field.value or "").strip(), self.device_id or "",
-                (display_field.value or "").strip() or "Giocatore",
+                display_name,
             )
             _report(result)
 
         def _retry(e):
             if pending_state["backend"] is None:
                 return
+            remaining = self._network_cooldown_remaining()
+            if remaining > 0:
+                status_text.color = p.danger
+                status_text.value = (
+                    f"Aspetta {int(remaining) + 1} secondi prima di controllare di nuovo."
+                )
+                self.page.update()
+                return
+            self._mark_network_request()
+            self._start_network_cooldown_ticker(enter_btn, "Entra")
+            self._start_network_cooldown_ticker(retry_btn, "Controlla di nuovo")
             result = world_sync.finish_pending_join(
                 pending_state["backend"], pending_state["request_id"],
                 pending_state["host_port"],
@@ -1777,6 +2008,9 @@ class WorldsView(ft.Column):
                        on_click=_open_qr_scan),
             )
 
+        enter_btn = ft.ElevatedButton("Entra", icon=ft.Icons.WIFI, on_click=_attempt,
+                                       style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary))
+
         dlg = ft.AlertDialog(
             modal=True,
             title=d.dialog_title("Unisciti in LAN", ft.Icons.WIFI),
@@ -1801,11 +2035,15 @@ class WorldsView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
                               style=ft.ButtonStyle(color=p.text_2)),
-                ft.ElevatedButton("Entra", icon=ft.Icons.WIFI, on_click=_attempt,
-                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary)),
+                enter_btn,
             ]),
         )
         self.page.show_dialog(dlg)
+        # Stesso principio di _open_join_dialog: riflette subito un
+        # eventuale cooldown già attivo (es. appena usciti dall'altro
+        # dialogo di ingresso) — esce da solo se non c'è nulla da mostrare.
+        self._start_network_cooldown_ticker(enter_btn, "Entra")
+        self._start_network_cooldown_ticker(retry_btn, "Controlla di nuovo")
 
     # ------------------------------------------------------------------
     # Errori

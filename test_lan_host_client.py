@@ -107,13 +107,23 @@ def test_network_protocol() -> None:
               bad_host.check_world() is None)
 
         # -- POST /join: credenziali errate ---------------------------------
+        # `host.reset_join_rate_limit_for_tests()` tra un tentativo e
+        # l'altro (fix 2026-08-07, difesa in profondità completata anche su
+        # /join): questi tre tentativi sono DELIBERATAMENTE ravvicinati per
+        # verificare tre esiti diversi dello stesso dispositivo — senza il
+        # reset, il secondo e il terzo verrebbero respinti dal NUOVO
+        # cancello anti-spam (10s per device_id) invece che dalla verifica
+        # che stanno effettivamente testando. Il cancello anti-spam in sé
+        # ha la propria batteria dedicata più sotto.
         wrong_code = client.join("ZZZZZZ", host.pin, "Giocatore 1")
         check("join con codice mondo errato viene rifiutato", wrong_code.status == "error")
 
+        host.reset_join_rate_limit_for_tests()
         wrong_pin = client.join(world.join_code, "000000", "Giocatore 1")
         check("join con PIN errato viene rifiutato", wrong_pin.status == "error")
 
         # -- POST /join: dispositivo NUOVO -> pending -----------------------
+        host.reset_join_rate_limit_for_tests()
         outcome = client.join(world.join_code, host.pin, "Giocatore 1")
         check("join di un dispositivo nuovo torna 'pending'", outcome.status == "pending")
         check("connection_state riflette 'pending'", client.connection_state() == "pending")
@@ -263,6 +273,72 @@ def test_network_protocol() -> None:
         stale2 = RemoteBackend("127.0.0.1", port2, "dev-owner")
         check("un token della sessione precedente non è più valido dopo il riavvio",
               not stale2.reconnect_with_token(valid_token))
+    finally:
+        host.stop()
+
+
+# ---------------------------------------------------------------------------
+# [1bis] Anti-spam su /join — fix 2026-08-07, completamento della difesa in
+# profondità lasciata in sospeso quando LocalBackend.send_command() ha
+# ricevuto lo stesso trattamento per /command (Davide: "sì, anche
+# sull'host" si applicava anche qui, non solo ai comandi già coperti).
+# ---------------------------------------------------------------------------
+
+def test_join_rate_limit() -> None:
+    print("\n[1bis] Anti-spam su /join — 10s per device_id, indipendente dal PIN esatto")
+
+    world = world_repo.create_world("Mondo Join Rate Limit", "dev-owner", "Il Master")
+    assert world is not None
+
+    host = WorldHostServer(world.id, long_poll_timeout=2.0, announce=False)
+    port = host.start()
+    try:
+        client = RemoteBackend("127.0.0.1", port, "dev-spam")
+
+        first = client.join(world.join_code, host.pin, "Spammer")
+        check("il primissimo tentativo di ingresso non è mai bloccato",
+              first.status != "error" or "ravvicinati" not in (first.error or ""))
+
+        second = client.join(world.join_code, host.pin, "Spammer")
+        check("un secondo tentativo IMMEDIATO dallo stesso device_id è rifiutato",
+              second.status == "error" and "ravvicinati" in second.error)
+
+        # Anche un tentativo con PIN SBAGLIATO consuma il cancello — è
+        # proprio lì che il limite serve di più (impedire di provare tanti
+        # PIN in rapida successione), non solo sui tentativi validi.
+        guesser = RemoteBackend("127.0.0.1", port, "dev-guesser")
+        wrong = guesser.join(world.join_code, "111111", "Indovino")
+        check("un primo tentativo con PIN sbagliato non è bloccato dal rate limit",
+              "ravvicinati" not in (wrong.error or ""))
+        wrong2 = guesser.join(world.join_code, "222222", "Indovino")
+        check("un secondo tentativo di indovinare il PIN, subito dopo, è bloccato",
+              wrong2.status == "error" and "ravvicinati" in wrong2.error)
+
+        # Un device_id DIVERSO non è mai toccato dal limite di un altro.
+        other = RemoteBackend("127.0.0.1", port, "dev-altro")
+        other_outcome = other.join(world.join_code, host.pin, "Altro Giocatore")
+        check("un device_id diverso non è mai bloccato dal limite di un altro",
+              "ravvicinati" not in (other_outcome.error or ""))
+
+        # Trascorsi i 10s (simulati: reset esplicito, stesso principio dei
+        # `rewind_*_for_tests()` lato client/host usati altrove — qui
+        # semplicemente si azzera lo stato di ISTANZA, coerente con
+        # `reset_join_rate_limit_for_tests()`), il cancello si riapre.
+        host.reset_join_rate_limit_for_tests()
+        third = client.join(world.join_code, host.pin, "Spammer")
+        check("dopo un reset del cancello, lo stesso device_id può riprovare",
+              third.status != "error" or "ravvicinati" not in (third.error or ""))
+    finally:
+        host.stop()
+
+    # stop() azzera anche lo stato del rate limiter (nuova sessione di
+    # hosting = nuovo PIN = nessun residuo dalla precedente).
+    port2 = host.start()
+    try:
+        client2 = RemoteBackend("127.0.0.1", port2, "dev-spam")
+        after_restart = client2.join(world.join_code, host.pin, "Spammer")
+        check("dopo stop()/start(), lo stesso device_id non eredita alcun cooldown residuo",
+              "ravvicinati" not in (after_restart.error or ""))
     finally:
         host.stop()
 
@@ -537,6 +613,7 @@ def main() -> int:
 
     init_db()
     test_network_protocol()
+    test_join_rate_limit()
     test_apply_event_to_replica()
     test_lan_join_orchestration()
 

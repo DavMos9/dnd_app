@@ -48,6 +48,7 @@ from data.repositories import character_repo, world_repo  # noqa: E402
 from core import character_instances as ci  # noqa: E402
 from core import damage_rules  # noqa: E402
 from core import world_permissions as perm  # noqa: E402
+from core import world_backend  # noqa: E402
 from core.world_backend import LocalBackend  # noqa: E402
 
 _PASS = 0
@@ -61,6 +62,24 @@ def check(label: str, cond: bool) -> None:
     else:
         _FAIL.append(label)
         print(f"  FALLITO: {label}")
+
+
+def _send(backend: LocalBackend, *args, **kwargs):
+    """
+    Invia un comando ignorando il rate limit lato host (fix 2026-08-07,
+    `core.world_backend._check_rate_limit`/`reset_host_cooldowns_for_tests`):
+    questo file verifica la CORRETTEZZA degli handler, non il rate
+    limiting — quello ha la propria batteria dedicata
+    (`test_cooldown_azioni_remote.py`). Molte sequenze qui sotto inviano
+    più comandi ravvicinati sullo stesso personaggio apposta (es.
+    `test_xp_grant` invia tre `xp.grant` di fila), per verificare più
+    aspetti dello stesso handler in un colpo solo — senza questo reset il
+    rate limiter (stato di modulo, non per-test) rifiuterebbe il secondo e
+    il terzo comando, mascherando l'esito reale dell'handler dietro un
+    errore di tutt'altra natura.
+    """
+    world_backend.reset_host_cooldowns_for_tests()
+    return backend.send_command(*args, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +185,7 @@ def test_xp_grant() -> None:
     backend = LocalBackend()
 
     before_xp = instance.xp
-    result = backend.send_command(world.id, "dev-owner", perm.CMD_XP_GRANT,
+    result = _send(backend, world.id, "dev-owner", perm.CMD_XP_GRANT,
                                    {"amount": 500}, target_type="character", target_id=instance.id)
     check("xp.grant riuscito", result.success)
     check("xp.grant scrive un evento", result.event is not None)
@@ -176,11 +195,11 @@ def test_xp_grant() -> None:
     if result.event:
         check("il summary è leggibile e nomina il personaggio", instance.name in result.event.summary)
 
-    result0 = backend.send_command(world.id, "dev-owner", perm.CMD_XP_GRANT,
+    result0 = _send(backend, world.id, "dev-owner", perm.CMD_XP_GRANT,
                                     {"amount": 0}, target_type="character", target_id=instance.id)
     check("xp.grant con quantità 0 viene rifiutato", not result0.success)
 
-    result_bad = backend.send_command(world.id, "dev-owner", perm.CMD_XP_GRANT,
+    result_bad = _send(backend, world.id, "dev-owner", perm.CMD_XP_GRANT,
                                        {"amount": 100}, target_type="character",
                                        target_id="id-inesistente")
     check("xp.grant su un personaggio inesistente viene rifiutato", not result_bad.success)
@@ -191,19 +210,19 @@ def test_hp_damage_and_heal() -> None:
     world, instance = _make_world_with_instance(hp_max=30)
     backend = LocalBackend()
 
-    result = backend.send_command(world.id, "dev-owner", perm.CMD_HP_DAMAGE,
+    result = _send(backend, world.id, "dev-owner", perm.CMD_HP_DAMAGE,
                                    {"amount": 12}, target_type="character", target_id=instance.id)
     check("hp.damage riuscito", result.success)
     updated = _reload(instance.id)
     check("i PF sono scesi correttamente", updated.hp_current == 18)
 
-    result_heal = backend.send_command(world.id, "dev-owner", perm.CMD_HP_HEAL,
+    result_heal = _send(backend, world.id, "dev-owner", perm.CMD_HP_HEAL,
                                         {"amount": 5}, target_type="character", target_id=instance.id)
     check("hp.heal riuscito", result_heal.success)
     updated2 = _reload(instance.id)
     check("i PF sono risaliti correttamente", updated2.hp_current == 23)
 
-    result_neg = backend.send_command(world.id, "dev-owner", perm.CMD_HP_DAMAGE,
+    result_neg = _send(backend, world.id, "dev-owner", perm.CMD_HP_DAMAGE,
                                        {"amount": -5}, target_type="character", target_id=instance.id)
     check("hp.damage con quantità negativa viene rifiutato", not result_neg.success)
 
@@ -213,7 +232,7 @@ def test_conditions() -> None:
     world, instance = _make_world_with_instance()
     backend = LocalBackend()
 
-    bad = backend.send_command(world.id, "dev-owner", perm.CMD_CONDITION_APPLY,
+    bad = _send(backend, world.id, "dev-owner", perm.CMD_CONDITION_APPLY,
                                 {"condition_key": "non-esiste"}, target_type="character",
                                 target_id=instance.id)
     check("condition.apply con chiave sconosciuta viene rifiutato", not bad.success)
@@ -230,19 +249,19 @@ def test_conditions() -> None:
         return
     key = all_conditions[0]["key"]
 
-    ok = backend.send_command(world.id, "dev-owner", perm.CMD_CONDITION_APPLY,
+    ok = _send(backend, world.id, "dev-owner", perm.CMD_CONDITION_APPLY,
                                {"condition_key": key, "note": "colpito da una ragnatela"},
                                target_type="character", target_id=instance.id)
     check("condition.apply riuscito", ok.success)
     conditions = character_repo.get_conditions(instance.id)
     check("la condizione risulta applicata", len(conditions) == 1 and conditions[0].condition_key == key)
 
-    remove_bad = backend.send_command(world.id, "dev-owner", perm.CMD_CONDITION_REMOVE,
+    remove_bad = _send(backend, world.id, "dev-owner", perm.CMD_CONDITION_REMOVE,
                                        {"condition_id": "id-a-caso"}, target_type="character",
                                        target_id=instance.id)
     check("condition.remove con id inesistente viene rifiutato", not remove_bad.success)
 
-    remove_ok = backend.send_command(world.id, "dev-owner", perm.CMD_CONDITION_REMOVE,
+    remove_ok = _send(backend, world.id, "dev-owner", perm.CMD_CONDITION_REMOVE,
                                       {"condition_id": conditions[0].id}, target_type="character",
                                       target_id=instance.id)
     check("condition.remove riuscito", remove_ok.success)
@@ -262,7 +281,7 @@ def test_resources() -> None:
     resource = resources[0]
     full_value = resource.current_value
 
-    consume = backend.send_command(world.id, "dev-owner", perm.CMD_RESOURCE_CONSUME,
+    consume = _send(backend, world.id, "dev-owner", perm.CMD_RESOURCE_CONSUME,
                                     {"resource_id": resource.id, "amount": 1},
                                     target_type="character", target_id=instance.id)
     check("resource.consume riuscito", consume.success)
@@ -271,13 +290,13 @@ def test_resources() -> None:
 
     # Non scende sotto zero
     for _ in range(20):
-        backend.send_command(world.id, "dev-owner", perm.CMD_RESOURCE_CONSUME,
+        _send(backend, world.id, "dev-owner", perm.CMD_RESOURCE_CONSUME,
                               {"resource_id": resource.id, "amount": 5},
                               target_type="character", target_id=instance.id)
     floor = [r for r in character_repo.get_class_resources(instance.id) if r.id == resource.id][0]
     check("resource.consume non scende mai sotto zero", floor.current_value == 0)
 
-    restore = backend.send_command(world.id, "dev-owner", perm.CMD_RESOURCE_RESTORE,
+    restore = _send(backend, world.id, "dev-owner", perm.CMD_RESOURCE_RESTORE,
                                     {"resource_id": resource.id, "amount": 999},
                                     target_type="character", target_id=instance.id)
     check("resource.restore riuscito", restore.success)
@@ -290,12 +309,12 @@ def test_custom_ability_and_bonus_spell_and_diary() -> None:
     world, instance = _make_world_with_instance()
     backend = LocalBackend()
 
-    bad_cat = backend.send_command(world.id, "dev-owner", perm.CMD_CUSTOM_ABILITY_GRANT,
+    bad_cat = _send(backend, world.id, "dev-owner", perm.CMD_CUSTOM_ABILITY_GRANT,
                                     {"category": "invalida", "name": "X"},
                                     target_type="character", target_id=instance.id)
     check("custom_ability.grant con categoria non valida viene rifiutato", not bad_cat.success)
 
-    ok = backend.send_command(world.id, "dev-owner", perm.CMD_CUSTOM_ABILITY_GRANT,
+    ok = _send(backend, world.id, "dev-owner", perm.CMD_CUSTOM_ABILITY_GRANT,
                                {"category": "esplorazione", "name": "Vista nel Buio Estesa",
                                 "description": "Concessa da un artefatto."},
                                target_type="character", target_id=instance.id)
@@ -303,12 +322,12 @@ def test_custom_ability_and_bonus_spell_and_diary() -> None:
     abilities = character_repo.get_custom_abilities(instance.id)
     check("l'abilità custom risulta presente", any(a.name == "Vista nel Buio Estesa" for a in abilities))
 
-    bad_level = backend.send_command(world.id, "dev-owner", perm.CMD_BONUS_SPELL_GRANT,
+    bad_level = _send(backend, world.id, "dev-owner", perm.CMD_BONUS_SPELL_GRANT,
                                       {"name": "Incantesimo Impossibile", "level": 99},
                                       target_type="character", target_id=instance.id)
     check("bonus_spell.grant con livello fuori intervallo viene rifiutato", not bad_level.success)
 
-    ok_spell = backend.send_command(world.id, "dev-owner", perm.CMD_BONUS_SPELL_GRANT,
+    ok_spell = _send(backend, world.id, "dev-owner", perm.CMD_BONUS_SPELL_GRANT,
                                      {"name": "Luce", "level": 0}, target_type="character",
                                      target_id=instance.id)
     check("bonus_spell.grant riuscito", ok_spell.success)
@@ -319,12 +338,12 @@ def test_custom_ability_and_bonus_spell_and_diary() -> None:
         check("l'incantesimo bonus è marcato is_bonus", bool(granted[0].is_bonus))
         check("l'incantesimo bonus è preparato", bool(granted[0].is_prepared))
 
-    bad_diary = backend.send_command(world.id, "dev-owner", perm.CMD_DIARY_ADD_ENTRY,
+    bad_diary = _send(backend, world.id, "dev-owner", perm.CMD_DIARY_ADD_ENTRY,
                                       {"title": "", "content": ""}, target_type="character",
                                       target_id=instance.id)
     check("diary.add_entry senza titolo/testo viene rifiutato", not bad_diary.success)
 
-    ok_diary = backend.send_command(world.id, "dev-owner", perm.CMD_DIARY_ADD_ENTRY,
+    ok_diary = _send(backend, world.id, "dev-owner", perm.CMD_DIARY_ADD_ENTRY,
                                      {"title": "Una visione", "content": "Vedi un corvo nero."},
                                      target_type="character", target_id=instance.id)
     check("diary.add_entry riuscito", ok_diary.success)
@@ -337,20 +356,20 @@ def test_change_request_propose_and_respond() -> None:
     world, instance = _make_world_with_instance()
     backend = LocalBackend()
 
-    forbidden = backend.send_command(
+    forbidden = _send(backend,
         world.id, "dev-owner", perm.CMD_CHANGE_REQUEST_PROPOSE,
         {"changes": {"name": "Nome Rubato"}, "reason": "house rule"},
         target_type="character", target_id=instance.id,
     )
     check("change_request.propose su un campo vietato (name) viene rifiutato", not forbidden.success)
 
-    no_reason = backend.send_command(
+    no_reason = _send(backend,
         world.id, "dev-owner", perm.CMD_CHANGE_REQUEST_PROPOSE,
         {"changes": {"str_score": 18}}, target_type="character", target_id=instance.id,
     )
     check("change_request.propose senza motivazione viene rifiutato", not no_reason.success)
 
-    proposal = backend.send_command(
+    proposal = _send(backend,
         world.id, "dev-owner", perm.CMD_CHANGE_REQUEST_PROPOSE,
         {"changes": {"str_score": 18}, "reason": "Bevi una pozione di Forza da Gigante."},
         target_type="character", target_id=instance.id,
@@ -362,7 +381,7 @@ def test_change_request_propose_and_respond() -> None:
         return
     request_id = pending[0].id
 
-    respond_wrong_owner = backend.send_command(
+    respond_wrong_owner = _send(backend,
         world.id, "dev-owner", perm.CMD_CHANGE_REQUEST_RESPOND,
         {"request_id": request_id, "accept": True},
         target_type="character", target_id=instance.id,
@@ -375,7 +394,7 @@ def test_change_request_propose_and_respond() -> None:
     check("il personaggio NON è cambiato dopo il tentativo del master",
           _reload(instance.id).str_score == 16)
 
-    respond_ok = backend.send_command(
+    respond_ok = _send(backend,
         world.id, "dev-player", perm.CMD_CHANGE_REQUEST_RESPOND,
         {"request_id": request_id, "accept": True},
         target_type="character", target_id=instance.id,
@@ -387,7 +406,7 @@ def test_change_request_propose_and_respond() -> None:
           world_repo.get_change_request(request_id).status == "accepted")
 
     # Una seconda risposta alla stessa richiesta (già risolta) va rifiutata.
-    respond_again = backend.send_command(
+    respond_again = _send(backend,
         world.id, "dev-player", perm.CMD_CHANGE_REQUEST_RESPOND,
         {"request_id": request_id, "accept": False},
         target_type="character", target_id=instance.id,
@@ -414,7 +433,7 @@ def test_change_request_dex_recalculates_ca() -> None:
     check("CA di base coerente con DES 12, nessuna armatura (10 + mod +1)",
           baseline_ac == 11)
 
-    proposal = backend.send_command(
+    proposal = _send(backend,
         world.id, "dev-owner", perm.CMD_CHANGE_REQUEST_PROPOSE,
         {"changes": {"dex_score": 18},
          "reason": "Cintura di Destrezza da Gigante delle Nuvole."},
@@ -427,7 +446,7 @@ def test_change_request_dex_recalculates_ca() -> None:
         return
     request_id = pending[0].id
 
-    respond_ok = backend.send_command(
+    respond_ok = _send(backend,
         world.id, "dev-player", perm.CMD_CHANGE_REQUEST_RESPOND,
         {"request_id": request_id, "accept": True},
         target_type="character", target_id=instance.id,
@@ -447,7 +466,7 @@ def test_cross_world_targeting_rejected() -> None:
                                                        player_device="dev-player-b", name="Personaggio B")
     backend = LocalBackend()
 
-    result = backend.send_command(world_b.id, "dev-owner-b", perm.CMD_XP_GRANT,
+    result = _send(backend,world_b.id, "dev-owner-b", perm.CMD_XP_GRANT,
                                    {"amount": 500}, target_type="character",
                                    target_id=instance_a.id)
     check("xp.grant sul personaggio di un altro mondo viene rifiutato", not result.success)
@@ -481,11 +500,11 @@ def test_permissions() -> None:
 
     world, instance = _make_world_with_instance()
     backend = LocalBackend()
-    denied = backend.send_command(world.id, "dev-player", perm.CMD_HP_DAMAGE,
+    denied = _send(backend, world.id, "dev-player", perm.CMD_HP_DAMAGE,
                                    {"amount": 5}, target_type="character", target_id=instance.id)
     check("un giocatore non può inviare hp.damage (ruolo insufficiente)", not denied.success)
 
-    outsider = backend.send_command(world.id, "dev-sconosciuto", perm.CMD_XP_GRANT,
+    outsider = _send(backend, world.id, "dev-sconosciuto", perm.CMD_XP_GRANT,
                                      {"amount": 5}, target_type="character", target_id=instance.id)
     check("un dispositivo che non è membro del mondo viene rifiutato", not outsider.success)
 

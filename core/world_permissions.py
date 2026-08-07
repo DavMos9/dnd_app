@@ -20,6 +20,8 @@ ridiscutere chi può inviarlo.
 
 from __future__ import annotations
 
+import time
+
 # ---------------------------------------------------------------------------
 # Ruoli (§4) — in scala di privilegio. Nessuno spettatore, scelta di Davide.
 # ---------------------------------------------------------------------------
@@ -100,8 +102,22 @@ MASTER_AND_OWNER_COMMANDS: frozenset[str] = frozenset({
 
 CMD_CHANGE_REQUEST_RESPOND = "change_request.respond"
 
+#: Registra sull'host l'istanza di personaggio appena creata/ripresa in
+#: locale da `core/character_instances.py::create_or_resume_instance()`
+#: (fix 2026-08-07: quella funzione, nata al passo 3 prima che esistesse la
+#: rete, scrive SOLO sul DB del dispositivo che la chiama — su un
+#: dispositivo che ha solo una replica del mondo, l'host non veniva mai
+#: informato, e la Sezione Master non vedeva mai l'istanza). Ruolo minimo
+#: `player` come `CMD_CHANGE_REQUEST_RESPOND`: chi invia questo comando può
+#: farlo solo per il PROPRIO personaggio — qui non c'è ancora una riga
+#: `characters` esistente sull'host da confrontare (è la prima scrittura),
+#: quindi l'handler verifica la proprietà leggendo `owner_device_id` dal
+#: payload esportato invece che da `_resolve_world_character()`.
+CMD_CHARACTER_INSTANCE_SYNC = "character_instance.sync"
+
 PLAYER_OWNED_COMMANDS: frozenset[str] = frozenset({
     CMD_CHANGE_REQUEST_RESPOND,
+    CMD_CHARACTER_INSTANCE_SYNC,
 })
 
 #: Ogni comando conosciuto -> ruolo minimo richiesto per inviarlo.
@@ -126,7 +142,66 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
     CMD_XP_GRANT, CMD_HP_DAMAGE, CMD_HP_HEAL, CMD_CONDITION_APPLY, CMD_CONDITION_REMOVE,
     CMD_RESOURCE_CONSUME, CMD_RESOURCE_RESTORE, CMD_CUSTOM_ABILITY_GRANT,
     CMD_BONUS_SPELL_GRANT, CMD_DIARY_ADD_ENTRY, CMD_CHANGE_REQUEST_RESPOND,
+    # Anche questo comando (fix 2026-08-07) rientra qui: per un TERZO
+    # dispositivo del mondo (non l'host, non il proprietario — es. un
+    # co-master su un altro telefono) `core/world_sync.py` deve sapere di
+    # richiamare la rimaterializzazione via `GET /character/<id>` quando
+    # vede questo evento nel giornale, esattamente come per xp.grant e gli
+    # altri. `_resync_character_from_host()` gestisce già correttamente il
+    # caso "non sono il proprietario, l'host risponde 403" (nessuna
+    # scrittura, non un errore) — nessuna logica nuova da aggiungere lì.
+    CMD_CHARACTER_INSTANCE_SYNC,
 })
+
+# ---------------------------------------------------------------------------
+# Anti-spam (fix 2026-08-07, esteso alla difesa in profondità lato host
+# nella stessa sessione — Davide, dopo la revisione del primo fix
+# "solo client": "sì, anche sull'host"). Solo le costanti e l'aritmetica
+# pura vivono qui, coerente col resto di questo modulo (nessuna dipendenza,
+# nessun accesso al DB): lo STATO — chi ha fatto cosa e quando — vive in
+# ciascun attore che applica il limite, mai qui:
+#   - `core.world_sync` — stato lato client/UI (`WorldsView`/`HomeView`),
+#     a livello di MODULO (non di istanza: quelle view vengono ricreate ad
+#     ogni navigazione/cambio tema in `ui/app.py`, uno stato tenuto
+#     sull'istanza si azzererebbe ad ogni ricreazione — bug reale trovato
+#     il 2026-08-07 in una prima versione di questo fix, corretto qui);
+#   - `core.world_backend.LocalBackend` — stato lato host per i comandi
+#     (`send_command()` è il choke point unico, sia per un mondo ospitato
+#     da questo dispositivo sia per un comando arrivato via rete);
+#   - `network.host_server.WorldHostServer` — stato lato host per i
+#     tentativi di ingresso (`/join`), scoped correttamente per istanza:
+#     un'istanza vive quanto la sessione di hosting, un nuovo `start()`
+#     è già una nuova sessione con PIN nuovo (§9.4).
+# ---------------------------------------------------------------------------
+
+MASTER_ACTION_COOLDOWN_S = 3.0
+NETWORK_REQUEST_COOLDOWN_S = 10.0
+
+#: Le azioni di "Interviene a distanza" (§7) mostrate come pillole in
+#: `ui/views/world/world_view.py::_remote_character_row` — un sottoinsieme
+#: esplicito di `MASTER_AND_OWNER_COMMANDS`, che include anche comandi
+#: (mappe, incontri, note condivise, dadi) non gestiti da quella sezione
+#: della UI o non ancora operativi. Elenco chiuso: se una nuova pillola
+#: viene aggiunta lì, va aggiunta anche qui per restare protetta dal
+#: limite sia lato client sia lato host.
+MASTER_REMOTE_ACTION_COMMANDS: frozenset[str] = frozenset({
+    CMD_XP_GRANT, CMD_HP_DAMAGE, CMD_HP_HEAL, CMD_CONDITION_APPLY, CMD_CONDITION_REMOVE,
+    CMD_CUSTOM_ABILITY_GRANT, CMD_BONUS_SPELL_GRANT, CMD_DIARY_ADD_ENTRY,
+    CMD_CHANGE_REQUEST_PROPOSE,
+})
+
+
+def cooldown_remaining(last_action_at: float, cooldown_s: float) -> float:
+    """
+    Secondi ancora da aspettare prima che una nuova azione sia permessa
+    (<=0 se è già permessa adesso). Funzione pura, nessuno stato qui dentro
+    — lo stato (l'istante dell'ultima azione) resta sempre al chiamante.
+
+    `time.monotonic()` come riferimento (mai `time.time()`/`datetime.now()`):
+    insensibile a un eventuale cambio dell'orologio di sistema durante la
+    sessione, conta solo il tempo trascorso davvero.
+    """
+    return cooldown_s - (time.monotonic() - last_action_at)
 
 
 def requires_character_ownership(command_kind: str) -> bool:

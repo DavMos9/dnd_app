@@ -31,7 +31,8 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 
 from core import world_permissions as perm
 from data.models import World, WorldChangeRequest, WorldEvent
@@ -39,6 +40,115 @@ from data.repositories import character_export, world_repo
 from network import protocol
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Anti-spam lato client — stato di MODULO, fix 2026-08-07 (rivisto due
+# volte nella stessa giornata).
+#
+# Prima versione: timer tenuti come attributi di istanza su `WorldsView`/
+# `HomeView`. Bug trovato chiedendo un parere su questa stessa
+# implementazione: `ui/app.py::_show_worlds_view()`/`_show_home()` creano
+# un'istanza NUOVA della view ad ogni navigazione — e anche ad ogni cambio
+# tema, che passa dallo stesso `_rebuild_route` — quindi uno stato
+# sull'istanza si azzerava ad ogni ricreazione, rendendo il limite
+# aggirabile senza nemmeno volerlo. Un'istanza di modulo sopravvive per
+# tutta la durata del processo, che è esattamente ciò che serve a un
+# guardrail "non permettere all'utente di spammare" (Davide).
+#
+# Costanti e aritmetica pura (`MASTER_ACTION_COOLDOWN_S`/
+# `NETWORK_REQUEST_COOLDOWN_S`/`cooldown_remaining()`) vivono in
+# `core.world_permissions`, non qui: servono anche lato HOST
+# (`core.world_backend.LocalBackend`, `network.host_server.WorldHostServer`
+# — difesa in profondità, stessa richiesta di Davide), e quel modulo è la
+# base dipendenza-zero già condivisa da client e host. Qui vive SOLO lo
+# stato lato client.
+#
+# Il timer del master (`MASTER_ACTION_COOLDOWN_S`, 3s) è ora PER
+# PERSONAGGIO (`master_action_last_at: dict[character_id, float]`), non un
+# solo timer globale sulla sezione: un'area che colpisce 4 PG non
+# costringe il master ad aspettare 3s tra un personaggio e l'altro, il
+# limite blocca solo il martellare ripetuto sullo STESSO personaggio
+# (revisione richiesta da Davide dopo un parere sulla prima versione, che
+# era un timer unico su tutta la sezione).
+# ---------------------------------------------------------------------------
+
+@dataclass
+class _ClientCooldownState:
+    master_action_last_at: dict[str, float] = field(default_factory=dict)  # character_id -> float
+    network_request_last_at: float = 0.0     # ingresso in un mondo (codice/LAN/QR) + retry
+    instance_push_last_at: float = 0.0       # HomeView._push_instance_to_host
+
+
+_client_cooldowns = _ClientCooldownState()
+
+
+def master_action_cooldown_remaining(character_id: str) -> float:
+    """Secondi rimanenti prima che il master possa agire di nuovo su
+    QUESTO personaggio (PE/danno/cura/condizione/abilità/incantesimo/
+    diario/proponi modifica — vedi `_remote_character_row`)."""
+    last_at = _client_cooldowns.master_action_last_at.get(character_id, 0.0)
+    return perm.cooldown_remaining(last_at, perm.MASTER_ACTION_COOLDOWN_S)
+
+
+def mark_master_action(character_id: str) -> None:
+    _client_cooldowns.master_action_last_at[character_id] = time.monotonic()
+
+
+def network_request_cooldown_remaining() -> float:
+    """Secondi rimanenti prima del prossimo tentativo di ingresso in un
+    mondo o controllo di una richiesta in sospeso — un solo tracciato
+    condiviso tra `_join`/`_attempt`/`_retry` (tutte "richieste di rete
+    semplici" per Davide, non categorie separate)."""
+    return perm.cooldown_remaining(
+        _client_cooldowns.network_request_last_at, perm.NETWORK_REQUEST_COOLDOWN_S,
+    )
+
+
+def mark_network_request() -> None:
+    _client_cooldowns.network_request_last_at = time.monotonic()
+
+
+def instance_push_cooldown_remaining() -> float:
+    """Secondi rimanenti prima del prossimo invio di
+    `HomeView._push_instance_to_host()` — tracciato indipendente da quello
+    sopra (classe/istanza diversa, stesso valore di 10s)."""
+    return perm.cooldown_remaining(
+        _client_cooldowns.instance_push_last_at, perm.NETWORK_REQUEST_COOLDOWN_S,
+    )
+
+
+def mark_instance_push() -> None:
+    _client_cooldowns.instance_push_last_at = time.monotonic()
+
+
+def reset_client_cooldowns_for_tests() -> None:
+    """SOLO per i test: azzera lo stato condiviso a livello di processo,
+    che altrimenti "perdurerebbe" da una funzione di test all'altra nello
+    stesso processo Python — in produzione è proprio l'effetto voluto
+    (sopravvive alla ricreazione della view), nei test invece ogni
+    funzione vuole partire da uno stato pulito. Mai chiamato da codice
+    applicativo."""
+    global _client_cooldowns
+    _client_cooldowns = _ClientCooldownState()
+
+
+def rewind_master_action_for_tests(character_id: str, seconds_ago: float) -> None:
+    """SOLO per i test: simula "l'ultima azione del master su questo
+    personaggio è avvenuta N secondi fa", per verificare che il cancello
+    si riapra dopo `MASTER_ACTION_COOLDOWN_S` senza un vero
+    `time.sleep()`. Mai chiamato da codice applicativo."""
+    _client_cooldowns.master_action_last_at[character_id] = time.monotonic() - seconds_ago
+
+
+def rewind_network_request_for_tests(seconds_ago: float) -> None:
+    """SOLO per i test — vedi `rewind_master_action_for_tests`."""
+    _client_cooldowns.network_request_last_at = time.monotonic() - seconds_ago
+
+
+def rewind_instance_push_for_tests(seconds_ago: float) -> None:
+    """SOLO per i test — vedi `rewind_master_action_for_tests`."""
+    _client_cooldowns.instance_push_last_at = time.monotonic() - seconds_ago
 
 
 # ---------------------------------------------------------------------------
@@ -252,6 +362,68 @@ def _refresh_members_from_snapshot(remote_backend, local_world_id: str) -> None:
     for local_member in world_repo.get_members(local_world_id):
         if local_member.device_id not in still_present:
             world_repo.remove_replica_member(local_world_id, local_member.device_id)
+
+
+# ---------------------------------------------------------------------------
+# Risoluzione del backend di un mondo — fix 2026-08-07
+# ---------------------------------------------------------------------------
+
+def resolve_backend_for_world(world: World, device_id: str, local_backend,
+                               remote_cache: dict) -> object | None:
+    """
+    Risolve il backend giusto per `world` su QUESTO dispositivo:
+    `local_backend` (tipicamente `LocalBackend()`) se lo ospita, altrimenti
+    un `RemoteBackend` connesso all'host, riusando `world.session_token`
+    (§9.4 — mai richiede di nuovo codice+PIN). Ritorna `None` se non è
+    stato possibile stabilire una connessione valida.
+
+    Estratto da `ui/views/world/world_view.py::WorldsView._backend_for()`
+    (dove nasce lo stesso giorno, per il fix del routing dei comandi) perché
+    la stessa identica logica serve ora anche a `ui/views/home_view.py`
+    (`CMD_CHARACTER_INSTANCE_SYNC`: registrare sull'host un'istanza appena
+    creata) — un solo punto di verità su "come si raggiunge l'host di un
+    mondo da questo dispositivo", mai due copie destinate a divergere.
+
+    `remote_cache` è tenuto dal chiamante (es. `self._remote_backends` su
+    una view che vive più a lungo di una singola chiamata): ogni chiamante
+    mantiene la propria cache di connessioni, non condivisa tra view
+    indipendenti — passare un dict vuoto va benissimo per un uso "una
+    tantum" (una sola chiamata, nessun riuso atteso).
+
+    Tipizzato `object | None` invece di `WorldBackend | None` per evitare
+    un import a livello di modulo di `core.world_backend` (che a sua volta
+    non importa mai `core.world_sync`, ma un ciclo tra i due resterebbe
+    comunque fragile da mantenere nel tempo) — lo stesso compromesso già
+    accettato per `LanJoinResult.backend` qui sopra.
+    """
+    from core.world_backend import RemoteBackend
+
+    if world.is_local_host:
+        return local_backend
+
+    cached = remote_cache.get(world.id)
+    if cached is not None and cached.connection_state() == "connected":
+        return cached
+
+    if not world.last_seen_host or not world.session_token:
+        return None
+    host, sep, port_text = world.last_seen_host.rpartition(":")
+    if not sep:
+        return None
+    try:
+        port = int(port_text)
+    except ValueError:
+        return None
+
+    remote = RemoteBackend(host, port, device_id or "", world_id=world.id)
+    if not remote.reconnect_with_token(world.session_token):
+        # Token non più valido (host riavviato: §9.4, nuovo PIN/token ad
+        # ogni apertura) o host irraggiungibile — mai un ritentativo
+        # automatico con credenziali scadute.
+        remote_cache.pop(world.id, None)
+        return None
+    remote_cache[world.id] = remote
+    return remote
 
 
 # ---------------------------------------------------------------------------

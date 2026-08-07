@@ -23,19 +23,75 @@ from __future__ import annotations
 import http.client
 import json
 import logging
+import time
 import urllib.parse
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable
 
 from core import damage_rules
 from core import world_permissions as perm
 from data.models import WorldEvent
-from data.repositories import character_repo, world_repo
+from data.repositories import character_export, character_repo, world_repo
 from network import protocol
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Anti-spam lato HOST — difesa in profondità (fix 2026-08-07, Davide: "sì,
+# anche sull'host" dopo la revisione del primo fix, che era solo lato
+# client). Il client si limita da solo per UX (`core.world_sync`), ma un
+# client modificato o con un bug potrebbe ignorare quel limite — qui lo
+# STESSO limite viene applicato di nuovo, stavolta sui dati che l'host
+# controlla davvero: mai fidarsi del client, stesso principio già seguito
+# per i permessi in questo file (§5, "impossibile aggirarli da un client
+# modificato").
+#
+# Stato a livello di MODULO, non su `LocalBackend`: quella classe viene
+# istanziata spesso ad hoc in giro per il progetto (es. `WorldsView.
+# __init__`, `HomeView._push_instance_to_host`, `WorldHostServer.__init__`
+# di default) — uno stato sull'istanza si perderebbe esattamente come è
+# successo lato client prima del fix di stato-a-livello-di-modulo.
+#
+# `master_action_last_at` è chiavato per (actor_device_id, character_id):
+# stessa granularità per-personaggio del timer lato client (un'area su 4
+# PG non blocca il master tra un personaggio e l'altro), E per-dispositivo
+# (un co-master su un altro telefono non condivide il limite col master
+# principale). `instance_sync_last_at` è chiavato solo per actor_device_id
+# (come il timer di rete lato client, non per personaggio: un giocatore
+# registra una sola istanza alla volta).
+# ---------------------------------------------------------------------------
+
+@dataclass
+class _HostCooldownState:
+    master_action_last_at: dict[tuple[str, str], float] = field(default_factory=dict)
+    instance_sync_last_at: dict[str, float] = field(default_factory=dict)
+
+
+_host_cooldowns = _HostCooldownState()
+
+
+def reset_host_cooldowns_for_tests() -> None:
+    """SOLO per i test — vedi `core.world_sync.reset_client_cooldowns_for_tests()`
+    per lo stesso principio lato client. Mai chiamato da codice applicativo."""
+    global _host_cooldowns
+    _host_cooldowns = _HostCooldownState()
+
+
+def rewind_host_master_action_for_tests(actor_device_id: str, target_id: str,
+                                         seconds_ago: float) -> None:
+    """SOLO per i test — vedi `core.world_sync.rewind_master_action_for_tests()`
+    per lo stesso principio lato client. Mai chiamato da codice applicativo."""
+    _host_cooldowns.master_action_last_at[(actor_device_id, target_id)] = (
+        time.monotonic() - seconds_ago
+    )
+
+
+def rewind_host_instance_sync_for_tests(actor_device_id: str, seconds_ago: float) -> None:
+    """SOLO per i test — vedi `rewind_host_master_action_for_tests`."""
+    _host_cooldowns.instance_sync_last_at[actor_device_id] = time.monotonic() - seconds_ago
 
 
 @dataclass
@@ -131,6 +187,10 @@ class LocalBackend(WorldBackend):
                 f"Il ruolo «{member.role}» non è autorizzato a eseguire «{kind}».",
             )
 
+        rate_limit_error = self._check_rate_limit(actor_device_id, kind, target_id)
+        if rate_limit_error is not None:
+            return CommandResult(False, rate_limit_error)
+
         handler = _HANDLERS.get(kind)
         if handler is None:
             return CommandResult(False, f"Comando sconosciuto: «{kind}».")
@@ -145,6 +205,53 @@ class LocalBackend(WorldBackend):
         except Exception as e:
             logger.error("Errore applicando il comando %r: %s", kind, e)
             return CommandResult(False, f"Errore interno applicando «{kind}».")
+
+    def _check_rate_limit(self, actor_device_id: str, kind: str, target_id: str) -> str | None:
+        """
+        Difesa in profondità (fix 2026-08-07) — stesso limite già applicato
+        lato client, riapplicato qui su dati che l'host controlla davvero.
+        Ritorna un messaggio d'errore (in italiano, pronto per
+        `CommandResult.error`) se il comando va rifiutato, `None` se può
+        proseguire — in quel caso l'istante viene registrato SUBITO, PRIMA
+        di chiamare l'handler: anche un comando che l'handler rifiuterà per
+        un motivo suo (es. dati non validi) ha già impegnato un turno del
+        limite, stesso principio del timer lato client ("non aggirabile
+        martellando durante un errore").
+
+        Fuori scope qui (nessun rate limit applicato): qualunque comando
+        NON in `MASTER_REMOTE_ACTION_COMMANDS`/`CMD_CHARACTER_INSTANCE_SYNC`
+        — coerente con la scelta già fatta lato client di non limitare
+        `world.rename`/gestione membri/`change_request.respond`.
+        """
+        now = time.monotonic()
+        if kind in perm.MASTER_REMOTE_ACTION_COMMANDS:
+            key = (actor_device_id, target_id)
+            remaining = perm.cooldown_remaining(
+                _host_cooldowns.master_action_last_at.get(key, 0.0),
+                perm.MASTER_ACTION_COOLDOWN_S,
+            )
+            if remaining > 0:
+                return (
+                    f"Troppe richieste ravvicinate su questo personaggio — "
+                    f"aspetta {int(remaining) + 1} secondi."
+                )
+            _host_cooldowns.master_action_last_at[key] = now
+            return None
+
+        if kind == perm.CMD_CHARACTER_INSTANCE_SYNC:
+            remaining = perm.cooldown_remaining(
+                _host_cooldowns.instance_sync_last_at.get(actor_device_id, 0.0),
+                perm.NETWORK_REQUEST_COOLDOWN_S,
+            )
+            if remaining > 0:
+                return (
+                    f"Troppe richieste di rete ravvicinate — "
+                    f"aspetta {int(remaining) + 1} secondi."
+                )
+            _host_cooldowns.instance_sync_last_at[actor_device_id] = now
+            return None
+
+        return None
 
     def fetch_events(self, world_id: str, since_seq: int = 0) -> list[WorldEvent]:
         return world_repo.get_events_since(world_id, since_seq)
@@ -808,6 +915,67 @@ def _handle_change_request_respond(ctx: HandlerContext) -> CommandResult:
         kind=perm.CMD_CHANGE_REQUEST_RESPOND, target_type="character", target_id=character.id,
         summary=f"{ctx.actor_name} ha {verb} la richiesta di modifica «{request.reason}».",
         payload=json.dumps({"request_id": request_id, "accept": accept}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CHARACTER_INSTANCE_SYNC)
+def _handle_character_instance_sync(ctx: HandlerContext) -> CommandResult:
+    """
+    Registra sull'host l'export integrale di un'istanza di personaggio
+    (fix 2026-08-07 — vedi il docstring di `perm.CMD_CHARACTER_INSTANCE_SYNC`
+    per il bug che questo comando risolve: senza questo, un'istanza creata
+    su un dispositivo che non ospita il mondo non esisteva mai sul DB
+    dell'host, e la Sezione Master risultava vuota anche a ingresso
+    riuscito).
+
+    A differenza di ogni altro handler sopra, qui NON si passa da
+    `_resolve_world_character()`: quella funzione presuppone che il
+    personaggio esista già sull'host (è così per xp.grant/hp.damage/...,
+    comandi su un'istanza che l'host ha già), ma qui è esattamente il
+    contrario — questa PUÒ essere la primissima volta che l'host vede
+    questo personaggio. La verifica di proprietà si fa quindi sul
+    `payload` esportato (`owner_device_id`), non su una riga DB esistente.
+
+    Riusa `character_export.import_replica_character()` — lo stesso
+    modulo, collaudato, già usato per la semina iniziale
+    (`core/world_sync.py::_finalize_join()`) e per ogni rimaterializzazione
+    successiva (`_resync_character_from_host()`): nessuna logica di
+    scrittura delle 12 tabelle figlio duplicata qui.
+    """
+    export_data = ctx.payload.get("export")
+    if not isinstance(export_data, dict):
+        return CommandResult(False, "Dati del personaggio mancanti o malformati.")
+
+    err = character_export.validate_export_data(export_data)
+    if err:
+        return CommandResult(False, f"Dati del personaggio non validi: {err}")
+
+    char_row = export_data.get("character", {})
+    character_id = str(char_row.get("id") or "")
+    if not character_id:
+        return CommandResult(False, "Id del personaggio mancante nell'export.")
+    if character_id != ctx.target_id:
+        return CommandResult(False, "Id del personaggio non corrisponde al bersaglio del comando.")
+    if str(char_row.get("world_id") or "") != ctx.world_id:
+        return CommandResult(False, "Il personaggio esportato non appartiene a questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, str(char_row.get("owner_device_id") or "")):
+        return CommandResult(
+            False, "Puoi registrare sull'host solo un'istanza di cui sei il proprietario.",
+        )
+
+    result_id = character_export.import_replica_character(
+        export_data, character_id, world_seq=0,
+    )
+    if result_id is None:
+        return CommandResult(False, "Scrittura dell'istanza sull'host fallita.")
+
+    character_name = str(char_row.get("name") or "un personaggio")
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CHARACTER_INSTANCE_SYNC, target_type="character", target_id=character_id,
+        summary=f"{ctx.actor_name} ha aggiunto «{character_name}» al mondo.",
+        payload=json.dumps({"character_id": character_id, "name": character_name}),
     )
     return CommandResult(True, event=event)
 

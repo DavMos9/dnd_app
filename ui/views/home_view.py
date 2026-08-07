@@ -13,6 +13,9 @@ from data.database import get_character_exports_path, get_web_export_staging_pat
 from data.models import Character, World
 from data.repositories import character_repo, character_export, world_repo
 from core import character_instances as ci
+from core import world_permissions as perm
+from core import world_sync
+from core.world_backend import LocalBackend
 from ui.character_transfer import show_character_import_picker
 from ui.device_identity import resolve_device_id
 from ui.mobile_webview_picker import pick_file_via_webview
@@ -90,6 +93,15 @@ class HomeView(ft.Column):
         # mondo): mai bloccare l'apertura della Home in attesa della rete/
         # del servizio di storage.
         self.device_id: str | None = None
+
+        # NOTA: il timer anti-spam di `_push_instance_to_host()` NON vive
+        # come attributo di istanza qui (stesso bug/fix di `WorldsView`,
+        # 2026-08-07: `HomeView` viene ricreata ad ogni navigazione/cambio
+        # tema in `ui/app.py`) — vive a livello di modulo in
+        # `core.world_sync` (`instance_push_cooldown_remaining`/
+        # `mark_instance_push`), richiamato direttamente da
+        # `_push_instance_to_host` più sotto.
+
         self._build()
         self.refresh()
         # Il polling parte in did_mount(), non qui: serve `self.page` per sapere
@@ -587,6 +599,7 @@ class HomeView(ft.Column):
             if not result.success:
                 self._show_error(result.error or "Impossibile aggiungere il personaggio al mondo.")
                 return
+            self._push_instance_to_host(world_id, result.character_id)
             self.on_select(result.character_id)
 
         dlg = ft.AlertDialog(
@@ -613,6 +626,96 @@ class HomeView(ft.Column):
             ]),
         )
         self.page.show_dialog(dlg)
+
+    def _push_instance_to_host(self, world_id: str, character_id: str) -> None:
+        """
+        Fix 2026-08-07 — bug segnalato da Davide: "il player può far unire
+        il personaggio al mondo... ma il master non vede il personaggio
+        che si è unito al mondo". Causa: `ci.create_or_resume_instance()`
+        (Multiplayer passo 3, 2026-08-05, prima che esistesse la rete)
+        scrive SOLO sul DB di QUESTO dispositivo. Se questo dispositivo
+        ospita il mondo va bene — quella riga È già lo stato autoritativo —
+        ma se è un dispositivo che si è solo unito in LAN, l'host non
+        veniva mai informato: la Sezione Master (che legge dal DB
+        dell'host) risultava vuota anche a ingresso riuscito.
+
+        Qui si invia esplicitamente l'export integrale dell'istanza appena
+        creata come comando `character_instance.sync`
+        (`core/world_backend.py::_handle_character_instance_sync`), così
+        l'host la scrive sulla propria copia autoritativa.
+
+        Se il push fallisce (host momentaneamente irraggiungibile), il
+        personaggio resta comunque creato in locale — non blocchiamo mai
+        un'azione già riuscita per un problema di rete — ma lo segnaliamo
+        con un avviso non bloccante: a differenza degli altri comandi,
+        questo non viene ritentato automaticamente dal thread di
+        sincronizzazione in background di `WorldsView` (che sincronizza
+        eventi in arrivo, non comandi falliti in uscita), quindi l'utente
+        deve saperlo per poter riprovare (riaprendo questo stesso dialogo,
+        che sovrascrive senza creare un duplicato: stesso `character_id`).
+        """
+        if self.device_id is None:
+            logger.warning(
+                "Registrazione istanza %s rifiutata: identità del dispositivo assente.",
+                character_id,
+            )
+            return
+
+        world = world_repo.get_world(world_id)
+        if world is None or world.is_local_host:
+            return  # Questo dispositivo ospita il mondo: nessun push necessario.
+
+        # Anti-spam (fix 2026-08-07, richiesta di Davide: "tutte le
+        # richieste online da sincronizzare" — questo comando è
+        # letteralmente chiamato "sync"): stesso timer di 10s condiviso con
+        # i tentativi di ingresso in WorldsView (`core.world_sync`), stato
+        # indipendente perché questa è un'altra view. Il personaggio resta
+        # comunque creato in locale: bloccare solo il PUSH, mai la
+        # creazione già avvenuta.
+        remaining = world_sync.instance_push_cooldown_remaining()
+        if remaining > 0:
+            self._show_error(
+                f"Personaggio creato. La registrazione sull'host partirà tra "
+                f"{int(remaining) + 1} secondi (troppe richieste di rete ravvicinate) "
+                f"— riapri \"Aggiungi a un mondo\" tra poco se non compare subito."
+            )
+            return
+        world_sync.mark_instance_push()
+
+        backend = world_sync.resolve_backend_for_world(
+            world, self.device_id or "", LocalBackend(), {},
+        )
+        if backend is None:
+            logger.warning(
+                "Registrazione istanza %s sull'host del mondo %s non riuscita: "
+                "backend non risolvibile (host irraggiungibile o sessione scaduta).",
+                character_id, world_id,
+            )
+            self._show_error(
+                "Personaggio creato, ma non è stato possibile registrarlo subito "
+                "sull'host — il master potrebbe non vederlo finché non riprovi "
+                "(riapri \"Aggiungi a un mondo\" su questo personaggio)."
+            )
+            return
+
+        export_data = character_export.export_character(character_id)
+        if export_data is None:
+            logger.error("Export fallito per l'istanza %s appena creata.", character_id)
+            return
+
+        result = backend.send_command(
+            world_id, self.device_id, perm.CMD_CHARACTER_INSTANCE_SYNC,
+            {"export": export_data}, target_type="character", target_id=character_id,
+        )
+        if not result.success:
+            logger.warning(
+                "Registrazione istanza %s sull'host del mondo %s rifiutata: %s",
+                character_id, world_id, result.error,
+            )
+            self._show_error(
+                f"Personaggio creato, ma la registrazione sull'host è fallita: "
+                f"{result.error or 'errore sconosciuto'}"
+            )
 
     def _open_refresh_dialog(self, instance: Character):
         p = d.T()

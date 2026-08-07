@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from core import world_permissions as perm
 from core.world_backend import LocalBackend
 from data.repositories import character_repo, world_repo
 from data.repositories import character_export
@@ -240,6 +241,25 @@ class WorldHostServer:
         self._lock = threading.Lock()
         self._tokens: dict[str, str] = {}          # token -> device_id
         self._pending: dict[str, PendingJoinRequest] = {}
+        #: Anti-spam su `/join` (fix 2026-08-07, completamento della difesa
+        #: in profondità lasciata in sospeso quando `LocalBackend.
+        #: send_command()` ha ricevuto lo stesso trattamento per `/command`:
+        #: senza questo, nulla impediva di martellare `/join` per tentare
+        #: PIN diversi in rapida successione — il PIN a 6 cifre (§9.4) è
+        #: l'UNICA barriera per un dispositivo non ancora membro, quindi è
+        #: proprio lì che un limite serve di più. A differenza dei
+        #: `_host_cooldowns` di `core.world_backend` (stato di MODULO, un
+        #: solo host per processo lato app) questo è stato di ISTANZA: un
+        #: `WorldHostServer` vive quanto UNA sessione di hosting, e
+        #: `stop()` lo azzera già esplicitamente insieme a token/pending —
+        #: un nuovo `start()` è comunque una nuova sessione con PIN nuovo,
+        #: niente da preservare tra l'una e l'altra. Chiave: `device_id`
+        #: (10s, `perm.NETWORK_REQUEST_COOLDOWN_S`, stesso valore già usato
+        #: lato client per "tutte le richieste di rete semplici" —
+        #: coerente, anche se qui è un tracciato indipendente: un client
+        #: che passa da qui non ha ancora un token, non può condividere
+        #: stato con `LocalBackend`).
+        self._join_attempts: dict[str, float] = {}
 
     # ------------------------------------------------------------------
     # Ciclo di vita
@@ -313,6 +333,7 @@ class WorldHostServer:
         with self._lock:
             self._tokens.clear()
             self._pending.clear()
+            self._join_attempts.clear()
         self.pin = ""
         self._port = None
         logger.info("WorldHostServer fermato per il mondo %s", self.world_id)
@@ -380,6 +401,10 @@ class WorldHostServer:
 
         if not device_id:
             return 400, {"error": "device_id mancante."}
+
+        rate_limit_error = self._check_join_rate_limit(device_id)
+        if rate_limit_error is not None:
+            return 429, {"error": rate_limit_error}
 
         world = world_repo.get_world(self.world_id)
         if world is None:
@@ -540,6 +565,47 @@ class WorldHostServer:
             self._tokens.pop(token, None)
         world_repo.set_member_connected(self.world_id, device_id, False)
         return 200, {"ok": True}
+
+    # ------------------------------------------------------------------
+    # Anti-spam su /join — vedi il commento su `self._join_attempts` in
+    # `__init__` per il motivo e le scelte di design.
+    # ------------------------------------------------------------------
+
+    def _check_join_rate_limit(self, device_id: str) -> str | None:
+        """Ritorna un messaggio d'errore (pronto per il body della
+        risposta HTTP) se `device_id` ha già tentato un ingresso negli
+        ultimi `NETWORK_REQUEST_COOLDOWN_S` secondi, `None` se può
+        procedere — nel qual caso l'istante viene registrato SUBITO, prima
+        ancora di validare codice/PIN (stessa policy già in uso altrove:
+        anche un tentativo respinto per credenziali errate ha già generato
+        traffico, e proprio i tentativi con PIN sbagliato sono quelli da
+        limitare di più)."""
+        with self._lock:
+            remaining = perm.cooldown_remaining(
+                self._join_attempts.get(device_id, 0.0), perm.NETWORK_REQUEST_COOLDOWN_S,
+            )
+            if remaining > 0:
+                return (
+                    f"Troppi tentativi di ingresso ravvicinati — "
+                    f"aspetta {int(remaining) + 1} secondi."
+                )
+            self._join_attempts[device_id] = time.monotonic()
+        return None
+
+    def reset_join_rate_limit_for_tests(self) -> None:
+        """SOLO per i test — vedi `core.world_sync.reset_client_cooldowns_
+        for_tests()`/`core.world_backend.reset_host_cooldowns_for_tests()`
+        per lo stesso principio. Mai chiamato da codice applicativo: qui,
+        a differenza di quei due (stato di MODULO), lo stato è già di
+        ISTANZA — un test che vuole isolamento vero crea semplicemente un
+        nuovo `WorldHostServer` per ogni batteria; questo helper serve
+        solo a un test che deve inviare più tentativi ravvicinati DELLO
+        STESSO device_id allo STESSO host per verificare aspetti diversi
+        del comportamento (es. codice errato, poi PIN errato, poi
+        successo), senza che il primo esaurisca il cancello anti-spam per
+        i successivi."""
+        with self._lock:
+            self._join_attempts.clear()
 
     # ------------------------------------------------------------------
     # Token

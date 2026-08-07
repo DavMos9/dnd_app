@@ -7009,6 +7009,443 @@ verifica che nessun test automatico di questo sandbox può dare.
 
 ---
 
+## 2026-08-07 (sessione successiva) — 4 bug reali dal primo vero test su Wi-Fi di Davide
+
+Davide ha testato il passo 5/6 su due dispositivi fisici reali per la prima
+volta ("riesco a scannerizzare gli host attivi, riesco a entrare con QR
+code, riesco ad unirmi ad un mondo") e ha segnalato 4 problemi in un solo
+messaggio. Tutti e 4 confermati e corretti in questa sessione.
+
+**1. "Le richieste e le accettazioni non escono in automatico, ma bisogna
+premere il pulsante di refresh."** Causa reale: il thread di sync in
+background introdotto nella sessione precedente (`_detail_sync_loop`)
+chiamava `self._render()` + `self.page.update()` **direttamente da un
+thread `threading.Thread` qualunque** — copiato dal pattern già in uso in
+`home_view.py::_poll_loop`, ma quel pattern è scoperto esplicitamente per
+il SOLO caso web multi-sessione (`page.web`), mai per desktop/mobile.
+Verificato leggendo il sorgente di Flet (`flet/controls/page.py`,
+`flet/messaging/session.py`): `Page.run_task(handler, *args, **kwargs)` è
+l'UNICA via ufficialmente thread-safe per programmare lavoro sulla UI da
+un thread che non è quello del proprio event loop — usa internamente
+`asyncio.run_coroutine_threadsafe(handler(...), self.session.connection.loop)`.
+Una chiamata diretta a `page.update()` da un thread arbitrario "sembra"
+funzionare nella build via socket di questo sandbox ma non è garantita sul
+bridge Dart reale di un'app nativa — coerente col sintomo di Davide
+(nessun errore, semplicemente "non succede niente" finché non si forza un
+redraw sincrono col refresh manuale). **Fix**: `_maybe_redraw_detail()`
+ora chiama solo `page.run_task(self._async_redraw_detail, world_id)`
+invece di ridisegnare da sé; `_async_redraw_detail()` (nuova coroutine)
+fa il controllo "sono ancora sulla scheda di questo mondo?" e ridisegna
+dentro l'event loop di Flet, l'unico posto sicuro.
+
+**2. "Non voglio permettere all'utente di spammare richieste, quindi
+mettere un timer di 10 secondi alla richiesta successiva."** Chiarito lo
+scope con una domanda: "Tutte le azioni di 'Interviene a distanza'" — PE,
+danno, cura, condizione, abilità, incantesimo bonus, diario, proponi
+modifica, TUTTE funnelate già da `_send_remote_command()` (punto unico,
+verificato leggendo ogni `_open_*_dialog` di quella sezione: nessuna
+scorciatoia che bypassa quel metodo). Aggiunto `_REMOTE_ACTION_COOLDOWN_S
+= 10.0` e `self._last_remote_action_at` (`time.monotonic()`, non
+`datetime.now()`: insensibile a un eventuale cambio dell'orologio di
+sistema durante la sessione) — un solo timer globale sulla sezione, non
+uno per tipo di azione né per personaggio, coerente con la risposta di
+Davide. L'istante si registra SUBITO all'invio, PRIMA di conoscere
+l'esito: anche un comando fallito ha già generato traffico verso l'host,
+quindi non è aggirabile martellando durante un errore. Deliberatamente
+NON applicato a `_send_command()` in generale (rinomina mondo, gestione
+membri, risposta del giocatore a una richiesta di modifica): fuori dallo
+scope indicato da Davide.
+
+**3. "Mettere obbligatorio il nome prima di entrare in un mondo."** Prima,
+sia "Unisciti a un mondo" (`_open_join_dialog`, caso web multi-sessione)
+sia "Unisciti in LAN" (`_open_lan_join_dialog`, incluso l'ingresso via
+QR — `_on_qr_scanned` richiama la stessa `_attempt()`) facevano cadere un
+nome vuoto su `"Giocatore"` in silenzio: nel Registro/Sezione Master
+diventava impossibile distinguere due giocatori entrambi senza nome.
+Aggiunta una validazione esplicita in entrambi i punti (stesso stile già
+in uso per "Il nome del mondo è obbligatorio" nella creazione di un
+mondo): campo vuoto → `_show_error`/messaggio nel dialogo, nessun ripiego
+silenzioso. La creazione di un mondo (`_open_create_dialog`, dove sei tu
+l'owner) resta con il ripiego `"Master"` — fuori scope, Davide ha parlato
+di "entrare", non di "creare".
+
+**4. "Una volta entrato il player può far unire il personaggio al mondo...
+ma il master non vede il personaggio... nella Sezione Master... non gli
+esce il personaggio giocante."** Il bug più importante dei 4 — causa
+architetturale, non un dettaglio di UI: `core/character_instances.py::
+create_or_resume_instance()` è nata al passo 3 (2026-08-05), **prima che
+esistesse la rete** — scrive SOLO sul DB del dispositivo che la chiama. Su
+un dispositivo che ha solo una REPLICA del mondo (join in LAN, non lo
+ospita), la riga `characters` restava solo lì: l'host — il DB che la
+Sezione Master legge davvero — non ne sapeva nulla. Nessuna regressione
+di questa sessione: il gap era dichiarato onestamente nel commento
+originale di quella funzione ("Nessuna rete in questo passo"), mai
+richiuso quando è arrivata la rete al passo 4.
+
+**Fix**: nuovo comando `character_instance.sync`
+(`core/world_permissions.py::CMD_CHARACTER_INSTANCE_SYNC`, ruolo minimo
+`player`, aggiunto anche a `CHARACTER_MUTATING_COMMANDS` così un TERZO
+dispositivo — es. un co-master su un telefono diverso dall'host — lo
+rimaterializza automaticamente tramite il meccanismo già esistente
+`core.world_sync._resync_character_from_host()`, nessuna logica nuova lì).
+Handler `core/world_backend.py::_handle_character_instance_sync`: a
+differenza di ogni altro handler della sezione "Interventi del master",
+qui NON si passa da `_resolve_world_character()` (presuppone che l'host
+conosca già il personaggio — qui può essere la primissima volta), la
+proprietà si verifica sul payload esportato (`owner_device_id`) contro
+l'autore del comando; riusa `character_export.import_replica_character()`
+— stesso modulo già collaudato per la semina iniziale e per ogni
+rimaterializzazione via eventi, nessuna logica di scrittura delle 12
+tabelle figlio duplicata. Lato chiamante:
+`ui/views/home_view.py::HomeView._push_instance_to_host()`, richiamata
+subito dopo `create_or_resume_instance()` in `_open_add_to_world_dialog`:
+se il dispositivo ospita già il mondo non fa nulla (la riga è già
+autoritativa); altrimenti risolve il backend giusto ed invia l'export
+integrale appena creato. Un fallimento del push (host momentaneamente
+irraggiungibile) non annulla la creazione locale già riuscita — mostra un
+avviso non bloccante invece di un errore duro, l'utente vede comunque il
+proprio personaggio.
+
+**Refactor collaterale, non richiesto ma necessario**: la logica di
+`WorldsView._backend_for()` (risolvi `LocalBackend` se ospiti tu, altrimenti
+un `RemoteBackend` via `session_token`) serviva identica anche a
+`HomeView` per il push — estratta in
+`core/world_sync.py::resolve_backend_for_world()` invece di duplicarla
+(stesso principio già seguito nel resto del progetto: un solo punto di
+verità). `WorldsView._backend_for()` è ora un sottile adattatore su quella
+funzione condivisa.
+
+**Nota sullo scope, da comunicare esplicitamente**: il fix del punto 4
+copre SOLO la registrazione iniziale (creazione/ripresa di un'istanza).
+NON risolve la sincronizzazione bidirezionale continua delle modifiche
+successive fatte in locale da un giocatore (level-up, equipaggiamento,
+ecc.) verso l'host — quella resta il passo 7 "Condivisione"/«aggiorna il
+mio foglio» del piano (`multiplayer_design.md` §13), non ancora iniziato,
+volutamente non ampliato in questa sessione senza che Davide lo chiedesse.
+
+**Test.** Tre nuovi file, nessuna regressione nelle suite esistenti:
+- `test_character_instance_sync.py` (13/13) — con un vero `WorldHostServer`
+  su socket reale: riproduce il bug (istanza creata su un client LAN non
+  esiste sull'host finché non viene inviata), verifica che
+  `HomeView._push_instance_to_host()` la registri DAVVERO sul DB che
+  l'host userebbe per rispondere alla Sezione Master, fail-closed su
+  proprietario sbagliato e su mondo sbagliato, nessun push quando il
+  dispositivo ospita già il mondo.
+- `test_cooldown_azioni_remote.py` (13/13) — la primissima azione non è
+  mai bloccata, una seconda entro 10s viene rifiutata SENZA toccare il
+  personaggio, il timer si aggiorna anche su un comando fallito, l'azione
+  successiva riesce di nuovo dopo la finestra, `_send_command()` generico
+  non è soggetto al timer.
+- Validazione nome obbligatorio verificata manualmente (nessun test
+  automatico dedicato: stessa natura di ogni altro controllo `_show_error`
+  su un campo vuoto già presente in questa view, coperti collettivamente
+  dal fatto che l'intera suite `test_mondo_senza_rete.py` continua a
+  costruire/renderizzare la view senza eccezioni).
+
+Nessuna regressione: `test_mondo_senza_rete.py` 151/151,
+`test_master_remote_actions.py` 81/81, `test_world_view_remote_routing.py`
+16/16, `test_master_world_scoping.py` 25/25,
+`test_regressione_wrap_expand.py` 85/85, `test_istanze_personaggio.py`
+62/62, `test_lan_host_client.py` 92/92. Stessi due fallimenti preesistenti
+e indipendenti da questa sessione (`test_fase_4.py`: nota sui dati degli
+artefatti DMG, `test_qr_scan.py`: `pyzbar` non installato in questo
+sandbox) — invariati rispetto a prima di questa sessione, non causati né
+toccati da nessuno di questi 4 fix.
+
+⚠️ **Resta da verificare da Davide su Wi-Fi reale**: proprio i 4 punti
+sopra, in particolare il punto 1 (l'aggiornamento live funziona davvero
+sul bridge Dart nativo, non solo nella logica testata qui?) e il punto 4
+(il personaggio del giocatore compare davvero nella Sezione Master
+dell'altro dispositivo?) — nessun test di questo sandbox può sostituire
+quella prova, per lo stesso motivo già dichiarato per ogni sessione
+precedente di questo modulo (§15 del design doc, DB separati non
+simulabili in modo affidabile qui).
+
+---
+
+## 2026-08-07 (sessione successiva) — Timer anti-spam differenziati: 3s per il master, 10s per ingresso/sincronizzazione
+
+Messaggio di Davide subito dopo il fix precedente: "il timer anti spam
+intendo che deve essere attivo su tutte le richieste anche quelle per
+cercare di unirsi, e tutte le richieste online da sincronizzare, per il
+master facciamo un timer di 3 secondi meno stringente". Due correzioni
+rispetto alla sessione precedente:
+
+1. **Il timer di "Interviene a distanza" scende da 10s a 3s** (Davide:
+   "meno stringente") — un master che gestisce un combattimento reale
+   agisce più di frequente di un giocatore che tenta di entrare in un
+   mondo, quindi merita un limite più permissivo. Rinominata la costante
+   `_REMOTE_ACTION_COOLDOWN_S` → `_MASTER_ACTION_COOLDOWN_S = 3.0` in
+   `ui/views/world/world_view.py` per chiarezza (il nome vecchio non
+   distingueva più questo timer dal nuovo, introdotto nello stesso commit).
+
+2. **Nuovo timer separato di 10s su "tutte le richieste anche quelle per
+   cercare di unirsi, e tutte le richieste online da sincronizzare"**:
+   - `_open_join_dialog._join` (ingresso per codice — anche nel caso web
+     multi-sessione, stesso DB);
+   - `_open_lan_join_dialog._attempt` (ingresso in LAN — richiamato anche
+     da `_on_qr_scanned` dopo una scansione QR riuscita, stesso cancello
+     quindi protegge anche quel percorso);
+   - `_open_lan_join_dialog._retry` (interroga `finish_pending_join()` per
+     sapere se il master ha approvato — letteralmente una "richiesta di
+     sincronizzazione" dello stato di un ingresso in sospeso);
+   - `ui/views/home_view.py::HomeView._push_instance_to_host()` (invia
+     l'export del personaggio appena creato — comando chiamato
+     letteralmente `character_instance.sync`).
+
+   Costante condivisa `core.world_sync.NETWORK_REQUEST_COOLDOWN_S = 10.0`
+   (non duplicata in ogni file: stesso principio già seguito con
+   `resolve_backend_for_world()` nella sessione precedente) + funzione
+   pura `core.world_sync.cooldown_remaining(last_at, cooldown_s) -> float`,
+   usata sia dal nuovo timer di rete sia (dopo il refactor) dal timer del
+   master — un solo modo di calcolare "quanto manca", non due copie della
+   stessa aritmetica `time.monotonic() - last_at`.
+
+   Stato: **due tracciati indipendenti**, non uno condiviso con quello del
+   master. Su `WorldsView`, `_join`/`_attempt`/`_retry` condividono LO
+   STESSO `self._last_network_request_at` (un tentativo di ingresso per
+   codice blocca per 10s anche un tentativo in LAN subito dopo, e
+   viceversa — "tutte le richieste", non una lista di eccezioni). Su
+   `HomeView`, `_push_instance_to_host()` ha il proprio
+   `self._last_instance_push_at`, separato: sono due classi/istanze
+   diverse con cicli di vita diversi, non ha senso che l'una blocchi
+   l'altra.
+
+   **Deliberatamente escluso**: "Cerca reti nelle vicinanze"
+   (`_search_nearby`, `network/discovery.py::discover_worlds()` — un
+   broadcast UDP locale, non una richiesta autenticata verso un host
+   specifico). Motivo: condividere lo stesso timer di `_attempt` avrebbe
+   rotto il flusso normale "cerco una rete → clicco Usa → Entra", che
+   capita quasi sempre a pochi secondi di distanza — non è lo scenario di
+   spam che Davide vuole prevenire. Se in futuro serve un limite anche
+   lì, va aggiunto come categoria a sé (terzo tracciato indipendente), non
+   riusando questo. Decisione presa senza chiedere conferma esplicita a
+   Davide (il messaggio nominava solo "ingresso" e "sincronizzazione"),
+   segnalata qui e nella risposta in chat per poter essere corretta se non
+   è quello che intendeva.
+
+   **Stessa policy del timer del master**: l'istante si registra SUBITO
+   all'invio, prima di conoscere l'esito — anche un tentativo fallito ha
+   già generato traffico verso l'host, non è aggirabile martellando
+   durante un errore.
+
+**Test.** `test_cooldown_azioni_remote.py` riscritto (22/22, era 13/13):
+verifica sia il timer del master a 3s (stesso comportamento di prima, solo
+il valore è cambiato) sia il nuovo timer di rete a 10s — condiviso tra
+`_join`/`_attempt`/`_retry` sulla stessa `WorldsView`, stato indipendente
+su `HomeView`, e che `_push_instance_to_host()` REALE (non una replica
+della sua logica) si fermi davvero al cancello anti-spam prima di provare
+a risolvere un backend. Aggiornato anche `test_character_instance_sync.py`
+(13/13 invariato): le due istanze di `HomeView.__new__(HomeView)` lì
+dentro non passano da `__init__` (bypassato apposta per non aver bisogno
+di `ft.Page` in un test), quindi non avevano mai `_last_instance_push_at`
+— la nuova riga del cooldown lo leggeva e falliva con `AttributeError`
+finché non è stato inizializzato anche lì (bug del test, non del codice:
+`HomeView()` costruita normalmente altrove nella suite non ne risente).
+Nessuna regressione sulle suite esistenti: `test_mondo_senza_rete.py`
+151/151, `test_master_remote_actions.py` 81/81,
+`test_world_view_remote_routing.py` 16/16, `test_master_world_scoping.py`
+25/25, `test_regressione_wrap_expand.py` 85/85,
+`test_istanze_personaggio.py` 62/62, `test_lan_host_client.py` 92/92,
+`test_scoperta_lan.py` 25/25, `test_fase_d.py` 101/101. Stessi due
+fallimenti preesistenti e indipendenti (`test_fase_4.py`, `test_qr_scan.py`
+— vedi sopra).
+
+---
+
+## 2026-08-07 (sessione successiva) — Revisione dei timer anti-spam: stato di modulo, per-personaggio, difesa in profondità lato host, countdown visivo
+
+Davide, dopo il fix precedente: "a te come sembra questa gestione del
+timer? proponi qualche modifica?" — non una richiesta di funzionalità, un
+invito a un'autovalutazione. La rilettura del codice ha trovato un bug
+reale (non solo margini di miglioramento):
+
+**Bug trovato: lo stato del timer si azzerava ad ogni ricreazione della
+view.** `ui/app.py::_show_worlds_view()`/`_show_home()` costruiscono
+un'istanza NUOVA di `WorldsView`/`HomeView` a ogni navigazione E a ogni
+cambio tema (`_rebuild_route` passa da lì anche per quello) — i timer
+della sessione precedente (`self._last_remote_action_at`,
+`self._last_network_request_at`, `self._last_instance_push_at`) vivevano
+come attributi di ISTANZA, quindi si azzeravano ogni volta. Il limite era
+aggirabile semplicemente navigando avanti e indietro tra Home e Sezione
+Mondi, o cambiando tema — senza che l'utente dovesse nemmeno volerlo.
+
+Proposte tre modifiche a Davide via scelta multipla, tutte e tre accettate
+(opzioni consigliate):
+
+1. **"Sì, anche sull'host"** — difesa in profondità. Fino a questa
+   revisione il limite viveva SOLO lato client (`WorldsView`/`HomeView`):
+   un client modificato (o un bug futuro in un punto della UI che non
+   passa da questi metodi) poteva aggirarlo del tutto. Ora
+   `core.world_backend.LocalBackend.send_command()` — il choke point
+   unico sia per un comando locale sia per uno arrivato via rete su un
+   mondo ospitato da questo dispositivo — applica lo STESSO limite prima
+   di raggiungere l'handler: 3s per `MASTER_REMOTE_ACTION_COMMANDS` (per
+   `(actor_device_id, target_id)`), 10s per `CMD_CHARACTER_INSTANCE_SYNC`
+   (per `actor_device_id`). Deliberatamente NON esteso a
+   `network/host_server.py::WorldHostServer.handle_join()` in questa
+   sessione (avrebbe richiesto uno stato scoped per istanza del server e
+   la gestione di collisioni nei test che fanno più `handle_join()`
+   ravvicinati sullo stesso `device_id` in `test_lan_host_client.py`) —
+   la protezione lato host oggi copre l'endpoint `/command`, non ancora
+   `/join`. Segnalato esplicitamente: se serve anche lì, è lavoro a sé.
+
+2. **"Per personaggio"** — il timer del master (3s) non è più un
+   cronometro unico su tutta la sezione "Interviene a distanza": un'AoE
+   che colpisce 4 PG non costringe più il master ad aspettare 3s tra un
+   personaggio e l'altro. Chiave `character_id` lato client
+   (`dict[str, float]` in `core.world_sync`), `(actor_device_id,
+   target_id)` lato host (anche per-dispositivo: un co-master su un altro
+   telefono non condivide il limite col master principale).
+
+3. **"Sì, aggiungi il countdown"** — i pulsanti mostrano ora il tempo
+   rimanente e si disabilitano da soli, invece del solo messaggio
+   reattivo al click. Sulle pillole di "Interviene a distanza"
+   (`_remote_character_row` in `ui/views/world/world_view.py`): sfrutta
+   il thread di sincronizzazione in background già esistente (nessun
+   timer nuovo) tramite la nuova `_any_master_cooldown_active()`, che fa
+   scattare un ridisegno periodico finché almeno un personaggio visibile
+   è in cooldown. Sui pulsanti "Unisciti"/"Entra"/"Controlla di nuovo"
+   dei dialoghi di ingresso: nuovo ciclo `async`
+   (`_start_network_cooldown_ticker`/`_network_cooldown_ticker_loop`,
+   schedulato con `page.run_task()`, mai un `threading.Thread` — si è già
+   nel loop asyncio della sessione) che si ferma da solo quando il
+   cooldown scade o quando `page.update()` fallisce (dialogo chiuso) —
+   deliberatamente NON basato sulla lettura di `dlg.open` per rilevare la
+   chiusura del dialogo, perché `dnd_app/docs/regole_flet_api.md`
+   documenta che quel flag non è affidabile in questa versione di Flet
+   (le uniche API corrette sono `page.show_dialog()`/`page.pop_dialog()`).
+
+**Refactor architetturale conseguente.** Le costanti e l'aritmetica pura
+(`MASTER_ACTION_COOLDOWN_S`, `NETWORK_REQUEST_COOLDOWN_S`,
+`cooldown_remaining()`, il nuovo elenco chiuso
+`MASTER_REMOTE_ACTION_COMMANDS`) si sono spostate da `core.world_sync` a
+`core.world_permissions` — la base a dipendenza zero già condivisa da
+client e host, dato che ora servono a entrambi. Lo STATO resta separato
+per attore, ma non più per istanza di view: `core.world_sync` tiene lo
+stato lato client a livello di MODULO (`_ClientCooldownState`, un
+singolo dataclass di modulo, con helper `master_action_cooldown_remaining
+()`/`mark_master_action()`/`network_request_cooldown_remaining()`/
+`mark_network_request()`/`instance_push_cooldown_remaining()`/
+`mark_instance_push()` più gli equivalenti `rewind_*_for_tests()`/
+`reset_client_cooldowns_for_tests()` per i test); `core.world_backend`
+tiene lo stato lato host allo stesso modo (`_HostCooldownState`,
+`reset_host_cooldowns_for_tests()`, `rewind_host_master_action_for_tests()`
+/`rewind_host_instance_sync_for_tests()`). Uno stato di modulo (non di
+istanza) è esattamente ciò che serve a un guardrail "non permettere
+all'utente di spammare": sopravvive per tutta la durata del processo,
+non della singola view.
+
+**Test.** `test_cooldown_azioni_remote.py` riscritto da zero (43/43, era
+22/22): oltre alle verifiche già presenti (prima azione mai bloccata,
+seconda entro la finestra rifiutata, timer aggiornato anche su comando
+fallito, riapertura dopo la finestra, condivisione del timer di rete,
+`_send_command()` generico mai soggetto a limiti), nuova copertura per
+ciascuna delle tre scelte sopra: granularità per-personaggio (un'azione su
+un PG non blocca quella su un altro, ma una seconda sullo STESSO PG resta
+bloccata), stato che sopravvive alla ricreazione di `WorldsView`
+(riproduzione diretta del bug trovato — creata una prima istanza, marcato
+un cooldown, scartata l'istanza, creata una nuova istanza, verificato che
+il cooldown sia ancora attivo), rate limiting lato host verificato
+chiamando `LocalBackend.send_command()` due volte di seguito sullo stesso
+`(actor, target)`/`actor` e osservando il rifiuto reale (non solo
+l'assenza di collisioni con altri test), e `_any_master_cooldown_active()`
+(la funzione che decide se ridisegnare). Il countdown VISIVO sui pulsanti
+non ha un test automatico dedicato: è un ciclo `async` su un controllo
+Flet vivo, la sua unica logica è la stessa funzione di cooldown già
+verificata a fondo — costruire un test richiederebbe simulare l'intero
+event loop di Flet per una copertura marginale; verifica visiva su
+dispositivo reale a carico di Davide.
+
+Aggiunte due righe di helper mancanti scoperte scrivendo i test:
+`core.world_sync.rewind_instance_push_for_tests()` (mancava l'equivalente
+di `rewind_master_action_for_tests()`/`rewind_network_request_for_tests()`
+per il terzo tracciato, quello di `HomeView`). Corretti anche due bug nel
+test stesso durante la stesura (non nel codice applicativo): una
+transazione di scrittura tenuta aperta su una connessione condivisa tra
+tre inserimenti di personaggio causava "database is locked" (fix:
+connessione aperta e richiusa per ciascun personaggio, come già in
+`_make_world_with_instance`); e un valore atteso sbagliato per gli XP di
+partenza (900, il default della fixture, non 0).
+
+Nessuna regressione sulle suite esistenti (invariate, stessi risultati
+della sessione precedente): `test_mondo_senza_rete.py` 151/151,
+`test_master_remote_actions.py` 81/81 (isolato dal nuovo rate limiter
+host tramite un helper `_send()` che chiama
+`world_backend.reset_host_cooldowns_for_tests()` prima di ogni comando —
+quel file testa la correttezza degli handler, non l'anti-spam),
+`test_character_instance_sync.py` 13/13 (stesso isolamento in 3 punti di
+collisione trovati), `test_world_view_remote_routing.py` 16/16,
+`test_master_world_scoping.py` 25/25, `test_regressione_wrap_expand.py`
+85/85, `test_istanze_personaggio.py` 62/62, `test_lan_host_client.py`
+92/92, `test_scoperta_lan.py` 25/25, `test_fase_d.py` 101/101. Stessi due
+fallimenti preesistenti e indipendenti (`test_fase_4.py`, `test_qr_scan.py`
+— vedi sopra).
+
+---
+
+## 2026-08-07 (sessione successiva) — Rate limiting anche su /join: chiusa l'ultima lacuna della difesa in profondità
+
+Davide: "si completa il tutto poi buildo e testo il tutto" — chiude il
+punto lasciato esplicitamente aperto nella revisione precedente: il rate
+limiting lato host copriva solo `/command` (azioni del master,
+`character_instance.sync`), non `/join`. Senza questo, nulla impediva di
+martellare `/join` per tentare PIN diversi in rapida successione — il PIN
+a 6 cifre (§9.4) è l'UNICA barriera per un dispositivo non ancora membro,
+quindi è proprio lì che un limite serve di più.
+
+**Implementazione** (`network/host_server.py`): nuovo stato di ISTANZA
+`WorldHostServer._join_attempts: dict[device_id, float]` (a differenza dei
+`_host_cooldowns` di modulo in `core.world_backend`: un `WorldHostServer`
+vive quanto UNA sessione di hosting, `stop()` lo azzera già insieme a
+token/pending — un nuovo `start()` è comunque una nuova sessione con PIN
+nuovo). `_check_join_rate_limit(device_id)` applica lo stesso valore già
+in uso lato client per "tutte le richieste di rete semplici"
+(`perm.NETWORK_REQUEST_COOLDOWN_S`, 10s), chiamato in `handle_join()`
+subito dopo la validazione di `device_id` e PRIMA di verificare
+codice/PIN — l'istante si registra comunque, anche per un tentativo con
+PIN sbagliato: è la stessa policy già in uso ovunque in questa revisione
+("anche un tentativo fallito ha già generato traffico, non è aggirabile
+martellando durante un errore"), qui applicata al bersaglio più sensibile
+(indovinare un PIN a 6 cifre). Risposta HTTP 429 con messaggio pronto per
+la UI — `RemoteBackend.join()` lo tratta già come qualunque altro
+`status != 200` (nessuna modifica lato client necessaria: arriva a schermo
+come lo stesso tipo di errore di un codice/PIN sbagliato).
+
+Nuovo `reset_join_rate_limit_for_tests()` (istanza, non modulo — un test
+che vuole isolamento vero crea semplicemente un nuovo `WorldHostServer`;
+questo serve solo a un test che invia più tentativi ravvicinati dello
+STESSO device_id allo STESSO host per verificare esiti diversi).
+
+**Test.** Aggiornato `test_lan_host_client.py::test_network_protocol()`:
+i tre `client.join()` ravvicinati preesistenti (codice errato / PIN errato
+/ successo, stesso `device_id`) avrebbero collassato tutti sul nuovo
+cancello anti-spam dal secondo in poi — inserito
+`host.reset_join_rate_limit_for_tests()` tra un tentativo e l'altro, così
+ciascuno verifica ancora l'esito che gli compete, non il rate limiter.
+Nuova batteria dedicata `test_join_rate_limit()` (7 controlli): il primo
+tentativo non è mai bloccato; un secondo IMMEDIATO sullo stesso
+`device_id` viene rifiutato (429, messaggio con "ravvicinati"); un
+tentativo con PIN sbagliato consuma comunque il cancello (protezione
+anti-bruteforce, non solo sui tentativi validi); un `device_id` diverso
+non è mai toccato dal limite di un altro; `reset_join_rate_limit_for_tests
+()` lo riapre; `stop()`/`start()` non eredita alcun residuo dalla sessione
+precedente. `test_lan_host_client.py` passa da 92/92 a 99/99. Nessuna
+regressione sulle altre suite: `test_master_remote_actions.py` 81/81,
+`test_character_instance_sync.py` 13/13, `test_mondo_senza_rete.py`
+151/151, `test_istanze_personaggio.py` 62/62,
+`test_master_world_scoping.py` 25/25, `test_world_view_remote_routing.py`
+16/16, `test_cooldown_azioni_remote.py` 43/43, `test_scoperta_lan.py`
+25/25, `test_fase_d.py` 101/101.
+
+Con questo, la difesa in profondità lato host copre ORA entrambi gli
+endpoint autenticabili senza token (`/join`) e con token (`/command`) —
+nessuna lacuna nota rimasta aperta su questo fronte. Verifica su Wi-Fi
+reale (build + due dispositivi) a carico di Davide — vedi in chat l'elenco
+dei test manuali suggeriti.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
