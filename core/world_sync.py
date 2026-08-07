@@ -364,6 +364,7 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
         join_code=world_data.get("join_code", ""),
         is_local_host=False,
         last_seen_host=host_port,
+        session_token=backend.token or "",
         last_synced_seq=latest_seq,
     )
     if not world_repo.save_replica_world(world):

@@ -67,6 +67,7 @@ def _row_to_world(row) -> World:
         join_code=d.get("join_code", ""),
         is_local_host=bool(d.get("is_local_host", 0)),
         last_seen_host=d.get("last_seen_host", ""),
+        session_token=d.get("session_token", ""),
         last_synced_seq=d.get("last_synced_seq", 0),
         created_at=d.get("created_at", ""),
         updated_at=d.get("updated_at", ""),
@@ -584,12 +585,13 @@ def save_replica_world(world: World) -> bool:
             """
             INSERT OR REPLACE INTO worlds (
                 id, name, description, owner_device_id, join_code,
-                is_local_host, last_seen_host, last_synced_seq, created_at, updated_at
-            ) VALUES (?,?,?,?,?,0,?,?,?,?)
+                is_local_host, last_seen_host, session_token, last_synced_seq,
+                created_at, updated_at
+            ) VALUES (?,?,?,?,?,0,?,?,?,?,?)
             """,
             (world.id, _s(world.name), _s(world.description), _s(world.owner_device_id),
-             _s(world.join_code), _s(world.last_seen_host), int(world.last_synced_seq),
-             created_at, _now()),
+             _s(world.join_code), _s(world.last_seen_host), _s(world.session_token),
+             int(world.last_synced_seq), created_at, _now()),
         )
         conn.commit()
         conn.close()

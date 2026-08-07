@@ -786,6 +786,17 @@ def _handle_change_request_respond(ctx: HandlerContext) -> CommandResult:
             setattr(character, field_name, value)
         if not character_repo.update(character):
             return CommandResult(False, "Applicazione della modifica fallita.")
+        # Correttezza (2026-08-07): DES/COS/SAG entrano nella formula della CA
+        # senza armatura (Monaco: DES+SAG, Barbaro: DES+COS, Stregone
+        # Discendenza Draconica: DES) e DES anche con armatura leggera/media
+        # — esattamente come ogni altro punto dell'app che tocca queste
+        # caratteristiche richiama sempre `calculate_and_update_ca()` subito
+        # dopo (vedi profilo_tab.py, riga 1326 e 3968). Senza questa chiamata
+        # una richiesta di modifica accettata su una di queste tre
+        # caratteristiche lascerebbe la CA visualizzata non aggiornata finché
+        # qualcos'altro non la ricalcola.
+        if {"dex_score", "con_score", "wis_score"} & changes.keys():
+            character_repo.calculate_and_update_ca(character.id)
 
     new_status = "accepted" if accept else "rejected"
     if not world_repo.resolve_change_request(request_id, new_status):

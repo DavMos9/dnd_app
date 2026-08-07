@@ -726,6 +726,9 @@ class World:
     join_code: str = ""             # 6 caratteri, significativo solo sull'host
     is_local_host: bool = False     # True = il mondo autoritativo vive su QUESTO dispositivo
     last_seen_host: str = ""        # "192.168.1.7:8765" — per la riconnessione (passo 4)
+    session_token: str = ""         # token RemoteBackend (join()), solo lato replica — per
+                                     # ricostruire la connessione senza richiedere codice+PIN
+                                     # ad ogni apertura della sezione Mondi (fix 2026-08-07)
     last_synced_seq: int = 0        # ultimo world_events.seq applicato (solo lato replica)
     created_at: str = ""
     updated_at: str = ""

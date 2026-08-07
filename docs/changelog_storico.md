@@ -6779,6 +6779,236 @@ corretto di `flet_cli` 0.86.5 documentato nella voce precedente.
 
 ---
 
+## 2026-08-07 — Passo 6: la UI mancante (abilità/incantesimo bonus/diario/richiesta di modifica §7.1) + bug di correttezza trovato e corretto
+
+Davide ha confermato l'hosting LAN funzionante su rete reale e ha chiesto di
+proseguire con i prossimi passi. Come da "Piano di lavoro attivo" di
+`CLAUDE.md`, il pezzo rimasto aperto del passo 6 non era design né backend
+(handler e permessi già testati il 2026-08-06) ma solo la UI mancante in
+`ui/views/world/world_view.py`, sezione "Interviene a distanza" — costruita
+qui, senza ridiscutere `multiplayer_design.md` §7/§7.1.
+
+**Concedi abilità speciale / incantesimo bonus / voce di diario.** Tre nuove
+pill sulla riga di ogni personaggio (master/owner), ciascuna con un dialog
+dedicato che invia `custom_ability.grant`/`bonus_spell.grant`/
+`diary.add_entry` via `self.backend.send_command()` (mai una scrittura
+diretta). Il dialog dell'incantesimo bonus riusa esattamente il picker a due
+livelli (classe → `CardPicker` sugli incantesimi reali del JSON via
+`spell_card_options`) già in `spells_view.py::_open_add_bonus_spell_dialog`
+per il caso locale — stesso principio "mai un nome di incantesimo scritto a
+mano", qui applicato al caso remoto.
+
+**Proponi modifica (§7.1), lato master.** Nuova pill "Proponi modifica" →
+dialog con una riga per campo proponibile
+(`perm.CHANGE_REQUEST_ALLOWED_FIELDS`, iterato in un ordine esplicito e non
+sul `frozenset` direttamente — l'iterazione su un frozenset di stringhe non
+è stabile tra un avvio e l'altro per via dell'hash randomization di Python,
+avrebbe dato un ordine dei campi diverso ad ogni riavvio dell'app):
+caratteristiche e livello con un campo numerico, le 5 scelte di classe
+(stile di combattimento/totem/terreno/patto/discendenza draconica) con un
+Dropdown sulle opzioni PHB reali lette da `GameDataLoader` — e, come in
+`profilo_tab.py::_open_class_choices_edit`, una scelta di classe compare
+nel dialog solo se il personaggio la ha già fatta (non si propone di
+cambiare uno stile di combattimento mai scelto). Un checkbox per riga
+seleziona quali campi includere nella proposta; il master può proporre più
+campi in una sola richiesta. Motivazione obbligatoria (l'handler la
+richiede già, validata qui anche lato client per un errore immediato).
+Invia `change_request.propose`.
+
+**Richieste in sospeso, lato giocatore — il pezzo che mancava davvero.**
+Nessuna UI esisteva per `change_request.respond`: nuova sezione "Richieste
+in sospeso" in `_render_detail`, visibile a **qualsiasi** membro del mondo
+(non gated dietro `can_perform(..., CMD_XP_GRANT)` come le altre sezioni
+master, perché qui il ruolo minimo è `player` — chiunque deve poter
+rispondere sulla propria istanza). Filtra `world_repo.
+get_pending_change_requests(world.id)` sulle sole richieste il cui
+`character_id` appartiene a un personaggio con `owner_device_id ==
+self.device_id`: un filtro di presentazione, non di sicurezza — l'unico
+controllo che conta resta `perm.is_character_owner()` dentro l'handler.
+Mostra motivazione e diff "campo: attuale → proposto" per ogni campo della
+richiesta, con due pill Accetta/Rifiuta che inviano
+`change_request.respond`. Soddisfa "se il giocatore è scollegato la trova
+al rientro" (design doc, §7.1): la sezione si ricostruisce da DB ad ogni
+apertura della Sezione Mondi, nessuno stato in memoria.
+
+**Bug di correttezza trovato costruendo questa UI, corretto in
+`core/world_backend.py`.** `_handle_change_request_respond` applicava
+caratteristiche come DES/COS/SAG con un semplice `setattr` + `character_repo
+.update()`, ma non richiamava mai `calculate_and_update_ca()` — a
+differenza di OGNI altro punto dell'app che tocca queste caratteristiche
+(`profilo_tab.py`, righe 1326 e 3968: cambiare stile di combattimento o
+scelte di classe ricalcola sempre la CA subito dopo). La CA dipende da DES
+sempre (10 + mod DES senza armatura, o con armatura leggera/media), e da
+COS/SAG per le Difese Senza Armatura di Barbaro/Monaco — quindi una
+richiesta di modifica accettata su una di queste tre caratteristiche
+lasciava la CA visualizzata stantia finché qualcos'altro non la
+ricalcolava (es. equipaggiare/disequipaggiare un'arma). Il bug esisteva già
+nell'handler del 2026-08-06 ma era invisibile: nessuna UI lo esercitava
+davvero prima d'ora, e l'unico test esistente (`test_change_request_
+propose_and_respond` in `test_master_remote_actions.py`) usa `str_score`,
+che non influenza la CA. Fix: se `changes` contiene `dex_score`,
+`con_score` o `wis_score`, richiama `character_repo.calculate_and_update_ca
+(character.id)` subito dopo l'update — stesso pattern già validato altrove,
+nessun rischio di regressione.
+
+**Test.** Nuovo `test_change_request_dex_recalculates_ca()` in
+`test_master_remote_actions.py` (world con personaggio DES 12 → CA di base
+11 verificata con `calculate_and_update_ca()` esplicito → proposta e
+accettazione di DES 12→18 → CA verificata a 14): la suite passa 81/81
+(era 75/75 prima di questa sessione). Nessuna regressione nelle suite
+correlate: `test_mondo_senza_rete.py` 151/151 (incluso [8], la
+costruzione/rendering di `WorldsView` con le nuove pill), `test_istanze_
+personaggio.py` 62/62, `test_lan_host_client.py` 92/92, `test_master_world_
+scoping.py` 25/25. Verificato anche l'import reale del modulo (`flet`
+installato ad hoc in questo sandbox, non presente di default) per
+escludere errori a runtime non rilevabili dalla sola analisi sintattica.
+
+⚠️ **Non verificabile da questo sandbox**: la resa visiva dei nuovi dialog
+(in particolare quello di "Proponi modifica", il più denso di controlli) su
+schermo piccolo/tema scuro — stesso tipo di verifica che solo Davide può
+fare su dispositivo reale, come già per il resto del restyle.
+
+Aggiornata la tabella del passo 6 in "Piano di lavoro attivo" di
+`CLAUDE.md`: passo 6 ora interamente chiuso (handler, permessi, UI, test).
+
+---
+
+## 2026-08-07 (sessione successiva) — Bug architetturale reale: WorldsView non parlava mai in rete dopo l'ingresso, più sincronizzazione automatica in background
+
+Davide ha confermato l'hosting su Wi-Fi reale e ha chiesto cosa testare di
+preciso. Rispondendo a quella domanda (non durante lo sviluppo della UI del
+passo 6) è emerso un bug pre-esistente serio, mai esercitato da nessun
+test: `ui/views/world/world_view.py::WorldsView` istanziava `self.backend =
+LocalBackend()` una volta in `__init__` e non lo cambiava MAI, nemmeno dopo
+che il dispositivo si univa a un mondo in LAN. Conseguenza: ogni comando
+inviato da un dispositivo che NON è l'host (rinomina mondo, gestione
+membri, e tutte le azioni di "Interviene a distanza" introdotte il
+2026-08-06/07: PE/danno/cura/condizioni/abilità/incantesimo/diario/
+richiesta di modifica) scriveva solo sulla replica locale di quel
+dispositivo — "riusciva" a schermo, nessun errore, ma non lasciava mai il
+dispositivo. Il `RemoteBackend` restituito da `world_sync.start_lan_join()`
+al termine dell'ingresso veniva usato solo per il minuto dell'handshake
+(`LanJoinResult.backend`), poi scartato — mai assegnato a `self.backend`.
+Verificato con `grep` che nessun test esistente istanzia `WorldsView` con
+un mondo `is_local_host=False`: il gap era invisibile a tutta la
+suite esistente.
+
+Un secondo gap collegato, trovato subito dopo: `core.world_sync.
+sync_replica()` — la funzione che scarica dall'host gli eventi nuovi e li
+applica alla replica — non era mai chiamata da nessuna parte nella UI, solo
+dai test. Anche sistemando l'invio dei comandi, un giocatore che si univa
+in LAN avrebbe visto solo l'istantanea del momento dell'ingresso: qualsiasi
+cosa il master avesse fatto dopo non sarebbe mai arrivata sul suo
+dispositivo senza un modo per "tirare giù" gli eventi nuovi.
+
+Davide ha scelto esplicitamente la sincronizzazione automatica in
+background invece di un pulsante manuale ("l'utente deve fare il meno
+possibile... la parte tecnica la deve gestire in automatico l'app"), sia
+per gli arrivi (richieste di modifica, concessioni del master) sia per le
+risposte del giocatore che il master deve vedere.
+
+**Persistenza del token di sessione.** `RemoteBackend.token` viveva solo in
+memoria, perso ad ogni chiusura/riapertura della sezione Mondi — nessun
+modo di ricostruire una connessione funzionante senza rifare l'intero
+ingresso con codice+PIN (che cambia ad ogni riavvio dell'hosting, §9.4).
+Nuova colonna `worlds.session_token` (`data/database.py`, sia nel
+`CREATE TABLE` per le installazioni nuove sia con `_add_column()`
+idempotente per quelle esistenti — significativa solo lato replica,
+`is_local_host=0`), nuovo campo `World.session_token` (`data/models.py`),
+letto/scritto in `data/repositories/world_repo.py`
+(`_row_to_world`/`save_replica_world`). `core/world_sync.py::_finalize_join`
+ora valorizza `session_token=backend.token` quando costruisce la replica
+locale del mondo — lo stesso identico punto che già scriveva
+`last_seen_host` per lo stesso scopo (riconnessione).
+
+**Routing dei comandi per mondo, non più fisso sulla view.** Nuovo
+`WorldsView._backend_for(world) -> WorldBackend | None`: `LocalBackend` se
+`world.is_local_host`, altrimenti un `RemoteBackend` riconnesso con
+`reconnect_with_token(world.session_token)` (mai una nuova `join()`
+automatica: richiederebbe codice+PIN, che l'app non può indovinare da
+sola — se il token non è più valido, l'host è stato riavviato e l'utente
+deve rientrare a mano da "Unisciti in LAN", come da §9.4, "mai un
+ritentativo automatico con credenziali scadute"). Cache per mondo
+(`self._remote_backends: dict[str, RemoteBackend]`), riusata finché
+`connection_state() == "connected"`. Nuovo `_send_command(world, kind,
+payload, ...)` sostituisce OGNI chiamata diretta a
+`self.backend.send_command(...)` nella view (7 punti: rinomina mondo,
+rigenera codice, promuovi/retrocedi/espelli membro, elimina mondo, e il
+punto condiviso da tutti i dialoghi di "Interviene a distanza" più
+"Richieste in sospeso" tramite gli helper già esistenti
+`_send_remote_command`/`_respond_change_request`).
+
+**Applicazione immediata del proprio comando.** Dopo un `_send_command`
+riuscito su un `RemoteBackend`, `_apply_own_remote_result()` richiama
+subito `world_sync.sync_replica()` mirata invece di aspettare il prossimo
+giro del thread in background — chi ha appena premuto un pulsante vede
+l'effetto senza ritardo percepibile, anche se il giro periodico lo
+riapplicherebbe comunque pochi istanti dopo (idempotente, nessun doppio
+effetto: stessa garanzia già di `sync_replica()`).
+
+**Sincronizzazione automatica in background.** Un thread per la scheda
+mondo aperta (`_start_detail_sync`/`_stop_detail_sync`/
+`_detail_sync_loop`, avviato in `_open_detail`, fermato in `_back_to_list`
+e `will_unmount`): lato client richiama `sync_replica()` ogni
+`_DETAIL_SYNC_INTERVAL_S` (2 s) — `RemoteBackend.fetch_events()` interroga
+apposta SENZA attesa lunga (`wait=0`, per scelta di design già presente
+prima di questa sessione: "la sincronizzazione periodica vera e propria
+decide essa stessa quanto aspettare"), quindi il ritmo lo impone questo
+ciclo; lato host non c'è nulla da scaricare (il DB locale È già lo stato
+autoritativo, aggiornato all'istante da ogni comando ricevuto, anche da un
+altro dispositivo) — solo una rilettura periodica per riflettere sullo
+schermo ciò che è già vero nel DB. In entrambi i casi ridisegna SOLO se una
+firma di stato calcolata da `_detail_signature_of()` (ultimo `seq` del
+giornale + membri + richieste di modifica in sospeso) è cambiata — stesso
+principio già in uso in `home_view.py::refresh(force=False)`, per non
+interrompere una digitazione in corso (es. nel campo "Nome del mondo") con
+un rebuild che la sostituirebbe di netto. `self._render_lock`
+(`threading.Lock`) protegge la mutazione di `self._body.controls`,
+condivisa tra il thread Flet e il thread di sync — stesso principio già in
+uso in `home_view.py::_refresh_lock`. Nessuna dipendenza nuova: solo
+`threading` di libreria standard, stesso pattern già in produzione per il
+polling web multi-sessione di `home_view.py`.
+
+**Codice morto rimosso**: `world_repo.update_session_token()`, scritta in
+un primo momento pensando a un caso — un `join()` che rientra con un token
+NUOVO — che in pratica non ha mai un chiamante automatico (l'unico punto
+che ottiene un token nuovo, `_finalize_join()`, lo persiste già per intero
+tramite `save_replica_world()`). Rimossa prima di lasciarla come codice
+morto mai richiamato.
+
+**Test.** Nuovo `test_world_view_remote_routing.py` (16/16) — con un vero
+`WorldHostServer` su socket reale (stesso pattern di
+`test_lan_host_client.py` parte [1], stessa limitazione dichiarata lì:
+un vero test a due database SEPARATI non è simulabile in modo affidabile
+in questo sandbox, `get_connection()` legge `Path.home()` ad ogni chiamata
+e un secondo HOME introdurrebbe una corsa reale col thread del server):
+verifica che `_backend_for()` risolva un `RemoteBackend` connesso per un
+mondo non ospitato e lo riusi dalla cache, che `_send_command()` applichi
+DAVVERO l'effetto sul DB che l'host usa (non su una copia locale) tramite
+un comando `xp.grant` inviato via socket reale, che un comando non
+autorizzato venga rifiutato dall'host stesso (non "riesca in locale"), che
+un token non valido o un host irraggiungibile facciano fallire
+`_backend_for()` in modo esplicito (mai un ritentativo automatico), che un
+mondo ospitato da questo dispositivo continui a usare `LocalBackend`, e che
+`_detail_signature_of()` cambi quando cambia davvero lo stato del mondo
+(nuovo membro, nuovo evento) e resti stabile altrimenti. Nessuna
+regressione nelle suite esistenti: `test_master_remote_actions.py` 81/81,
+`test_mondo_senza_rete.py` 151/151, `test_istanze_personaggio.py` 62/62,
+`test_lan_host_client.py` 92/92, `test_master_world_scoping.py` 25/25,
+`test_scoperta_lan.py` 25/25, `test_fase_d.py` 101/101,
+`test_regressione_wrap_expand.py` 85/85. Due fallimenti preesistenti in
+`test_qr_scan.py`/`test_fase_4.py`, indipendenti da questa sessione:
+dichiarano loro stessi di saltare la verifica reale perché i pacchetti
+`flet-camera`/`pyzbar`/`libzbar` non sono installati in questo sandbox.
+
+⚠️ **Resta da verificare solo su hardware reale** (due dispositivi fisici
+distinti, §15 del design doc): che il thread di sync in background non
+abbia un impatto percepibile sulla batteria/reattività dell'app su un
+telefono reale nell'arco di un'intera sessione di gioco — un tipo di
+verifica che nessun test automatico di questo sandbox può dare.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

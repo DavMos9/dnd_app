@@ -395,8 +395,52 @@ def test_change_request_propose_and_respond() -> None:
     check("rispondere due volte alla stessa richiesta viene rifiutato", not respond_again.success)
 
 
+def test_change_request_dex_recalculates_ca() -> None:
+    """
+    Fix di correttezza (2026-08-07, trovato costruendo la UI di questo
+    passo): la CA senza armatura dipende da DES (10 + mod DES; anche da COS
+    o SAG per Barbaro/Monaco) esattamente come in ogni altro punto
+    dell'app che tocca queste caratteristiche (vedi profilo_tab.py) — ma
+    `_handle_change_request_respond` applicava il nuovo `dex_score` senza
+    mai richiamare `calculate_and_update_ca()`. Senza questo test il gap
+    sarebbe rimasto invisibile: `test_change_request_propose_and_respond()`
+    sopra usa `str_score`, che non influenza la CA.
+    """
+    print("\n[2g] change_request.respond su dex_score ricalcola la CA")
+    world, instance = _make_world_with_instance()
+    backend = LocalBackend()
+
+    baseline_ac = character_repo.calculate_and_update_ca(instance.id)
+    check("CA di base coerente con DES 12, nessuna armatura (10 + mod +1)",
+          baseline_ac == 11)
+
+    proposal = backend.send_command(
+        world.id, "dev-owner", perm.CMD_CHANGE_REQUEST_PROPOSE,
+        {"changes": {"dex_score": 18},
+         "reason": "Cintura di Destrezza da Gigante delle Nuvole."},
+        target_type="character", target_id=instance.id,
+    )
+    check("change_request.propose su dex_score riuscito", proposal.success)
+    pending = world_repo.get_pending_change_requests(world.id)
+    check("la richiesta risulta in sospeso", len(pending) == 1)
+    if not pending:
+        return
+    request_id = pending[0].id
+
+    respond_ok = backend.send_command(
+        world.id, "dev-player", perm.CMD_CHANGE_REQUEST_RESPOND,
+        {"request_id": request_id, "accept": True},
+        target_type="character", target_id=instance.id,
+    )
+    check("change_request.respond riuscito", respond_ok.success)
+    updated = _reload(instance.id)
+    check("dex_score applicato", updated.dex_score == 18)
+    check("CA ricalcolata automaticamente dopo l'accettazione (10 + mod +4 = 14)",
+          updated.ac == 14)
+
+
 def test_cross_world_targeting_rejected() -> None:
-    print("\n[2g] fail-closed: un comando non può toccare un personaggio di un ALTRO mondo")
+    print("\n[2h] fail-closed: un comando non può toccare un personaggio di un ALTRO mondo")
     world_a, instance_a = _make_world_with_instance(owner_device="dev-owner-a",
                                                       player_device="dev-player-a", name="Personaggio A")
     world_b, _instance_b = _make_world_with_instance(owner_device="dev-owner-b",
@@ -462,6 +506,7 @@ def main() -> int:
     test_resources()
     test_custom_ability_and_bonus_spell_and_diary()
     test_change_request_propose_and_respond()
+    test_change_request_dex_recalculates_ca()
     test_cross_world_targeting_rejected()
     test_permissions()
 

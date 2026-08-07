@@ -425,6 +425,7 @@ CREATE TABLE IF NOT EXISTS worlds (
   join_code         TEXT DEFAULT '',   -- 6 caratteri, solo sull'host
   is_local_host     INTEGER DEFAULT 0, -- 1 = questo dispositivo ospita
   last_seen_host    TEXT DEFAULT '',   -- "192.168.1.7:8765", per riconnettersi
+  session_token     TEXT DEFAULT '',   -- token RemoteBackend, solo client (2026-08-07)
   last_synced_seq   INTEGER DEFAULT 0, -- ultimo evento applicato (solo client)
   created_at        TEXT NOT NULL,
   updated_at        TEXT NOT NULL

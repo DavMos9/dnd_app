@@ -11,24 +11,61 @@ nascosta in un menu, convenzione già stabilita nel progetto).
 
 from __future__ import annotations
 
+import json
 import logging
+import threading
 
 import flet as ft
 
+from config.settings import DRACONIDE_ANCESTRIES
 from core import world_permissions as perm
 from core import world_sync
-from core.world_backend import LocalBackend
+from core.world_backend import CommandResult, LocalBackend, RemoteBackend, WorldBackend
 from data.game_data.game_data_loader import GameDataLoader
-from data.models import Character, World, WorldEvent, WorldMember
+from data.models import Character, World, WorldChangeRequest, WorldEvent, WorldMember
 from data.repositories import character_repo, world_repo
 from network.host_server import PendingJoinRequest, WorldHostServer, local_ip_hint
 from network.qr_join import build_join_text, generate_qr_png_base64
 from ui.views.world.qr_scanner_view import QrScannerView, qr_scanner_supported
 from ui import design as d
 from ui.device_identity import resolve_device_id
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import (CardPicker, responsive_dialog_width, spell_card_options,
+                        wrap_dialog_actions)
 
 logger = logging.getLogger(__name__)
+
+#: Etichette in italiano dei campi proponibili in una richiesta di modifica
+#: (§7.1) — stesso elenco di `perm.CHANGE_REQUEST_ALLOWED_FIELDS`, qui solo
+#: la presentazione: `core/*.py` non deve mai contenere testo destinato alla
+#: UI (nessuna dipendenza inversa core -> ui).
+_CHANGE_REQUEST_FIELD_LABELS: dict[str, str] = {
+    "str_score": "Forza",
+    "dex_score": "Destrezza",
+    "con_score": "Costituzione",
+    "int_score": "Intelligenza",
+    "wis_score": "Saggezza",
+    "cha_score": "Carisma",
+    "level": "Livello",
+    "fighting_style": "Stile di Combattimento",
+    "totem_animal": "Animale Totem",
+    "land_terrain": "Terreno (Circolo della Terra)",
+    "pact_boon": "Dono del Patto",
+    "dragon_ancestry": "Discendenza Draconica",
+}
+
+#: Le 6 caratteristiche + livello si modificano con un numero; le 5 scelte
+#: di classe (il resto di `_CHANGE_REQUEST_FIELD_LABELS`) con un Dropdown
+#: sulle opzioni PHB reali (§ eleggibilità in `_change_request_field_choices`).
+_CHANGE_REQUEST_NUMERIC_FIELDS: frozenset[str] = frozenset({
+    "str_score", "dex_score", "con_score", "int_score", "wis_score", "cha_score", "level",
+})
+
+#: Intervallo del thread di sincronizzazione in background della scheda
+#: mondo aperta (2026-08-07) — stesso ordine di grandezza del polling già
+#: in uso in `home_view.py` (5s, caso web multi-sessione); qui un po' più
+#: stretto perché il caso d'uso (LAN, un tavolo di gioco) tollera un
+#: sovraccarico di rete più basso e beneficia di più reattività.
+_DETAIL_SYNC_INTERVAL_S = 2.0
 
 
 class WorldsView(ft.Column):
@@ -44,6 +81,10 @@ class WorldsView(ft.Column):
         self.on_toggle_theme = on_toggle_theme
         self.theme_preference = theme_preference
 
+        #: Backend "locale" — corretto SOLO per i mondi che QUESTO
+        #: dispositivo ospita (`world.is_local_host`); per un mondo a cui ci
+        #: si è uniti da remoto va risolto per-mondo con `_backend_for()`,
+        #: mai usato direttamente (fix 2026-08-07, vedi `_backend_for`).
         self.backend = LocalBackend()
         self.device_id: str | None = None
         self._current_world: World | None = None  # None = elenco, valorizzato = dettaglio
@@ -53,6 +94,24 @@ class WorldsView(ft.Column):
         #: ospitare lo stesso mondo"), qui applicato più semplicemente
         #: come "un solo hosting alla volta da questa sessione dell'app".
         self._host_server: WorldHostServer | None = None
+
+        #: Un `RemoteBackend` connesso per mondo non-ospitato, riusato tra
+        #: un'azione e l'altra invece di riconnettersi ad ogni comando
+        #: (2026-08-07, vedi `_backend_for`).
+        self._remote_backends: dict[str, RemoteBackend] = {}
+
+        #: Sincronizzazione in background della scheda mondo aperta
+        #: (2026-08-07, §9.2 "attesa lunga" lato client + rilettura locale
+        #: periodica lato host — vedi `_start_detail_sync`): nessuna azione
+        #: manuale dell'utente, l'app tira giù/rispecchia da sola gli eventi
+        #: nuovi finché la scheda di un mondo resta aperta.
+        self._detail_sync_thread: threading.Thread | None = None
+        self._detail_sync_stop = threading.Event()
+        self._detail_signature: str | None = None
+        #: Protegge la mutazione di `self._body.controls`, condivisa tra il
+        #: thread Flet (azioni utente) e il thread di sync in background —
+        #: stesso principio già in uso in `home_view.py::_refresh_lock`.
+        self._render_lock = threading.Lock()
 
         self._body = ft.Column(spacing=d.Space.MD, scroll=ft.ScrollMode.AUTO, expand=True)
         self._build_shell()
@@ -64,6 +123,7 @@ class WorldsView(ft.Column):
             page.run_task(self._init_identity)
 
     def will_unmount(self):
+        self._stop_detail_sync()
         # Il server si accende solo quando il master apre l'hosting e si
         # spegne alla chiusura (§9.4) — uscire dalla sezione Mondi senza
         # fermarlo esplicitamente non deve lasciare una porta aperta.
@@ -131,13 +191,20 @@ class WorldsView(ft.Column):
         )]
 
     def _render(self):
-        if self.device_id is None:
-            self._render_loading()
-            return
-        if self._current_world is None:
-            self._render_list()
-        else:
-            self._render_detail(self._current_world)
+        # Con lock: questo metodo muta `self._body.controls` ed è chiamato
+        # sia dal thread Flet (ogni azione utente) sia dal thread di sync in
+        # background (`_detail_sync_loop`) — senza serializzare le due
+        # scritture concorrenti su `self._body.controls` si rischierebbe una
+        # ricostruzione a metà, stesso principio già in uso in
+        # `home_view.py::_refresh_lock`.
+        with self._render_lock:
+            if self.device_id is None:
+                self._render_loading()
+                return
+            if self._current_world is None:
+                self._render_list()
+            else:
+                self._render_detail(self._current_world)
 
     # ------------------------------------------------------------------
     # Elenco mondi
@@ -208,6 +275,7 @@ class WorldsView(ft.Column):
     def _open_detail(self, world: World):
         self._current_world = world
         self._render()
+        self._start_detail_sync(world.id)
         try:
             self.page.update()
         except RuntimeError:
@@ -215,6 +283,7 @@ class WorldsView(ft.Column):
 
     def _back_to_list(self):
         self._current_world = None
+        self._stop_detail_sync()
         self._render()
         try:
             self.page.update()
@@ -252,6 +321,9 @@ class WorldsView(ft.Column):
             sections.append(self._rename_section(world))
 
         sections.append(self._join_code_section(world, is_owner))
+        pending_requests_section = self._pending_change_requests_section(world)
+        if pending_requests_section is not None:
+            sections.append(pending_requests_section)
         if is_owner and world.is_local_host:
             sections.append(self._hosting_section(world))
         if perm.can_perform(my_role, perm.CMD_XP_GRANT):
@@ -264,13 +336,110 @@ class WorldsView(ft.Column):
 
         self._body.controls = sections
 
+    # ------------------------------------------------------------------
+    # Routing dei comandi (§9.1) — fix 2026-08-07.
+    #
+    # Prima di questo fix `_send_command`/`_backend_for` non esistevano: OGNI
+    # dialog di questa view chiamava `self.backend.send_command(...)`
+    # direttamente, e `self.backend` era SEMPRE `LocalBackend()` (impostato
+    # una volta in `__init__`, mai più cambiato). Per l'host va bene (il suo
+    # DB locale È lo stato autoritativo), ma per un dispositivo che si è
+    # unito in LAN (`is_local_host=False`) significava scrivere SOLO sulla
+    # propria replica, senza mai raggiungere l'host — un comando "riusciva"
+    # a schermo (nessun errore) ma non lasciava mai quel dispositivo. Bug
+    # pre-esistente (dalla sessione del 2026-08-06, "Interventi del master a
+    # distanza"), mai esercitato da nessun test perché nessun test istanzia
+    # `WorldsView` con un mondo non ospitato — trovato SOLO rispondendo alla
+    # domanda "cosa devo testare col Wi-Fi" di Davide.
+    # ------------------------------------------------------------------
+
+    def _backend_for(self, world: World) -> WorldBackend | None:
+        """
+        Risolve il backend giusto per QUESTO mondo su QUESTO dispositivo:
+        `LocalBackend` se lo ospita, altrimenti un `RemoteBackend` connesso
+        all'host (§9.4: riusa `world.session_token`, mai richiede di nuovo
+        codice+PIN). Ritorna `None` se non è stato possibile stabilire una
+        connessione valida — il chiamante deve mostrare un errore chiaro,
+        mai fallire in silenzio.
+        """
+        if world.is_local_host:
+            return self.backend
+
+        cached = self._remote_backends.get(world.id)
+        if cached is not None and cached.connection_state() == "connected":
+            return cached
+
+        if not world.last_seen_host or not world.session_token:
+            return None
+        host, sep, port_text = world.last_seen_host.rpartition(":")
+        if not sep:
+            return None
+        try:
+            port = int(port_text)
+        except ValueError:
+            return None
+
+        remote = RemoteBackend(host, port, self.device_id or "", world_id=world.id)
+        if not remote.reconnect_with_token(world.session_token):
+            # Token non più valido (host riavviato: §9.4, nuovo PIN/token ad
+            # ogni apertura) o host irraggiungibile — mai un ritentativo
+            # automatico con credenziali scadute, l'utente deve rientrare
+            # da "Unisciti in LAN" con codice+PIN aggiornati.
+            self._remote_backends.pop(world.id, None)
+            return None
+        self._remote_backends[world.id] = remote
+        return remote
+
+    def _send_command(self, world: World, kind: str, payload: dict, *,
+                       target_type: str = "", target_id: str = "") -> CommandResult:
+        """Punto unico di invio comandi per QUALSIASI mondo — sostituisce
+        l'uso diretto di `self.backend.send_command(...)` in ogni dialog di
+        questa view. Se il comando viaggia su un `RemoteBackend` riuscito,
+        applica SUBITO l'evento di ritorno alla propria replica invece di
+        aspettare il prossimo giro della sincronizzazione in background
+        (`_apply_own_remote_result`): chi ha appena agito vede l'effetto
+        senza percepibile ritardo."""
+        assert self.device_id is not None
+        backend = self._backend_for(world)
+        if backend is None:
+            return CommandResult(
+                False,
+                "Non connesso all'host di questo mondo — apri \"Unisciti in "
+                "LAN\" per riconnetterti (il PIN potrebbe essere cambiato se "
+                "l'host è stato riavviato).",
+            )
+        result = backend.send_command(world.id, self.device_id, kind, payload,
+                                       target_type=target_type, target_id=target_id)
+        if result.success and backend is not self.backend:
+            self._apply_own_remote_result(world.id, backend, result)
+        return result
+
+    def _apply_own_remote_result(self, world_id: str, remote_backend: RemoteBackend,
+                                  result: CommandResult) -> None:
+        """Rimaterializza subito sulla propria replica l'evento appena
+        prodotto da un comando andato a buon fine su `RemoteBackend` —
+        `world_sync.sync_replica()` lo riscaricherebbe comunque al prossimo
+        giro del thread di sincronizzazione, ma qui evitiamo l'attesa per
+        chi ha appena premuto il pulsante. Sicuro da richiamare più volte
+        sullo stesso evento (idempotente, stessa garanzia di
+        `sync_replica()`): se il thread in background lo applica di nuovo
+        poco dopo non succede nulla di diverso."""
+        try:
+            # `refresh_members` di default (True): un comando andato a buon
+            # fine potrebbe essere proprio member.promote/demote/kick, per
+            # cui l'elenco membri va rinfrescato insieme all'evento — costo
+            # di una chiamata di rete in più, accettabile perché avviene
+            # solo subito dopo un'azione, non ad ogni giro del polling.
+            world_sync.sync_replica(remote_backend, world_id)
+        except Exception as e:  # difesa in profondità: mai bloccare l'azione
+            logger.debug("Sync immediata post-comando fallita per %s: %s", world_id, e)
+
     def _rename_section(self, world: World) -> ft.Control:
         field = ft.TextField(value=world.name, dense=True, expand=True, **d.field_style())
 
         def _save(e):
-            result = self.backend.send_command(
-                world.id, self.device_id, perm.CMD_WORLD_RENAME,
-                {"name": field.value},
+            result = self._send_command(
+                world, perm.CMD_WORLD_RENAME, {"name": field.value},
             )
             if result.success:
                 self._refresh_detail()
@@ -301,9 +470,7 @@ class WorldsView(ft.Column):
         )
 
     def _regenerate_join_code(self, world: World):
-        result = self.backend.send_command(
-            world.id, self.device_id, perm.CMD_WORLD_JOIN_CODE_REGENERATE, {},
-        )
+        result = self._send_command(world, perm.CMD_WORLD_JOIN_CODE_REGENERATE, {})
         if result.success:
             self._refresh_detail()
         else:
@@ -353,9 +520,7 @@ class WorldsView(ft.Column):
         )
 
     def _member_command(self, world: World, kind: str, member: WorldMember):
-        result = self.backend.send_command(
-            world.id, self.device_id, kind, {"device_id": member.device_id},
-        )
+        result = self._send_command(world, kind, {"device_id": member.device_id})
         if result.success:
             self._refresh_detail()
         else:
@@ -490,6 +655,18 @@ class WorldsView(ft.Column):
                                on_click=lambda e, w=world, c=character: self._open_heal_dialog(w, c)),
                         d.pill(ft.Icons.SICK, "Condizione", color=p.magic,
                                on_click=lambda e, w=world, c=character: self._open_condition_dialog(w, c)),
+                        d.pill(ft.Icons.AUTO_AWESOME, "Abilità", color=p.magic,
+                               on_click=lambda e, w=world, c=character:
+                                   self._open_custom_ability_dialog(w, c)),
+                        d.pill(ft.Icons.MENU_BOOK, "Incantesimo", color=p.magic,
+                               on_click=lambda e, w=world, c=character:
+                                   self._open_bonus_spell_dialog(w, c)),
+                        d.pill(ft.Icons.EDIT_NOTE, "Diario", color=p.text_2,
+                               on_click=lambda e, w=world, c=character:
+                                   self._open_diary_entry_dialog(w, c)),
+                        d.pill(ft.Icons.GAVEL, "Proponi modifica", color=p.warning,
+                               on_click=lambda e, w=world, c=character:
+                                   self._open_change_request_dialog(w, c)),
                     ],
                     spacing=d.Space.XS, wrap=True,
                 ),
@@ -499,9 +676,8 @@ class WorldsView(ft.Column):
 
     def _send_remote_command(self, world: World, character: Character, kind: str,
                               payload: dict) -> None:
-        result = self.backend.send_command(
-            world.id, self.device_id, kind, payload,
-            target_type="character", target_id=character.id,
+        result = self._send_command(
+            world, kind, payload, target_type="character", target_id=character.id,
         )
         if result.success:
             self._refresh_detail()
@@ -640,6 +816,400 @@ class WorldsView(ft.Column):
             ]),
         )
         self.page.show_dialog(dlg)
+
+    def _open_custom_ability_dialog(self, world: World, character: Character):
+        """Concede un'abilità speciale personalizzata (§7) — `custom_abilities`,
+        puramente additiva, mai in sostituzione di una feature PHB."""
+        p = d.T()
+        category_dd = ft.Dropdown(
+            label="Categoria",
+            options=[
+                ft.DropdownOption(key="esplorazione", text="Esplorazione"),
+                ft.DropdownOption(key="combattimento", text="Combattimento"),
+            ],
+            value="esplorazione", dense=True, **d.field_style(),
+        )
+        name_field = ft.TextField(label="Nome dell'abilità", dense=True, **d.field_style())
+        description_field = ft.TextField(
+            label="Descrizione", dense=True, multiline=True, min_lines=2, max_lines=6,
+            **d.field_style(),
+        )
+
+        def _confirm(e):
+            name = (name_field.value or "").strip()
+            if not name:
+                self._show_error("Il nome dell'abilità è obbligatorio.")
+                return
+            self.page.pop_dialog()
+            self._send_remote_command(
+                world, character, perm.CMD_CUSTOM_ABILITY_GRANT,
+                {"category": category_dd.value, "name": name,
+                 "description": (description_field.value or "").strip()},
+            )
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f"Concedi abilità speciale — {character.name}",
+                                  ft.Icons.AUTO_AWESOME, tone="magic"),
+            content=ft.Column([category_dd, name_field, description_field], tight=True,
+                               spacing=d.Space.SM),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Concedi", icon=ft.Icons.CHECK, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_accent)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _open_bonus_spell_dialog(self, world: World, character: Character):
+        """
+        Concede un incantesimo bonus (§7, `known_spells.is_bonus`) — stesso
+        picker a due livelli (classe -> CardPicker sugli incantesimi reali
+        del JSON) già usato in `spells_view.py._open_add_bonus_spell_dialog`
+        per il caso locale: mai un campo di testo libero, il nome
+        dell'incantesimo deve sempre venire dai dati PHB già caricati.
+        """
+        page = self.page
+        loader = GameDataLoader()
+        class_names = loader.get_spellcasting_class_names()
+        if not class_names:
+            self._show_error("Nessuna lista di incantesimi disponibile.")
+            return
+        default_class = character.class_name if character.class_name in class_names else class_names[0]
+
+        class_dd = ft.Dropdown(
+            label="Lista incantesimi", value=default_class,
+            options=[ft.DropdownOption(key=n, text=n) for n in class_names],
+            dense=True, **d.field_style(),
+        )
+        error_text = ft.Text("", size=12, color=d.T().danger)
+
+        def _spells_for(cls: str) -> list[dict]:
+            return sorted(loader.get_spells(cls), key=lambda s: (s.get("level", 0), s.get("name", "")))
+
+        spell_picker = CardPicker(options=spell_card_options(_spells_for(default_class)))
+
+        def _refresh_spell_options(ev=None):
+            opts = _spells_for(class_dd.value or default_class)
+            spell_picker.options = spell_card_options(opts)
+            spell_picker.value = opts[0]["name"] if opts else None
+            spell_picker.update()
+
+        class_dd.on_select = _refresh_spell_options
+        _refresh_spell_options()
+
+        def _confirm(e):
+            cls = class_dd.value or default_class
+            name = spell_picker.value
+            if not name:
+                error_text.value = "Scegli un incantesimo."
+                error_text.update()
+                return
+            spell = next((s for s in loader.get_spells(cls) if s.get("name") == name), None)
+            if spell is None:
+                error_text.value = "Incantesimo non trovato."
+                error_text.update()
+                return
+            comps = spell.get("components", [])
+            comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
+            if spell.get("material"):
+                comp_str += f" ({spell['material']})"
+            self.page.pop_dialog()
+            self._send_remote_command(
+                world, character, perm.CMD_BONUS_SPELL_GRANT,
+                {
+                    "name": spell.get("name", name), "level": spell.get("level", 0),
+                    "school": spell.get("school", ""), "casting_time": spell.get("casting_time", ""),
+                    "spell_range": spell.get("range", ""), "components": comp_str,
+                    "duration": spell.get("duration", ""), "description": spell.get("description", ""),
+                    "higher_levels": spell.get("higher_levels", "") or "", "class_list": cls,
+                },
+            )
+
+        p = d.T()
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f"Concedi incantesimo bonus — {character.name}",
+                                  ft.Icons.MENU_BOOK, tone="magic"),
+            content=ft.Container(
+                content=ft.Column(
+                    [class_dd, spell_picker.control, error_text],
+                    spacing=10, scroll=ft.ScrollMode.AUTO,
+                ),
+                width=responsive_dialog_width(page, 340),
+                height=460,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Concedi", icon=ft.Icons.CHECK, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_accent)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _open_diary_entry_dialog(self, world: World, character: Character):
+        """
+        Scrive una voce sul diario del personaggio (§6.2/§7: "scrive, non
+        guarda") — asimmetria garantita dall'handler stesso
+        (`_handle_diary_add_entry` non espone alcun comando di lettura),
+        qui rispecchiata semplicemente non offrendo alcuna vista sulle voci
+        esistenti.
+        """
+        p = d.T()
+        title_field = ft.TextField(label="Titolo", dense=True, **d.field_style())
+        date_field = ft.TextField(
+            label="Data / Sessione  (es. «Sessione 3», «15 Olarune 998»)",
+            dense=True, **d.field_style(),
+        )
+        content_field = ft.TextField(
+            label="Contenuto", dense=True, multiline=True, min_lines=4, max_lines=10,
+            **d.field_style(),
+        )
+
+        def _confirm(e):
+            title = (title_field.value or "").strip()
+            content = (content_field.value or "").strip()
+            if not title or not content:
+                self._show_error("Titolo e contenuto sono obbligatori.")
+                return
+            self.page.pop_dialog()
+            self._send_remote_command(
+                world, character, perm.CMD_DIARY_ADD_ENTRY,
+                {"title": title, "content": content,
+                 "session_date": (date_field.value or "").strip()},
+            )
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f"Scrivi sul diario — {character.name}", ft.Icons.EDIT_NOTE),
+            content=ft.Column([title_field, date_field, content_field], tight=True,
+                               spacing=d.Space.SM, scroll=ft.ScrollMode.AUTO, height=320),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Scrivi", icon=ft.Icons.CHECK, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.primary, color=p.on_primary)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _change_request_field_choices(self, character: Character, field: str) -> list[str]:
+        """
+        Opzioni PHB reali per un campo "scelta di classe" della richiesta di
+        modifica — stessa fonte dati di `profilo_tab.py._open_class_choices_edit`
+        (mai un valore inventato, sempre letto dai JSON di classe).
+        """
+        loader = GameDataLoader()
+        if field == "fighting_style":
+            return loader.get_fighting_styles(character.class_name)
+        if field == "totem_animal":
+            return loader.get_totem_animals()
+        if field == "land_terrain":
+            return loader.get_land_terrains()
+        if field == "pact_boon":
+            return loader.get_pact_boons()
+        if field == "dragon_ancestry":
+            return list(DRACONIDE_ANCESTRIES)
+        return []
+
+    def _open_change_request_dialog(self, world: World, character: Character):
+        """
+        §7.1 — l'unico modo per toccare i campi vietati a chiunque tranne il
+        giocatore (punteggi, livello, scelte di classe): propone soltanto,
+        non applica nulla. Il giocatore proprietario accetta o rifiuta da
+        `_pending_change_requests_section`. Una scelta di classe (stile di
+        combattimento, totem, ecc.) compare solo se il personaggio la ha
+        già — stessa regola di eleggibilità di "Modifica Scelte di Classe"
+        in profilo_tab.py: non si propone di cambiare qualcosa che il
+        personaggio non ha mai scelto.
+        """
+        p = d.T()
+        page = self.page
+        field_controls: dict[str, tuple[ft.Checkbox, ft.Control]] = {}
+        rows: list[ft.Control] = []
+
+        # Ordine esplicito, non quello (non deterministico tra un avvio e
+        # l'altro, per via dell'hash randomization delle stringhe in Python)
+        # dell'iterazione diretta su un frozenset: `_CHANGE_REQUEST_FIELD_LABELS`
+        # è un dict, che mantiene l'ordine di inserimento già scelto sopra.
+        for field in _CHANGE_REQUEST_FIELD_LABELS:
+            assert field in perm.CHANGE_REQUEST_ALLOWED_FIELDS, (
+                f"campo {field!r} non presente in CHANGE_REQUEST_ALLOWED_FIELDS")
+            current = getattr(character, field, None)
+            label = _CHANGE_REQUEST_FIELD_LABELS.get(field, field)
+            if field in _CHANGE_REQUEST_NUMERIC_FIELDS:
+                checkbox = ft.Checkbox(label=f"{label}  (attuale: {current})", value=False)
+                input_ctrl: ft.Control = ft.TextField(
+                    label="Nuovo valore", dense=True, value=str(current),
+                    keyboard_type=ft.KeyboardType.NUMBER, **d.field_style(),
+                )
+            else:
+                if not current:
+                    continue  # scelta di classe mai fatta da questo personaggio
+                options = self._change_request_field_choices(character, field)
+                if not options:
+                    continue
+                checkbox = ft.Checkbox(label=f"{label}  (attuale: {current})", value=False)
+                input_ctrl = ft.Dropdown(
+                    label="Nuovo valore", dense=True,
+                    value=current if current in options else options[0],
+                    options=[ft.DropdownOption(key=o, text=o) for o in options],
+                    **d.field_style(),
+                )
+            field_controls[field] = (checkbox, input_ctrl)
+            rows.append(ft.Column(
+                [checkbox, ft.Container(input_ctrl, padding=ft.Padding.only(left=32))],
+                spacing=2, tight=True,
+            ))
+
+        reason_field = ft.TextField(
+            label="Motivazione (il giocatore la legge prima di decidere)",
+            dense=True, multiline=True, min_lines=2, max_lines=4, **d.field_style(),
+        )
+
+        def _confirm(e):
+            changes: dict[str, int | str] = {}
+            for field, (checkbox, input_ctrl) in field_controls.items():
+                if not checkbox.value:
+                    continue
+                if isinstance(input_ctrl, ft.Dropdown):
+                    value = input_ctrl.value
+                    if not value:
+                        continue
+                    changes[field] = value
+                else:
+                    raw = (input_ctrl.value or "").strip()
+                    try:
+                        changes[field] = int(raw)
+                    except ValueError:
+                        self._show_error(
+                            f"{_CHANGE_REQUEST_FIELD_LABELS.get(field, field)}: "
+                            f"il valore deve essere un numero intero.")
+                        return
+            if not changes:
+                self._show_error("Seleziona almeno un campo da modificare.")
+                return
+            reason = (reason_field.value or "").strip()
+            if not reason:
+                self._show_error("La richiesta di modifica deve avere una motivazione.")
+                return
+            self.page.pop_dialog()
+            self._send_remote_command(
+                world, character, perm.CMD_CHANGE_REQUEST_PROPOSE,
+                {"changes": changes, "reason": reason},
+            )
+
+        if not rows:
+            rows.append(d.muted(
+                "Nessun campo proponibile per questo personaggio — le scelte di "
+                "classe compaiono solo se il personaggio le ha già.",
+            ))
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f"Proponi modifica — {character.name}", ft.Icons.GAVEL,
+                                  tone="warning"),
+            content=ft.Container(
+                content=ft.Column(
+                    [d.muted(
+                        "Spunta i campi da proporre e indica il nuovo valore: il "
+                        "giocatore vedrà sempre il valore attuale e quello proposto.",
+                    )] + rows + [reason_field],
+                    spacing=d.Space.SM, scroll=ft.ScrollMode.AUTO,
+                ),
+                width=responsive_dialog_width(page, 380),
+                height=440,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Invia proposta", icon=ft.Icons.SEND, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.warning, color=p.on_accent)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
+    # Richieste in sospeso (passo 6, §7.1) — visibile a QUALSIASI membro,
+    # non solo master/owner: è la controparte lato giocatore di "Proponi
+    # modifica" sopra. Filtrata qui solo per presentazione (mostra le
+    # richieste sui personaggi di cui SONO proprietario); il controllo che
+    # conta davvero resta comunque `perm.is_character_owner()` dentro
+    # `_handle_change_request_respond` — un client modificato che nascondesse
+    # questo filtro non guadagnerebbe nulla.
+    # ------------------------------------------------------------------
+
+    def _pending_change_requests_section(self, world: World) -> ft.Control | None:
+        my_characters = {
+            c.id: c for c in character_repo.get_master_visible_characters(world.id)
+            if c.owner_device_id == self.device_id
+        }
+        if not my_characters:
+            return None
+        pending = [
+            req for req in world_repo.get_pending_change_requests(world.id)
+            if req.character_id in my_characters
+        ]
+        if not pending:
+            return None
+
+        rows: list[ft.Control] = []
+        for i, req in enumerate(pending):
+            if i > 0:
+                rows.append(ft.Divider(height=1))
+            rows.append(self._pending_change_request_row(world, my_characters[req.character_id], req))
+        return d.section(
+            "Richieste in sospeso",
+            ft.Column(rows, spacing=d.Space.SM, tight=True),
+            accent=d.tone_color("warning"),
+        )
+
+    def _pending_change_request_row(self, world: World, character: Character,
+                                     request: WorldChangeRequest) -> ft.Control:
+        p = d.T()
+        try:
+            changes: dict = json.loads(request.payload or "{}")
+        except (json.JSONDecodeError, TypeError):
+            changes = {}
+        diff_lines: list[ft.Control] = []
+        for field, new_value in changes.items():
+            label = _CHANGE_REQUEST_FIELD_LABELS.get(field, field)
+            current = getattr(character, field, "?")
+            diff_lines.append(ft.Text(f"{label}: {current} → {new_value}",
+                                       size=d.Size.BODY_SM, color=p.text))
+
+        return ft.Column(
+            [
+                ft.Text(f"{character.name} — proposta del master", weight=ft.FontWeight.BOLD,
+                        color=p.text),
+                d.muted(f"«{request.reason}»"),
+                ft.Column(diff_lines, spacing=2, tight=True),
+                ft.Row(
+                    [
+                        d.pill(ft.Icons.CHECK, "Accetta", color=p.success, filled=True,
+                               on_click=lambda e: self._respond_change_request(world, request, True)),
+                        d.pill(ft.Icons.CLOSE, "Rifiuta", color=p.danger,
+                               on_click=lambda e: self._respond_change_request(world, request, False)),
+                    ],
+                    spacing=d.Space.XS,
+                ),
+            ],
+            spacing=d.Space.XS, tight=True,
+        )
+
+    def _respond_change_request(self, world: World, request: WorldChangeRequest, accept: bool):
+        assert self.device_id is not None
+        result = self._send_command(
+            world, perm.CMD_CHANGE_REQUEST_RESPOND,
+            {"request_id": request.id, "accept": accept},
+            target_type="character", target_id=request.character_id,
+        )
+        if result.success:
+            self._refresh_detail()
+        else:
+            self._show_error(result.error)
 
     # ------------------------------------------------------------------
     # Hosting LAN (passo 4) — solo owner, solo sul mondo che ospita
@@ -837,7 +1407,7 @@ class WorldsView(ft.Column):
 
     def _do_delete(self, world: World):
         self.page.pop_dialog()
-        result = self.backend.send_command(world.id, self.device_id, perm.CMD_WORLD_DELETE, {})
+        result = self._send_command(world, perm.CMD_WORLD_DELETE, {})
         if result.success:
             self._current_world = None
             self._render()
@@ -852,6 +1422,113 @@ class WorldsView(ft.Column):
         self._render()
         try:
             self.page.update()
+        except RuntimeError:
+            pass
+
+    # ------------------------------------------------------------------
+    # Sincronizzazione automatica in background (2026-08-07) — nessuna
+    # azione manuale richiesta: finché la scheda di UN mondo resta aperta,
+    # un thread dedicato la tiene allineata da sola, sia per gli "arrivi"
+    # (richieste di modifica proposte dal master, abilità/incantesimi/
+    # diario concessi, danni/cure/condizioni) sia per le risposte del
+    # giocatore che il master deve vedere — richiesta esplicita di Davide:
+    # "l'utente deve fare il meno possibile, la parte tecnica la deve
+    # gestire in automatico l'app". Nessuna dipendenza nuova: solo
+    # `threading` di libreria standard, stesso pattern già in produzione in
+    # `home_view.py` per il polling web multi-sessione.
+    # ------------------------------------------------------------------
+
+    def _start_detail_sync(self, world_id: str):
+        self._stop_detail_sync()
+        world = world_repo.get_world(world_id)
+        self._detail_signature = self._detail_signature_of(world) if world else None
+        stop_event = threading.Event()
+        self._detail_sync_stop = stop_event
+        thread = threading.Thread(
+            target=self._detail_sync_loop, args=(world_id, stop_event),
+            daemon=True, name=f"world-sync-{world_id[:8]}",
+        )
+        self._detail_sync_thread = thread
+        thread.start()
+
+    def _stop_detail_sync(self):
+        self._detail_sync_stop.set()
+        self._detail_sync_thread = None
+        self._detail_signature = None
+
+    def _detail_sync_loop(self, world_id: str, stop_event: threading.Event):
+        """
+        Un giro ogni `_DETAIL_SYNC_INTERVAL_S` circa (stesso ordine di
+        grandezza del polling già in uso in `home_view.py`):
+        `RemoteBackend.fetch_events()` interroga SENZA attesa lunga
+        (`wait=0`, per scelta esplicita — vedi il suo docstring: "la
+        sincronizzazione periodica vera e propria decide essa stessa
+        quanto aspettare"), quindi il ritmo lo impone questo ciclo, non il
+        trasporto.
+
+        - mondo NON ospitato da questo dispositivo: `sync_replica()`
+          scarica gli eventi nuovi dall'host e li applica alla replica
+          locale (comandi del master, risposte di altri dispositivi).
+        - mondo ospitato: nulla da scaricare — il DB locale È già lo stato
+          autoritativo, aggiornato all'istante da ogni comando ricevuto
+          (anche da un altro dispositivo, via `WorldHostServer`); qui
+          basta rileggerlo per riflettere sullo schermo ciò che è già
+          vero nel DB.
+
+        In entrambi i casi ridisegna SOLO se la firma di stato è cambiata
+        (`_maybe_redraw_detail`, stesso principio di
+        `home_view.py::refresh(force=False)`), per non interrompere una
+        digitazione in corso in un campo della scheda (es. "Nome del
+        mondo") con un rebuild che altrimenti la sostituirebbe di netto.
+        """
+        while not stop_event.is_set():
+            world = world_repo.get_world(world_id)
+            if world is None:
+                return
+            if not world.is_local_host:
+                backend = self._backend_for(world)
+                if backend is not None:
+                    try:
+                        world_sync.sync_replica(backend, world_id)
+                    except Exception as e:
+                        # Difesa in profondità: un errore di rete transitorio
+                        # non deve mai fermare il ciclo per sempre, solo
+                        # saltare questo giro — riprova al prossimo.
+                        logger.debug("Sync in background fallita per %s: %s", world_id, e)
+            self._maybe_redraw_detail(world_id)
+            if stop_event.wait(_DETAIL_SYNC_INTERVAL_S):
+                return
+
+    def _detail_signature_of(self, world: World) -> str:
+        """Firma economica dello stato rilevante di UN mondo: qualunque
+        mutazione passa da `world_backend.py`, che scrive SEMPRE un evento
+        (§5) — `get_latest_seq()` da solo intercetta quindi la stragrande
+        maggioranza dei cambiamenti. Membri e richieste in sospeso restano
+        comunque nella firma per coprire i casi limite in cui quelle
+        tabelle cambiano senza un `world_events.seq` osservabile qui
+        (es. `member.kick` tocca `world_members`, non i campi di `world`)."""
+        latest_seq = world_repo.get_latest_seq(world.id)
+        members = world_repo.get_members(world.id)
+        member_sig = "|".join(f"{m.device_id}:{m.role}:{int(m.is_connected)}" for m in members)
+        pending = world_repo.get_pending_change_requests(world.id)
+        pending_sig = "|".join(f"{r.id}:{r.status}" for r in pending)
+        return f"{world.updated_at}|{latest_seq}|{member_sig}|{pending_sig}"
+
+    def _maybe_redraw_detail(self, world_id: str) -> None:
+        world = world_repo.get_world(world_id)
+        if world is None:
+            return
+        signature = self._detail_signature_of(world)
+        if signature == self._detail_signature:
+            return
+        self._detail_signature = signature
+
+        page = self.page
+        if page is None or self._current_world is None or self._current_world.id != world_id:
+            return
+        self._render()
+        try:
+            page.update()
         except RuntimeError:
             pass
 

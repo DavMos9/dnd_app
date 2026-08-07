@@ -353,6 +353,16 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "master_campaign_notes", "world_id", "TEXT DEFAULT ''")
     _add_column(cur, "master_campaign_notes", "visibility", "TEXT DEFAULT 'private'")
     _add_column(cur, "master_campaign_notes", "visible_to_device_ids", "TEXT DEFAULT '[]'")
+    # Riconnessione del client dopo l'ingresso in LAN (2026-08-07, fix di
+    # correttezza: `ui/views/world/world_view.py` inviava OGNI comando con
+    # `LocalBackend`, anche su un mondo a cui ci si era uniti da remoto — un
+    # comando di un giocatore/co-master non-host non raggiungeva mai l'host,
+    # restava scritto solo sulla replica locale). Il token di sessione
+    # (`RemoteBackend.token`, consegnato da `join()`) va persistito per poter
+    # ricostruire un `RemoteBackend` funzionante ad ogni apertura della
+    # sezione Mondi, senza richiedere di reinserire codice+PIN ogni volta —
+    # significativa solo lato replica (`is_local_host=0`), vuota sull'host.
+    _add_column(cur, "worlds", "session_token", "TEXT DEFAULT ''")
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
@@ -941,6 +951,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             join_code         TEXT NOT NULL DEFAULT '',
             is_local_host     INTEGER NOT NULL DEFAULT 0,
             last_seen_host    TEXT NOT NULL DEFAULT '',
+            session_token     TEXT NOT NULL DEFAULT '',
             last_synced_seq   INTEGER NOT NULL DEFAULT 0,
             created_at        TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
