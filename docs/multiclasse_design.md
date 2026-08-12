@@ -2,18 +2,20 @@
 
 > Progettato il 2026-07-26, rifinito il 2026-08-12, e — stesso giorno,
 > **con il via libera esplicito di Davide** ("facciamo la sezione
-> multiclasse adesso... implementiamo quando ti do io il via" seguito da
-> "procedi senza chiedere permessi... fino alla fine del task") —
-> **lo schema DB, la migrazione e l'intero repository layer sono stati
-> implementati e testati in questa stessa sessione**. Le due tabelle PHB
-> necessarie (prerequisiti, slot incantatore multiclasse) sono state lette
-> visivamente dal PDF italiano (`pdftoppm`, mai `pdftotext`/OCR) — vedi §8
-> per lo stato ESATTO di cosa è fatto/testato e cosa resta, con un limite
-> deliberato: **nessuna nuova UI Flet è stata scritta in questo giro** (il
-> dialog di level-up in `profilo_tab.py` è ~2400 righe di codice
-> profondamente intrecciato con l'assunzione "una classe sola", mai
-> visivamente testabile da questa sessione — rifarlo senza rischio
-> richiede un giro dedicato, vedi §8.3). Non è più un documento di sola
+> multiclasse adesso... implementiamo quando ti do io il via", poi
+> "procedi senza chiedere permessi... fino alla fine del task") — **schema
+> DB, migrazione, repository layer, E la UI "Aggiungi una classe" in
+> `profilo_tab.py` sono stati implementati e verificati in questa stessa
+> sessione**, quest'ultima con screenshot reali (permessi macOS concessi
+> da Davide a metà sessione) contro una copia isolata del DB vero di
+> Davide, non solo scritta e sperata — vedi §8 per lo stato ESATTO,
+> incluso un bug reale trovato e corretto in `combattimento_tab.py`
+> (Abilità di Classe filtrava sul livello totale invece che sul livello
+> di ciascuna classe). Le due tabelle PHB necessarie (prerequisiti, slot
+> incantatore multiclasse) sono state lette visivamente dal PDF italiano
+> (`pdftoppm`, mai `pdftotext`/OCR). Resta fuori scope, esplicitamente
+> (§8.4): livellare una classe secondaria oltre il suo 1° livello, e la
+> vista Incantesimi con liste per classe. Non è più un documento di sola
 > progettazione: è insieme progettazione E stato di avanzamento reale.
 
 ---
@@ -358,27 +360,97 @@ regressione completa, 28 file preesistenti tutti ancora verdi).
   un Ladro/Guerriero CON quella sottoclasse specifica multiclassato con un
   altro incantatore), stesso principio di scope del punto sopra.
 
-### 8.3 Cosa resta — prossimo passo concreto
+### 8.3 UI "Aggiungi una classe" — fatta e verificata (2026-08-12, stessa sessione)
 
-**Nessuna nuova UI Flet.** Tutta la UI di livello (selettore "quale classe
-sale", dialog per aggiungere una nuova classe con scelta competenze/
-prerequisiti, scheda che mostra `get_class_display_string()`, vista
-Incantesimi con liste per classe) resta da scrivere. Motivo: `profilo_tab.py`
-`_on_level_up_click` è ~2400 righe profondamente intrecciate con `c.class_name`/
-`c.subclass` (48 riferimenti), mai visivamente testabile da questa sessione
-(nessun ambiente Flet interattivo) — costruire quel tanto di UI senza
-poterla vedere funzionare sarebbe il tipo di rischio che questo stesso
-documento, fin dalla v1, raccomandava di minimizzare (§6: "l'unico
-intervento del progetto che può far regredire funzionalità già collaudate
-su tutte le 12 classi"). Tutto il lavoro di backend che questa UI dovrà
-richiamare esiste già ed è testato (§8.1) — il prossimo giro è
-"1 sessione: UI del level-up" + "1 sessione: scheda + incantesimi" della
-stima di §6, ora con zero incognite di schema/dati residue. Concretamente,
-per riprendere: un nuovo dialog "Aggiungi una classe" (riusa
-`get_level_up_steps(nuova_classe, 1, ...)`, già verificato produrre gli
-step corretti per un livello 1 di qualunque classe — l'unico pezzo
-mancante è la selezione degli incantesimi/trucchetti iniziali per le
-classi "know"-caster, oggi gestita solo dal flusso di creazione, non da
-`level_manager.py`) più il selettore "quale classe" da anteporre al
-dialog di level-up esistente quando `get_character_classes()` ha più di
-una riga.
+> Davide, dopo aver visto il pulsante mancante ("come faccio a
+> multiclassare? non vedo il pulsante"), ha chiesto di continuare: "se hai
+> domande falle ora poi procedi senza chiedere permessi fino alla fine del
+> task". A quel punto sono stati installati `poppler`/`cliclick` in
+> questa sandbox (non presenti di default) e Davide ha concesso i
+> permessi macOS di Accessibilità/Registrazione Schermo, così l'intera UI
+> qui sotto è stata **vista funzionare davvero** — screenshot reali,
+> click reali, sull'app lanciata contro una COPIA isolata del DB reale di
+> Davide (mai quello vero) — non solo scritta e sperata. Due bug reali
+> di questa UI sono stati trovati così (nessuno dei due dava eccezione né
+> traceback, solo silenzio): `design.T().error` non esiste (è `.danger`),
+> e `ft.Dropdown` in Flet 0.86.5 usa `on_select`, mai `on_change` (regola
+> già in `regole_flet_api.md` riga 46, non ricontrollata la prima volta).
+
+**Nuovo pulsante "+ Multiclasse"** (`profilo_tab.py`, header Profilo,
+accanto a Level up/Level down, stesso stile compatto di Level down —
+mai più prominente di Level up) apre il dialog "Aggiungi una classe":
+
+- Dropdown con le classi NON ancora possedute (12 meno quelle già in
+  `character_classes`).
+- Al cambio classe (`on_select`, ricostruzione dinamica del contenuto):
+  controllo prerequisiti (`check_multiclass_prerequisites`, solo
+  informativo — mai un blocco, stesso principio degli altri override del
+  progetto), selettore sottoclasse SOLO per Chierico/Stregone/Warlock
+  (le uniche 3 che la scelgono al 1° livello), scelta PF (stesso widget
+  Massimo/Media/Manuale del level-up esistente, mai il bonus "massimo al
+  1°" — quello resta solo per un vero personaggio di 1° livello, PHB IT
+  p.163), le competenze ridotte (fisse mostrate come info, le "choice"
+  con un Dropdown ciascuna), e — se la classe le prevede — i picker di
+  incantesimi/trucchetti conosciuti al 1° livello (stesso widget
+  `CardPicker`/`spell_card_options` del level-up esistente).
+- Conferma: `add_character_class` + `apply_multiclass_proficiencies`/
+  `apply_multiclass_proficiency_choices` + calcolo PF (stessa formula del
+  level-up esistente, incluso l'eventuale bonus permanente di sottoclasse
+  tipo Resilienza Draconica) + `_save_multiclass_known_spell` (nuova
+  funzione modulo, duplicata da `_save_known_spell` invece di estratta —
+  quella resta dentro la closure di 2400 righe mai toccata) + risincronizzo
+  del totale + `sync_multiclass_spell_slots`/`init_class_resources`/
+  `calculate_and_update_ca`.
+
+**Verificato end-to-end** su un personaggio Chierico 12 reale (Davide,
+copia isolata del DB) diventato Chierico 12/Guerriero 1: prerequisiti
+OR mostrati correttamente (Guerriero: FOR13 soddisfatta), PF calcolati
+con dado/mod. giusti, competenze esattamente quelle della tabella PHB
+p.164 ("leggere, medie, scudi, semplice, guerra"), risorsa Guerriero
+"Recupera Energie" aggiunta SENZA toccare "Incanalare Divinità" del
+Chierico, livello totale 12→13, `get_class_display_string()` →
+"Chierico 12 / Guerriero 1" — tutto confermato leggendo il DB dopo il
+click, non solo guardando lo schermo.
+
+**Bug reale trovato e corretto PRIMA di questa UI, non dopo**:
+`combattimento_tab.py::_load_class_features()` (sezione "Abilità di
+Classe") filtrava le feature di `c.class_name` contro `c.level`, il
+livello TOTALE — per Chierico 12/Guerriero 1 (totale 13) avrebbe
+mostrato feature Chierico fino al 13° livello, mai raggiunto davvero.
+Corretto per iterare tutte le righe di `character_classes`, ciascuna
+filtrata sul proprio livello (mai il totale) — un personaggio a classe
+singola ha una sola riga il cui livello coincide sempre con `c.level`,
+quindi comportamento identico a prima per ogni personaggio esistente
+(verificato: Guerriero Lv1 mostra solo le sue 2 feature di 1° livello,
+mai quelle di 2°+, anche con `c.level` a 13). "Risorse di Classe" non
+ha richiesto alcuna modifica: legge `get_class_resources()`, già
+multiclasse-safe da §8.1.
+
+Suite di regressione completa (29 file) verde due volte in questa
+sessione (prima e dopo le modifiche UI), stesse 2 cause pre-esistenti
+e note in `test_qr_scan.py`, indipendenti da questa feature.
+
+### 8.4 Cosa resta — esplicitamente fuori scope in questo giro
+
+- **Livellare una classe SECONDARIA oltre il suo 1° livello dalla UI.**
+  Il pulsante "Level up" esistente sale SEMPRE e solo la classe primaria
+  (comportamento invariato, corretto per un personaggio a classe
+  singola). Manca il selettore "quale classe sale?" da anteporre quando
+  `get_character_classes()` ha più di una riga — un personaggio
+  multiclasse può aggiungere una nuova classe (fatto) ma non far
+  progredire quella secondaria oltre il 1° livello finché non si scrive
+  questo selettore. Prossimo passo concreto quando richiesto: un piccolo
+  dialog di scelta classe PRIMA del dialog di level-up esistente, che poi
+  richiama `_on_level_up_click` parametrizzato sulla classe scelta
+  invece che sempre sulla primaria (oggi hardcoded).
+- **`spells_view.py` con liste incantesimi per classe.** Un personaggio
+  con due classi da incantatore (es. Chierico/Mago) vede ancora la vista
+  Incantesimi con le assunzioni "una sola classe" della v1 di questo
+  documento (§3 punto 6) — non ancora toccata.
+- I 3 limiti di §8.2 (slot del Patto separati, dadi vita misti,
+  terzo-incantatore in un multiclasse) restano invariati.
+- Il Mago in "Aggiungi una classe" parte con trucchetti corretti ma
+  libro degli incantesimi vuoto (nessuna voce "spells known al 1°
+  livello" per il Mago nei dati — usa un libro, non un elenco fisso), da
+  popolare a mano dalla tab Incantesimi — messaggio esplicito nel dialog,
+  non un dead-end silenzioso.

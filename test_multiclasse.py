@@ -1,12 +1,14 @@
 """
 Verifica della progettazione Multiclasse (PHB IT cap.6, p.163-165) — 2026-08-12,
 richiesta esplicita di Davide ("facciamo la sezione multiclasse adesso...
-implementiamo quando ti do io il via"): schema/repository layer completo e
-un fix di sicurezza sul level-up esistente, PRIMA della UI di livello
-completo (esplicitamente fuori scope in questo giro — vedi
-`docs/multiclasse_design.md` per lo stato esatto).
+implementiamo quando ti do io il via", poi "procedi senza chiedere
+permessi... fino alla fine del task"): schema/repository layer completo,
+un fix di sicurezza sul level-up esistente, e il dialog "Aggiungi una
+classe" in profilo_tab.py (verificato visivamente con screenshot reali,
+non solo qui) — vedi `docs/multiclasse_design.md` §8 per lo stato esatto,
+inclusi i limiti noti e documentati.
 
-Sei parti:
+Sette parti:
 
 [1] Migrazione — un personaggio pre-esistente (nessuna riga
     character_classes) viene backfillato correttamente e idempotentemente
@@ -37,6 +39,13 @@ Sei parti:
     replicabile qui senza Flet in esecuzione: verificato indirettamente
     tramite le stesse funzioni di repository che quel metodo chiama in
     sequenza) non deve perdere i livelli delle altre classi dal totale.
+
+[7] UI "Aggiungi una classe" (2026-08-12, sessione successiva — via libera
+    di Davide, verificata visivamente con screenshot reali su un
+    personaggio Chierico 12 esistente, vedi docs/multiclasse_design.md
+    §8.4): _save_multiclass_known_spell(), l'unico pezzo di logica nuovo
+    di profilo_tab.py non già coperto dai test [1]-[6] (il resto del
+    metodo richiama solo funzioni di repository già testate sopra).
 
 Eseguire con:
     PYTHONPATH=".venv/lib/python3.13/site-packages:." python3 test_multiclasse.py
@@ -287,6 +296,32 @@ def test_sicurezza_level_up_esistente():
     check("display string coerente", character_repo.get_class_display_string(c.id) == "Guerriero 4 / Ladro 1")
 
 
+def test_ui_aggiungi_classe_helpers():
+    print("\n[7] UI \"Aggiungi una classe\" — _save_multiclass_known_spell()")
+
+    from ui.views.character_sheet.profilo_tab import _save_multiclass_known_spell
+
+    c = _make_character("Multiclasse", "Guerriero", 3, carisma=16)
+    character_repo.add_character_class(c.id, "Bardo", level=1)
+    character_repo.apply_multiclass_proficiencies(c.id, "Bardo")
+
+    bardo_spells = [s["name"] for s in game_data.get_spells("Bardo") if s.get("level") == 1]
+    check("almeno un incantesimo di 1° livello Bardo disponibile per il test", len(bardo_spells) > 0)
+    _save_multiclass_known_spell(bardo_spells[0], "Bardo", c.id)
+
+    known = {ks.name: ks for ks in character_repo.get_known_spells(c.id)}
+    check("incantesimo salvato tra i conosciuti", bardo_spells[0] in known)
+    check("class_list corretto", known[bardo_spells[0]].class_list == "Bardo")
+    check("livello corretto", known[bardo_spells[0]].spell_level == 1)
+
+    # Nome inesistente: no-op sicuro (stesso comportamento di _save_known_spell
+    # dentro _on_level_up_click), non deve sollevare eccezioni né scrivere nulla.
+    _save_multiclass_known_spell("Incantesimo Che Non Esiste XYZ", "Bardo", c.id)
+    known_after = {ks.name for ks in character_repo.get_known_spells(c.id)}
+    check("nome incantesimo inesistente: nessuna scrittura, nessuna eccezione",
+          "Incantesimo Che Non Esiste XYZ" not in known_after)
+
+
 def main() -> int:
     print("=" * 66)
     print("Multiclasse — schema/repository layer (PHB IT cap.6, p.163-165)")
@@ -299,6 +334,7 @@ def main() -> int:
     test_risorse_multiclasse()
     test_slot_incantesimo_multiclasse()
     test_sicurezza_level_up_esistente()
+    test_ui_aggiungi_classe_helpers()
     print("\n" + "=" * 66)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

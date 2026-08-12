@@ -25,7 +25,7 @@ import logging
 from typing import Any, Callable, cast
 from config.settings import *
 from config.settings import get_race_display_traits
-from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource, CreatureEntry, CustomAbility, InventoryItem
+from data.models import Character, SpellSlot, CharacterProficiency, Weapon, KnownSpell, ClassResource, CreatureEntry, CustomAbility, InventoryItem, CharacterClass
 import data.repositories.character_repo as character_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text, show_error_dialog
@@ -3385,43 +3385,62 @@ class CombattimentoTab(ScrollMemoryListView):
 
     def _load_class_features(self, c: Character) -> list[dict]:
         """
-        Carica le feature base + sottoclasse dalla classe JSON,
-        filtrate per livello ≤ livello personaggio.
+        Carica le feature base + sottoclasse dalla classe JSON, filtrate per
+        livello ≤ livello DI QUELLA CLASSE (mai il livello totale del
+        personaggio: per un multiclasse i due divergono, PHB IT p.163).
         Ordina per livello poi per nome.
-        """
-        if not c.class_name:
-            return []
 
-        cls_data = _loader.get_class(c.class_name)
-        if not cls_data:
-            return []
+        Multiclasse (2026-08-12): itera TUTTE le classi possedute
+        (character_classes), non solo la primaria — un personaggio a
+        classe singola ha una sola riga, il cui livello coincide sempre
+        con c.level, quindi l'output resta identico a prima per ogni
+        personaggio esistente. Prima di questa sessione filtrava solo
+        c.class_name/c.subclass contro c.level (il TOTALE): per un
+        multiclasse avrebbe mostrato feature della classe primaria mai
+        realmente raggiunte (es. Chierico 12/Guerriero 1, c.level=13,
+        avrebbe mostrato feature Chierico fino al 13° livello) — bug
+        reale trovato in questa sessione prima di scrivere qualunque
+        nuova UI, corretto insieme a "Aggiungi una classe".
+        """
+        classes = character_repo.get_character_classes(c.id)
+        if not classes:
+            # Personaggio non ancora migrato (non dovrebbe succedere dopo
+            # init_db(), ma niente crash): fallback al comportamento di
+            # sempre, class_name/level/subclass di characters.
+            if not c.class_name:
+                return []
+            classes = [CharacterClass(
+                class_name=c.class_name, subclass=c.subclass or "", level=c.level,
+            )]
 
         features: list[dict] = []
+        for cc in classes:
+            cls_data = _loader.get_class(cc.class_name)
+            if not cls_data:
+                continue
 
-        # Feature base della classe
-        for feat in cls_data.get("features", []):
-            if feat.get("level", 1) <= c.level:
-                features.append({
-                    "level": feat["level"],
-                    "name": feat["name"],
-                    "description": feat.get("description", ""),
-                    "source": c.class_name,
-                })
+            for feat in cls_data.get("features", []):
+                if feat.get("level", 1) <= cc.level:
+                    features.append({
+                        "level": feat["level"],
+                        "name": feat["name"],
+                        "description": feat.get("description", ""),
+                        "source": cc.class_name,
+                    })
 
-        # Feature della sottoclasse selezionata
-        subclass_name = (c.subclass or "").strip()
-        if subclass_name:
-            for sc in cls_data.get("subclasses", []):
-                if sc.get("name", "").lower() == subclass_name.lower():
-                    for feat in sc.get("features", []):
-                        if feat.get("level", 1) <= c.level:
-                            features.append({
-                                "level": feat["level"],
-                                "name": feat["name"],
-                                "description": feat.get("description", ""),
-                                "source": subclass_name,
-                            })
-                    break
+            subclass_name = (cc.subclass or "").strip()
+            if subclass_name:
+                for sc in cls_data.get("subclasses", []):
+                    if sc.get("name", "").lower() == subclass_name.lower():
+                        for feat in sc.get("features", []):
+                            if feat.get("level", 1) <= cc.level:
+                                features.append({
+                                    "level": feat["level"],
+                                    "name": feat["name"],
+                                    "description": feat.get("description", ""),
+                                    "source": subclass_name,
+                                })
+                        break
 
         features.sort(key=lambda f: (f["level"], f["name"]))
         return features

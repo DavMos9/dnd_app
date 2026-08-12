@@ -41,6 +41,41 @@ _loader = GameDataLoader()
 logger = logging.getLogger(__name__)
 
 
+def _save_multiclass_known_spell(spell_name: str, class_name: str, character_id: str) -> None:
+    """
+    Salva un incantesimo/trucchetto conosciuto scelto prendendo `class_name`
+    come nuova classe in multiclasse (suo livello 1) — stessa logica di
+    lookup/salvataggio di `_save_known_spell` dentro `_on_level_up_click`
+    (duplicata qui, non estratta: quella vive in una closure di ~2400 righe
+    mai toccata in questa sessione per non introdurre rischio sul level-up
+    esistente, vedi docs/multiclasse_design.md §8.3).
+    """
+    spell = next(
+        (s for s in _loader.get_spells(class_name) if s.get("name") == spell_name), None
+    )
+    if spell is None:
+        logger.warning("Multiclasse: incantesimo '%s' non trovato per '%s'", spell_name, class_name)
+        return
+    comps = spell.get("components", [])
+    comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
+    if spell.get("material"):
+        comp_str += f" ({spell['material']})"
+    character_repo.upsert_known_spell(
+        character_id=character_id,
+        name=spell_name,
+        level=spell.get("level", 0),
+        is_prepared=True,
+        school=spell.get("school", ""),
+        casting_time=spell.get("casting_time", ""),
+        spell_range=spell.get("range", ""),
+        components=comp_str,
+        duration=spell.get("duration", ""),
+        description=spell.get("description", ""),
+        higher_levels=spell.get("higher_levels", "") or "",
+        class_list=class_name,
+    )
+
+
 def _data_uri(b64: str) -> str:
     """
     Costruisce un data URI dal base64, rilevando il formato dai magic bytes.
@@ -297,6 +332,28 @@ class ProfiloTab(ScrollMemoryListView):
             ),
             height=30,
         )
+        # Multiclasse (2026-08-12): terzo pulsante, stesso stile compatto di
+        # Level down (azione meno frequente/più impegnativa di Level up, mai
+        # PIÙ prominente di quello) — apre il dialog "Aggiungi una classe"
+        # (nuova classe a livello 1, competenze ridotte PHB IT p.164, MAI il
+        # dialog di level-up esistente che sale sempre e solo la classe
+        # primaria). Nessun limite oltre al tetto di livello 20 totale, già
+        # condiviso con Level up — stessa filosofia "nessun cancello XP" già
+        # in uso per Level up/down in questa vista.
+        self._add_class_btn = ft.OutlinedButton(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ADD, size=14, color=design.T().text_2),
+                ft.Text("Multiclasse", size=12, weight=ft.FontWeight.BOLD, color=design.T().text_2),
+            ], spacing=3, tight=True),
+            tooltip="Aggiungi una nuova classe (multiclasse)",
+            on_click=self._on_add_multiclass_click,
+            disabled=(c.level >= 20),
+            style=ft.ButtonStyle(
+                side=ft.BorderSide(1, design.T().border),
+                padding=ft.Padding.symmetric(horizontal=10, vertical=0),
+            ),
+            height=30,
+        )
 
         # NOTA (2026-08-06, bug report Davide su smartphone reale — screenshot):
         # i pulsanti Level up/Level down erano incolonnati DENTRO la Column
@@ -348,14 +405,20 @@ class ProfiloTab(ScrollMemoryListView):
                     ),
                     ft.Container(height=10),
                     ft.Row(
-                        [self._level_up_btn, self._level_down_btn],
+                        [self._level_up_btn, self._level_down_btn, self._add_class_btn],
                         spacing=8,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         wrap=True,
                     ),
                     ft.Container(height=6),
                     ft.Text(
-                        (c.class_name or "—")
+                        # Multiclasse (2026-08-12): get_class_display_string()
+                        # ritorna "NomeClasse Livello" a classe singola (stessa
+                        # forma di sempre) o "Guerriero 3 / Ladro 2" — mai una
+                        # stringa salvata, sempre ricalcolata da
+                        # character_classes. La sottoclasse resta quella della
+                        # classe primaria (c.subclass, invariato).
+                        character_repo.get_class_display_string(c.id, c.class_name or "")
                         + (f" ({c.subclass})" if c.subclass else "")
                         + f"  •  {c.race or '—'}",
                         size=12, color=design.T().text_2,
@@ -4018,6 +4081,335 @@ class ProfiloTab(ScrollMemoryListView):
                     style=ft.ButtonStyle(
                         bgcolor=design.T().primary, color=design.T().on_primary,
                     ),
+                ),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _on_add_multiclass_click(self, e):
+        """
+        Multiclasse (2026-08-12): dialog "Aggiungi una classe" — prende il
+        1° livello di una classe NUOVA (mai una già posseduta): nessun
+        equipaggiamento di partenza, competenze RIDOTTE (PHB IT p.164, mai
+        quelle complete di creazione). Backend già pronto e testato
+        (character_repo.add_character_class/apply_multiclass_proficiencies/
+        apply_multiclass_proficiency_choices/check_multiclass_prerequisites/
+        sync_multiclass_spell_slots — vedi test_multiclasse.py).
+
+        Deliberatamente SEPARATO dal dialog di level-up esistente
+        (_on_level_up_click, ~2400 righe, mai toccato in questa sessione) —
+        zero rischio sul flusso già collaudato su tutte le 12 classi.
+        Leveling di una classe SECONDARIA oltre il suo 1° livello non è
+        ancora possibile da UI (serve il selettore "quale classe sale" —
+        vedi docs/multiclasse_design.md §8.3, prossimo passo).
+
+        Limite noto: il Mago non ha una voce "spells known al 1°
+        livello" (usa un libro degli incantesimi, meccanica diversa da
+        Bardo/Stregone/Warlock) — un Mago preso in multiclasse parte con
+        trucchetti corretti ma libro degli incantesimi vuoto, da popolare a
+        mano dalla tab Incantesimi.
+        """
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+        if c.level >= 20:
+            return
+
+        owned = {cc.class_name for cc in character_repo.get_character_classes(c.id)}
+        available = [n for n in _loader.get_class_names() if n not in owned]
+        if not available:
+            return  # già tutte e 12 le classi PHB possedute
+
+        class_dd = ft.Dropdown(
+            label="Nuova classe",
+            options=[ft.DropdownOption(key=n, text=n) for n in available],
+            width=280, **design.field_style(),
+        )
+        details_col = ft.Column([], spacing=8)
+        error_text = ft.Text("", size=12, color=design.T().danger, visible=False)
+
+        subclass_dd_ref: list[ft.Dropdown] = []
+        hp_choice_ref: list[ft.RadioGroup] = []
+        manual_roll_ref: list[ft.TextField] = []
+        prof_choice_refs: list[tuple[dict, ft.Dropdown]] = []
+        spell_pickers_ref: list[CardPicker] = []
+        cantrip_pickers_ref: list[CardPicker] = []
+
+        def _rebuild_details(ev=None):
+            details_col.controls.clear()
+            subclass_dd_ref.clear()
+            hp_choice_ref.clear()
+            manual_roll_ref.clear()
+            prof_choice_refs.clear()
+            spell_pickers_ref.clear()
+            cantrip_pickers_ref.clear()
+            error_text.visible = False
+
+            class_name = class_dd.value
+            if not class_name:
+                try:
+                    details_col.update()
+                except RuntimeError:
+                    pass
+                return
+            cls_data = _loader.get_class(class_name) or {}
+
+            # Prerequisiti PHB IT p.163 — SOLO informativo, mai un blocco
+            # (stesso principio degli altri override del progetto).
+            ok, failures = character_repo.check_multiclass_prerequisites(c, class_name)
+            if ok:
+                details_col.controls.append(ft.Row([
+                    ft.Icon(ft.Icons.CHECK_CIRCLE, size=14, color=design.T().success),
+                    ft.Text("Prerequisiti di caratteristica soddisfatti",
+                            size=12, color=design.T().success),
+                ], spacing=6))
+            else:
+                details_col.controls.append(ft.Column(
+                    [
+                        ft.Row([
+                            ft.Icon(ft.Icons.WARNING_AMBER, size=14, color=design.T().warning),
+                            ft.Text("Prerequisiti PHB non soddisfatti (informativo, non blocca):",
+                                    size=12, color=design.T().warning),
+                        ], spacing=6),
+                    ] + [muted_text(f"• {f}", size=11) for f in failures],
+                    spacing=2,
+                ))
+
+            # Sottoclasse, solo per le classi che la scelgono al 1° livello
+            # (Chierico/Stregone/Warlock — PHB IT).
+            if cls_data.get("subclass_choice_level") == 1:
+                subclasses = [s.get("name", "") for s in cls_data.get("subclasses", [])]
+                sub_dd = ft.Dropdown(
+                    label=f"{cls_data.get('subclass_label') or 'Sottoclasse'} (scelta al 1° livello)",
+                    options=[ft.DropdownOption(key=s, text=s) for s in subclasses],
+                    width=280, **design.field_style(),
+                )
+                subclass_dd_ref.append(sub_dd)
+                details_col.controls.append(sub_dd)
+
+            # Punti Ferita — stesso pattern a 3 opzioni del level-up normale.
+            # Mai il bonus "massimo al 1° livello": quello resta solo per la
+            # classe primaria di un personaggio davvero di 1° livello (PHB
+            # IT p.163, "Punti Ferita e Dadi Vita").
+            hit_die = cls_data.get("hit_die", 8)
+            con_mod = get_modifier(c.con_score)
+            hp_max_gain = hit_die
+            hp_avg_gain = max(1, hit_die // 2 + 1)
+            hp_choice = ft.RadioGroup(
+                content=ft.Column([
+                    ft.Radio(value="max",
+                             label=f"Massimo ({hp_max_gain} + {con_mod:+d} CON = {hp_max_gain + con_mod})"),
+                    ft.Radio(value="avg",
+                             label=f"Media ({hp_avg_gain} + {con_mod:+d} CON = {hp_avg_gain + con_mod})"),
+                    ft.Radio(value="manual", label=f"Inserisci il risultato del dado (d{hit_die})"),
+                ], spacing=4),
+                value="avg",
+            )
+            manual_roll = ft.TextField(
+                label=f"Risultato dado d{hit_die} (1–{hit_die})", width=200,
+                keyboard_type=ft.KeyboardType.NUMBER, visible=False,
+                text_style=ft.TextStyle(size=13, color=design.T().text),
+                border_color=design.T().border, focused_border_color=design.T().magic,
+                bgcolor=design.T().surface, border_radius=design.field_style()['border_radius'],
+            )
+
+            def _on_hp_choice_change(ev2):
+                manual_roll.visible = hp_choice.value == "manual"
+                try:
+                    manual_roll.update()
+                except RuntimeError:
+                    pass
+
+            hp_choice.on_change = _on_hp_choice_change
+            hp_choice_ref.append(hp_choice)
+            manual_roll_ref.append(manual_roll)
+            details_col.controls += [
+                ft.Divider(color=design.T().border),
+                ft.Text("Punti Ferita", size=13, weight=ft.FontWeight.BOLD, color=design.T().text),
+                hp_choice,
+                manual_roll,
+            ]
+
+            # Competenze ridotte (PHB IT p.164): fisse (informative) + scelte.
+            entries = _loader.get_multiclass_proficiency_entries(class_name)
+            fixed, choices = character_repo.classify_bonus_proficiency_entries(entries)
+            if fixed or choices:
+                details_col.controls += [
+                    ft.Divider(color=design.T().border),
+                    ft.Text("Competenze ottenute (multiclasse)", size=13,
+                            weight=ft.FontWeight.BOLD, color=design.T().text),
+                ]
+            if fixed:
+                details_col.controls.append(muted_text(", ".join(fixed), size=12))
+            for entry in choices:
+                options = character_repo.resolve_multiclass_choice_options(entry, class_name)
+                pick_label = {
+                    "any_skill": "Scegli un'abilità",
+                    "own_class_skill_list": "Scegli un'abilità (lista di classe)",
+                }.get(entry.get("from"), f"Scegli: {entry.get('from')}")
+                choice_dd = ft.Dropdown(
+                    label=pick_label,
+                    options=[ft.DropdownOption(key=o, text=o) for o in options],
+                    width=280, **design.field_style(),
+                )
+                prof_choice_refs.append((entry, choice_dd))
+                details_col.controls.append(choice_dd)
+
+            # Incantesimi/trucchetti conosciuti al 1° livello — solo per le
+            # classi "know" (Bardo/Stregone/Warlock hanno entrambi, Chierico/
+            # Druido/Mago solo trucchetti: sono "preparatori", non "know").
+            known_names = {ks.name for ks in character_repo.get_known_spells(c.id)}
+            spells_at_1 = _loader.get_spells_known_at_1(class_name) or 0
+            cantrips_at_1 = _loader.get_cantrips_known_at_1(class_name) or 0
+            if spells_at_1 or cantrips_at_1:
+                details_col.controls += [
+                    ft.Divider(color=design.T().border),
+                    ft.Row([
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().magic),
+                        ft.Text("Incantesimi conosciuti al 1° livello", size=13,
+                                weight=ft.FontWeight.BOLD, color=design.T().magic, expand=True),
+                    ], spacing=6),
+                ]
+            if cantrips_at_1:
+                eligible_cantrips = sorted(
+                    (s for s in _loader.get_spells(class_name)
+                     if s.get("level", 0) == 0 and s.get("name") not in known_names),
+                    key=lambda s: s.get("name", ""),
+                )
+                for i in range(cantrips_at_1):
+                    picker = CardPicker(options=spell_card_options(eligible_cantrips))
+                    cantrip_pickers_ref.append(picker)
+                    details_col.controls.append(muted_text(f"Trucchetto {i + 1}/{cantrips_at_1}", size=11))
+                    details_col.controls.append(picker.control)
+            if spells_at_1:
+                eligible_spells = sorted(
+                    (s for s in _loader.get_spells(class_name)
+                     if 0 < s.get("level", 0) <= 1 and s.get("name") not in known_names),
+                    key=lambda s: s.get("name", ""),
+                )
+                for i in range(spells_at_1):
+                    picker = CardPicker(options=spell_card_options(eligible_spells))
+                    spell_pickers_ref.append(picker)
+                    details_col.controls.append(muted_text(f"Incantesimo {i + 1}/{spells_at_1}", size=11))
+                    details_col.controls.append(picker.control)
+            if class_name == "Mago":
+                details_col.controls.append(muted_text(
+                    "Il Mago inizia con un libro degli incantesimi vuoto in "
+                    "multiclasse — popolalo dalla tab Incantesimi.", size=11,
+                ))
+
+            try:
+                details_col.update()
+            except RuntimeError:
+                pass
+
+        class_dd.on_select = _rebuild_details
+
+        def do_add_class(ev):
+            class_name = class_dd.value
+            if not class_name:
+                return
+            errors: list[str] = []
+            hp_choice = hp_choice_ref[0] if hp_choice_ref else None
+            manual_roll = manual_roll_ref[0] if manual_roll_ref else None
+            cls_data = _loader.get_class(class_name) or {}
+            hit_die = cls_data.get("hit_die", 8)
+
+            if subclass_dd_ref and not subclass_dd_ref[0].value:
+                errors.append("Scegli una sottoclasse.")
+            if hp_choice and hp_choice.value == "manual":
+                try:
+                    _roll = int((manual_roll.value or "").strip())
+                    if not (1 <= _roll <= hit_die):
+                        errors.append(f"Il risultato del dado deve essere tra 1 e {hit_die}.")
+                except ValueError:
+                    errors.append("Inserisci un numero valido per il tiro del dado.")
+            for _entry, dd in prof_choice_refs:
+                if not dd.value:
+                    errors.append("Completa tutte le scelte di competenza.")
+                    break
+            for picker in cantrip_pickers_ref + spell_pickers_ref:
+                if not picker.value:
+                    errors.append("Scegli tutti gli incantesimi/trucchetti indicati.")
+                    break
+
+            if errors:
+                error_text.value = " ".join(sorted(set(errors)))
+                error_text.visible = True
+                try:
+                    error_text.update()
+                except RuntimeError:
+                    pass
+                return
+
+            subclass_val = subclass_dd_ref[0].value if subclass_dd_ref else ""
+
+            character_repo.add_character_class(
+                c.id, class_name, subclass=subclass_val or "", level=1, is_primary=False,
+            )
+            character_repo.apply_multiclass_proficiencies(c.id, class_name)
+            if prof_choice_refs:
+                character_repo.apply_multiclass_proficiency_choices(
+                    c.id, class_name, [dd.value for _, dd in prof_choice_refs],
+                )
+
+            con_mod = get_modifier(c.con_score)
+            if hp_choice and hp_choice.value == "max":
+                gained = hit_die + con_mod
+            elif hp_choice and hp_choice.value == "manual":
+                gained = int((manual_roll.value or "1").strip()) + con_mod
+            else:
+                gained = max(1, hit_die // 2 + 1) + con_mod
+            gained = max(1, gained)
+            hp_class_bonus = get_permanent_class_hp_bonus(class_name, subclass_val, 1)
+            c.hp_max += gained + hp_class_bonus
+            c.hp_current = min(c.hp_current + gained + hp_class_bonus, c.hp_max)
+            c.hit_dice_total += 1
+            c.hit_dice_remaining = min(c.hit_dice_remaining + 1, c.hit_dice_total)
+
+            for picker in cantrip_pickers_ref + spell_pickers_ref:
+                if picker.value:
+                    _save_multiclass_known_spell(picker.value, class_name, c.id)
+
+            c.level = character_repo.sync_character_total_level(c.id) or c.level
+
+            if not character_repo.update(c):
+                show_error_dialog(page)
+                return
+
+            character_repo.sync_multiclass_spell_slots(c.id)
+            character_repo.init_class_resources(c.id, class_name, 1, c)
+            character_repo.calculate_and_update_ca(c.id)
+
+            page.pop_dialog()
+            self._refresh()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Aggiungi una classe (Multiclasse)"),
+            content=ft.Container(
+                width=responsive_dialog_width(page, 420),
+                content=ft.Column(
+                    [
+                        muted_text(
+                            "Nessun equipaggiamento di partenza (PHB IT p.163) — "
+                            "solo competenze ridotte, PF di questo livello e, se "
+                            "previsto, incantesimi/trucchetti conosciuti.",
+                            size=11,
+                        ),
+                        class_dd,
+                        details_col,
+                        error_text,
+                    ],
+                    spacing=10, scroll=ft.ScrollMode.AUTO, tight=True,
+                ),
+                height=460,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
+                ft.ElevatedButton(
+                    "Aggiungi Classe", on_click=do_add_class,
+                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
                 ),
             ]),
         )
