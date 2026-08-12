@@ -298,6 +298,35 @@ ALIGNMENTS = [
     "Legale Malvagio", "Neutrale Malvagio", "Caotico Malvagio",
 ]
 
+# Rubrica NPC del Master, form "Tendina + Altro" (2026-08-12, richiesta
+# Davide: "avere la tendina in cui selezionare tutti i tipi disponibili e
+# infondo 'altro' che permette l'inserimento manuale... anche le altre
+# sezioni selezionabili"). I 14 tipi di creatura e le 6 taglie non hanno
+# un vocabolario canonico preesistente nel progetto — `monsters.json` ha
+# valori incoerenti ("Non Morto"/"Non morto", "Mastodontica"/"Mastodontico")
+# non direttamente utilizzabili come opzioni di tendina — questi elenchi
+# ripuliscono i termini già dominanti nei dati reali (non una traduzione
+# inventata da zero). GS: Gradi di Sfida standard PHB/Manuale dei Mostri.
+CREATURE_TYPES = [
+    "Aberrazione", "Bestia", "Celestiale", "Costrutto", "Drago", "Elementale",
+    "Folletto", "Gigante", "Immondo", "Melma", "Mostruosità", "Non Morto",
+    "Umanoide", "Vegetale",
+]
+SIZES = ["Minuscola", "Piccola", "Media", "Grande", "Enorme", "Mastodontica"]
+CR_OPTIONS = ["0", "1/8", "1/4", "1/2"] + [str(i) for i in range(1, 31)]
+
+# I 13 tipi di danno PHB, in italiano — promosso da un dict locale dentro
+# get_race_display_traits() (Resistenza Draconica) a costante di modulo
+# (2026-08-12): stessa unica fonte, ora riusata anche dalla Rubrica NPC per
+# le tendine multi-selezione di Vulnerabilità/Resistenze/Immunità ai danni.
+DAMAGE_TYPES_IT: dict[str, str] = {
+    "fire": "Fuoco", "poison": "Veleno", "cold": "Freddo",
+    "lightning": "Fulmine", "acid": "Acido", "necrotic": "Necrotico",
+    "radiant": "Radiante", "thunder": "Tuono", "psychic": "Psichico",
+    "force": "Forza", "bludgeoning": "Contundente",
+    "piercing": "Perforante", "slashing": "Tagliante",
+}
+
 # Razze disponibili (lista piatta legacy — usata fuori dal wizard)
 RACES = [
     "Elfo Alto", "Elfo dei Boschi", "Elfo Oscuro (Drow)",
@@ -631,13 +660,7 @@ def get_race_display_traits(
     advantage_saves: list[str] = []
     passive_traits: list[str] = []
 
-    _DAMAGE_IT = {
-        "fire": "Fuoco", "poison": "Veleno", "cold": "Freddo",
-        "lightning": "Fulmine", "acid": "Acido", "necrotic": "Necrotico",
-        "radiant": "Radiante", "thunder": "Tuono", "psychic": "Psichico",
-        "force": "Forza", "bludgeoning": "Contundente",
-        "piercing": "Perforante", "slashing": "Tagliante",
-    }
+    _DAMAGE_IT = DAMAGE_TYPES_IT
     _SAVE_IT = {"poison": "Veleno", "charm": "Charme", "fear": "Paura"}
 
     def _scan(traits: list[dict]) -> None:

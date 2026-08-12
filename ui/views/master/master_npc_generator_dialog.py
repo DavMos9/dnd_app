@@ -245,7 +245,7 @@ def show_npc_generator_dialog(
         if npc_data["has_stat_block"] and monster:
             npc = master_repo.create_npc_from_monster(
                 monster, name_override=npc_data["name"], role=npc_data["role"],
-                notes=notes, tags=tags, world_id=world_id,
+                notes=notes, tags=tags, world_id=world_id, race=npc_data["race"],
             )
             if npc is not None:
                 # L'allineamento scelto dal Master (o risolto a caso)
@@ -258,6 +258,7 @@ def show_npc_generator_dialog(
         return master_repo.create_npc(
             name=npc_data["name"], role=npc_data["role"], notes=notes, tags=tags,
             alignment=npc_data["alignment"], has_stat_block=False, world_id=world_id,
+            race=npc_data["race"],
         )
 
     def _on_save_one(idx: int) -> None:

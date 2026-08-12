@@ -440,6 +440,16 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # mondo (comportamento di sempre per chi non usa il Multiplayer).
     _add_column(cur, "master_npcs", "world_id", "TEXT DEFAULT ''")
 
+    # Razza PHB strutturata sulla Rubrica NPC (2026-08-12, bug report Davide:
+    # "tipo creatura e taglia devono corrispondere a quelle già create
+    # automaticamente" — prima la razza viveva solo come testo libero dentro
+    # `tags`, mai riletta per l'auto-riempimento di Tipo creatura/Taglia).
+    # '' = NPC senza razza nota; per gli NPC creati prima di questa colonna
+    # nessuna migrazione dati qui — un fallback a runtime
+    # (`core.npc_generator.resolve_race_from_tags()`) la ricava da `tags`
+    # quando serve, senza bisogno di riscrivere righe esistenti.
+    _add_column(cur, "master_npcs", "race", "TEXT DEFAULT ''")
+
     _migrate_backfill_character_classes(cur)
 
 

@@ -21,6 +21,9 @@ App desktop e mobile scritta in Python + Flet, completamente offline, basata sul
 - **Mappe** — caricamento immagini, disegno freehand con penna/gomma, annotazioni persistenti
 - **Dadi** — tira qualsiasi combinazione direttamente dall'app
 - **Compendio Talenti** — tutti i 42 talenti PHB con descrizione e prerequisiti
+- **Multiclasse** — fino a 2 classi per personaggio, con prerequisiti/competenze/slot incantesimo calcolati secondo il PHB, level-up per singola classe e vista Incantesimi separata per classe
+- **Mondi condivisi (LAN party)** — un Master ospita un mondo in rete locale (scoperta automatica o QR), i giocatori si uniscono col proprio personaggio; combattimento, note, mappe e appunti si sincronizzano in tempo reale; esportazione/importazione di un mondo intero in un file `.dndworld`
+- **Sezione Master** — rubrica NPC (razza PHB con auto-riempimento tipo creatura/taglia), Incontri e Bottino, tutto filtrato per mondo selezionato; azioni rapide a distanza sui personaggi dei giocatori
 - **Controllo aggiornamenti automatico** — notifica in-app quando è disponibile una nuova versione
 
 ---
@@ -105,10 +108,20 @@ dnd_app/
 ├── config/
 │   └── settings.py            # Costanti D&D 5e, colori, helper
 │
-├── core/
-│   ├── wizard_engine.py       # Logica scoring wizard (no Flet)
+├── core/                      # Logica di gioco pura (no Flet)
+│   ├── wizard_engine.py       # Logica scoring wizard
 │   ├── level_manager.py       # Step di level-up per classe
+│   ├── npc_generator.py       # Generatore NPC (razza, allineamento, ruoli)
+│   ├── encounter_generator.py / encounter_calculator.py   # Incontri e difficoltà
+│   ├── loot_calculator.py / treasure_generator.py / magic_item_generator.py
+│   ├── world_backend.py / world_sync.py / world_permissions.py   # Mondi condivisi
 │   └── update_checker.py      # Controllo aggiornamenti via GitHub Releases
+│
+├── network/                   # LAN party: scoperta, host/client, QR
+│   ├── discovery.py
+│   ├── host_server.py
+│   ├── protocol.py
+│   └── qr_join.py
 │
 ├── data/
 │   ├── database.py            # init_db(), migrazione idempotente
@@ -121,12 +134,18 @@ dnd_app/
 │   │   ├── feats.json         # 42 talenti PHB
 │   │   └── invocations.json   # 32 invocazioni Warlock
 │   └── repositories/
-│       └── character_repo.py  # CRUD completo
+│       ├── character_repo.py  # CRUD personaggio
+│       ├── master_repo.py     # NPC di rubrica
+│       ├── loot_repo.py / maps_repo.py
+│       └── world_repo.py / world_export.py / character_export.py   # Mondi condivisi
 │
-└── ui/
-    ├── app.py                 # Router principale
-    ├── theme.py               # Helper widget e tema
-    └── views/                 # Tutte le schermate
+├── ui/
+│   ├── app.py                 # Router principale
+│   ├── theme.py               # Helper widget e tema
+│   ├── widgets.py             # Componenti riusabili (dropdown/multi-select con "Altro", ecc.)
+│   └── views/                 # Tutte le schermate (character_sheet/, master/, world/, ...)
+│
+└── docs/                      # Design doc e changelog storico per feature
 ```
 
 ---
@@ -141,8 +160,9 @@ L'app non include il testo del manuale: i file JSON contengono i dati meccanici 
 
 ## 🗺 Roadmap
 
-- [ ] Sincronizzazione LAN party (più giocatori in rete locale)
 - [ ] Export scheda in PDF
+- [ ] Verifica del multiplayer su Wi-Fi reale con dispositivi fisici
+- [ ] Aggiornamento automatico in-app (rimandato: rischio se lo scambio file va storto a metà)
 
 ---
 

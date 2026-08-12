@@ -413,6 +413,247 @@ class CardPicker:
             self.control.controls.append(r)
 
 
+_DROPDOWN_ALTRO_KEY = "__altro__"
+
+
+class DropdownAltro:
+    """
+    Dropdown a scelta singola con opzioni fisse + voce finale "Altro" che
+    rivela un `ft.TextField` di testo libero sottostante — mai un campo di
+    testo libero nudo per un valore che ha un vocabolario D&D noto (Tipo
+    creatura, Taglia, Allineamento, Grado di Sfida, Razza...), ma sempre
+    personalizzabile (es. un NPC che risulta un cambiaforma).
+
+    Aggiunto 2026-08-12 (Rubrica NPC, bug report Davide: "tipo creatura e
+    taglia devono corrispondere a quelle già create automaticamente...
+    avere la tendina in cui selezionare tutti i tipi disponibili e infondo
+    'altro' che permette l'inserimento manuale"). Nessun componente
+    equivalente esisteva nel progetto prima di questo — stesso principio
+    di `CardPicker` sopra: un wrapper Python plain (non un `ft.Control`),
+    possiede un `ft.Column` (`.control`) e gestisce la propria reattività
+    internamente.
+
+    .value       — str: opzione scelta, o il testo libero se è stato scelto
+                   "Altro" (stringa vuota se nulla è ancora stato scelto).
+                   Scrivibile: un valore non presente in `options` seleziona
+                   automaticamente "Altro" e precompila il campo libero —
+                   copre il caso di un valore in DB non (più) tra le opzioni
+                   canoniche, senza perderlo silenziosamente.
+    .on_change   — `Callable[[Any], None] | None`, invocato con un `ev` tale
+                   che `ev.control is self` dopo un cambio REALE (scelta nel
+                   dropdown o digitazione nel campo Altro) — stesso pattern
+                   di `CardPicker.on_select`.
+    .control     — la `ft.Column` da inserire nell'albero Flet.
+    .disabled    — settable, disabilita sia il dropdown sia il campo Altro.
+    .visible     — settable, delega a `.control.visible`.
+    .update()    — richiama `.update()` sul control sottostante, con guard
+                   `try/except RuntimeError`.
+    """
+
+    def __init__(
+        self,
+        label: str,
+        options: list[str],
+        value: str = "",
+        other_label: str = "Altro",
+        width: int | None = None,
+        on_change: Callable[[Any], None] | None = None,
+    ) -> None:
+        self._options = list(options)
+        self.on_change = on_change
+
+        is_other = bool(value) and value not in self._options
+
+        self._dropdown = ft.Dropdown(
+            label=label,
+            options=[ft.DropdownOption(key=o, text=o) for o in self._options]
+                    + [ft.DropdownOption(key=_DROPDOWN_ALTRO_KEY, text=other_label)],
+            value=(_DROPDOWN_ALTRO_KEY if is_other else (value or None)),
+            width=width, dense=True, border_radius=design.Radius.SM,
+            border_color=design.field_style()['border_color'],
+            focused_border_color=design.field_style()['focused_border_color'],
+            bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'],
+        )
+        self._other_tf = ft.TextField(
+            label=f"{label} (testo libero)", value=value if is_other else "",
+            visible=is_other, dense=True, width=width, border_radius=design.Radius.SM,
+            border_color=design.field_style()['border_color'],
+            focused_border_color=design.field_style()['focused_border_color'],
+            bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'],
+        )
+        self._dropdown.on_select = self._on_dropdown_select
+        self._other_tf.on_change = self._on_other_change
+
+        self.control = ft.Column([self._dropdown, self._other_tf], spacing=4, tight=True)
+
+    def _fire_change(self) -> None:
+        if self.on_change:
+            fake_ev = type("DropdownAltroEvent", (), {"control": self})()
+            self.on_change(fake_ev)
+
+    def _on_dropdown_select(self, e: Any) -> None:
+        is_other = self._dropdown.value == _DROPDOWN_ALTRO_KEY
+        self._other_tf.visible = is_other
+        if not is_other:
+            self._other_tf.value = ""
+        try:
+            self._other_tf.update()
+        except RuntimeError:
+            pass
+        self._fire_change()
+
+    def _on_other_change(self, e: Any) -> None:
+        self._fire_change()
+
+    @property
+    def value(self) -> str:
+        if self._dropdown.value == _DROPDOWN_ALTRO_KEY:
+            return self._other_tf.value or ""
+        return self._dropdown.value or ""
+
+    @value.setter
+    def value(self, v: str | None) -> None:
+        v = v or ""
+        is_other = bool(v) and v not in self._options
+        self._dropdown.value = _DROPDOWN_ALTRO_KEY if is_other else (v or None)
+        self._other_tf.value = v if is_other else ""
+        self._other_tf.visible = is_other
+        try:
+            self._dropdown.update()
+            self._other_tf.update()
+        except RuntimeError:
+            pass
+
+    @property
+    def disabled(self) -> bool:
+        return bool(self._dropdown.disabled)
+
+    @disabled.setter
+    def disabled(self, d: bool) -> None:
+        self._dropdown.disabled = d
+        self._other_tf.disabled = d
+
+    @property
+    def visible(self) -> bool:
+        return bool(self.control.visible)
+
+    @visible.setter
+    def visible(self, v: bool) -> None:
+        self.control.visible = v
+
+    def update(self) -> None:
+        try:
+            self.control.update()
+        except RuntimeError:
+            pass
+
+
+class MultiSelectAltro:
+    """
+    Selezione multipla da un vocabolario chiuso + aggiunta libera —
+    wrapper attorno a `CardPicker(multi=True)` con una riga "Aggiungi
+    personalizzato..." (`ft.TextField` + pulsante) che accoda una nuova
+    card già selezionata, senza limite al numero di valori custom.
+
+    Aggiunto 2026-08-12 (Rubrica NPC, stessa richiesta di `DropdownAltro`
+    sopra, estesa dopo conferma di Davide ai 4 campi multi-valore
+    dell'NPC — vulnerabilità/resistenze/immunità ai danni, immunità alle
+    condizioni). Questi campi restano colonne TEXT (CSV) nel DB — questo è
+    solo un layer UI: il chiamante converte CSV → `list[str]` in apertura e
+    `list[str]` → CSV al salvataggio (nessuna modifica di schema).
+
+    .values      — `list[str]` (property, come `CardPicker.values`).
+    .picker      — il `CardPicker` sottostante, per accesso avanzato.
+    .control     — la `ft.Column` da inserire nell'albero Flet (CardPicker +
+                   riga "Aggiungi personalizzato").
+    .visible     — settable, delega a `.control.visible`.
+    .update()    — guard `try/except RuntimeError`, stesso pattern di
+                   `CardPicker`.
+    """
+
+    def __init__(
+        self,
+        base_options: list[str],
+        values: list[str] | None = None,
+        base_option_bodies: dict[str, str] | None = None,
+        add_label: str = "Aggiungi personalizzato...",
+        on_select: Callable[[Any], None] | None = None,
+    ) -> None:
+        values = list(values) if values else []
+        bodies = base_option_bodies or {}
+        # Valori già presenti ma fuori dal vocabolario canonico (dati legacy
+        # o "Altro" scelto in una sessione precedente) restano visibili come
+        # card proprie, mai persi silenziosamente.
+        extra = [v for v in values if v not in base_options]
+        options = [
+            {"key": o, "title": o, "body": bodies.get(o, "")} for o in base_options
+        ] + [{"key": v, "title": v} for v in extra]
+
+        self.picker = CardPicker(options=options, values=values, multi=True, on_select=on_select)
+
+        self._add_tf = ft.TextField(
+            label=add_label, dense=True, border_radius=design.Radius.SM,
+            border_color=design.field_style()['border_color'],
+            focused_border_color=design.field_style()['focused_border_color'],
+            bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'],
+            expand=True,
+        )
+        self._add_btn = ft.IconButton(
+            ft.Icons.ADD_CIRCLE_OUTLINE, tooltip="Aggiungi",
+            on_click=self._on_add_click,
+        )
+
+        self.control = ft.Column(
+            [
+                self.picker.control,
+                ft.Row([self._add_tf, self._add_btn], spacing=4,
+                       vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ],
+            spacing=6, tight=True,
+        )
+
+    def _on_add_click(self, e: Any) -> None:
+        new_val = (self._add_tf.value or "").strip()
+        if not new_val:
+            return
+        existing_keys = {o.get("key", "") for o in self.picker.options}
+        if new_val not in existing_keys:
+            # L'ordine è obbligato: il setter di .options di CardPicker
+            # rivalida i valori selezionati contro le nuove key, quindi va
+            # aggiornato PRIMA di aggiungere la nuova key alla selezione.
+            self.picker.options = self.picker.options + [{"key": new_val, "title": new_val}]
+        if new_val not in self.picker.values:
+            self.picker.values = self.picker.values + [new_val]
+        self._add_tf.value = ""
+        try:
+            self._add_tf.update()
+        except RuntimeError:
+            pass
+        self.picker.update()
+
+    @property
+    def values(self) -> list[str]:
+        return self.picker.values
+
+    @values.setter
+    def values(self, vs: list[str]) -> None:
+        self.picker.values = vs
+
+    @property
+    def visible(self) -> bool:
+        return bool(self.control.visible)
+
+    @visible.setter
+    def visible(self, v: bool) -> None:
+        self.control.visible = v
+
+    def update(self) -> None:
+        try:
+            self.control.update()
+        except RuntimeError:
+            pass
+
+
 def spell_card_options(spells: list[dict]) -> list[dict[str, str]]:
     """
     Opzioni CardPicker da una lista di dict incantesimo/trucchetto (stesso

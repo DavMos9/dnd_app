@@ -67,6 +67,46 @@ def get_alignment_options() -> list[str]:
     return list(ALIGNMENT_OPTIONS)
 
 
+def resolve_creature_type_and_size(race: str) -> tuple[str, str]:
+    """
+    Tipo creatura/Taglia "canonici" per una razza PHB (2026-08-12, bug
+    report Davide: "tipo creatura e taglia devono corrispondere a quelle
+    già create automaticamente" — un NPC Halfling deve proporre
+    Umanoide/Piccola senza che il Master debba ricordarselo a memoria).
+
+    Tutte e 9 le razze di `RACE_OPTIONS` sono Umanoidi — costante 5e
+    implicita, nessun JSON di razza porta una chiave `creature_type` — la
+    Taglia viene invece letta da `GameDataLoader.get_race(race)["size"]`
+    (fallback "Media" se la razza è risolvibile ma priva di quella chiave).
+
+    Ritorna `("", "")` se `race` è vuota o non è una delle 9 razze PHB,
+    così il chiamante (l'auto-riempimento nel form NPC) non scrive nulla
+    invece di scrivere un valore inventato.
+    """
+    if race not in RACE_OPTIONS:
+        return "", ""
+    data = _loader.get_race(race)
+    size = (data or {}).get("size") or "Media"
+    return "Umanoide", size
+
+
+def resolve_race_from_tags(tags: str) -> str:
+    """
+    Fallback per NPC generati PRIMA dell'introduzione di `MasterNpc.race`
+    (2026-08-12): fino ad allora la razza era scritta solo come primo
+    segmento CSV di `tags` (es. "Halfling, Femmina", scritto da
+    `master_npc_generator_dialog.py::_do_save()`). Ritorna il valore
+    CANONICO di `RACE_OPTIONS` se il primo segmento combacia
+    case-insensitive, altrimenti stringa vuota (nessuna razza risolvibile
+    — non blocca né inventa nulla, il Master può sempre scegliere "Altro").
+    """
+    first = (tags or "").split(",", 1)[0].strip()
+    for r in RACE_OPTIONS:
+        if r.lower() == first.lower():
+            return r
+    return ""
+
+
 def get_appendix_b_role_options() -> list[str]:
     """Le 21 voci con scheda di combattimento pronta (Appendice B), in
     ordine e con la casistica italiana corretta — comode da offrire in un

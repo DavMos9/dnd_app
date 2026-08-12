@@ -15,7 +15,9 @@ from typing import Any
 
 import flet as ft
 
-from data.game_data.game_data_loader import parse_monster_xp
+from config import settings
+from core import npc_generator as ng
+from data.game_data.game_data_loader import GameDataLoader, parse_monster_xp
 from data.models import MasterNpc
 from data.repositories import master_repo
 from ui.components.monster_picker import (
@@ -23,10 +25,11 @@ from ui.components.monster_picker import (
     build_stat_block_column, monster_display_name,
 )
 from ui.theme import title_text, body_text, muted_text, primary_button
-from ui.widgets import wrap_dialog_actions, responsive_dialog_width
+from ui.widgets import DropdownAltro, MultiSelectAltro, wrap_dialog_actions, responsive_dialog_width
 from ui import design
 
 logger = logging.getLogger(__name__)
+_loader = GameDataLoader()
 
 
 def _int_or(text: str | None, default: int) -> int:
@@ -45,6 +48,14 @@ def _int_or(text: str | None, default: int) -> int:
             return int(float(t))
         except ValueError:
             return default
+
+
+def _csv_to_list(csv: str) -> list[str]:
+    return [s.strip() for s in (csv or "").split(",") if s.strip()]
+
+
+def _list_to_csv(values: list[str]) -> str:
+    return ", ".join(values)
 
 
 class MasterNpcListView(ft.Column):
@@ -448,6 +459,7 @@ class MasterNpcListView(ft.Column):
                 "traits": npc.traits, "actions": npc.actions,
                 "reactions": npc.reactions, "legendary_actions": npc.legendary_actions,
                 "source_page": npc.source_page,
+                "race": npc.race or ng.resolve_race_from_tags(npc.tags),
             }
         elif prefill_monster is not None:
             m = prefill_monster
@@ -478,6 +490,7 @@ class MasterNpcListView(ft.Column):
                     f"da Bestiario: {m.get('name', '')} (p.{m['source_page']})"
                     if m.get("source_page") else f"da Bestiario: {m.get('name', '')}"
                 ),
+                "race": "",
             }
         else:
             src = {
@@ -492,6 +505,7 @@ class MasterNpcListView(ft.Column):
                 "saving_throws": "{}", "skills": "{}",
                 "traits": "[]", "actions": "[]", "reactions": "[]", "legendary_actions": "[]",
                 "source_page": "",
+                "race": "",
             }
 
         # --- campi anagrafici, sempre visibili ---
@@ -501,15 +515,18 @@ class MasterNpcListView(ft.Column):
         tags_tf = ft.TextField(label="Tag (separati da virgola)", value=src["tags"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         notes_tf = ft.TextField(label="Note di ruolo / backstory", value=src["notes"],
                                  multiline=True, min_lines=2, max_lines=6, dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        # Razza (2026-08-12, bug report Davide) — fuori da stat_fields_col:
+        # ha senso anche per un NPC "solo ruolo" senza stat block, e serve
+        # da fonte per l'auto-riempimento di Tipo creatura/Taglia sotto.
+        race_picker = DropdownAltro("Razza", ng.get_race_options(), src["race"], width=180)
         error_text = ft.Text("", size=12, color=design.T().danger)
 
         # --- toggle + campi statistiche ---
         stat_cb = ft.Checkbox(label="Ha statistiche di combattimento", value=src["has_stat_block"])
 
-        type_tf = ft.TextField(label="Tipo creatura", value=src["creature_type"], dense=True,
-                                border_radius=design.Radius.SM, width=160, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
-        size_tf = ft.TextField(label="Taglia", value=src["size"], dense=True, border_radius=design.Radius.SM, width=110, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
-        align_tf = ft.TextField(label="Allineamento", value=src["alignment"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        type_picker = DropdownAltro("Tipo creatura", settings.CREATURE_TYPES, src["creature_type"], width=160)
+        size_picker = DropdownAltro("Taglia", settings.SIZES, src["size"], width=110)
+        align_picker = DropdownAltro("Allineamento", settings.ALIGNMENTS, src["alignment"])
         ac_tf = ft.TextField(label="CA", value=str(src["ac"]), dense=True, border_radius=design.Radius.SM, width=80,
                               keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         ac_note_tf = ft.TextField(label="Nota CA", value=src["ac_note"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
@@ -518,7 +535,7 @@ class MasterNpcListView(ft.Column):
         hp_formula_tf = ft.TextField(label="Formula PF (es. 2d8+2)", value=src["hp_formula"],
                                       dense=True, border_radius=design.Radius.SM, width=160, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         speed_tf = ft.TextField(label="Velocità", value=src["speed"], dense=True, border_radius=design.Radius.SM, width=110, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
-        cr_tf = ft.TextField(label="GS", value=src["cr"], dense=True, border_radius=design.Radius.SM, width=80, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        cr_picker = DropdownAltro("GS", settings.CR_OPTIONS, src["cr"], width=80)
         xp_tf = ft.TextField(label="PE (per Calcolatore Difficoltà)", value=str(src["xp"]), dense=True,
                               border_radius=design.Radius.SM, width=180, keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
@@ -531,10 +548,16 @@ class MasterNpcListView(ft.Column):
 
         senses_tf = ft.TextField(label="Sensi", value=src["senses"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         languages_tf = ft.TextField(label="Linguaggi", value=src["languages"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
-        vuln_tf = ft.TextField(label="Vulnerabilità danni", value=src["damage_vulnerabilities"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
-        res_tf = ft.TextField(label="Resistenze danni", value=src["damage_resistances"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
-        imm_tf = ft.TextField(label="Immunità danni", value=src["damage_immunities"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
-        cond_tf = ft.TextField(label="Immunità condizioni", value=src["condition_immunities"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        _damage_options = list(settings.DAMAGE_TYPES_IT.values())
+        vuln_picker = MultiSelectAltro(_damage_options, _csv_to_list(src["damage_vulnerabilities"]))
+        res_picker = MultiSelectAltro(_damage_options, _csv_to_list(src["damage_resistances"]))
+        imm_picker = MultiSelectAltro(_damage_options, _csv_to_list(src["damage_immunities"]))
+        _conditions = _loader.get_conditions()
+        cond_picker = MultiSelectAltro(
+            [c["name"] for c in _conditions],
+            _csv_to_list(src["condition_immunities"]),
+            base_option_bodies={c["name"]: c.get("description", "") for c in _conditions},
+        )
 
         import json as _json2
 
@@ -553,30 +576,56 @@ class MasterNpcListView(ft.Column):
             size=11,
         ) if any(_feat_count(k) for k in ("traits", "actions", "reactions", "legendary_actions")) else ft.Container(height=0)
 
+        def _picker_label(text: str) -> ft.Text:
+            return ft.Text(text, size=11, weight=ft.FontWeight.BOLD, color=design.T().text_2)
+
         stat_fields_col = ft.Column(
             [
                 ft.Divider(height=14, color=design.T().border),
-                ft.Row([type_tf, size_tf], spacing=8),
-                align_tf,
+                ft.Row([type_picker.control, size_picker.control], spacing=8),
+                align_picker.control,
                 ft.Row([ac_tf, hp_tf, hp_formula_tf], spacing=8),
                 ac_note_tf,
-                ft.Row([speed_tf, cr_tf, xp_tf], spacing=8),
+                ft.Row([speed_tf, cr_picker.control, xp_tf], spacing=8),
                 ft.Row([str_tf, dex_tf, con_tf, int_tf, wis_tf, cha_tf], spacing=6),
-                senses_tf, languages_tf, vuln_tf, res_tf, imm_tf, cond_tf,
+                senses_tf, languages_tf,
+                _picker_label("Vulnerabilità ai danni"), vuln_picker.control,
+                _picker_label("Resistenze ai danni"), res_picker.control,
+                _picker_label("Immunità ai danni"), imm_picker.control,
+                _picker_label("Immunità alle condizioni"), cond_picker.control,
                 complex_note,
             ],
             spacing=8,
             visible=src["has_stat_block"],
         )
 
+        def _apply_race_autofill() -> None:
+            """
+            Auto-riempimento di Tipo creatura/Taglia dalla Razza scelta
+            (2026-08-12, bug report Davide) — scrive SOLO se i campi sono
+            attualmente vuoti, non sovrascrive mai un valore che il Master
+            ha già impostato a mano o da un salvataggio precedente.
+            """
+            if not stat_cb.value:
+                return
+            ctype, size = ng.resolve_creature_type_and_size(race_picker.value)
+            if not (type_picker.value or "").strip():
+                type_picker.value = ctype
+            if not (size_picker.value or "").strip():
+                size_picker.value = size
+
         def _on_stat_toggle(e: Any):
             stat_fields_col.visible = bool(stat_cb.value)
+            _apply_race_autofill()
             try:
                 stat_fields_col.update()
             except RuntimeError:
                 pass
 
         stat_cb.on_change = _on_stat_toggle
+        race_picker.on_change = lambda e: _apply_race_autofill()
+        if stat_cb.value:  # form aperto già con la spunta attiva (es. modifica)
+            _apply_race_autofill()
 
         def _do_save(e: Any):
             name = (name_tf.value or "").strip()
@@ -591,7 +640,8 @@ class MasterNpcListView(ft.Column):
             kwargs = dict(
                 name=name, role=(role_tf.value or "").strip(), notes=notes_tf.value or "",
                 tags=(tags_tf.value or "").strip(), has_stat_block=bool(stat_cb.value),
-                creature_type=type_tf.value or "", size=size_tf.value or "", alignment=align_tf.value or "",
+                creature_type=type_picker.value or "", size=size_picker.value or "",
+                alignment=align_picker.value or "",
                 ac=_int_or(ac_tf.value, 10), ac_note=ac_note_tf.value or "",
                 hp_max=_int_or(hp_tf.value, 1), hp_formula=hp_formula_tf.value or "",
                 speed=speed_tf.value or "",
@@ -599,14 +649,17 @@ class MasterNpcListView(ft.Column):
                 con_score=_int_or(con_tf.value, 10), int_score=_int_or(int_tf.value, 10),
                 wis_score=_int_or(wis_tf.value, 10), cha_score=_int_or(cha_tf.value, 10),
                 saving_throws=src["saving_throws"], skills=src["skills"],
-                damage_vulnerabilities=vuln_tf.value or "", damage_resistances=res_tf.value or "",
-                damage_immunities=imm_tf.value or "", condition_immunities=cond_tf.value or "",
-                senses=senses_tf.value or "", languages=languages_tf.value or "", cr=cr_tf.value or "",
+                damage_vulnerabilities=_list_to_csv(vuln_picker.values),
+                damage_resistances=_list_to_csv(res_picker.values),
+                damage_immunities=_list_to_csv(imm_picker.values),
+                condition_immunities=_list_to_csv(cond_picker.values),
+                senses=senses_tf.value or "", languages=languages_tf.value or "", cr=cr_picker.value or "",
                 xp=_int_or(xp_tf.value, 0),
                 traits=src["traits"], actions=src["actions"],
                 reactions=src["reactions"], legendary_actions=src["legendary_actions"],
                 source_page=src["source_page"],
                 world_id=self._world_id,
+                race=race_picker.value or "",
             )
 
             if is_edit and npc is not None:
@@ -624,6 +677,7 @@ class MasterNpcListView(ft.Column):
                 npc.condition_immunities = kwargs["condition_immunities"]
                 npc.senses = kwargs["senses"]; npc.languages = kwargs["languages"]; npc.cr = kwargs["cr"]
                 npc.xp = kwargs["xp"]
+                npc.race = kwargs["race"]
                 ok = master_repo.update_npc(npc)
             else:
                 ok = master_repo.create_npc(**kwargs) is not None
@@ -644,7 +698,7 @@ class MasterNpcListView(ft.Column):
             content=ft.Container(
                 content=ft.Column(
                     [
-                        name_tf, role_tf, tags_tf, notes_tf,
+                        name_tf, role_tf, race_picker.control, tags_tf, notes_tf,
                         ft.Container(height=6),
                         stat_cb,
                         stat_fields_col,

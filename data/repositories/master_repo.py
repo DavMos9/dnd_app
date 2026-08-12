@@ -70,6 +70,7 @@ def _row_to_npc(row) -> MasterNpc:
         legendary_actions=d.get("legendary_actions", "[]"),
         source_page=d.get("source_page", ""),
         world_id=d.get("world_id", ""),
+        race=d.get("race", ""),
         created_at=d.get("created_at", ""),
         updated_at=d.get("updated_at", ""),
     )
@@ -162,11 +163,16 @@ def create_npc(
     legendary_actions: str = "[]",
     source_page: str = "",
     world_id: str = "",
+    race: str = "",
 ) -> MasterNpc | None:
     """
     Crea un nuovo NPC di rubrica. Ritorna l'NPC creato, o None in caso di
     errore. `world_id` (2026-08-12): il mondo correntemente selezionato in
-    Modalità Master — `""` per un NPC locale/di nessun mondo.
+    Modalità Master — `""` per un NPC locale/di nessun mondo. `race`
+    (2026-08-12): una delle 9 razze PHB di `core.npc_generator.RACE_OPTIONS`
+    (o testo libero se il Master ha scelto "Altro" nel form) — usata per
+    auto-riempire Tipo creatura/Taglia quando si attiva "Ha statistiche di
+    combattimento", vedi `core.npc_generator.resolve_creature_type_and_size()`.
     """
     import uuid as _uuid
     npc_id = str(_uuid.uuid4())
@@ -182,8 +188,8 @@ def create_npc(
                 saving_throws, skills,
                 damage_vulnerabilities, damage_resistances, damage_immunities, condition_immunities,
                 senses, languages, cr, xp, traits, actions, reactions, legendary_actions,
-                source_page, world_id, created_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                source_page, world_id, race, created_at, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 npc_id, _s(name), _s(role), _s(notes), _s(tags), int(has_stat_block),
@@ -193,7 +199,7 @@ def create_npc(
                 _s(damage_vulnerabilities), _s(damage_resistances), _s(damage_immunities), _s(condition_immunities),
                 _s(senses), _s(languages), _s(cr), int(xp or 0), _s(traits) or "[]", _s(actions) or "[]",
                 _s(reactions) or "[]", _s(legendary_actions) or "[]",
-                _s(source_page), _s(world_id), now, now,
+                _s(source_page), _s(world_id), _s(race), now, now,
             ),
         )
         conn.commit()
@@ -212,6 +218,7 @@ def create_npc_from_monster(
     notes: str = "",
     tags: str = "",
     world_id: str = "",
+    race: str = "",
 ) -> MasterNpc | None:
     """
     Convenienza per il percorso "Nuovo dal Bestiario" (Sezione Master):
@@ -219,7 +226,10 @@ def create_npc_from_monster(
     (stessa forma già usata da `_save_creature()` in `combattimento_tab.py`),
     con `has_stat_block=True` e `source_page` valorizzato come citazione
     leggibile invece di un numero grezzo. `world_id` (2026-08-12): vedi
-    `create_npc()`.
+    `create_npc()`. `race` (2026-08-12): pass-through esplicito — un mostro
+    grezzo di Bestiario non porta un concetto di razza PHB, il chiamante lo
+    passa solo se lo conosce già (es. il Generatore NPC, quando lo stat
+    block scelto appartiene comunque a un NPC di razza nota).
     """
     src_page = monster.get("source_page")
     source_page = f"da Bestiario: {monster.get('name', '')} (p.{src_page})" if src_page else f"da Bestiario: {monster.get('name', '')}"
@@ -229,6 +239,7 @@ def create_npc_from_monster(
         notes=notes,
         tags=tags,
         world_id=world_id,
+        race=race,
         has_stat_block=True,
         creature_type=monster.get("type", monster.get("creature_type", "")),
         size=monster.get("size", ""),
@@ -263,7 +274,12 @@ def create_npc_from_monster(
 
 
 def update_npc(npc: MasterNpc) -> bool:
-    """Aggiornamento completo di un NPC esistente (tutti i campi)."""
+    """
+    Aggiornamento completo di un NPC esistente (tutti i campi). `race`
+    inclusa (2026-08-12) — a differenza di `world_id`, è modificabile dopo
+    la creazione: un Master che scopre "in realtà è un cambiaforma" deve
+    poter correggerla e vederla persistere.
+    """
     try:
         conn = get_connection()
         conn.execute(
@@ -275,7 +291,7 @@ def update_npc(npc: MasterNpc) -> bool:
                 saving_throws=?, skills=?,
                 damage_vulnerabilities=?, damage_resistances=?, damage_immunities=?, condition_immunities=?,
                 senses=?, languages=?, cr=?, xp=?, traits=?, actions=?, reactions=?, legendary_actions=?,
-                source_page=?, updated_at=?
+                source_page=?, race=?, updated_at=?
             WHERE id=?
             """,
             (
@@ -289,7 +305,7 @@ def update_npc(npc: MasterNpc) -> bool:
                 _s(npc.senses), _s(npc.languages), _s(npc.cr), int(npc.xp or 0),
                 _s(npc.traits) or "[]", _s(npc.actions) or "[]",
                 _s(npc.reactions) or "[]", _s(npc.legendary_actions) or "[]",
-                _s(npc.source_page), datetime.now().isoformat(), npc.id,
+                _s(npc.source_page), _s(npc.race), datetime.now().isoformat(), npc.id,
             ),
         )
         conn.commit()

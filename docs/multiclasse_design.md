@@ -13,10 +13,17 @@
 > (Abilità di Classe filtrava sul livello totale invece che sul livello
 > di ciascuna classe). Le due tabelle PHB necessarie (prerequisiti, slot
 > incantatore multiclasse) sono state lette visivamente dal PDF italiano
-> (`pdftoppm`, mai `pdftotext`/OCR). Resta fuori scope, esplicitamente
-> (§8.4): livellare una classe secondaria oltre il suo 1° livello, e la
-> vista Incantesimi con liste per classe. Non è più un documento di sola
-> progettazione: è insieme progettazione E stato di avanzamento reale.
+> (`pdftoppm`, mai `pdftotext`/OCR). **Aggiornamento 2026-08-12, sessione
+> successiva** (tre bug report separati di Davide): i due punti lasciati
+> fuori scope in §8.4 sono stati chiusi — il selettore "quale classe
+> sale?" per livellare una classe secondaria oltre il 1° livello, e la
+> vista Incantesimi con sezioni separate per classe. Chiuso anche il
+> limite a 2 classi (il PHB non ne prevede di più) e un bug di
+> duplicazione trucchetti nel dialog "Aggiungi una classe" — vedi §8.4
+> per il dettaglio, `dnd_app/docs/changelog_storico.md` per il racconto
+> completo. Il piano Multiclasse (§3, i 7 punti di logica) è ora
+> **chiuso per intero**. Non è più un documento di sola progettazione: è
+> insieme progettazione E stato di avanzamento reale.
 
 ---
 
@@ -131,7 +138,7 @@ Idempotente, stesso pattern dei self-healing già presenti nel progetto.
 | 3 | **Competenze iniziali** | prendendo una nuova classe si ottiene solo un **sottoinsieme** delle sue competenze (tabella dedicata nel PHB, diversa dalla creazione) | media | `apply_class_base_proficiencies(character_id, class_name)` esiste già ma applica il set COMPLETO (creazione lv.1) — serve una funzione gemella `apply_multiclass_proficiencies(character_id, class_name)` con la tabella ridotta (dal PHB, §3 tabella prerequisiti/competenze cap.6), mai riusare quella esistente per una seconda classe. |
 | 4 | **Slot incantesimo** | tabella **degli incantatori multiclasse** con un livello da incantatore calcolato (pieni contano tutto, metà contano metà arrotondata per difetto, un terzo un terzo) | **alta** | Confermato: `spell_slot_progressions.json` ha solo `full_caster`/`half_caster`/`warlock` — nessuna tabella multiclasse oggi. Nuova chiave `multiclass_caster` nello stesso file (letta dal PHB) + nuova funzione che somma i "livelli da incantatore" pesati di tutte le classi non-Warlock e guarda quella riga. `auto_init_spell_slots()` va **davvero** riscritta per questo caso (l'unica funzione di questo elenco che non basta richiamare per-classe). |
 | 5 | **Slot del Patto separati** | il Warlock non si fonde con gli altri: mantiene i suoi slot a parte | alta | Stessa `auto_init_spell_slots()`: se una delle classi è Warlock, i suoi slot restano nella tabella `warlock` esistente (già corretta, invariata) mentre le altre confluiscono nel nuovo calcolo di #4. Le due tabelle di slot coesistono sullo stesso personaggio — verificare che la UI (`spell_slots` per `character_id`, non per classe) non presupponga un'unica riga per `slot_level`; oggi lo schema è già `(character_id, slot_level, total, used)` senza colonna classe, quindi gli slot "normali" multiclasse si sommano in una riga sola per livello — corretto per le regole (sono condivisi) — ma quelli del Patto vanno tracciati **a parte**: serve capire se serve una colonna/flag `is_pact` su `spell_slots` o una tabella gemella, da decidere leggendo prima come la UI attuale del Warlock (slot Patto) è già disegnata in `combattimento_tab.py`/`spells_view.py`. |
-| 6 | **Incantesimi conosciuti/preparati** | si calcolano **per classe**, col livello di quella classe, mentre gli slot sono condivisi | **alta** | Il punto più contro-intuitivo del capitolo, confermato invariato dalla v1: `_PREP_FULL`/`_PREP_HALF`/`_KNOW_CLASSES` in `spells_view.py` presumono una sola classe/lista. Un Chierico/Mago multiclasse prepara dalla lista del Chierico E dal libro del Mago con regole diverse per ciascuna — richiede che la UI incantesimi iteri su `character_classes`, non su `character.class_name` una volta sola. |
+| 6 | **Incantesimi conosciuti/preparati** | si calcolano **per classe**, col livello di quella classe, mentre gli slot sono condivisi | **alta** | ✅ **Fatto (2026-08-12, sessione successiva)** — bug report Davide: "la sezione incantesimi... tiene conto solo della classe principale". `SpellsView` ora calcola `self._caster_rows` (righe `character_classes` con lista incantesimi propria) e, quando ce n'è più di una, rende una sotto-sezione "Incantesimi" per ciascuna classe (banner di preparazione, limite, lista), ognuna sul proprio livello/caratteristica — mai il totale o quella della primaria. Percorso a classe singola invariato byte-per-byte. Dettaglio completo in §8.4 e in `changelog_storico.md`. |
 | 7 | **ASI, Attacco Extra, privilegi** | non si sommano tra classi (Attacco Extra di Guerriero e Ranger non cumulano); gli ASI arrivano ai livelli della singola classe | media | `get_level_up_steps()` già calcola l'ASI sul livello DI QUELLA CLASSE (parametro `new_level`) — se l'orchestrazione chiama la funzione col livello di classe giusto (non il totale), l'ASI ai livelli corretti viene già gratis. Il non-cumulo di feature omonime (es. Attacco Extra) va gestito nell'orchestrazione: prima di mostrare/applicare una feature `FEATURE_AUTO`, controllare se il personaggio la possiede già da un'altra classe (confronto per nome feature letto dal JSON, non hardcoded). |
 
 Inoltre: **prerequisiti di caratteristica** (non puoi prendere una seconda classe

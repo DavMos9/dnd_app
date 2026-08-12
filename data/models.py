@@ -578,6 +578,15 @@ class MasterNpc:
     # "mostra tutti" — un mondo è un container, non un filtro opzionale.
     world_id: str = ""
 
+    # Razza PHB (2026-08-12, bug report Davide: "tipo creatura e taglia
+    # devono corrispondere a quelle già create automaticamente") — una
+    # delle 9 di `core.npc_generator.RACE_OPTIONS`, o testo libero se scelta
+    # "Altro" nel form. "" per un NPC senza razza nota (es. un mostro puro
+    # dal Bestiario). A differenza di `world_id`, MODIFICABILE dopo la
+    # creazione (`update_npc()`) — un Master che scopre "in realtà è un
+    # cambiaforma" deve poter correggerla e vederla persistere.
+    race: str = ""
+
     # Campi stat block, stessa forma di CreatureEntry — tutti opzionali
     creature_type: str = ""
     size: str = ""

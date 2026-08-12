@@ -9031,6 +9031,238 @@ design doc, DB separati non simulabili in modo affidabile qui).
 
 ---
 
+## Multiclasse: selettore "quale classe sale?", limite a 2 classi, fix duplicazione trucchetti (2026-08-12, sessione successiva)
+
+Tre bug report separati di Davide sulla Sezione Multiclasse appena
+chiusa. **[1]** "Da manuale si può multiclassare solo con 2 classi
+invece l'app mi permette di multiclassare più di 2 classi" — il
+pulsante "Multiclasse" in `profilo_tab.py` non aveva mai un limite oltre
+al tetto di livello 20. Corretto: si disabilita da solo (con tooltip
+esplicativo) quando `character_repo.get_character_classes()` ha già 2
+righe, più un controllo difensivo dentro `_on_add_multiclass_click`
+stesso. **[2]** "Multiclassando mago... posso scegliere amicizia per
+tutti e 3 gli incantesimi da scegliere" — i picker di trucchetto/
+incantesimo del dialog "Aggiungi una classe" condividevano la stessa
+lista di opzioni senza mai escludersi a vicenda. Corretto: ogni picker
+dello stesso gruppo ora aggiorna le opzioni degli altri togliendo ciò
+che è già stato scelto.
+
+**[3] "quando multiclasso e clicco su level up deve farmi scegliere
+quale classe aumentare"** — il più grosso dei tre: il pulsante "Level
+up" saliva SEMPRE e solo la classe primaria, comportamento hardcoded fin
+dalla prima sessione Multiclasse (§8.4 del design doc lo elencava
+esplicitamente come prossimo passo). Nuovo `_show_level_up_class_picker()`
+— un piccolo dialog "quale classe sale?" quando il personaggio ha più di
+una classe — richiama poi `_on_level_up_click(e, target_class_name=...)`
+parametrizzato invece che sempre sulla primaria. Rischio principale:
+`_on_level_up_click` è una closure di ~2500 righe mai toccata prima
+d'ora, motivo per cui la prima implementazione l'aveva evitata. Risolto
+con `_LevelingClassView` (nuova classe in `profilo_tab.py`): una vista
+che espone `class_name`/`subclass` della classe BERSAGLIO e delega ogni
+altro attributo al `Character` reale — per la classe primaria è
+letteralmente lo stesso oggetto (`lc = c`, zero rami nuovi, quindi zero
+rischio sul percorso a classe singola/primaria, il caso ancora più
+comune), per una secondaria isola le scritture di sottoclasse nella
+vista e le persiste a parte con la nuova
+`character_repo.set_character_class_subclass()` (mai su
+`characters.subclass`, sempre quella della primaria). Trovato e corretto
+nello stesso passaggio un bug preesistente: il calcolo del bonus PF
+permanente di sottoclasse (Resilienza Draconica) usava il livello TOTALE
+del personaggio come "livello precedente" invece del livello della
+singola classe — innocuo per un personaggio a classe singola, già
+sbagliato oggi per qualunque personaggio multiclasse che sale la
+primaria.
+
+`test_multiclasse.py` esteso da 45 a 61 controlli (level-up di una
+secondaria via le stesse chiamate di repository, semantica della vista).
+Suite di regressione completa rieseguita: tutte verdi tranne le 2 cause
+pre-esistenti di `test_qr_scan.py`. Nessun accesso a screen recording in
+questa sessione — il selettore di classe e il flusso di level-up
+risultante non sono stati verificati visivamente, solo a livello di
+repository/logica.
+
+---
+
+## Vista Incantesimi multiclasse — chiude il piano Multiclasse per intero (2026-08-12, sessione successiva)
+
+Bug report di Davide: "la sezione incantesimi non viene correttamente
+gestita in caso di multiclasse, tiene conto solo della classe
+principale". Era l'ultimo punto esplicitamente fuori scope in
+`multiclasse_design.md` §8.4/§3 punto 6, il più contro-intuitivo del
+capitolo PHB (incantesimi/preparazione per classe, slot condivisi).
+
+`SpellsView` (`ui/views/spells_view.py`) calcola ora `self._caster_rows`
+(righe `character_classes` con una propria lista incantesimi) in
+`__init__`. Quando ce n'è più di una, `_build()` imbocca un ramo
+dedicato che rende una sotto-sezione "Incantesimi" per CIASCUNA classe
+(`_build_caster_class_section`), ognuna col proprio banner di
+preparazione/limite (`_section_prep_banner_mc`) e la propria lista
+(`_section_spell_list_mc`/`_section_known_class_spell_list`), calcolati
+sul livello e sulla caratteristica DI QUELLA CLASSE — mai il totale o
+quella della primaria (PHB IT p.165). Anche CD/bonus attacco
+(`_section_magic_header_mc`, via una nuova vista `_ClassAbilityView` che
+espone solo `spellcasting_ability` e delega il resto al personaggio
+reale) e il conteggio incantesimi conosciuti per le classi "know"
+(`_expected_known_spell_count_for`) diventano per-classe. Corretta
+contestualmente anche la sezione "Incantesimi Extra": prima escludeva
+solo gli incantesimi della PRIMARIA, quindi il libro di un Mago preso in
+multiclasse ci finiva dentro per errore invece che nella sua sezione
+dedicata.
+
+Stessa filosofia a basso rischio della sessione precedente: il percorso
+a classe singola (`len(_caster_rows) == 1`, il caso più comune, comprese
+le sottoclassi "casting preso in prestito dal Mago") resta **invariato
+byte-per-byte** — stesse funzioni di sempre
+(`_section_magic_header`/`_section_prep_banner`/`_section_spell_list`/
+`_toggle_prepared`), mai toccate, tutto il nuovo codice isolato in
+metodi `_mc`/nuovi separati.
+
+Limiti noti, documentati (non blocchi): `max_prepared_spells_override`
+resta unico per personaggio, non esposto nel ramo multiclasse (nessun
+modo ovvio di applicarlo a due classi senza ambiguità); `known_spells`
+non ha una chiave che includa la classe, quindi un incantesimo con lo
+STESSO nome+livello posseduto da entrambe le classi (raro — "Cura
+Ferite" 1° livello, Chierico e Paladino) condivide la stessa riga e
+risulterebbe preparato in entrambe le sezioni insieme.
+
+Nuovo test [10] in `test_multiclasse.py` (61 → 72 controlli): un
+personaggio Chierico 5/Mago 3 verifica `_caster_rows`, `_build()` senza
+eccezioni, che preparare un incantesimo di Mago non conti nel limite del
+Chierico e viceversa, e la formula PHB per-classe (Chierico WIS16 Lv5 =
+8, Mago INT14 Lv3 = 5). Suite di regressione completa rieseguita: tutte
+verdi tranne le 2 cause pre-esistenti di `test_qr_scan.py`. Con questo il
+piano Multiclasse (`multiclasse_design.md` §3, i 7 punti di logica) è
+**chiuso per intero**.
+
+---
+
+## Sezione Master completamente world-scoped — NPC, Incontri, Bottino (2026-08-12, sessione successiva)
+
+Bug report di Davide: "Nella sezione master le note, gli incontri,
+oggetti bottino e npc (tutto) deve essere dipendente dal mondo, quindi
+attualmente qualsiasi mondo seleziono vedo gli stessi incontri e la
+stessa visuale per tutto. selezionare un mondo è come se entrassi in un
+container con le sue cose." Le Note di Campagna erano già corrette dalla
+sessione del 2026-08-06; NPC/Incontri/Bottino no — indagine con un
+agente Explore dedicato prima di toccare codice, per mappare esattamente
+cosa era già scoped e cosa no.
+
+**NPC** (`master_npcs`): nessuna colonna `world_id` esisteva, né a DB né
+nel modello Python — la rubrica era globale su tutto il dispositivo.
+Aggiunta la colonna (migrazione), il campo su `MasterNpc`, e il filtro
+per uguaglianza esatta in `master_repo.get_npcs()`/`create_npc()`/
+`create_npc_from_monster()` (stesso principio già in uso per
+personaggi/note/bottino: `""` = solo NPC locali, un id di mondo = solo i
+suoi, mai un OR "mostra tutti"). Aggiornati tutti i punti di creazione
+(form manuale, dal Bestiario, Genera Casuale) e i picker che leggono NPC
+altrove (dentro Note di Campagna e dentro il tracker di un incontro).
+
+**Incontri** (`master_encounters`): la colonna `world_id` esisteva già,
+ma solo per il flag "visibile ai giocatori" del Tracker condiviso
+(§6.5 di `multiplayer_design.md`) — mai per filtrare la lista o la
+creazione. `get_encounters()`/`create_encounter()` ora accettano e
+filtrano per `world_id`; aggiornati i 3 punti di creazione (lista
+diretta, Generatore Incontri Casuali, Generatore per Ambiente).
+
+**Bottino** (`loot_stash_entries`): il Deposito del Gruppo era già
+scoped al mondo; l'Archivio privato del Master era per scelta di design
+sempre `world_id=""`, indipendentemente dal mondo selezionato. Cambiato
+su richiesta esplicita di Davide ("oggetti bottino" nominato
+esplicitamente, e "tutto"): ora entrambi i contenitori seguono il mondo
+selezionato — la privacy dell'archivio (mai sincronizzato/visibile ai
+giocatori) resta un asse indipendente, invariata. Corretto un bug
+collaterale in `_on_move` (spostare una voce tra archivio e deposito
+azzerava il `world_id` invece di preservarlo).
+
+**Esportazione del mondo** (`world_export.py`): gli NPC sono stati
+aggiunti a `_WORLD_FLAT_TABLES` (stessa tabella "piatta" generica di
+`loot_stash_entries`/`master_campaign_notes`, nessuna tabella figlio) —
+un backup/trasferimento di mondo ora porta con sé anche la rubrica NPC.
+Gli **Incontri restano esclusi**, limite noto e documentato: hanno una
+tabella figlio propria (`master_encounter_members`) che richiederebbe lo
+stesso trattamento dedicato di `characters`/`CHILD_TABLES`, fuori scope
+in questo giro.
+
+`test_master_world_scoping.py` esteso da 25 a 44 controlli (NPC/
+Incontri/Bottino, due mondi diversi + "nessun mondo" mutuamente
+esclusivi); `test_esportazione_mondo.py` esteso da 78 a 84 (round trip
+degli NPC nelle 3 modalità di import). Suite di regressione completa
+rieseguita: tutte verdi tranne le 2 cause pre-esistenti di
+`test_qr_scan.py`.
+
+---
+
+## Rubrica NPC — Razza strutturata, tendine con "Altro", auto-riempimento Tipo/Taglia (2026-08-12, sessione successiva)
+
+Bug report di Davide (screenshot del dialog "Modifica NPC"): un NPC
+generato dal Generatore Rapido con razza nota (Sabina, Halfling) mostrava
+"Tipo creatura"/"Taglia" vuoti quando si attivava "Ha statistiche di
+combattimento" — causa profonda, non un bug del form: il Generatore forza
+sempre `has_stat_block=False` quando il ruolo scelto non combacia con
+nessuna delle 21 voci Appendice B, quindi quei campi non venivano mai
+scritti. Il Master doveva ricordarsi a memoria che un Halfling è
+Umanoide/Piccola e digitarlo a mano. Richiesta più ampia: ogni campo del
+form NPC con un vocabolario D&D noto (non solo Tipo/Taglia) deve diventare
+una tendina con le scelte valide + "Altro" in fondo per l'inserimento
+manuale — confermata da Davide anche per i 4 campi multi-valore
+(vulnerabilità/resistenze/immunità ai danni, immunità alle condizioni).
+
+Pianificata in modalità Plan (due agenti dedicati: uno di ricognizione sul
+form/generatore/dati esistenti, uno di progettazione dell'implementazione)
+prima di scrivere codice, poi verificata a mano riga per riga contro il
+codice reale.
+
+Nuovo campo strutturato `MasterNpc.race` (migrazione DB) — popolato sia
+dal Generatore sia dal form manuale. Per gli NPC già esistenti (come
+Sabina), `core.npc_generator.resolve_race_from_tags()` estrae la razza dal
+primo segmento CSV di `tags` a runtime, nessuna migrazione dati
+necessaria. `update_npc()` la rende MODIFICABILE dopo la creazione (a
+differenza di `world_id`) — un Master che scopre "in realtà è un
+cambiaforma" deve poter correggerla.
+
+Due nuovi componenti riusabili in `ui/widgets.py`, accanto a
+`CardPicker`: **`DropdownAltro`** (tendina a scelta singola + "Altro" che
+rivela un campo libero — un valore fuori dal vocabolario, es. dati
+legacy, seleziona automaticamente "Altro" invece di perderlo) e
+**`MultiSelectAltro`** (wrapper su `CardPicker(multi=True)` con una riga
+"Aggiungi personalizzato" che accoda una nuova card già selezionata).
+Applicati nel form NPC (`master_npc_list_view.py`) a Razza (nuovo,
+9 razze PHB), Tipo creatura (14, nuova costante `settings.CREATURE_TYPES`
+— nessun vocabolario canonico esisteva, `monsters.json` ha valori
+incoerenti come "Non Morto"/"Non morto"), Taglia (6, `settings.SIZES`),
+Allineamento (riusa `settings.ALIGNMENTS`, già in produzione per la
+creazione PG), Grado di Sfida (`settings.CR_OPTIONS`) — e in
+multi-selezione a Vulnerabilità/Resistenze/Immunità ai danni (13 tipi,
+`settings.DAMAGE_TYPES_IT`, promossa da un dict locale duplicato dentro
+`get_race_display_traits()`) e Immunità alle condizioni (14, riusa
+`GameDataLoader.get_conditions()` — lo stesso catalogo PHB già usato dal
+tracker di combattimento per applicare condizioni ai PG — mostrando anche
+la descrizione ufficiale di ogni condizione come corpo della card).
+
+Auto-riempimento (`core.npc_generator.resolve_creature_type_and_size()`):
+quando si attiva "Ha statistiche di combattimento" (o cambia la Razza a
+spunta già attiva), Tipo creatura/Taglia si compilano da soli — tutte e 9
+le razze PHB sono Umanoidi (costante 5e implicita), la Taglia si legge da
+`GameDataLoader.get_race(razza)["size"]`. Regola unica: scrive SOLO se il
+campo è attualmente vuoto, non sovrascrive mai un valore che il Master ha
+già impostato — verificato esplicitamente pilotando l'albero dei
+controlli Flet reali (checkbox → auto-fill Umanoide/Piccola; modifica
+manuale della Taglia + ri-toggle della spunta → resta quella scritta dal
+Master, non l'auto-fill).
+
+Nuovo `test_npc_race_autofill.py` (33 controlli: risoluzione
+razza→tipo/taglia per tutte e 9 le razze, fallback da `tags`, round trip
+DB inclusa la modificabilità post-creazione). A differenza delle sessioni
+precedenti, qui è stato possibile verificare ANCHE l'auto-riempimento
+visuale end-to-end (non solo la logica pura): pilotando direttamente
+l'albero dei controlli Flet costruiti da `_open_npc_form` (checkbox,
+dropdown, salvataggio) invece di solo la logica di repository, incluso un
+salvataggio completo con persistenza corretta nel DB. Suite di
+regressione completa rieseguita: tutte verdi tranne le 2 cause
+pre-esistenti di `test_qr_scan.py`.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
