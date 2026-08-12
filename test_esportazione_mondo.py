@@ -4,8 +4,9 @@ Verifica di "Esportazione del mondo" (`.dndworld`, 2026-08-12, passo 9D di
 già collaudato per `.dndchar` (introspezione schema via `PRAGMA
 table_info`), esteso a un intero Mondo condiviso: mondo, membri, TUTTE le
 istanze di personaggio (comprese quelle archiviate), giornale eventi,
-bottino (entrambi i contenitori), note del master, richieste di modifica e
-di rientro pendenti, mappe condivise.
+bottino (entrambi i contenitori), note del master, NPC di rubrica
+(2026-08-12, da quando `master_npcs` è world-scoped), richieste di
+modifica e di rientro pendenti, mappe condivise.
 
 Cinque parti:
 
@@ -99,6 +100,7 @@ def _build_rich_world(name: str, owner_device: str, owner_name: str) -> tuple:
     master_repo.create_master_campaign_note(
         category="npc", name="Un PNG", description="desc", world_id=world.id,
     )
+    master_repo.create_npc(name="Un NPC di Rubrica", role="Alleato", world_id=world.id)
     maps_repo.create_shared_map(world.id, "Mappa Condivisa", image_data="")
     world_repo.create_rejoin_request(
         world.id, archived.id, "dev-player-x", "Giocatore X", "frozen", "{}",
@@ -128,6 +130,7 @@ def test_export_struttura_completa() -> None:
     check("bottino di entrambi i tipi presenti",
           {e["stash_kind"] for e in data["loot_stash_entries"]} == {"master", "party"})
     check("nota del master presente", len(data["master_campaign_notes"]) == 1)
+    check("NPC di rubrica presente (2026-08-12, world-scoped)", len(data["master_npcs"]) == 1)
     check("mappa condivisa presente", len(data["shared_maps"]) == 1)
     check("richiesta di rientro pendente presente", len(data["world_rejoin_requests"]) == 1)
 
@@ -162,6 +165,7 @@ def test_import_new_round_trip() -> None:
     conn = get_connection()
     conn.execute("DELETE FROM loot_stash_entries WHERE world_id=?", (world.id,))
     conn.execute("DELETE FROM master_campaign_notes WHERE world_id=?", (world.id,))
+    conn.execute("DELETE FROM master_npcs WHERE world_id=?", (world.id,))
     conn.execute("DELETE FROM game_maps WHERE world_id=?", (world.id,))
     conn.commit()
     conn.close()
@@ -205,6 +209,7 @@ def test_import_new_round_trip() -> None:
           and len(loot_repo.get_entries("party", new_id)) == 1)
     check("nota del master reimportata",
           len(master_repo.get_master_campaign_notes(world_id=new_id)) == 1)
+    check("NPC di rubrica reimportato", len(master_repo.get_npcs(world_id=new_id)) == 1)
     check("mappa condivisa reimportata", len(maps_repo.get_shared_maps(new_id)) == 1)
     check("richiesta di rientro reimportata",
           len(world_repo.get_pending_rejoin_requests(new_id)) == 1)
@@ -224,6 +229,8 @@ def test_import_overwrite_ripulisce() -> None:
     # eliminare (mai lasciarli mescolati col contenuto reimportato).
     extra_loot = loot_repo.create_entry("master", "item", name="Oggetto Sporco", world_id=world.id)
     assert extra_loot is not None
+    extra_npc = master_repo.create_npc(name="NPC Sporco", world_id=world.id)
+    assert extra_npc is not None
     extra_char = _make_character("Fantasma da Overwrite", world.id, "dev-player-ghost")
 
     new_id = world_export.import_world(data, "overwrite", "dev-owner-3", "Master 3")
@@ -232,6 +239,10 @@ def test_import_overwrite_ripulisce() -> None:
 
     check("l'oggetto di bottino 'sporco' NON esiste più",
           not any(e.name == "Oggetto Sporco" for e in loot_repo.get_entries("master", world.id)))
+    check("l'NPC 'sporco' aggiunto dopo l'export NON esiste più",
+          not any(n.name == "NPC Sporco" for n in master_repo.get_npcs(world_id=world.id)))
+    check("solo l'NPC originale resta dopo l'overwrite",
+          len(master_repo.get_npcs(world_id=world.id)) == 1)
     check("il personaggio 'sporco' aggiunto dopo l'export è stato eliminato dall'overwrite "
           "(DELETE FROM characters WHERE world_id=?, stesso principio distruttivo di "
           "import_character(mode='overwrite') applicato a QUESTO mondo)",
@@ -277,6 +288,11 @@ def test_import_copy_nuovi_id() -> None:
 
     check("bottino copiato con nuovi id (non collide col mondo originale)",
           len(loot_repo.get_entries("master", new_id)) == 1)
+    copied_npcs = master_repo.get_npcs(world_id=new_id)
+    original_npcs = master_repo.get_npcs(world_id=world.id)
+    check("NPC copiato con id nuovo (non collide col mondo originale)",
+          len(copied_npcs) == 1 and copied_npcs[0].id not in {n.id for n in original_npcs})
+    check("l'NPC ORIGINALE non è stato toccato dalla copia", len(original_npcs) == 1)
     copied_requests = world_repo.get_pending_rejoin_requests(new_id)
     check("richiesta di rientro copiata e ricollegata al personaggio copiato",
           len(copied_requests) == 1 and copied_requests[0].character_id == copied_archived.id)
@@ -412,6 +428,7 @@ def test_ui_export_import() -> None:
     conn = get_connection()
     conn.execute("DELETE FROM loot_stash_entries WHERE world_id=?", (world.id,))
     conn.execute("DELETE FROM master_campaign_notes WHERE world_id=?", (world.id,))
+    conn.execute("DELETE FROM master_npcs WHERE world_id=?", (world.id,))
     conn.execute("DELETE FROM game_maps WHERE world_id=?", (world.id,))
     conn.commit()
     conn.close()

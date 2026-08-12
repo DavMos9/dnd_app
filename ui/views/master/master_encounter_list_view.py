@@ -162,7 +162,7 @@ class MasterEncounterListView(ft.Column):
         self.refresh()
 
     def refresh(self):
-        all_encounters = master_repo.get_encounters(include_archived=True)
+        all_encounters = master_repo.get_encounters(include_archived=True, world_id=self._world_id)
         self._encounters = [e for e in all_encounters if e.is_archived == self._show_archived]
         self._populate_list()
         try:
@@ -302,7 +302,7 @@ class MasterEncounterListView(ft.Column):
 
         def _do_create(_e: Any):
             name = (name_tf.value or "").strip() or "Nuovo Incontro"
-            enc = master_repo.create_encounter(name=name, notes=notes_tf.value or "")
+            enc = master_repo.create_encounter(name=name, notes=notes_tf.value or "", world_id=self._world_id)
             page.pop_dialog()
             self.refresh()
             if enc:

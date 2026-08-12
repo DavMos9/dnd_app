@@ -426,6 +426,20 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # backup" — soglia decisa con Davide (20 eventi), non a tavolino.
     _add_column(cur, "worlds", "last_export_seq", "INTEGER DEFAULT 0")
 
+    # Sezione Master COMPLETAMENTE world-scoped (2026-08-12, bug report
+    # Davide: "note, incontri, oggetti bottino e npc... tutto deve essere
+    # dipendente dal mondo, quindi attualmente qualsiasi mondo seleziono
+    # vedo gli stessi incontri e la stessa visuale per tutto. selezionare
+    # un mondo è come se entrassi in un container con le sue cose").
+    # Completa il fix del 2026-08-06 sopra, che aveva coperto solo
+    # personaggi e note: gli NPC di rubrica non avevano ALCUNA colonna
+    # `world_id` (né qui né nel modello Python), e gli incontri la
+    # avevano già (riga sotto, dal Tracker condiviso §6.5) ma la
+    # UI/repository di lista/creazione non la usavano mai per filtrare —
+    # solo per il flag "visibile ai giocatori". '' = NPC locale/di nessun
+    # mondo (comportamento di sempre per chi non usa il Multiplayer).
+    _add_column(cur, "master_npcs", "world_id", "TEXT DEFAULT ''")
+
     _migrate_backfill_character_classes(cur)
 
 

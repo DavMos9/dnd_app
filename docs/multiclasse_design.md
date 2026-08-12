@@ -432,21 +432,68 @@ e note in `test_qr_scan.py`, indipendenti da questa feature.
 
 ### 8.4 Cosa resta — esplicitamente fuori scope in questo giro
 
-- **Livellare una classe SECONDARIA oltre il suo 1° livello dalla UI.**
-  Il pulsante "Level up" esistente sale SEMPRE e solo la classe primaria
-  (comportamento invariato, corretto per un personaggio a classe
-  singola). Manca il selettore "quale classe sale?" da anteporre quando
-  `get_character_classes()` ha più di una riga — un personaggio
-  multiclasse può aggiungere una nuova classe (fatto) ma non far
-  progredire quella secondaria oltre il 1° livello finché non si scrive
-  questo selettore. Prossimo passo concreto quando richiesto: un piccolo
-  dialog di scelta classe PRIMA del dialog di level-up esistente, che poi
-  richiama `_on_level_up_click` parametrizzato sulla classe scelta
-  invece che sempre sulla primaria (oggi hardcoded).
-- **`spells_view.py` con liste incantesimi per classe.** Un personaggio
-  con due classi da incantatore (es. Chierico/Mago) vede ancora la vista
-  Incantesimi con le assunzioni "una sola classe" della v1 di questo
-  documento (§3 punto 6) — non ancora toccata.
+- ~~**Livellare una classe SECONDARIA oltre il suo 1° livello dalla
+  UI.**~~ **Fatto (2026-08-12, bug report Davide).** Il pulsante
+  "Level up" ora mostra `_show_level_up_class_picker()` — un piccolo
+  dialog "quale classe sale?" — quando `get_character_classes()` ha più
+  di una riga, poi richiama `_on_level_up_click(e, target_class_name=...)`
+  parametrizzato sulla classe scelta (prima sempre hardcoded sulla
+  primaria). Implementato con `_LevelingClassView`: una vista che espone
+  `class_name`/`subclass` della classe BERSAGLIO e delega ogni altro
+  attributo al `Character` reale — per la classe primaria è letteralmente
+  lo stesso oggetto (`lc = c`, zero rischio sul percorso a classe singola,
+  confermato dalla suite di regressione), per una secondaria isola le
+  scritture di sottoclasse dentro la vista e le persiste a parte con la
+  nuova `character_repo.set_character_class_subclass()` (mai su
+  `characters.subclass`, sempre quella della primaria). Trovato e
+  corretto nello stesso passaggio un bug preesistente: il calcolo del
+  bonus PF permanente di sottoclasse (Resilienza Draconica) usava il
+  livello TOTALE del personaggio come "livello precedente" invece del
+  livello della singola classe — innocuo per un personaggio a classe
+  singola, sbagliato per qualunque personaggio multiclasse che sale la
+  primaria. Coperto da due nuovi test in `test_multiclasse.py` ([8]
+  level-up di una secondaria via le stesse chiamate di repository, [9]
+  semantica della vista). **Contestualmente anche capato a 2 il numero
+  massimo di classi in multiclasse** (il PHB non ne prevede di più — il
+  pulsante "Multiclasse" ora si disabilita da solo oltre le 2 classi
+  possedute) e **corretta la duplicazione di trucchetti nel dialog
+  "Aggiungi una classe"** (i 3 picker di trucchetto del Mago condividevano
+  la stessa lista senza esclusione reciproca — potevi scegliere lo stesso
+  trucchetto in tutti e 3).
+- ~~**`spells_view.py` con liste incantesimi per classe.**~~ **Fatto
+  (2026-08-12, bug report Davide: "la sezione incantesimi non viene
+  correttamente gestita in caso di multiclasse, tiene conto solo della
+  classe principale").** `SpellsView` calcola ora `self._caster_rows`
+  (righe di `character_classes` con una propria lista incantesimi) in
+  `__init__`; quando ce n'è più di una, `_build()` imbocca un ramo
+  multiclasse dedicato che rende una sotto-sezione "Incantesimi" per
+  CIASCUNA classe (`_build_caster_class_section`), ognuna con il proprio
+  banner di preparazione/limite (`_section_prep_banner_mc`) e la propria
+  lista (`_section_spell_list_mc`/`_section_known_class_spell_list`),
+  calcolati sul livello e sulla caratteristica DI QUELLA CLASSE — mai il
+  totale o quella della primaria (PHB IT p.165: "determina gli
+  incantesimi che puoi preparare per ciascuna classe individualmente,
+  come se fossi un personaggio a classe singola di quella classe").
+  Anche CD/bonus attacco (`_section_magic_header_mc`, via
+  `_ClassAbilityView`) e il conteggio incantesimi conosciuti per le
+  classi "know" (`_expected_known_spell_count_for`) diventano per-classe.
+  Corretta contestualmente anche la sezione "Incantesimi Extra": prima
+  escludeva solo gli incantesimi della PRIMARIA, quindi il libro di un
+  Mago preso in multiclasse ci finiva dentro per errore invece che nella
+  sua sezione dedicata. Percorso a classe singola (`len(_caster_rows) ==
+  1`, il caso più comune, comprese le sottoclassi "casting preso in
+  prestito dal Mago") **invariato byte-per-byte**: stesse funzioni di
+  sempre (`_section_magic_header`/`_section_prep_banner`/
+  `_section_spell_list`/`_toggle_prepared`), mai toccate, tutto il nuovo
+  codice isolato in metodi `_mc`/nuovi separati. Limite noto: il campo
+  `max_prepared_spells_override` resta unico per personaggio (non per
+  classe) e non è esposto nel ramo multiclasse — nessun modo ovvio di
+  applicarlo separatamente a due classi senza ambiguità; e
+  `known_spells` non ha una chiave che includa la classe, quindi un
+  incantesimo con lo STESSO nome+livello posseduto da entrambe le classi
+  (raro — es. "Cura Ferite" 1° livello, Chierico e Paladino) condivide la
+  stessa riga e risulterebbe preparato in entrambe le sezioni insieme.
+  Coperto da un nuovo test dedicato in `test_multiclasse.py` ([10]).
 - I 3 limiti di §8.2 (slot del Patto separati, dadi vita misti,
   terzo-incantatore in un multiclasse) restano invariati.
 - Il Mago in "Aggiungi una classe" parte con trucchetti corretti ma

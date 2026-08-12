@@ -50,9 +50,15 @@ def _int_or(text: str | None, default: int) -> int:
 class MasterNpcListView(ft.Column):
     """Lista/ricerca NPC di rubrica + creazione/modifica/eliminazione."""
 
-    def __init__(self):
+    def __init__(self, world_id: str = ""):
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
+        #: Mondo correntemente selezionato in `MasterView` (2026-08-12, bug
+        #: report Davide: "in Master... npc... tutto deve essere dipendente
+        #: dal mondo") — "" per la modalità locale. Stesso principio già in
+        #: uso per Incontri/Note/Bottino: un mondo è un container, la
+        #: rubrica NPC ne mostra/crea solo il contenuto.
+        self._world_id = world_id
         self._npcs: list[MasterNpc] = []
         self._search_query: str = ""
         self._list_col = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
@@ -99,7 +105,7 @@ class MasterNpcListView(ft.Column):
         self.controls.append(body)
 
     def refresh(self):
-        self._npcs = master_repo.get_npcs(self._search_query)
+        self._npcs = master_repo.get_npcs(self._search_query, self._world_id)
         self._populate_list()
         try:
             self.update()
@@ -349,7 +355,7 @@ class MasterNpcListView(ft.Column):
         def _generate(_e: Any):
             page.pop_dialog()
             from ui.views.master.master_npc_generator_dialog import show_npc_generator_dialog
-            show_npc_generator_dialog(page, on_saved=self.refresh)
+            show_npc_generator_dialog(page, on_saved=self.refresh, world_id=self._world_id)
 
         dlg = ft.AlertDialog(
             title=design.dialog_title("Nuovo NPC"),
@@ -600,6 +606,7 @@ class MasterNpcListView(ft.Column):
                 traits=src["traits"], actions=src["actions"],
                 reactions=src["reactions"], legendary_actions=src["legendary_actions"],
                 source_page=src["source_page"],
+                world_id=self._world_id,
             )
 
             if is_edit and npc is not None:

@@ -1569,7 +1569,7 @@ class MasterEncounterView(ft.Column):
         if not self._page:
             return
         page = self._page
-        npcs = master_repo.get_npcs()
+        npcs = master_repo.get_npcs(world_id=self._world_id)
 
         if not npcs:
             dlg = ft.AlertDialog(

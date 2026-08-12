@@ -1,5 +1,6 @@
 """
-Batteria di verifica — Modalità Master world-scoped (2026-08-06).
+Batteria di verifica — Modalità Master world-scoped (2026-08-06, estesa
+2026-08-12).
 
 Copre il fix dei due bug segnalati da Davide via screenshot ("il player
 entrato in un mondo appare duplicato nei picker della Sezione Master" /
@@ -15,6 +16,24 @@ per-nota di `multiplayer_design.md` §7:
   [3] master_repo — CRUD master_campaign_notes con world_id/visibility/
       visible_to_device_ids, incluso il filtro per mondo di
       get_master_campaign_notes()
+
+2026-08-12 — bug report Davide ("nella sezione master le note, gli
+incontri, oggetti bottino e npc... tutto deve essere dipendente dal
+mondo... selezionare un mondo è come se entrassi in un container con le
+sue cose"): le note (sopra) erano già corrette, NPC/incontri/bottino no —
+completato qui:
+
+  [4] master_repo — NPC di rubrica: `get_npcs()`/`create_npc()`/
+      `create_npc_from_monster()` ora filtrano/impostano `world_id`
+      (prima: nessuna colonna, nessun filtro, tutti gli NPC visibili in
+      ogni mondo)
+  [5] master_repo — Incontri: `get_encounters()`/`create_encounter()` ora
+      filtrano/impostano `world_id` (la colonna esisteva già per il
+      Tracker condiviso §6.5, ma non era mai usata per la lista/creazione)
+  [6] loot_repo — Bottino: l'Archivio del Master (`stash_kind="master"`,
+      prima sempre `world_id=""` per scelta di design) ora è scoped al
+      mondo selezionato esattamente come il Deposito del Gruppo, più il
+      fix collaterale di `move_entry()` tra i due contenitori
 
 Nessuna UI Flet toccata da queste funzioni — nessun bisogno di `import flet`,
 evita la classe di problemi (già nota, ambientale) delle batterie che
@@ -38,7 +57,7 @@ os.environ["HOME"] = _TMP_HOME
 
 from data.database import init_db  # noqa: E402
 from data.models import Character  # noqa: E402
-from data.repositories import character_repo, master_repo, world_repo  # noqa: E402
+from data.repositories import character_repo, loot_repo, master_repo, world_repo  # noqa: E402
 from core.world_permissions import ROLE_MASTER, ROLE_OWNER, ROLE_PLAYER  # noqa: E402
 
 _PASS = 0
@@ -178,6 +197,112 @@ def test_master_campaign_notes_world_and_visibility() -> None:
           reloaded and reloaded[0].world_id == world.id)
 
 
+def test_npcs_world_scoped() -> None:
+    print("\n[4] master_repo — NPC di rubrica world-scoped (bug report Davide, "
+          "2026-08-12: \"in Master... npc... tutto deve essere dipendente dal mondo\")")
+
+    world_a = world_repo.create_world("Mondo NPC A", "device-owner-4a", "Owner")
+    world_b = world_repo.create_world("Mondo NPC B", "device-owner-4b", "Owner")
+    assert world_a is not None and world_b is not None
+
+    local_npc = master_repo.create_npc(name="Locandiere Locale")
+    npc_a = master_repo.create_npc(name="Guardia A", world_id=world_a.id)
+    npc_b = master_repo.create_npc(name="Guardia B", world_id=world_b.id)
+    assert local_npc is not None and npc_a is not None and npc_b is not None
+
+    check("NPC locale nasce con world_id vuoto", local_npc.world_id == "")
+    check("NPC del mondo A porta il world_id corretto", npc_a.world_id == world_a.id)
+
+    local_ctx = master_repo.get_npcs(world_id="")
+    check("\"Nessun mondo\" mostra solo l'NPC locale",
+          {n.id for n in local_ctx} == {local_npc.id})
+
+    ctx_a = master_repo.get_npcs(world_id=world_a.id)
+    check("il mondo A mostra SOLO il suo NPC, mai quello locale né quello di B",
+          {n.id for n in ctx_a} == {npc_a.id})
+
+    ctx_b = master_repo.get_npcs(world_id=world_b.id)
+    check("il mondo B mostra SOLO il suo NPC",
+          {n.id for n in ctx_b} == {npc_b.id})
+
+    # create_npc_from_monster (percorso "Nuovo dal Bestiario") propaga world_id.
+    npc_from_monster = master_repo.create_npc_from_monster(
+        {"name": "Goblin", "type": "umanoide", "ac": 15}, world_id=world_a.id,
+    )
+    check("create_npc_from_monster propaga world_id",
+          npc_from_monster is not None and npc_from_monster.world_id == world_a.id)
+
+
+def test_encounters_world_scoped() -> None:
+    print("\n[5] master_repo — Incontri world-scoped (stessa richiesta: "
+          "\"in Master... incontri... tutto deve essere dipendente dal mondo\")")
+
+    world_a = world_repo.create_world("Mondo Incontri A", "device-owner-5a", "Owner")
+    world_b = world_repo.create_world("Mondo Incontri B", "device-owner-5b", "Owner")
+    assert world_a is not None and world_b is not None
+
+    local_enc = master_repo.create_encounter("Imboscata Locale")
+    enc_a = master_repo.create_encounter("Imboscata A", world_id=world_a.id)
+    enc_b = master_repo.create_encounter("Imboscata B", world_id=world_b.id)
+    assert local_enc is not None and enc_a is not None and enc_b is not None
+
+    check("incontro locale nasce con world_id vuoto", local_enc.world_id == "")
+    check("incontro del mondo A porta il world_id corretto", enc_a.world_id == world_a.id)
+
+    local_ctx = master_repo.get_encounters(include_archived=True, world_id="")
+    check("\"Nessun mondo\" mostra solo l'incontro locale",
+          {e.id for e in local_ctx} == {local_enc.id})
+
+    ctx_a = master_repo.get_encounters(include_archived=True, world_id=world_a.id)
+    check("il mondo A mostra SOLO il suo incontro, mai quello locale né quello di B",
+          {e.id for e in ctx_a} == {enc_a.id})
+
+    # `set_encounter_world`/`visible_to_players` restano il meccanismo
+    # SEPARATO di condivisione (§6.5) — non toccato da questo fix, ma non
+    # deve rompersi: un incontro già assegnato a un mondo può ancora essere
+    # reso visibile ai giocatori.
+    ok = master_repo.set_encounter_visibility(enc_a.id, True)
+    check("set_encounter_visibility continua a funzionare su un incontro world-scoped", ok)
+    visible = master_repo.get_visible_encounter_for_world(world_a.id)
+    check("get_visible_encounter_for_world lo trova ancora", visible is not None and visible.id == enc_a.id)
+
+
+def test_loot_world_scoped() -> None:
+    print("\n[6] loot_repo — Bottino (archivio del Master + deposito del gruppo) "
+          "world-scoped su ENTRAMBI gli stash_kind (2026-08-12)")
+
+    world_a = world_repo.create_world("Mondo Loot A", "device-owner-6a", "Owner")
+    world_b = world_repo.create_world("Mondo Loot B", "device-owner-6b", "Owner")
+    assert world_a is not None and world_b is not None
+
+    local_item = loot_repo.create_entry("master", "item", name="Spada locale")
+    item_a = loot_repo.create_entry("master", "item", name="Spada A", world_id=world_a.id)
+    item_b = loot_repo.create_entry("master", "item", name="Spada B", world_id=world_b.id)
+    assert local_item is not None and item_a is not None and item_b is not None
+
+    check("voce locale d'archivio nasce con world_id vuoto", local_item.world_id == "")
+    check("voce d'archivio del mondo A porta il world_id corretto", item_a.world_id == world_a.id)
+
+    local_ctx = loot_repo.get_entries("master", world_id="")
+    check("\"Nessun mondo\": l'archivio mostra solo la voce locale",
+          {i.id for i in local_ctx} == {local_item.id})
+
+    ctx_a = loot_repo.get_entries("master", world_id=world_a.id)
+    check("mondo A: l'archivio mostra SOLO la sua voce, mai quella locale né quella di B",
+          {i.id for i in ctx_a} == {item_a.id})
+
+    # Spostamento archivio -> deposito comune: deve restare nello stesso
+    # mondo (bug fix collaterale, 2026-08-12 — prima azzerava world_id).
+    ok = loot_repo.move_entry(item_a.id, "party", new_world_id=world_a.id)
+    check("move_entry ha successo", ok)
+    party_ctx_a = loot_repo.get_entries("party", world_id=world_a.id)
+    check("dopo lo spostamento, la voce compare nel deposito comune DELLO STESSO mondo",
+          any(i.id == item_a.id for i in party_ctx_a))
+    archive_ctx_a = loot_repo.get_entries("master", world_id=world_a.id)
+    check("...e non è più nell'archivio del mondo A",
+          not any(i.id == item_a.id for i in archive_ctx_a))
+
+
 def main() -> int:
     print("=" * 62)
     print("Modalità Master world-scoped — fix duplicazione + selettore mondo")
@@ -188,6 +313,9 @@ def main() -> int:
     test_get_master_visible_characters()
     test_get_worlds_for_device_roles()
     test_master_campaign_notes_world_and_visibility()
+    test_npcs_world_scoped()
+    test_encounters_world_scoped()
+    test_loot_world_scoped()
 
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

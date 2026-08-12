@@ -70,6 +70,23 @@ _PREP_HALF: set[str] = {"paladino"}
 _KNOW_CLASSES: set[str] = {"bardo", "ranger", "stregone", "warlock"}
 
 
+def _expected_known_spell_count_for(class_name: str, class_level: int) -> int:
+    """
+    Variante parametrizzata di `_expected_known_spell_count()` — stessa
+    formula, ma su una classe/livello espliciti invece di leggerli sempre
+    da `c.class_name`/`c.level` (il totale del personaggio). Multiclasse
+    (2026-08-12): ogni classe "know" accumula i propri incantesimi
+    conosciuti sul PROPRIO livello di classe (PHB IT p.165, stesso
+    principio del limite di preparazione — vedi `_calc_max_prepared_value`),
+    mai sul livello totale del personaggio.
+    """
+    total = _loader.get_spells_known_at_1(class_name)
+    delta = _loader.get_spell_learn_delta(class_name)
+    for lv in range(2, class_level + 1):
+        total += delta.get(lv, 0)
+    return total
+
+
 def _expected_known_spell_count(c: Character) -> int:
     """
     Totale atteso di incantesimi (livello ≥ 1, trucchetti esclusi) che una
@@ -84,14 +101,10 @@ def _expected_known_spell_count(c: Character) -> int:
     incantesimi conosciuti fissi esce incantesimi conosciuti, ma non quelli
     selezionati, comodo per capire se hai sforato" — prima il banner
     mostrava solo il conteggio grezzo, senza un totale di riferimento contro
-    cui confrontarlo.
+    cui confrontarlo. Percorso a CLASSE SINGOLA (o primaria) — invariato,
+    delega alla variante parametrizzata sopra con `c.class_name`/`c.level`.
     """
-    cls = c.class_name or ""
-    total = _loader.get_spells_known_at_1(cls)
-    delta = _loader.get_spell_learn_delta(cls)
-    for lv in range(2, c.level + 1):
-        total += delta.get(lv, 0)
-    return total
+    return _expected_known_spell_count_for(c.class_name or "", c.level)
 
 
 def _max_preparable_spell_level(slots: list[SpellSlot]) -> int:
@@ -114,32 +127,102 @@ def _max_preparable_spell_level(slots: list[SpellSlot]) -> int:
     return max((s.slot_level for s in slots if s.total > 0), default=0)
 
 
-def _calc_max_prepared(c: Character) -> int | None:
+def _calc_max_prepared_value(
+    class_name: str, class_level: int, spellcasting_ability: str,
+    scores: dict[str, int], override: int,
+) -> int | None:
     """
-    Calcola il massimo di incantesimi preparabili secondo le regole PHB.
-    Restituisce None per le classi "know" (nessun limite).
-    Tiene conto dell'override manuale del giocatore (max_prepared_spells_override > 0).
+    Nucleo della formula PHB di `_calc_max_prepared()`, parametrizzato su
+    classe/livello/caratteristica espliciti invece che letti sempre da un
+    `Character` a classe singola. Multiclasse (2026-08-12): PHB IT p.165,
+    "determina gli incantesimi che puoi preparare per ciascuna classe
+    individualmente, come se fossi un personaggio a classe singola di
+    quella classe" — ogni classe usa il SUO livello di classe (mai il
+    totale del personaggio) e la SUA caratteristica da incantatore.
     """
-    if c.max_prepared_spells_override > 0:
-        return c.max_prepared_spells_override
-
-    key = (c.class_name or "").strip().lower()
-    scores = {
-        "str": c.str_score, "dex": c.dex_score, "con": c.con_score,
-        "int": c.int_score, "wis": c.wis_score, "cha": c.cha_score,
-    }
-    sp_key = c.spellcasting_ability or ""
-    sp_mod = get_modifier(scores.get(sp_key, 10))
-
+    if override > 0:
+        return override
+    key = (class_name or "").strip().lower()
+    sp_mod = get_modifier(scores.get(spellcasting_ability or "", 10))
     if key in _PREP_FULL:
-        return max(1, sp_mod + c.level)
+        return max(1, sp_mod + class_level)
     if key in _PREP_HALF:
-        return max(1, sp_mod + max(1, c.level // 2))
+        return max(1, sp_mod + max(1, class_level // 2))
     if key in _KNOW_CLASSES:
         return None  # nessun limite — "known spells"
     # Sottoclasse incantatore (es. Guerriero Arcano, Ladro Mistificatore):
     # segnaliamo nessun limite perché la formula varia troppo
     return None
+
+
+def _calc_max_prepared(c: Character) -> int | None:
+    """
+    Calcola il massimo di incantesimi preparabili secondo le regole PHB.
+    Restituisce None per le classi "know" (nessun limite).
+    Tiene conto dell'override manuale del giocatore (max_prepared_spells_override > 0).
+    Percorso a CLASSE SINGOLA (o primaria) — invariato, delega alla
+    variante parametrizzata sopra con `c.class_name`/`c.level` (il totale,
+    che per un personaggio a classe singola coincide col livello di
+    classe).
+    """
+    scores = {
+        "str": c.str_score, "dex": c.dex_score, "con": c.con_score,
+        "int": c.int_score, "wis": c.wis_score, "cha": c.cha_score,
+    }
+    return _calc_max_prepared_value(
+        c.class_name or "", c.level, c.spellcasting_ability or "",
+        scores, c.max_prepared_spells_override,
+    )
+
+
+class _ClassAbilityView:
+    """
+    Vista di sola lettura che espone `spellcasting_ability` di UNA classe
+    specifica (usata per calcolare CD/bonus attacco DI QUELLA CLASSE con
+    `core/character_stats.py`, che legge `character.spellcasting_ability`
+    tramite `getattr`) delegando ogni altro attributo — punteggi di
+    caratteristica, livello TOTALE, bonus di competenza: tutti condivisi a
+    livello di PERSONAGGIO, mai di singola classe (PHB IT p.165) — al
+    Character reale sottostante.
+
+    Multiclasse (2026-08-12, bug report Davide: "la sezione incantesimi
+    tiene conto solo della classe principale") — usata SOLO quando il
+    personaggio ha più di una classe con lista incantesimi propria
+    (`SpellsView._caster_rows`, vedi `_section_magic_header_mc`); per un
+    personaggio a classe singola l'header resta quello di sempre
+    (`_section_magic_header`, `c.spellcasting_ability` letto direttamente).
+    """
+
+    def __init__(self, character: Character, spellcasting_ability: str) -> None:
+        object.__setattr__(self, "_character", character)
+        object.__setattr__(self, "spellcasting_ability", spellcasting_ability)
+
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, "_character"), name)
+
+
+def _caster_class_rows(character: Character) -> list[tuple[Any, list[dict[str, Any]]]]:
+    """
+    Righe di `character_classes` che hanno una PROPRIA lista di incantesimi
+    (Chierico/Druido/Mago/Paladino/Bardo/Ranger/Stregone/Warlock) — esclude
+    le classi senza spellcasting_ability propria (es. Guerriero puro senza
+    sottoclasse incantatrice) e le sottoclassi "casting preso in prestito
+    dal Mago" (Mistificatore Arcano/Cavaliere Mistico), che restano gestite
+    dal meccanismo "Incantesimi Extra" già esistente (invariato — la loro
+    lista di classe propria è sempre vuota per definizione).
+
+    Per un personaggio a classe singola ritorna sempre esattamente una
+    riga (la primaria, byte-identica a `character.class_name`/`.level`) —
+    usata SOLO per decidere se attivare il rendering multiclasse
+    (`len(...) > 1`): il percorso a classe singola resta quello di sempre,
+    mai da qui (2026-08-12, vedi `SpellsView._build()`).
+    """
+    rows = []
+    for cc in character_repo.get_character_classes(character.id):
+        spells = _loader.get_spells(cc.class_name)
+        if spells:
+            rows.append((cc, spells))
+    return rows
 
 
 class SpellsView(ScrollMemoryListView):
@@ -180,6 +263,17 @@ class SpellsView(ScrollMemoryListView):
         self._class_spells: list[dict[str, Any]] = _loader.get_spells(
             character.class_name or ""
         )
+        # Multiclasse (2026-08-12, bug report Davide: "la sezione
+        # incantesimi tiene conto solo della classe principale") — righe di
+        # character_classes con una PROPRIA lista di incantesimi. Per un
+        # personaggio a classe singola contiene sempre esattamente una riga
+        # (la primaria): il rendering più sotto resta quello di sempre in
+        # quel caso, il percorso multiclasse (nuovo) si attiva solo con
+        # len(self._caster_rows) > 1. `self._class_spells` sopra resta
+        # quella della sola PRIMARIA (invariata, per tutti i punti che la
+        # usavano già prima di questo fix), MAI usata per decidere se
+        # mostrare il nuovo rendering multiclasse.
+        self._caster_rows: list[tuple[Any, list[dict[str, Any]]]] = _caster_class_rows(character)
         self._build()
 
     def did_mount(self) -> None:
@@ -214,6 +308,29 @@ class SpellsView(ScrollMemoryListView):
         return sum(
             1 for (_, lv), ks in self._known.items()
             if ks.is_prepared and lv > 0 and not ks.always_prepared
+        )
+
+    def _prepared_count_for_class(self, class_name: str) -> int:
+        """
+        Come `_prepared_count()` ma filtrato sulla sola classe indicata
+        (`class_list`) — usato dalle sezioni multiclasse (2026-08-12), dove
+        ogni classe ha il proprio limite/conteggio indipendente (PHB IT
+        p.165). Stessa esclusione di `always_prepared`, NON esclude i
+        bonus (`is_bonus`) — stessa scelta già fatta in `_prepared_count()`,
+        mai cambiata qui per restare coerente.
+
+        Limite noto: `known_spells` non ha una chiave che includa la
+        classe (solo nome+livello), quindi un incantesimo con lo STESSO
+        nome+livello posseduto da ENTRAMBE le classi del personaggio (raro
+        — es. "Cura Ferite" 1° livello, in comune a Chierico e Paladino)
+        condivide la stessa riga e comparirebbe preparato in entrambe le
+        sezioni contemporaneamente.
+        """
+        key = (class_name or "").strip().lower()
+        return sum(
+            1 for (_, lv), ks in self._known.items()
+            if ks.is_prepared and lv > 0 and not ks.always_prepared
+            and (ks.class_list or "").strip().lower() == key
         )
 
     def _toggle_prepared(self, spell: dict[str, Any]) -> None:
@@ -264,6 +381,76 @@ class SpellsView(ScrollMemoryListView):
                 description=spell.get("description", ""),
                 higher_levels=spell.get("higher_levels", "") or "",
                 class_list=self.character.class_name or "",
+            )
+
+        self._reload_known()
+        self._refresh()
+
+    def _toggle_prepared_mc(self, spell: dict[str, Any], class_name: str) -> None:
+        """
+        Variante multiclasse di `_toggle_prepared()` (2026-08-12) — stessa
+        logica, ma limite/conteggio calcolati SOLO sulla classe passata
+        (`class_list`), e salva lo spell con `class_list=class_name`
+        invece di `self.character.class_name` (che per una classe
+        secondaria sarebbe quello sbagliato — PHB IT p.165, ogni classe si
+        prepara come se fosse a classe singola). Chiamata SOLO dalle
+        sezioni multiclasse (`self._caster_rows` con più di una riga); il
+        percorso a classe singola continua a passare da `_toggle_prepared`,
+        invariato.
+        """
+        c = self.character
+        name = spell.get("name", "")
+        level = spell.get("level", 0)
+        was_prepared = self._is_prepared(name, level)
+
+        if not was_prepared and level > 0:
+            cc = next((r[0] for r in self._caster_rows if r[0].class_name == class_name), None)
+            class_level = cc.level if cc else c.level
+            cls_data = _loader.get_class(class_name) or {}
+            sp_ability = cls_data.get("spellcasting_ability", "") or ""
+            scores = {
+                "str": c.str_score, "dex": c.dex_score, "con": c.con_score,
+                "int": c.int_score, "wis": c.wis_score, "cha": c.cha_score,
+            }
+            max_prep = _calc_max_prepared_value(class_name, class_level, sp_ability, scores, 0)
+            if max_prep is not None and self._prepared_count_for_class(class_name) >= max_prep:
+                if self._page:
+                    self._page.show_dialog(ft.AlertDialog(
+                        title=design.dialog_title("Limite raggiunto"),
+                        content=ft.Text(
+                            f"Hai già preparato {max_prep} incantesimi da {class_name}, "
+                            f"il massimo per il tuo livello in questa classe.\n\n"
+                            f"Deprepara un incantesimo di {class_name} per farne spazio.",
+                            size=13, color=design.T().text,
+                        ),
+                        actions=[
+                            ft.TextButton(
+                                "OK",
+                                on_click=lambda e: self._page.pop_dialog()
+                                if self._page else None,
+                            )
+                        ],
+                    ))
+                return
+
+        if was_prepared:
+            character_repo.remove_known_spell(c.id, name, level)
+        else:
+            comps = spell.get("components", [])
+            comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
+            if spell.get("material"):
+                comp_str += f" ({spell['material']})"
+            character_repo.upsert_known_spell(
+                character_id=c.id,
+                name=name, level=level, is_prepared=True,
+                school=spell.get("school", ""),
+                casting_time=spell.get("casting_time", ""),
+                spell_range=spell.get("range", ""),
+                components=comp_str,
+                duration=spell.get("duration", ""),
+                description=spell.get("description", ""),
+                higher_levels=spell.get("higher_levels", "") or "",
+                class_list=class_name,
             )
 
         self._reload_known()
@@ -493,7 +680,22 @@ class SpellsView(ScrollMemoryListView):
                 self._section_racial_spells(c),
             ]
 
-        if c.spellcasting_ability:
+        # Multiclasse (2026-08-12, bug report Davide: "la sezione
+        # incantesimi tiene conto solo della classe principale") — CD/bonus
+        # attacco si calcolano SEPARATAMENTE per ciascuna classe
+        # incantatrice (PHB IT p.165), non un unico header sulla sola
+        # primaria. Attivo solo con più di una classe con lista propria
+        # (self._caster_rows); per una sola classe (compresi Mistificatore
+        # Arcano/Cavaliere Mistico, che vivono fuori da _caster_rows)
+        # resta l'header globale di sempre, invariato.
+        if len(self._caster_rows) > 1:
+            controls.append(section_header("Magia"))
+            for cc, _spells in self._caster_rows:
+                _cls_data = _loader.get_class(cc.class_name) or {}
+                _sp_ability = _cls_data.get("spellcasting_ability", "") or ""
+                if _sp_ability:
+                    controls.append(self._section_magic_header_mc(cc.class_name, _sp_ability))
+        elif c.spellcasting_ability:
             controls += [section_header("Magia"), self._section_magic_header(c)]
 
         # Incantesimi Bonus (2026-07-16, richiesta Davide: "Permettere a
@@ -564,82 +766,93 @@ class SpellsView(ScrollMemoryListView):
             # anche parte della lista standard della classe).
             always_prep_names = {ks.name for ks in self._known.values() if ks.always_prepared}
 
-            controls += [
-                section_header("Incantesimi"),
-                self._section_prep_banner(c),
-            ]
-
-            key = (c.class_name or "").strip().lower()
-            if key in _KNOW_CLASSES:
-                # Bug fix 2026-07-16 (Davide): Bardo/Ranger/Stregone/Warlock
-                # NON preparano ogni giorno dall'intera lista di classe come
-                # Chierico/Druido/Mago — "conoscono" un set fisso di
-                # incantesimi, scelto alla creazione e modificato SOLO tramite
-                # i meccanismi di level-up già esistenti (SPELL_LEARN,
-                # SPELL_SWAP, CANTRIP_LEARN). Mostrare qui l'intero catalogo
-                # con un toggle libero (come per i preparatori puri) permette
-                # di "imparare" all'istante un incantesimo qualsiasi,
-                # bypassando quei meccanismi — incoerente con come sono già
-                # gestiti Segreti Magici/Mistificatore Arcano/Cavaliere
-                # Mistico (sempre in sola lettura). Qui mostriamo quindi SOLO
-                # gli incantesimi realmente in `known_spells` che appartengono
-                # alla lista della classe, in sola lettura (stesso stile della
-                # sezione "Incantesimi Extra"): per imparane di nuovi si passa
-                # dal level-up (o, per aggiunte eccezionali/case, da
-                # "Incantesimi Bonus" qui sopra).
-                class_spell_names_set = {sp.get("name", "") for sp in self._class_spells}
-                known_own_list = [
-                    ks for ks in self._known.values()
-                    if ks.name in class_spell_names_set
-                    and not ks.always_prepared and not ks.is_bonus
+            if len(self._caster_rows) > 1:
+                # Multiclasse (2026-08-12, bug report Davide: "la sezione
+                # incantesimi tiene conto solo della classe principale") —
+                # una sotto-sezione "Incantesimi" per CIASCUNA classe con
+                # lista propria, ciascuna col proprio banner di
+                # preparazione/limite e la propria lista, invece
+                # dell'unica sezione sulla sola primaria del percorso a
+                # classe singola sotto (che qui viene saltato per intero).
+                controls.append(section_header("Incantesimi"))
+                for cc, cls_spells in self._caster_rows:
+                    controls += self._build_caster_class_section(cc, cls_spells, always_prep_names)
+            else:
+                controls += [
+                    section_header("Incantesimi"),
+                    self._section_prep_banner(c),
                 ]
-                by_level_known: dict[int, list[KnownSpell]] = {}
-                for ks in known_own_list:
-                    by_level_known.setdefault(ks.spell_level, []).append(ks)
+                key = (c.class_name or "").strip().lower()
+                if key in _KNOW_CLASSES:
+                    # Bug fix 2026-07-16 (Davide): Bardo/Ranger/Stregone/Warlock
+                    # NON preparano ogni giorno dall'intera lista di classe come
+                    # Chierico/Druido/Mago — "conoscono" un set fisso di
+                    # incantesimi, scelto alla creazione e modificato SOLO tramite
+                    # i meccanismi di level-up già esistenti (SPELL_LEARN,
+                    # SPELL_SWAP, CANTRIP_LEARN). Mostrare qui l'intero catalogo
+                    # con un toggle libero (come per i preparatori puri) permette
+                    # di "imparare" all'istante un incantesimo qualsiasi,
+                    # bypassando quei meccanismi — incoerente con come sono già
+                    # gestiti Segreti Magici/Mistificatore Arcano/Cavaliere
+                    # Mistico (sempre in sola lettura). Qui mostriamo quindi SOLO
+                    # gli incantesimi realmente in `known_spells` che appartengono
+                    # alla lista della classe, in sola lettura (stesso stile della
+                    # sezione "Incantesimi Extra"): per imparane di nuovi si passa
+                    # dal level-up (o, per aggiunte eccezionali/case, da
+                    # "Incantesimi Bonus" qui sopra).
+                    class_spell_names_set = {sp.get("name", "") for sp in self._class_spells}
+                    known_own_list = [
+                        ks for ks in self._known.values()
+                        if ks.name in class_spell_names_set
+                        and not ks.always_prepared and not ks.is_bonus
+                    ]
+                    by_level_known: dict[int, list[KnownSpell]] = {}
+                    for ks in known_own_list:
+                        by_level_known.setdefault(ks.spell_level, []).append(ks)
 
-                if by_level_known:
-                    for lv in sorted(by_level_known.keys()):
+                    if by_level_known:
+                        for lv in sorted(by_level_known.keys()):
+                            label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
+                            controls += [
+                                section_header(label),
+                                self._section_known_class_spell_list(by_level_known[lv]),
+                            ]
+                    else:
+                        controls.append(ft.Container(
+                            content=ft.Text(
+                                "Nessun incantesimo ancora conosciuto — si "
+                                "impara alla creazione del personaggio o "
+                                "salendo di livello.",
+                                size=12, color=design.T().text_3, italic=True,
+                            ),
+                            padding=16,
+                        ))
+                else:
+                    max_prep_level = _max_preparable_spell_level(self._slots)
+                    by_level: dict[int, list[dict]] = {}
+                    for sp in self._class_spells:
+                        if sp.get("name") in always_prep_names:
+                            continue
+                        lvl = sp.get("level", 0)
+                        # PHB: un incantesimo di livello > 0 è preparabile solo
+                        # se il personaggio possiede almeno uno slot di quel
+                        # livello — eccezione per un incantesimo già preparato
+                        # in precedenza (es. dopo un level-down, o un vecchio
+                        # stato salvato prima di questo fix), che resta visibile
+                        # per poterlo comunque togliere dal giocatore.
+                        if (
+                            lvl > 0
+                            and lvl > max_prep_level
+                            and not self._is_prepared(sp.get("name", ""), lvl)
+                        ):
+                            continue
+                        by_level.setdefault(lvl, []).append(sp)
+                    for lv in sorted(by_level.keys()):
                         label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
                         controls += [
                             section_header(label),
-                            self._section_known_class_spell_list(by_level_known[lv]),
+                            self._section_spell_list(by_level[lv]),
                         ]
-                else:
-                    controls.append(ft.Container(
-                        content=ft.Text(
-                            "Nessun incantesimo ancora conosciuto — si "
-                            "impara alla creazione del personaggio o "
-                            "salendo di livello.",
-                            size=12, color=design.T().text_3, italic=True,
-                        ),
-                        padding=16,
-                    ))
-            else:
-                max_prep_level = _max_preparable_spell_level(self._slots)
-                by_level: dict[int, list[dict]] = {}
-                for sp in self._class_spells:
-                    if sp.get("name") in always_prep_names:
-                        continue
-                    lvl = sp.get("level", 0)
-                    # PHB: un incantesimo di livello > 0 è preparabile solo
-                    # se il personaggio possiede almeno uno slot di quel
-                    # livello — eccezione per un incantesimo già preparato
-                    # in precedenza (es. dopo un level-down, o un vecchio
-                    # stato salvato prima di questo fix), che resta visibile
-                    # per poterlo comunque togliere dal giocatore.
-                    if (
-                        lvl > 0
-                        and lvl > max_prep_level
-                        and not self._is_prepared(sp.get("name", ""), lvl)
-                    ):
-                        continue
-                    by_level.setdefault(lvl, []).append(sp)
-                for lv in sorted(by_level.keys()):
-                    label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
-                    controls += [
-                        section_header(label),
-                        self._section_spell_list(by_level[lv]),
-                    ]
 
         # Incantesimi "sempre pronti" da privilegio di Dominio/Giuramento/
         # Circolo della Terra (task #26, 2026-07-16) — sezione dedicata,
@@ -664,9 +877,20 @@ class SpellsView(ScrollMemoryListView):
                     self._section_always_prepared_list(ap_by_level[lv]),
                 ]
 
-        # Incantesimi "extra" — conosciuti dal DB ma non nella lista JSON della classe
-        # (Segreti Magici, Mistificatore, Eldritch Knight, etc.)
-        class_spell_names: set[str] = {s.get("name", "") for s in self._class_spells}
+        # Incantesimi "extra" — conosciuti dal DB ma non nella lista JSON di
+        # NESSUNA classe posseduta (Segreti Magici, Mistificatore, Eldritch
+        # Knight, etc.). Multiclasse (2026-08-12, bug report Davide):
+        # l'insieme è l'UNIONE delle liste di TUTTE le classi con lista
+        # propria (self._caster_rows), non solo quella della primaria —
+        # prima di questo fix gli incantesimi di una classe secondaria
+        # (es. il libro di un Mago preso in multiclasse) finivano
+        # erroneamente qui, etichettati come "Incantesimi Extra" invece
+        # che nella loro sezione "Incantesimi" dedicata. Per una sola
+        # classe l'unione coincide con self._class_spells, nessun cambio
+        # di comportamento.
+        class_spell_names: set[str] = {
+            sp.get("name", "") for _, spells in self._caster_rows for sp in spells
+        }
         extra_known: list[KnownSpell] = [
             ks for ks in self._known.values()
             if ks.name not in class_spell_names and ks.is_prepared
@@ -694,6 +918,82 @@ class SpellsView(ScrollMemoryListView):
         self.controls.clear()
         for ctrl in controls:
             self.controls.append(ctrl)
+
+    def _build_caster_class_section(
+        self, cc: Any, cls_spells: list[dict[str, Any]], always_prep_names: set[str],
+    ) -> list[ft.Control]:
+        """
+        Sotto-sezione "Incantesimi" di UNA classe del personaggio, usata
+        SOLO dal percorso multiclasse (`self._caster_rows` con più di una
+        riga — 2026-08-12, bug report Davide: "la sezione incantesimi
+        tiene conto solo della classe principale"). Stessa logica del
+        percorso a classe singola in `_build()` (preparatori full/half
+        contro classi "know"), ma su `cc.class_name`/`cc.level` (il
+        livello DI QUESTA CLASSE, mai il totale — PHB IT p.165) invece di
+        `c.class_name`/`c.level`, e coi metodi `_mc` che filtrano/salvano
+        per classe (`class_list`).
+        """
+        controls: list[ft.Control] = [
+            ft.Text(f"{cc.class_name}  ·  Lv.{cc.level}", size=13,
+                    weight=ft.FontWeight.BOLD, color=design.T().magic),
+        ]
+        cls_data = _loader.get_class(cc.class_name) or {}
+        sp_ability = cls_data.get("spellcasting_ability", "") or ""
+        controls.append(self._section_prep_banner_mc(cc.class_name, cc.level, sp_ability))
+
+        key = (cc.class_name or "").strip().lower()
+        if key in _KNOW_CLASSES:
+            class_spell_names_set = {sp.get("name", "") for sp in cls_spells}
+            known_own_list = [
+                ks for ks in self._known.values()
+                if ks.name in class_spell_names_set
+                and (ks.class_list or "").strip().lower() == key
+                and not ks.always_prepared and not ks.is_bonus
+            ]
+            by_level_known: dict[int, list[KnownSpell]] = {}
+            for ks in known_own_list:
+                by_level_known.setdefault(ks.spell_level, []).append(ks)
+
+            if by_level_known:
+                for lv in sorted(by_level_known.keys()):
+                    label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
+                    controls += [
+                        section_header(label),
+                        self._section_known_class_spell_list(by_level_known[lv]),
+                    ]
+            else:
+                controls.append(ft.Container(
+                    content=ft.Text(
+                        "Nessun incantesimo ancora conosciuto — si "
+                        "impara alla creazione del personaggio o "
+                        "salendo di livello.",
+                        size=12, color=design.T().text_3, italic=True,
+                    ),
+                    padding=16,
+                ))
+        else:
+            max_prep_level = _max_preparable_spell_level(self._slots)
+            by_level: dict[int, list[dict]] = {}
+            for sp in cls_spells:
+                if sp.get("name") in always_prep_names:
+                    continue
+                lvl = sp.get("level", 0)
+                if (
+                    lvl > 0
+                    and lvl > max_prep_level
+                    and not self._is_prepared(sp.get("name", ""), lvl)
+                ):
+                    continue
+                by_level.setdefault(lvl, []).append(sp)
+            for lv in sorted(by_level.keys()):
+                label = "Trucchetti (0°)" if lv == 0 else f"Livello {_SLOT_NAMES[lv - 1]}"
+                controls += [
+                    section_header(label),
+                    self._section_spell_list_mc(by_level[lv], cc.class_name, cc.level),
+                ]
+
+        controls.append(ft.Container(height=4))
+        return controls
 
     # ------------------------------------------------------------------
     # Sezioni UI
@@ -762,6 +1062,85 @@ class SpellsView(ScrollMemoryListView):
                               if atk_spec else None),
                      rollable=bool(atk_spec)),
             ], spacing=8),
+            bgcolor=design.T().surface,
+            padding=14,
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
+        )
+
+    def _section_magic_header_mc(self, class_name: str, spellcasting_ability: str) -> ft.Container:
+        """
+        Variante multiclasse di `_section_magic_header()` (2026-08-12) —
+        stessa resa visiva (caratteristica/CD/bonus attacco), ma calcolata
+        con la caratteristica da incantatore DI QUESTA CLASSE tramite
+        `_ClassAbilityView` invece di `c.spellcasting_ability` (quello
+        della primaria) — PHB IT p.165: CD e bonus attacco si calcolano
+        separatamente per ciascuna classe incantatrice. Preceduta da
+        un'etichetta col nome della classe. Usata SOLO quando il
+        personaggio ha più di una classe con lista incantesimi propria
+        (`self._caster_rows`); per una sola classe resta
+        `_section_magic_header()`, invariata.
+        """
+        c = self.character
+        view = _ClassAbilityView(c, spellcasting_ability)
+        _KEY_TO_NAME = dict(zip(ABILITY_KEYS, ABILITY_SCORES))
+        _KEY_TO_ABBR = dict(zip(ABILITY_KEYS, ABILITY_ABBR))
+        _KEY_TO_SCORE = {
+            "str": c.str_score, "dex": c.dex_score, "con": c.con_score,
+            "int": c.int_score, "wis": c.wis_score, "cha": c.cha_score,
+        }
+        pb = char_prof_bonus(c)
+        sp_mod = get_modifier(_KEY_TO_SCORE.get(spellcasting_ability, 10))
+        save_dc = cs.spell_save_dc(view)
+        atk_bon = pb + sp_mod
+        atk_str = f"+{atk_bon}" if atk_bon >= 0 else str(atk_bon)
+        sp_name = _KEY_TO_NAME.get(spellcasting_ability, spellcasting_ability)
+        sp_abbr = _KEY_TO_ABBR.get(spellcasting_ability, spellcasting_ability.upper())
+
+        def _box(label: str, value: str, on_click=None, tooltip: str | None = None,
+                 rollable: bool = False) -> ft.Container:
+            value_ctl: ft.Control = ft.Text(
+                value, size=18, color=design.T().magic,
+                weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER,
+                font_family=design.Font.MONO)
+            if rollable:
+                value_ctl = ft.Row(
+                    [value_ctl,
+                     ft.Icon(ft.Icons.CASINO_OUTLINED, size=12, color=design.T().magic)],
+                    spacing=4, tight=True,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+            return ft.Container(
+                content=ft.Column([
+                    ft.Text(label, size=9, color=design.T().text_3,
+                            weight=ft.FontWeight.BOLD,
+                            text_align=ft.TextAlign.CENTER),
+                    value_ctl,
+                ], spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                bgcolor=design.T().surface_alt,
+                padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+                border_radius=design.Radius.MD, expand=True,
+                on_click=on_click, ink=bool(on_click), tooltip=tooltip,
+            )
+
+        atk_spec = cs.spell_attack_roll(view)
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Text(class_name, size=12, weight=ft.FontWeight.BOLD, color=design.T().magic),
+                ft.Row([
+                    _box(f"CARATTERISTICA\n({sp_abbr})", sp_name),
+                    _box("CD TIRO SALV.", str(save_dc)),
+                    _box("BONUS ATTACCO", atk_str,
+                         on_click=(lambda e: show_roll(self._page, cs.spell_attack_roll(view)))
+                         if atk_spec else None,
+                         tooltip=(f"Tira l'attacco con incantesimo ({atk_spec.note})"
+                                  if atk_spec else None),
+                         rollable=bool(atk_spec)),
+                ], spacing=8),
+            ], spacing=6),
             bgcolor=design.T().surface,
             padding=14,
             border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
@@ -839,6 +1218,65 @@ class SpellsView(ScrollMemoryListView):
             border_radius=design.Radius.MD,
         )
 
+    def _section_prep_banner_mc(self, class_name: str, class_level: int, spellcasting_ability: str) -> ft.Container:
+        """
+        Variante multiclasse di `_section_prep_banner()` (2026-08-12) —
+        stessa resa visiva, ma limite/conteggio calcolati SOLO sugli
+        incantesimi DI QUESTA CLASSE (`class_list`), col SUO livello e la
+        SUA caratteristica (PHB IT p.165) — mai quelli globali usati dal
+        percorso a classe singola. Nessun pulsante "✎" di override manuale
+        qui: quel campo resta un unico valore per personaggio (non per
+        classe), applicarlo separatamente a due classi diverse ne
+        raddoppierebbe l'effetto in modo ambiguo — resta disponibile solo
+        dal percorso a classe singola.
+        """
+        scores = {
+            "str": self.character.str_score, "dex": self.character.dex_score,
+            "con": self.character.con_score, "int": self.character.int_score,
+            "wis": self.character.wis_score, "cha": self.character.cha_score,
+        }
+        max_prep = _calc_max_prepared_value(class_name, class_level, spellcasting_ability, scores, 0)
+        count = self._prepared_count_for_class(class_name)
+
+        if max_prep is None:
+            expected = _expected_known_spell_count_for(class_name, class_level)
+            over = expected > 0 and count > expected
+            label_text = f"{count} / {expected} incantesimi conosciuti"
+            color = design.T().primary if over else design.T().text_3
+            ratio = min(1.0, count / expected) if expected > 0 else 0.0
+            if over:
+                note = f"Hai {count - expected} incantesim{'o' if count - expected == 1 else 'i'} in più del previsto per il tuo livello in questa classe"
+            else:
+                note = "Nuovi incantesimi si imparano al level-up di questa classe"
+        else:
+            label_text = f"{count} / {max_prep} preparati"
+            at_limit = count >= max_prep
+            color = design.T().primary if at_limit else design.T().magic
+            ratio = min(1.0, count / max_prep) if max_prep > 0 else 0.0
+            max_lv = _max_preparable_spell_level(self._slots)
+            lvl_note = f"Lv. max preparabile: {max_lv}°" if max_lv > 0 else "Nessuno slot incantesimo disponibile"
+            note = f"I trucchetti (0°) non contano nel limite  ·  {lvl_note}"
+
+        rows: list[ft.Control] = [
+            ft.Text(label_text, size=16, color=color, weight=ft.FontWeight.BOLD,
+                    font_family=design.Font.MONO),
+        ]
+        if max_prep is not None or (max_prep is None and count > 0):
+            rows.append(ft.Row([ft.ProgressBar(
+                value=ratio, color=color, bgcolor=design.T().surface_alt,
+                height=8, border_radius=4, expand=True,
+            )]))
+        rows.append(ft.Text(note, size=10, color=design.T().text_3, italic=True))
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=6),
+            bgcolor=design.T().surface,
+            padding=12,
+            border=ft.Border.only(left=ft.BorderSide(3, color)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
+        )
+
     def _section_slots_summary(self, slots: list[SpellSlot]) -> ft.Container:
         # Slot come pallini pieni/anello (Fase E.4 del restyle): prima erano i
         # caratteri "●"/"○" di un font di testo — dimensione e allineamento
@@ -911,6 +1349,104 @@ class SpellsView(ScrollMemoryListView):
                     ft.Container(
                         content=ft.Text(toggle_icon, size=22, color=toggle_color),
                         on_click=(lambda e, s=sp: self._toggle_prepared(s))
+                        if not blocked else None,
+                        tooltip=(
+                            "Rimuovi dalla preparazione" if prepared
+                            else ("Limite raggiunto" if blocked else "Prepara")
+                        ),
+                        border_radius=14,
+                        ink=not blocked,
+                        padding=ft.Padding.all(2),
+                        width=32,
+                    ),
+                    ft.Container(width=6),
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Text(
+                                name, size=13, expand=True,
+                                color=(
+                                    design.T().text if prepared
+                                    else (design.T().text_3 if blocked
+                                          else design.T().text_2)
+                                ),
+                                weight=(
+                                    ft.FontWeight.W_600 if prepared
+                                    else ft.FontWeight.NORMAL
+                                ),
+                            ),
+                            ft.Text(tags, size=11, color=design.T().warning)
+                            if tags else ft.Container(width=0),
+                            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14,
+                                    color=design.T().text_3),
+                        ], spacing=4,
+                           vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        on_click=lambda e, s=sp: self._open_spell_dialog(s),
+                        expand=True, ink=True, border_radius=design.Radius.SM,
+                        padding=ft.Padding.symmetric(vertical=6, horizontal=4),
+                        tooltip="Dettagli",
+                    ),
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
+                border=ft.Border(
+                    bottom=ft.BorderSide(1, design.T().border)
+                    if i < len(sorted_spells) - 1
+                    else ft.BorderSide(0, "transparent"),
+                ),
+            )
+            rows.append(row)
+
+        return ft.Container(
+            content=ft.Column(rows, spacing=0),
+            bgcolor=design.T().surface,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=8),
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            shadow=design.elevation(1),
+            border_radius=design.Radius.MD,
+        )
+
+    def _section_spell_list_mc(self, spells: list[dict], class_name: str, class_level: int) -> ft.Container:
+        """
+        Variante multiclasse di `_section_spell_list()` (2026-08-12) —
+        stesso toggle di preparazione, ma limite/conteggio SOLO per questa
+        classe e salvataggio via `_toggle_prepared_mc` (che scrive
+        `class_list=class_name`, mai `self.character.class_name`). Usata
+        SOLO quando il personaggio ha più di una classe con lista
+        incantesimi propria; per una sola classe resta `_section_spell_list`,
+        invariata.
+        """
+        c = self.character
+        cls_data = _loader.get_class(class_name) or {}
+        sp_ability = cls_data.get("spellcasting_ability", "") or ""
+        scores = {
+            "str": c.str_score, "dex": c.dex_score, "con": c.con_score,
+            "int": c.int_score, "wis": c.wis_score, "cha": c.cha_score,
+        }
+        max_prep = _calc_max_prepared_value(class_name, class_level, sp_ability, scores, 0)
+        count = self._prepared_count_for_class(class_name)
+        at_limit = (max_prep is not None) and (count >= max_prep)
+
+        rows: list[ft.Control] = []
+        sorted_spells = sorted(spells, key=lambda s: s.get("name", ""))
+        for i, sp in enumerate(sorted_spells):
+            name     = sp.get("name", "")
+            level    = sp.get("level", 0)
+            prepared = self._is_prepared(name, level)
+            conc     = "◉" if sp.get("concentration") else ""
+            ritual   = "☽" if sp.get("ritual") else ""
+            tags     = f"  {conc}{ritual}".rstrip() if (conc or ritual) else ""
+
+            blocked = at_limit and not prepared and level > 0
+
+            toggle_icon  = "◉" if prepared else ("✕" if blocked else "○")
+            toggle_color = (
+                design.T().primary if prepared
+                else (design.T().border if blocked else design.T().text_3)
+            )
+
+            row = ft.Container(
+                content=ft.Row([
+                    ft.Container(
+                        content=ft.Text(toggle_icon, size=22, color=toggle_color),
+                        on_click=(lambda e, s=sp, cn=class_name: self._toggle_prepared_mc(s, cn))
                         if not blocked else None,
                         tooltip=(
                             "Rimuovi dalla preparazione" if prepared

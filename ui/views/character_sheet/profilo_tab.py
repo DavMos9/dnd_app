@@ -41,6 +41,46 @@ _loader = GameDataLoader()
 logger = logging.getLogger(__name__)
 
 
+class _LevelingClassView:
+    """
+    Vista "quale classe sta salendo di livello", usata SOLO dentro
+    `_on_level_up_click` (2026-08-12, selettore classe per multiclasse):
+    espone `class_name`/`subclass` della classe BERSAGLIO di questo
+    level-up, e delega ogni altro attributo (id, punteggi, PF correnti,
+    ecc. — sempre di PERSONAGGIO, mai di una singola classe) al Character
+    reale sottostante, incluse le scritture (es. `c.hp_max += ...`
+    continua a mutare il personaggio vero anche passando per questa vista).
+
+    Per la classe PRIMARIA `_on_level_up_click` non istanzia mai questa
+    classe: usa `c` direttamente (`lc = c`), quindi quel percorso resta
+    letteralmente lo stesso oggetto di sempre — zero rischio per il caso
+    (ancora il più comune) di un personaggio a classe singola o del
+    level-up della primaria di un multiclasse.
+
+    Per una classe SECONDARIA, `class_name`/`subclass` sono invece
+    letti/scritti solo su questa vista (mai su `characters.class_name`/
+    `subclass`, che restano SEMPRE quelli della primaria — vedi
+    `CharacterClass` in data/models.py) — chi chiama deve poi persistere
+    esplicitamente un eventuale nuovo `.subclass` scelto in questo
+    level-up con `character_repo.set_character_class_subclass()`, dato
+    che qui resta solo in memoria.
+    """
+
+    def __init__(self, character: Character, class_name: str, subclass: str) -> None:
+        object.__setattr__(self, "_character", character)
+        object.__setattr__(self, "class_name", class_name)
+        object.__setattr__(self, "subclass", subclass)
+
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, "_character"), name)
+
+    def __setattr__(self, name, value):
+        if name in ("class_name", "subclass"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(object.__getattribute__(self, "_character"), name, value)
+
+
 def _save_multiclass_known_spell(spell_name: str, class_name: str, character_id: str) -> None:
     """
     Salva un incantesimo/trucchetto conosciuto scelto prendendo `class_name`
@@ -337,17 +377,23 @@ class ProfiloTab(ScrollMemoryListView):
         # PIÙ prominente di quello) — apre il dialog "Aggiungi una classe"
         # (nuova classe a livello 1, competenze ridotte PHB IT p.164, MAI il
         # dialog di level-up esistente che sale sempre e solo la classe
-        # primaria). Nessun limite oltre al tetto di livello 20 totale, già
-        # condiviso con Level up — stessa filosofia "nessun cancello XP" già
-        # in uso per Level up/down in questa vista.
+        # primaria). Limite: max 2 classi totali (PHB IT p.163, "Multiclasse"
+        # — il manuale non prevede più di due classi per personaggio), oltre
+        # al tetto di livello 20 totale già condiviso con Level up (fix
+        # 2026-08-12, bug report Davide: l'app permetteva 3+ classi).
+        _n_owned_classes = len(character_repo.get_character_classes(c.id))
         self._add_class_btn = ft.OutlinedButton(
             content=ft.Row([
                 ft.Icon(ft.Icons.ADD, size=14, color=design.T().text_2),
                 ft.Text("Multiclasse", size=12, weight=ft.FontWeight.BOLD, color=design.T().text_2),
             ], spacing=3, tight=True),
-            tooltip="Aggiungi una nuova classe (multiclasse)",
+            tooltip=(
+                "Aggiungi una nuova classe (multiclasse)"
+                if _n_owned_classes < 2
+                else "Il manuale (PHB) non prevede più di 2 classi in multiclasse"
+            ),
             on_click=self._on_add_multiclass_click,
-            disabled=(c.level >= 20),
+            disabled=(c.level >= 20 or _n_owned_classes >= 2),
             style=ft.ButtonStyle(
                 side=ft.BorderSide(1, design.T().border),
                 padding=ft.Padding.symmetric(horizontal=10, vertical=0),
@@ -1649,32 +1695,113 @@ class ProfiloTab(ScrollMemoryListView):
     # Level Up guidato
     # ------------------------------------------------------------------
 
-    def _on_level_up_click(self, e):
+    def _show_level_up_class_picker(self, owned_classes: list) -> None:
+        """
+        Multiclasse (2026-08-12, bug report Davide: "quando multiclasso e
+        clicco su level up deve farmi scegliere quale classe aumentare") —
+        piccolo dialog anteposto al level-up esistente quando il
+        personaggio ha più di una classe (approccio già proposto in
+        docs/multiclasse_design.md §8.4): una card per classe posseduta,
+        click → richiama `_on_level_up_click` parametrizzato sulla classe
+        scelta invece che sempre sulla primaria.
+        """
+        page = self._page
+        if page is None:
+            return
+
+        def _make_handler(cls_name: str):
+            def _handler(ev):
+                page.pop_dialog()
+                self._on_level_up_click(ev, target_class_name=cls_name)
+            return _handler
+
+        rows: list[ft.Control] = [
+            ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Text(cc.class_name, size=14, weight=ft.FontWeight.BOLD,
+                                color=design.T().text, expand=True),
+                        ft.Text(f"Lv.{cc.level} → {cc.level + 1}", size=13,
+                                color=design.T().text_2),
+                        ft.Icon(ft.Icons.CHEVRON_RIGHT, size=18, color=design.T().text_3),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=12),
+                border=ft.Border.all(1, design.T().border),
+                border_radius=design.field_style()['border_radius'],
+                on_click=_make_handler(cc.class_name),
+                ink=True,
+            )
+            for cc in owned_classes
+        ]
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Quale classe sale di livello?"),
+            content=ft.Container(
+                width=responsive_dialog_width(page, 320),
+                content=ft.Column(rows, spacing=8, tight=True),
+            ),
+            actions=[ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog())],
+        )
+        page.show_dialog(dlg)
+
+    def _on_level_up_click(self, e, target_class_name: str | None = None):
         c = self.character
-        # Multiclasse (2026-08-12): questo dialog sale sempre la classe
-        # PRIMARIA (c.class_name) — new_level è il livello CHE QUELLA CLASSE
-        # sta per raggiungere, non il livello totale del personaggio (i due
-        # coincidono per un personaggio a classe singola, che è ancora il
-        # caso di ogni chiamata di questo metodo finché non esiste un
-        # secondo entry-point per le classi secondarie — vedi
-        # _on_add_multiclass_click). new_total_level è invece il livello
-        # TOTALE dopo questo level-up, usato SOLO per il bonus competenza
-        # (PHB IT p.163: sempre sul livello totale, mai su quello di una
-        # singola classe) — per un personaggio a classe singola è lo stesso
-        # numero di new_level, quindi questo split non cambia nulla di
-        # osservabile per nessun personaggio esistente.
-        _primary_cc = character_repo.get_primary_character_class(c.id)
+        # Multiclasse (2026-08-12, esteso 2026-08-12 con selettore classe):
+        # questo dialog sale la classe indicata da `target_class_name` — se
+        # il personaggio ha più di una classe e non è ancora stato scelto un
+        # bersaglio, mostra prima un piccolo dialog "quale classe sale?"
+        # (_show_level_up_class_picker) e si ri-chiama da lì parametrizzato
+        # (approccio già documentato in docs/multiclasse_design.md §8.4).
+        # Per un personaggio a classe singola `target_class_name` resta
+        # sempre None e si finisce dritti sulla (sola) classe posseduta —
+        # comportamento 100% invariato.
+        _all_owned_classes = character_repo.get_character_classes(c.id)
+        if len(_all_owned_classes) > 1 and target_class_name is None:
+            self._show_level_up_class_picker(_all_owned_classes)
+            return
+        if target_class_name:
+            _primary_cc = next(
+                (cc for cc in _all_owned_classes if cc.class_name == target_class_name), None,
+            )
+        else:
+            _primary_cc = character_repo.get_primary_character_class(c.id)
+        # True solo quando il bersaglio di QUESTO level-up è una classe
+        # secondaria (mai per un personaggio a classe singola, dove
+        # _primary_cc.is_primary è sempre True) — governa quali scritture
+        # più sotto vanno su `lc` (vista della classe bersaglio) invece che
+        # direttamente su `lc.class_name`/`lc.subclass` (riservati alla
+        # classe PRIMARIA, characters.class_name/subclass nel DB).
+        _is_secondary_target = bool(_primary_cc) and not _primary_cc.is_primary
         primary_class_level = _primary_cc.level if _primary_cc else c.level
         new_level = primary_class_level + 1
         if new_level > 20:
             return
         new_total_level = c.level + 1
 
+        # `lc` ("leveling class"): per la classe primaria è LETTERALMENTE
+        # `c` (stesso oggetto — nessun ramo nuovo, zero rischio per il
+        # percorso esistente); per una classe secondaria è una vista che
+        # espone class_name/subclass DELLA CLASSE SCELTA e delega ogni
+        # altro attributo (id, punteggi, PF, ecc. — sempre di personaggio,
+        # mai di singola classe) al Character reale. Da qui in poi, ogni
+        # punto della funzione che prima leggeva/scriveva "la classe che
+        # sta salendo" via lc.class_name/lc.subclass usa `lc` — mai `c`
+        # direttamente per quello (vedi classe sotto).
+        lc = c if not _is_secondary_target else _LevelingClassView(
+            c, _primary_cc.class_name, _primary_cc.subclass,
+        )
+
         old_pb = get_proficiency_bonus(c.level)
         new_pb = get_proficiency_bonus(new_total_level)
-        steps = get_level_up_steps(c.class_name or "", new_level, old_pb, new_pb, c.subclass or "")
+        steps = get_level_up_steps(lc.class_name or "", new_level, old_pb, new_pb, lc.subclass or "")
 
-        hit_die = c.hit_dice_type or 8
+        _lvl_cls_data_for_hd = _loader.get_class(lc.class_name or "") or {}
+        hit_die = (
+            (c.hit_dice_type or 8) if not _is_secondary_target
+            else (_lvl_cls_data_for_hd.get("hit_die") or 8)
+        )
         con_mod = get_modifier(c.con_score)
         hp_max_gain = hit_die
         hp_avg_gain = max(1, hit_die // 2 + 1)
@@ -1906,7 +2033,7 @@ class ProfiloTab(ScrollMemoryListView):
         dlg_rows: list[ft.Control] = [
             ft.Text(f"Avanzamento a Livello {new_level}",
                     size=15, weight=ft.FontWeight.BOLD, color=design.T().text),
-            ft.Text(f"{c.class_name or '—'}  •  {c.race or '—'}",
+            ft.Text(f"{lc.class_name or '—'}  •  {c.race or '—'}",
                     size=12, color=design.T().text_2),
             ft.Divider(color=design.T().border),
         ]
@@ -2035,7 +2162,7 @@ class ProfiloTab(ScrollMemoryListView):
 
             elif step.step_type == StepType.SUBCLASS_CHOICE:
                 # Carica sottoclassi dalla classe del personaggio
-                cls_data = _loader.get_class(c.class_name or "")
+                cls_data = _loader.get_class(lc.class_name or "")
                 subclasses = []
                 subclass_label_name = "Sottoclasse"
                 if cls_data:
@@ -2045,7 +2172,7 @@ class ProfiloTab(ScrollMemoryListView):
                 if subclasses:
                     _sc_dd = ft.Dropdown(
                         label=subclass_label_name,
-                        value=c.subclass if c.subclass in subclasses else subclasses[0],
+                        value=lc.subclass if lc.subclass in subclasses else subclasses[0],
                         options=[ft.DropdownOption(key=s, text=s) for s in subclasses],
                         bgcolor=design.T().surface,
                         color=design.T().text,
@@ -2071,16 +2198,16 @@ class ProfiloTab(ScrollMemoryListView):
                     # incantesimi "presi in prestito dal Mago", mostrato solo
                     # se la sottoclasse scelta nel dropdown sopra è quella
                     # che concede casting — a differenza di stile di
-                    # combattimento/totem/terreno (che riusano c.subclass
+                    # combattimento/totem/terreno (che riusano lc.subclass
                     # GIA' persistito, quindi appaiono solo al level-up
                     # successivo), qui serve reattività live sul valore del
                     # dropdown perché la scelta va fatta nello STESSO
                     # level-up in cui si sceglie la sottoclasse. Aggiunto
                     # 2026-07-15, fix Mistificatore Arcano/Cavaliere Mistico.
-                    _borrowed_name = _loader.get_borrowed_caster_subclass_name(c.class_name or "")
+                    _borrowed_name = _loader.get_borrowed_caster_subclass_name(lc.class_name or "")
                     if _borrowed_name:
                         borrowed_subclass_name_ref.append(_borrowed_name)
-                        _bc_data = _loader.get_borrowed_caster_data(c.class_name or "", _borrowed_name) or {}
+                        _bc_data = _loader.get_borrowed_caster_data(lc.class_name or "", _borrowed_name) or {}
                         _bc_prog3 = next(
                             (r for r in _bc_data.get("spell_progression", []) if r.get("level") == 3),
                             {},
@@ -2207,7 +2334,7 @@ class ProfiloTab(ScrollMemoryListView):
                     # necessaria. Aggiunto 2026-07-16.
                     # ------------------------------------------------------
                     _MK3_SUBCLASS = "Via dei Quattro Elementi"
-                    if c.class_name == "Monaco" and _MK3_SUBCLASS in subclasses:
+                    if lc.class_name == "Monaco" and _MK3_SUBCLASS in subclasses:
                         _mk3_data = _loader.get_subclass_data("Monaco", _MK3_SUBCLASS) or {}
                         _mk3_all = _mk3_data.get("disciplines", [])
                         _mk3_fixed = "Sintonia Elementale"
@@ -2817,10 +2944,10 @@ class ProfiloTab(ScrollMemoryListView):
                     # "spenderci" uno slot conosciuto, esattamente come per un
                     # incantesimo della lista base. No-op per qualunque altra
                     # classe/sottoclasse (get_expanded_spells ritorna []).
-                    _expanded = _loader.get_expanded_spells(c.class_name or "", c.subclass or "")
-                    _base_names = {s.get("name") for s in _loader.get_spells(c.class_name or "")}
+                    _expanded = _loader.get_expanded_spells(lc.class_name or "", lc.subclass or "")
+                    _base_names = {s.get("name") for s in _loader.get_spells(lc.class_name or "")}
                     eligible_spells = [
-                        s for s in _loader.get_spells(c.class_name or "") + [
+                        s for s in _loader.get_spells(lc.class_name or "") + [
                             s for s in _expanded if s.get("name") not in _base_names
                         ]
                         if 0 < s.get("level", 0) <= max_lv
@@ -2922,9 +3049,9 @@ class ProfiloTab(ScrollMemoryListView):
                 # come un qualunque altro incantesimo "da warlock" — PHB:
                 # "questi incantesimi sono considerati incantesimi da warlock
                 # per [il patrono]". No-op per qualunque altra classe.
-                _swap_expanded = _loader.get_expanded_spells(c.class_name or "", c.subclass or "")
+                _swap_expanded = _loader.get_expanded_spells(lc.class_name or "", lc.subclass or "")
                 class_spell_names = {
-                    s.get("name", "") for s in _loader.get_spells(c.class_name or "") + _swap_expanded
+                    s.get("name", "") for s in _loader.get_spells(lc.class_name or "") + _swap_expanded
                 }
                 known_class_spells = sorted(
                     (
@@ -2941,7 +3068,7 @@ class ProfiloTab(ScrollMemoryListView):
                 )
                 dd_remove = CardPicker(
                     options=spell_card_options([
-                        _loader.get_spell_by_name(k.name, c.class_name) or
+                        _loader.get_spell_by_name(k.name, lc.class_name) or
                         {"name": k.name, "level": k.spell_level}
                         for k in known_class_spells
                     ]),
@@ -2951,7 +3078,7 @@ class ProfiloTab(ScrollMemoryListView):
 
                 def _refresh_swap_add_options(
                     ev: Any = None, _rm: CardPicker = dd_remove,
-                    _add: CardPicker = dd_add, _cls: str = c.class_name or "",
+                    _add: CardPicker = dd_add, _cls: str = lc.class_name or "",
                     _ml: int = max_lv, _known: set = known_names_all,
                     _expanded: list = _swap_expanded,
                 ) -> None:
@@ -3023,7 +3150,7 @@ class ProfiloTab(ScrollMemoryListView):
                     if ks.spell_level == 0
                 }
                 _eligible_cantrips = sorted(
-                    (s for s in _loader.get_spells(c.class_name or "")
+                    (s for s in _loader.get_spells(lc.class_name or "")
                      if s.get("level", 0) == 0 and s.get("name") not in _known_cantrips),
                     key=lambda s: s.get("name", ""),
                 )
@@ -3047,7 +3174,7 @@ class ProfiloTab(ScrollMemoryListView):
                 # ma il pool è cantrip_options della sottoclasse (16 nomi
                 # condivisi Ladro/Guerriero), non la lista propria di classe
                 # (che per Ladro/Guerriero è sempre vuota).
-                _bc_data_cl = _loader.get_borrowed_caster_data(c.class_name or "", c.subclass or "") or {}
+                _bc_data_cl = _loader.get_borrowed_caster_data(lc.class_name or "", lc.subclass or "") or {}
                 _bc_fixed = _bc_data_cl.get("fixed_cantrip") or ""
                 _bc_pool_cl = [n for n in _bc_data_cl.get("cantrip_options", []) if n != _bc_fixed]
                 _known_borrowed_cantrips: set[str] = {
@@ -3112,7 +3239,7 @@ class ProfiloTab(ScrollMemoryListView):
                 # della sottoclasse. Il flag si propaga sul nuovo incantesimo
                 # (la "postazione" resta libera anche in futuro).
                 _max_lv_swap = step.data.get("max_level", 1)
-                _bc_data_swap = _loader.get_borrowed_caster_data(c.class_name or "", c.subclass or "") or {}
+                _bc_data_swap = _loader.get_borrowed_caster_data(lc.class_name or "", lc.subclass or "") or {}
                 _restricted_swap = _bc_data_swap.get("restricted_schools", [])
                 _mago_names = {s.get("name", "") for s in _loader.get_spells("Mago")}
                 _known_borrowed_spells = sorted(
@@ -3209,7 +3336,7 @@ class ProfiloTab(ScrollMemoryListView):
         # ------------------------------------------------------------------
         # Scelte extra specifiche per classe/sottoclasse
         # ------------------------------------------------------------------
-        cls_lower = (c.class_name or "").strip().lower()
+        cls_lower = (lc.class_name or "").strip().lower()
 
         fighting_style_dd_ref: list[CardPicker] = []
         totem_animal_dd_ref:   list[ft.Dropdown] = []
@@ -3250,7 +3377,7 @@ class ProfiloTab(ScrollMemoryListView):
         # Animale Totem (Barbaro, Lv3) / Terreno (Druido, Lv2) — dipendono
         # dalla sottoclasse. Se questo stesso level-up include anche lo step
         # SUBCLASS_CHOICE (subclass_dd_ref popolato dal blocco sopra),
-        # c.subclass è ancora vuota in questo momento: la visibilità va
+        # lc.subclass è ancora vuota in questo momento: la visibilità va
         # agganciata dal vivo al valore corrente del dropdown sottoclasse
         # (on_select), non al campo persistito — altrimenti la condizione
         # "totem" in sc_lower/"terra" in sc_lower non è mai vera nello stesso
@@ -3273,7 +3400,7 @@ class ProfiloTab(ScrollMemoryListView):
 
         # Animale Totem — Barbaro Percorso del Totem Guerriero, Lv3
         if not c.totem_animal and cls_lower == "barbaro" and new_level == 3:
-            initial_sc = ((live_subclass_dd.value if live_subclass_dd else c.subclass) or "").strip().lower()
+            initial_sc = ((live_subclass_dd.value if live_subclass_dd else lc.subclass) or "").strip().lower()
             if live_subclass_dd is not None or "totem" in initial_sc:
                 ta_dd = _make_choice_dd("Spirito del Totem", _loader.get_totem_animals(), "")
                 totem_animal_dd_ref.append(ta_dd)
@@ -3303,7 +3430,7 @@ class ProfiloTab(ScrollMemoryListView):
 
         # Terreno — Druido Cerchio della Terra, Lv2
         if not c.land_terrain and cls_lower == "druido" and new_level == 2:
-            initial_sc = ((live_subclass_dd.value if live_subclass_dd else c.subclass) or "").strip().lower()
+            initial_sc = ((live_subclass_dd.value if live_subclass_dd else lc.subclass) or "").strip().lower()
             if live_subclass_dd is not None or "terra" in initial_sc:
                 lt_dd = _make_choice_dd("Terreno del Cerchio", _loader.get_land_terrains(), "")
                 land_terrain_dd_ref.append(lt_dd)
@@ -3360,7 +3487,7 @@ class ProfiloTab(ScrollMemoryListView):
             def _rebuild_scb_container(_dd: ft.Dropdown = live_subclass_dd) -> None:
                 subclass_bonus_dd_refs.clear()
                 sc_name = _dd.value or ""
-                entries = _loader.get_subclass_bonus_proficiencies(c.class_name or "", sc_name)
+                entries = _loader.get_subclass_bonus_proficiencies(lc.class_name or "", sc_name)
                 fixed, choices = character_repo.classify_bonus_proficiency_entries(entries)
                 total_slots = sum(int(ch.get("count", 0)) for ch in choices)
 
@@ -3621,7 +3748,7 @@ class ProfiloTab(ScrollMemoryListView):
             # sottoclasse FINALE scelta nel dropdown è quella borrowed-caster
             # (i widget restano nel DOM anche se nascosti, ma non vanno
             # validati/salvati se il giocatore ha scelto un'altra sottoclasse).
-            _final_subclass = (subclass_dd_ref[0].value if subclass_dd_ref else (c.subclass or "")) or ""
+            _final_subclass = (subclass_dd_ref[0].value if subclass_dd_ref else (lc.subclass or "")) or ""
             _is_borrowed_choice = bool(
                 borrowed_subclass_name_ref and _final_subclass == borrowed_subclass_name_ref[0]
             )
@@ -3654,7 +3781,7 @@ class ProfiloTab(ScrollMemoryListView):
             # il dropdown resta nel DOM anche se nascosto, va validato solo
             # se la sottoclasse FINALE scelta è davvero questa.
             _is_monk_discipline_choice = (
-                c.class_name == "Monaco" and _final_subclass == "Via dei Quattro Elementi"
+                lc.class_name == "Monaco" and _final_subclass == "Via dei Quattro Elementi"
             )
             if _is_monk_discipline_choice:
                 for _dd in monk_initial_discipline_refs:
@@ -3668,7 +3795,7 @@ class ProfiloTab(ScrollMemoryListView):
             # doppio controllo qui evita falsi negativi se in futuro il
             # rebuild venisse rimosso o modificato).
             if live_subclass_dd is not None:
-                _scb_entries_final = _loader.get_subclass_bonus_proficiencies(c.class_name or "", _final_subclass)
+                _scb_entries_final = _loader.get_subclass_bonus_proficiencies(lc.class_name or "", _final_subclass)
                 _scb_fixed_final, _scb_choices_final = character_repo.classify_bonus_proficiency_entries(_scb_entries_final)
                 _scb_total_final = sum(int(ch.get("count", 0)) for ch in _scb_choices_final)
                 if _scb_total_final > 0:
@@ -3727,10 +3854,16 @@ class ProfiloTab(ScrollMemoryListView):
 
             # Bonus PF permanente da capacità di sottoclasse (es. Resilienza
             # Draconica dello Stregone: +1 PF/livello) — delta tra il totale
-            # al nuovo livello e quello al livello precedente.
+            # al nuovo livello e quello al livello precedente ENTRAMBI nella
+            # classe che sta salendo (get_permanent_class_hp_bonus vuole un
+            # livello di CLASSE, non il totale — bug fix 2026-08-12: prima
+            # usava `c.level`/totale, coincidente col livello di classe solo
+            # per un personaggio a classe singola; per un multiclasse già
+            # esistente che sale la primaria, o per una secondaria, il
+            # totale include anche i livelli dell'altra classe).
             hp_class_bonus = (
-                get_permanent_class_hp_bonus(c.class_name, c.subclass, new_level)
-                - get_permanent_class_hp_bonus(c.class_name, c.subclass, c.level)
+                get_permanent_class_hp_bonus(lc.class_name, lc.subclass, new_level)
+                - get_permanent_class_hp_bonus(lc.class_name, lc.subclass, primary_class_level)
             )
 
             c.level = new_level
@@ -3837,17 +3970,17 @@ class ProfiloTab(ScrollMemoryListView):
 
             # Sottoclasse scelta al level-up
             if subclass_dd_ref and subclass_dd_ref[0].value:
-                c.subclass = subclass_dd_ref[0].value
+                lc.subclass = subclass_dd_ref[0].value
 
             # Competenze bonus di sottoclasse (task #20, 2026-07-16) — es.
             # Bardo Collegio della Conoscenza/Valore, Ladro Assassino. Va
-            # applicata alla sottoclasse FINALE appena scritta su c.subclass
+            # applicata alla sottoclasse FINALE appena scritta su lc.subclass
             # (non a subclass_bonus_choice_values "as-is" se il giocatore ha
             # cambiato sottoclasse più volte senza che l'ultimo rebuild sia
-            # coerente — si ricalcolano fixed/choices da c.subclass per
+            # coerente — si ricalcolano fixed/choices da lc.subclass per
             # sicurezza, stesso principio già usato per Totem/Terreno sopra).
             if live_subclass_dd is not None:
-                _scb_entries_apply = _loader.get_subclass_bonus_proficiencies(c.class_name or "", c.subclass or "")
+                _scb_entries_apply = _loader.get_subclass_bonus_proficiencies(lc.class_name or "", lc.subclass or "")
                 _scb_fixed_apply, _scb_choices_apply = character_repo.classify_bonus_proficiency_entries(_scb_entries_apply)
                 _scb_resolved_apply = list(_scb_fixed_apply) + [v for v in subclass_bonus_choice_values if v]
                 character_repo.apply_subclass_bonus_proficiencies(c.id, _scb_resolved_apply)
@@ -3883,7 +4016,7 @@ class ProfiloTab(ScrollMemoryListView):
             # default (es. "Orso") anche per un Barbaro Berserker.
             if fighting_style_dd_ref and fighting_style_dd_ref[0].value:
                 c.fighting_style = fighting_style_dd_ref[0].value
-            _final_subclass_lower = ((live_subclass_dd.value if live_subclass_dd else c.subclass) or "").strip().lower()
+            _final_subclass_lower = ((live_subclass_dd.value if live_subclass_dd else lc.subclass) or "").strip().lower()
             if (totem_animal_dd_ref and totem_animal_dd_ref[0].value
                     and "totem" in _final_subclass_lower):
                 c.totem_animal = totem_animal_dd_ref[0].value
@@ -3895,14 +4028,14 @@ class ProfiloTab(ScrollMemoryListView):
             for _step_data, dds in spell_learn_refs:
                 for dd in dds:
                     if dd.value:
-                        _save_known_spell(dd.value, c.class_name or "", c)
+                        _save_known_spell(dd.value, lc.class_name or "", lc)
 
             # Nuovo trucchetto conosciuto (lv.4/10) — salvato come known_spell
             # is_prepared=True, stessa convenzione dei trucchetti iniziali
             # (task #74) e di SPELL_LEARN sopra.
             for _cantrip_dd in cantrip_learn_refs:
                 if _cantrip_dd.value:
-                    _save_known_spell(_cantrip_dd.value, c.class_name or "", c)
+                    _save_known_spell(_cantrip_dd.value, lc.class_name or "", lc)
 
             # Arcanum Mistico (Warlock, lv.11/13/15/17) — salvato come
             # known_spell (is_prepared=True), stesso pattern di SPELL_LEARN/
@@ -3912,7 +4045,7 @@ class ProfiloTab(ScrollMemoryListView):
             # conosciuti (nessun sistema di "usi speciali" per singolo spell).
             for _arcanum_dd in arcanum_spell_refs:
                 if _arcanum_dd.value:
-                    _save_known_spell(_arcanum_dd.value, c.class_name or "", c)
+                    _save_known_spell(_arcanum_dd.value, lc.class_name or "", lc)
 
             # Discipline Elementali (Monaco, Via dei Quattro Elementi,
             # lv.6/11/17) — salvate come proficiency dedicata "monk_discipline".
@@ -3937,7 +4070,7 @@ class ProfiloTab(ScrollMemoryListView):
                     )
                     if _old_row is not None:
                         character_repo.remove_known_spell(c.id, _old_name, _old_row.spell_level)
-                    _save_known_spell(_swap_add.value, c.class_name or "", c)
+                    _save_known_spell(_swap_add.value, lc.class_name or "", lc)
 
             # Segreti Magici (qualsiasi classe)
             for _step_data, choices in magical_secrets_refs:
@@ -3946,7 +4079,7 @@ class ProfiloTab(ScrollMemoryListView):
 
             # Mistificatore Arcano/Cavaliere Mistico — apprendimento INIZIALE
             # (3° livello), solo se la sottoclasse finale scelta è quella
-            # borrowed-caster (c.subclass è già stato aggiornato sopra).
+            # borrowed-caster (lc.subclass è già stato aggiornato sopra).
             if _is_borrowed_choice:
                 # Il trucchetto fisso (es. Mano Magica del Ladro) va comunque
                 # salvato come known_spell — è un trucchetto reale che il
@@ -3954,7 +4087,7 @@ class ProfiloTab(ScrollMemoryListView):
                 # del giocatore. Senza questo salvataggio non comparirebbe
                 # affatto nella tab Incantesimi. Assente per il Cavaliere
                 # Mistico (fixed_cantrip="" in guerriero.json).
-                _bc_data_save = _loader.get_borrowed_caster_data(c.class_name or "", c.subclass or "") or {}
+                _bc_data_save = _loader.get_borrowed_caster_data(lc.class_name or "", lc.subclass or "") or {}
                 _fixed_cantrip_save = _bc_data_save.get("fixed_cantrip") or ""
                 if _fixed_cantrip_save:
                     _save_known_spell(_fixed_cantrip_save, "Mago", c)
@@ -4021,16 +4154,21 @@ class ProfiloTab(ScrollMemoryListView):
                 c.hp_max += _hp_feat_delta
                 c.hp_current = min(c.hp_current + _hp_feat_delta, c.hp_max)
 
-            # Multiclasse: character_classes.level della classe primaria e
-            # characters.level (TOTALE) vanno risincronizzati PRIMA del
-            # salvataggio — c.level vale ancora new_level (il livello della
-            # sola classe primaria, vedi commento in cima alla funzione),
-            # che per un personaggio a classe singola coincide già col
-            # totale corretto (nessun comportamento diverso). Per un
-            # personaggio multiclasse, senza questo passaggio il totale
-            # perderebbe i livelli delle altre classi.
+            # Multiclasse: character_classes.level della classe BERSAGLIO
+            # (`_primary_cc` — la primaria per un personaggio a classe
+            # singola o quando si sceglie di salire quella, altrimenti la
+            # secondaria scelta nel picker) e characters.level (TOTALE)
+            # vanno risincronizzati PRIMA del salvataggio — senza questo
+            # passaggio il totale perderebbe i livelli dell'altra classe.
             if _primary_cc is not None:
                 character_repo.set_character_class_level(_primary_cc.id, new_level)
+                # Sottoclasse di una classe SECONDARIA: mai su
+                # characters.subclass (scritto sotto via character_repo.
+                # update(c), riservato alla primaria) — va persistita qui
+                # sulla riga character_classes, dove `lc.subclass` (vista
+                # sopra) l'ha già tenuta in memoria per tutto il dialog.
+                if _is_secondary_target:
+                    character_repo.set_character_class_subclass(_primary_cc.id, lc.subclass or "")
             _is_multiclass = len(character_repo.get_character_classes(c.id)) > 1
             c.level = character_repo.sync_character_total_level(c.id) or new_total_level
 
@@ -4044,18 +4182,18 @@ class ProfiloTab(ScrollMemoryListView):
             if _is_multiclass:
                 character_repo.sync_multiclass_spell_slots(c.id)
             else:
-                character_repo.auto_init_spell_slots(c.id, c.class_name, new_level)
+                character_repo.auto_init_spell_slots(c.id, lc.class_name, new_level)
             # Aggiorna risorse di classe (Furia, Ki, Incanalare Divinità, ecc.)
             # per il nuovo livello — init_class_resources() è già multiclasse-
             # safe (unisce i default di TUTTE le classi possedute quando ce
             # n'è più di una, vedi character_repo.py), invariato per un
             # personaggio a classe singola.
-            character_repo.init_class_resources(c.id, c.class_name, new_level, c)
+            character_repo.init_class_resources(c.id, lc.class_name, new_level, c)
             # Mistificatore Arcano/Cavaliere Mistico — spellcasting_ability e
             # slot incantesimo "presi in prestito dal Mago". No-op per
             # qualunque altra classe/sottoclasse (vedi character_repo.py).
             character_repo.sync_borrowed_spellcasting_ability(c)
-            character_repo.init_borrowed_caster_slots(c.id, c.class_name or "", c.subclass or "", new_level)
+            character_repo.init_borrowed_caster_slots(c.id, lc.class_name or "", lc.subclass or "", new_level)
             # Incantesimi sempre pronti da Dominio/Giuramento/Circolo della
             # Terra (es. Paladino Giuramento degli Antichi) — un level-up può
             # sbloccare una nuova soglia (Lv.3/5/9/13/17) o, se questo
@@ -4097,11 +4235,12 @@ class ProfiloTab(ScrollMemoryListView):
         sync_multiclass_spell_slots — vedi test_multiclasse.py).
 
         Deliberatamente SEPARATO dal dialog di level-up esistente
-        (_on_level_up_click, ~2400 righe, mai toccato in questa sessione) —
-        zero rischio sul flusso già collaudato su tutte le 12 classi.
-        Leveling di una classe SECONDARIA oltre il suo 1° livello non è
-        ancora possibile da UI (serve il selettore "quale classe sale" —
-        vedi docs/multiclasse_design.md §8.3, prossimo passo).
+        (_on_level_up_click, ~2400 righe): resta il modo per il 1° livello
+        di una classe NUOVA. Salire una classe SECONDARIA oltre il suo 1°
+        livello passa invece dal pulsante "Level up" esistente, che ora
+        mostra un piccolo selettore "quale classe sale?" quando il
+        personaggio ha più di una classe (_show_level_up_class_picker,
+        2026-08-12 — vedi docs/multiclasse_design.md §8.4).
 
         Limite noto: il Mago non ha una voce "spells known al 1°
         livello" (usa un libro degli incantesimi, meccanica diversa da
@@ -4117,6 +4256,8 @@ class ProfiloTab(ScrollMemoryListView):
             return
 
         owned = {cc.class_name for cc in character_repo.get_character_classes(c.id)}
+        if len(owned) >= 2:
+            return  # PHB IT p.163: max 2 classi in multiclasse
         available = [n for n in _loader.get_class_names() if n not in owned]
         if not available:
             return  # già tutte e 12 le classi PHB possedute
@@ -4271,28 +4412,53 @@ class ProfiloTab(ScrollMemoryListView):
                                 weight=ft.FontWeight.BOLD, color=design.T().magic, expand=True),
                     ], spacing=6),
                 ]
+            # Mutua esclusione tra i picker di uno stesso gruppo (trucchetti
+            # tra loro, incantesimi tra loro): ogni CardPicker viene creato
+            # con la STESSA lista di opzioni, quindi senza questo passaggio
+            # nulla impedisce di scegliere lo stesso incantesimo più volte
+            # (es. "Amicizia" in tutti e 3 gli slot di trucchetto — bug
+            # report Davide, 2026-08-12). Stesso principio già in uso per
+            # feat_prof_dds sopra: ricostruire le opzioni di ogni picker del
+            # gruppo togliendo le scelte già fatte dagli altri.
+            def _make_exclusive_group(pickers: list[CardPicker], base_options: list[dict]) -> None:
+                def _refresh(ev=None):
+                    chosen = {p.value for p in pickers if p.value}
+                    for p in pickers:
+                        others = chosen - ({p.value} if p.value else set())
+                        p.options = [o for o in base_options if o["key"] not in others]
+                        try:
+                            p.update()
+                        except RuntimeError:
+                            pass
+                for p in pickers:
+                    p.on_select = _refresh
+
             if cantrips_at_1:
                 eligible_cantrips = sorted(
                     (s for s in _loader.get_spells(class_name)
                      if s.get("level", 0) == 0 and s.get("name") not in known_names),
                     key=lambda s: s.get("name", ""),
                 )
+                cantrip_options = spell_card_options(eligible_cantrips)
                 for i in range(cantrips_at_1):
-                    picker = CardPicker(options=spell_card_options(eligible_cantrips))
+                    picker = CardPicker(options=cantrip_options)
                     cantrip_pickers_ref.append(picker)
                     details_col.controls.append(muted_text(f"Trucchetto {i + 1}/{cantrips_at_1}", size=11))
                     details_col.controls.append(picker.control)
+                _make_exclusive_group(cantrip_pickers_ref, cantrip_options)
             if spells_at_1:
                 eligible_spells = sorted(
                     (s for s in _loader.get_spells(class_name)
                      if 0 < s.get("level", 0) <= 1 and s.get("name") not in known_names),
                     key=lambda s: s.get("name", ""),
                 )
+                spell_options = spell_card_options(eligible_spells)
                 for i in range(spells_at_1):
-                    picker = CardPicker(options=spell_card_options(eligible_spells))
+                    picker = CardPicker(options=spell_options)
                     spell_pickers_ref.append(picker)
                     details_col.controls.append(muted_text(f"Incantesimo {i + 1}/{spells_at_1}", size=11))
                     details_col.controls.append(picker.control)
+                _make_exclusive_group(spell_pickers_ref, spell_options)
             if class_name == "Mago":
                 details_col.controls.append(muted_text(
                     "Il Mago inizia con un libro degli incantesimi vuoto in "

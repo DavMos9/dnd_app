@@ -571,6 +571,13 @@ class MasterNpc:
     tags: str = ""                    # CSV libero per filtro/ricerca nella rubrica
     has_stat_block: bool = False
 
+    # Sezione Master world-scoped (2026-08-12) — "" = NPC locale/di nessun
+    # mondo (comportamento di sempre), altrimenti l'id del mondo in cui è
+    # stato creato. Stesso principio già in uso per Character/
+    # MasterCampaignNote/LootStashEntry: filtro per UGUAGLIANZA esatta, mai
+    # "mostra tutti" — un mondo è un container, non un filtro opzionale.
+    world_id: str = ""
+
     # Campi stat block, stessa forma di CreatureEntry — tutti opzionali
     creature_type: str = ""
     size: str = ""
@@ -716,11 +723,14 @@ class LootStashEntry:
     `stash_kind`: "master" (archivio privato, mai visibile ai giocatori) |
     "party" (deposito comune, visibile a tutti i membri del gruppo).
 
-    `world_id`: stringa vuota consentita per `stash_kind="master"` finche'
-    il modello mondo (Multiplayer, passo 2) non esiste — l'archivio del
-    Master funziona gia' oggi su un dispositivo solo, senza rete. Per
-    `stash_kind="party"` sara' sempre valorizzato una volta introdotto il
-    mondo condiviso (il deposito comune non ha senso senza un gruppo).
+    `world_id`: "" per una voce locale/di nessun mondo, altrimenti l'id del
+    mondo correntemente selezionato al momento della creazione — si applica
+    a ENTRAMBI gli `stash_kind` (2026-08-12: prima l'archivio del Master
+    restava sempre a "" per scelta di design, cambiato su bug report di
+    Davide — un mondo è un container per tutta la Sezione Master, non solo
+    per il deposito comune; resta comunque un asse indipendente dalla
+    privacy di `stash_kind="master"`, mai sincronizzato/visibile ai
+    giocatori indipendentemente da `world_id`).
 
     `entry_kind`: "item" (oggetto generico/mondano) | "magic_item" (dal
     Compendio A-Z o dal Generatore) | "artifact" | "poison" | "gem" |

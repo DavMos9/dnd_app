@@ -62,9 +62,11 @@ def _resolve_creature(name: str) -> dict[str, Any] | None:
     return None
 
 
-def show_forest_encounters_dialog(page: ft.Page) -> None:
+def show_forest_encounters_dialog(page: ft.Page, world_id: str = "") -> None:
     """Apre il dialog "Genera Incontro per Ambiente". Stato in closure,
-    stesso pattern già in uso per `show_traps_dialog`/`show_health_hazards_dialog`."""
+    stesso pattern già in uso per `show_traps_dialog`/`show_health_hazards_dialog`.
+    `world_id` (2026-08-12): il mondo correntemente selezionato in
+    Modalità Master, inoltrato a `master_repo.create_encounter()`."""
 
     env_names = game_data.get_environment_names()
     default_env = env_names[0] if env_names else ""
@@ -154,7 +156,7 @@ def show_forest_encounters_dialog(page: ft.Page) -> None:
         notes = r.get("text", "")
         if r.get("note"):
             notes += f"\n\n{r['note']}"
-        enc = master_repo.create_encounter(name=name, notes=notes)
+        enc = master_repo.create_encounter(name=name, notes=notes, world_id=world_id)
         if not enc:
             show_snack(page, "Errore nella creazione dell'incontro — vedi log.", tone="danger")
             return

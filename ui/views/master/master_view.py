@@ -646,7 +646,7 @@ class MasterView(ft.Column):
         if page is None:
             return
         from ui.views.master.master_forest_encounters_dialog import show_forest_encounters_dialog
-        show_forest_encounters_dialog(cast(ft.Page, page))
+        show_forest_encounters_dialog(cast(ft.Page, page), world_id=self._active_world_id)
 
     def _open_artifacts_dialog(self) -> None:
         page = self.page
@@ -673,7 +673,7 @@ class MasterView(ft.Column):
         if key == "npcs":
             try:
                 from ui.views.master.master_npc_list_view import MasterNpcListView
-                return MasterNpcListView()
+                return MasterNpcListView(world_id=self._active_world_id)
             except ImportError:
                 return self._placeholder(
                     ft.Icons.GROUPS_OUTLINED, "Rubrica NPC",

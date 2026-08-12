@@ -343,6 +343,7 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
         name = (name_tf.value or "").strip() or "Incontro Casuale"
         enc = master_repo.create_encounter(
             name=name, notes="Generato automaticamente dal Generatore di Incontri Casuali.",
+            world_id=world_id,
         )
         if not enc:
             feedback_text.value = "Errore nella creazione dell'incontro — vedi log."

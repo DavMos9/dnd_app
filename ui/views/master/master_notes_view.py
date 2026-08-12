@@ -228,7 +228,7 @@ class MasterNotesView(ft.Column):
             self._notes[cat["key"]] = master_repo.get_master_campaign_notes(
                 cat["key"], world_id=self._world_id,
             )
-        self._npcs = master_repo.get_npcs()
+        self._npcs = master_repo.get_npcs(world_id=self._world_id)
 
     def _load_notes(self, cat: str) -> None:
         self._notes[cat] = master_repo.get_master_campaign_notes(cat, world_id=self._world_id)

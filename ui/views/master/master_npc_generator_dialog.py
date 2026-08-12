@@ -37,11 +37,17 @@ _ANY = ""  # valore Dropdown per "Qualsiasi" — risolto a caso da core/npc_gene
 _NO_ROLE = ""
 
 
-def show_npc_generator_dialog(page: ft.Page, on_saved: Callable[[], None] | None = None) -> None:
+def show_npc_generator_dialog(
+    page: ft.Page, on_saved: Callable[[], None] | None = None, world_id: str = "",
+) -> None:
     """
     Apre il dialog "Genera NPC". `on_saved`, se passato, viene richiamato
     dopo ogni salvataggio riuscito in Rubrica (usato da `MasterNpcListView`
-    per aggiornare la lista senza dover riaprire la tab).
+    per aggiornare la lista senza dover riaprire la tab). `world_id`
+    (2026-08-12): il mondo correntemente selezionato in Modalità Master,
+    inoltrato a `master_repo.create_npc()`/`create_npc_from_monster()` così
+    gli NPC generati qui finiscono nello stesso container del resto della
+    rubrica, mai in quello locale per errore.
     """
 
     result_state: dict[str, list[dict[str, Any]]] = {"npcs": []}
@@ -239,7 +245,7 @@ def show_npc_generator_dialog(page: ft.Page, on_saved: Callable[[], None] | None
         if npc_data["has_stat_block"] and monster:
             npc = master_repo.create_npc_from_monster(
                 monster, name_override=npc_data["name"], role=npc_data["role"],
-                notes=notes, tags=tags,
+                notes=notes, tags=tags, world_id=world_id,
             )
             if npc is not None:
                 # L'allineamento scelto dal Master (o risolto a caso)
@@ -251,7 +257,7 @@ def show_npc_generator_dialog(page: ft.Page, on_saved: Callable[[], None] | None
             return npc
         return master_repo.create_npc(
             name=npc_data["name"], role=npc_data["role"], notes=notes, tags=tags,
-            alignment=npc_data["alignment"], has_stat_block=False,
+            alignment=npc_data["alignment"], has_stat_block=False, world_id=world_id,
         )
 
     def _on_save_one(idx: int) -> None:

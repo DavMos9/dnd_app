@@ -7,12 +7,13 @@ Deliberatamente indipendente da `character_repo.py`/`master_repo.py` —
 `loot_stash_entries` non ha alcuna FK obbligatoria: una voce di bottino non
 appartiene a nessun personaggio finché non viene assegnata (quel passaggio
 usa direttamente `character_repo.create_inventory_item()`/
-`get_currencies()`/`update_currencies()`, mai una scrittura da qui), e
-l'archivio del Master funziona già oggi — un dispositivo solo, nessuna rete
-— con `world_id=""`. Il deposito comune (`stash_kind="party"`) avrà sempre
-un `world_id` valorizzato una volta introdotto il mondo condiviso
-(Multiplayer), ma questo modulo non impone il vincolo: lo farà la UI, che
-prima del multiplayer non espone affatto la modalità "party".
+`get_currencies()`/`update_currencies()`, mai una scrittura da qui).
+`world_id` (2026-08-12, esteso a ENTRAMBI gli `stash_kind` — vedi
+`LootStashEntry` in data/models.py): "" per una voce locale/di nessun
+mondo (comportamento di sempre per chi non usa il Multiplayer), altrimenti
+l'id del mondo selezionato in `MasterView` — questo modulo si limita a
+filtrare per uguaglianza esatta, la UI (`master_loot_view.py`) decide quale
+mondo passare.
 """
 
 import logging

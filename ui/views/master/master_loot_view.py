@@ -2,15 +2,18 @@
 Vista "Bottino" — quarta tab di `MasterView` (passo 3 di
 `dnd_app/docs/loot_design.md` §8). Due elenchi sulla stessa tabella
 `loot_stash_entries` (`data/repositories/loot_repo.py`), distinti da
-`stash_kind`: **Archivio del Master** (sempre privato del dispositivo,
-`world_id=""` per scelta di design — vedi il costruttore) e **Deposito del
-Gruppo** (`stash_kind="party"`, scoped al mondo correntemente selezionato
-in `MasterView` da quando il modello Mondi esiste — vedi `_effective_world_id()`
-qui sotto; `world_id=""` se il Master lavora in locale, comportamento di
-sempre per chi non usa il Multiplayer). Pulizia 2026-08-07: questo
-docstring diceva ancora "oggi, senza il modello mondo del Multiplayer" —
-falso da quando il passo 2 (modello mondo) esiste, questo stesso file lo
-usa già (parametro `world_id` del costruttore).
+`stash_kind`: **Archivio del Master** e **Deposito del Gruppo**
+(`stash_kind="party"`) — entrambi scoped al mondo correntemente
+selezionato in `MasterView` (`_effective_world_id()` qui sotto;
+`world_id=""` se il Master lavora in locale, comportamento di sempre per
+chi non usa il Multiplayer). Fino al 2026-08-12 l'archivio del Master era
+volutamente sempre `world_id=""` (privato del dispositivo, mai scoped) —
+cambiato per il bug report di Davide ("in Master... oggetti bottino...
+tutto deve essere dipendente dal mondo... selezionare un mondo è come se
+entrassi in un container con le sue cose"): "privato" (mai sincronizzato
+via mondo, la parte davvero importante del design originale) e "scoped al
+mondo selezionato" non sono in contraddizione — restano due assi
+indipendenti, ed è la seconda che mancava.
 
 Operazioni per voce: **assegna** (apre `master_loot_assign_dialog`),
 **sposta** tra i due contenitori, **modifica**, **elimina** — più
@@ -75,13 +78,13 @@ class MasterLootView(ft.Column):
     def __init__(self, world_id: str = "") -> None:
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
-        #: Mondo correntemente selezionato in `MasterView` (2026-08-06) — ""
-        #: per la modalità locale (comportamento di sempre: un unico deposito
-        #: condiviso da chiunque usi questo dispositivo). Significativo SOLO
-        #: per `stash_kind="party"`: l'archivio del Master resta sempre
-        #: world_id="" per scelta di design (vedi `LootStashEntry` in
-        #: data/models.py — l'archivio è privato del dispositivo, mai
-        #: condiviso via mondo).
+        #: Mondo correntemente selezionato in `MasterView` (2026-08-06,
+        #: esteso all'Archivio del Master il 2026-08-12) — "" per la
+        #: modalità locale. Si applica a ENTRAMBI i contenitori
+        #: (`stash_kind="master"`/`"party"`): un mondo è un container, non
+        #: solo per il deposito comune — la privacy dell'archivio del
+        #: Master (mai sincronizzato/visibile ai giocatori) resta un asse
+        #: indipendente da questo, invariata.
         self._world_id = world_id
         self._active_kind: str = "master"  # "master" | "party"
         self._list_col = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
@@ -91,10 +94,10 @@ class MasterLootView(ft.Column):
         self._page = cast(ft.Page, self.page)
 
     def _effective_world_id(self) -> str:
-        """Il `world_id` da usare per l'elenco/le nuove voci correnti — solo
-        il Deposito del Gruppo è mai scoped a un mondo, vedi il commento nel
-        costruttore."""
-        return self._world_id if self._active_kind == "party" else ""
+        """Il `world_id` da usare per l'elenco/le nuove voci correnti —
+        stesso mondo selezionato per entrambi i contenitori (2026-08-12,
+        vedi il commento nel costruttore)."""
+        return self._world_id
 
     # ------------------------------------------------------------------
 
@@ -269,7 +272,13 @@ class MasterLootView(ft.Column):
 
     def _on_move(self, entry: LootStashEntry) -> None:
         new_kind = "party" if self._active_kind == "master" else "master"
-        loot_repo.move_entry(entry.id, new_kind)
+        # world_id esplicito (2026-08-12): senza, move_entry lo azzererebbe
+        # al default "" — corretto per la modalità locale, ma sposterebbe
+        # la voce FUORI dal mondo selezionato (invisibile nell'altro
+        # contenitore finché non si torna in modalità locale). Entrambi i
+        # contenitori condividono lo stesso mondo, quindi uno spostamento
+        # resta sempre dentro lo stesso container.
+        loot_repo.move_entry(entry.id, new_kind, new_world_id=self._world_id)
         self._refresh_list_only()
 
     def _on_delete(self, entry: LootStashEntry) -> None:

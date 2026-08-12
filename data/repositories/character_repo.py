@@ -1490,6 +1490,29 @@ def set_character_class_level(character_classes_id: str, new_level: int) -> bool
         return False
 
 
+def set_character_class_subclass(character_classes_id: str, subclass: str) -> bool:
+    """
+    Aggiorna la sottoclasse di UNA riga character_classes — controparte di
+    `set_character_class_level()` per il selettore "quale classe sale?" del
+    level-up (2026-08-12): una classe SECONDARIA che sceglie la sottoclasse
+    in questo level-up la salva qui, mai su `characters.subclass` (che resta
+    sempre quella della classe primaria, vedi `CharacterClass` in
+    data/models.py).
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE character_classes SET subclass=?, updated_at=datetime('now') WHERE id=?",
+            (subclass or "", character_classes_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore set_character_class_subclass {character_classes_id}: {e}")
+        return False
+
+
 def sync_character_total_level(character_id: str) -> int:
     """
     Riallinea characters.level alla SOMMA dei livelli in character_classes

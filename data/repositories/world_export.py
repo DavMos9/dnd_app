@@ -19,10 +19,15 @@ perdere un personaggio rimosso, altrimenti la rimozione diventerebbe
 silenziosamente definitiva al primo export/import) — con le loro tabelle
 figlio, il giornale degli eventi, i due contenitori di bottino (bottino del
 master/del gruppo, `loot_stash_entries.stash_kind`), le note del master con
-la loro visibilità, le richieste di modifica pendenti, le richieste di
-rientro pendenti (2026-08-12, non esisteva quando il design doc è stato
-scritto ma è a tutti gli effetti stato del mondo) e le mappe condivise
-(idem, §6.4).
+la loro visibilità, gli NPC di rubrica (2026-08-12, da quando
+`master_npcs` è world-scoped — vedi `_WORLD_FLAT_TABLES`), le richieste di
+modifica pendenti, le richieste di rientro pendenti (2026-08-12, non
+esisteva quando il design doc è stato scritto ma è a tutti gli effetti
+stato del mondo) e le mappe condivise (idem, §6.4). NON contiene gli
+Incontri (`master_encounters`): world-scoped anch'essi da questa stessa
+sessione ma con una tabella figlio propria (`master_encounter_members`)
+mai gestita da questo modulo — limite noto, vedi il commento su
+`_WORLD_FLAT_TABLES`.
 
 Nessuna dipendenza da Flet in questo modulo (stesso principio di
 core/*.py e degli altri file di data/repositories/): la UI
@@ -75,6 +80,20 @@ _WORLD_FLAT_TABLES: tuple[str, ...] = (
     "world_rejoin_requests",
     "loot_stash_entries",
     "master_campaign_notes",
+    # NPC di rubrica (2026-08-12, Sezione Master world-scoped — bug report
+    # Davide: "tutto deve essere dipendente dal mondo"): `master_npcs` ha
+    # guadagnato una colonna `world_id` solo in questa stessa sessione,
+    # stessa forma "piatta" di `loot_stash_entries`/`master_campaign_notes`
+    # (nessuna tabella figlio, nessun `character_id` da rimappare) — quindi
+    # entra qui invece che nel percorso "istanza di personaggio". LIMITE
+    # NOTO: `master_encounters` resta escluso da export/import/eliminazione
+    # del mondo (aveva già `world_id` da prima, ma per il flag "visibile ai
+    # giocatori" §6.5, mai per l'appartenenza) — ha una tabella figlio
+    # propria (`master_encounter_members`) che richiederebbe lo stesso
+    # trattamento dedicato di `characters`/`CHILD_TABLES`, non il percorso
+    # "piatto" qui sotto: un backup/trasferimento di mondo oggi NON porta
+    # con sé gli incontri creati in quel mondo, solo NPC/note/bottino/mappe.
+    "master_npcs",
 )
 
 MODES = ("new", "overwrite", "copy")
@@ -248,8 +267,8 @@ def _delete_existing_world_data(conn, world_id: str) -> None:
     `worlds(id) ON DELETE CASCADE`) — qui la riga `worlds` viene già
     cancellata da questa stessa funzione, quindi il CASCADE fa il resto.
     Le tabelle SENZA quella FK (`characters`/`loot_stash_entries`/
-    `master_campaign_notes`/`game_maps`, tutte con `world_id` come semplice
-    colonna testo, mai un vincolo — vedi il commento di
+    `master_campaign_notes`/`master_npcs`/`game_maps`, tutte con `world_id`
+    come semplice colonna testo, mai un vincolo — vedi il commento di
     `world_repo.delete_world()`) vanno svuotate esplicitamente qui.
     `characters` cascade sulle proprie 12 tabelle figlio tramite la FK
     già esistente verso `characters(id)`.
@@ -257,6 +276,7 @@ def _delete_existing_world_data(conn, world_id: str) -> None:
     conn.execute("DELETE FROM characters WHERE world_id = ?", (world_id,))
     conn.execute("DELETE FROM loot_stash_entries WHERE world_id = ?", (world_id,))
     conn.execute("DELETE FROM master_campaign_notes WHERE world_id = ?", (world_id,))
+    conn.execute("DELETE FROM master_npcs WHERE world_id = ?", (world_id,))
     conn.execute(
         "DELETE FROM game_maps WHERE world_id = ? AND character_id IS NULL", (world_id,)
     )

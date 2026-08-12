@@ -322,6 +322,140 @@ def test_ui_aggiungi_classe_helpers():
           "Incantesimo Che Non Esiste XYZ" not in known_after)
 
 
+def test_level_up_classe_secondaria():
+    print("\n[8] Selettore \"quale classe sale?\" — level-up di una classe SECONDARIA")
+
+    c = _make_character("MultiSecondaria", "Guerriero", 3, forza=16, carisma=14)
+    character_repo.add_character_class(c.id, "Bardo", level=1)
+    total = character_repo.sync_character_total_level(c.id)
+    check("totale iniziale Guerriero3/Bardo1 = 4", total == 4)
+
+    # Stessa sequenza che _on_level_up_click esegue quando target_class_name
+    # è la classe SECONDARIA (Bardo 1 → 2): set_character_class_level sulla
+    # riga del Bardo, MAI su quella del Guerriero, + set_character_class_subclass
+    # per l'eventuale sottoclasse scelta in questo level-up (qui il Bardo la
+    # sceglie al 3°, non ora — testato comunque per coprire la funzione).
+    classes = {cc.class_name: cc for cc in character_repo.get_character_classes(c.id)}
+    bardo = classes["Bardo"]
+    guerriero = classes["Guerriero"]
+    new_level = bardo.level + 1  # 2
+    character_repo.set_character_class_level(bardo.id, new_level)
+    character_repo.set_character_class_subclass(bardo.id, "Collegio della Conoscenza")
+    new_total = character_repo.sync_character_total_level(c.id)
+
+    check("Bardo ora a Lv2", new_level == 2)
+    check("totale corretto DOPO il level-up della secondaria = 5 (4+1)", new_total == 5)
+
+    classes_after = {cc.class_name: cc for cc in character_repo.get_character_classes(c.id)}
+    check("Guerriero non toccato dal level-up del Bardo", classes_after["Guerriero"].level == guerriero.level)
+    check("Bardo aggiornato a 2", classes_after["Bardo"].level == 2)
+    check("sottoclasse del Bardo salvata sulla riga character_classes",
+          classes_after["Bardo"].subclass == "Collegio della Conoscenza")
+
+    # characters.class_name/subclass restano SEMPRE quelli della PRIMARIA
+    # (Guerriero) — mai sovrascritti dal level-up di una classe secondaria,
+    # vedi CharacterClass in data/models.py.
+    c_reloaded = character_repo.get_by_id(c.id)
+    check("characters.class_name resta la primaria (Guerriero)",
+          c_reloaded.class_name == "Guerriero")
+    check("characters.subclass NON contaminata dalla sottoclasse del Bardo",
+          c_reloaded.subclass != "Collegio della Conoscenza")
+
+    check("display string coerente", character_repo.get_class_display_string(c.id) == "Guerriero 3 / Bardo 2")
+
+
+def test_leveling_class_view_proxy():
+    print("\n[9] _LevelingClassView — vista \"classe che sale\" usata da _on_level_up_click")
+
+    from ui.views.character_sheet.profilo_tab import _LevelingClassView
+
+    c = _make_character("ProxyTest", "Chierico", 5, saggezza=16)
+    c.subclass = "Dominio della Vita"
+
+    # Percorso PRIMARIA: la funzione reale usa `lc = c` (stesso oggetto),
+    # mai questa vista — verificato qui solo che la vista, se usata sulla
+    # PRIMARIA, si comporta comunque in modo trasparente (nessuna sorpresa
+    # se mai riusata così in futuro).
+    lc_primary = _LevelingClassView(c, c.class_name, c.subclass)
+    check("vista espone class_name della classe passata", lc_primary.class_name == "Chierico")
+    check("vista delega attributi non-classe al Character reale (id)", lc_primary.id == c.id)
+    check("vista delega attributi non-classe al Character reale (hp_max)", lc_primary.hp_max == c.hp_max)
+
+    lc_primary.hp_max += 5
+    check("scrittura di un attributo non-classe passa attraverso al Character reale",
+          c.hp_max == 10 * 5 + 5)
+
+    # Percorso SECONDARIA: class_name/subclass della vista sono INDIPENDENTI
+    # da quelli del Character reale (che restano quelli della primaria) —
+    # né la lettura né la scrittura di lc.subclass deve toccare c.subclass.
+    lc_secondary = _LevelingClassView(c, "Mago", "")
+    check("vista secondaria: class_name è quello passato, non quello del Character",
+          lc_secondary.class_name == "Mago" and c.class_name == "Chierico")
+    lc_secondary.subclass = "Scuola di Evocazione"
+    check("scrittura di lc.subclass NON tocca c.subclass (resta quella della primaria)",
+          c.subclass == "Dominio della Vita")
+    check("lc.subclass riflette il valore appena scritto sulla vista",
+          lc_secondary.subclass == "Scuola di Evocazione")
+
+
+def test_spells_view_multiclasse():
+    print("\n[10] SpellsView — sezione Incantesimi per personaggio multiclasse "
+          "(bug report Davide: \"tiene conto solo della classe principale\")")
+
+    from ui.views.spells_view import SpellsView
+
+    # Percorso a CLASSE SINGOLA — deve restare identico a sempre: una sola
+    # riga in _caster_rows, coincidente con la primaria.
+    c1 = _make_character("SoloChierico", "Chierico", 5, saggezza=16)
+    c1.subclass = "Dominio della Vita"
+    c1.spellcasting_ability = "wis"
+    character_repo.update(c1)
+    v1 = SpellsView(c1)
+    check("classe singola: _caster_rows ha una sola riga",
+          len(v1._caster_rows) == 1 and v1._caster_rows[0][0].class_name == "Chierico")
+    check("classe singola: _build() non solleva eccezioni", len(v1.controls) > 0)
+
+    # Percorso MULTICLASSE — Chierico 5 (WIS16) / Mago 3 (INT14).
+    c2 = _make_character("ChiericoMago", "Chierico", 5, saggezza=16, intelligenza=14)
+    c2.subclass = "Dominio della Vita"
+    c2.spellcasting_ability = "wis"
+    character_repo.update(c2)
+    character_repo.add_character_class(c2.id, "Mago", level=3)
+    v2 = SpellsView(c2)
+    rows = {cc.class_name: cc.level for cc, _ in v2._caster_rows}
+    check("multiclasse: _caster_rows contiene ENTRAMBE le classi coi livelli giusti",
+          rows == {"Chierico": 5, "Mago": 3})
+    check("multiclasse: _build() non solleva eccezioni", len(v2.controls) > 0)
+
+    mago_lvl1 = next(s for s in game_data.get_spells("Mago") if s.get("level") == 1)
+    chierico_lvl1 = next(s for s in game_data.get_spells("Chierico") if s.get("level") == 1)
+
+    # Preparare un incantesimo di Mago deve salvarlo con class_list="Mago"
+    # e contare SOLO nel limite del Mago, mai in quello del Chierico.
+    v2._toggle_prepared_mc(mago_lvl1, "Mago")
+    v2._reload_known()
+    saved = next(k for k in character_repo.get_known_spells(c2.id) if k.name == mago_lvl1["name"])
+    check("incantesimo di Mago salvato con class_list corretto", saved.class_list == "Mago")
+    check("conta nel prepared count del Mago", v2._prepared_count_for_class("Mago") == 1)
+    check("NON conta nel prepared count del Chierico", v2._prepared_count_for_class("Chierico") == 0)
+
+    # Stesso incrocio sull'altra classe.
+    v2._toggle_prepared_mc(chierico_lvl1, "Chierico")
+    v2._reload_known()
+    check("conta nel prepared count del Chierico", v2._prepared_count_for_class("Chierico") == 1)
+    check("il Mago resta a 1 (non contaminato dal Chierico)", v2._prepared_count_for_class("Mago") == 1)
+
+    # Limite di preparazione: formula PHB per-classe, sulla caratteristica
+    # e sul livello DI QUELLA CLASSE (mai il totale) — Chierico 5 WIS16
+    # (mod +3) = 3+5=8; Mago 3 INT14 (mod +2) = 2+3=5.
+    from ui.views.spells_view import _calc_max_prepared_value
+    scores = {"wis": 16, "int": 14}
+    check("limite Chierico (WIS16, Lv5) = 8",
+          _calc_max_prepared_value("Chierico", 5, "wis", scores, 0) == 8)
+    check("limite Mago (INT14, Lv3) = 5",
+          _calc_max_prepared_value("Mago", 3, "int", scores, 0) == 5)
+
+
 def main() -> int:
     print("=" * 66)
     print("Multiclasse — schema/repository layer (PHB IT cap.6, p.163-165)")
@@ -335,6 +469,9 @@ def main() -> int:
     test_slot_incantesimo_multiclasse()
     test_sicurezza_level_up_esistente()
     test_ui_aggiungi_classe_helpers()
+    test_level_up_classe_secondaria()
+    test_leveling_class_view_proxy()
+    test_spells_view_multiclasse()
     print("\n" + "=" * 66)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

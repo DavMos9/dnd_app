@@ -69,15 +69,22 @@ def _row_to_npc(row) -> MasterNpc:
         reactions=d.get("reactions", "[]"),
         legendary_actions=d.get("legendary_actions", "[]"),
         source_page=d.get("source_page", ""),
+        world_id=d.get("world_id", ""),
         created_at=d.get("created_at", ""),
         updated_at=d.get("updated_at", ""),
     )
 
 
-def get_npcs(query: str = "") -> list[MasterNpc]:
+def get_npcs(query: str = "", world_id: str = "") -> list[MasterNpc]:
     """
-    Tutti gli NPC di rubrica, ordinati per nome. `query` (opzionale) filtra
-    per sottostringa case-insensitive su nome/ruolo/tag.
+    Gli NPC di rubrica del mondo indicato, ordinati per nome. `query`
+    (opzionale) filtra per sottostringa case-insensitive su nome/ruolo/tag.
+
+    `world_id` (2026-08-12, bug report Davide: "in Master... npc... tutto
+    deve essere dipendente dal mondo") — filtro per UGUAGLIANZA esatta,
+    stesso principio già in uso per personaggi/note/bottino: `""` (default)
+    ritorna solo gli NPC locali/di nessun mondo, un id di mondo ritorna
+    solo i suoi. Mai un OR/"mostra tutti" — un mondo è un container.
     """
     try:
         conn = get_connection()
@@ -85,12 +92,15 @@ def get_npcs(query: str = "") -> list[MasterNpc]:
             q = f"%{query.strip().lower()}%"
             rows = conn.execute(
                 """SELECT * FROM master_npcs
-                   WHERE lower(name) LIKE ? OR lower(role) LIKE ? OR lower(tags) LIKE ?
+                   WHERE world_id=? AND (lower(name) LIKE ? OR lower(role) LIKE ? OR lower(tags) LIKE ?)
                    ORDER BY name""",
-                (q, q, q),
+                (world_id, q, q, q),
             ).fetchall()
         else:
-            rows = conn.execute("SELECT * FROM master_npcs ORDER BY name").fetchall()
+            rows = conn.execute(
+                "SELECT * FROM master_npcs WHERE world_id=? ORDER BY name",
+                (world_id,),
+            ).fetchall()
         conn.close()
         return [_row_to_npc(r) for r in rows]
     except Exception as e:
@@ -151,8 +161,13 @@ def create_npc(
     reactions: str = "[]",
     legendary_actions: str = "[]",
     source_page: str = "",
+    world_id: str = "",
 ) -> MasterNpc | None:
-    """Crea un nuovo NPC di rubrica. Ritorna l'NPC creato, o None in caso di errore."""
+    """
+    Crea un nuovo NPC di rubrica. Ritorna l'NPC creato, o None in caso di
+    errore. `world_id` (2026-08-12): il mondo correntemente selezionato in
+    Modalità Master — `""` per un NPC locale/di nessun mondo.
+    """
     import uuid as _uuid
     npc_id = str(_uuid.uuid4())
     now = datetime.now().isoformat()
@@ -167,8 +182,8 @@ def create_npc(
                 saving_throws, skills,
                 damage_vulnerabilities, damage_resistances, damage_immunities, condition_immunities,
                 senses, languages, cr, xp, traits, actions, reactions, legendary_actions,
-                source_page, created_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                source_page, world_id, created_at, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 npc_id, _s(name), _s(role), _s(notes), _s(tags), int(has_stat_block),
@@ -178,7 +193,7 @@ def create_npc(
                 _s(damage_vulnerabilities), _s(damage_resistances), _s(damage_immunities), _s(condition_immunities),
                 _s(senses), _s(languages), _s(cr), int(xp or 0), _s(traits) or "[]", _s(actions) or "[]",
                 _s(reactions) or "[]", _s(legendary_actions) or "[]",
-                _s(source_page), now, now,
+                _s(source_page), _s(world_id), now, now,
             ),
         )
         conn.commit()
@@ -196,13 +211,15 @@ def create_npc_from_monster(
     role: str = "",
     notes: str = "",
     tags: str = "",
+    world_id: str = "",
 ) -> MasterNpc | None:
     """
     Convenienza per il percorso "Nuovo dal Bestiario" (Sezione Master):
     precompila tutti i campi stat block da un dict grezzo di `monsters.json`
     (stessa forma già usata da `_save_creature()` in `combattimento_tab.py`),
     con `has_stat_block=True` e `source_page` valorizzato come citazione
-    leggibile invece di un numero grezzo.
+    leggibile invece di un numero grezzo. `world_id` (2026-08-12): vedi
+    `create_npc()`.
     """
     src_page = monster.get("source_page")
     source_page = f"da Bestiario: {monster.get('name', '')} (p.{src_page})" if src_page else f"da Bestiario: {monster.get('name', '')}"
@@ -211,6 +228,7 @@ def create_npc_from_monster(
         role=role,
         notes=notes,
         tags=tags,
+        world_id=world_id,
         has_stat_block=True,
         creature_type=monster.get("type", monster.get("creature_type", "")),
         size=monster.get("size", ""),
@@ -320,17 +338,27 @@ def _row_to_encounter(row) -> MasterEncounter:
     )
 
 
-def get_encounters(include_archived: bool = False) -> list[MasterEncounter]:
-    """Incontri ordinati per ultima modifica (più recenti prima)."""
+def get_encounters(include_archived: bool = False, world_id: str = "") -> list[MasterEncounter]:
+    """
+    Incontri del mondo indicato, ordinati per ultima modifica (più recenti
+    prima). `world_id` (2026-08-12, bug report Davide: "in Master...
+    incontri... tutto deve essere dipendente dal mondo") — filtro per
+    UGUAGLIANZA esatta come per NPC/personaggi/note/bottino: `""`
+    (default) ritorna solo gli incontri locali/di nessun mondo. La colonna
+    esisteva già (Tracker condiviso §6.5) ma prima serviva solo al flag
+    "visibile ai giocatori", mai a filtrare questa lista.
+    """
     try:
         conn = get_connection()
         if include_archived:
             rows = conn.execute(
-                "SELECT * FROM master_encounters ORDER BY updated_at DESC"
+                "SELECT * FROM master_encounters WHERE world_id=? ORDER BY updated_at DESC",
+                (world_id,),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM master_encounters WHERE is_archived=0 ORDER BY updated_at DESC"
+                "SELECT * FROM master_encounters WHERE is_archived=0 AND world_id=? ORDER BY updated_at DESC",
+                (world_id,),
             ).fetchall()
         conn.close()
         return [_row_to_encounter(r) for r in rows]
@@ -352,7 +380,14 @@ def get_encounter_by_id(encounter_id: str) -> MasterEncounter | None:
         return None
 
 
-def create_encounter(name: str, notes: str = "") -> MasterEncounter | None:
+def create_encounter(name: str, notes: str = "", world_id: str = "") -> MasterEncounter | None:
+    """
+    `world_id` (2026-08-12): il mondo correntemente selezionato in Modalità
+    Master al momento della creazione — `""` per un incontro locale/di
+    nessun mondo. Distinto da `visible_to_players` (§6.5, sempre spento
+    alla creazione): un incontro può appartenere a un mondo senza essere
+    ancora rivelato ai giocatori.
+    """
     import uuid as _uuid
     enc_id = str(_uuid.uuid4())
     now = datetime.now().isoformat()
@@ -360,9 +395,9 @@ def create_encounter(name: str, notes: str = "") -> MasterEncounter | None:
         conn = get_connection()
         conn.execute(
             """INSERT INTO master_encounters
-               (id, name, notes, round_number, current_turn_index, is_archived, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?)""",
-            (enc_id, _s(name), _s(notes), 1, 0, 0, now, now),
+               (id, name, notes, round_number, current_turn_index, is_archived, world_id, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (enc_id, _s(name), _s(notes), 1, 0, 0, _s(world_id), now, now),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM master_encounters WHERE id=?", (enc_id,)).fetchone()
