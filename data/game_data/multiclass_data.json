@@ -1,0 +1,42 @@
+{
+  "_source_note": "Due tabelle trascritte visivamente (pdftoppm, mai pdftotext/OCR) da ED 5.0 manuale del giocatore.pdf, Capitolo 6 'Opzioni di Personalizzazione', pag. 163-164 — sessione 2026-08-12, progettazione Multiclasse. 'prerequisites': tabella 'Prerequisiti di Multiclasse' (p.163) — lista di OPZIONI in OR, ciascuna opzione è una lista di requisiti in AND, es. Guerriero = Forza 13 OPPURE Destrezza 13 (due opzioni da un requisito ciascuna), Monaco = Destrezza 13 E Saggezza 13 (una opzione da due requisiti). 'multiclass_proficiencies': tabella 'Competenze dei Multiclasse' (p.164) — stesso formato di armor_proficiencies/weapon_proficiencies/bonus_proficiencies già usato in classes/*.json (token bare per armatura/arma, {'type':'choice',...} per le scelte), riusa apply_subclass_bonus_proficiencies()/classify_bonus_proficiency_entries() esistenti. 'from':'own_class_skill_list' è un marcatore speciale (non presente altrove nel progetto) risolto da apply_multiclass_proficiencies() leggendo skill_choices.options della classe stessa da game_data — mai duplicata qui, per non rischiare disallineamento con classes/*.json.",
+  "prerequisites": {
+    "barbaro": [[["forza", 13]]],
+    "bardo": [[["carisma", 13]]],
+    "chierico": [[["saggezza", 13]]],
+    "druido": [[["saggezza", 13]]],
+    "guerriero": [[["forza", 13]], [["destrezza", 13]]],
+    "ladro": [[["destrezza", 13]]],
+    "mago": [[["intelligenza", 13]]],
+    "monaco": [[["destrezza", 13], ["saggezza", 13]]],
+    "paladino": [[["forza", 13], ["carisma", 13]]],
+    "ranger": [[["destrezza", 13], ["saggezza", 13]]],
+    "stregone": [[["carisma", 13]]],
+    "warlock": [[["carisma", 13]]]
+  },
+  "multiclass_proficiencies": {
+    "barbaro": ["scudi", "semplice", "guerra"],
+    "bardo": [
+      "leggere",
+      {"type": "choice", "count": 1, "from": "any_skill"},
+      {"type": "choice", "count": 1, "from": "strumenti_musicali"}
+    ],
+    "chierico": ["leggere", "medie", "scudi"],
+    "druido": ["leggere", "medie", "scudi"],
+    "guerriero": ["leggere", "medie", "scudi", "semplice", "guerra"],
+    "ladro": [
+      "leggere",
+      {"type": "choice", "count": 1, "from": "own_class_skill_list"},
+      "Arnesi da Scasso"
+    ],
+    "mago": [],
+    "monaco": ["semplice", "Spada Corta"],
+    "paladino": ["leggere", "medie", "scudi", "semplice", "guerra"],
+    "ranger": [
+      "leggere", "medie", "scudi", "semplice", "guerra",
+      {"type": "choice", "count": 1, "from": "own_class_skill_list"}
+    ],
+    "stregone": [],
+    "warlock": ["leggere", "semplice"]
+  }
+}

@@ -172,6 +172,27 @@ class CharacterProficiency:
 
 
 # ---------------------------------------------------------------------------
+# Multiclasse (PHB IT cap.6, p.163-165 — vedi dnd_app/docs/multiclasse_design.md)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CharacterClass:
+    """
+    Una classe posseduta dal personaggio, col suo livello. Character.
+    class_name/subclass/level restano SEMPRE la classe primaria (1° livello)
+    e il livello totale — mai derivati da qui, sempre la fonte di verità per
+    la riga con is_primary=True.
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    character_id: str = ""
+    class_name: str = ""
+    subclass: str = ""
+    level: int = 1
+    is_primary: bool = False
+    order_index: int = 0
+
+
+# ---------------------------------------------------------------------------
 # Armi
 # ---------------------------------------------------------------------------
 

@@ -1588,12 +1588,27 @@ class ProfiloTab(ScrollMemoryListView):
 
     def _on_level_up_click(self, e):
         c = self.character
-        new_level = c.level + 1
+        # Multiclasse (2026-08-12): questo dialog sale sempre la classe
+        # PRIMARIA (c.class_name) — new_level è il livello CHE QUELLA CLASSE
+        # sta per raggiungere, non il livello totale del personaggio (i due
+        # coincidono per un personaggio a classe singola, che è ancora il
+        # caso di ogni chiamata di questo metodo finché non esiste un
+        # secondo entry-point per le classi secondarie — vedi
+        # _on_add_multiclass_click). new_total_level è invece il livello
+        # TOTALE dopo questo level-up, usato SOLO per il bonus competenza
+        # (PHB IT p.163: sempre sul livello totale, mai su quello di una
+        # singola classe) — per un personaggio a classe singola è lo stesso
+        # numero di new_level, quindi questo split non cambia nulla di
+        # osservabile per nessun personaggio esistente.
+        _primary_cc = character_repo.get_primary_character_class(c.id)
+        primary_class_level = _primary_cc.level if _primary_cc else c.level
+        new_level = primary_class_level + 1
         if new_level > 20:
             return
+        new_total_level = c.level + 1
 
         old_pb = get_proficiency_bonus(c.level)
-        new_pb = get_proficiency_bonus(new_level)
+        new_pb = get_proficiency_bonus(new_total_level)
         steps = get_level_up_steps(c.class_name or "", new_level, old_pb, new_pb, c.subclass or "")
 
         hit_die = c.hit_dice_type or 8
@@ -3943,14 +3958,35 @@ class ProfiloTab(ScrollMemoryListView):
                 c.hp_max += _hp_feat_delta
                 c.hp_current = min(c.hp_current + _hp_feat_delta, c.hp_max)
 
+            # Multiclasse: character_classes.level della classe primaria e
+            # characters.level (TOTALE) vanno risincronizzati PRIMA del
+            # salvataggio — c.level vale ancora new_level (il livello della
+            # sola classe primaria, vedi commento in cima alla funzione),
+            # che per un personaggio a classe singola coincide già col
+            # totale corretto (nessun comportamento diverso). Per un
+            # personaggio multiclasse, senza questo passaggio il totale
+            # perderebbe i livelli delle altre classi.
+            if _primary_cc is not None:
+                character_repo.set_character_class_level(_primary_cc.id, new_level)
+            _is_multiclass = len(character_repo.get_character_classes(c.id)) > 1
+            c.level = character_repo.sync_character_total_level(c.id) or new_total_level
+
             if not character_repo.update(c):
                 show_error_dialog(page)
                 return
-            # Aggiorna slot incantesimo PHB per il nuovo livello
-            character_repo.auto_init_spell_slots(c.id, c.class_name, new_level)
+            # Aggiorna slot incantesimo PHB per il nuovo livello — il pool
+            # condiviso multiclasse se il personaggio ha più di una classe
+            # (somma i "livelli da incantatore" pesati di TUTTE le classi,
+            # PHB IT p.164), altrimenti il percorso a classe singola di sempre.
+            if _is_multiclass:
+                character_repo.sync_multiclass_spell_slots(c.id)
+            else:
+                character_repo.auto_init_spell_slots(c.id, c.class_name, new_level)
             # Aggiorna risorse di classe (Furia, Ki, Incanalare Divinità, ecc.)
-            # per il nuovo livello — senza questa chiamata i pool restavano
-            # congelati al valore calcolato alla creazione del personaggio.
+            # per il nuovo livello — init_class_resources() è già multiclasse-
+            # safe (unisce i default di TUTTE le classi possedute quando ce
+            # n'è più di una, vedi character_repo.py), invariato per un
+            # personaggio a classe singola.
             character_repo.init_class_resources(c.id, c.class_name, new_level, c)
             # Mistificatore Arcano/Cavaliere Mistico — spellcasting_ability e
             # slot incantesimo "presi in prestito dal Mago". No-op per

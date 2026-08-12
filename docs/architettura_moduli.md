@@ -135,6 +135,38 @@ Entità correlate: `CharacterProficiency`, `Weapon`, `InventoryItem`, `Currency`
   `game_data.get_weapon(entry_name)` (arma specifica, es. "Stocco", non una categoria) è classificato `"weapon"`
   invece di ricadere su `"tool"` per default
 
+**Multiclasse** (2026-08-12, backend — vedi `dnd_app/docs/multiclasse_design.md` §8 per lo stato esatto, NESSUNA
+UI Flet scritta in questo giro):
+- Nuova tabella `character_classes` (`data/database.py`) — una riga per classe posseduta, `is_primary=1` per
+  quella di 1° livello. `characters.class_name`/`subclass`/`level` restano SEMPRE la classe primaria e il
+  livello TOTALE, mai una stringa composita — invariati per un personaggio a classe singola.
+- `get_character_classes`/`get_primary_character_class`/`character_has_class`/`get_class_display_string`/
+  `add_character_class`/`set_character_class_level`/`remove_character_class`/`sync_character_total_level`
+- `check_multiclass_prerequisites(character, new_class_name)` → advisory (mai un blocco duro), controlla sia le
+  classi già possedute sia quella nuova contro `game_data.get_multiclass_prerequisites()`
+- `apply_multiclass_proficiencies`/`resolve_multiclass_choice_options`/`apply_multiclass_proficiency_choices` →
+  competenze RIDOTTE da multiclasse (PHB p.164), MAI quelle complete di `apply_class_base_proficiencies()`; riusa
+  `classify_bonus_proficiency_entries()`/`apply_subclass_bonus_proficiencies()` esistenti
+- `init_class_resources()` **modificata**: quando `get_character_classes()` ha più di una riga, i default sono
+  l'UNIONE su tutte le classi possedute (ciascuna col proprio livello) invece della sola `class_name`/`level`
+  passati — prima di questo fix, chiamarla una volta per classe avrebbe cancellato le risorse delle altre
+  (strategia "replace totale per nome"). Risorse omonime tra classi diverse (es. Incanalare Divinità di
+  Chierico/Paladino) tengono il valore più alto, non sommato (PHB: "non ottiene un utilizzo aggiuntivo").
+- `sync_multiclass_spell_slots(character_id)` (nuova, usata solo se >1 classe — un personaggio a classe singola
+  passa sempre da `auto_init_spell_slots()`, invariata): somma i livelli "full" per intero e "half" dimezzati
+  (arrotondati per difetto) di tutte le classi (Warlock ESCLUSO), guarda `get_multiclass_spell_slot_table()`
+  (= `full_caster`, confermato identico dal PHB). LIMITE NOTO: un personaggio con Warlock + un'altra classe da
+  incantatore non ha ancora i suoi slot del Patto tracciati separatamente (schema `spell_slots` senza colonna
+  pool) — logga un warning esplicito, non scrive un numero silenziosamente sbagliato.
+- `data/game_data/multiclass_data.json` (nuovo) + `GameDataLoader.get_multiclass_prerequisites()`/
+  `get_multiclass_proficiency_entries()`/`get_multiclass_spell_slot_table()` — le 2 tabelle PHB (prerequisiti
+  p.163, competenze p.164) lette visivamente dal PDF italiano.
+- `ui/views/character_sheet/profilo_tab.py::_on_level_up_click` — fix mirato (non un riscritto): `new_level`
+  ora è esplicitamente il livello della classe PRIMARIA (da `character_classes`, non più `c.level+1` che per un
+  multiclasse avrebbe sovrascritto il totale), `new_total_level` separato per il bonus competenza. A fine
+  funzione risincronizza `character_classes`/`characters.level`. Zero comportamento diverso per un personaggio a
+  classe singola (28 file di regressione pre-esistenti invariati).
+
 ### `core/wizard_engine.py`
 - `WizardEngine`: accumula punteggi da risposte, calcola raccomandazione
 - `record_answer(question_id, option_ids)` → aggiorna class_scores + bg_scores + alignment

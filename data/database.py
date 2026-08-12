@@ -6,6 +6,7 @@ Tutte le operazioni DDL (creazione tabelle) sono qui.
 import sqlite3
 import os
 import logging
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -424,6 +425,33 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # per decidere se mostrare l'avviso "sono successe N cose dall'ultimo
     # backup" — soglia decisa con Davide (20 eventi), non a tavolino.
     _add_column(cur, "worlds", "last_export_seq", "INTEGER DEFAULT 0")
+
+    _migrate_backfill_character_classes(cur)
+
+
+def _migrate_backfill_character_classes(cur: sqlite3.Cursor) -> None:
+    """
+    Multiclasse (2026-08-12): crea la riga `character_classes` primaria per
+    ogni personaggio che non ne ha ancora nessuna — sia i personaggi
+    esistenti prima di questa migrazione, sia quelli creati da un vecchio
+    export `.dndchar`/`.dndworld` importato dopo. Idempotente: un
+    personaggio con almeno una riga (già migrato, o già multiclasse) non
+    viene toccato. `characters.class_name`/`subclass`/`level` restano la
+    fonte di verità per questa riga primaria — non il contrario.
+    """
+    rows = cur.execute("""
+        SELECT id, class_name, subclass, level FROM characters
+        WHERE id NOT IN (SELECT DISTINCT character_id FROM character_classes)
+    """).fetchall()
+    for row in rows:
+        char_id, class_name, subclass, level = row[0], row[1], row[2], row[3]
+        if not class_name:
+            continue
+        cur.execute("""
+            INSERT INTO character_classes
+                (id, character_id, class_name, subclass, level, is_primary, order_index)
+            VALUES (?, ?, ?, ?, ?, 1, 0)
+        """, (str(uuid.uuid4()), char_id, class_name, subclass or "", level or 1))
 
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
@@ -1175,4 +1203,31 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_world_rejoin_requests_world_status
         ON world_rejoin_requests(world_id, status)
+    """)
+
+    # Multiclasse (PHB IT cap.6, p.163-165 — 2026-08-12, vedi
+    # dnd_app/docs/multiclasse_design.md). Una riga per classe posseduta dal
+    # personaggio. `characters.class_name`/`subclass`/`level` NON vengono
+    # toccate da questa tabella: restano SEMPRE la classe primaria (quella di
+    # 1° livello) e il livello TOTALE del personaggio — mai una stringa
+    # composita, decisione presa nel design doc per rendere retrocompatibile
+    # ogni confronto `class_name ==` già nel codice. `is_primary=1` per la
+    # riga della classe di 1° livello (decide competenze iniziali ed
+    # equipaggiamento, mai sovrascritta da un level-up successivo).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS character_classes (
+            id           TEXT PRIMARY KEY,
+            character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+            class_name   TEXT NOT NULL,
+            subclass     TEXT NOT NULL DEFAULT '',
+            level        INTEGER NOT NULL DEFAULT 1,
+            is_primary   INTEGER NOT NULL DEFAULT 0,
+            order_index  INTEGER NOT NULL DEFAULT 0,
+            created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_character_classes_character
+        ON character_classes(character_id)
     """)

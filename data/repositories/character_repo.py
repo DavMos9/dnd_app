@@ -10,8 +10,8 @@ from typing import Any, Optional
 
 from data.database import get_connection
 from data.game_data.game_data_loader import game_data
-from data.models import (Character, CharacterCondition, CharacterProficiency, Currency,
-                         SpellSlot, ClassResource, CreatureEntry)
+from data.models import (Character, CharacterCondition, CharacterClass, CharacterProficiency,
+                         Currency, SpellSlot, ClassResource, CreatureEntry)
 
 logger = logging.getLogger(__name__)
 
@@ -377,6 +377,20 @@ def create(character: Character) -> bool:
                 "INSERT INTO spell_slots (character_id, slot_level, total, used) VALUES (?, ?, 0, 0)",
                 (character.id, level)
             )
+
+        # Multiclasse (2026-08-12): riga primaria in character_classes, fonte
+        # derivata da characters.class_name/subclass/level — mai il contrario.
+        # Senza questo insert un personaggio appena creato in QUESTA sessione
+        # (non backfillato da _migrate, che gira solo su characters già
+        # esistenti al momento di init_db()) risulterebbe senza classi.
+        import uuid as _uuid_mc
+        conn.execute(
+            """INSERT INTO character_classes
+               (id, character_id, class_name, subclass, level, is_primary, order_index)
+               VALUES (?, ?, ?, ?, ?, 1, 0)""",
+            (str(_uuid_mc.uuid4()), character.id, _s(character.class_name),
+             _s(character.subclass), character.level),
+        )
 
         conn.commit()
         conn.close()
@@ -1361,6 +1375,268 @@ def update_spell_slot(character_id: str, slot_level: int, used: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Multiclasse (PHB IT cap.6, p.163-165 — vedi dnd_app/docs/multiclasse_design.md)
+#
+# characters.class_name/subclass/level restano SEMPRE la classe primaria (1°
+# livello) e il livello TOTALE del personaggio — mai una stringa composita,
+# mai derivati da qui. Questa tabella è puramente ADDITIVA: un personaggio a
+# classe singola ha esattamente una riga qui (is_primary=1, backfillata dalla
+# migrazione in data/database.py per ogni personaggio pre-esistente) e si
+# comporta byte-per-byte come prima di questa feature.
+# ---------------------------------------------------------------------------
+
+def get_character_classes(character_id: str) -> list[CharacterClass]:
+    """Tutte le classi del personaggio, ordinate per order_index (ordine di acquisizione)."""
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM character_classes WHERE character_id=? ORDER BY order_index ASC",
+            (character_id,),
+        ).fetchall()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Errore lettura character_classes per {character_id}: {e}")
+        return []
+    return [
+        CharacterClass(
+            id=row["id"], character_id=row["character_id"],
+            class_name=row["class_name"], subclass=row["subclass"] or "",
+            level=row["level"], is_primary=bool(row["is_primary"]),
+            order_index=row["order_index"],
+        )
+        for row in rows
+    ]
+
+
+def get_primary_character_class(character_id: str) -> CharacterClass | None:
+    """La classe primaria (1° livello) del personaggio, o None se non ancora migrato."""
+    for cc in get_character_classes(character_id):
+        if cc.is_primary:
+            return cc
+    return None
+
+
+def character_has_class(character_id: str, class_name: str) -> bool:
+    """True se il personaggio ha almeno un livello nella classe indicata (case-insensitive)."""
+    target = (class_name or "").strip().lower()
+    if not target:
+        return False
+    return any(
+        cc.class_name.strip().lower() == target
+        for cc in get_character_classes(character_id)
+    )
+
+
+def get_class_display_string(character_id: str, fallback_class_name: str = "") -> str:
+    """
+    Stringa composita per la UI, es. "Guerriero 3 / Ladro 2" — calcolata
+    SEMPRE a runtime da character_classes, mai salvata su characters.
+    class_name resta un'etichetta singola. Ordine: order_index (acquisizione).
+    Se il personaggio ha una sola classe, ritorna "NomeClasse Livello" (stessa
+    forma di sempre, nessuna barra). fallback_class_name copre il caso limite
+    di un personaggio non ancora migrato (nessuna riga): usa direttamente
+    characters.class_name/level passati dal chiamante.
+    """
+    classes = get_character_classes(character_id)
+    if not classes:
+        return fallback_class_name or ""
+    return " / ".join(f"{cc.class_name} {cc.level}" for cc in classes)
+
+
+def add_character_class(
+    character_id: str, class_name: str, subclass: str = "",
+    level: int = 1, is_primary: bool = False,
+) -> str:
+    """
+    Aggiunge una nuova classe al personaggio (prima volta che prende un
+    livello in `class_name`). Non tocca characters.class_name/subclass/level:
+    quelli restano quelli della classe primaria, aggiornati a parte da chi
+    orchestrata il level-up. Ritorna l'id della nuova riga.
+    """
+    import uuid
+    new_id = str(uuid.uuid4())
+    existing = get_character_classes(character_id)
+    order_index = len(existing)
+    try:
+        conn = get_connection()
+        conn.execute(
+            """INSERT INTO character_classes
+               (id, character_id, class_name, subclass, level, is_primary, order_index)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (new_id, character_id, class_name, subclass or "", level,
+             1 if is_primary else 0, order_index),
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"Nuova classe multiclasse: {class_name} Lv{level} su {character_id}")
+    except Exception as e:
+        logger.error(f"Errore add_character_class {character_id}/{class_name}: {e}")
+    return new_id
+
+
+def set_character_class_level(character_classes_id: str, new_level: int) -> bool:
+    """Aggiorna il livello di UNA riga character_classes (level-up/level-down su quella classe)."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE character_classes SET level=?, updated_at=datetime('now') WHERE id=?",
+            (new_level, character_classes_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore set_character_class_level {character_classes_id}: {e}")
+        return False
+
+
+def sync_character_total_level(character_id: str) -> int:
+    """
+    Riallinea characters.level alla SOMMA dei livelli in character_classes
+    (PHB IT p.163: "i livelli in tutte le sue classi, sommati assieme,
+    determinano il suo livello di personaggio"). Va richiamata dopo ogni
+    level-up/level-down/aggiunta/rimozione di una classe, PRIMA di
+    ricalcolare bonus competenza/CA/altro che dipendono dal livello totale
+    (già tutti corretti perché leggono characters.level, vedi
+    multiclasse_design.md §3 punto 2). Ritorna il nuovo livello totale, 0 se
+    il personaggio non ha ancora classi (non dovrebbe mai succedere).
+    """
+    total = sum(cc.level for cc in get_character_classes(character_id))
+    if total <= 0:
+        return 0
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET level=?, updated_at=datetime('now') WHERE id=?",
+            (total, character_id),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Errore sync_character_total_level {character_id}: {e}")
+    return total
+
+
+def remove_character_class(character_classes_id: str) -> bool:
+    """
+    Rimuove del tutto una riga character_classes (level-down che azzera i
+    livelli di quella classe). Non chiamare mai sulla classe primaria mentre
+    è l'unica rimasta: la UI deve impedirlo (un personaggio ha sempre almeno
+    una classe).
+    """
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM character_classes WHERE id=?", (character_classes_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore remove_character_class {character_classes_id}: {e}")
+        return False
+
+
+_ABILITY_SCORE_FIELDS = {
+    "forza": "str_score", "destrezza": "dex_score", "costituzione": "con_score",
+    "intelligenza": "int_score", "saggezza": "wis_score", "carisma": "cha_score",
+}
+
+
+def check_multiclass_prerequisites(
+    character: "Character", new_class_name: str
+) -> tuple[bool, list[str]]:
+    """
+    Verifica i prerequisiti di caratteristica per prendere `new_class_name`
+    in multiclasse (PHB IT p.163): il personaggio deve soddisfarli sia per
+    OGNI classe che possiede già, sia per quella nuova. Ogni classe elenca le
+    sue opzioni in OR (es. Guerriero: Forza 13 OPPURE Destrezza 13) — vedi
+    game_data.get_multiclass_prerequisites().
+
+    Ritorna (True, []) se tutti i requisiti sono soddisfatti, altrimenti
+    (False, [descrizioni leggibili di ogni requisito NON soddisfatto]) — solo
+    ADVISORY: nessuna funzione di questo progetto blocca un'azione di gioco
+    per un valore PHB non soddisfatto (stesso principio degli altri override
+    in `characters`, es. proficiency_bonus_override); la UI mostra
+    l'avviso e lascia decidere al tavolo se procedere comunque (house rule).
+    """
+    classes_to_check = [cc.class_name for cc in get_character_classes(character.id)]
+    if new_class_name not in classes_to_check:
+        classes_to_check.append(new_class_name)
+
+    failures: list[str] = []
+    for class_name in classes_to_check:
+        options = game_data.get_multiclass_prerequisites(class_name)
+        if not options:
+            continue
+        satisfied = False
+        for option in options:
+            if all(
+                getattr(character, _ABILITY_SCORE_FIELDS.get(ability, ""), 0) >= minimum
+                for ability, minimum in option
+            ):
+                satisfied = True
+                break
+        if not satisfied:
+            option_descriptions = " OPPURE ".join(
+                " e ".join(f"{ability.capitalize()} {minimum}" for ability, minimum in option)
+                for option in options
+            )
+            failures.append(f"{class_name}: richiede {option_descriptions}")
+    return (len(failures) == 0, failures)
+
+
+def apply_multiclass_proficiencies(character_id: str, class_name: str) -> None:
+    """
+    Applica le competenze RIDOTTE ottenute prendendo `class_name` in
+    multiclasse (PHB IT p.164, tabella "Competenze dei Multiclasse") — MAI
+    quelle complete di apply_class_base_proficiencies() (quella resta solo
+    per la classe primaria, presa a creazione). Le entry "choice" (skill/
+    strumento a scelta) vanno risolte dalla UI PRIMA di questa chiamata
+    (stesso pattern di apply_subclass_bonus_proficiencies): `choice_values`
+    è la lista dei valori scelti, nello stesso ordine delle entry "choice"
+    restituite da game_data.get_multiclass_proficiency_entries().
+    """
+    entries = game_data.get_multiclass_proficiency_entries(class_name)
+    fixed, _choices = classify_bonus_proficiency_entries(entries)
+    apply_subclass_bonus_proficiencies(character_id, fixed)
+
+
+def resolve_multiclass_choice_options(entry: dict, class_name: str) -> list[str]:
+    """
+    Risolve il pool di opzioni per una entry "choice" di
+    get_multiclass_proficiency_entries(): "any_skill" -> le 18 abilità PHB
+    (riusa resolve_bonus_proficiency_choice_options), "own_class_skill_list"
+    -> la lista di abilità della classe STESSA presa in multiclasse (letta da
+    classes/*.json skill_choices.options, mai duplicata nel dato multiclasse
+    per non rischiare disallineamento), "strumenti_musicali"/altra categoria
+    tool -> game_data.get_tool_names(categoria).
+    """
+    src = entry.get("from")
+    if src == "any_skill":
+        return resolve_bonus_proficiency_choice_options({"from": "any_skill"})
+    if src == "own_class_skill_list":
+        cls_data = game_data.get_class(class_name) or {}
+        return list((cls_data.get("skill_choices") or {}).get("options") or [])
+    if isinstance(src, str) and src:
+        return game_data.get_tool_names(src)
+    return []
+
+
+def apply_multiclass_proficiency_choices(
+    character_id: str, class_name: str, choice_values: list[str]
+) -> None:
+    """
+    Applica le entry "choice" già risolte dalla UI (abilità/strumento scelti
+    dal giocatore prendendo `class_name` in multiclasse) — controparte di
+    apply_multiclass_proficiencies() per le entry fisse. `choice_values` deve
+    avere la stessa lunghezza/ordine delle entry "choice" restituite da
+    get_multiclass_proficiency_entries(class_name).
+    """
+    if not choice_values:
+        return
+    apply_subclass_bonus_proficiencies(character_id, [v for v in choice_values if v])
+
+
+# ---------------------------------------------------------------------------
 # Tabella PHB slot incantesimo per livello di personaggio
 #
 # Spostata in data/game_data/spell_slot_progressions.json il 2026-07-10 —
@@ -1403,6 +1679,80 @@ def auto_init_spell_slots(character_id: str, class_name: str, level: int) -> boo
         return True
     except Exception as e:
         logger.error(f"Errore auto_init_spell_slots {character_id}: {e}")
+        return False
+
+
+def sync_multiclass_spell_slots(character_id: str) -> bool:
+    """
+    Aggiorna gli slot incantesimo "Incantesimi" condivisi (PHB IT p.164) per
+    un personaggio con PIÙ DI UNA classe — chiamare questa, non
+    auto_init_spell_slots(), quando get_character_classes(character_id) ha
+    più di una riga (l'orchestrazione del level-up decide quale delle due
+    chiamare, vedi multiclasse_design.md §1).
+
+    Somma i livelli in TUTTE le classi da incantatore "full" (Bardo,
+    Chierico, Druido, Mago, Stregone) e metà (arrotondati per difetto) dei
+    livelli nelle classi "half" (Paladino, Ranger) — PHB IT p.164, "Slot
+    Incantesimo" — poi guarda la tabella "Incantatore Multiclasse"
+    (identica a full_caster, vedi get_multiclass_spell_slot_table()).
+
+    LIMITE NOTO E DOCUMENTATO (non un bug dimenticato): il Warlock è
+    escluso da questa somma (i suoi slot del Patto sono SEMPRE separati dal
+    pool condiviso, PHB IT p.164 "Magia del Patto") — ma lo schema attuale
+    di `spell_slots` ha UNA sola riga per (character_id, slot_level), senza
+    una colonna per distinguere i due pool. Per un personaggio che ha SIA
+    Warlock SIA un'altra classe da incantatore, questa funzione scrive solo
+    il pool condiviso (corretto) ma NON scrive più i suoi slot del Patto
+    separati (che restano a 0) — richiederebbe un secondo pool nello
+    schema/UI, esplicitamente fuori scope in questo giro (vedi
+    multiclasse_design.md §3 punto 5). Un Warlock a classe SINGOLA non è
+    toccato da questa funzione (auto_init_spell_slots() resta il percorso
+    per un personaggio con una sola classe, invariato).
+
+    Non tocca gli slot terzo-incantatore di Mistificatore Arcano/Cavaliere
+    Mistico (init_borrowed_caster_slots(), percorso indipendente) — la loro
+    somma nel pool multiclasse è un altro limite noto della stessa origine,
+    stesso motivo (§3 punto 4 del design doc).
+    """
+    classes = get_character_classes(character_id)
+    caster_level = 0.0
+    has_warlock = False
+    for cc in classes:
+        caster_type = game_data.get_caster_type(cc.class_name)
+        if caster_type == "full":
+            caster_level += cc.level
+        elif caster_type == "half":
+            caster_level += cc.level / 2
+        elif caster_type == "pact":
+            has_warlock = True
+
+    table = game_data.get_multiclass_spell_slot_table()
+    lv_idx = max(0, min(int(caster_level) - 1, 19)) if caster_level >= 1 else -1
+    slots = table[lv_idx] if lv_idx >= 0 and table else [0] * 9
+
+    if has_warlock and int(caster_level) > 0:
+        logger.warning(
+            "sync_multiclass_spell_slots: %s ha Warlock + un'altra classe da "
+            "incantatore — pool condiviso aggiornato (%s), slot del Patto "
+            "NON tracciati separatamente in questa versione (limite noto, "
+            "vedi multiclasse_design.md §3 punto 5)", character_id, slots,
+        )
+
+    try:
+        conn = get_connection()
+        for slot_lv, total in enumerate(slots, start=1):
+            conn.execute(
+                "UPDATE spell_slots SET total=?, used=MIN(used,?) "
+                "WHERE character_id=? AND slot_level=?",
+                (total, total, character_id, slot_lv),
+            )
+        conn.commit()
+        conn.close()
+        logger.info("Slot multiclasse auto-init: %s livello incantatore %s → %s",
+                     character_id, caster_level, slots)
+        return True
+    except Exception as e:
+        logger.error(f"Errore sync_multiclass_spell_slots {character_id}: {e}")
         return False
 
 
@@ -2873,18 +3223,56 @@ def init_class_resources(
       - Risorse presenti nel DB e in defaults → max_value aggiornato;
         current_value = min(current_value, nuovo_max).
       - Risorse nel DB ma non più nei defaults → eliminate.
+
+    Multiclasse (2026-08-12): le risorse di classe non si fondono MAI tra
+    classi diverse (Rage del Barbaro e Ki del Monaco restano due pool
+    distinti anche sullo stesso personaggio) — ma la strategia di rimozione
+    sopra è un "replace totale" per nome, quindi chiamarla una volta per
+    classe cancellerebbe le risorse delle altre classi ad ogni ri-sync. Se
+    il personaggio ha righe in `character_classes`, i default si calcolano
+    come UNIONE su TUTTE le sue classi (ciascuna col proprio livello, non
+    il totale — get_class_resource_defaults già lo richiede), non solo su
+    `class_name`/`level` passati. Fallback ai parametri passati se non c'è
+    ancora nessuna riga (caso limite: replica non ancora sincronizzata via
+    character_classes, mai dovrebbe succedere dopo create()/migrazione, ma
+    non deve mai sollevare un'eccezione su questo).
     """
     import uuid as _uuid
     from config.settings import get_class_resource_defaults, get_race_resource_defaults
     try:
-        # Risorse di classe
-        defaults = get_class_resource_defaults(class_name, level, character)
+        # Risorse di classe — unione su tutte le classi possedute (multiclasse)
+        owned_classes = get_character_classes(character_id)
+        if owned_classes:
+            defaults = []
+            for cc in owned_classes:
+                defaults += get_class_resource_defaults(cc.class_name, cc.level, character)
+        else:
+            defaults = get_class_resource_defaults(class_name, level, character)
 
-        # Risorse razziali (aggiunte allo stesso pool)
+        # Risorse razziali (aggiunte allo stesso pool) — sul livello TOTALE,
+        # mai su quello di una singola classe (nessuna feature razziale PHB
+        # dipende dal livello di classe).
         race_name  = getattr(character, "race",    "") or "" if character else ""
         subrace    = getattr(character, "subrace", "") or "" if character else ""
         race_defaults = get_race_resource_defaults(race_name, subrace, level)
         defaults = defaults + race_defaults
+
+        # Multiclasse: due classi possono concedere una risorsa OMONIMA
+        # (es. Incanalare Divinità di Chierico e Paladino — PHB IT p.164:
+        # "non ottiene un utilizzo aggiuntivo", il pool resta UNO). Tiene il
+        # conteggio più alto tra le classi che la concedono, non l'ultimo
+        # della lista — approssimazione onesta e documentata: il PHB non è
+        # semplicemente "il massimo dei due", ma un pool unico crescente per
+        # soglie di classe che nessuna delle 12 classi PHB fa scattare in un
+        # ordine ambiguo abbastanza da giustificare la complessità di una
+        # tabella dedicata per questo solo incrocio Chierico/Paladino.
+        if len(defaults) > len(set(d["name"] for d in defaults)):
+            by_name: dict[str, dict] = {}
+            for d in defaults:
+                prev = by_name.get(d["name"])
+                if prev is None or d["max_value"] > prev["max_value"]:
+                    by_name[d["name"]] = d
+            defaults = list(by_name.values())
 
         existing = {r.name: r for r in get_class_resources(character_id)}
         default_names = {d["name"] for d in defaults}

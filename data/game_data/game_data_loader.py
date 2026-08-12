@@ -176,6 +176,8 @@ class GameDataLoader:
         self._equipment: dict[str, dict[str, Any]] = {}
         # progressioni slot incantesimo (full/half/pact caster) + mappa classe→tipo
         self._spell_slot_progressions: dict[str, Any] | None = None
+        # prerequisiti/competenze di Multiclasse (PHB IT p.163-164), Multiclasse §1
+        self._multiclass_data: dict[str, Any] | None = None
         # tabelle tesori DMG (Sezione Master → Generatore Tesori Casuali)
         self._treasure: dict[str, Any] | None = None
         # tabelle trappole DMG (Sezione Master → Generatore Trappole)
@@ -680,6 +682,63 @@ class GameDataLoader:
         assert self._spell_slot_progressions is not None
         key = {"full": "full_caster", "half": "half_caster", "pact": "warlock"}.get(caster_type, "")
         return self._spell_slot_progressions.get(key, [])
+
+    def get_multiclass_spell_slot_table(self) -> list[list[int]]:
+        """
+        Tabella "Incantatore Multiclasse: Slot Incantesimo per Livello di
+        Incantesimo" (PHB IT p.165) — **identica** alla progressione
+        full_caster (confermato pagina per pagina in questa sessione,
+        2026-08-12: è la stessa identica tabella del PHB, non solo per
+        coincidenza numerica). Nessun dato duplicato: riusa direttamente
+        full_caster invece di una quarta tabella ridondante nel JSON.
+        """
+        return self.get_spell_slot_table("full")
+
+    # ------------------------------------------------------------------
+    # Multiclasse (PHB IT p.163-164) — vedi dnd_app/docs/multiclasse_design.md
+    # ------------------------------------------------------------------
+
+    def _ensure_multiclass_data(self) -> None:
+        if self._multiclass_data is not None:
+            return
+        path = _DATA_DIR / "multiclass_data.json"
+        try:
+            self._multiclass_data = _load_json(path)
+        except Exception as exc:
+            logger.error("Errore caricamento multiclass_data.json: %s", exc)
+            self._multiclass_data = {"prerequisites": {}, "multiclass_proficiencies": {}}
+
+    def get_multiclass_prerequisites(self, class_name: str) -> list[list[list]]:
+        """
+        Requisiti di caratteristica per prendere `class_name` in multiclasse
+        (PHB IT p.163). Formato: lista di OPZIONI in OR, ciascuna opzione è
+        una lista di requisiti [ability_key, minimo] in AND — es. Guerriero
+        = [[["forza",13]], [["destrezza",13]]] (Forza 13 OPPURE Destrezza
+        13), Monaco = [[["destrezza",13],["saggezza",13]]] (entrambe
+        richieste). Lista vuota se la classe non è riconosciuta.
+        """
+        self._ensure_multiclass_data()
+        assert self._multiclass_data is not None
+        return self._multiclass_data.get("prerequisites", {}).get(
+            (class_name or "").strip().lower(), []
+        )
+
+    def get_multiclass_proficiency_entries(self, class_name: str) -> list:
+        """
+        Competenze ridotte ottenute prendendo `class_name` in multiclasse
+        (PHB IT p.164, tabella "Competenze dei Multiclasse") — stesso
+        formato di armor_proficiencies/bonus_proficiencies (token bare per
+        armatura/arma, dict {"type":"choice",...} per le scelte). Lista
+        vuota se la classe non è riconosciuta o non concede nulla (Mago,
+        Stregone).
+        """
+        self._ensure_multiclass_data()
+        assert self._multiclass_data is not None
+        return list(
+            self._multiclass_data.get("multiclass_proficiencies", {}).get(
+                (class_name or "").strip().lower(), []
+            )
+        )
 
     def _ensure_classes(self) -> None:
         if self._classes_loaded:
