@@ -33,8 +33,10 @@ from typing import Any, Optional, cast
 import flet as ft
 import flet.canvas as cv
 
+from core.image_utils import sniff_mime
 from data.models import Character, GameMap
 from data.repositories import maps_repo
+from ui import canvas_geometry as geo
 from ui.image_library import show_image_library_picker
 from ui.mobile_webview_picker import pick_file_via_webview
 from ui.native_image_picker import pick_image_native, ImagePickerUnavailable
@@ -159,15 +161,7 @@ _PEN_COLORS = [
 # ── Data URI helper ────────────────────────────────────────────────────────
 def _data_uri(b64: str) -> str:
     try:
-        h = base64.b64decode(b64[:16] + "==")
-        if h[:3] == b"\xff\xd8\xff":
-            mime = "image/jpeg"
-        elif h[:8] == b"\x89PNG\r\n\x1a\n":
-            mime = "image/png"
-        elif h[:4] == b"GIF8":
-            mime = "image/gif"
-        else:
-            mime = "image/jpeg"
+        mime = sniff_mime(base64.b64decode(b64[:16] + "=="))
     except Exception:
         mime = "image/jpeg"
     return f"data:{mime};base64,{b64}"
@@ -213,6 +207,19 @@ class MapsView(ft.Column):
         self._detail_draw_stack: ft.Stack | None = None
         self._fs_draw_stack: ft.Stack | None = None
         self._current_gm: GameMap | None = None
+
+        # Dimensione CORRENTE (pixel) del riquadro di disegno inline e a
+        # schermo intero — due box DISTINTI, letti da `on_size_change`
+        # (2026-08-12, fix del bug "le annotazioni non si allineano se la
+        # mappa non è a schermo intero": segnalato da Davide sulle mappe
+        # condivise, confermato presente anche qui). I tratti si salvano
+        # come frazione [0,1] del riquadro con cui si è disegnato
+        # (`ui/canvas_geometry.py`) e si riconvertono in pixel assoluti
+        # rispetto al riquadro CORRENTE ad ogni ridisegno — così lo stesso
+        # tratto resta allineato sia nel pannello inline sia a schermo
+        # intero, qualunque sia la dimensione di ciascuno.
+        self._detail_box_size: list[float] = [0.0, 0.0]
+        self._fs_box_size: list[float] = [0.0, 0.0]
 
         # ── Toolbar refs ────────────────────────────────────────────────
         self._swatch_refs:     list[ft.Container] = []
@@ -443,7 +450,8 @@ class MapsView(ft.Column):
                 # L'area di disegno è scura: fa risaltare la mappa e i tratti
                 # chiari, e stacca l'immagine dal fondo pergamena della scheda.
                 ft.Container(expand=True, content=draw_stack,
-                             bgcolor=design.CHROME.backdrop),
+                             bgcolor=design.CHROME.backdrop,
+                             on_size_change=lambda e: self._on_box_resize(False, e)),
                 # Barra strumenti: pannello scuro flottante, angoli superiori
                 # arrotondati e ombra verso l'alto — "posata" sopra la mappa
                 # invece di incollata al bordo con un filo da 1px.
@@ -536,11 +544,40 @@ class MapsView(ft.Column):
     # Canvas: render
     # ------------------------------------------------------------------
 
+    def _box_size_for(self, canvas: cv.Canvas | None) -> tuple[float, float]:
+        """Dimensione CORRENTE (pixel) del riquadro che contiene `canvas` —
+        inline o schermo intero, letta da `on_size_change` (vedi il
+        commento su `self._detail_box_size` in `__init__`)."""
+        box = self._fs_box_size if canvas is self._fs_canvas else self._detail_box_size
+        return box[0], box[1]
+
+    def _on_box_resize(self, is_fs: bool, e: ft.LayoutSizeChangeEvent):
+        box = self._fs_box_size if is_fs else self._detail_box_size
+        box[0], box[1] = e.width, e.height
+        canvas = self._fs_canvas if is_fs else self._detail_canvas
+        if canvas is not None:
+            self._redraw_canvas(canvas)
+            try:
+                canvas.update()
+            except RuntimeError:
+                pass
+
     def _redraw_canvas(self, canvas: cv.Canvas):
         """
         Ridisegna sul canvas: stroke penna + cursore gomma.
         NON usa BlendMode.CLEAR (non funziona su CustomPaint senza saveLayer).
+
+        I tratti salvati in `self._strokes` sono frazioni [0,1] del
+        riquadro con cui furono disegnati (2026-08-12) — si riconvertono
+        in pixel assoluti rispetto al riquadro CORRENTE di `canvas`
+        (`_box_size_for`) ad ogni chiamata, cosicché lo stesso tratto
+        resti allineato sia nel pannello inline sia a schermo intero. Il
+        tratto in corso (`self._current_points`) e il cursore della gomma
+        restano invece in pixel assoluti as-is: si vedono solo sul canvas
+        che sta ricevendo la gesture in questo istante, nello stesso
+        riquadro in cui sono stati generati.
         """
+        box_w, box_h = self._box_size_for(canvas)
         shapes: list[cv.Shape] = []
 
         for stroke in self._strokes:
@@ -548,7 +585,7 @@ class MapsView(ft.Column):
             if stype != "stroke":
                 continue
 
-            pts = stroke.get("points", [])
+            pts = geo.denormalize_points(stroke.get("points", []), box_w, box_h)
             if len(pts) < 2:
                 continue
             elems: list = [cv.Path.MoveTo(pts[0][0], pts[0][1])]
@@ -636,10 +673,10 @@ class MapsView(ft.Column):
         if self._draw_mode == "eraser":
             self._eraser_cursor_pos = [x, y]
             if self._eraser_sub == "stroke":
-                self._erase_strokes_at(x, y, gm)
+                self._erase_strokes_at(x, y, gm, canvas)
             else:
                 # Gomma libera: spezza i segmenti nel raggio, salva incrementalmente
-                self._erase_segments_at(x, y, gm)
+                self._erase_segments_at(x, y, gm, canvas)
             # Aggiorna cursore su QUESTO canvas (update_all_canvases già chiamato
             # da erase_*_at se ci sono modifiche; qui gestiamo solo il cursore)
             self._redraw_canvas(canvas)
@@ -663,11 +700,12 @@ class MapsView(ft.Column):
             return
         # pen
         if len(self._current_points) >= 2:
+            box_w, box_h = self._box_size_for(canvas)
             self._strokes.append({
                 "type": "stroke",
                 "color": _PEN_COLORS[self._pen_color_idx],
                 "width": self._pen_width,
-                "points": [list(p) for p in self._current_points],
+                "points": geo.normalize_points(self._current_points, box_w, box_h),
             })
             maps_repo.update_map(gm.id, annotations=json.dumps(self._strokes))
             gm.annotations = json.dumps(self._strokes)
@@ -682,13 +720,20 @@ class MapsView(ft.Column):
     # Gomma "Tratto": rimuove stroke interi
     # ------------------------------------------------------------------
 
-    def _erase_strokes_at(self, x: float, y: float, gm: GameMap):
+    def _erase_strokes_at(self, x: float, y: float, gm: GameMap, canvas: cv.Canvas):
+        """`x`/`y` sono pixel assoluti del riquadro che ha generato la
+        gesture (`canvas`) — i punti di ogni tratto (frazioni [0,1], vedi
+        `_redraw_canvas`) si riconvertono in pixel assoluti dello STESSO
+        riquadro prima del confronto di distanza, altrimenti la gomma
+        cancellerebbe nel posto sbagliato ogni volta che il riquadro non ha
+        la dimensione con cui il tratto fu disegnato."""
+        box_w, box_h = self._box_size_for(canvas)
         radius = self._eraser_size / 2
         to_remove: list[int] = []
         for i, stroke in enumerate(self._strokes):
             if stroke.get("type") != "stroke":
                 continue
-            pts = stroke.get("points", [])
+            pts = geo.denormalize_points(stroke.get("points", []), box_w, box_h)
             for px, py in pts:
                 if math.hypot(px - x, py - y) <= radius:
                     to_remove.append(i)
@@ -705,12 +750,18 @@ class MapsView(ft.Column):
     # Gomma "Libera": taglio geometrico preciso al bordo del cerchio
     # ------------------------------------------------------------------
 
-    def _erase_segments_at(self, x: float, y: float, gm: GameMap):
+    def _erase_segments_at(self, x: float, y: float, gm: GameMap, canvas: cv.Canvas):
         """
         Gomma libera precisa: usa _split_stroke_by_circle() per tagliare ogni
         segmento esattamente all'intersezione con il cerchio della gomma.
         Il taglio avviene al bordo, non per approssimazione ai punti campionati.
-        """
+
+        Stesso principio di `_erase_strokes_at`: la geometria (raggio in
+        pixel, intersezioni di cerchio) lavora in pixel assoluti del
+        riquadro corrente — i punti si denormalizzano prima del taglio e si
+        rinormalizzano subito dopo, prima di salvare (`self._strokes` resta
+        sempre in frazioni [0,1], mai un mix dei due formati)."""
+        box_w, box_h = self._box_size_for(canvas)
         radius = self._eraser_size / 2
         new_strokes: list[dict] = []
         modified = False
@@ -719,7 +770,7 @@ class MapsView(ft.Column):
             if stroke.get("type") != "stroke":
                 continue
 
-            pts = stroke.get("points", [])
+            pts = geo.denormalize_points(stroke.get("points", []), box_w, box_h)
             color = stroke.get("color", _PEN_COLORS[0])
             width_s = stroke.get("width", 5.0)
 
@@ -739,7 +790,7 @@ class MapsView(ft.Column):
                             "type": "stroke",
                             "color": color,
                             "width": width_s,
-                            "points": sub_pts,
+                            "points": geo.normalize_points(sub_pts, box_w, box_h),
                         })
 
         if modified:
@@ -1179,7 +1230,8 @@ class MapsView(ft.Column):
             content=ft.Column(
                 [
                     header,
-                    ft.Container(expand=True, content=fs_draw_stack),
+                    ft.Container(expand=True, content=fs_draw_stack,
+                                 on_size_change=lambda e: self._on_box_resize(True, e)),
                     ft.Container(
                         content=ft.Column(
                             [fs_toolbar_row, fs_toolbar_body], spacing=0),
@@ -1234,12 +1286,12 @@ class MapsView(ft.Column):
 
         def pick_image(ev: Any):
             if page.web:
-                _pick_from_library(self, img_data, img_label, img_preview)
+                _pick_from_library(self._page, img_data, img_label, img_preview)
             elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
                 # _pick_mobile è async (fix 2026-08-06, vedi il suo
                 # docstring): va schedulata, non chiamata direttamente da
                 # un on_click sincrono.
-                page.run_task(_pick_mobile, self, img_data, img_label, img_preview)
+                page.run_task(_pick_mobile, self._page, img_data, img_label, img_preview)
             else:
                 import platform as _sys
                 threading.Thread(
@@ -1347,12 +1399,12 @@ class MapsView(ft.Column):
 
         def pick_image(ev: Any):
             if page.web:
-                _pick_from_library(self, img_data, img_label, img_preview)
+                _pick_from_library(self._page, img_data, img_label, img_preview)
             elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
                 # _pick_mobile è async (fix 2026-08-06, vedi il suo
                 # docstring): va schedulata, non chiamata direttamente da
                 # un on_click sincrono.
-                page.run_task(_pick_mobile, self, img_data, img_label, img_preview)
+                page.run_task(_pick_mobile, self._page, img_data, img_label, img_preview)
             else:
                 import platform as _sys
                 threading.Thread(
@@ -1500,7 +1552,7 @@ def _update_preview(b64: str, label: ft.Text,
         logger.error("_update_preview: %s", exc)
 
 
-def _pick_from_library(view: "MapsView", img_data: list[str],
+def _pick_from_library(page: ft.Page | None, img_data: list[str],
                        label: ft.Text, preview: ft.Container):
     """
     Ramo web (page.web == True): mostra il picker sulla libreria immagini
@@ -1511,8 +1563,12 @@ def _pick_from_library(view: "MapsView", img_data: list[str],
     tentativi precedenti). Selezionare un'immagine richiama la stessa
     identica logica già usata per il path locale su mobile nativo
     (_load_image_base64() + _update_preview()).
+
+    Parametro `page` diretto (non più un `MapsView`, 2026-08-12): riusata
+    anche da `ui/views/world/world_view.py` per il caricamento di una mappa
+    condivisa nuova, che non ha un `MapsView` a disposizione — l'unica cosa
+    che questa funzione usava della view era `view._page`.
     """
-    page = view._page
     if page is None:
         return
 
@@ -1525,12 +1581,14 @@ def _pick_from_library(view: "MapsView", img_data: list[str],
     show_image_library_picker(page, on_select=on_select)
 
 
-async def _pick_mobile(view: "MapsView", img_data: list[str],
+async def _pick_mobile(page: ft.Page | None, img_data: list[str],
                        label: ft.Text, preview: ft.Container) -> None:
     """
     Apre il selettore immagine su Android/iOS. Chiamata SOLO dal ramo
     mobile nativo di pick_image() nei due dialog crea/modifica mappa — il
-    ramo web non arriva mai qui, vedi _pick_from_library().
+    ramo web non arriva mai qui, vedi _pick_from_library(). Parametro
+    `page` diretto (non più un `MapsView`, 2026-08-12) — vedi il docstring
+    gemello su `_pick_from_library` per il perché.
 
     **Storico** (perché non `ft.FilePicker`, 2026-08-06, log `adb logcat`
     reale): un primo log aveva rivelato un vero bug Python (`await`
@@ -1556,7 +1614,6 @@ async def _pick_mobile(view: "MapsView", img_data: list[str],
     diverso perché `_pick_mobile()` è una funzione modulo-level (non un
     metodo di `MapsView`), condivisa dai due dialog crea/modifica mappa.
     """
-    page = view._page
     if page is None:
         return
 

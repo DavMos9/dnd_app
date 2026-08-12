@@ -304,6 +304,28 @@ mondo già presente. Va offerto un **promemoria periodico di esportazione** al
 master (ogni N sessioni), perché un backup che nessuno ricorda di fare non è un
 backup.
 
+**Implementato e testato (2026-08-12, passo 9D/9E/9F).** `data/repositories/
+world_export.py`, stesso principio di introspezione schema di
+`character_export.py` (riusa direttamente le sue funzioni interne — nessuna
+seconda copia della stessa logica di lettura/scrittura generica). In OGNI
+modalità di import questo dispositivo diventa l'owner/host del mondo da lì in
+avanti — unica eccezione deliberata all'invariante "solo `create_world()`
+imposta `is_local_host=1`" (§11.5): un'importazione da file è un'azione
+esplicita dell'utente per iniziare/riprendere a ospitare, mai un effetto
+collaterale di sincronizzazione. "N sessioni" non è tracciabile (l'app non
+registra sessioni di gioco in automatico): la taratura scelta CON Davide è
+eventi di giornale dall'ultimo export riusciti, soglia 20 — riflette
+l'attività reale della campagna invece del calendario. Bug reale trovato
+scrivendo il test di questa soglia: `world_events.seq` è l'autoincrement
+GLOBALE della tabella (condiviso da tutti i mondi), una sottrazione diretta
+di seq avrebbe fatto scattare il promemoria su un mondo appena creato e mai
+esportato — corretto con `world_repo.count_events_since()` (un `COUNT(*)`
+filtrato, mai una sottrazione tra seq incomparabili). Dettaglio completo,
+incluse le scelte su cosa entra nell'export (tutte le istanze comprese
+quelle archiviate — mai perdere un personaggio rimosso in un backup) e sui
+dialoghi nativi del SO (estratti in `ui/file_export.py` senza toccare
+`home_view.py`), in `changelog_storico.md`.
+
 ### 6.4 Mappe condivise, con le annotazioni in tempo reale
 
 Il master «pubblica» una mappa nel mondo; i giocatori la vedono comparire sul
@@ -330,6 +352,42 @@ rete e l'unica il cui intervallo (i 200 ms) potrebbe richiedere una taratura su
 dispositivi veri. Se su una Wi-Fi lenta risultasse a scatti, il ripiego naturale
 è spedire il tratto **a fine tratto** anziché durante — un solo parametro da
 cambiare, nessuna riprogettazione.
+
+**Implementato (2026-08-11, passo 8) con due scelte di scopo prese in fase di
+UI, non previste sopra** — dettaglio completo in `changelog_storico.md`,
+voce "8b/8c":
+
+1. **Pubblicare/disegnare è permesso solo a master/owner che OSPITA il
+   mondo** (`world.is_local_host`), non a un co-master remoto: la riga
+   `game_maps` da pubblicare vive sul DB locale di chi la pubblica, non su
+   quello dell'host se sono dispositivi diversi. Un co-master non-host resta
+   in sola lettura come un giocatore.
+2. **Il ripiego "a fine tratto" è quello effettivamente implementato fin da
+   subito** (non i 200 ms durante il disegno) — scelto per semplicità
+   implementativa, non per un problema di rete osservato. Se in prova reale
+   risultasse troppo "a scatti", il passo successivo è il batching a 200ms
+   già previsto qui sopra, non una riprogettazione.
+
+**Rivisto (2026-08-12) dopo il primo uso reale** — dettaglio completo in
+`changelog_storico.md`, voce "8d":
+
+- **Pubblicare CLONA, non riusa la riga personale.** `CMD_MAP_PUBLISH`
+  crea una riga NUOVA (`character_id=NULL`, come una mappa caricata
+  direttamente), mai la stessa della mappa personale di origine — bug
+  reale corretto: prima disegnare sulla mappa condivisa modificava anche
+  quella personale del personaggio che l'aveva creata.
+- **"Nascondere ai giocatori" è un comando a sé**
+  (`CMD_MAP_VISIBILITY`, colonna `game_maps.visible_to_players`),
+  DISTINTO dall'eliminazione: una mappa nascosta resta nell'elenco del
+  master, sparisce solo dalla vista/dal download dei giocatori.
+  `CMD_MAP_DELETE` è l'unico modo per farla sparire anche dal master.
+- **Caricare una mappa nuova direttamente nel mondo** è un comando a sé
+  (`CMD_MAP_UPLOAD`) — stesso risultato di una pubblicazione clonata, ma
+  senza una mappa personale di origine.
+- **Le coordinate dei tratti sono frazioni [0,1] del riquadro di disegno**
+  (`ui/canvas_geometry.py`), non più pixel assoluti — altrimenti la stessa
+  mappa aperta in un riquadro di dimensione diversa (finestra del master
+  vs. schermo del giocatore) mostrava i tratti disallineati.
 
 ### 6.5 Il combattimento visto dai giocatori
 
@@ -376,10 +434,13 @@ con autore, momento e valori prima/dopo.
 | Aggiungere una voce al diario del personaggio | |
 | Far tirare un dado al giocatore | richiesta, non forzatura |
 | Aggiungere un PG a un incontro, gestire iniziativa e PE dell'incontro | già esistente lato master |
-| Pubblicare una mappa e disegnarci sopra | §6.4 |
+| Pubblicare (clonare) una mappa personale, caricarne una nuova, disegnarci sopra | §6.4 |
+| Mostrare/nascondere ai giocatori o eliminare una mappa condivisa | §6.4, distinti (2026-08-12) |
 | Condividere una nota di campagna con tutti o con alcuni | §6.2 |
 | Mostrare o nascondere il combattimento in corso | §6.5 |
 | Proporre una richiesta di modifica | §7.1 |
+| Rimuovere un personaggio dal mondo (senza espellere il giocatore) | archiviato, non cancellato — come l'espulsione, 2026-08-12 |
+| Accettare o rifiutare una richiesta di rientro di un personaggio archiviato | §7.2, 2026-08-12 |
 
 **Vietato a chiunque tranne il giocatore** — sono le scelte che definiscono il
 personaggio, e toglierle svuoterebbe l'app del suo scopo:
@@ -413,6 +474,49 @@ una **richiesta di modifica**; il giocatore la vede e **accetta o rifiuta**.
   cosa, perché, e se è stata accettata.
 
 La tabella `world_change_requests` (§8) è già prevista per questo.
+
+### 7.2 La richiesta di rientro (decisa e implementata: 2026-08-12)
+
+Un personaggio archiviato (espulsione via `member.kick`, o rimozione singola
+via §7 sopra) **non torna mai visibile da solo**: prima di questa decisione
+alcuni testi/commenti del codice affermavano che si sarebbe "riattivato al
+primo resync del proprietario", ma nessun punto del codice lo implementava
+davvero — trovato analizzando il codice dopo la richiesta di Davide di
+gestire correttamente il rientro. Verso opposto di §7.1: qui propone il
+**giocatore**, risponde il **master/owner**.
+
+- Accessibile sia dalla sezione "Rimossi dai mondi" sulla Home del
+  giocatore, sia dal personaggio locale di origine ("Aggiungi a un mondo" su
+  un mondo dove esiste già un'istanza archiviata di quel personaggio) —
+  stesso esito in entrambi i casi, un'unica richiesta.
+- Un giocatore **espulso del tutto** (`member.kick`, non più membro) deve
+  prima rientrare nel mondo col flusso di ingresso normale (codice/LAN/QR,
+  già approvato dal master) prima di poter chiedere il rientro del vecchio
+  personaggio — l'invio di QUALSIASI comando richiede di essere membro,
+  nessuna eccezione per questa richiesta: due approvazioni in sequenza,
+  nessuna logica di membership duplicata.
+- **Due modalità**, scelte dal giocatore all'invio (mai dal master):
+  `frozen` riprende l'istanza esattamente come fu archiviata; `refresh_from_local`
+  sovrascrive il CONTENUTO (livello, PF, inventario, incantesimi...) con lo
+  stato ATTUALE del personaggio locale di origine — che nel frattempo può
+  essere cambiato, dato che le due righe (istanza congelata / locale) non si
+  risincronizzano mai da sole finché non c'è un'azione esplicita —
+  preservando sempre identità e collegamento al mondo dell'istanza (mai
+  quelli, vuoti, del personaggio locale esportato). Disponibile solo se il
+  personaggio locale di origine esiste ancora.
+- Guardie anti-fantasma: una sola richiesta `pending` per personaggio alla
+  volta; se il proprietario viene espulso mentre la richiesta è in sospeso,
+  l'accettazione viene rifiutata automaticamente (richiesta chiusa come
+  "scaduta") invece di riammettere un personaggio senza un proprietario
+  membro; `create_or_resume_instance()` non "riprende" mai più in silenzio
+  un'istanza archiviata (prima lo faceva, senza toglierle l'archiviazione —
+  il personaggio restava invisibile al master nonostante l'apparente
+  successo).
+
+Nuova tabella `world_rejoin_requests` (§8), nuovi comandi
+`character_rejoin.request`/`character_rejoin.respond` in
+`core/world_permissions.py`, handler in `core/world_backend.py`. Dettaglio
+completo, incluso il ragionamento su ogni guardia, in `changelog_storico.md`.
 
 ---
 
@@ -625,6 +729,28 @@ più di quanto gli compete.
   gioca insieme.
 - **Nessun percorso di file, nessun comando arbitrario** attraverso la rete: i
   comandi sono un elenco chiuso con payload validato campo per campo.
+
+### 9.5 Sincronizzazione in background — da dove parte
+
+Principio dichiarato esplicitamente da Davide (2026-08-12): **le app
+collegate devono mostrare gli stessi dati condivisi** — non solo mentre si
+sta guardando la schermata "giusta". `ui/components/background_sync.py::
+BackgroundSyncLoop` (thread dedicato + ponte thread-safe verso il loop
+asyncio di Flet, §9.2) è il pezzo comune; ogni vista che ha bisogno di
+riflettere un mondo remoto senza refresh manuale ne avvia una propria
+istanza, con la propria logica di dominio (cosa scaricare, cosa conta come
+"stato cambiato"):
+
+| Vista | Cosa sincronizza | Quando parte |
+|---|---|---|
+| `WorldsView` | il mondo aperto in dettaglio | apertura del dettaglio |
+| `MasterEncounterView` | l'incontro world-linked aperto | apertura della vista |
+| `HomeView` | OGNI mondo remoto in cui questo dispositivo possiede un'istanza (2026-08-12) | risoluzione del `device_id`, resta attivo finché la Home è aperta |
+
+`HomeView` è la più ampia delle tre: non un solo mondo, ma tutti quelli
+rilevanti per questo dispositivo — è così che una rimozione decisa dal
+master (§7, "Rimuovere un personaggio dal mondo") si vede sulla Home del
+giocatore senza dover aprire Sezione Mondi apposta.
 
 ---
 

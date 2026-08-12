@@ -52,6 +52,19 @@ class InstanceResult:
     #: True se esisteva già un'istanza di questo personaggio in questo mondo
     #: per questo dispositivo — "riprendi" automatico (§6), `mode` ignorato.
     resumed: bool = False
+    #: True se l'istanza trovata era stata RIMOSSA dal mondo (`member.kick`
+    #: o `CMD_CHARACTER_INSTANCE_REMOVE`, `characters.world_instance_archived`)
+    #: — 2026-08-12, "Richiesta di rientro". A differenza di `resumed`, qui
+    #: `success` è SEMPRE `False`: niente viene ripreso in silenzio, il
+    #: chiamante deve indirizzare l'utente al flusso di richiesta di
+    #: rientro (`character_id` resta comunque valorizzato con l'id
+    #: dell'istanza archiviata, per aprire subito quel flusso senza un'altra
+    #: ricerca). Prima di questo campo `find_existing_instance()` non
+    #: distingueva un'istanza attiva da una archiviata: un giocatore che
+    #: ripeteva "Aggiungi a un mondo" sullo stesso personaggio locale
+    #: otteneva `resumed=True` senza che l'istanza tornasse mai visibile al
+    #: master — il "personaggio fantasma" segnalato da Davide.
+    archived: bool = False
     error: str = ""
 
 
@@ -115,6 +128,13 @@ def create_or_resume_instance(world_id: str, local_character_id: str,
 
     existing = find_existing_instance(world_id, local_character_id, owner_device_id)
     if existing:
+        existing_character = character_repo.get_by_id(existing)
+        if existing_character is not None and existing_character.world_instance_archived:
+            # Rimossa dal mondo (§"Richiesta di rientro") — MAI riprendere in
+            # silenzio: il chiamante deve instradare l'utente al flusso di
+            # richiesta di rientro, l'unico che possa farla tornare visibile
+            # al master (vedi il docstring di `InstanceResult.archived`).
+            return InstanceResult(False, character_id=existing, archived=True)
         return InstanceResult(True, character_id=existing, resumed=True)
 
     new_id = _copy_character(local_character_id)

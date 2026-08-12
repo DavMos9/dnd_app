@@ -315,6 +315,8 @@ def _row_to_encounter(row) -> MasterEncounter:
         is_archived=bool(d.get("is_archived", 0)),
         created_at=d.get("created_at", ""),
         updated_at=d.get("updated_at", ""),
+        world_id=d.get("world_id", ""),
+        visible_to_players=bool(d.get("visible_to_players", 0)),
     )
 
 
@@ -446,6 +448,168 @@ def advance_turn(encounter_id: str) -> MasterEncounter | None:
     except Exception as e:
         logger.error(f"Errore advance_turn: {e}")
         return None
+
+
+def set_encounter_world(encounter_id: str, world_id: str) -> bool:
+    """Collega un incontro a un mondo (Multiplayer passo 7C) — chiamata
+    quando `MasterEncounterView` riceve un `world_id` non vuoto e
+    l'incontro non ce l'ha ancora impostato."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE master_encounters SET world_id=?, updated_at=? WHERE id=?",
+            (_s(world_id), datetime.now().isoformat(), encounter_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore set_encounter_world: {e}")
+        return False
+
+
+def set_encounter_visibility(encounter_id: str, visible: bool) -> bool:
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE master_encounters SET visible_to_players=?, updated_at=? WHERE id=?",
+            (int(visible), datetime.now().isoformat(), encounter_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore set_encounter_visibility: {e}")
+        return False
+
+
+def get_visible_encounter_for_world(world_id: str) -> MasterEncounter | None:
+    """
+    L'incontro (se c'è) che il Master ha reso visibile ai giocatori in
+    questo mondo (§6.5) — query di scoperta lato giocatore. Funziona
+    identica sull'host (dove `master_encounters` è la tabella autoritativa)
+    e su una replica (dove la stessa tabella ospita lo specchio scritto da
+    `replica_upsert_encounter_snapshot`) — un solo schema, come ogni altra
+    tabella del Multiplayer.
+    """
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            """SELECT * FROM master_encounters
+               WHERE world_id=? AND visible_to_players=1 AND is_archived=0
+               ORDER BY updated_at DESC LIMIT 1""",
+            (world_id,),
+        ).fetchone()
+        conn.close()
+        return _row_to_encounter(row) if row else None
+    except Exception as e:
+        logger.error(f"Errore get_visible_encounter_for_world: {e}")
+        return None
+
+
+def resolved_members_to_dicts(resolved: list[dict]) -> list[dict]:
+    """
+    Versione JSON-serializzabile di `get_encounter_members_resolved()` —
+    sostituisce la chiave `"member"` (un `MasterEncounterMember`, non
+    serializzabile) con i soli campi scalari che servono al trasporto:
+    id, character_id, initiative, is_active. Usata per costruire il
+    payload di `CMD_ENCOUNTER_MANAGE`/`CMD_COMBAT_TOGGLE_VISIBILITY` (§7C)
+    — un solo punto che sa "appiattire" questa struttura, riusato sia
+    dall'handler sia da `handle_snapshot()`.
+    """
+    out = []
+    for r in resolved:
+        m = r["member"]
+        out.append({
+            "id": m.id, "character_id": m.character_id, "initiative": m.initiative,
+            "is_active": m.is_active, "name": r["name"], "ac": r["ac"],
+            "hp_current": r["hp_current"], "hp_max": r["hp_max"], "xp": r.get("xp", 0),
+            "source": r["source"], "world_id": r.get("world_id", ""),
+        })
+    return out
+
+
+def replica_upsert_encounter_snapshot(world_id: str, encounter_data: dict, members: list[dict]) -> bool:
+    """
+    Scrive (o aggiorna) sulla replica locale lo specchio di un incontro
+    condiviso — unico scrittore usato sia da
+    `core.world_sync.apply_event_to_replica` (nuovo evento
+    `encounter.manage`/`combat.toggle_visibility`) sia da
+    `core.world_sync._finalize_join` (semina iniziale dallo snapshot),
+    stesso principio di `save_replica_note`. `encounter_data` è il dict
+    prodotto da `dataclasses.asdict(MasterEncounter)`; `members` è già
+    nella forma di `resolved_members_to_dicts()`.
+
+    UPDATE-se-esiste-altrimenti-INSERT, MAI `INSERT OR REPLACE`: su SQLite
+    quest'ultimo è un DELETE+INSERT anche a parità di id, e
+    `master_encounter_members.encounter_id` ha `ON DELETE CASCADE` — su
+    questa stessa tabella riusata identica da host e replica (§7C), un
+    riavvio a `INSERT OR REPLACE` cancellerebbe silenziosamente i membri
+    reali se mai chiamata su un id che sull'HOST è invece la riga
+    autoritativa (bug trovato scrivendo la batteria di test dedicata,
+    `test_combat_tracker_condiviso.py`).
+    """
+    encounter_id = str(encounter_data.get("id") or "")
+    if not encounter_id:
+        return False
+    now = datetime.now().isoformat()
+    try:
+        conn = get_connection()
+        existing = conn.execute(
+            "SELECT created_at FROM master_encounters WHERE id=?", (encounter_id,)
+        ).fetchone()
+        params = (
+            _s(encounter_data.get("name")), _s(encounter_data.get("notes")),
+            int(encounter_data.get("round_number", 1) or 1),
+            int(encounter_data.get("current_turn_index", 0) or 0),
+            int(bool(encounter_data.get("is_archived", False))),
+            _s(world_id or encounter_data.get("world_id")),
+            int(bool(encounter_data.get("visible_to_players", False))),
+            json.dumps(members), now,
+        )
+        if existing:
+            conn.execute(
+                """UPDATE master_encounters
+                   SET name=?, notes=?, round_number=?, current_turn_index=?, is_archived=?,
+                       world_id=?, visible_to_players=?, replica_members_json=?, updated_at=?
+                   WHERE id=?""",
+                (*params, encounter_id),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO master_encounters
+                   (name, notes, round_number, current_turn_index, is_archived,
+                    world_id, visible_to_players, replica_members_json, updated_at,
+                    id, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (*params, encounter_id, now),
+            )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore replica_upsert_encounter_snapshot: {e}")
+        return False
+
+
+def get_replica_encounter_members(encounter_id: str) -> list[dict]:
+    """Membri (già risolti, JSON-safe) di un incontro condiviso letti dallo
+    specchio di replica — vedi `replica_upsert_encounter_snapshot()`. Sul
+    dispositivo che OSPITA il mondo questa colonna resta vuota (l'host
+    legge sempre `get_encounter_members_resolved()` dal vivo): il chiamante
+    lato UI decide quale delle due usare in base a chi ospita."""
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT replica_members_json FROM master_encounters WHERE id=?", (encounter_id,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return []
+        return json.loads(row["replica_members_json"] or "[]")
+    except Exception as e:
+        logger.error(f"Errore get_replica_encounter_members: {e}")
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -746,6 +910,96 @@ def get_master_campaign_notes(category: str = "", world_id: str | None = None) -
     except Exception as e:
         logger.error(f"Errore get_master_campaign_notes: {e}")
         return []
+
+
+def get_master_campaign_note_by_id(note_id: str) -> MasterCampaignNote | None:
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT * FROM master_campaign_notes WHERE id=?", (note_id,)
+        ).fetchone()
+        conn.close()
+        return _row_to_campaign_note(row) if row else None
+    except Exception as e:
+        logger.error(f"Errore get_master_campaign_note_by_id: {e}")
+        return None
+
+
+def get_notes_visible_to(world_id: str, device_id: str) -> list[MasterCampaignNote]:
+    """
+    Note di campagna condivise, viste da un GIOCATORE (§6.2) — mai le note
+    `private` (quelle restano visibili solo dal Master tramite
+    `get_master_campaign_notes`, che non applica questo filtro). `visibility`
+    "all" → tutti i membri del mondo; "selected" → solo se `device_id` è
+    nella lista JSON `visible_to_device_ids` (colonna non indicizzabile in
+    SQL, filtro fatto in Python dopo aver ristretto a "selected" via SQL).
+    """
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            """SELECT * FROM master_campaign_notes
+               WHERE world_id=? AND visibility IN ('all', 'selected')
+               ORDER BY category, created_at ASC""",
+            (world_id,),
+        ).fetchall()
+        conn.close()
+        notes = [_row_to_campaign_note(r) for r in rows]
+        visible = []
+        for note in notes:
+            if note.visibility == "all":
+                visible.append(note)
+                continue
+            try:
+                ids = json.loads(note.visible_to_device_ids or "[]")
+            except (json.JSONDecodeError, TypeError):
+                ids = []
+            if device_id in ids:
+                visible.append(note)
+        return visible
+    except Exception as e:
+        logger.error(f"Errore get_notes_visible_to: {e}")
+        return []
+
+
+def save_replica_note(note_data: dict) -> bool:
+    """
+    Scrive (o aggiorna) sulla replica locale una nota condivisa — stesso
+    principio di `world_repo.save_replica_member`/`save_replica_event`:
+    `INSERT OR REPLACE` per id, un solo scrittore usato sia da
+    `core.world_sync.apply_event_to_replica` (nuovo evento `note.share`)
+    sia da `core.world_sync._finalize_join` (semina iniziale dallo
+    snapshot) — mai due copie della stessa logica di scrittura.
+    """
+    note_id = str(note_data.get("note_id") or note_data.get("id") or "")
+    if not note_id:
+        return False
+    visible_ids = note_data.get("visible_to_device_ids", [])
+    if not isinstance(visible_ids, str):
+        visible_ids = json.dumps(visible_ids)
+    now = datetime.now().isoformat()
+    try:
+        conn = get_connection()
+        existing = conn.execute(
+            "SELECT created_at FROM master_campaign_notes WHERE id=?", (note_id,)
+        ).fetchone()
+        created_at = existing["created_at"] if existing else now
+        conn.execute(
+            """INSERT OR REPLACE INTO master_campaign_notes
+               (id, category, name, description, status, tags, linked_npc_id,
+                world_id, visibility, visible_to_device_ids, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (note_id, _s(note_data.get("category")) or "npc", _s(note_data.get("name")),
+             _s(note_data.get("description")), _s(note_data.get("status")),
+             _s(note_data.get("tags")), note_data.get("linked_npc_id") or None,
+             _s(note_data.get("world_id")), _s(note_data.get("visibility")) or "private",
+             _s(visible_ids) or "[]", created_at, note_data.get("updated_at") or now),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore save_replica_note: {e}")
+        return False
 
 
 def create_master_campaign_note(

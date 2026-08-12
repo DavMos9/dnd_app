@@ -271,7 +271,8 @@ def test_home_grouping() -> None:
 
     home.device_id = "dev-home"
     all_chars = character_repo.get_all()
-    locals_, by_world = home._partition_characters(all_chars)
+    locals_, by_world, removed_from_world = home._partition_characters(all_chars)
+    check("nessuna istanza rimossa dal mondo in questo scenario", removed_from_world == [])
 
     check("il personaggio locale finisce tra i locali", any(c.id == local1.id for c in locals_))
     check("l'istanza NON finisce tra i locali", not any(c.id == inst.id for c in locals_))
@@ -284,7 +285,7 @@ def test_home_grouping() -> None:
     home_altro = HomeView(on_select=lambda i: None, on_create_wizard=lambda: None,
                           on_create_manual=lambda: None)
     home_altro.device_id = "dev-un-altro-dispositivo-mai-visto"
-    locals_2, by_world_2 = home_altro._partition_characters(all_chars)
+    locals_2, by_world_2, _removed_2 = home_altro._partition_characters(all_chars)
     check("un dispositivo estraneo non vede l'istanza altrui in nessun gruppo",
           not any(inst.id in [c.id for c in lst] for lst in by_world_2.values()))
     check("un dispositivo estraneo non vede l'istanza altrui nemmeno tra i locali "
@@ -296,6 +297,24 @@ def test_home_grouping() -> None:
     home.refresh(force=True)
     check("refresh() con gruppi per mondo produce dei controlli",
           len(home._char_list_column.controls) > 0)
+
+    # Un'istanza RIMOSSA dal mondo (2026-08-12, CMD_CHARACTER_INSTANCE_REMOVE
+    # lato master) non deve più comparire nel gruppo del suo mondo — sparisce
+    # dalla Home "nel mondo", senza sparire dall'app (world_id resta
+    # valorizzato, il personaggio non diventa "locale").
+    inst.world_instance_archived = True
+    character_repo.update(inst)
+    all_chars_after = character_repo.get_all()
+    locals_3, by_world_3, removed_3 = home._partition_characters(all_chars_after)
+    check("un'istanza rimossa dal mondo NON è più nel gruppo del suo mondo",
+          not any(c.id == inst.id for c in by_world_3.get(w.id, [])))
+    check("un'istanza rimossa dal mondo NON diventa locale (world_id intatto)",
+          not any(c.id == inst.id for c in locals_3))
+    check("un'istanza rimossa dal mondo compare nella nuova sezione dedicata",
+          any(c.id == inst.id for c in removed_3))
+    removed_char = next(c for c in removed_3 if c.id == inst.id)
+    check("world_id NON è stato azzerato (i dati/il collegamento restano intatti)",
+          removed_char.world_id == w.id)
 
     # Senza device_id risolto (identità non ancora pronta): nessuna
     # eccezione, ricade sulla lista piatta.

@@ -33,6 +33,7 @@ l'hosting aprendo la Modalità Master), corretto il 2026-08-07 con
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import secrets
@@ -41,13 +42,14 @@ import threading
 import time
 import urllib.parse
 import uuid as _uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from core import world_permissions as perm
+from core.image_utils import sniff_mime
 from core.world_backend import LocalBackend
-from data.repositories import character_repo, world_repo
+from data.repositories import character_repo, maps_repo, master_repo, world_repo
 from data.repositories import character_export
 from network import protocol
 from network.discovery import LanAnnouncer
@@ -140,6 +142,21 @@ class _RequestHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass  # client disconnesso a metà risposta — non un errore del server
 
+    def _send_binary(self, status: int, content_type: str, data: bytes) -> None:
+        """Prima rotta non-JSON del progetto (§6.4, passo 8, `GET
+        /map/<id>/image`) — stessa forma di `_send_json` ma senza
+        serializzare: `data` è già la sequenza di byte da mandare in
+        risposta (l'immagine decodificata da base64, mai il testo base64
+        stesso)."""
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        try:
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
     def _read_json_body(self) -> dict:
         try:
             length = int(self.headers.get("Content-Length", 0) or 0)
@@ -183,6 +200,10 @@ class _RequestHandler(BaseHTTPRequestHandler):
                 character_id = path[len("/character/"):]
                 status, payload = host.handle_get_character(self._bearer_token(), character_id)
                 self._send_json(status, payload)
+            elif path.startswith("/map/") and path.endswith("/image"):
+                map_id = path[len("/map/"):-len("/image")]
+                status, content_type, data = host.handle_map_image(self._bearer_token(), map_id)
+                self._send_binary(status, content_type, data)
             else:
                 self._send_json(404, {"error": "Rotta sconosciuta."})
         except Exception as e:
@@ -445,7 +466,30 @@ class WorldHostServer:
             "accepting": self.accepting,
         }
 
+    def _check_protocol_version(self, body: dict) -> str | None:
+        """
+        Verifica lato HOST della versione di protocollo (§11.6) — finora il
+        controllo esisteva solo lato client (`core.world_sync.start_lan_join`
+        confronta `GET /world` prima di mostrare il dialogo del PIN), quindi
+        un client che saltasse quel passo (o una versione modificata)
+        potrebbe comunque entrare. Ritorna un messaggio d'errore leggibile
+        se la versione manca o non combacia, `None` se va bene — chiamato
+        da `handle_join`/`handle_command`, prima di qualunque scrittura.
+        """
+        client_version = body.get("protocol_version")
+        if client_version != protocol.PROTOCOL_VERSION:
+            return (
+                f"Versione del protocollo non compatibile (host: "
+                f"{protocol.PROTOCOL_VERSION}, dispositivo: {client_version!r}). "
+                f"Aggiorna l'app su entrambi i dispositivi."
+            )
+        return None
+
     def handle_join(self, body: dict) -> tuple[int, dict]:
+        version_error = self._check_protocol_version(body)
+        if version_error is not None:
+            return 400, {"error": version_error}
+
         join_code = str(body.get("join_code", "")).strip().upper()
         pin = str(body.get("pin", "")).strip()
         device_id = str(body.get("device_id", "")).strip()
@@ -514,6 +558,14 @@ class WorldHostServer:
         if device_id is None:
             return 401, {"error": "Token non valido: riconnettersi al mondo."}
 
+        # Difesa in profondità (§11.6): il varco principale è già
+        # `handle_join` (un client con versione diversa non ottiene mai un
+        # token), questo copre un token valido riusato da un client
+        # aggiornato/downgradato dopo l'ingresso.
+        version_error = self._check_protocol_version(body)
+        if version_error is not None:
+            return 400, {"error": version_error}
+
         kind = str(body.get("kind", ""))
         payload = body.get("payload") or {}
         if not isinstance(payload, dict):
@@ -554,7 +606,14 @@ class WorldHostServer:
         if world is None:
             return 404, {"error": "Mondo non trovato."}
         members = world_repo.get_members(self.world_id)
-        events = world_repo.get_events_since(self.world_id, 0)
+        # limit=None: uno snapshot deve portare l'INTERO giornale, non i
+        # 200 eventi più recenti (limite di default di get_events_since,
+        # pensato per il polling incrementale) — altrimenti un mondo con
+        # più di 200 eventi nella sua storia produce uno snapshot troncato
+        # per chi entra ora (bug trovato in fase di progettazione del
+        # passo 9, mai in produzione perché nessun mondo di test l'ha
+        # ancora superato).
+        events = world_repo.get_events_since(self.world_id, 0, limit=None)
         own_characters = [
             c for c in character_repo.get_master_visible_characters(self.world_id)
             if c.owner_device_id == device_id
@@ -570,12 +629,58 @@ class WorldHostServer:
             for r in world_repo.get_pending_change_requests(self.world_id)
             if r.character_id in own_ids
         ]
+        # Richieste di rientro (2026-08-12) inviate DA questo device — a
+        # differenza dei filtri sopra (che passano da `own_ids`, calcolato
+        # su personaggi ATTIVI: `get_master_visible_characters` esclude
+        # sempre quelli archiviati) qui basta confrontare `requested_by`,
+        # già il device_id del richiedente sulla riga stessa — un'istanza
+        # archiviata non compare mai in `own_ids` ma la sua eventuale
+        # richiesta di rientro deve comunque raggiungere il device che
+        # l'ha inviata al primo (ri)ingresso.
+        rejoin_requests = [
+            protocol.rejoin_request_to_dict(r)
+            for r in world_repo.get_pending_rejoin_requests(self.world_id)
+            if r.requested_by == device_id
+        ]
+        # Note condivise visibili a questo device (§7B, chiude lo stesso gap
+        # delle istanze sopra: senza questo, un giocatore che entra DOPO che
+        # una nota è stata condivisa non la riceverebbe mai — gli eventi
+        # storici vengono salvati ma non "applicati" da `_finalize_join()`).
+        notes = [
+            asdict(n) for n in master_repo.get_notes_visible_to(self.world_id, device_id)
+        ]
+        # Incontro visibile ai giocatori, se c'è (§6.5, passo 7C) — stesso
+        # gap delle note sopra: senza questo, un giocatore che entra mentre
+        # un combattimento è già visibile non lo vedrebbe mai finché non
+        # arriva un evento successivo (next_turn/toggle).
+        visible_encounter = master_repo.get_visible_encounter_for_world(self.world_id)
+        encounter_payload = None
+        if visible_encounter is not None:
+            encounter_payload = {
+                "encounter": asdict(visible_encounter),
+                "members": master_repo.resolved_members_to_dicts(
+                    master_repo.get_encounter_members_resolved(visible_encounter.id),
+                ),
+            }
+        # Mappe pubblicate in questo mondo (§6.4, passo 8) — solo metadati
+        # (id/nome), MAI `image_data`: resta sulla rotta dedicata
+        # `GET /map/<id>/image`, scaricata lazy alla prima apertura. Stesso
+        # gap delle note/dell'incontro sopra: senza questo, un giocatore che
+        # entra dopo che una mappa è stata pubblicata non la vedrebbe mai.
+        shared_maps = [
+            {"id": m.id, "name": m.name}
+            for m in maps_repo.get_shared_maps(self.world_id)
+        ]
         return 200, {
             "world": protocol.world_to_dict(world),
             "members": [protocol.member_to_dict(m) for m in members],
             "events": [protocol.event_to_dict(e) for e in events],
             "characters": exports,
             "change_requests": change_requests,
+            "rejoin_requests": rejoin_requests,
+            "notes": notes,
+            "visible_encounter": encounter_payload,
+            "shared_maps": shared_maps,
         }
 
     def handle_get_character(self, token: str, character_id: str) -> tuple[int, dict]:
@@ -608,6 +713,52 @@ class WorldHostServer:
         if data is None:
             return 500, {"error": "Esportazione del personaggio fallita."}
         return 200, {"character": data}
+
+    def handle_map_image(self, token: str, map_id: str) -> tuple[int, str, bytes]:
+        """
+        `GET /map/<id>/image` (§6.4, passo 8) — l'immagine di una mappa
+        condivisa, MAI trasportata via evento/snapshot (troppo grande per
+        il giornale). Prima rotta non-JSON del progetto: ritorna sempre
+        `(status, content_type, bytes)` — anche l'errore è servito come
+        JSON con `content_type="application/json"`, cosicché il
+        dispatcher HTTP possa restare uno solo per entrambi i casi (vedi
+        `_RequestHandler._handle_map_image`).
+
+        Permesso a chiunque sia membro del mondo della mappa (non solo il
+        proprietario, a differenza di `handle_get_character`): una mappa
+        condivisa è per definizione visibile a tutto il tavolo, non a un
+        singolo giocatore. ECCEZIONE (2026-08-12): una mappa nascosta ai
+        giocatori (`visible_to_players=False`, distinto da `is_shared` —
+        vedi `CMD_MAP_VISIBILITY`) nega l'immagine a chi non è master/owner,
+        stesso principio fail-closed di `handle_get_character` — un
+        giocatore non deve poter scaricare l'immagine anche conoscendone
+        l'id per tentativi, non solo non vederla in lista.
+        """
+        def _error(status: int, message: str) -> tuple[int, str, bytes]:
+            return status, "application/json", json.dumps({"error": message}).encode("utf-8")
+
+        device_id = self._resolve_device_by_token(token)
+        if device_id is None:
+            return _error(401, "Token non valido: riconnettersi al mondo.")
+        if not map_id:
+            return _error(400, "Id mappa mancante.")
+
+        game_map = maps_repo.get_map(map_id)
+        if game_map is None or game_map.world_id != self.world_id or not game_map.is_shared:
+            return _error(404, "Mappa non trovata in questo mondo.")
+        member = world_repo.get_member(self.world_id, device_id)
+        if member is None:
+            return _error(403, "Non sei membro di questo mondo.")
+        if not game_map.visible_to_players and member.role == perm.ROLE_PLAYER:
+            return _error(404, "Mappa non trovata in questo mondo.")
+        if not game_map.image_data:
+            return _error(404, "Questa mappa non ha ancora un'immagine.")
+
+        try:
+            raw = base64.b64decode(game_map.image_data)
+        except Exception:
+            return _error(500, "Immagine della mappa non decodificabile.")
+        return 200, sniff_mime(raw), raw
 
     def handle_leave(self, token: str) -> tuple[int, dict]:
         device_id = self._resolve_device_by_token(token)

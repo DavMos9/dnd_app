@@ -16,7 +16,7 @@ potrebbero disallinearsi.
 
 from __future__ import annotations
 
-from data.models import World, WorldChangeRequest, WorldEvent, WorldMember
+from data.models import World, WorldChangeRequest, WorldEvent, WorldMember, WorldRejoinRequest
 
 #: Incrementare ad ogni cambio non retrocompatibile del formato delle rotte
 #: HTTP o del payload JSON. `GET /world` lo espone; il client lo confronta
@@ -152,6 +152,42 @@ def change_request_from_dict(d: dict) -> WorldChangeRequest:
         world_id=str(d.get("world_id", "")),
         character_id=str(d.get("character_id", "")),
         requested_by=str(d.get("requested_by", "")),
+        payload=str(d.get("payload", "{}")),
+        reason=str(d.get("reason", "")),
+        status=str(d.get("status", "pending")),
+        created_at=str(d.get("created_at", "")),
+        resolved_at=str(d.get("resolved_at", "")),
+    )
+
+
+def rejoin_request_to_dict(request: WorldRejoinRequest) -> dict:
+    """"Richiesta di rientro" (2026-08-12) — trasmette la richiesta del
+    proprietario di far rientrare un'istanza archiviata al mondo via
+    `GET /snapshot`, stesso principio di `change_request_to_dict` sopra ma
+    verso opposto (qui il master è il destinatario, non il proprietario)."""
+    return {
+        "id": request.id,
+        "world_id": request.world_id,
+        "character_id": request.character_id,
+        "requested_by": request.requested_by,
+        "requester_name": request.requester_name,
+        "mode": request.mode,
+        "payload": request.payload,
+        "reason": request.reason,
+        "status": request.status,
+        "created_at": request.created_at,
+        "resolved_at": request.resolved_at,
+    }
+
+
+def rejoin_request_from_dict(d: dict) -> WorldRejoinRequest:
+    return WorldRejoinRequest(
+        id=str(d.get("id", "")),
+        world_id=str(d.get("world_id", "")),
+        character_id=str(d.get("character_id", "")),
+        requested_by=str(d.get("requested_by", "")),
+        requester_name=str(d.get("requester_name", "")),
+        mode=str(d.get("mode", "frozen")),
         payload=str(d.get("payload", "{}")),
         reason=str(d.get("reason", "")),
         status=str(d.get("status", "pending")),

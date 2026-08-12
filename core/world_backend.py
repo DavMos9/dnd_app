@@ -26,14 +26,14 @@ import logging
 import time
 import urllib.parse
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Callable
 
 from core import damage_rules
 from core import world_permissions as perm
 from data.models import WorldEvent
-from data.repositories import character_export, character_repo, world_repo
+from data.repositories import character_export, character_repo, maps_repo, master_repo, world_repo
 from network import protocol
 
 logger = logging.getLogger(__name__)
@@ -72,6 +72,14 @@ class _HostCooldownState:
     #: target_id) come master_action_last_at: stessa granularità per
     #: personaggio, non un solo timer per l'intero dispositivo.
     hp_self_update_last_at: dict[tuple[str, str], float] = field(default_factory=dict)
+    #: condition.self_apply/self_remove (2026-08-07, estensione graduale) —
+    #: stessa chiave/granularità di hp_self_update_last_at, tracciato a
+    #: parte perché usa CONDITION_SELF_UPDATE_COOLDOWN_S, non
+    #: HP_SELF_UPDATE_COOLDOWN_S (valori oggi identici, ma concettualmente
+    #: due limiti indipendenti — coerente con instance_sync_last_at, che è
+    #: già un dict a sé pur condividendo NETWORK_REQUEST_COOLDOWN_S con
+    #: altro).
+    condition_self_update_last_at: dict[tuple[str, str], float] = field(default_factory=dict)
 
 
 _host_cooldowns = _HostCooldownState()
@@ -102,6 +110,14 @@ def rewind_host_hp_self_update_for_tests(actor_device_id: str, target_id: str,
                                           seconds_ago: float) -> None:
     """SOLO per i test — vedi `rewind_host_master_action_for_tests`."""
     _host_cooldowns.hp_self_update_last_at[(actor_device_id, target_id)] = (
+        time.monotonic() - seconds_ago
+    )
+
+
+def rewind_host_condition_self_update_for_tests(actor_device_id: str, target_id: str,
+                                                 seconds_ago: float) -> None:
+    """SOLO per i test — vedi `rewind_host_master_action_for_tests`."""
+    _host_cooldowns.condition_self_update_last_at[(actor_device_id, target_id)] = (
         time.monotonic() - seconds_ago
     )
 
@@ -280,6 +296,22 @@ class LocalBackend(WorldBackend):
             _host_cooldowns.hp_self_update_last_at[key] = now
             return None
 
+        if kind in (perm.CMD_CONDITION_SELF_APPLY, perm.CMD_CONDITION_SELF_REMOVE):
+            # Stesso principio di CMD_HP_SELF_UPDATE — backstop lato host
+            # contro un client modificato (il client si limita già da solo).
+            key = (actor_device_id, target_id)
+            remaining = perm.cooldown_remaining(
+                _host_cooldowns.condition_self_update_last_at.get(key, 0.0),
+                perm.CONDITION_SELF_UPDATE_COOLDOWN_S,
+            )
+            if remaining > 0:
+                return (
+                    f"Troppi aggiornamenti di condizione ravvicinati — "
+                    f"aspetta {int(remaining) + 1} secondi."
+                )
+            _host_cooldowns.condition_self_update_last_at[key] = now
+            return None
+
         return None
 
     def fetch_events(self, world_id: str, since_seq: int = 0) -> list[WorldEvent]:
@@ -385,12 +417,202 @@ def _handle_member_kick(ctx: HandlerContext) -> CommandResult:
                               "L'owner non può essere espulso — trasferisci prima la proprietà.")
     if not world_repo.remove_member(ctx.world_id, device_id):
         return CommandResult(False, "Espulsione fallita.")
+    # Archivia (non elimina) le istanze possedute dal membro appena
+    # espulso (2026-08-07, bug segnalato da Davide: "posso espellere il
+    # proprietario ma non il personaggio, che resta collegato per sempre"
+    # — vedi `character_repo.archive_world_instances()` per il
+    # ragionamento completo, incluso su come si riattiva). `remove_member`
+    # da solo toccava SOLO `world_members`, mai `characters`: senza questo
+    # passo un'istanza restava per sempre visibile nella Sezione Master di
+    # un mondo il cui proprietario non ne è più membro.
+    archived_count = character_repo.archive_world_instances(ctx.world_id, device_id)
     event = world_repo.append_event(
         ctx.world_id, ctx.actor_device_id, ctx.actor_name,
         kind=perm.CMD_MEMBER_KICK, target_type="member", target_id=target.id,
-        summary=f"{ctx.actor_name} ha espulso {target.display_name} dal mondo.",
-        payload=json.dumps({"device_id": device_id}),
+        summary=(
+            f"{ctx.actor_name} ha espulso {target.display_name} dal mondo"
+            + (f" ({archived_count} personaggio/i archiviato/i)." if archived_count else ".")
+        ),
+        payload=json.dumps({"device_id": device_id, "archived_instances": archived_count}),
         before_state=json.dumps({"role": target.role, "display_name": target.display_name}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CHARACTER_INSTANCE_REMOVE)
+def _handle_character_instance_remove(ctx: HandlerContext) -> CommandResult:
+    """
+    Rimuove UN personaggio dal mondo (2026-08-12, richiesta esplicita di
+    Davide: "posso eliminare solo la persona [il membro] dal mondo ma non
+    il suo personaggio") — a differenza di `CMD_MEMBER_KICK`, che espelle
+    l'intero dispositivo e archivia TUTTE le sue istanze, qui il master
+    sceglie UN personaggio mentre il suo giocatore resta membro (morte
+    permanente, doppione, personaggio mai più usato). Stessa archiviazione
+    non distruttiva del kick — vedi `character_repo.archive_world_instance`.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not character_repo.archive_world_instance(ctx.world_id, ctx.target_id):
+        return CommandResult(False, "Rimozione del personaggio fallita.")
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CHARACTER_INSTANCE_REMOVE, target_type="character",
+        target_id=ctx.target_id,
+        summary=f"{ctx.actor_name} ha rimosso {character.name} dal mondo",
+        payload=json.dumps({"character_id": ctx.target_id, "name": character.name}),
+    )
+    return CommandResult(True, event=event)
+
+
+_REJOIN_MODES = ("frozen", "refresh_from_local")
+
+
+@register_handler(perm.CMD_CHARACTER_REJOIN_REQUEST)
+def _handle_character_rejoin_request(ctx: HandlerContext) -> CommandResult:
+    """
+    Il proprietario di un'istanza ARCHIVIATA (espulsione o
+    `CMD_CHARACTER_INSTANCE_REMOVE`) chiede al master di farla rientrare nel
+    mondo (2026-08-12, "Richiesta di rientro" — mai una riattivazione
+    automatica: prima di questo handler nessun punto del codice riportava
+    mai `world_instance_archived` a 0, nonostante alcuni testi/commenti lo
+    dessero per scontato).
+
+    `mode`:
+      - `"frozen"` (default): l'accettazione riprenderà l'istanza esattamente
+        come fu archiviata, nessun altro dato coinvolto.
+      - `"refresh_from_local"`: il giocatore vuole rientrare con lo stato
+        ATTUALE della propria scheda locale di origine (può essere cambiata
+        nel frattempo — livello, PF, inventario — mentre l'istanza restava
+        congelata). Il client allega subito l'export integrale di quel
+        personaggio locale (`ctx.payload["export"]`): uno snapshot preso ORA,
+        applicato solo se e quando il master accetterà
+        (`_handle_character_rejoin_respond` sotto), mai ricalcolato in quel
+        momento — stesso principio già in uso per `change_request.propose`/
+        `character_instance.sync`.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not character.world_instance_archived:
+        return CommandResult(False, "Questo personaggio non è stato rimosso dal mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Puoi richiedere il rientro solo di un tuo personaggio.",
+        )
+
+    if world_repo.get_pending_rejoin_request_for_character(character.id) is not None:
+        return CommandResult(
+            False, "Richiesta già inviata, in attesa di risposta del master.",
+        )
+
+    mode = str(ctx.payload.get("mode") or "frozen")
+    if mode not in _REJOIN_MODES:
+        return CommandResult(False, f"Modalità di rientro non valida: {mode!r}.")
+
+    request_payload: dict = {"mode": mode}
+    if mode == "refresh_from_local":
+        export_data = ctx.payload.get("export")
+        if not isinstance(export_data, dict):
+            return CommandResult(
+                False, "Dati della scheda locale mancanti o malformati.",
+            )
+        err = character_export.validate_export_data(export_data)
+        if err:
+            return CommandResult(False, f"Dati della scheda locale non validi: {err}")
+        if export_data.get("character", {}).get("world_id"):
+            return CommandResult(
+                False, "Lo stato da usare per il rientro deve essere di un "
+                       "personaggio locale, non di un'altra istanza di mondo.",
+            )
+        request_payload["export"] = export_data
+
+    reason = str(ctx.payload.get("reason", ""))
+    request = world_repo.create_rejoin_request(
+        ctx.world_id, character.id, ctx.actor_device_id, ctx.actor_name,
+        mode, json.dumps(request_payload), reason,
+    )
+    if request is None:
+        return CommandResult(False, "Invio della richiesta di rientro fallito.")
+
+    mode_label = "con lo stato attuale della scheda locale" if mode == "refresh_from_local" \
+        else "con lo stato con cui era stato rimosso"
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CHARACTER_REJOIN_REQUEST, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha richiesto il rientro di «{character.name}» ({mode_label}).",
+        payload=json.dumps({"request_id": request.id, "mode": mode}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CHARACTER_REJOIN_RESPOND)
+def _handle_character_rejoin_respond(ctx: HandlerContext) -> CommandResult:
+    """
+    Il master accetta o rifiuta una richiesta di rientro (2026-08-12) —
+    unico punto del codice che toglie davvero l'archiviazione di
+    un'istanza, in un modo o nell'altro a seconda di `request.mode`.
+    """
+    request_id = str(ctx.payload.get("request_id", ""))
+    accept = bool(ctx.payload.get("accept", False))
+
+    request = world_repo.get_rejoin_request(request_id)
+    if request is None or request.world_id != ctx.world_id:
+        return CommandResult(False, "Richiesta di rientro non trovata.")
+    if request.status != "pending":
+        return CommandResult(False, "Questa richiesta è già stata gestita.")
+
+    character = _resolve_world_character(ctx.world_id, request.character_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not character.world_instance_archived:
+        # Race (es. doppio accept da due dispositivi master): niente da
+        # applicare di nuovo, ma la richiesta va comunque chiusa — non deve
+        # restare "pending" per sempre.
+        world_repo.resolve_rejoin_request(request_id, "accepted")
+        return CommandResult(True)
+
+    if accept:
+        # Guardia: il richiedente potrebbe essere stato espulso dal mondo
+        # DOPO l'invio della richiesta ma PRIMA della risposta del master —
+        # riammettere un personaggio il cui proprietario non è più membro
+        # produrrebbe uno stato incoerente (istanza attiva, nessun membro
+        # proprietario).
+        if world_repo.get_member(ctx.world_id, request.requested_by) is None:
+            world_repo.resolve_rejoin_request(request_id, "expired")
+            return CommandResult(
+                False, "Il proprietario non è più membro di questo mondo — "
+                       "la richiesta non è più valida.",
+            )
+
+        if request.mode == "refresh_from_local":
+            try:
+                payload = json.loads(request.payload or "{}")
+            except (json.JSONDecodeError, TypeError):
+                payload = {}
+            export_data = payload.get("export")
+            if not isinstance(export_data, dict):
+                return CommandResult(False, "Dati della richiesta corrotti o mancanti.")
+            result_id = character_export.import_character_data_as_world_refresh(
+                export_data, character.id, world_id=ctx.world_id,
+                origin_character_id=character.origin_character_id,
+                owner_device_id=character.owner_device_id,
+            )
+            if result_id is None:
+                return CommandResult(False, "Aggiornamento dell'istanza fallito.")
+        else:
+            if not character_repo.unarchive_world_instance(character.id):
+                return CommandResult(False, "Riattivazione dell'istanza fallita.")
+
+    if not world_repo.resolve_rejoin_request(request_id, "accepted" if accept else "rejected"):
+        return CommandResult(False, "Aggiornamento dello stato della richiesta fallito.")
+
+    verb = "accettato" if accept else "rifiutato"
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CHARACTER_REJOIN_RESPOND, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} ha {verb} il rientro di «{character.name}» nel mondo.",
+        payload=json.dumps({"request_id": request_id, "accept": accept, "mode": request.mode}),
     )
     return CommandResult(True, event=event)
 
@@ -469,17 +691,20 @@ def _handle_world_delete(ctx: HandlerContext) -> CommandResult:
 #   3. scrive un evento con un `summary` leggibile — è il registro
 #      richiesto da Davide, non una tabella a parte (§5).
 #
-# Fuori scope in questo passo (restano nella matrice dei permessi ma senza
-# handler, esattamente come CMD_MAP_PUBLISH/ecc. lo erano prima del passo
-# 3/6 per le istanze — non ridiscutere chi può inviarli, solo aggiungere
-# l'handler quando arriva il loro passo): CMD_LOOT_ASSIGN (il Bottino
-# funziona già in locale, `loot_design.md` passo 6 — deposito lato
-# giocatore — dipende da qui ma è un lavoro a sé), CMD_ENCOUNTER_MANAGE/
-# CMD_COMBAT_TOGGLE_VISIBILITY (passo 7, §6.5), CMD_MAP_PUBLISH/
-# CMD_MAP_DRAW (passo 8, §6.4), CMD_NOTE_SHARE (passo 7, §6.2), CMD_DICE_
-# REQUEST (è una richiesta senza scrittura sul personaggio — richiede un
-# meccanismo di notifica lato giocatore non ancora progettato, valutato a
-# parte).
+# Fuori scope in questo passo (resta nella matrice dei permessi ma senza
+# handler, esattamente come CMD_MAP_PUBLISH/CMD_MAP_DRAW lo erano prima del
+# passo 8 — non ridiscutere chi può inviarlo, solo aggiungere l'handler
+# quando arriva il suo passo): CMD_LOOT_ASSIGN (il Bottino funziona già in
+# locale, `loot_design.md` passo 6 — deposito lato giocatore — dipende da
+# qui ma è un lavoro a sé), CMD_DICE_REQUEST (è una richiesta senza
+# scrittura sul personaggio — richiede un meccanismo di notifica lato
+# giocatore non ancora progettato, valutato a parte).
+#
+# CMD_NOTE_SHARE (passo 7B, §6.2), CMD_ENCOUNTER_MANAGE/
+# CMD_COMBAT_TOGGLE_VISIBILITY (passo 7C, §6.5) e CMD_MAP_PUBLISH/
+# CMD_MAP_DRAW (passo 8, §6.4) hanno il loro handler più sotto, dopo
+# `_handle_character_instance_sync` — non toccano `characters`, quindi non
+# passano da `_resolve_world_character()`.
 # ---------------------------------------------------------------------------
 
 def _resolve_world_character(world_id: str, character_id: str):
@@ -670,11 +895,17 @@ def _handle_hp_self_update(ctx: HandlerContext) -> CommandResult:
     return CommandResult(True, event=event)
 
 
-@register_handler(perm.CMD_CONDITION_APPLY)
-def _handle_condition_apply(ctx: HandlerContext) -> CommandResult:
-    character = _resolve_world_character(ctx.world_id, ctx.target_id)
-    if character is None:
-        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+def _apply_condition_to_character(
+    ctx: HandlerContext, character, *, kind: str, summary_verb: str = "ha imposto",
+) -> CommandResult:
+    """
+    Nucleo comune a `_handle_condition_apply` (master/owner) e
+    `_handle_condition_self_apply` (2026-08-07, estensione graduale di
+    hp.self_update): stessa identica scrittura, cambia solo CHI può
+    invocarla — la verifica di permesso/proprietà resta nel chiamante,
+    mai qui, per lo stesso principio di separazione già seguito altrove in
+    questo file (un handler valida, poi applica).
+    """
     condition_key = str(ctx.payload.get("condition_key", "")).strip()
     if not condition_key:
         return CommandResult(False, "Condizione mancante.")
@@ -693,18 +924,49 @@ def _handle_condition_apply(ctx: HandlerContext) -> CommandResult:
     condition_name = condition_data.get("name", condition_key)
     event = world_repo.append_event(
         ctx.world_id, ctx.actor_device_id, ctx.actor_name,
-        kind=perm.CMD_CONDITION_APPLY, target_type="character", target_id=character.id,
-        summary=f"{ctx.actor_name} ha imposto la condizione «{condition_name}» a {character.name}.",
+        kind=kind, target_type="character", target_id=character.id,
+        summary=f"{ctx.actor_name} {summary_verb} la condizione «{condition_name}» a {character.name}.",
         payload=json.dumps({"condition_key": condition_key, "source": source, "note": note}),
     )
     return CommandResult(True, event=event)
 
 
-@register_handler(perm.CMD_CONDITION_REMOVE)
-def _handle_condition_remove(ctx: HandlerContext) -> CommandResult:
+@register_handler(perm.CMD_CONDITION_APPLY)
+def _handle_condition_apply(ctx: HandlerContext) -> CommandResult:
     character = _resolve_world_character(ctx.world_id, ctx.target_id)
     if character is None:
         return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    return _apply_condition_to_character(ctx, character, kind=perm.CMD_CONDITION_APPLY)
+
+
+@register_handler(perm.CMD_CONDITION_SELF_APPLY)
+def _handle_condition_self_apply(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore stesso applica una condizione dalla propria scheda
+    (2026-08-07, estensione graduale di hp.self_update — vedi il docstring
+    di `perm.CMD_CONDITION_SELF_APPLY`). Come `_handle_hp_self_update`: il
+    ruolo `player` da solo non basta, serve `perm.is_character_owner()`.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può applicarsi una condizione.",
+        )
+    return _apply_condition_to_character(
+        ctx, character, kind=perm.CMD_CONDITION_SELF_APPLY, summary_verb="si è imposto/a",
+    )
+
+
+def _remove_condition_from_character(
+    ctx: HandlerContext, character, *, kind: str,
+) -> CommandResult:
+    """Rimozione per `condition_id` — usata SOLO da `_handle_condition_remove`
+    (master/owner, che agisce sulla riga autoritativa dell'host: l'id letto
+    da lì è sempre corretto). `_handle_condition_self_remove` NON riusa
+    questa funzione: identifica per `condition_key` invece, vedi il suo
+    docstring per il perché (un id di replica non ha significato sull'host)."""
     condition_id = str(ctx.payload.get("condition_id", "")).strip()
     if not condition_id:
         return CommandResult(False, "Condizione da rimuovere non specificata.")
@@ -722,10 +984,67 @@ def _handle_condition_remove(ctx: HandlerContext) -> CommandResult:
     condition_name = condition_data.get("name", condition.condition_key)
     event = world_repo.append_event(
         ctx.world_id, ctx.actor_device_id, ctx.actor_name,
-        kind=perm.CMD_CONDITION_REMOVE, target_type="character", target_id=character.id,
+        kind=kind, target_type="character", target_id=character.id,
         summary=f"{ctx.actor_name} ha rimosso la condizione «{condition_name}» da {character.name}.",
         payload=json.dumps({"condition_id": condition_id}),
         before_state=json.dumps({"condition_key": condition.condition_key}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CONDITION_REMOVE)
+def _handle_condition_remove(ctx: HandlerContext) -> CommandResult:
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    return _remove_condition_from_character(ctx, character, kind=perm.CMD_CONDITION_REMOVE)
+
+
+@register_handler(perm.CMD_CONDITION_SELF_REMOVE)
+def _handle_condition_self_remove(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore stesso rimuove una condizione dalla propria scheda — vedi
+    `_handle_condition_self_apply` per la verifica di proprietà.
+
+    A DIFFERENZA di `_handle_condition_remove` (master, che identifica la
+    riga da rimuovere per `condition_id`): quell'id è quello della replica
+    LOCALE del giocatore su `character_conditions`, una tabella figlio che
+    non condivide MAI gli id con la riga autoritativa dell'host — ogni
+    rimaterializzazione della replica (`character_export.
+    import_replica_character()`) rigenera un id nuovo per ogni riga figlio
+    (`_insert_row`, `row_overrides["id"] = uuid4()`), quindi un id nato sul
+    dispositivo del giocatore non identifica nulla sull'host. Qui si
+    identifica per `condition_key` (cosa la condizione È, non quale riga
+    opaca la rappresenta) — stesso principio di `hp.self_update`, che usa
+    sempre valori assoluti/chiavi note, mai un id di replica.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può rimuoversi una condizione.",
+        )
+    condition_key = str(ctx.payload.get("condition_key", "")).strip()
+    if not condition_key:
+        return CommandResult(False, "Condizione da rimuovere non specificata.")
+
+    matches = [c for c in character_repo.get_conditions(character.id)
+               if c.condition_key == condition_key]
+    if not matches:
+        return CommandResult(False, "Condizione non trovata su questo personaggio.")
+    for m in matches:
+        character_repo.remove_condition(m.id)
+
+    from data.game_data.game_data_loader import GameDataLoader
+    condition_data = GameDataLoader().get_condition(condition_key) or {}
+    condition_name = condition_data.get("name", condition_key)
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CONDITION_SELF_REMOVE, target_type="character", target_id=character.id,
+        summary=f"{character.name} si è tolto/a la condizione «{condition_name}».",
+        payload=json.dumps({"condition_key": condition_key}),
+        before_state=json.dumps({"removed_count": len(matches)}),
     )
     return CommandResult(True, event=event)
 
@@ -1079,6 +1398,279 @@ def _handle_character_instance_sync(ctx: HandlerContext) -> CommandResult:
 
 
 # ---------------------------------------------------------------------------
+# Handler del passo 7 — "Condivisione" (§6.2 note, §6.5 combattimento). Non
+# toccano `characters`, quindi non passano da `_resolve_world_character()`:
+# ognuno valida il proprio bersaglio (una nota, un incontro) e verifica
+# esplicitamente che appartenga a `ctx.world_id`. Il payload dell'evento
+# porta lo stato risolto (contenuto della nota, round/turno/membri
+# dell'incontro) invece del solo id — la replica non deve mai fare un
+# secondo giro di rete per materializzarlo, stesso principio già seguito
+# sopra per gli eventi sui personaggi.
+# ---------------------------------------------------------------------------
+
+@register_handler(perm.CMD_NOTE_SHARE)
+def _handle_note_share(ctx: HandlerContext) -> CommandResult:
+    """
+    Condivide (o aggiorna la condivisione di) una nota di campagna del
+    Master (§6.2). A differenza delle altre note del Master, questa passa
+    dalla pipeline comando → evento invece che da una scrittura diretta:
+    è l'unica via per cui (a) "cambiare la visibilità è un'azione
+    registrata" (§6.2, richiesto esplicitamente) e (b) un master che gioca
+    da un dispositivo che non ospita il mondo riesce comunque a condividere
+    una nota (altrimenti scriverebbe solo sulla propria replica, mai
+    raggiungendo l'host — stesso bug già corretto una volta per le azioni
+    a distanza sui personaggi).
+    """
+    visibility = ctx.payload.get("visibility", "private")
+    if visibility not in ("private", "all", "selected"):
+        return CommandResult(False, "Visibilità non valida.")
+    visible_ids_json = json.dumps(ctx.payload.get("visible_to_device_ids", []))
+    name = str(ctx.payload.get("name", ""))
+    description = str(ctx.payload.get("description", ""))
+    status = str(ctx.payload.get("status", ""))
+    tags = str(ctx.payload.get("tags", ""))
+    linked_npc_id = str(ctx.payload.get("linked_npc_id", ""))
+
+    note_id = str(ctx.payload.get("note_id") or "")
+    if note_id:
+        existing = master_repo.get_master_campaign_note_by_id(note_id)
+        if existing is None or existing.world_id != ctx.world_id:
+            return CommandResult(False, "Nota non trovata in questo mondo.")
+        ok = master_repo.update_master_campaign_note(
+            note_id, name, description, status, tags, linked_npc_id,
+            visibility, visible_ids_json,
+        )
+        if not ok:
+            return CommandResult(False, "Aggiornamento della nota fallito.")
+    else:
+        category = str(ctx.payload.get("category", "npc"))
+        note = master_repo.create_master_campaign_note(
+            category, name, description, status, tags, linked_npc_id,
+            ctx.world_id, visibility, visible_ids_json,
+        )
+        if note is None:
+            return CommandResult(False, "Creazione della nota fallita.")
+        note_id = note.id
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_NOTE_SHARE, target_type="note", target_id=note_id,
+        summary=f"{ctx.actor_name} ha condiviso una nota: {name or 'senza nome'}",
+        payload=json.dumps({
+            "note_id": note_id, "category": ctx.payload.get("category", "npc"),
+            "name": name, "description": description, "status": status,
+            "tags": tags, "linked_npc_id": linked_npc_id,
+            "visibility": visibility,
+            "visible_to_device_ids": ctx.payload.get("visible_to_device_ids", []),
+        }),
+    )
+    return CommandResult(True, event=event)
+
+
+def _resolve_world_encounter(world_id: str, encounter_id: str):
+    """Fail-closed come `_resolve_world_character()` sopra — un incontro
+    bersaglio di un comando deve DAVVERO appartenere a `world_id`."""
+    if not encounter_id:
+        return None
+    encounter = master_repo.get_encounter_by_id(encounter_id)
+    if encounter is None or encounter.world_id != world_id:
+        return None
+    return encounter
+
+
+@register_handler(perm.CMD_ENCOUNTER_MANAGE)
+def _handle_encounter_manage(ctx: HandlerContext) -> CommandResult:
+    """
+    Avanza il turno o termina un incontro condiviso (§6.5). Il payload
+    dell'evento porta lo stato risolto (round/turno/membri), non solo
+    l'azione — la replica non deve mai fare un secondo giro di rete per
+    materializzarlo, stesso principio già seguito per `note.share`.
+    """
+    encounter = _resolve_world_encounter(ctx.world_id, str(ctx.payload.get("encounter_id", "")))
+    if encounter is None:
+        return CommandResult(False, "Scontro non trovato in questo mondo.")
+    action = ctx.payload.get("action")
+    if action == "next_turn":
+        master_repo.advance_turn(encounter.id)
+    elif action == "end_combat":
+        master_repo.archive_encounter(encounter.id, True)
+    else:
+        return CommandResult(False, "Azione non riconosciuta.")
+
+    updated = master_repo.get_encounter_by_id(encounter.id)
+    members = master_repo.resolved_members_to_dicts(
+        master_repo.get_encounter_members_resolved(encounter.id),
+    )
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_ENCOUNTER_MANAGE, target_type="encounter", target_id=encounter.id,
+        summary=f"{ctx.actor_name}: {'turno successivo' if action == 'next_turn' else 'combattimento terminato'}",
+        payload=json.dumps({
+            "action": action,
+            "encounter": asdict(updated) if updated else asdict(encounter),
+            "members": members,
+        }),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_COMBAT_TOGGLE_VISIBILITY)
+def _handle_combat_toggle_visibility(ctx: HandlerContext) -> CommandResult:
+    """Mostra/nasconde ai giocatori un incontro condiviso (§6.5) — spento
+    di default, così il master può prepararlo senza rivelarlo prima del
+    tempo."""
+    encounter = _resolve_world_encounter(ctx.world_id, str(ctx.payload.get("encounter_id", "")))
+    if encounter is None:
+        return CommandResult(False, "Scontro non trovato in questo mondo.")
+    visible = bool(ctx.payload.get("visible", False))
+    master_repo.set_encounter_visibility(encounter.id, visible)
+
+    updated = master_repo.get_encounter_by_id(encounter.id)
+    members = master_repo.resolved_members_to_dicts(
+        master_repo.get_encounter_members_resolved(encounter.id),
+    ) if visible else []
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_COMBAT_TOGGLE_VISIBILITY, target_type="encounter", target_id=encounter.id,
+        summary=(f"{ctx.actor_name} ha reso visibile il combattimento ai giocatori" if visible
+                 else f"{ctx.actor_name} ha nascosto il combattimento ai giocatori"),
+        payload=json.dumps({
+            "visible": visible,
+            "encounter": asdict(updated) if updated else asdict(encounter),
+            "members": members,
+        }),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_MAP_PUBLISH)
+def _handle_map_publish(ctx: HandlerContext) -> CommandResult:
+    """
+    Pubblica una mappa PERSONALE nel mondo CLONANDOLA (§6.4, passo 8) —
+    riscritto il 2026-08-12: la versione precedente riusava la stessa riga
+    (`world_id`/`is_shared` impostati sulla mappa del personaggio), quindi
+    disegnarci sopra modificava anche la mappa personale di un personaggio
+    che magari non fa nemmeno parte di questo mondo (bug segnalato da
+    Davide). `maps_repo.clone_map_for_sharing()` crea invece una riga
+    NUOVA, senza personaggio proprietario, annotazioni vuote — il
+    personale non viene mai più toccato da qui in poi. L'immagine NON
+    viaggia nell'evento — troppo grande per il giornale/lo snapshot: le
+    repliche la scaricano lazy via `GET /map/<id>/image`
+    (`network/host_server.py::handle_map_image`).
+    """
+    source_id = str(ctx.payload.get("map_id", ""))
+    source = maps_repo.get_map(source_id)
+    if source is None:
+        return CommandResult(False, "Mappa non trovata.")
+    clone = maps_repo.clone_map_for_sharing(source_id, ctx.world_id)
+    if clone is None:
+        return CommandResult(False, "Pubblicazione della mappa fallita.")
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_MAP_PUBLISH, target_type="map", target_id=clone.id,
+        summary=f"{ctx.actor_name} ha condiviso la mappa: {clone.name}",
+        payload=json.dumps({"name": clone.name, "visible_to_players": True}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_MAP_UPLOAD)
+def _handle_map_upload(ctx: HandlerContext) -> CommandResult:
+    """
+    Carica una mappa NUOVA direttamente nel mondo (2026-08-12) — stesso
+    risultato di `CMD_MAP_PUBLISH` (una riga condivisa senza personaggio
+    proprietario), ma senza una mappa personale di origine: il master
+    sceglie un'immagine dal proprio dispositivo e la condivide subito.
+    """
+    name = str(ctx.payload.get("name", "")).strip() or "Mappa senza nome"
+    image_data = str(ctx.payload.get("image_data", ""))
+    visible = bool(ctx.payload.get("visible_to_players", True))
+    gm = maps_repo.create_shared_map(ctx.world_id, name, image_data, visible)
+    if gm is None:
+        return CommandResult(False, "Caricamento della mappa fallito.")
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_MAP_UPLOAD, target_type="map", target_id=gm.id,
+        summary=f"{ctx.actor_name} ha caricato la mappa: {gm.name}",
+        payload=json.dumps({"name": gm.name, "visible_to_players": visible}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_MAP_VISIBILITY)
+def _handle_map_visibility(ctx: HandlerContext) -> CommandResult:
+    """
+    Mostra/nasconde ai giocatori una mappa già condivisa (2026-08-12) —
+    DISTINTO dall'eliminazione: la mappa resta nell'elenco del master in
+    entrambi i casi (§6.4, richiesta esplicita di Davide: "il tasto serve
+    solo per far visualizzare o meno la mappa ai giocatori non master").
+    """
+    game_map = maps_repo.get_map(str(ctx.payload.get("map_id", "")))
+    if game_map is None or game_map.world_id != ctx.world_id or not game_map.is_shared:
+        return CommandResult(False, "Mappa non trovata in questo mondo.")
+    visible = bool(ctx.payload.get("visible_to_players", True))
+    if not maps_repo.set_map_visibility(game_map.id, visible):
+        return CommandResult(False, "Operazione sulla mappa fallita.")
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_MAP_VISIBILITY, target_type="map", target_id=game_map.id,
+        summary=(f"{ctx.actor_name} ha reso visibile ai giocatori la mappa: {game_map.name}"
+                 if visible else
+                 f"{ctx.actor_name} ha nascosto ai giocatori la mappa: {game_map.name}"),
+        payload=json.dumps({"visible_to_players": visible, "name": game_map.name}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_MAP_DELETE)
+def _handle_map_delete(ctx: HandlerContext) -> CommandResult:
+    """
+    Elimina definitivamente una mappa condivisa (2026-08-12) — l'unico modo
+    per farla sparire anche dall'elenco del master (§6.4, richiesta
+    esplicita di Davide: "poi ci vuole un tasto apposta per eliminarla").
+    La mappa personale di origine, se pubblicata per clonazione, non è mai
+    toccata: questa elimina solo il clone/la riga condivisa.
+    """
+    game_map = maps_repo.get_map(str(ctx.payload.get("map_id", "")))
+    if game_map is None or game_map.world_id != ctx.world_id or not game_map.is_shared:
+        return CommandResult(False, "Mappa non trovata in questo mondo.")
+    if not maps_repo.delete_map(game_map.id):
+        return CommandResult(False, "Eliminazione della mappa fallita.")
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_MAP_DELETE, target_type="map", target_id=game_map.id,
+        summary=f"{ctx.actor_name} ha eliminato la mappa condivisa: {game_map.name}",
+        payload=json.dumps({"name": game_map.name}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_MAP_DRAW)
+def _handle_map_draw(ctx: HandlerContext) -> CommandResult:
+    """
+    Applica un pacchetto di tratti/gomma a una mappa condivisa (§6.4). Il
+    master invia i punti raggruppati ogni ~200ms mentre disegna, non un
+    evento per punto — vedi `maps_repo.apply_stroke_batch()` per la forma
+    esatta del pacchetto, la stessa funzione usata anche dal ramo replica.
+    """
+    game_map = maps_repo.get_map(str(ctx.payload.get("map_id", "")))
+    if game_map is None or game_map.world_id != ctx.world_id or not game_map.is_shared:
+        return CommandResult(False, "Mappa non trovata in questo mondo.")
+    batch = ctx.payload.get("strokes", [])
+    if not batch or not isinstance(batch, list):
+        return CommandResult(False, "Nessun tratto da applicare.")
+    if not maps_repo.apply_stroke_batch(game_map.id, batch):
+        return CommandResult(False, "Applicazione del disegno fallita.")
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_MAP_DRAW, target_type="map", target_id=game_map.id,
+        summary="Disegno aggiornato sulla mappa",
+        payload=json.dumps({"strokes": batch}),
+    )
+    return CommandResult(True, event=event)
+
+
+# ---------------------------------------------------------------------------
 # RemoteBackend — passo 4: host + client in LAN (§9 del design doc).
 # ---------------------------------------------------------------------------
 
@@ -1167,6 +1759,7 @@ class RemoteBackend(WorldBackend):
             status, data = self._request("POST", "/join", {
                 "join_code": join_code, "pin": pin,
                 "device_id": self.device_id, "display_name": display_name,
+                "protocol_version": protocol.PROTOCOL_VERSION,
             })
         except (OSError, http.client.HTTPException) as e:
             self._state = "error"
@@ -1273,6 +1866,7 @@ class RemoteBackend(WorldBackend):
             status, data = self._request("POST", "/command", {
                 "kind": kind, "payload": payload or {},
                 "target_type": target_type, "target_id": target_id,
+                "protocol_version": protocol.PROTOCOL_VERSION,
             }, authed=True)
         except (OSError, http.client.HTTPException) as e:
             self._state = "error"
@@ -1307,6 +1901,36 @@ class RemoteBackend(WorldBackend):
         if status != 200:
             return None
         return data.get("character")
+
+    def fetch_map_image(self, map_id: str) -> bytes | None:
+        """
+        `GET /map/<id>/image` (§6.4, passo 8) — bytes grezzi dell'immagine
+        di una mappa condivisa, MAI base64/JSON: prima rotta non-JSON del
+        progetto, quindi non passa da `_request()` (che presuppone sempre
+        un corpo JSON in risposta). `None` se non connesso, non
+        raggiungibile, o l'host risponde un errore (mappa non trovata/non
+        condivisa/non membro — vedi `WorldHostServer.handle_map_image`).
+        Il chiamante (`ui/views/maps_view.py`) la scarica una volta sola e
+        la mette in cache locale (`maps_repo.update_map(..., image_data=...)`),
+        mai un fetch ad ogni apertura.
+        """
+        if self.token is None or not map_id:
+            return None
+        conn = http.client.HTTPConnection(self.host, self.port, timeout=self.timeout)
+        try:
+            conn.request(
+                "GET", f"/map/{urllib.parse.quote(map_id, safe='')}/image",
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
+            resp = conn.getresponse()
+            raw = resp.read()
+            if resp.status != 200:
+                return None
+            return raw
+        except (OSError, http.client.HTTPException):
+            return None
+        finally:
+            conn.close()
 
     def fetch_events(self, world_id: str, since_seq: int = 0) -> list[WorldEvent]:
         """Interroga senza attesa lunga (`wait=0`): la sincronizzazione

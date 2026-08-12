@@ -11,22 +11,36 @@ nascosta in un menu, convenzione già stabilita nel progetto).
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
+import os
 import threading
 
 import flet as ft
+import flet.canvas as cv
 
 from config.settings import DRACONIDE_ANCESTRIES
 from core import world_permissions as perm
 from core import world_sync
 from core.world_backend import CommandResult, LocalBackend, RemoteBackend, WorldBackend
+from data.database import get_character_exports_path, get_web_export_staging_path
 from data.game_data.game_data_loader import GameDataLoader
-from data.models import Character, World, WorldChangeRequest, WorldEvent, WorldMember
-from data.repositories import character_repo, world_repo
+from data.models import (
+    Character, GameMap, World, WorldChangeRequest, WorldEvent, WorldMember,
+    WorldRejoinRequest,
+)
+from data.repositories import character_repo, maps_repo, master_repo, world_export, world_repo
 from network.host_server import HostServerSlot, PendingJoinRequest, WorldHostServer, local_ip_hint
 from network.qr_join import build_join_text, generate_qr_png_base64
+from ui.components.background_sync import BackgroundSyncLoop
+from ui import canvas_geometry as geo
+from ui import file_export
+from ui.mobile_webview_picker import pick_file_via_webview
+from ui.views.maps_view import _PEN_COLORS, _data_uri, _pick_desktop, _pick_from_library, _pick_mobile
+from ui.views.world.combat_status import wound_status_label
 from ui.views.world.qr_scanner_view import QrScannerView, qr_scanner_supported
+from ui.world_transfer import show_world_import_picker
 from ui import design as d
 from ui.device_identity import resolve_device_id
 from ui.widgets import (CardPicker, responsive_dialog_width, show_snack, spell_card_options,
@@ -77,6 +91,15 @@ _DETAIL_SYNC_INTERVAL_S = 2.0
 #: dialogo transitorio vs. la scheda di un mondo aperta), un valore proprio
 #: evita un accoppiamento accidentale se in futuro cambia l'uno o l'altro.
 _PENDING_JOIN_POLL_INTERVAL_S = 3.0
+
+#: Intervallo di ridisegno della mappa condivisa aperta in sola lettura
+#: (§6.4, passo 8) — non serve un valore proprio più stretto: il DB locale
+#: è già tenuto allineato da `_start_detail_sync` a `_DETAIL_SYNC_INTERVAL_S`
+#: (sia in ricezione eventi su una replica, sia per lettura diretta se
+#: questo dispositivo ospita), quindi interrogarlo più spesso non
+#: produrrebbe dati più freschi — solo lavoro sprecato. Stesso valore,
+#: nome separato per leggibilità nel punto in cui è usato.
+_SHARED_MAP_REDRAW_INTERVAL_S = _DETAIL_SYNC_INTERVAL_S
 
 #: Anti-spam su "Interviene a distanza"/ingresso-sincronizzazione: le
 #: costanti (3s per-personaggio sul master, 10s condiviso su ingresso/
@@ -141,13 +164,17 @@ class WorldsView(ft.Column):
         #: periodica lato host — vedi `_start_detail_sync`): nessuna azione
         #: manuale dell'utente, l'app tira giù/rispecchia da sola gli eventi
         #: nuovi finché la scheda di un mondo resta aperta.
-        self._detail_sync_thread: threading.Thread | None = None
-        self._detail_sync_stop = threading.Event()
+        self._detail_sync_loop_obj: BackgroundSyncLoop | None = None
         self._detail_signature: str | None = None
         #: Protegge la mutazione di `self._body.controls`, condivisa tra il
         #: thread Flet (azioni utente) e il thread di sync in background —
         #: stesso principio già in uso in `home_view.py::_refresh_lock`.
         self._render_lock = threading.Lock()
+
+        #: FilePicker mobile per l'export di un mondo (passo 9D, 2026-08-12)
+        #: — stesso principio di `HomeView._file_picker`: creato/registrato
+        #: al volo da `_ensure_file_picker()` se non già presente.
+        self._file_picker: ft.FilePicker | None = None
 
         self._body = ft.Column(spacing=d.Space.MD, scroll=ft.ScrollMode.AUTO, expand=True)
         self._build_shell()
@@ -279,6 +306,8 @@ class WorldsView(ft.Column):
                        on_click=lambda e: self._open_join_dialog()),
                 d.pill(ft.Icons.WIFI, "Unisciti in LAN", color=p.magic,
                        on_click=lambda e: self._open_lan_join_dialog()),
+                d.pill(ft.Icons.UPLOAD_FILE, "Importa mondo", color=p.text_2,
+                       on_click=self._on_import_world_click),
             ],
             spacing=d.Space.SM, wrap=True,
         )
@@ -380,14 +409,28 @@ class WorldsView(ft.Column):
         pending_requests_section = self._pending_change_requests_section(world)
         if pending_requests_section is not None:
             sections.append(pending_requests_section)
+        if perm.can_perform(my_role, perm.CMD_CHARACTER_REJOIN_RESPOND):
+            pending_rejoin_section = self._pending_rejoin_requests_section(world)
+            if pending_rejoin_section is not None:
+                sections.append(pending_rejoin_section)
         if is_owner and world.is_local_host:
             sections.append(self._hosting_section(world))
+        live_combat_section = self._live_combat_section(world)
+        if live_combat_section is not None:
+            sections.append(live_combat_section)
+        shared_notes_section = self._shared_notes_section(world)
+        if shared_notes_section is not None:
+            sections.append(shared_notes_section)
+        shared_maps_section = self._shared_maps_section(world, my_role)
+        if shared_maps_section is not None:
+            sections.append(shared_maps_section)
         if perm.can_perform(my_role, perm.CMD_XP_GRANT):
             sections.append(self._remote_actions_section(world))
         sections.append(self._members_section(world, my_role))
         sections.append(self._events_section(world))
 
         if is_owner:
+            sections.append(self._backup_section(world))
             sections.append(self._danger_zone_section(world))
 
         self._body.controls = sections
@@ -586,6 +629,746 @@ class WorldsView(ft.Column):
         self.page.pop_dialog()
         self._member_command(world, perm.CMD_MEMBER_KICK, member)
 
+    def _live_combat_section(self, world: World) -> ft.Control | None:
+        """
+        Combattimento in corso, in sola lettura (§6.5, passo 7C) — visibile
+        a QUALSIASI membro, mai su `can_perform`: è il Master a decidere se
+        mostrarlo, con l'interruttore "Visibile ai giocatori" in
+        `MasterEncounterView`, non un permesso di ruolo qui. Sull'host
+        legge lo stato dal vivo (`get_encounter_members_resolved`); su una
+        replica legge lo specchio scritto da
+        `apply_event_to_replica`/`_finalize_join`
+        (`get_replica_encounter_members`) — stesso incontro, fonte diversa,
+        stessa forma di dati (`master_repo.resolved_members_to_dicts`).
+
+        Personaggi giocanti (`source == "character"`) mostrano i PF esatti;
+        mostri/PNG (`"npc"`/`"adhoc"`) mostrano solo lo stato descrittivo di
+        `wound_status_label()` — mai i PF esatti (§6.5, convenzione
+        dell'app, non una regola del manuale).
+        """
+        encounter = master_repo.get_visible_encounter_for_world(world.id)
+        if encounter is None:
+            return None
+        if world.is_local_host:
+            members = master_repo.resolved_members_to_dicts(
+                master_repo.get_encounter_members_resolved(encounter.id),
+            )
+        else:
+            members = master_repo.get_replica_encounter_members(encounter.id)
+        if not members:
+            return None
+
+        p = d.T()
+        rows: list[ft.Control] = []
+        for idx, m in enumerate(members):
+            is_current_turn = idx == encounter.current_turn_index
+            if m.get("source") == "character":
+                hp_text = f"{m.get('hp_current', 0)}/{m.get('hp_max', 0)} PF"
+            else:
+                hp_text = wound_status_label(
+                    int(m.get("hp_current", 0) or 0), int(m.get("hp_max", 0) or 0),
+                )
+            rows.append(ft.Row(
+                [
+                    ft.Icon(ft.Icons.PLAY_ARROW, size=16, color=p.primary) if is_current_turn
+                    else ft.Container(width=16),
+                    ft.Text(m.get("name", "?"), size=d.Size.BODY,
+                            weight=ft.FontWeight.BOLD if is_current_turn else ft.FontWeight.NORMAL,
+                            color=p.text, expand=True),
+                    d.muted(hp_text),
+                ],
+                spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ))
+
+        return d.section(
+            "Combattimento in corso",
+            ft.Column(
+                [
+                    ft.Text(f"Round {encounter.round_number}", size=d.Size.BODY_SM, color=p.text_2),
+                    ft.Container(height=d.Space.XS),
+                    ft.Column(rows, spacing=6, tight=True),
+                ],
+                spacing=0, tight=True,
+            ),
+        )
+
+    def _shared_notes_section(self, world: World) -> ft.Control | None:
+        """
+        Note di campagna condivise dal Master (§6.2, passo 7) — sola
+        lettura, visibile a QUALSIASI membro (non solo master/owner, a
+        differenza di `_remote_actions_section` sotto): sono le note che il
+        Master ha esplicitamente reso visibili a tutti o a questo
+        dispositivo. Le note `private` non compaiono mai qui —
+        `master_repo.get_notes_visible_to()` le esclude già. Nessuna azione
+        di modifica: la scrittura resta nella Sezione Master
+        (`master_notes_view.py`).
+        """
+        assert self.device_id is not None
+        notes = master_repo.get_notes_visible_to(world.id, self.device_id)
+        if not notes:
+            return None
+        p = d.T()
+        rows: list[ft.Control] = []
+        for note in notes:
+            rows.append(ft.Column(
+                [
+                    ft.Text(note.name or "Senza nome", size=d.Size.BODY,
+                            weight=ft.FontWeight.BOLD, color=p.text),
+                    ft.Text(note.description, size=d.Size.BODY_SM, color=p.text_2)
+                    if note.description else ft.Container(height=0),
+                ],
+                spacing=2, tight=True,
+            ))
+        # Righe separate da un piccolo spazio invece di un Divider — coerente
+        # con lo stile già usato altrove in questa view per liste brevi.
+        spaced_rows: list[ft.Control] = []
+        for i, row in enumerate(rows):
+            if i > 0:
+                spaced_rows.append(ft.Container(height=d.Space.SM))
+            spaced_rows.append(row)
+        return d.section(
+            "Note condivise dal Master",
+            ft.Column(spaced_rows, spacing=0, tight=True),
+        )
+
+    # ------------------------------------------------------------------
+    # Mappe condivise (§6.4, passo 8) — pubblicazione + disegno dal vivo.
+    #
+    # Pubblicare/disegnare è limitato a master/owner CHE OSPITA il mondo
+    # (`world.is_local_host`), non a "chiunque abbia il permesso" come le
+    # altre azioni master di questa view: una mappa condivisa è sempre una
+    # riga `game_maps` posseduta da un personaggio LOCALE di chi la
+    # pubblica (`maps_repo.get_maps(character.id)`, mai sincronizzata di
+    # per sé). Se un co-master non-host inviasse `CMD_MAP_PUBLISH` via
+    # `RemoteBackend`, l'handler girerebbe sul DB dell'HOST, dove quella
+    # riga semplicemente non esiste — fallirebbe con "Mappa non trovata",
+    # non un bug silenzioso, ma un vicolo cieco evitabile nascondendo
+    # subito i controlli di pubblicazione/disegno a chi non può usarli.
+    # Un co-master non-host vede comunque le mappe già condivise, in sola
+    # lettura, come un giocatore qualunque.
+    # ------------------------------------------------------------------
+
+    def _shared_maps_section(self, world: World, my_role: str) -> ft.Control | None:
+        """
+        Il master (host) vede TUTTE le mappe condivise, visibili o
+        nascoste ai giocatori — nascondere non è ritirare, la mappa resta
+        qui (2026-08-12, richiesta esplicita di Davide: "le mappe
+        condivise devono rimanere nella sezione apposita anche quando si
+        seleziona non visualizzare"). Un giocatore (o un master non-host,
+        sola lettura) vede solo quelle con `visible_to_players=True` —
+        filtro qui in UI, in aggiunta a quello server-side su
+        `GET /map/<id>/image` (§6.4): due strati, coerente con come già
+        funziona il resto di questa sezione.
+        """
+        can_manage = perm.can_perform(my_role, perm.CMD_MAP_PUBLISH) and world.is_local_host
+        shared = maps_repo.get_shared_maps(world.id)
+        if not can_manage:
+            shared = [m for m in shared if m.visible_to_players]
+        if not shared and not can_manage:
+            return None
+        p = d.T()
+        rows: list[ft.Control] = []
+        for i, gm in enumerate(shared):
+            if i > 0:
+                rows.append(ft.Divider(height=1))
+            rows.append(self._shared_map_row(world, gm, can_manage))
+        if not shared:
+            rows.append(d.muted("Nessuna mappa condivisa ancora."))
+        trailing = None
+        if can_manage:
+            trailing = d.pill(ft.Icons.ADD_PHOTO_ALTERNATE, "+ Mappa", color=p.primary,
+                               on_click=lambda e: self._open_add_map_dialog(world))
+        return d.section(
+            "Mappe condivise",
+            ft.Column(rows, spacing=d.Space.SM, tight=True),
+            trailing=trailing,
+        )
+
+    def _shared_map_row(self, world: World, gm: GameMap, can_manage: bool) -> ft.Control:
+        p = d.T()
+        if gm.image_data:
+            thumb: ft.Control = ft.Container(
+                content=ft.Image(src=_data_uri(gm.image_data), fit=ft.BoxFit.COVER),
+                width=56, height=42, border_radius=d.Radius.SM,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            )
+        else:
+            thumb = ft.Container(
+                content=ft.Icon(ft.Icons.MAP_OUTLINED, size=20, color=p.text_3),
+                width=56, height=42, border_radius=d.Radius.SM,
+                bgcolor=p.surface_alt, alignment=ft.Alignment.CENTER,
+            )
+        n_strokes = len([s for s in json.loads(gm.annotations or "[]")
+                         if s.get("type") == "stroke"])
+        status_bits = [f"{n_strokes} tratti" if n_strokes else "Nessun tratto ancora"]
+        if can_manage and not gm.visible_to_players:
+            status_bits.append("nascosta ai giocatori")
+        actions: list[ft.Control] = [
+            ft.IconButton(ft.Icons.OPEN_IN_FULL, tooltip="Apri", icon_size=18,
+                          icon_color=p.text_2,
+                          on_click=lambda e, m=gm: self._open_shared_map(world, m, can_manage)),
+        ]
+        if can_manage:
+            actions.append(ft.IconButton(
+                ft.Icons.VISIBILITY_OFF if gm.visible_to_players else ft.Icons.VISIBILITY,
+                tooltip=("Nascondi ai giocatori" if gm.visible_to_players
+                         else "Mostra ai giocatori"),
+                icon_size=18, icon_color=p.text_2,
+                on_click=lambda e, m=gm: self._toggle_map_visibility(world, m),
+            ))
+            actions.append(ft.IconButton(
+                ft.Icons.DELETE_OUTLINE, tooltip="Elimina", icon_size=18,
+                icon_color=p.danger,
+                on_click=lambda e, m=gm: self._confirm_delete_map(world, m),
+            ))
+        return ft.Row(
+            [
+                thumb,
+                ft.Column(
+                    [
+                        ft.Text(gm.name or "Mappa senza nome", size=d.Size.BODY,
+                                weight=ft.FontWeight.BOLD, color=p.text),
+                        d.muted(" · ".join(status_bits)),
+                    ],
+                    spacing=0, expand=True, tight=True,
+                ),
+                *actions,
+            ],
+            spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    def _open_add_map_dialog(self, world: World):
+        """
+        Scelta tra le due sorgenti di una mappa condivisa (2026-08-12):
+        una già salvata sotto un personaggio locale (`_open_publish_map_
+        dialog`, clona), o un'immagine nuova scelta al volo dal
+        dispositivo (`_open_upload_map_dialog`, richiesta esplicita di
+        Davide: "bisogna dare la possibilità al master di caricare anche
+        mappe nuove").
+        """
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+
+        def _choose_existing(e=None):
+            page.pop_dialog()
+            self._open_publish_map_dialog(world)
+
+        def _choose_upload(e=None):
+            page.pop_dialog()
+            self._open_upload_map_dialog(world)
+
+        page.show_dialog(ft.AlertDialog(
+            title=d.dialog_title("Aggiungi una mappa", ft.Icons.MAP),
+            content=ft.Container(
+                width=responsive_dialog_width(page, 360),
+                content=ft.Column(
+                    [
+                        ft.OutlinedButton(
+                            "Pubblica una mappa già salvata", icon=ft.Icons.MAP_OUTLINED,
+                            on_click=_choose_existing,
+                            style=ft.ButtonStyle(side=ft.BorderSide(1, p.border),
+                                                 color=p.text_2),
+                        ),
+                        ft.OutlinedButton(
+                            "Carica una mappa nuova", icon=ft.Icons.ADD_PHOTO_ALTERNATE,
+                            on_click=_choose_upload,
+                            style=ft.ButtonStyle(side=ft.BorderSide(1, p.border),
+                                                 color=p.text_2),
+                        ),
+                    ],
+                    spacing=d.Space.SM, tight=True,
+                ),
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
+            ]),
+        ))
+
+    def _open_publish_map_dialog(self, world: World):
+        page = self.page
+        if page is None:
+            return
+        candidates: list[tuple[Character, GameMap]] = []
+        for c in character_repo.get_all():
+            for gm in maps_repo.get_maps(c.id):
+                if not gm.is_shared:
+                    candidates.append((c, gm))
+
+        def _do_publish(map_id: str):
+            page.pop_dialog()
+            result = self._send_command(
+                world, perm.CMD_MAP_PUBLISH, {"map_id": map_id},
+            )
+            if result.success:
+                self._refresh_detail()
+            else:
+                self._show_error(result.error)
+
+        p = d.T()
+        if not candidates:
+            content: ft.Control = d.muted(
+                "Nessuna mappa locale disponibile — creane una nella Sezione Mappe di "
+                "un personaggio, poi torna qui per condividerla (oppure carica subito "
+                "una mappa nuova).",
+            )
+        else:
+            rows: list[ft.Control] = []
+            for c, gm in candidates:
+                rows.append(ft.Row(
+                    [
+                        ft.Icon(ft.Icons.MAP_OUTLINED, size=18, color=p.text_3),
+                        ft.Column(
+                            [
+                                ft.Text(gm.name or "Mappa senza nome", color=p.text,
+                                        weight=ft.FontWeight.BOLD, size=d.Size.BODY_SM),
+                                d.muted(c.name),
+                            ],
+                            spacing=0, expand=True, tight=True,
+                        ),
+                        ft.TextButton("Pubblica",
+                                      on_click=lambda e, mid=gm.id: _do_publish(mid)),
+                    ],
+                    spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ))
+            content = ft.Column(rows, spacing=d.Space.SM, tight=True, scroll=ft.ScrollMode.AUTO)
+
+        page.show_dialog(ft.AlertDialog(
+            title=d.dialog_title("Pubblica una mappa esistente", ft.Icons.MAP),
+            content=ft.Container(content=content, width=responsive_dialog_width(page, 380)),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
+            ]),
+        ))
+
+    def _open_upload_map_dialog(self, world: World):
+        """Carica un'immagine nuova direttamente nel mondo (2026-08-12,
+        `CMD_MAP_UPLOAD`) — stessi tre rami di selezione immagine già usati
+        da `ui/views/maps_view.py` (web/mobile/desktop), riusati da qui
+        (`_pick_from_library`/`_pick_mobile` prendono ora una `Page`
+        direttamente, non più un `MapsView` — vedi il loro docstring)."""
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+
+        name_tf = ft.TextField(label="Nome mappa", **d.field_style())
+        img_data: list[str] = [""]
+        img_label = ft.Text("Nessuna immagine", size=11, color=p.text_3)
+        img_preview = ft.Container(
+            content=ft.Icon(ft.Icons.IMAGE_OUTLINED, size=40, color=p.border),
+            width=100, height=70, bgcolor=p.surface_alt,
+            border_radius=d.Radius.MD, alignment=ft.Alignment.CENTER,
+        )
+        visible_state = [True]
+        visible_switch = ft.Switch(
+            value=True, active_color=p.primary,
+            on_change=lambda e: visible_state.__setitem__(0, bool(e.control.value)),
+        )
+        error_text = ft.Text("", size=11, color=p.danger)
+
+        def pick_image(ev):
+            if page.web:
+                _pick_from_library(page, img_data, img_label, img_preview)
+            elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+                page.run_task(_pick_mobile, page, img_data, img_label, img_preview)
+            else:
+                import platform as _sys
+                threading.Thread(
+                    target=_pick_desktop,
+                    args=(_sys.system(), img_data, img_label, img_preview, page),
+                    daemon=True,
+                ).start()
+
+        def on_upload(ev):
+            name = (name_tf.value or "").strip()
+            if not name:
+                error_text.value = "Il nome è obbligatorio"
+                error_text.update()
+                return
+            if not img_data[0]:
+                error_text.value = "Scegli un'immagine"
+                error_text.update()
+                return
+            page.pop_dialog()
+            result = self._send_command(world, perm.CMD_MAP_UPLOAD, {
+                "name": name, "image_data": img_data[0],
+                "visible_to_players": visible_state[0],
+            })
+            if result.success:
+                self._refresh_detail()
+            else:
+                self._show_error(result.error)
+
+        page.show_dialog(ft.AlertDialog(
+            title=d.dialog_title("Carica una mappa nuova", ft.Icons.ADD_PHOTO_ALTERNATE),
+            content=ft.Container(
+                width=responsive_dialog_width(page, 380),
+                content=ft.Column(
+                    [
+                        name_tf,
+                        ft.Row(
+                            [
+                                img_preview,
+                                ft.Column([
+                                    ft.OutlinedButton(
+                                        "Scegli immagine…", icon=ft.Icons.ADD_PHOTO_ALTERNATE,
+                                        on_click=pick_image,
+                                        style=ft.ButtonStyle(side=ft.BorderSide(1, p.border),
+                                                             color=p.text_2),
+                                    ),
+                                    img_label,
+                                ], spacing=6),
+                            ],
+                            spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        ft.Row(
+                            [visible_switch, ft.Text("Visibile subito ai giocatori",
+                                                      color=p.text, size=d.Size.BODY_SM)],
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        error_text,
+                    ],
+                    spacing=10, tight=True,
+                ),
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
+                ft.ElevatedButton("Carica", on_click=on_upload,
+                                  style=ft.ButtonStyle(bgcolor=p.primary, color=p.on_primary)),
+            ]),
+        ))
+
+    def _toggle_map_visibility(self, world: World, gm: GameMap):
+        result = self._send_command(world, perm.CMD_MAP_VISIBILITY, {
+            "map_id": gm.id, "visible_to_players": not gm.visible_to_players,
+        })
+        if result.success:
+            self._refresh_detail()
+        else:
+            self._show_error(result.error)
+
+    def _confirm_delete_map(self, world: World, gm: GameMap):
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Elimina mappa", ft.Icons.DELETE_OUTLINE, tone="danger"),
+            content=ft.Text(
+                f'Eliminare "{gm.name or "Mappa senza nome"}" dalla condivisione? '
+                "Sparirà anche dal tuo elenco — l'eventuale mappa personale di origine "
+                "non viene toccata.", color=p.text,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton(
+                    "Elimina", icon=ft.Icons.DELETE_OUTLINE,
+                    on_click=lambda e: self._do_delete_map(world, gm),
+                    style=ft.ButtonStyle(bgcolor=p.danger, color=p.text),
+                ),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _do_delete_map(self, world: World, gm: GameMap):
+        page = self.page
+        if page is not None:
+            page.pop_dialog()
+        result = self._send_command(world, perm.CMD_MAP_DELETE, {"map_id": gm.id})
+        if result.success:
+            self._refresh_detail()
+        else:
+            self._show_error(result.error)
+
+    def _open_shared_map(self, world: World, gm: GameMap, can_manage: bool):
+        """
+        Overlay (`page.overlay`, stesso idioma di
+        `ui.views.maps_view.MapsView._open_fullscreen`) invece di una
+        sezione dentro `self._body`: `_render_detail` ricostruisce
+        `self._body.controls` da zero ad ogni giro del ciclo di
+        sincronizzazione in background (`_DETAIL_SYNC_INTERVAL_S`, 2s) — un
+        canvas di disegno dentro quel corpo verrebbe rimontato a metà
+        tratto. Un overlay separato sopravvive a quei refresh, esattamente
+        come già fa lo schermo intero delle mappe locali.
+        """
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+
+        # Prima apertura su una replica: l'immagine non arriva mai via
+        # evento/snapshot (§6.4) — un fetch pigro una tantum, poi in cache
+        # locale come qualunque altra mappa.
+        if not gm.image_data and not world.is_local_host:
+            backend = self._backend_for(world)
+            if isinstance(backend, RemoteBackend):
+                raw = backend.fetch_map_image(gm.id)
+                if raw:
+                    gm.image_data = base64.b64encode(raw).decode("ascii")
+                    maps_repo.update_map(gm.id, image_data=gm.image_data)
+
+        try:
+            strokes: list[dict] = json.loads(gm.annotations or "[]")
+        except (json.JSONDecodeError, TypeError):
+            strokes = []
+        canvas = cv.Canvas(expand=True)
+        closed = [False]
+        pen_color_idx = [0]
+
+        # Dimensione CORRENTE del riquadro di disegno, in pixel — letta da
+        # `on_size_change` (§ `ui/canvas_geometry.py` per il perché: Flet
+        # 0.86.5 non offre altro modo di conoscerla). I punti persistiti
+        # sono frazioni [0,1] di questa dimensione, MAI pixel assoluti —
+        # fix 2026-08-12 del bug segnalato da Davide ("se la mappa non è a
+        # schermo intero le annotazioni non si rispecchiano in modo
+        # giusto"): due dispositivi/finestre di dimensione diversa
+        # convertono le stesse frazioni nei propri pixel assoluti, invece
+        # di ereditare la dimensione di chi ha disegnato per primo.
+        box_size = [0.0, 0.0]
+
+        def _path_from_abs_points(points: list, color: str, width: float) -> cv.Path | None:
+            if len(points) < 2:
+                return None
+            elems: list = [cv.Path.MoveTo(points[0][0], points[0][1])]
+            for x, y in points[1:]:
+                elems.append(cv.Path.LineTo(x, y))
+            return cv.Path(
+                elements=elems,
+                paint=ft.Paint(
+                    color=color, stroke_width=width,
+                    style=ft.PaintingStyle.STROKE, stroke_cap=ft.StrokeCap.ROUND,
+                ),
+            )
+
+        def _redraw(live_points: list[list[float]] | None = None):
+            """`live_points`: tratto in corso, non ancora salvato, già in
+            pixel assoluti del riquadro corrente (nessuna normalizzazione
+            necessaria: si vede solo qui, nello stesso istante in cui si
+            disegna) — feedback immediato sotto il dito/puntatore, stesso
+            principio di `MapsView._redraw_canvas`. I tratti già salvati in
+            `strokes` sono invece frazioni: si riconvertono in pixel
+            assoluti rispetto alla dimensione ATTUALE del riquadro ad ogni
+            chiamata, cosicché restino allineati anche se questo overlay è
+            più piccolo/grande di quello con cui furono disegnati."""
+            shapes: list[cv.Shape] = []
+            for stroke in strokes:
+                if stroke.get("type") != "stroke":
+                    continue
+                abs_points = geo.denormalize_points(
+                    stroke.get("points", []), box_size[0], box_size[1])
+                path = _path_from_abs_points(
+                    abs_points, stroke.get("color", _PEN_COLORS[0]), stroke.get("width", 5.0))
+                if path is not None:
+                    shapes.append(path)
+            if live_points and len(live_points) >= 2:
+                path = _path_from_abs_points(
+                    live_points, _PEN_COLORS[pen_color_idx[0]], 5.0)
+                if path is not None:
+                    shapes.append(path)
+            canvas.shapes = shapes
+
+        def _on_box_resize(e: ft.LayoutSizeChangeEvent):
+            box_size[0], box_size[1] = e.width, e.height
+            _redraw()
+            _update_canvas()
+
+        _redraw()
+
+        def _update_canvas():
+            try:
+                canvas.update()
+            except RuntimeError:
+                pass
+
+        def _sync_to_world(batch: list[dict]):
+            """Invia il pacchetto SOLO come evento — mai una scorciatoia
+            di scrittura diretta (§9.1, la stessa lezione già imparata più
+            volte in questo progetto): `can_manage` implica
+            `world.is_local_host`, quindi qui `self.backend` è sempre
+            `LocalBackend` e la chiamata è comunque locale/sincrona, non
+            una vera richiesta di rete."""
+            result = self._send_command(
+                world, perm.CMD_MAP_DRAW, {"map_id": gm.id, "strokes": batch},
+            )
+            if not result.success:
+                logger.warning("map.draw non riuscito per %s: %s", gm.id, result.error)
+
+        current_points: list[list[float]] = []
+
+        def _on_pan_start(e: ft.DragStartEvent):
+            current_points.clear()
+            current_points.append([e.local_position.x, e.local_position.y])
+
+        def _on_pan_update(e: ft.DragUpdateEvent):
+            current_points.append([e.local_position.x, e.local_position.y])
+            _redraw(live_points=current_points)
+            _update_canvas()
+
+        def _on_pan_end(e: ft.DragEndEvent):
+            # `_sync_to_world` è l'UNICA scrittura sul DB (via
+            # `apply_stroke_batch`, dentro l'handler `CMD_MAP_DRAW`): `strokes`
+            # qui resta solo lo specchio locale per il rendering immediato —
+            # scrivere anche qui direttamente duplicherebbe il tratto al
+            # prossimo giro (l'handler legge le annotazioni correnti dal DB e
+            # ci APPENDE il pacchetto, non le sostituisce).
+            if len(current_points) >= 2:
+                stroke = {
+                    "type": "stroke", "color": _PEN_COLORS[pen_color_idx[0]],
+                    "width": 5.0,
+                    "points": geo.normalize_points(current_points, box_size[0], box_size[1]),
+                }
+                strokes.append(stroke)
+                _sync_to_world([{"op": "add", **stroke}])
+            current_points.clear()
+            _redraw()
+            _update_canvas()
+
+        def _undo(e=None):
+            if strokes:
+                strokes.pop()
+            _sync_to_world([{"op": "replace_all", "strokes": strokes}])
+            _redraw()
+            _update_canvas()
+
+        def _clear_all(e=None):
+            strokes.clear()
+            _sync_to_world([{"op": "clear"}])
+            _redraw()
+            _update_canvas()
+
+        swatch_refs: list[ft.Container] = []
+
+        def _select_color(idx: int):
+            pen_color_idx[0] = idx
+            for i, sw in enumerate(swatch_refs):
+                sw.border = ft.Border.all(2, p.text) if i == idx else None
+                try:
+                    sw.update()
+                except RuntimeError:
+                    pass
+
+        def _swatch(idx: int) -> ft.Container:
+            c = ft.Container(
+                content=ft.Container(bgcolor=_PEN_COLORS[idx], border_radius=d.Radius.PILL,
+                                      expand=True),
+                width=24, height=24, border_radius=d.Radius.PILL, padding=2,
+                border=ft.Border.all(2, p.text) if idx == 0 else None,
+                on_click=lambda e, i=idx: _select_color(i),
+            )
+            swatch_refs.append(c)
+            return c
+
+        if gm.image_data:
+            img_layer: ft.Control = ft.Image(src=_data_uri(gm.image_data),
+                                             fit=ft.BoxFit.CONTAIN, expand=True)
+        else:
+            img_layer = ft.Container(
+                expand=True, bgcolor=p.surface_alt, alignment=ft.Alignment.CENTER,
+                content=ft.Column(
+                    [ft.Icon(ft.Icons.MAP_OUTLINED, size=48, color=p.border),
+                     d.muted("Nessuna immagine per questa mappa")],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        stack_children: list[ft.Control] = [img_layer]
+        if can_manage:
+            stack_children.append(ft.GestureDetector(
+                content=canvas, on_pan_start=_on_pan_start, on_pan_update=_on_pan_update,
+                on_pan_end=_on_pan_end, drag_interval=16, expand=True,
+            ))
+        else:
+            stack_children.append(canvas)
+        draw_stack = ft.Stack(stack_children, expand=True)
+
+        overlay_list: list[ft.Control] = []
+
+        def _close(e=None):
+            closed[0] = True
+            if overlay_list and overlay_list[0] in page.overlay:
+                page.overlay.remove(overlay_list[0])
+            try:
+                page.update()
+            except RuntimeError:
+                pass
+
+        header = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Text(gm.name or "Mappa", size=16, color=d.CHROME.text,
+                            weight=ft.FontWeight.BOLD, expand=True,
+                            no_wrap=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                    d.chip("disegna" if can_manage else "sola lettura",
+                           "primary" if can_manage else "neutral"),
+                    ft.IconButton(ft.Icons.CLOSE, icon_color=d.CHROME.text, on_click=_close),
+                ],
+                spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+            bgcolor=d.CHROME.backdrop,
+        )
+
+        body: list[ft.Control] = [
+            header,
+            ft.Container(expand=True, content=draw_stack, on_size_change=_on_box_resize),
+        ]
+        if can_manage:
+            body.append(ft.Container(
+                content=ft.Row(
+                    [
+                        *[_swatch(i) for i in range(len(_PEN_COLORS))],
+                        ft.Container(width=d.Space.MD),
+                        ft.TextButton("Annulla ultimo", icon=ft.Icons.UNDO, on_click=_undo,
+                                      style=ft.ButtonStyle(color=d.CHROME.text)),
+                        ft.TextButton("Cancella tutto", icon=ft.Icons.DELETE_FOREVER_OUTLINED,
+                                      on_click=_clear_all,
+                                      style=ft.ButtonStyle(color=p.danger)),
+                    ],
+                    spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+                padding=d.Space.SM, bgcolor=d.CHROME.panel,
+            ))
+
+        overlay = ft.Container(
+            expand=True, bgcolor=d.CHROME.canvas,
+            content=ft.Column(body, spacing=0, expand=True),
+        )
+        overlay_list.append(overlay)
+        page.overlay.append(overlay)
+        page.update()
+
+        if not can_manage:
+            # Sola lettura: nessun evento in arrivo aggiorna questo overlay
+            # da solo (non fa parte di `self._body`, quindi il refresh
+            # periodico di `_render_detail` non lo tocca) — un piccolo
+            # ciclo dedicato, stesso principio di `_poll_pending_join_loop`
+            # più sotto in questo file: si ferma da solo alla chiusura.
+            async def _watch_loop():
+                import asyncio
+                while not closed[0]:
+                    await asyncio.sleep(_SHARED_MAP_REDRAW_INTERVAL_S)
+                    if closed[0]:
+                        return
+                    fresh = maps_repo.get_map(gm.id)
+                    if fresh is None:
+                        continue
+                    try:
+                        fresh_strokes = json.loads(fresh.annotations or "[]")
+                    except (json.JSONDecodeError, TypeError):
+                        fresh_strokes = []
+                    if fresh_strokes != strokes:
+                        strokes.clear()
+                        strokes.extend(fresh_strokes)
+                        _redraw()
+                        _update_canvas()
+
+            page.run_task(_watch_loop)
+
     def _events_section(self, world: World) -> ft.Control:
         events = world_repo.get_events_since(world.id, 0, limit=200)
         events = list(reversed(events))  # più recenti in cima
@@ -653,7 +1436,7 @@ class WorldsView(ft.Column):
         # colore smorzato) e mostrano i secondi rimanenti invece
         # dell'etichetta normale — al posto del solo messaggio d'errore
         # reattivo al click. Il tick che tiene aggiornato il countdown è
-        # `_maybe_redraw_detail`/`_any_master_cooldown_active` (thread di
+        # `_start_detail_sync`/`_any_master_cooldown_active` (thread di
         # sync già esistente, nessun timer nuovo).
         cooldown_remaining = world_sync.master_action_cooldown_remaining(character.id)
         on_cooldown = cooldown_remaining > 0
@@ -724,12 +1507,64 @@ class WorldsView(ft.Column):
                               lambda e, w=world, c=character: self._open_diary_entry_dialog(w, c)),
                         _pill(ft.Icons.GAVEL, "Proponi modifica", p.warning,
                               lambda e, w=world, c=character: self._open_change_request_dialog(w, c)),
+                        _pill(ft.Icons.PERSON_REMOVE, "Rimuovi dal mondo", p.danger,
+                              lambda e, w=world, c=character: self._confirm_remove_character(w, c)),
                     ],
                     spacing=d.Space.XS, wrap=True,
                 ),
             ],
             spacing=d.Space.XS, tight=True,
         )
+
+    def _confirm_remove_character(self, world: World, character: Character):
+        """
+        Rimuove UN personaggio dal mondo (2026-08-12, richiesta esplicita
+        di Davide: "manca la possibilità di eliminare il personaggio dal
+        mondo, attualmente posso eliminare solo la persona [il membro]")
+        — DISTINTA da "Espelli membro" nella sezione Membri, che rimuove
+        l'intero dispositivo e archivia TUTTE le sue istanze. Qui il
+        giocatore resta membro, solo questo personaggio sparisce dalla
+        Sezione Master. Stessa non-distruttività già decisa con Davide per
+        l'espulsione: archiviato, non cancellato — il giocatore può poi
+        chiedere il rientro (§"Richiesta di rientro", 2026-08-12), che tu
+        dovrai approvare tu qui in "Richieste di rientro": non torna mai
+        visibile in automatico.
+        """
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Rimuovi personaggio dal mondo", ft.Icons.PERSON_REMOVE,
+                                 tone="danger"),
+            content=ft.Text(
+                f'Rimuovere "{character.name}" da questo mondo? Il giocatore resta membro — '
+                "sparisce solo questo personaggio dalla Sezione Master. I suoi dati non "
+                "vengono persi, si riattiva da solo se il giocatore lo risincronizza.",
+                color=p.text,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton(
+                    "Rimuovi", icon=ft.Icons.PERSON_REMOVE,
+                    on_click=lambda e: self._do_remove_character(world, character),
+                    style=ft.ButtonStyle(bgcolor=p.danger, color=p.text),
+                ),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _do_remove_character(self, world: World, character: Character):
+        page = self.page
+        if page is not None:
+            page.pop_dialog()
+        # `_send_remote_command`, non `_send_command` diretto: è il punto
+        # unico di invio di OGNI azione di questa riga (vedi il suo
+        # docstring) — applica lo stesso timer anti-spam per personaggio
+        # delle altre pillole, e imposta target_type/target_id.
+        self._send_remote_command(world, character, perm.CMD_CHARACTER_INSTANCE_REMOVE, {})
 
     # ------------------------------------------------------------------
     # Anti-spam sulle richieste di rete "semplici" — fix 2026-08-07,
@@ -1296,6 +2131,84 @@ class WorldsView(ft.Column):
             self._show_error(result.error)
 
     # ------------------------------------------------------------------
+    # Richieste di rientro (2026-08-12) — verso opposto delle richieste di
+    # modifica sopra: qui propone il giocatore, risponde SOLO master/owner
+    # (a differenza di "Richieste in sospeso", non visibile a un giocatore
+    # qualunque — è il master a dover decidere, non il proprietario del
+    # personaggio, che è già chi ha inviato la richiesta).
+    # ------------------------------------------------------------------
+
+    def _pending_rejoin_requests_section(self, world: World) -> ft.Control | None:
+        pending = world_repo.get_pending_rejoin_requests(world.id)
+        if not pending:
+            return None
+        rows: list[ft.Control] = []
+        for i, req in enumerate(pending):
+            character = character_repo.get_by_id(req.character_id)
+            if character is None:
+                continue  # difensivo: non dovrebbe accadere, mai bloccare l'intera sezione
+            if i > 0:
+                rows.append(ft.Divider(height=1))
+            rows.append(self._pending_rejoin_request_row(world, character, req))
+        if not rows:
+            return None
+        return d.section(
+            "Richieste di rientro",
+            ft.Column(rows, spacing=d.Space.SM, tight=True),
+            accent=d.tone_color("magic"),
+        )
+
+    def _pending_rejoin_request_row(self, world: World, character: Character,
+                                     request: WorldRejoinRequest) -> ft.Control:
+        p = d.T()
+        if request.mode == "refresh_from_local":
+            try:
+                export_char = json.loads(request.payload or "{}").get("export", {}).get(
+                    "character", {},
+                )
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                export_char = {}
+            level = export_char.get("level", "?")
+            mode_label = f"Aggiorna allo stato attuale della scheda del giocatore (Liv. {level})"
+        else:
+            mode_label = "Riprende lo stato con cui era stato rimosso"
+
+        cooldown_remaining = world_sync.master_action_cooldown_remaining(character.id)
+        on_cooldown = cooldown_remaining > 0
+        cooldown_suffix = f" ({int(cooldown_remaining) + 1}s)" if on_cooldown else ""
+        muted_color = p.text_3
+
+        def _pill(icon: ft.IconData, label: str, color: str, accept: bool) -> ft.Control:
+            if on_cooldown:
+                return d.pill(icon, label + cooldown_suffix, color=muted_color, on_click=None)
+            return d.pill(icon, label, color=color,
+                          on_click=lambda e: self._respond_rejoin_request(world, character,
+                                                                           request, accept))
+
+        content: list[ft.Control] = [
+            ft.Text(f"{character.name} — richiesta di {request.requester_name or 'un giocatore'}",
+                    weight=ft.FontWeight.BOLD, color=p.text),
+            d.muted(mode_label),
+        ]
+        if request.reason:
+            content.append(d.muted(f"«{request.reason}»"))
+        content.append(ft.Row(
+            [
+                _pill(ft.Icons.CHECK, "Accetta", p.success, True),
+                _pill(ft.Icons.CLOSE, "Rifiuta", p.danger, False),
+            ],
+            spacing=d.Space.XS,
+        ))
+        return ft.Column(content, spacing=d.Space.XS, tight=True)
+
+    def _respond_rejoin_request(self, world: World, character: Character,
+                                 request: WorldRejoinRequest, accept: bool):
+        self._send_remote_command(
+            world, character, perm.CMD_CHARACTER_REJOIN_RESPOND,
+            {"request_id": request.id, "accept": accept},
+        )
+
+    # ------------------------------------------------------------------
     # Hosting LAN (passo 4) — solo owner, solo sul mondo che ospita
     # ------------------------------------------------------------------
 
@@ -1458,6 +2371,448 @@ class WorldsView(ft.Column):
             self._host_server.reject(request_id)
         self._refresh_detail()
 
+    # ------------------------------------------------------------------
+    # Backup del mondo — esportazione/importazione (passo 9D, 2026-08-12,
+    # `dnd_app/docs/multiplayer_design.md` §6.3) — stesso identico
+    # meccanismo di Import/Export personaggio (`.dndchar`), esteso a un
+    # intero mondo (`.dndworld`): `data/repositories/world_export.py` per
+    # la logica dati, `ui/file_export.py` per i dialoghi nativi del SO
+    # (estratti da `home_view.py` senza toccarlo — vedi il docstring di
+    # quel modulo). Solo owner: un backup/trasferimento dell'INTERO mondo
+    # (ogni personaggio, il giornale, il bottino) è un'operazione sensibile,
+    # stesso livello della "Zona pericolosa" qui sotto.
+    # ------------------------------------------------------------------
+
+    def _ensure_file_picker(self) -> ft.FilePicker | None:
+        page = self.page
+        if page is None:
+            return None
+        if self._file_picker is None:
+            self._file_picker = ft.FilePicker()
+            page.overlay.append(self._file_picker)
+            try:
+                page.update()
+            except RuntimeError:
+                pass
+        return self._file_picker
+
+    def _backup_section(self, world: World) -> ft.Control:
+        """
+        Promemoria periodico (passo 9E, deciso con Davide 2026-08-12):
+        conta gli eventi di giornale dall'ultimo export riuscito
+        (`world.last_export_seq`) e mostra un avviso non bloccante —
+        MAI un dialog che interrompe il flusso — quando supera
+        `EXPORT_REMINDER_EVENT_THRESHOLD`. Un mondo mai esportato ha
+        `last_export_seq=0`: conta dalla nascita del mondo.
+        """
+        p = d.T()
+        events_since = world_repo.count_events_since(world.id, world.last_export_seq)
+        reminder: list[ft.Control] = []
+        if events_since >= world_export.EXPORT_REMINDER_EVENT_THRESHOLD:
+            reminder = [
+                ft.Container(height=d.Space.XS),
+                ft.Row(
+                    [
+                        ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=p.warning, size=16),
+                        ft.Text(
+                            f"Sono successe {events_since} cose in questo mondo da quando "
+                            "l'hai esportato l'ultima volta — considera un nuovo backup.",
+                            size=12, color=p.warning,
+                        ),
+                    ],
+                    spacing=d.Space.XS,
+                ),
+            ]
+        return d.section(
+            "Backup del mondo",
+            ft.Column(
+                [
+                    d.muted(
+                        "Esporta l'intero mondo (membri, personaggi, giornale, bottino, "
+                        "note e mappe condivise) in un file .dndworld — per non perdere "
+                        "tutto se questo dispositivo si rompe, o per passare la campagna "
+                        "a un altro master.",
+                    ),
+                    ft.Container(height=d.Space.XS),
+                    d.pill(ft.Icons.DOWNLOAD, "Esporta mondo", filled=True, color=p.magic,
+                           on_click=lambda e: self._on_export_world_click(world)),
+                    *reminder,
+                ],
+                spacing=d.Space.XS,
+            ),
+        )
+
+    # --- Export -----------------------------------------------------------
+
+    def _on_export_world_click(self, world: World):
+        page = self.page
+        if page is None:
+            return
+        if page.web:
+            self._export_world_web(world)
+            return
+        platform = page.platform
+        if platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+            page.run_task(self._on_mobile_export_world, world)
+            return
+        import platform as sys_platform
+        system = sys_platform.system()
+        threading.Thread(target=self._export_world_desktop, args=(world, system),
+                          daemon=True).start()
+
+    async def _on_mobile_export_world(self, world: World):
+        """Export su Android/iOS — stesso meccanismo di
+        `HomeView._on_mobile_export` (`FilePicker.save_file()` scrive
+        anche il contenuto su questa build, a differenza di `pick_files()`
+        che non funziona affatto — vedi il docstring gemello lì)."""
+        picker = self._ensure_file_picker()
+        if picker is None:
+            return
+        json_text = world_export.export_to_json_string(world.id)
+        if json_text is None:
+            self._show_error("Errore durante l'esportazione del mondo.")
+            return
+        filename = world_export.suggested_export_filename(world.id)
+        try:
+            result_path = await picker.save_file(
+                dialog_title="Esporta mondo",
+                file_name=filename,
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["dndworld"],
+                src_bytes=json_text.encode("utf-8"),
+            )
+        except Exception as exc:
+            logger.error(f"Errore FilePicker.save_file (mobile, mondo): {exc}")
+            self._show_error(f"Errore durante l'esportazione:\n{exc}")
+            return
+        if not result_path:
+            return
+        self._show_export_world_success_dialog(world.id, filename, result_path, system=None)
+
+    def _export_world_web(self, world: World):
+        """Stesso doppio-destinazione di `HomeView._export_web`: la
+        cartella condivisa (SSH/scp) e la sottocartella servita
+        staticamente per il download diretto dal browser."""
+        json_text = world_export.export_to_json_string(world.id)
+        if json_text is None:
+            self._show_error("Errore durante l'esportazione del mondo.")
+            return
+        filename = world_export.suggested_export_filename(world.id)
+        full_path = os.path.join(get_character_exports_path(), filename)
+        staging_path = os.path.join(get_web_export_staging_path(), filename)
+        written = False
+        for path in (full_path, staging_path):
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(json_text)
+                written = True
+            except OSError as exc:
+                logger.error(f"Errore scrittura file export mondo ({path}): {exc}")
+        if not written:
+            self._show_error("Errore durante il salvataggio del file esportato.")
+            return
+        self._show_export_world_success_dialog(
+            world.id, filename, full_path, system=None, download_url=f"/exports/{filename}",
+        )
+
+    def _export_world_desktop(self, world: World, system: str):
+        """Chiamato in un thread separato — dialogo nativo di salvataggio."""
+        json_text = world_export.export_to_json_string(world.id)
+        if json_text is None:
+            self._show_error("Errore durante l'esportazione del mondo.")
+            return
+        default_name = world_export.suggested_export_filename(world.id)
+        path, error = file_export.native_save_dialog(
+            system, dialog_title="Esporta mondo", default_name=default_name,
+            filter_label="File Mondo D&D", filter_ext=".dndworld",
+        )
+        if error:
+            logger.error(f"Dialogo salvataggio nativo fallito ({system}, mondo): {error}")
+            self._show_error(
+                "Non è stato possibile aprire la finestra di salvataggio del sistema:\n"
+                f"{error}\n\n"
+                "Su macOS potrebbe essere necessario autorizzare l'automazione: "
+                "Impostazioni di Sistema → Privacy e Sicurezza → Automazione."
+            )
+            return
+        if not path:
+            return
+        if not path.lower().endswith((".dndworld", ".json")):
+            path += ".dndworld"
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(json_text)
+        except OSError as exc:
+            logger.error(f"Errore scrittura file export mondo ({path}): {exc}")
+            self._show_error(f"Errore durante il salvataggio del file:\n{path}\n{exc}")
+            return
+        if not os.path.isfile(path):
+            logger.error(f"File export mondo non trovato dopo la scrittura: {path}")
+            self._show_error(
+                f"Il file non risulta presente dopo il salvataggio:\n{path}\n"
+                "Riprova, oppure scegli un'altra cartella."
+            )
+            return
+        self._show_export_world_success_dialog(world.id, os.path.basename(path), path,
+                                                system=system)
+
+    def _show_export_world_success_dialog(
+        self, world_id: str, filename: str, path: str, system: str | None,
+        download_url: str | None = None,
+    ):
+        # Registra il promemoria (passo 9E) SOLO qui, dopo che il file è
+        # stato scritto/scaricato con successo — un export fallito prima di
+        # questo punto non deve mai spegnere l'avviso. Sola scrittura DB
+        # (nessun `page.update()`/ri-render qui): questo metodo è chiamato
+        # anche da un thread in background (`_export_world_desktop`), e
+        # `page.update()` da un thread qualunque invece di `page.run_task()`
+        # è esattamente il bug già trovato e risolto altrove in questo
+        # progetto (vedi CLAUDE.md, 2026-08-07) — non reintrodurlo qui. La
+        # sezione "Backup del mondo" si aggiorna comunque al prossimo giro
+        # della sincronizzazione in background già attiva su questa scheda.
+        world_repo.mark_world_exported(world_id, world_repo.get_latest_event_seq(world_id))
+
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+
+        def _reveal(e):
+            threading.Thread(target=file_export.reveal_in_file_manager,
+                              args=(path, system), daemon=True).start()
+
+        actions = []
+        if download_url is not None:
+            actions.append(ft.ElevatedButton(
+                "Scarica", icon=ft.Icons.DOWNLOAD,
+                url=ft.Url(url=download_url, target=ft.UrlTarget.BLANK),
+                style=ft.ButtonStyle(bgcolor=p.magic, color=p.bg),
+            ))
+        if system is not None:
+            actions.append(ft.TextButton(
+                "Mostra nel Finder" if system == "Darwin" else "Mostra nella cartella",
+                icon=ft.Icons.FOLDER_OPEN, on_click=_reveal,
+                style=ft.ButtonStyle(color=p.text_2),
+            ))
+        actions.append(ft.TextButton("OK", on_click=lambda e: page.pop_dialog(),
+                                      style=ft.ButtonStyle(color=p.primary)))
+
+        page.show_dialog(ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Mondo esportato"),
+            content=ft.Column([
+                ft.Text(f'File salvato come "{filename}".', color=p.text, size=13),
+                ft.Container(height=6),
+                ft.Text(path, color=p.text_3, size=11, selectable=True),
+            ], tight=True, spacing=0),
+            actions=actions,
+        ))
+
+    # --- Import -------------------------------------------------------
+
+    def _on_import_world_click(self, e=None):
+        page = self.page
+        if page is None:
+            return
+        if page.web:
+            show_world_import_picker(page, on_select=self._do_import_world_from_path)
+            return
+        platform = page.platform
+        if platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+            page.run_task(self._on_mobile_import_world)
+            return
+        import platform as sys_platform
+        system = sys_platform.system()
+        threading.Thread(target=self._import_world_pick_desktop, args=(system,),
+                          daemon=True).start()
+
+    async def _on_mobile_import_world(self):
+        """Import su Android/iOS tramite WebView locale — stesso
+        meccanismo di `HomeView._on_mobile_import` (`ft.FilePicker.pick_files()`
+        non funziona su questa build, vedi il docstring gemello lì)."""
+        page = self.page
+        if page is None:
+            return
+        result = await pick_file_via_webview(
+            page, accept=".dndworld,.json,application/json", title="Importa mondo",
+        )
+        if result is None:
+            return
+        filename, b64_content = result
+        try:
+            raw = base64.b64decode(b64_content)
+        except Exception as exc:
+            logger.error(f"Import mobile mondo: base64 non decodificabile: {exc}")
+            self._show_error("File non valido. Riprova.")
+            return
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            self._show_error(
+                f"Il file selezionato ({filename}) non è un file di testo "
+                "valido (UTF-8 atteso)."
+            )
+            return
+        self._do_import_world_from_text(text)
+
+    def _import_world_pick_desktop(self, system: str):
+        path, error = file_export.native_open_dialog(
+            system, dialog_title="Importa mondo", filter_label="File Mondo D&D",
+            filter_ext=".dndworld",
+        )
+        if error:
+            logger.error(f"Dialogo apertura nativo fallito ({system}, mondo): {error}")
+            self._show_error(
+                "Non è stato possibile aprire la finestra di selezione del sistema:\n"
+                f"{error}\n\n"
+                "Su macOS potrebbe essere necessario autorizzare l'automazione: "
+                "Impostazioni di Sistema → Privacy e Sicurezza → Automazione."
+            )
+            return
+        if path:
+            self._do_import_world_from_path(path)
+
+    def _do_import_world_from_path(self, path: str):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                text = f.read()
+        except OSError as exc:
+            logger.error(f"Errore lettura file import mondo ({path}): {exc}")
+            self._show_error(f"Impossibile leggere il file:\n{path}")
+            return
+        self._do_import_world_from_text(text)
+
+    def _do_import_world_from_text(self, text: str):
+        data = world_export.load_json_string(text)
+        if data is None:
+            self._show_error("Il file selezionato non è un JSON valido.")
+            return
+        err = world_export.validate_export_data(data)
+        if err:
+            self._show_error(err)
+            return
+        summary = world_export.peek_world_summary(data)
+        if summary is None:
+            self._show_error("Impossibile leggere i dati del mondo dal file.")
+            return
+
+        self._prompt_importer_name(data, summary)
+
+    def _prompt_importer_name(self, data: dict, summary: dict):
+        """
+        Chiede il nome del master PRIMA di procedere — questo dispositivo
+        diventerà l'owner/host del mondo importato (§6.3), e il registro
+        deve poter mostrare chi è (stesso principio già stabilito per
+        "Crea un mondo"/"Unisciti con un codice": mai un default silenzioso
+        come "Master" per tutti — lezione del fix 2026-08-07 su
+        `_open_join_dialog`, applicata qui allo stesso modo).
+        """
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+        display_field = ft.TextField(label="Il tuo nome (per il registro)", dense=True,
+                                      **d.field_style())
+
+        def _continue(e):
+            display_name = (display_field.value or "").strip()
+            if not display_name:
+                self._show_error("Inserisci il tuo nome prima di importare il mondo.")
+                return
+            page.pop_dialog()
+            if world_export.world_id_exists(summary["id"]):
+                self._show_import_world_conflict_dialog(data, summary, display_name)
+            else:
+                self._run_import_world(data, "new", display_name)
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f'Importa "{summary["name"]}"', ft.Icons.PUBLIC),
+            content=ft.Column(
+                [
+                    d.muted(
+                        f'{summary["member_count"]} membri · {summary["character_count"]} '
+                        f'personaggi. Diventerai tu l\'owner e l\'host di questo mondo.',
+                    ),
+                    ft.Container(height=d.Space.SM),
+                    display_field,
+                ],
+                tight=True, spacing=0,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Continua", icon=ft.Icons.ARROW_FORWARD, on_click=_continue,
+                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary)),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _show_import_world_conflict_dialog(self, data: dict, new_summary: dict, display_name: str):
+        """Il mondo nel file ha lo stesso ID di uno già presente su questo
+        dispositivo — chiede esplicitamente come procedere (stesso pattern
+        di `HomeView._show_import_conflict_dialog` per un personaggio)."""
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+        existing = world_repo.get_world(new_summary["id"])
+        existing_name = existing.name if existing else "?"
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Mondo già presente"),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        f'Hai già un mondo "{existing_name}" con lo stesso ID del file da '
+                        f'importare ("{new_summary["name"]}", {new_summary["character_count"]} '
+                        f'personaggi).',
+                        color=p.text, size=13,
+                    ),
+                    ft.Container(height=12),
+                    d.muted("Cosa vuoi fare?"),
+                ],
+                tight=True, spacing=0,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.OutlinedButton(
+                    "Crea copia", icon=ft.Icons.CONTENT_COPY,
+                    on_click=lambda e: self._confirm_import_world(data, "copy", display_name),
+                    style=ft.ButtonStyle(color=p.magic, side=ft.BorderSide(1, p.magic)),
+                ),
+                ft.ElevatedButton(
+                    "Sovrascrivi", icon=ft.Icons.WARNING_AMBER_ROUNDED,
+                    on_click=lambda e: self._confirm_import_world(data, "overwrite", display_name),
+                    style=ft.ButtonStyle(bgcolor=p.danger, color=p.text),
+                ),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _confirm_import_world(self, data: dict, mode: str, display_name: str):
+        if self.page is not None:
+            self.page.pop_dialog()
+        self._run_import_world(data, mode, display_name)
+
+    def _run_import_world(self, data: dict, mode: str, display_name: str):
+        if self.device_id is None:
+            self._show_error("Identità del dispositivo non ancora pronta — riprova tra poco.")
+            return
+        new_id = world_export.import_world(data, mode, self.device_id, display_name)
+        if new_id is None:
+            self._show_error("Errore durante l'importazione del mondo.")
+            return
+        self._current_world = None
+        self._render()
+        try:
+            self.page.update()
+        except RuntimeError:
+            pass
+        show_snack(self.page, "Mondo importato correttamente — ora lo ospiti tu.")
+
     def _danger_zone_section(self, world: World) -> ft.Control:
         p = d.T()
         return d.section(
@@ -1523,65 +2878,67 @@ class WorldsView(ft.Column):
     # ------------------------------------------------------------------
 
     def _start_detail_sync(self, world_id: str):
+        """
+        Delega a `ui.components.background_sync.BackgroundSyncLoop`
+        (estratto 2026-08-07 nella stessa sessione in cui è stato esteso a
+        `MasterEncounterView` — vedi il docstring del modulo): questo
+        metodo resta il punto in cui vive la logica di DOMINIO (cosa
+        scaricare, cosa costituisce "stato cambiato"), il thread e il
+        ponte verso il loop asyncio di Flet sono ora responsabilità
+        dell'helper condiviso, comportamento invariato rispetto a prima
+        dell'estrazione.
+
+        - mondo NON ospitato da questo dispositivo: `apply_fn` scarica gli
+          eventi nuovi dall'host via `world_sync.sync_replica()` e li
+          applica alla replica locale (comandi del master, risposte di
+          altri dispositivi).
+        - mondo ospitato: `apply_fn` non ha nulla da fare — il DB locale È
+          già lo stato autoritativo, aggiornato all'istante da ogni
+          comando ricevuto (anche da un altro dispositivo, via
+          `WorldHostServer`); la sola lettura di `signature_fn` basta a
+          riflettere sullo schermo ciò che è già vero nel DB.
+        """
         self._stop_detail_sync()
         world = world_repo.get_world(world_id)
         self._detail_signature = self._detail_signature_of(world) if world else None
-        stop_event = threading.Event()
-        self._detail_sync_stop = stop_event
-        thread = threading.Thread(
-            target=self._detail_sync_loop, args=(world_id, stop_event),
-            daemon=True, name=f"world-sync-{world_id[:8]}",
+
+        def _apply() -> None:
+            world = world_repo.get_world(world_id)
+            if world is None or world.is_local_host:
+                return
+            backend = self._backend_for(world)
+            if backend is not None:
+                world_sync.sync_replica(backend, world_id)
+
+        def _signature() -> str | None:
+            world = world_repo.get_world(world_id)
+            return self._detail_signature_of(world) if world is not None else None
+
+        def _should_redraw_anyway() -> bool:
+            world = world_repo.get_world(world_id)
+            return self._any_master_cooldown_active(world) if world is not None else False
+
+        async def _redraw() -> None:
+            await self._async_redraw_detail(world_id)
+
+        loop = BackgroundSyncLoop(
+            get_page=lambda: self.page,
+            signature_fn=_signature,
+            async_redraw_fn=_redraw,
+            apply_fn=_apply,
+            should_redraw_anyway_fn=_should_redraw_anyway,
+            interval_s=_DETAIL_SYNC_INTERVAL_S,
+            thread_name=f"world-sync-{world_id[:8]}",
         )
-        self._detail_sync_thread = thread
-        thread.start()
+        self._detail_sync_loop_obj = loop
+        loop.start()
 
     def _stop_detail_sync(self):
-        self._detail_sync_stop.set()
-        self._detail_sync_thread = None
+        loop = getattr(self, "_detail_sync_loop_obj", None)
+        if loop is not None:
+            loop.stop()
+        self._detail_sync_loop_obj = None
         self._detail_signature = None
-
-    def _detail_sync_loop(self, world_id: str, stop_event: threading.Event):
-        """
-        Un giro ogni `_DETAIL_SYNC_INTERVAL_S` circa (stesso ordine di
-        grandezza del polling già in uso in `home_view.py`):
-        `RemoteBackend.fetch_events()` interroga SENZA attesa lunga
-        (`wait=0`, per scelta esplicita — vedi il suo docstring: "la
-        sincronizzazione periodica vera e propria decide essa stessa
-        quanto aspettare"), quindi il ritmo lo impone questo ciclo, non il
-        trasporto.
-
-        - mondo NON ospitato da questo dispositivo: `sync_replica()`
-          scarica gli eventi nuovi dall'host e li applica alla replica
-          locale (comandi del master, risposte di altri dispositivi).
-        - mondo ospitato: nulla da scaricare — il DB locale È già lo stato
-          autoritativo, aggiornato all'istante da ogni comando ricevuto
-          (anche da un altro dispositivo, via `WorldHostServer`); qui
-          basta rileggerlo per riflettere sullo schermo ciò che è già
-          vero nel DB.
-
-        In entrambi i casi ridisegna SOLO se la firma di stato è cambiata
-        (`_maybe_redraw_detail`, stesso principio di
-        `home_view.py::refresh(force=False)`), per non interrompere una
-        digitazione in corso in un campo della scheda (es. "Nome del
-        mondo") con un rebuild che altrimenti la sostituirebbe di netto.
-        """
-        while not stop_event.is_set():
-            world = world_repo.get_world(world_id)
-            if world is None:
-                return
-            if not world.is_local_host:
-                backend = self._backend_for(world)
-                if backend is not None:
-                    try:
-                        world_sync.sync_replica(backend, world_id)
-                    except Exception as e:
-                        # Difesa in profondità: un errore di rete transitorio
-                        # non deve mai fermare il ciclo per sempre, solo
-                        # saltare questo giro — riprova al prossimo.
-                        logger.debug("Sync in background fallita per %s: %s", world_id, e)
-            self._maybe_redraw_detail(world_id)
-            if stop_event.wait(_DETAIL_SYNC_INTERVAL_S):
-                return
 
     def _detail_signature_of(self, world: World) -> str:
         """Firma economica dello stato rilevante di UN mondo: qualunque
@@ -1620,55 +2977,6 @@ class WorldsView(ft.Column):
             )
         return f"{world.updated_at}|{latest_seq}|{member_sig}|{pending_sig}|{host_pending_sig}"
 
-    def _maybe_redraw_detail(self, world_id: str) -> None:
-        """
-        Chiamato dal thread di sync in background: calcola la firma (solo
-        letture DB, sicure da qualunque thread) e, se qualcosa è cambiato,
-        NON tocca la UI direttamente — la programma sul loop asyncio della
-        sessione con `page.run_task()`.
-
-        Fix di correttezza (2026-08-07, bug segnalato da Davide: "le
-        richieste e le accettazioni non escono in automatico, bisogna
-        premere il pulsante di refresh"): la prima versione chiamava
-        `self._render()` + `page.update()` direttamente da questo thread —
-        un `threading.Thread` estraneo al loop asyncio della sessione Flet.
-        Verificato leggendo il sorgente di `flet==0.86.5`
-        (`flet/controls/page.py::Page.run_task`): l'UNICO ponte
-        dichiaratamente thread-safe verso quel loop è
-        `asyncio.run_coroutine_threadsafe(...)`, esposto appunto da
-        `run_task()` — lo stesso identico meccanismo già usato correttamente
-        da `_init_identity()` in questo stesso file. Senza, l'aggiornamento
-        arrivava sul DB (i dati erano corretti) ma poteva restare invisibile
-        a schermo finché una normale azione dell'utente non forzava un
-        nuovo giro sul thread giusto — esattamente il sintomo "serve il
-        refresh manuale".
-        """
-        world = world_repo.get_world(world_id)
-        if world is None:
-            return
-        signature = self._detail_signature_of(world)
-        signature_changed = signature != self._detail_signature
-        if signature_changed:
-            self._detail_signature = signature
-
-        # Countdown visivo sulle pillole di "Interviene a distanza" (fix
-        # 2026-08-07, richiesta di Davide dopo un parere su questa stessa
-        # funzionalità): se un personaggio è ancora in cooldown, ridisegna
-        # comunque anche se NULLA nel DB è cambiato, così i secondi
-        # mostrati sulle pillole scendono nel tempo invece di restare
-        # fissi finché non arriva un evento vero. Non aggiorna
-        # `self._detail_signature`: un vero cambiamento di stato successivo
-        # resta rilevabile normalmente. Granularità dello stesso ordine di
-        # `_DETAIL_SYNC_INTERVAL_S` (2s) — sufficiente per un conto alla
-        # rovescia leggibile, non serve un timer dedicato più fine.
-        if not signature_changed and not self._any_master_cooldown_active(world):
-            return
-
-        page = self.page
-        if page is None or self._current_world is None or self._current_world.id != world_id:
-            return
-        page.run_task(self._async_redraw_detail, world_id)
-
     def _any_master_cooldown_active(self, world: World) -> bool:
         if self.device_id is None:
             return False
@@ -1680,9 +2988,10 @@ class WorldsView(ft.Column):
         return any(world_sync.master_action_cooldown_remaining(c.id) > 0 for c in characters)
 
     async def _async_redraw_detail(self, world_id: str) -> None:
-        """Eseguito sul loop asyncio della sessione (via `page.run_task()`
-        chiamato da `_maybe_redraw_detail`, thread di sync in background) —
-        qui, e solo qui, è sicuro toccare `self._body`/`page.update()`."""
+        """Eseguito sul loop asyncio della sessione (via `page.run_task()`,
+        schedulato da `ui.components.background_sync.BackgroundSyncLoop` nel
+        thread di sync in background avviato da `_start_detail_sync`) — qui,
+        e solo qui, è sicuro toccare `self._body`/`page.update()`."""
         if self._current_world is None or self._current_world.id != world_id:
             return
         self._render()

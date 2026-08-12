@@ -255,6 +255,94 @@ class CombattimentoTab(ScrollMemoryListView):
             logger.warning("Invio hp.self_update fallito per %s: %s", c.id, e)
 
     # ------------------------------------------------------------------
+    # Condizioni — invio automatico verso il mondo (2026-08-07, estensione
+    # graduale di hp.self_update, richiesta di Davide: "la scheda che ha il
+    # giocatore deve essere completamente sincronizzata con i dati che ha
+    # il master"). A differenza dei PF non serve alcun debounce con
+    # "generation": aggiungere/rimuovere una condizione è già un'azione
+    # discreta e deliberata (un dialog di conferma esplicito), non un
+    # flusso continuo di piccoli cambiamenti — un invio per azione.
+    # ------------------------------------------------------------------
+
+    def _schedule_condition_apply_sync(self, condition_key: str, source: str, note: str) -> None:
+        """Da richiamare SUBITO dopo aver aggiunto una condizione sulla
+        propria scheda. No-op silenzioso se il personaggio non è un'istanza
+        di un mondo — stesso principio di `_schedule_hp_world_sync()`."""
+        if not self.character.world_id:
+            return
+        page = self._page
+        if page is None:
+            return
+        page.run_task(self._push_condition_to_world, "apply", condition_key, source, note, "")
+
+    def _schedule_condition_remove_sync(self, condition_key: str) -> None:
+        """Da richiamare SUBITO dopo aver rimosso una condizione dalla
+        propria scheda. Identifica per `condition_key` (cosa la condizione
+        È), MAI per l'id della riga locale — vedi il docstring di
+        `core.world_backend._handle_condition_self_remove` per il perché
+        (un id di replica non ha significato sull'host)."""
+        if not self.character.world_id:
+            return
+        page = self._page
+        if page is None:
+            return
+        page.run_task(self._push_condition_to_world, "remove", condition_key, "", "", "")
+
+    async def _push_condition_to_world(self, action: str, condition_key: str, source: str,
+                                        note: str, _unused: str = "") -> None:
+        from core import world_permissions as perm
+        from core import world_sync
+
+        if self._device_id is None:
+            page = self._page
+            if page is None:
+                return
+            from ui.device_identity import resolve_device_id
+            self._device_id = await resolve_device_id(page)
+        if not self._device_id:
+            return
+
+        remaining = world_sync.condition_self_update_cooldown_remaining(self.character.id)
+        if remaining > 0:
+            # Nessun retry automatico, stesso principio di
+            # `_push_hp_to_world`: qui però un invio saltato non verrà
+            # "recuperato" da un'azione successiva come i PF (non c'è un
+            # valore assoluto continuamente risincronizzato) — accettabile
+            # per un limite pensato contro click ripetuti accidentali, non
+            # contro l'uso normale (un giocatore non applica/rimuove
+            # condizioni più volte al secondo nel gioco reale).
+            return
+
+        from core.world_backend import LocalBackend
+        from data.repositories import world_repo
+        world = world_repo.get_world(self.character.world_id)
+        if world is None:
+            return
+        backend = world_sync.resolve_backend_for_world(
+            world, self._device_id, LocalBackend(), {},
+        )
+        if backend is None:
+            return
+
+        world_sync.mark_condition_self_update(self.character.id)
+        if action == "apply":
+            kind = perm.CMD_CONDITION_SELF_APPLY
+            payload = {"condition_key": condition_key, "source": source, "note": note}
+        else:
+            kind = perm.CMD_CONDITION_SELF_REMOVE
+            payload = {"condition_key": condition_key}
+        try:
+            backend.send_command(
+                world.id, self._device_id or "", kind, payload,
+                target_type="character", target_id=self.character.id,
+            )
+        except Exception as e:
+            # Best effort per definizione: logga e basta, non deve mai
+            # interrompere l'esperienza sulla scheda.
+            logger.warning("Invio condition.self_%s fallito per %s: %s",
+                           action, self.character.id, e)
+
+    # ------------------------------------------------------------------
     # Build principale
     # ------------------------------------------------------------------
 
@@ -694,6 +782,7 @@ class CombattimentoTab(ScrollMemoryListView):
 
         def _remove(_e):
             character_repo.remove_condition(cond.id)
+            self._schedule_condition_remove_sync(cond.condition_key)
             page.pop_dialog()
             self._refresh()
 
@@ -746,8 +835,9 @@ class CombattimentoTab(ScrollMemoryListView):
             key = picker.value
             if not key:
                 return
-            character_repo.add_condition(self.character.id, key,
-                                         (source_tf.value or "").strip())
+            source = (source_tf.value or "").strip()
+            character_repo.add_condition(self.character.id, key, source)
+            self._schedule_condition_apply_sync(key, source, "")
             page.pop_dialog()
             self._refresh()
 

@@ -35,8 +35,8 @@ import time
 from dataclasses import dataclass, field
 
 from core import world_permissions as perm
-from data.models import World, WorldChangeRequest, WorldEvent
-from data.repositories import character_export, world_repo
+from data.models import World, WorldChangeRequest, WorldEvent, WorldRejoinRequest
+from data.repositories import character_export, maps_repo, master_repo, world_repo
 from network import protocol
 
 logger = logging.getLogger(__name__)
@@ -82,6 +82,12 @@ class _ClientCooldownState:
     #: ma usato per DECIDERE quando è il momento di inviare (debounce in
     #: `CombattimentoTab`), mai per bloccare l'azione locale sulla scheda.
     hp_self_update_last_at: dict[str, float] = field(default_factory=dict)
+    #: condition.self_apply/self_remove (2026-08-07, estensione graduale di
+    #: hp.self_update) — per personaggio, usato solo per non martellare
+    #: l'host con click ripetuti ravvicinati: l'azione locale (aggiungi/
+    #: rimuovi condizione sulla propria scheda) non è mai bloccata da
+    #: questo cooldown.
+    condition_self_update_last_at: dict[str, float] = field(default_factory=dict)
 
 
 _client_cooldowns = _ClientCooldownState()
@@ -139,6 +145,17 @@ def mark_hp_self_update(character_id: str) -> None:
     _client_cooldowns.hp_self_update_last_at[character_id] = time.monotonic()
 
 
+def condition_self_update_cooldown_remaining(character_id: str) -> float:
+    """Secondi rimanenti prima del prossimo invio di
+    condition.self_apply/self_remove per QUESTO personaggio."""
+    last_at = _client_cooldowns.condition_self_update_last_at.get(character_id, 0.0)
+    return perm.cooldown_remaining(last_at, perm.CONDITION_SELF_UPDATE_COOLDOWN_S)
+
+
+def mark_condition_self_update(character_id: str) -> None:
+    _client_cooldowns.condition_self_update_last_at[character_id] = time.monotonic()
+
+
 def reset_client_cooldowns_for_tests() -> None:
     """SOLO per i test: azzera lo stato condiviso a livello di processo,
     che altrimenti "perdurerebbe" da una funzione di test all'altra nello
@@ -171,6 +188,11 @@ def rewind_instance_push_for_tests(seconds_ago: float) -> None:
 def rewind_hp_self_update_for_tests(character_id: str, seconds_ago: float) -> None:
     """SOLO per i test — vedi `rewind_master_action_for_tests`."""
     _client_cooldowns.hp_self_update_last_at[character_id] = time.monotonic() - seconds_ago
+
+
+def rewind_condition_self_update_for_tests(character_id: str, seconds_ago: float) -> None:
+    """SOLO per i test — vedi `rewind_master_action_for_tests`."""
+    _client_cooldowns.condition_self_update_last_at[character_id] = time.monotonic() - seconds_ago
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +259,33 @@ def apply_event_to_replica(local_world_id: str, event: WorldEvent, remote_backen
                     request_id, "accepted" if accept else "rejected",
                 )
 
+        elif event.kind == perm.CMD_CHARACTER_REJOIN_REQUEST:
+            # Stesso principio di CMD_CHANGE_REQUEST_PROPOSE sopra: il
+            # payload scritto da _handle_character_rejoin_request() porta
+            # già request_id/mode/export (se presente), il resto si
+            # ricostruisce dagli altri campi dell'evento.
+            request_id = str(payload.get("request_id", ""))
+            mode = str(payload.get("mode", "frozen"))
+            if request_id:
+                world_repo.save_replica_rejoin_request(WorldRejoinRequest(
+                    id=request_id, world_id=local_world_id,
+                    character_id=event.target_id, requested_by=event.actor_device_id,
+                    requester_name=event.actor_name, mode=mode,
+                    payload=json.dumps({"mode": mode}),
+                    status="pending", created_at=event.created_at,
+                ))
+
+        elif event.kind == perm.CMD_CHARACTER_REJOIN_RESPOND:
+            # La rimaterializzazione del personaggio (se accettata) è già
+            # coperta dal ramo generico CHARACTER_MUTATING_COMMANDS sopra —
+            # qui si chiude solo la richiesta.
+            request_id = str(payload.get("request_id", ""))
+            accept = bool(payload.get("accept", False))
+            if request_id:
+                world_repo.resolve_rejoin_request(
+                    request_id, "accepted" if accept else "rejected",
+                )
+
         elif event.kind == "world.rename":
             new_name = payload.get("name")
             if new_name:
@@ -259,6 +308,49 @@ def apply_event_to_replica(local_world_id: str, event: WorldEvent, remote_backen
                 world_repo.update_member_role(local_world_id, new_owner, "owner")
                 world_repo.update_member_role(local_world_id, event.actor_device_id, "master")
                 _update_replica_owner(local_world_id, new_owner)
+
+        elif event.kind == perm.CMD_NOTE_SHARE:
+            # Il payload porta l'intero contenuto della nota (§7B) — mai
+            # solo l'id: è testo, piccolo, e questo evita un secondo giro
+            # di rete per materializzarla sulla replica (a differenza delle
+            # immagini mappa del passo 8, troppo grandi per il giornale).
+            if payload.get("note_id"):
+                master_repo.save_replica_note({**payload, "world_id": local_world_id,
+                                                "updated_at": event.created_at})
+
+        elif event.kind in (perm.CMD_ENCOUNTER_MANAGE, perm.CMD_COMBAT_TOGGLE_VISIBILITY):
+            # Il payload porta lo stato risolto dell'incontro (§7C) — la
+            # replica non fa mai un secondo giro di rete per ricostruirlo.
+            encounter_data = payload.get("encounter")
+            if isinstance(encounter_data, dict) and encounter_data.get("id"):
+                master_repo.replica_upsert_encounter_snapshot(
+                    local_world_id, encounter_data, payload.get("members", []),
+                )
+
+        elif event.kind in (perm.CMD_MAP_PUBLISH, perm.CMD_MAP_UPLOAD):
+            # L'immagine non viaggia mai qui (§6.4) — solo lo stub, scaricata
+            # lazy via GET /map/<id>/image la prima volta che la mappa si apre.
+            # Stesso identico stub per una mappa clonata (publish) o caricata
+            # direttamente (upload, 2026-08-12): la replica non distingue le
+            # due origini, entrambe producono una riga senza personaggio
+            # proprietario (`character_id` NULL).
+            maps_repo.replica_create_map_stub(
+                event.target_id, local_world_id, str(payload.get("name", "")),
+                visible_to_players=bool(payload.get("visible_to_players", True)),
+            )
+
+        elif event.kind == perm.CMD_MAP_VISIBILITY:
+            maps_repo.set_map_visibility(
+                event.target_id, bool(payload.get("visible_to_players", True)),
+            )
+
+        elif event.kind == perm.CMD_MAP_DELETE:
+            maps_repo.delete_map(event.target_id)
+
+        elif event.kind == perm.CMD_MAP_DRAW:
+            strokes = payload.get("strokes", [])
+            if isinstance(strokes, list) and strokes:
+                maps_repo.apply_stroke_batch(event.target_id, strokes)
 
         elif event.kind in ("world.created", "world.join_code.regenerate", "member.joined"):
             # "world.created": già applicato dal join iniziale (snapshot).
@@ -580,5 +672,39 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
         request_id = str(req_data.get("id") or "")
         if request_id:
             world_repo.save_replica_change_request(protocol.change_request_from_dict(req_data))
+
+    for req_data in snapshot.get("rejoin_requests", []):
+        request_id = str(req_data.get("id") or "")
+        if request_id:
+            world_repo.save_replica_rejoin_request(protocol.rejoin_request_from_dict(req_data))
+
+    # Note condivise (§7B) visibili a questo device — stesso motivo dei due
+    # loop sopra: gli `events` salvati qui sopra sono solo storia (mai
+    # "applicati" da `apply_event_to_replica`), quindi senza questo un
+    # giocatore che entra DOPO che una nota è stata condivisa non la
+    # vedrebbe mai. Riusa lo stesso scrittore del ramo `note.share` in
+    # `apply_event_to_replica` — un solo punto che sa scrivere una nota
+    # sulla replica.
+    for note_data in snapshot.get("notes", []):
+        if note_data.get("id"):
+            master_repo.save_replica_note(note_data)
+
+    # Incontro visibile ai giocatori (§7C), se c'è — stesso motivo del loop
+    # sopra: riusa lo stesso scrittore del ramo evento in
+    # `apply_event_to_replica`, un solo punto che sa scrivere lo specchio.
+    visible_encounter = snapshot.get("visible_encounter")
+    if isinstance(visible_encounter, dict) and isinstance(visible_encounter.get("encounter"), dict):
+        master_repo.replica_upsert_encounter_snapshot(
+            world.id, visible_encounter["encounter"], visible_encounter.get("members", []),
+        )
+
+    # Mappe pubblicate (§8) — solo lo stub (id/nome): l'immagine si scarica
+    # lazy alla prima apertura, mai qui. Stesso scrittore del ramo evento
+    # `map.publish` in `apply_event_to_replica`.
+    for map_data in snapshot.get("shared_maps", []):
+        if map_data.get("id"):
+            maps_repo.replica_create_map_stub(
+                map_data["id"], world.id, str(map_data.get("name", "")),
+            )
 
     return LanJoinResult(True, world=world_repo.get_world(world.id), backend=backend)

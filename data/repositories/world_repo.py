@@ -24,7 +24,7 @@ import uuid as _uuid
 from datetime import datetime
 
 from data.database import get_connection
-from data.models import World, WorldChangeRequest, WorldEvent, WorldMember
+from data.models import World, WorldChangeRequest, WorldEvent, WorldMember, WorldRejoinRequest
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,7 @@ def _row_to_world(row) -> World:
         last_seen_host=d.get("last_seen_host", ""),
         session_token=d.get("session_token", ""),
         last_synced_seq=d.get("last_synced_seq", 0),
+        last_export_seq=d.get("last_export_seq", 0),
         created_at=d.get("created_at", ""),
         updated_at=d.get("updated_at", ""),
     )
@@ -114,6 +115,23 @@ def _row_to_change_request(row) -> WorldChangeRequest:
         world_id=d.get("world_id", ""),
         character_id=d.get("character_id", ""),
         requested_by=d.get("requested_by", ""),
+        payload=d.get("payload", "{}"),
+        reason=d.get("reason", ""),
+        status=d.get("status", "pending"),
+        created_at=d.get("created_at", ""),
+        resolved_at=d.get("resolved_at", ""),
+    )
+
+
+def _row_to_rejoin_request(row) -> WorldRejoinRequest:
+    d = dict(row)
+    return WorldRejoinRequest(
+        id=d["id"],
+        world_id=d.get("world_id", ""),
+        character_id=d.get("character_id", ""),
+        requested_by=d.get("requested_by", ""),
+        requester_name=d.get("requester_name", ""),
+        mode=d.get("mode", "frozen"),
         payload=d.get("payload", "{}"),
         reason=d.get("reason", ""),
         status=d.get("status", "pending"),
@@ -287,6 +305,70 @@ def regenerate_join_code(world_id: str) -> str | None:
     except Exception as e:
         logger.error(f"Errore regenerate_join_code: {e}")
         return None
+
+
+def mark_world_exported(world_id: str, seq: int) -> bool:
+    """Registra `world_events.seq` al momento di un export `.dndworld`
+    riuscito (2026-08-12, passo 9E — promemoria di backup periodico,
+    `ui/views/world/world_view.py::_backup_section`). Chiamata SOLO dopo
+    che il file è stato scritto con successo su disco/scaricato — un
+    export fallito non deve mai spegnere il promemoria."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE worlds SET last_export_seq=?, updated_at=? WHERE id=?",
+            (int(seq), _now(), world_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore mark_world_exported: {e}")
+        return False
+
+
+def count_events_since(world_id: str, since_seq: int) -> int:
+    """
+    Numero di eventi DI QUESTO mondo con `seq > since_seq` (passo 9E,
+    promemoria di backup) — MAI `get_latest_event_seq(world_id) - since_seq`:
+    `seq` è l'autoincrement GLOBALE di `world_events` (condiviso da TUTTI i
+    mondi, non riparte da 1 per ciascuno), quindi una sottrazione tra "il
+    seq più recente di questo mondo" e "il seq registrato all'ultimo export"
+    darebbe un numero enorme e sbagliato per un mondo appena creato dopo che
+    altri mondi hanno già generato molti eventi (bug reale trovato scrivendo
+    il test di questa stessa feature: un mondo mai esportato, `last_export_
+    seq=0`, risultava già "oltre soglia" solo perché il contatore globale
+    era già avanti). Un `COUNT(*)` filtrato per `world_id` E `seq`
+    corrisponde sempre al numero VERO di eventi di QUESTO mondo, qualunque
+    sia la posizione del contatore globale."""
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM world_events WHERE world_id=? AND seq>?",
+            (world_id, int(since_seq)),
+        ).fetchone()
+        conn.close()
+        return int(row["c"]) if row else 0
+    except Exception as e:
+        logger.error(f"Errore count_events_since: {e}")
+        return 0
+
+
+def get_latest_event_seq(world_id: str) -> int:
+    """`seq` dell'evento più recente del giornale di un mondo (0 se non ne
+    ha ancora nessuno) — usato per calcolare "quanto è cambiato dall'ultimo
+    export" (passo 9E) senza dover scaricare l'intero giornale solo per
+    contarne la lunghezza."""
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT MAX(seq) AS m FROM world_events WHERE world_id=?", (world_id,)
+        ).fetchone()
+        conn.close()
+        return int(row["m"]) if row and row["m"] is not None else 0
+    except Exception as e:
+        logger.error(f"Errore get_latest_event_seq: {e}")
+        return 0
 
 
 def delete_world(world_id: str) -> bool:
@@ -517,25 +599,40 @@ def append_event(world_id: str, actor_device_id: str, actor_name: str, kind: str
         return None
 
 
-def get_events_since(world_id: str, since_seq: int = 0, limit: int = 200) -> list[WorldEvent]:
+def get_events_since(world_id: str, since_seq: int = 0, limit: int | None = 200) -> list[WorldEvent]:
     """
     Eventi di un mondo con `seq > since_seq`, in ordine crescente — è la
     query di sincronizzazione incrementale (§5: "un client chiede 'cosa è
     successo dopo il #481'"). `limit` protegge da un giornale enorme dopo
     una lunga assenza; il chiamante (dal passo 4 in poi) decide se questo
     numero implica "troppo indietro, serve uno snapshot" (§11.2).
+
+    `limit=None` rimuove il limite — usato da `handle_snapshot()` (passo 9),
+    che deve portare l'INTERO giornale a un nuovo arrivato: con un limite
+    implicito di 200 uno snapshot di un mondo più vecchio risulterebbe
+    silenziosamente troncato.
     """
     try:
         conn = get_connection()
-        rows = conn.execute(
-            """
-            SELECT * FROM world_events
-            WHERE world_id=? AND seq > ?
-            ORDER BY seq ASC
-            LIMIT ?
-            """,
-            (world_id, since_seq, max(1, limit)),
-        ).fetchall()
+        if limit is None:
+            rows = conn.execute(
+                """
+                SELECT * FROM world_events
+                WHERE world_id=? AND seq > ?
+                ORDER BY seq ASC
+                """,
+                (world_id, since_seq),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT * FROM world_events
+                WHERE world_id=? AND seq > ?
+                ORDER BY seq ASC
+                LIMIT ?
+                """,
+                (world_id, since_seq, max(1, limit)),
+            ).fetchall()
         conn.close()
         return [_row_to_event(r) for r in rows]
     except Exception as e:
@@ -819,4 +916,138 @@ def resolve_change_request(request_id: str, status: str) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore resolve_change_request: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Richieste di rientro — un personaggio archiviato (espulso, o rimosso dal
+# master via `CMD_CHARACTER_INSTANCE_REMOVE`) che il giocatore vuole far
+# tornare attivo nel mondo. Verso opposto delle richieste di modifica sopra:
+# qui propone il giocatore, risponde il master (`core/world_backend.py::
+# _handle_character_rejoin_request`/`_handle_character_rejoin_respond`).
+# ---------------------------------------------------------------------------
+
+def create_rejoin_request(world_id: str, character_id: str, requested_by: str,
+                           requester_name: str, mode: str, payload: str,
+                           reason: str = "") -> WorldRejoinRequest | None:
+    request_id = str(_uuid.uuid4())
+    now = _now()
+    try:
+        conn = get_connection()
+        conn.execute(
+            """
+            INSERT INTO world_rejoin_requests (
+                id, world_id, character_id, requested_by, requester_name,
+                mode, payload, reason, status, created_at, resolved_at
+            ) VALUES (?,?,?,?,?,?,?,?,'pending',?,'')
+            """,
+            (request_id, world_id, character_id, _s(requested_by),
+             _s(requester_name), _s(mode) or "frozen", _s(payload) or "{}",
+             _s(reason), now),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM world_rejoin_requests WHERE id=?", (request_id,)
+        ).fetchone()
+        conn.close()
+        return _row_to_rejoin_request(row) if row else None
+    except Exception as e:
+        logger.error(f"Errore create_rejoin_request: {e}")
+        return None
+
+
+def get_rejoin_request(request_id: str) -> WorldRejoinRequest | None:
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT * FROM world_rejoin_requests WHERE id=?", (request_id,)
+        ).fetchone()
+        conn.close()
+        return _row_to_rejoin_request(row) if row else None
+    except Exception as e:
+        logger.error(f"Errore get_rejoin_request: {e}")
+        return None
+
+
+def get_pending_rejoin_requests(world_id: str) -> list[WorldRejoinRequest]:
+    """Non filtrata per proprietario — a differenza di
+    `get_pending_change_requests` (dove chi risponde è sempre il
+    proprietario del personaggio), qui chi risponde è il master: deve
+    vedere le richieste su QUALSIASI personaggio del mondo."""
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM world_rejoin_requests WHERE world_id=? AND status='pending' "
+            "ORDER BY created_at ASC",
+            (world_id,),
+        ).fetchall()
+        conn.close()
+        return [_row_to_rejoin_request(r) for r in rows]
+    except Exception as e:
+        logger.error(f"Errore get_pending_rejoin_requests: {e}")
+        return []
+
+
+def get_pending_rejoin_request_for_character(character_id: str) -> WorldRejoinRequest | None:
+    """Guardia anti-duplicati: al più una richiesta `pending` per personaggio
+    alla volta — usata sia dall'handler (`_handle_character_rejoin_request`)
+    sia dalla UI (per mostrare "richiesta già inviata" invece di riaprire
+    il dialogo)."""
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT * FROM world_rejoin_requests WHERE character_id=? AND status='pending' "
+            "ORDER BY created_at DESC LIMIT 1",
+            (character_id,),
+        ).fetchone()
+        conn.close()
+        return _row_to_rejoin_request(row) if row else None
+    except Exception as e:
+        logger.error(f"Errore get_pending_rejoin_request_for_character: {e}")
+        return None
+
+
+def save_replica_rejoin_request(request: WorldRejoinRequest) -> bool:
+    """Replica locale di una richiesta di rientro — stesso principio di
+    `save_replica_change_request`: scrive lo stato così com'è ricevuto
+    dall'host, `INSERT OR REPLACE` per restare idempotente a una
+    riconnessione."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO world_rejoin_requests (
+                id, world_id, character_id, requested_by, requester_name,
+                mode, payload, reason, status, created_at, resolved_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (request.id, request.world_id, request.character_id,
+             _s(request.requested_by), _s(request.requester_name),
+             _s(request.mode) or "frozen", _s(request.payload) or "{}",
+             _s(request.reason), request.status, request.created_at or _now(),
+             _s(request.resolved_at)),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore save_replica_rejoin_request: {e}")
+        return False
+
+
+def resolve_rejoin_request(request_id: str, status: str) -> bool:
+    if status not in ("accepted", "rejected", "expired"):
+        logger.error(f"resolve_rejoin_request: stato non valido {status!r}")
+        return False
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE world_rejoin_requests SET status=?, resolved_at=? WHERE id=?",
+            (status, _now(), request_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore resolve_rejoin_request: {e}")
         return False

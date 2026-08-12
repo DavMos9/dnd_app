@@ -106,17 +106,25 @@ class MasterView(ft.Column):
         self._masterable_worlds: list[World] = []
 
         self._content_area = ft.Container(expand=True, bgcolor=design.T().bg)
-        #: Riferimenti ai tre controlli di chrome persistente (selettore
-        #: mondo, Generatori Rapidi, tab bar) — salvati per poterne
-        #: nascondere/mostrare la visibilità SENZA richiamare `_build()`.
-        #: Vedi `_on_child_focus_change()` per il motivo: un `_build()`
-        #: ricostruirebbe anche `_content_area.content` da zero (nuova
-        #: istanza di `MasterEncounterListView` via `_get_tab_content()`),
-        #: perdendo lo stato interno "incontro aperto" — chiuderebbe da solo
-        #: l'incontro appena aperto dal Master.
-        self._world_selector_container: ft.Control | None = None
-        self._tools_row_container: ft.Control | None = None
+        #: Riferimenti ai due controlli di chrome persistente (pannello
+        #: strumenti — selettore mondo + Generatori Rapidi, tab bar) —
+        #: salvati per poterne nascondere/mostrare la visibilità SENZA
+        #: richiamare `_build()`. Vedi `_on_child_focus_change()` per il
+        #: motivo: un `_build()` ricostruirebbe anche `_content_area.content`
+        #: da zero (nuova istanza di `MasterEncounterListView` via
+        #: `_get_tab_content()`), perdendo lo stato interno "incontro aperto"
+        #: — chiuderebbe da solo l'incontro appena aperto dal Master.
+        self._tools_panel_container: ft.Control | None = None
         self._tab_bar_container: ft.Control | None = None
+        #: Pannello a comparsa (2026-08-07, restyle su richiesta di Davide —
+        #: vedi `_build_tools_panel()`): selettore mondo + Generatori Rapidi
+        #: raggruppati sotto un'unica intestazione sempre visibile, aperta o
+        #: chiusa a scelta. Sostituisce il precedente "nascondi Generatori
+        #: Rapidi SOLO nella tab Incontri" (Davide, sessione successiva: li
+        #: voleva di nuovo visibili ovunque, ma la parte superiore doveva
+        #: restare compatta) — collassato di default su OGNI tab, incluso
+        #: Incontri, mai più un'eccezione per una singola tab.
+        self._tools_panel_expanded: bool = False
         self._build()
 
     def did_mount(self) -> None:
@@ -196,33 +204,14 @@ class MasterView(ft.Column):
         self._content_area.content = self._get_tab_content(self.active_tab)
 
         self.controls.append(header)
-        # Selettore mondo su una riga a sé, SOTTO l'header (2026-08-06, fix
-        # della regressione sopra): infilarlo nella Row dell'header ne
-        # contendeva lo spazio col titolo, causa diretta del bug appena
-        # descritto. Su una riga propria può essere largo quanto serve senza
-        # mai mettere a rischio nient'altro — stesso principio già seguito
-        # per la barra "Generatori Rapidi" subito sotto.
-        self._world_selector_container = self._world_selector_row()
-        # "Generatori Rapidi" SOLO fuori dalla tab Incontri (fix 2026-08-07,
-        # Davide con screenshot: "troppo poco lo spazio in cui è visibile
-        # l'incontro... tutta la parte superiore con tasti ecc prende troppo
-        # spazio"). Non è un'azione nascosta (nessun tap in più da nessuna
-        # parte): quei 6 generatori (Tesoro/Oggetto Magico/Trappola/Veleni/
-        # Ambiente/Artefatti) restano SEMPRE visibili nelle altre 4 tab dove
-        # sono pertinenti — semplicemente non occupano spazio in una tab che
-        # ha già i propri pulsanti ("Genera Incontro Casuale"/"+ Nuovo
-        # Incontro") e un elenco che deve restare la parte dominante dello
-        # schermo. Nessun impatto su `_on_child_focus_change()`: quel
-        # meccanismo nasconde/mostra `_tools_row_container` quando esiste,
-        # qui semplicemente non esiste affatto per questa tab (il controllo
-        # `if ctrl is not None` lì è già a prova di `None`).
-        self._tools_row_container = (
-            self._build_tools_row() if self.active_tab != "encounters" else None
-        )
+        # Pannello strumenti (selettore mondo + Generatori Rapidi) su una
+        # riga a sé, SOTTO l'header (2026-08-06, fix di una regressione
+        # precedente: infilarlo nella Row dell'header ne contendeva lo
+        # spazio col titolo). Uniforme su OGNI tab, incluso Incontri — vedi
+        # il docstring di `_tools_panel_expanded` nel costruttore.
+        self._tools_panel_container = self._build_tools_panel()
         self._tab_bar_container = self._build_tab_bar()
-        self.controls.append(self._world_selector_container)
-        if self._tools_row_container is not None:
-            self.controls.append(self._tools_row_container)
+        self.controls.append(self._tools_panel_container)
         self.controls.append(self._tab_bar_container)
         self.controls.append(self._content_area)
 
@@ -256,14 +245,13 @@ class MasterView(ft.Column):
         finché si è concentrati sul combattimento in corso, esattamente come
         un normale drill-down a schermo intero.
 
-        Aggiorna solo la proprietà `visible` dei tre controlli già costruiti
+        Aggiorna solo la proprietà `visible` dei due controlli già costruiti
         — MAI una chiamata a `_build()`/`_get_tab_content()` qui: quella
         ricreerebbe una `MasterEncounterListView` nuova di zecca, perdendo lo
         stato "incontro aperto" che questa stessa vista figlia sta segnalando
         di avere appena impostato (richiuderebbe l'incontro da solo).
         """
-        for ctrl in (self._world_selector_container, self._tools_row_container,
-                     self._tab_bar_container):
+        for ctrl in (self._tools_panel_container, self._tab_bar_container):
             if ctrl is not None:
                 ctrl.visible = not focused
         try:
@@ -325,38 +313,31 @@ class MasterView(ft.Column):
         except RuntimeError:
             pass
 
-    def _world_selector_row(self) -> ft.Control:
-        """
-        Menu SEMPRE visibile (mai dietro un'icona aggiuntiva) per scegliere
-        quale mondo il Master sta gestendo — vedi docstring del modulo.
-        Mostra sempre "Nessun mondo" come prima opzione anche quando la
-        lista dei mondi masterabili è ancora vuota (identità non risolta, o
-        semplicemente nessun mondo posseduto): nessuna sorpresa per chi non
-        usa il Multiplayer. Riga propria (non nell'header): vedi il
-        commento in _build() sul perché.
-        """
-        options = [ft.DropdownOption(key=_NO_WORLD_KEY, text="Nessun mondo (locale)")]
-        options += [ft.DropdownOption(key=w.id, text=w.name) for w in self._masterable_worlds]
-        current = self._active_world_id if any(
-            w.id == self._active_world_id for w in self._masterable_worlds
-        ) else _NO_WORLD_KEY
-        return ft.Container(
-            padding=ft.Padding.only(left=design.Space.LG, right=design.Space.LG,
-                                    top=design.Space.SM, bottom=design.Space.XS),
-            content=ft.Dropdown(
-                label="Mondo da masterare",
-                value=current,
-                options=options,
-                dense=True,
-                expand=True,
-                leading_icon=ft.Icons.PUBLIC,
-                border_color=design.T().border, focused_border_color=design.T().primary,
-                bgcolor=design.T().surface_alt, label_style=ft.TextStyle(color=design.T().text_3, size=11),
-                border_radius=design.field_style()['border_radius'],
-                text_style=design.field_style()['text_style'],
-                on_select=self._on_world_change,
-            ),
-        )
+    def _current_world_label(self) -> str:
+        """Nome del mondo attualmente selezionato per masterare, o l'etichetta
+        della modalità locale — usato sia dal dropdown sia dalla riga di
+        riepilogo del pannello strumenti quando è chiuso."""
+        for w in self._masterable_worlds:
+            if w.id == self._active_world_id:
+                return w.name
+        return "Nessun mondo (locale)"
+
+    def _toggle_tools_panel(self, e: Any = None) -> None:
+        """Apre/chiude il pannello strumenti SENZA una `_build()` completa
+        (stesso principio di `set_mobile()`/`_on_child_focus_change()`: non
+        deve mai perdere lo stato "incontro aperto" di una eventuale
+        `MasterEncounterListView` nell'area contenuto) — ricostruisce solo
+        `self._tools_panel_container` e lo sostituisce in place."""
+        self._tools_panel_expanded = not self._tools_panel_expanded
+        new_panel = self._build_tools_panel()
+        if self._tools_panel_container is not None and self._tools_panel_container in self.controls:
+            idx = self.controls.index(self._tools_panel_container)
+            self.controls[idx] = new_panel
+        self._tools_panel_container = new_panel
+        try:
+            self.update()
+        except RuntimeError:
+            pass
 
     def _on_world_change(self, e: Any) -> None:
         new_world_id = e.control.value or _NO_WORLD_KEY
@@ -376,20 +357,81 @@ class MasterView(ft.Column):
         from ui.widgets import theme_toggle_pill
         return [theme_toggle_pill(self.theme_preference, self.on_toggle_theme)]
 
-    def _build_tools_row(self) -> ft.Container:
-        """Barra di pillole sempre visibili per i 6 generatori/riferimenti del
-        Master (2026-07-24, redesign su richiesta di Davide: il menu a tre
-        puntini/"Strumenti" nascondeva le azioni dietro un click in più — qui
-        sono tutte visibili subito). `wrap=True` sulla Row: su schermi stretti
-        (smartphone) le pillole vanno semplicemente a capo su più righe invece
-        di traboccare o restare irraggiungibili.
+    def _build_tools_panel(self) -> ft.Container:
+        """
+        Pannello a comparsa (2026-08-07, restyle su richiesta di Davide):
+        selettore mondo + Generatori Rapidi raggruppati sotto un'unica
+        intestazione sempre visibile e cliccabile — MAI un menu nascosto
+        (convenzione del progetto): l'intestazione stessa mostra sempre il
+        mondo correntemente selezionato, così l'informazione più importante
+        resta leggibile anche a pannello chiuso, e un solo tap la apre.
 
-        **Etichetta "Generatori Rapidi" (2026-08-03, segnalazione di Davide)**:
-        senza un titolo sopra, le pillole si confondevano con la tab bar
-        sottostante e non era chiaro a cosa servissero. L'icona
-        `CASINO_OUTLINED` (dado) rinforza il significato "genera qualcosa a
-        caso", coerente con le icone già usate per i tiri di dado altrove
-        nell'app."""
+        Sostituisce due controlli distinti (`_world_selector_row()` +
+        `_build_tools_row()`, prima quest'ultima nascosta SOLO nella tab
+        Incontri): Davide ha chiesto di reintrodurre i Generatori Rapidi
+        ovunque, ma di rendere comunque la parte superiore più compatta — un
+        pannello collassabile uniforme su ogni tab risolve entrambe le cose
+        insieme, senza più eccezioni per tab specifiche.
+
+        Collassato di default (`self._tools_panel_expanded`, un attributo di
+        istanza che sopravvive a `_build()`, azzerato solo alla ricreazione
+        di `MasterView` come qualunque altro stato di questa vista).
+        """
+        p = design.T()
+        header = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.TUNE, size=16, color=p.text_3),
+                    ft.Container(width=8),
+                    ft.Column(
+                        [
+                            ft.Text("STRUMENTI MASTER", size=11, weight=ft.FontWeight.BOLD,
+                                    color=p.text_3, font_family=design.Font.BODY),
+                            ft.Text(self._current_world_label(), size=12, color=p.text_2,
+                                    no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS),
+                        ],
+                        spacing=1, expand=True,
+                    ),
+                    ft.Icon(
+                        ft.Icons.EXPAND_LESS if self._tools_panel_expanded else ft.Icons.EXPAND_MORE,
+                        size=20, color=p.text_3,
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=design.Space.LG, vertical=design.Space.SM),
+            on_click=self._toggle_tools_panel,
+            ink=True,
+        )
+        if not self._tools_panel_expanded:
+            return ft.Container(
+                content=header,
+                bgcolor=p.surface_alt,
+            )
+
+        options = [ft.DropdownOption(key=_NO_WORLD_KEY, text="Nessun mondo (locale)")]
+        options += [ft.DropdownOption(key=w.id, text=w.name) for w in self._masterable_worlds]
+        current = self._active_world_id if any(
+            w.id == self._active_world_id for w in self._masterable_worlds
+        ) else _NO_WORLD_KEY
+        world_dropdown = ft.Dropdown(
+            label="Mondo da masterare",
+            value=current,
+            options=options,
+            dense=True,
+            expand=True,
+            leading_icon=ft.Icons.PUBLIC,
+            border_color=p.border, focused_border_color=p.primary,
+            bgcolor=p.surface, label_style=ft.TextStyle(color=p.text_3, size=11),
+            border_radius=design.field_style()['border_radius'],
+            text_style=design.field_style()['text_style'],
+            on_select=self._on_world_change,
+        )
+
+        # "GENERATORI RAPIDI" (2026-08-03, segnalazione di Davide: senza un
+        # titolo sopra le pillole si confondevano con la tab bar
+        # sottostante). `wrap=True` sulla Row: su schermi stretti le pillole
+        # vanno a capo invece di traboccare.
         pills = [
             self._tool_pill(ft.Icons.DIAMOND_OUTLINED, "Tesoro", self._open_treasure_dialog),
             self._tool_pill(ft.Icons.AUTO_AWESOME, "Oggetto Magico", self._open_magic_item_generator_dialog),
@@ -398,27 +440,42 @@ class MasterView(ft.Column):
             self._tool_pill(ft.Icons.FOREST_OUTLINED, "Ambiente", self._open_forest_encounters_dialog),
             self._tool_pill(ft.Icons.DIAMOND, "Artefatti", self._open_artifacts_dialog),
         ]
+
         return ft.Container(
+            bgcolor=p.surface_alt,
             content=ft.Column(
                 [
-                    ft.Row(
-                        [
-                            ft.Icon(ft.Icons.CASINO_OUTLINED, size=13, color=design.T().text_3),
-                            ft.Container(width=6),
-                            ft.Text(
-                                "GENERATORI RAPIDI", size=11, weight=ft.FontWeight.BOLD,
-                                color=design.T().text_3, font_family=design.Font.BODY,
-                            ),
-                        ],
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    header,
+                    ft.Container(
+                        padding=ft.Padding.only(left=design.Space.LG, right=design.Space.LG,
+                                                bottom=design.Space.SM),
+                        content=world_dropdown,
                     ),
-                    ft.Container(height=4),
-                    ft.Row(cast(list[ft.Control], pills), spacing=8, wrap=True),
+                    ft.Container(
+                        padding=ft.Padding.only(left=design.Space.LG, right=design.Space.LG,
+                                                bottom=design.Space.MD),
+                        content=ft.Column(
+                            [
+                                ft.Row(
+                                    [
+                                        ft.Icon(ft.Icons.CASINO_OUTLINED, size=13, color=p.text_3),
+                                        ft.Container(width=6),
+                                        ft.Text(
+                                            "GENERATORI RAPIDI", size=11, weight=ft.FontWeight.BOLD,
+                                            color=p.text_3, font_family=design.Font.BODY,
+                                        ),
+                                    ],
+                                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                ),
+                                ft.Container(height=4),
+                                ft.Row(cast(list[ft.Control], pills), spacing=8, wrap=True),
+                            ],
+                            spacing=0,
+                        ),
+                    ),
                 ],
                 spacing=0,
             ),
-            padding=ft.Padding.symmetric(horizontal=design.Space.LG,
-                                         vertical=design.Space.MD),
         )
 
     @staticmethod
@@ -641,6 +698,7 @@ class MasterView(ft.Column):
                 return MasterNotesView(
                     world_id=self._active_world_id,
                     is_mobile=self._compact_tabs,
+                    device_id=self.device_id or "",
                 )
             except ImportError:
                 return self._placeholder(

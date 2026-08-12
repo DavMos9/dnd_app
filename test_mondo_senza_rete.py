@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import os
 import sys
 import tempfile
@@ -343,10 +344,64 @@ def test_backend() -> None:
     check("l'owner non può essere espulso", not res.success)
     check("owner ancora membro", world_repo.get_member(w.id, "owner-1") is not None)
 
-    # Espulsione di un giocatore
+    # Espulsione di un giocatore CHE POSSIEDE un'istanza in questo mondo
+    # (2026-08-07, bug segnalato da Davide: "posso espellere il proprietario
+    # ma non il personaggio, che resta collegato per sempre" — l'istanza
+    # deve essere archiviata, non lasciata agganciata per sempre).
+    instance = Character(name="Fenwick", class_name="Chierico", race="Nano",
+                          level=3, hp_max=24, hp_current=24)
+    character_repo.create(instance)
+    conn = get_connection()
+    conn.execute(
+        "UPDATE characters SET world_id=?, owner_device_id=? WHERE id=?",
+        (w.id, "player-2", instance.id),
+    )
+    conn.commit()
+    conn.close()
+    check("prima dell'espulsione: l'istanza è visibile in Master",
+          any(c.id == instance.id for c in character_repo.get_master_visible_characters(w.id)))
+
     res = backend.send_command(w.id, "owner-1", perm.CMD_MEMBER_KICK, {"device_id": "player-2"})
     check("espulsione di un giocatore riuscita", res.success)
     check("giocatore espulso non più membro", world_repo.get_member(w.id, "player-2") is None)
+    check("l'evento riporta quante istanze sono state archiviate",
+          res.event is not None and json.loads(res.event.payload).get("archived_instances") == 1)
+
+    archived = character_repo.get_by_id(instance.id)
+    check("l'istanza posseduta dal membro espulso è archiviata, non eliminata",
+          archived is not None and archived.world_instance_archived is True)
+    check("dopo l'espulsione: l'istanza NON è più visibile in Master "
+          "(il bug segnalato da Davide: prima restava per sempre)",
+          not any(c.id == instance.id
+                  for c in character_repo.get_master_visible_characters(w.id)))
+    check("l'istanza resta comunque nel DB (non distruttivo)",
+          character_repo.get_by_id(instance.id) is not None)
+
+    # Idempotenza: espellere di nuovo lo stesso device_id (già non più
+    # membro) fallisce PRIMA di arrivare ad archiviare — nessun doppio conteggio.
+    res_again = backend.send_command(w.id, "owner-1", perm.CMD_MEMBER_KICK, {"device_id": "player-2"})
+    check("espellere un non-membro fallisce (membro non trovato)", not res_again.success)
+
+    # Riattivazione (2026-08-07, scelta di Davide: "riattivabile"): la rotta
+    # naturale è un nuovo `character_instance.sync` sullo stesso
+    # character_id — riscrive l'intera riga per introspezione di schema,
+    # azzerando anche `world_instance_archived` senza codice dedicato.
+    # L'export qui simula quello che arriverebbe DAL GIOCATORE (sul suo
+    # dispositivo `world_instance_archived` non è mai stato impostato,
+    # l'archiviazione avviene SOLO sulla riga dell'host) — non un export
+    # dell'istanza già archiviata su QUESTO stesso DB, che la
+    # preserverebbe inalterata a 1.
+    export_data = character_export.export_character(instance.id)
+    assert export_data is not None
+    export_data["character"]["world_instance_archived"] = 0
+    result_id = character_export.import_replica_character(export_data, instance.id, world_seq=1)
+    check("import_replica_character riesce", result_id == instance.id)
+    reactivated = character_repo.get_by_id(instance.id)
+    check("un nuovo character_instance.sync riattiva l'istanza da solo "
+          "(nessuna UI dedicata necessaria)",
+          reactivated is not None and reactivated.world_instance_archived is False)
+    check("dopo la riattivazione l'istanza torna visibile in Master",
+          any(c.id == instance.id for c in character_repo.get_master_visible_characters(w.id)))
 
     # Trasferimento di proprietà
     res = backend.send_command(w.id, "owner-1", perm.CMD_WORLD_TRANSFER_OWNERSHIP,

@@ -152,6 +152,13 @@ class Character:
     owner_device_id: str = ""       # device_id di chi possiede questo personaggio/istanza
     is_replica: bool = False        # True = l'autorità sui dati è altrove (rete, passo 4)
     world_seq: int = 0              # ultimo evento del mondo applicato a questa scheda
+    #: Espulsione dal mondo (2026-08-07): True = il proprietario è stato
+    #: espulso, l'istanza è archiviata (esclusa dalla Sezione Master) invece
+    #: di restare agganciata al mondo per sempre. Solo su un'istanza HOST
+    #: (autoritativa), mai su un personaggio locale. Vedi `_add_column` in
+    #: data/database.py per il ragionamento completo, incluso su come si
+    #: riattiva.
+    world_instance_archived: bool = False
 
 
 @dataclass
@@ -493,12 +500,24 @@ class CreatureEntry:
 @dataclass
 class GameMap:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    character_id: str = ""
+    character_id: str = ""         # '' = nessun personaggio proprietario locale
+                                    # (mappa condivisa non posseduta — Multiplayer passo 8)
     name: str = ""
     image_path: str = ""           # legacy — usare image_data
     image_data: str = ""           # immagine base64 (stessa convenzione di Character)
     annotations: str = "[]"        # JSON list di annotazioni testuali
     notes: str = ""                # testo libero associato alla mappa
+    # Mappe condivise (Multiplayer passo 8, §6.4). '' = mappa locale, non
+    # pubblicata in nessun mondo. `is_shared` conta solo se `world_id` è
+    # valorizzato.
+    world_id: str = ""
+    is_shared: bool = False
+    # Visibilità ai giocatori (2026-08-12) — distinta da `is_shared`: una
+    # mappa condivisa resta nella sezione del master anche quando
+    # `visible_to_players=False`, solo i giocatori smettono di vederla e
+    # di poterne scaricare l'immagine (§6.4, CMD_MAP_VISIBILITY). Conta
+    # solo se `is_shared` è vero.
+    visible_to_players: bool = True
     created_at: str = ""
     updated_at: str = ""
 
@@ -577,6 +596,12 @@ class MasterEncounter:
     is_archived: bool = False
     created_at: str = ""
     updated_at: str = ""
+
+    # Tracker di combattimento condiviso (Multiplayer passo 7C, §6.5).
+    # '' = incontro locale, non legato a nessun mondo. `visible_to_players`
+    # conta solo se `world_id` è valorizzato — spento di default.
+    world_id: str = ""
+    visible_to_players: bool = False
 
 
 @dataclass
@@ -730,6 +755,8 @@ class World:
                                      # ricostruire la connessione senza richiedere codice+PIN
                                      # ad ogni apertura della sezione Mondi (fix 2026-08-07)
     last_synced_seq: int = 0        # ultimo world_events.seq applicato (solo lato replica)
+    last_export_seq: int = 0        # world_events.seq al momento dell'ultimo export .dndworld
+                                     # riuscito (2026-08-12, passo 9E — promemoria di backup)
     created_at: str = ""
     updated_at: str = ""
 
@@ -795,6 +822,30 @@ class WorldChangeRequest:
     character_id: str = ""
     requested_by: str = ""        # device_id del master richiedente
     payload: str = "{}"           # JSON: {"campo": nuovo_valore, ...}
+    reason: str = ""
+    status: str = "pending"       # "pending" | "accepted" | "rejected" | "expired"
+    created_at: str = ""
+    resolved_at: str = ""
+
+
+@dataclass
+class WorldRejoinRequest:
+    """
+    Richiesta del GIOCATORE di far rientrare nel mondo un'istanza di
+    personaggio archiviata (rimossa dal master via `member.kick` o
+    `CMD_CHARACTER_INSTANCE_REMOVE`) — verso opposto di `WorldChangeRequest`
+    sopra: qui propone il giocatore, risponde il master. Non usata prima
+    del passo 6 (nessuna istanza archiviata prima che esistessero le
+    istanze/gli interventi del master), vive nello schema fin da ora insieme
+    al resto del modello mondo.
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    world_id: str = ""
+    character_id: str = ""
+    requested_by: str = ""        # device_id del proprietario del personaggio
+    requester_name: str = ""      # copiato: leggibile anche se il device cambia nome
+    mode: str = "frozen"          # "frozen" | "refresh_from_local"
+    payload: str = "{}"           # JSON: {"export": {...}} SOLO se mode="refresh_from_local"
     reason: str = ""
     status: str = "pending"       # "pending" | "accepted" | "rejected" | "expired"
     created_at: str = ""

@@ -206,6 +206,16 @@ Router principale. ThemeMode.LIGHT (tema marmo chiaro).
   `core.character_instances.create_or_resume_instance()`); un'istanza mostra invece "Aggiorna il mio foglio"
   (`_open_refresh_dialog`, riepilogo diff via `ci.preview_refresh()` + conferma → `ci.apply_refresh()`) — mai
   entrambe sulla stessa card. `_list_signature()` include ora anche `world_id`/`owner_device_id`.
+- **Sincronizzazione in background delle istanze remote** (2026-08-12, vedi `multiplayer_design.md` §9.5):
+  `_start_world_sync()`/`_stop_world_sync()` — secondo `BackgroundSyncLoop` (il primo è `_start_polling()`/
+  `_poll_loop()`, SOLO multi-scheda web sullo stesso DB, non toccato), gira su qualunque piattaforma. Ad ogni giro,
+  `_my_remote_world_ids()` trova i mondi con un'istanza propria che questo dispositivo NON ospita, poi
+  `world_sync.resolve_backend_for_world`/`sync_replica` per ciascuno. `self.backend`/`self._remote_backends` sono
+  lo stesso stato persistente (cache di connessione) di `WorldsView`. `_list_signature()` include ora anche
+  `world_instance_archived`. `_partition_characters()` ritorna una TERZA lista, `removed_from_world` (istanze con
+  `world_instance_archived=True`, es. dopo "Rimuovi dal mondo" lato master) — sezione dedicata "Rimossi dai mondi"
+  in `refresh()`, card senza "Aggiorna il mio foglio"/"Aggiungi a un mondo" (Gioca/Esporta/Elimina restano),
+  `world_id` mai azzerato.
 
 ### `ui/views/creation_wizard/manual_form.py` — `ManualCreationForm` (RISCRITTO ✅)
 **Flusso in 5 fasi** — shell identico al wizard (progress bar, `_set_content()`, `_on_back()`):
@@ -260,9 +270,23 @@ Salva via `character_repo.create()` + `_save_single_proficiency()` + `set_expert
 nero. NON usare mai `BlendMode.CLEAR` per la gomma. La cancellazione avviene modificando `_strokes` in memoria, non
 ridisegnando pixel.
 
-**Fullscreen** (`page.overlay`): stesso stack/toolbar, canvas sincronizzato con il dettaglio via `_update_all_canvases()`.
+**Fullscreen** (`page.overlay`): stack/toolbar proprio, canvas indipendente (`self._fs_canvas`, riquadro proprio
+`self._fs_box_size`) — `_update_all_canvases()` ridisegna ENTRAMBI i canvas dalla stessa `self._strokes`, ma
+ciascuno scalato al proprio riquadro (vedi sotto), non "sincronizzato" in pixel.
 
-**Persistenza**: `_strokes` serializzata come JSON in `game_maps.annotations` (colonna `TEXT`). Formato stroke: `{"type": "stroke", "color": "#hex", "width": float, "points": [[x,y], ...]}`.
+**Persistenza**: `_strokes` serializzata come JSON in `game_maps.annotations` (colonna `TEXT`). Formato stroke:
+`{"type": "stroke", "color": "#hex", "width": float, "points": [[x,y], ...]}` — **`points` sono frazioni [0,1] del
+riquadro con cui si è disegnato** (2026-08-12, non più pixel assoluti: bug corretto, "le annotazioni non si
+allineano se la mappa non è a schermo intero" — segnalato da Davide sulle mappe condivise, confermato presente
+anche qui). Normalizzazione/denormalizzazione in `ui/canvas_geometry.py` (puro, no Flet), dimensione del riquadro
+letta da `ft.Container(on_size_change=...)` — `self._detail_box_size`/`self._fs_box_size`, tracciati SEPARATAMENTE
+per pannello inline e schermo intero, mai un riquadro unico. `_redraw_canvas(canvas)` sceglie il riquadro giusto
+via `_box_size_for(canvas)`. La gomma (Tratto e Libera) denormalizza i punti dei tratti esistenti prima della
+geometria (radius/intersezioni di cerchio restano in pixel, coerenti con `self._eraser_size`) e rinormalizza il
+risultato prima di salvare — mai un mix frazioni/pixel nella stessa lista. Nessuna migrazione delle annotazioni
+già disegnate prima del fix: restano in pixel assoluti (indistinguibili a posteriori dalla dimensione con cui
+furono create), `ui/canvas_geometry.py::looks_normalized()` le riconosce per euristica (ogni punto in [0,1] = già
+normalizzato) e le lascia invariate.
 
 **Strumenti rimossi**: testo sulla mappa (rimosso — non funzionava in modo soddisfacente con Flet 0.85.3).
 

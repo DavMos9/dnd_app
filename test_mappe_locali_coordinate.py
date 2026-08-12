@@ -1,0 +1,362 @@
+"""
+Verifica del fix 2026-08-12 sulla vista Mappe LOCALI
+(`ui/views/maps_view.py::MapsView`) — Davide, dopo aver confermato il fix
+sulle mappe condivise: "il problema del disallineamento esisteva già
+anche solo per il giocatore [in locale], non me ne sono accorto prima, va
+allineato anche quello".
+
+Stesso identico bug delle mappe condivise (vedi `test_mappe_condivise_ui.py`
+parte [3b] per il fix gemello lato mondo): i tratti si salvavano in pixel
+ASSOLUTI del riquadro con cui si era disegnato — il pannello inline e lo
+schermo intero sono DUE riquadri Flet distinti, quasi mai della stessa
+dimensione, quindi lo stesso tratto appariva disallineato passando
+dall'uno all'altro. Qui però la complicazione in più è la gomma: la sua
+geometria (raggio, intersezioni di cerchio in `_split_stroke_by_circle`)
+lavora in pixel assoluti — `_erase_strokes_at`/`_erase_segments_at` ora
+denormalizzano i punti del riquadro CORRENTE prima del taglio e
+rinormalizzano il risultato subito dopo.
+
+Quattro parti:
+
+[1] Un tratto disegnato nel pannello INLINE si salva come frazione [0,1]
+    del suo riquadro, e si ridisegna correttamente scalato quando il
+    riquadro cambia dimensione (stesso principio della mappa condivisa).
+
+[2] Lo SCHERMO INTERO ha un riquadro indipendente da quello inline: lo
+    stesso tratto (stessa lista `self._strokes`, condivisa dalle due
+    viste) si ridisegna scalato alla dimensione DELLO SCHERMO INTERO, non
+    a quella (diversa) del pannello inline — è esattamente lo scenario
+    del bug segnalato.
+
+[3] Gomma "Tratto" — cancella nel punto giusto anche quando il riquadro
+    con cui si cancella ha una dimensione diversa da quello con cui si è
+    disegnato.
+
+[4] Gomma "Libera" — stessa cosa, verificando anche che il pezzo di
+    tratto rimasto dopo il taglio resti allineato (rinormalizzato)
+    correttamente.
+
+Eseguire con:
+    PYTHONPATH=".venv/lib/python3.13/site-packages:." python3 test_mappe_locali_coordinate.py
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tempfile
+
+_TMP_HOME = tempfile.mkdtemp(prefix="dnd_mappe_locali_coord_")
+os.environ["HOME"] = _TMP_HOME
+
+import flet as ft  # noqa: E402
+import flet.canvas as cv  # noqa: E402
+
+from data.database import init_db  # noqa: E402
+from data.models import Character  # noqa: E402
+from data.repositories import character_repo, maps_repo  # noqa: E402
+
+_PASS = 0
+_FAIL: list[str] = []
+
+
+def check(label: str, cond: bool) -> None:
+    global _PASS
+    if cond:
+        _PASS += 1
+    else:
+        _FAIL.append(label)
+        print(f"  FALLITO: {label}")
+
+
+def _iter_controls(root):
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        if node is None:
+            continue
+        yield node
+        content = getattr(node, "content", None)
+        if content is not None:
+            stack.append(content)
+        controls = getattr(node, "controls", None)
+        if controls:
+            stack.extend(controls)
+
+
+def _find(root, pred):
+    for node in _iter_controls(root):
+        if pred(node):
+            return node
+    return None
+
+
+class _FakeOffset:
+    def __init__(self, x: float, y: float):
+        self.x = x
+        self.y = y
+
+
+class _FakeDragEvent:
+    def __init__(self, x: float, y: float):
+        self.local_position = _FakeOffset(x, y)
+
+
+class _FakeSizeEvent:
+    def __init__(self, width: float, height: float):
+        self.width = width
+        self.height = height
+
+
+class _FakePage:
+    def __init__(self):
+        self.overlay: list = []
+
+    def update(self, *_a, **_k) -> None:
+        pass
+
+
+def _make_character() -> Character:
+    c = Character(
+        name="Locale", class_name="Guerriero", race="Umano", level=1,
+        hit_dice_type=10, hit_dice_total=1, hit_dice_remaining=1,
+        str_score=10, dex_score=10, con_score=10, int_score=10,
+        wis_score=10, cha_score=10, hp_max=10, hp_current=10,
+    )
+    character_repo.create(c)
+    return c
+
+
+def _resize_container(panel_root) -> ft.Container:
+    c = _find(panel_root, lambda n: isinstance(n, ft.Container)
+              and getattr(n, "on_size_change", None))
+    assert c is not None, "nessun Container con on_size_change trovato"
+    return c
+
+
+# ---------------------------------------------------------------------------
+# [1] Pannello inline — normalizzazione base
+# ---------------------------------------------------------------------------
+
+def test_pannello_inline_normalizza() -> None:
+    print("\n[1] Pannello inline — i punti si salvano come frazione del riquadro")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Locale")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+
+    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
+    assert gesture is not None
+    gesture.on_pan_start(_FakeDragEvent(0, 0))
+    gesture.on_pan_update(_FakeDragEvent(400, 300))
+    gesture.on_pan_end(_FakeDragEvent(400, 300))
+
+    stored = json.loads(maps_repo.get_map(gm.id).annotations)[0]["points"]
+    check("il punto (400,300) in un riquadro 400x300 si salva come (1.0, 1.0)",
+          stored == [[0.0, 0.0], [1.0, 1.0]])
+
+    canvas = mv._detail_canvas
+    assert canvas is not None
+    path = next(s for s in canvas.shapes if isinstance(s, cv.Path))
+    end = path.elements[-1]
+    check("nel riquadro 400x300 il tratto è disegnato fino a (400,300)",
+          (end.x, end.y) == (400.0, 300.0))
+
+    # Il riquadro cambia dimensione (es. la finestra viene ridimensionata,
+    # o il pannello inline è più stretto su uno smartphone) — il tratto
+    # deve seguire proporzionalmente.
+    resize.on_size_change(_FakeSizeEvent(800, 600))
+    path2 = next(s for s in canvas.shapes if isinstance(s, cv.Path))
+    end2 = path2.elements[-1]
+    check("nello stesso riquadro raddoppiato a 800x600, il tratto arriva a (800,600) — "
+          "PRIMA del fix sarebbe rimasto fermo a (400,300)",
+          (end2.x, end2.y) == (800.0, 600.0))
+
+
+# ---------------------------------------------------------------------------
+# [2] Schermo intero — riquadro indipendente da quello inline
+# ---------------------------------------------------------------------------
+
+def test_schermo_intero_riquadro_indipendente() -> None:
+    print("\n[2] Schermo intero — riquadro indipendente, stesso tratto scalato correttamente")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Locale 2")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+
+    # Disegna nel pannello inline, riquadro 400x300.
+    panel = mv.controls[-1]
+    _resize_container(panel).on_size_change(_FakeSizeEvent(400, 300))
+    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
+    gesture.on_pan_start(_FakeDragEvent(400, 0))
+    gesture.on_pan_update(_FakeDragEvent(0, 300))
+    gesture.on_pan_end(_FakeDragEvent(0, 300))
+
+    # Apre lo schermo intero — riquadro DIVERSO (es. un vero schermo,
+    # 1200x800), mai stato ridimensionato prima d'ora.
+    mv._open_fullscreen(gm)
+    check("l'overlay a schermo intero si apre", len(mv._page.overlay) == 1)
+    fs_overlay = mv._page.overlay[0]
+    fs_resize = _resize_container(fs_overlay)
+    fs_resize.on_size_change(_FakeSizeEvent(1200, 800))
+
+    fs_canvas = mv._fs_canvas
+    assert fs_canvas is not None
+    fs_path = next(s for s in fs_canvas.shapes if isinstance(s, cv.Path))
+    start, end = fs_path.elements[0], fs_path.elements[-1]
+    check("lo stesso tratto, a schermo intero 1200x800, parte da (1200,0) e arriva a (0,800) "
+          "— proporzionale al riquadro inline 400x300 con cui fu disegnato, non ancorato "
+          "ai suoi vecchi pixel assoluti",
+          (start.x, start.y) == (1200.0, 0.0) and (end.x, end.y) == (0.0, 800.0))
+
+    # Il pannello inline, riletto ORA, deve restare quello che era (i due
+    # riquadri sono indipendenti, nessuno "vince" sull'altro).
+    detail_canvas = mv._detail_canvas
+    assert detail_canvas is not None
+    detail_path = next(s for s in detail_canvas.shapes if isinstance(s, cv.Path))
+    d_start, d_end = detail_path.elements[0], detail_path.elements[-1]
+    check("il pannello inline resta scalato al SUO riquadro (400,300), non a quello "
+          "dello schermo intero",
+          (d_start.x, d_start.y) == (400.0, 0.0) and (d_end.x, d_end.y) == (0.0, 300.0))
+
+
+# ---------------------------------------------------------------------------
+# [3] Gomma "Tratto" — cancella nel punto giusto in un riquadro diverso
+# ---------------------------------------------------------------------------
+
+def test_gomma_tratto_riquadro_diverso() -> None:
+    print("\n[3] Gomma \"Tratto\" — allineata anche in un riquadro di dimensione diversa")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Locale 3")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
+
+    # Disegna un tratto verticale al centro di un riquadro 400x300.
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+    gesture.on_pan_start(_FakeDragEvent(200, 100))
+    gesture.on_pan_update(_FakeDragEvent(200, 200))
+    gesture.on_pan_end(_FakeDragEvent(200, 200))
+    check("un tratto è stato salvato", len(mv._strokes) == 1)
+
+    # Ridimensiona a 800x600 (il doppio) e passa in modalità gomma.
+    resize.on_size_change(_FakeSizeEvent(800, 600))
+    mv._draw_mode = "eraser"
+    mv._eraser_sub = "stroke"
+    mv._eraser_size = 20.0
+
+    # Il tratto ha solo 2 punti salvati (inizio/fine, un solo pan_update in
+    # fase di disegno) — riscalati al nuovo riquadro sono (400,200) e
+    # (400,400) (erano (200,100)/(200,200) nel riquadro originale). La
+    # gomma "Tratto" confronta la distanza dai punti SALVATI di ogni
+    # tratto: si cancella vicino a un endpoint riscalato, non al vecchio
+    # valore assoluto (200,150) — quello sarebbe il punto SBAGLIATO se il
+    # fix non funzionasse.
+    gesture.on_pan_start(_FakeDragEvent(400, 200))
+    gesture.on_pan_update(_FakeDragEvent(400, 200))
+    check("la gomma \"Tratto\" cancella il tratto nel punto RISCALATO corretto "
+          "(400,200 nel riquadro 800x600, non più 200,100 del riquadro originale)",
+          len(mv._strokes) == 0)
+
+
+# ---------------------------------------------------------------------------
+# [4] Gomma "Libera" — taglio e rinormalizzazione
+# ---------------------------------------------------------------------------
+
+def test_gomma_libera_rinormalizza() -> None:
+    print("\n[4] Gomma \"Libera\" — il pezzo di tratto rimasto resta allineato dopo il taglio")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Locale 4")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
+
+    # Tratto orizzontale lungo tutto un riquadro 400x300, a metà altezza.
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+    gesture.on_pan_start(_FakeDragEvent(0, 150))
+    for x in range(0, 401, 40):
+        gesture.on_pan_update(_FakeDragEvent(x, 150))
+    gesture.on_pan_end(_FakeDragEvent(400, 150))
+    check("un tratto è stato salvato", len(mv._strokes) == 1)
+
+    # Passa alla gomma libera, riquadro RADDOPPIATO (800x600): il tratto
+    # ora attraversa (0,300)-(800,300). Cancella al centro (400,300).
+    resize.on_size_change(_FakeSizeEvent(800, 600))
+    mv._draw_mode = "eraser"
+    mv._eraser_sub = "pixel"
+    mv._eraser_size = 40.0
+
+    gesture.on_pan_start(_FakeDragEvent(400, 300))
+    gesture.on_pan_update(_FakeDragEvent(400, 300))
+
+    check("il tratto è stato spezzato in due pezzi dalla cancellazione centrale",
+          len(mv._strokes) == 2)
+    for stroke in mv._strokes:
+        pts = stroke["points"]
+        check("ogni pezzo rimasto è salvato come frazione [0,1] (rinormalizzato "
+              "dopo il taglio in pixel assoluti)",
+              all(0.0 <= px <= 1.0 and 0.0 <= py <= 1.0 for px, py in pts))
+
+    # Ridisegnando allo stesso riquadro 800x600, i pezzi devono comparire
+    # correttamente ai due lati del buco (non più intorno al centro).
+    canvas = mv._detail_canvas
+    assert canvas is not None
+    xs = []
+    for shape in canvas.shapes:
+        if isinstance(shape, cv.Path):
+            xs.extend(el.x for el in shape.elements)
+    check("nessun punto disegnato ricade nel buco centrale appena tagliato (intorno a x=400)",
+          all(x <= 380 or x >= 420 for x in xs))
+
+
+def main() -> int:
+    print("=" * 62)
+    print("Mappe locali — fix coordinate 2026-08-12 (inline/schermo intero/gomma)")
+    print(f"HOME di test: {_TMP_HOME}")
+    print("=" * 62)
+    init_db()
+    test_pannello_inline_normalizza()
+    test_schermo_intero_riquadro_indipendente()
+    test_gomma_tratto_riquadro_diverso()
+    test_gomma_libera_rinormalizza()
+    print("\n" + "=" * 62)
+    print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
+    if _FAIL:
+        for f in _FAIL:
+            print(f"  - {f}")
+        return 1
+    print("Tutti i controlli passati.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -30,12 +30,14 @@ import flet as ft
 from core import dice as dice_engine
 from config.settings import ABILITY_KEYS, get_level_from_xp
 from core import world_permissions as perm
+from core import world_sync
 from core.character_stats import RollSpec, ability_abbr, ability_label
 from core.encounter_calculator import calculate_difficulty, DIFFICULTY_LABELS
 from core.world_backend import LocalBackend
 from data.game_data.game_data_loader import parse_monster_xp
 from data.models import MasterEncounter
-from data.repositories import character_repo, master_repo
+from data.repositories import character_repo, master_repo, world_repo
+from ui.components.background_sync import BackgroundSyncLoop
 from ui.components.monster_picker import (
     creature_entry_dict, load_monsters, monster_display_name,
     show_monster_picker, show_stat_block_dialog,
@@ -149,11 +151,21 @@ class MasterEncounterView(ft.Column):
         self._members: list[dict] = []  # resolved, vedi master_repo.get_encounter_members_resolved
         self._header_area = ft.Container()
         self._list_col = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+        #: Cache di connessioni `RemoteBackend` per mondo, tenuta da questa
+        #: vista sull'intera durata di un incontro aperto — stesso pattern
+        #: di `WorldsView._remote_backends`, passata a
+        #: `world_sync.resolve_backend_for_world()` nel ciclo di sync sotto.
+        self._remote_backends: dict = {}
+        self._sync_loop_obj: BackgroundSyncLoop | None = None
         self._build()
         self.refresh()
 
     def did_mount(self):
         self._page = self.page
+        self._start_sync()
+
+    def will_unmount(self):
+        self._stop_sync()
 
     # ------------------------------------------------------------------
     # Build / refresh
@@ -177,6 +189,13 @@ class MasterEncounterView(ft.Column):
 
     def refresh(self):
         self.encounter = master_repo.get_encounter_by_id(self.encounter_id)
+        # Collega l'incontro al mondo selezionato in Modalità Master, se non
+        # lo è già (Multiplayer passo 7C) — solo la prima volta: un incontro
+        # non cambia mondo dopo, stessa scelta già presa per le note di
+        # campagna (`master_campaign_notes.world_id`).
+        if self.encounter is not None and self._world_id and not self.encounter.world_id:
+            master_repo.set_encounter_world(self.encounter_id, self._world_id)
+            self.encounter = master_repo.get_encounter_by_id(self.encounter_id)
         self._members = master_repo.get_encounter_members_resolved(self.encounter_id, active_only=True)
         self._header_area.content = self._build_header()
         self._populate_list()
@@ -184,6 +203,92 @@ class MasterEncounterView(ft.Column):
             self.update()
         except RuntimeError:
             pass
+
+    # ------------------------------------------------------------------
+    # Sincronizzazione automatica in background (fix 2026-08-07, bug
+    # segnalato da Davide: "in Incontri i PF non si aggiornano da soli, il
+    # master deve prima andare in Sezione Mondi e tornare per vedere il
+    # cambiamento") — stessa infrastruttura di `WorldsView._start_detail_
+    # sync` (`ui.components.background_sync.BackgroundSyncLoop`, estratto
+    # in questa stessa sessione apposta per essere condiviso), qui con una
+    # firma di dominio diversa: non un solo mondo ma i personaggi
+    # dell'incontro corrente, che possono essere istanze di mondi diversi.
+    # `get_encounter_members_resolved()` legge già PF/CA/nome LIVE da
+    # `characters` ad ogni chiamata (mai una copia cachata): basta quindi
+    # ricalcolare la stessa firma che `refresh()` mostrerebbe e ridisegnare
+    # quando cambia, nessuna logica di "cosa scaricare" diversa da quella
+    # già in `WorldsView` per il resto.
+    # ------------------------------------------------------------------
+
+    def _start_sync(self) -> None:
+        self._stop_sync()
+        loop = BackgroundSyncLoop(
+            get_page=lambda: self._page,
+            signature_fn=self._sync_signature,
+            async_redraw_fn=self._async_sync_redraw,
+            apply_fn=self._sync_apply,
+            should_redraw_anyway_fn=self._sync_should_redraw_anyway,
+            thread_name=f"encounter-sync-{self.encounter_id[:8]}",
+        )
+        self._sync_loop_obj = loop
+        loop.start()
+
+    def _stop_sync(self) -> None:
+        if self._sync_loop_obj is not None:
+            self._sync_loop_obj.stop()
+        self._sync_loop_obj = None
+
+    def _sync_signature(self) -> str:
+        """Firma economica: cambia se cambia qualunque cosa che `refresh()`
+        mostrerebbe diversamente (PF/CA/nome di ogni combattente, round
+        corrente) — sia per un'azione di QUESTO dispositivo sia per un
+        aggiornamento arrivato da un giocatore remoto (`hp.self_update`) o
+        dall'host (danno/cura/condizione applicati da un altro master)."""
+        enc = master_repo.get_encounter_by_id(self.encounter_id)
+        round_no = enc.round_number if enc else 0
+        members = master_repo.get_encounter_members_resolved(self.encounter_id, active_only=True)
+        parts = [
+            f"{r['member'].id}:{r['hp_current']}:{r['hp_max']}:{r['ac']}:{r['name']}"
+            for r in members
+        ]
+        return f"{round_no}|" + "|".join(parts)
+
+    def _sync_apply(self) -> None:
+        """Per ogni mondo distinto tra i PG dell'incontro NON ospitato da
+        questo dispositivo, scarica gli eventi nuovi dall'host e li applica
+        alla replica locale — stesso principio di
+        `WorldsView._start_detail_sync`. Se questo dispositivo ospita il
+        mondo (il caso normale del master al tavolo), non c'è nulla da
+        scaricare: `characters` è già lo stato autoritativo."""
+        members = master_repo.get_encounter_members_resolved(self.encounter_id, active_only=True)
+        world_ids = {r["world_id"] for r in members if r.get("world_id")}
+        for world_id in world_ids:
+            world = world_repo.get_world(world_id)
+            if world is None or world.is_local_host:
+                continue
+            backend = world_sync.resolve_backend_for_world(
+                world, self._device_id or "", LocalBackend(), self._remote_backends,
+            )
+            if backend is not None:
+                world_sync.sync_replica(backend, world_id)
+
+    def _sync_should_redraw_anyway(self) -> bool:
+        """Countdown visivo sulle pillole Danno/Cura/Condizione (stesso
+        principio di `WorldsView._any_master_cooldown_active`): ridisegna
+        anche a stato invariato finché un cooldown è attivo, così i secondi
+        mostrati scendono nel tempo."""
+        members = master_repo.get_encounter_members_resolved(self.encounter_id, active_only=True)
+        return any(
+            world_sync.master_action_cooldown_remaining(r["member"].character_id) > 0
+            for r in members
+            if r.get("world_id") and r["member"].character_id
+        )
+
+    async def _async_sync_redraw(self) -> None:
+        """Eseguito sul loop asyncio della sessione (via `page.run_task()`,
+        schedulato da `BackgroundSyncLoop` dal thread di sync in
+        background) — qui, e solo qui, è sicuro toccare `self.update()`."""
+        self.refresh()
 
     def _build_header(self) -> ft.Control:
         enc = self.encounter
@@ -244,6 +349,7 @@ class MasterEncounterView(ft.Column):
                         ],
                         spacing=8, wrap=True,
                     ),
+                    self._visibility_toggle_row(enc) if self._world_id else ft.Container(height=0),
                 ],
                 spacing=8,
             ),
@@ -318,7 +424,7 @@ class MasterEncounterView(ft.Column):
                 remaining = self._pg_cooldown_remaining(m.character_id)
                 on_cd = remaining > 0
                 cd_suffix = f" ({int(remaining) + 1}s)" if on_cd else ""
-                cid, cname = m.character_id, name
+                cid, cname, wid = m.character_id, name, world_id
                 stats_row.append(ft.Row(
                     [
                         ft.IconButton(
@@ -327,7 +433,7 @@ class MasterEncounterView(ft.Column):
                             tooltip=f"Aspetta{cd_suffix}" if on_cd else "Applica danno",
                             disabled=on_cd,
                             on_click=(None if on_cd else
-                                      lambda e, i=cid, n=cname: self._open_pg_damage_dialog(i, n)),
+                                      lambda e, i=cid, n=cname, w=wid: self._open_pg_damage_dialog(i, n, w)),
                         ),
                         ft.IconButton(
                             ft.Icons.HEALING, icon_size=16,
@@ -335,7 +441,7 @@ class MasterEncounterView(ft.Column):
                             tooltip=f"Aspetta{cd_suffix}" if on_cd else "Applica cura",
                             disabled=on_cd,
                             on_click=(None if on_cd else
-                                      lambda e, i=cid, n=cname: self._open_pg_heal_dialog(i, n)),
+                                      lambda e, i=cid, n=cname, w=wid: self._open_pg_heal_dialog(i, n, w)),
                         ),
                         ft.IconButton(
                             ft.Icons.SICK, icon_size=16,
@@ -343,7 +449,7 @@ class MasterEncounterView(ft.Column):
                             tooltip=f"Aspetta{cd_suffix}" if on_cd else "Imponi condizione",
                             disabled=on_cd,
                             on_click=(None if on_cd else
-                                      lambda e, i=cid, n=cname: self._open_pg_condition_dialog(i, n)),
+                                      lambda e, i=cid, n=cname, w=wid: self._open_pg_condition_dialog(i, n, w)),
                         ),
                     ],
                     spacing=0, tight=True,
@@ -695,8 +801,78 @@ class MasterEncounterView(ft.Column):
     # Azioni header
     # ------------------------------------------------------------------
 
+    def _visibility_toggle_row(self, enc: MasterEncounter) -> ft.Control:
+        """
+        Interruttore "Visibile ai giocatori" (§6.5, passo 7C) — spento di
+        default: il master prepara l'incontro senza rivelarlo, poi lo
+        accende quando è pronto. Mostrato solo per incontri legati a un
+        mondo (`self._world_id`), mai per un incontro locale.
+        """
+        return ft.Row(
+            [
+                ft.Switch(
+                    value=enc.visible_to_players,
+                    active_color=design.T().primary,
+                    on_change=self._on_toggle_visibility,
+                ),
+                ft.Text(
+                    "Visibile ai giocatori" if enc.visible_to_players else "Nascosto ai giocatori",
+                    size=13, color=design.T().text_2,
+                ),
+            ],
+            spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    def _resolve_encounter_backend(self):
+        """Backend giusto per inviare un comando sull'incontro — `LocalBackend`
+        se questo dispositivo ospita il mondo, altrimenti un `RemoteBackend`
+        in cache (`world_sync.resolve_backend_for_world`, stesso meccanismo
+        di `WorldsView`/`master_notes_view.py`). `None` se il mondo non è
+        raggiungibile."""
+        if not self._world_id:
+            return None
+        world = world_repo.get_world(self._world_id)
+        if world is None:
+            return None
+        return world_sync.resolve_backend_for_world(
+            world, self._device_id or "", LocalBackend(), self._remote_backends,
+        )
+
+    def _on_toggle_visibility(self, e: Any):
+        if self.encounter is None or not self._world_id:
+            return
+        new_value = bool(e.control.value)
+        backend = self._resolve_encounter_backend()
+        if backend is None:
+            if self._page is not None:
+                show_snack(self._page, "Impossibile raggiungere l'host del mondo — riprova.", tone="danger")
+            self.refresh()
+            return
+        result = backend.send_command(
+            self._world_id, self._device_id or "", perm.CMD_COMBAT_TOGGLE_VISIBILITY,
+            {"encounter_id": self.encounter_id, "visible": new_value},
+            target_type="encounter", target_id=self.encounter_id,
+        )
+        if not result.success and self._page is not None:
+            show_snack(self._page, result.error or "Operazione fallita.", tone="danger")
+        self.refresh()
+
     def _on_next_turn_click(self, e: Any):
-        master_repo.advance_turn(self.encounter_id)
+        if self._world_id:
+            backend = self._resolve_encounter_backend()
+            if backend is None:
+                if self._page is not None:
+                    show_snack(self._page, "Impossibile raggiungere l'host del mondo — riprova.", tone="danger")
+                return
+            result = backend.send_command(
+                self._world_id, self._device_id or "", perm.CMD_ENCOUNTER_MANAGE,
+                {"encounter_id": self.encounter_id, "action": "next_turn"},
+                target_type="encounter", target_id=self.encounter_id,
+            )
+            if not result.success and self._page is not None:
+                show_snack(self._page, result.error or "Operazione fallita.", tone="danger")
+        else:
+            master_repo.advance_turn(self.encounter_id)
         self.refresh()
 
     def _on_end_encounter_click(self, e: Any):
@@ -705,7 +881,18 @@ class MasterEncounterView(ft.Column):
         page = self._page
 
         def _do_end(_e: Any):
-            master_repo.archive_encounter(self.encounter_id, archived=True)
+            if self._world_id:
+                backend = self._resolve_encounter_backend()
+                if backend is not None:
+                    backend.send_command(
+                        self._world_id, self._device_id or "", perm.CMD_ENCOUNTER_MANAGE,
+                        {"encounter_id": self.encounter_id, "action": "end_combat"},
+                        target_type="encounter", target_id=self.encounter_id,
+                    )
+                elif self._page is not None:
+                    show_snack(self._page, "Impossibile raggiungere l'host del mondo — riprova.", tone="danger")
+            else:
+                master_repo.archive_encounter(self.encounter_id, archived=True)
             page.pop_dialog()
             self.on_back_to_list()
 
@@ -1155,7 +1342,7 @@ class MasterEncounterView(ft.Column):
         return world_sync.master_action_cooldown_remaining(character_id)
 
     def _send_pg_remote_command(self, character_id: str, character_name: str,
-                                 kind: str, payload: dict) -> None:
+                                 world_id: str, kind: str, payload: dict) -> None:
         """
         NOTA (limite preesistente, non introdotto qui): come «Assegna PE»
         poco più sopra in questo stesso file, usa `LocalBackend()`
@@ -1166,6 +1353,11 @@ class MasterEncounterView(ft.Column):
         PE», fuori scope per questa richiesta (Davide ha chiesto Danno/
         Cura/Condizione dall'incontro, non un refactor del routing
         comandi di questa view).
+
+        `world_id`: fix 2026-08-07, vedi il docstring di
+        `_open_pg_damage_dialog` — è il world_id proprio del personaggio
+        bersaglio, MAI `self._world_id` (il mondo selezionato nel
+        dropdown di Modalità Master, che può differire).
         """
         page = self._page
         from core import world_sync
@@ -1181,7 +1373,7 @@ class MasterEncounterView(ft.Column):
             return
         world_sync.mark_master_action(character_id)
         result = LocalBackend().send_command(
-            self._world_id, self._device_id, kind, payload,
+            world_id, self._device_id, kind, payload,
             target_type="character", target_id=character_id,
         )
         if result.success:
@@ -1189,11 +1381,21 @@ class MasterEncounterView(ft.Column):
         elif page:
             show_snack(page, result.error, tone="danger")
 
-    def _open_pg_damage_dialog(self, character_id: str, character_name: str) -> None:
+    def _open_pg_damage_dialog(self, character_id: str, character_name: str,
+                                world_id: str) -> None:
         """Pulizia 2026-08-07: il dialog vive in
         `ui.components.remote_action_dialogs` (condiviso con
         `WorldsView._open_damage_dialog`, che invia la stessa identica
-        azione da "Interviene a distanza") — qui resta solo l'invio."""
+        azione da "Interviene a distanza") — qui resta solo l'invio.
+
+        `world_id` (fix 2026-08-07, bug segnalato da Davide: "mittente non
+        è membro di questo mondo" anche col giocatore presente) è il
+        world_id PROPRIO di questo personaggio, non quello selezionato nel
+        menu a tendina di Modalità Master (`self._world_id`) — possono
+        differire (es. il PG appartiene a un mondo diverso da quello
+        attualmente selezionato, o il dropdown è su "Locale"). Stesso
+        principio già corretto in `_confirm_award_xp` più sopra
+        (`p.world_id`, non `self._world_id`)."""
         page = self._page
         if page is None:
             return
@@ -1201,10 +1403,11 @@ class MasterEncounterView(ft.Column):
         show_damage_dialog(
             page, character_name,
             lambda payload: self._send_pg_remote_command(
-                character_id, character_name, perm.CMD_HP_DAMAGE, payload),
+                character_id, character_name, world_id, perm.CMD_HP_DAMAGE, payload),
         )
 
-    def _open_pg_heal_dialog(self, character_id: str, character_name: str) -> None:
+    def _open_pg_heal_dialog(self, character_id: str, character_name: str,
+                              world_id: str) -> None:
         page = self._page
         if page is None:
             return
@@ -1212,10 +1415,11 @@ class MasterEncounterView(ft.Column):
         show_heal_dialog(
             page, character_name,
             lambda payload: self._send_pg_remote_command(
-                character_id, character_name, perm.CMD_HP_HEAL, payload),
+                character_id, character_name, world_id, perm.CMD_HP_HEAL, payload),
         )
 
-    def _open_pg_condition_dialog(self, character_id: str, character_name: str) -> None:
+    def _open_pg_condition_dialog(self, character_id: str, character_name: str,
+                                   world_id: str) -> None:
         page = self._page
         if page is None:
             return
@@ -1223,7 +1427,7 @@ class MasterEncounterView(ft.Column):
         show_condition_dialog(
             page, character_name,
             lambda payload: self._send_pg_remote_command(
-                character_id, character_name, perm.CMD_CONDITION_APPLY, payload),
+                character_id, character_name, world_id, perm.CMD_CONDITION_APPLY, payload),
         )
 
     def _on_edit_initiative(self, member):

@@ -117,6 +117,7 @@ def _row_to_character(row) -> Character:
         owner_device_id=d.get("owner_device_id", "") or "",
         is_replica=bool(d.get("is_replica", 0) or 0),
         world_seq=d.get("world_seq", 0) or 0,
+        world_instance_archived=bool(d.get("world_instance_archived", 0) or 0),
     )
 
 
@@ -131,6 +132,30 @@ def get_all() -> list[Character]:
         return [_row_to_character(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore nel recupero personaggi: {e}")
+        return []
+
+
+def get_all_instances_of_world(world_id: str) -> list[Character]:
+    """
+    TUTTE le istanze di `world_id`, comprese quelle archiviate — a
+    differenza di `get_master_visible_characters()` sotto, che filtra
+    `world_instance_archived=0` per la Sezione Master (2026-08-12,
+    "Esportazione del mondo" §6.3/§9D: un backup/trasferimento di campagna
+    deve portare con sé anche le istanze rimosse, non solo quelle attive —
+    altrimenti un'espulsione o una rimozione singola diventerebbe
+    silenziosamente definitiva al primo export/import, contraddicendo la
+    scelta esplicita di non cancellarle mai).
+    """
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM characters WHERE world_id = ? ORDER BY updated_at DESC",
+            (world_id,),
+        ).fetchall()
+        conn.close()
+        return [_row_to_character(r) for r in rows]
+    except Exception as e:
+        logger.error(f"Errore get_all_instances_of_world({world_id!r}): {e}")
         return []
 
 
@@ -159,8 +184,14 @@ def get_master_visible_characters(world_id: str = "") -> list[Character]:
     try:
         conn = get_connection()
         if world_id:
+            # world_instance_archived (2026-08-07, §7): un'istanza il cui
+            # proprietario è stato espulso dal mondo resta nel DB (non
+            # distruttivo, riattivabile — vedi `archive_world_instances()`)
+            # ma sparisce dalla Sezione Master, che è esattamente il
+            # problema segnalato da Davide ("resta collegato per sempre").
             rows = conn.execute(
-                "SELECT * FROM characters WHERE world_id = ? ORDER BY updated_at DESC",
+                "SELECT * FROM characters WHERE world_id = ? AND world_instance_archived = 0 "
+                "ORDER BY updated_at DESC",
                 (world_id,),
             ).fetchall()
         else:
@@ -220,6 +251,7 @@ def create(character: Character) -> bool:
                 personality_traits, ideals, bonds, flaws,
                 backstory, allies_organizations, additional_traits, appearance_notes,
                 world_id, origin_character_id, owner_device_id, is_replica, world_seq,
+                world_instance_archived,
                 created_at, updated_at
             ) VALUES (
                 :id, :name, :player_name, :class_name, :subclass, :level,
@@ -241,6 +273,7 @@ def create(character: Character) -> bool:
                 :personality_traits, :ideals, :bonds, :flaws,
                 :backstory, :allies_organizations, :additional_traits, :appearance_notes,
                 :world_id, :origin_character_id, :owner_device_id, :is_replica, :world_seq,
+                :world_instance_archived,
                 :created_at, :updated_at
             )
         """, {
@@ -327,6 +360,7 @@ def create(character: Character) -> bool:
             "owner_device_id": _s(character.owner_device_id),
             "is_replica": int(character.is_replica),
             "world_seq": character.world_seq,
+            "world_instance_archived": int(character.world_instance_archived),
             "created_at": character.created_at,
             "updated_at": character.updated_at,
         })
@@ -413,6 +447,7 @@ def update(character: Character) -> bool:
                 owner_device_id=:owner_device_id,
                 is_replica=:is_replica,
                 world_seq=:world_seq,
+                world_instance_archived=:world_instance_archived,
                 updated_at=:updated_at
             WHERE id=:id
         """, {
@@ -487,6 +522,7 @@ def update(character: Character) -> bool:
             "owner_device_id": _s(character.owner_device_id),
             "is_replica": int(character.is_replica),
             "world_seq": character.world_seq,
+            "world_instance_archived": int(character.world_instance_archived),
             "updated_at": character.updated_at,
         })
         conn.commit()
@@ -494,6 +530,104 @@ def update(character: Character) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore nell'aggiornamento del personaggio {character.id}: {e}")
+        return False
+
+
+def archive_world_instances(world_id: str, owner_device_id: str) -> int:
+    """
+    Archivia (2026-08-07, §7 — vedi `_add_column` in `data/database.py` per
+    il ragionamento completo) tutte le istanze di `world_id` possedute da
+    `owner_device_id` — chiamata da `core.world_backend._handle_member_kick`
+    subito dopo l'espulsione del membro, sull'HOST (autoritativo): NON
+    tocca personaggi locali (`world_id == ''` non può mai comparire nel
+    filtro) né istanze di altri proprietari.
+
+    Ritorna il numero di righe realmente archiviate (0 se il membro
+    espulso non possedeva alcuna istanza in questo mondo, il caso più
+    comune — un giocatore "solo spettatore" o il cui personaggio non è
+    ancora mai stato creato in quel mondo).
+
+    Riattivabile SOLO tramite una richiesta di rientro approvata dal master
+    (2026-08-12, `unarchive_world_instance()` sotto — chiamata unicamente da
+    `core/world_backend.py::_handle_character_rejoin_respond`) — MAI in
+    automatico al resync: un commento precedente di questa funzione
+    affermava il contrario, ma nessun punto del codice lo ha mai
+    implementato davvero (verificato con grep sull'intero repo).
+    """
+    try:
+        conn = get_connection()
+        cur = conn.execute(
+            """UPDATE characters SET world_instance_archived=1, updated_at=?
+               WHERE world_id=? AND owner_device_id=? AND world_instance_archived=0""",
+            (datetime.now().isoformat(), world_id, owner_device_id),
+        )
+        conn.commit()
+        conn.close()
+        return cur.rowcount
+    except Exception as e:
+        logger.error(f"Errore archive_world_instances: {e}")
+        return 0
+
+
+def archive_world_instance(world_id: str, character_id: str) -> bool:
+    """
+    Archivia UNA singola istanza di personaggio in un mondo (2026-08-12,
+    `CMD_CHARACTER_INSTANCE_REMOVE`) — a differenza di
+    `archive_world_instances` sopra (tutte le istanze di un dispositivo,
+    chiamata dopo l'espulsione del membro), questa la usa il master per
+    rimuovere UN personaggio dal mondo mentre il suo giocatore resta
+    membro (es. morte permanente, doppione). Stessa non-distruttività
+    già decisa con Davide per l'espulsione: mai `character_repo.delete()`,
+    la riga resta nel DB — riattivabile SOLO tramite una richiesta di
+    rientro approvata dal master (2026-08-12, vedi `unarchive_world_instance()`
+    sotto), esattamente come un'istanza archiviata da un kick, mai in
+    automatico.
+
+    Ritorna False se il personaggio non esiste o non appartiene a questo
+    mondo (fail-closed, stesso principio dell'handler che la chiama).
+    """
+    character = get_by_id(character_id)
+    if character is None or character.world_id != world_id:
+        return False
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET world_instance_archived=1, updated_at=? WHERE id=?",
+            (datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore archive_world_instance({character_id}): {e}")
+        return False
+
+
+def unarchive_world_instance(character_id: str) -> bool:
+    """
+    Toglie l'archiviazione di UN'istanza (2026-08-12, "Richiesta di
+    rientro") — controparte di `archive_world_instance()` sopra. Unico
+    punto del codice che scrive `world_instance_archived=0`: chiamato
+    SOLO da `core/world_backend.py::_handle_character_rejoin_respond`
+    quando il master accetta con `mode="frozen"` (per `mode=
+    "refresh_from_local"` la riattivazione è parte della stessa scrittura
+    di `character_export.import_character_data_as_world_refresh`, mai qui).
+
+    Nessuna verifica di appartenenza al mondo qui dentro (il chiamante l'ha
+    già fatta risolvendo `request.character_id` a un personaggio di questo
+    mondo) — stessa scelta di `archive_world_instance`.
+    """
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET world_instance_archived=0, updated_at=? WHERE id=?",
+            (datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Errore unarchive_world_instance({character_id}): {e}")
         return False
 
 

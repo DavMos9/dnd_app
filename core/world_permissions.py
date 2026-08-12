@@ -75,17 +75,51 @@ CMD_DICE_REQUEST = "dice.request"
 CMD_ENCOUNTER_MANAGE = "encounter.manage"
 CMD_MAP_PUBLISH = "map.publish"
 CMD_MAP_DRAW = "map.draw"
+#: Carica una mappa nuova direttamente nel mondo (2026-08-12) — stesso
+#: risultato finale di `CMD_MAP_PUBLISH` (una riga condivisa senza
+#: personaggio proprietario), ma senza passare da una mappa personale
+#: preesistente: il master sceglie subito un'immagine dal proprio
+#: dispositivo. Vedi `maps_repo.create_shared_map`.
+CMD_MAP_UPLOAD = "map.upload"
+#: Mostra/nasconde una mappa condivisa ai giocatori (2026-08-12) —
+#: DISTINTO dall'eliminazione (`CMD_MAP_DELETE`): la mappa resta
+#: nell'elenco del master in entrambi i casi, solo la visibilità per i
+#: giocatori cambia. Vedi `maps_repo.set_map_visibility`.
+CMD_MAP_VISIBILITY = "map.visibility"
+#: Elimina definitivamente una mappa condivisa (2026-08-12) — l'unico modo
+#: per farla sparire anche dall'elenco del master; la mappa personale di
+#: origine (se pubblicata per clonazione) non è mai toccata.
+CMD_MAP_DELETE = "map.delete"
 CMD_NOTE_SHARE = "note.share"
 CMD_COMBAT_TOGGLE_VISIBILITY = "combat.toggle_visibility"
 CMD_CHANGE_REQUEST_PROPOSE = "change_request.propose"
+#: Rimuove un'istanza di personaggio da un mondo (2026-08-12) — DISTINTA
+#: dall'espulsione di un membro (`CMD_MEMBER_KICK`, che archivia TUTTE le
+#: istanze del dispositivo espulso): qui il master rimuove UN singolo
+#: personaggio mentre il suo giocatore resta membro del mondo (es. un
+#: personaggio morto in modo permanente, o un doppione). Stessa
+#: archiviazione non distruttiva già in uso per l'espulsione — mai una
+#: cancellazione vera, vedi `character_repo.archive_world_instance`.
+CMD_CHARACTER_INSTANCE_REMOVE = "character_instance.remove"
+
+#: Risponde (accetta/rifiuta) a una richiesta di rientro di un personaggio
+#: archiviato (2026-08-12, "Richiesta di rientro" — vedi
+#: `CMD_CHARACTER_REJOIN_REQUEST` sotto, in `PLAYER_OWNED_COMMANDS`, per il
+#: verso opposto). Master/owner soltanto: è la controparte esatta di
+#: `CMD_CHANGE_REQUEST_RESPOND` ma con i ruoli invertiti — lì il giocatore
+#: risponde a una proposta del master, qui il master risponde a una
+#: richiesta del giocatore.
+CMD_CHARACTER_REJOIN_RESPOND = "character_rejoin.respond"
 
 MASTER_AND_OWNER_COMMANDS: frozenset[str] = frozenset({
     CMD_XP_GRANT, CMD_LOOT_ASSIGN, CMD_HP_DAMAGE, CMD_HP_HEAL,
     CMD_CONDITION_APPLY, CMD_CONDITION_REMOVE, CMD_RESOURCE_CONSUME,
     CMD_RESOURCE_RESTORE, CMD_CUSTOM_ABILITY_GRANT, CMD_BONUS_SPELL_GRANT,
     CMD_DIARY_ADD_ENTRY, CMD_DICE_REQUEST, CMD_ENCOUNTER_MANAGE,
-    CMD_MAP_PUBLISH, CMD_MAP_DRAW, CMD_NOTE_SHARE,
+    CMD_MAP_PUBLISH, CMD_MAP_DRAW, CMD_MAP_UPLOAD, CMD_MAP_VISIBILITY,
+    CMD_MAP_DELETE, CMD_NOTE_SHARE,
     CMD_COMBAT_TOGGLE_VISIBILITY, CMD_CHANGE_REQUEST_PROPOSE,
+    CMD_CHARACTER_INSTANCE_REMOVE, CMD_CHARACTER_REJOIN_RESPOND,
 })
 
 # ---------------------------------------------------------------------------
@@ -128,10 +162,38 @@ CMD_HP_SELF_UPDATE = "hp.self_update"
 #: payload esportato invece che da `_resolve_world_character()`.
 CMD_CHARACTER_INSTANCE_SYNC = "character_instance.sync"
 
+#: Estensione graduale di `CMD_HP_SELF_UPDATE` ad altri campi della scheda
+#: (2026-08-07, richiesta di Davide dopo aver segnalato che "la scheda che
+#: ha il giocatore deve essere completamente sincronizzata con i dati che
+#: ha il master" — scelta tra le alternative proposte: "estendi
+#: gradualmente hp.self_update ad altri campi... ognuno un comando
+#: auditabile nel Registro", non un unico comando "sincronizza tutto").
+#: Le condizioni sono il primo campo: hanno già un'azione locale sulla
+#: propria scheda (`CombattimentoTab._open_condition_picker`/
+#: `_on_condition_click`, mai sincronizzata finora) e un analogo lato
+#: master già esistente (`CMD_CONDITION_APPLY`/`CMD_CONDITION_REMOVE`) da
+#: cui questi due comandi ereditano la logica di applicazione — cambia
+#: solo la verifica di proprietà, identica a `CMD_HP_SELF_UPDATE`.
+CMD_CONDITION_SELF_APPLY = "condition.self_apply"
+CMD_CONDITION_SELF_REMOVE = "condition.self_remove"
+
+#: Richiede il rientro nel mondo di UNA propria istanza archiviata
+#: (2026-08-12, "Richiesta di rientro"). Ruolo minimo `player`, proprietà
+#: verificata come gli altri comandi di questo gruppo — un giocatore può
+#: richiedere il rientro SOLO di un personaggio di cui è proprietario. A
+#: differenza di `CMD_CHARACTER_INSTANCE_SYNC` non crea/scrive mai
+#: direttamente il personaggio: crea solo una richiesta pendente, l'unico
+#: comando che tocca davvero `world_instance_archived` è la risposta del
+#: master, `CMD_CHARACTER_REJOIN_RESPOND` sopra.
+CMD_CHARACTER_REJOIN_REQUEST = "character_rejoin.request"
+
 PLAYER_OWNED_COMMANDS: frozenset[str] = frozenset({
     CMD_CHANGE_REQUEST_RESPOND,
     CMD_CHARACTER_INSTANCE_SYNC,
     CMD_HP_SELF_UPDATE,
+    CMD_CONDITION_SELF_APPLY,
+    CMD_CONDITION_SELF_REMOVE,
+    CMD_CHARACTER_REJOIN_REQUEST,
 })
 
 #: Ogni comando conosciuto -> ruolo minimo richiesto per inviarlo.
@@ -171,6 +233,23 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
     # caso "non sono il proprietario, l'host risponde 403" (nessuna
     # scrittura, non un errore) — nessuna logica nuova da aggiungere lì.
     CMD_CHARACTER_INSTANCE_SYNC,
+    # Stesso principio di CMD_HP_SELF_UPDATE (fix 2026-08-07, estensione
+    # graduale): un terzo dispositivo deve rimaterializzare il personaggio
+    # quando vede uno di questi due eventi nel giornale.
+    CMD_CONDITION_SELF_APPLY,
+    CMD_CONDITION_SELF_REMOVE,
+    # 2026-08-12: la rimozione di un'istanza tocca `world_instance_archived`
+    # sulla riga `characters` — la replica del proprietario (se non è
+    # l'host) deve rifletterlo come qualunque altra mutazione del
+    # personaggio, stesso principio di tutte le voci sopra.
+    CMD_CHARACTER_INSTANCE_REMOVE,
+    # 2026-08-12: l'accettazione di una richiesta di rientro toglie
+    # l'archiviazione (e, con `mode="refresh_from_local"`, sovrascrive
+    # anche il contenuto) — stesso principio di CMD_CHARACTER_INSTANCE_REMOVE,
+    # verso opposto. CMD_CHARACTER_REJOIN_REQUEST NON è qui: crea solo una
+    # richiesta pendente, non muta mai il personaggio (stesso motivo per cui
+    # CMD_CHANGE_REQUEST_PROPOSE non c'è).
+    CMD_CHARACTER_REJOIN_RESPOND,
 })
 
 # ---------------------------------------------------------------------------
@@ -211,6 +290,16 @@ NETWORK_REQUEST_COOLDOWN_S = 10.0
 #: percepita dall'utente da minimizzare (è tutto in background).
 HP_SELF_UPDATE_COOLDOWN_S = 1.5
 
+#: Cooldown per `CMD_CONDITION_SELF_APPLY`/`CMD_CONDITION_SELF_REMOVE`
+#: (2026-08-07, estensione graduale di hp.self_update). A differenza dei PF
+#: (un valore continuo che cambia con ogni click +/-, da debounciare) una
+#: condizione è già un'azione discreta e deliberata (un dialog di conferma):
+#: qui il cooldown è solo difesa in profondità contro un click ripetuto
+#: rapido, non un debounce — stesso valore di HP_SELF_UPDATE_COOLDOWN_S per
+#: coerenza, nessuna attesa percepita da minimizzare (l'invio resta in
+#: background, mai bloccante sull'azione locale).
+CONDITION_SELF_UPDATE_COOLDOWN_S = 1.5
+
 #: Le azioni di "Interviene a distanza" (§7) mostrate come pillole in
 #: `ui/views/world/world_view.py::_remote_character_row` — un sottoinsieme
 #: esplicito di `MASTER_AND_OWNER_COMMANDS`, che include anche comandi
@@ -221,7 +310,7 @@ HP_SELF_UPDATE_COOLDOWN_S = 1.5
 MASTER_REMOTE_ACTION_COMMANDS: frozenset[str] = frozenset({
     CMD_XP_GRANT, CMD_HP_DAMAGE, CMD_HP_HEAL, CMD_CONDITION_APPLY, CMD_CONDITION_REMOVE,
     CMD_CUSTOM_ABILITY_GRANT, CMD_BONUS_SPELL_GRANT, CMD_DIARY_ADD_ENTRY,
-    CMD_CHANGE_REQUEST_PROPOSE,
+    CMD_CHANGE_REQUEST_PROPOSE, CMD_CHARACTER_REJOIN_RESPOND,
 })
 
 

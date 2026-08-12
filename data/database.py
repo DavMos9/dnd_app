@@ -335,6 +335,23 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "characters", "owner_device_id",     "TEXT DEFAULT ''")
     _add_column(cur, "characters", "is_replica",          "INTEGER DEFAULT 0")
     _add_column(cur, "characters", "world_seq",           "INTEGER DEFAULT 0")
+    # Espulsione da un mondo (2026-08-07, bug segnalato da Davide: "posso
+    # espellere il proprietario ma non il personaggio, che resta collegato
+    # per sempre" — `member.kick` toglieva solo la riga in `world_members`,
+    # mai le istanze possedute da quel device, che restavano visibili per
+    # sempre nella Sezione Master). Scelta di Davide tra le alternative
+    # proposte: "disattiva/archivia, non distruttivo, riattivabile" — non
+    # una colonna booleana di sola cancellazione logica generica, ma
+    # specifica per questo caso (un'istanza locale non la usa mai:
+    # `_handle_member_kick` in `core/world_backend.py` è l'unico punto di
+    # scrittura). Riattivazione: nessuna UI dedicata in questo giro — la
+    # rotta di rientro naturale è già la "Riprendi" esistente (§6): un
+    # nuovo giro di `character_instance.sync` sullo stesso `character_id`
+    # riscrive l'intera riga per introspezione di schema
+    # (`character_export.import_replica_character`), azzerando anche
+    # questa colonna senza bisogno di codice dedicato — vedi
+    # `docs/changelog_storico.md` per il ragionamento completo.
+    _add_column(cur, "characters", "world_instance_archived", "INTEGER DEFAULT 0")
     # Modalità Master world-scoped (2026-08-06, fix bug segnalato da Davide:
     # "il player entrato in un mondo appare duplicato" / "in Master escono i
     # personaggi di ogni mondo mescolati" — causa: nessun picker personaggi
@@ -364,6 +381,50 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # significativa solo lato replica (`is_local_host=0`), vuota sull'host.
     _add_column(cur, "worlds", "session_token", "TEXT DEFAULT ''")
 
+    # Tracker di combattimento condiviso (Multiplayer passo 7C, §6.5): un
+    # incontro può appartenere a un mondo (`world_id`, popolato quando lo
+    # si apre/crea da Modalità Master con un mondo selezionato) e il master
+    # decide se i giocatori lo vedono (`visible_to_players`, spento di
+    # default — può preparare l'incontro senza rivelarlo prima del tempo).
+    _add_column(cur, "master_encounters", "world_id", "TEXT DEFAULT ''")
+    _add_column(cur, "master_encounters", "visible_to_players", "INTEGER DEFAULT 0")
+    # Istantanea JSON dei membri risolti (nome/CA/PF/iniziativa/source), MAI
+    # popolata sull'host (che legge sempre `master_encounter_members` dal
+    # vivo) — solo su una REPLICA, scritta da
+    # `master_repo.replica_upsert_encounter_snapshot()` quando arriva un
+    # evento `encounter.manage`/`combat.toggle_visibility`. Deliberatamente
+    # non si scrivono righe finte in `master_encounter_members`: su una
+    # replica gli id di `master_npcs`/`characters` referenziati da un
+    # membro npc/adhoc potrebbero non esistere affatto su questo
+    # dispositivo, quindi niente FK da rispettare — un blob JSON è la
+    # forma più semplice e corretta per uno specchio di sola lettura.
+    _add_column(cur, "master_encounters", "replica_members_json", "TEXT DEFAULT '[]'")
+
+    # Mappe condivise (Multiplayer passo 8, §6.4): quali mappe il master ha
+    # "pubblicato" in un mondo. `character_id` deve poter essere NULL per
+    # una mappa condivisa che non è posseduta localmente (il dispositivo di
+    # un giocatore che non l'ha creata) — vedi
+    # `_migrate_game_maps_nullable_character_id()` sotto per la migrazione
+    # delle righe esistenti (decisione presa con Davide: rendere
+    # `character_id` nullable, non un personaggio segnaposto né mappe
+    # condivise "solo live").
+    _add_column(cur, "game_maps", "world_id", "TEXT DEFAULT ''")
+    _add_column(cur, "game_maps", "is_shared", "INTEGER DEFAULT 0")
+    _migrate_game_maps_nullable_character_id(cur)
+    # Visibilità ai giocatori (2026-08-12, distinta da `is_shared`: una
+    # mappa condivisa resta nell'elenco del master anche quando nascosta —
+    # solo i giocatori smettono di vederla, vedi CMD_MAP_VISIBILITY).
+    _add_column(cur, "game_maps", "visible_to_players", "INTEGER DEFAULT 1")
+
+    # Promemoria di backup del mondo (2026-08-12, passo 9E — vedi
+    # `dnd_app/docs/multiplayer_design.md` §6.3): `world_events.seq` del
+    # mondo al momento dell'ultimo export riuscito, aggiornato da
+    # `world_repo.mark_world_exported()`. La UI (`ui/views/world/world_view.py`
+    # ::`_backup_section`) confronta questo valore con il `seq` più recente
+    # per decidere se mostrare l'avviso "sono successe N cose dall'ultimo
+    # backup" — soglia decisa con Davide (20 eventi), non a tavolino.
+    _add_column(cur, "worlds", "last_export_seq", "INTEGER DEFAULT 0")
+
 
 def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
     """Aggiunge una colonna a una tabella se non esiste già."""
@@ -372,6 +433,61 @@ def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -
         logger.info("Migrazione: aggiunta colonna %s.%s", table, column)
     except sqlite3.OperationalError:
         pass  # colonna già esistente
+
+
+def _migrate_game_maps_nullable_character_id(cur: sqlite3.Cursor) -> None:
+    """
+    Ricostruzione della tabella `game_maps` per rendere `character_id`
+    nullable — Multiplayer passo 8 (§6.4), decisione presa con Davide: una
+    mappa condivisa non ha un personaggio proprietario sul dispositivo di
+    un giocatore che non l'ha creata, ma la colonna era `NOT NULL
+    REFERENCES characters(id) ON DELETE CASCADE`.
+
+    SQLite non permette di rilassare un vincolo NOT NULL/FK con `ALTER
+    TABLE` — serve ricreare la tabella. Prima migrazione di questo tipo nel
+    progetto (finora solo colonne additive via `_add_column`, idempotenti):
+    guardata da `PRAGMA table_info` — procede SOLO se la colonna esiste
+    ancora con `notnull=1`, quindi è a sua volta idempotente (un DB già
+    migrato, o creato da zero con lo schema nuovo di `_create_tables()`,
+    fa un no-op immediato). Le colonne da copiare sono lette dinamicamente
+    con lo stesso principio di `character_export._table_columns` — mai un
+    elenco scritto a mano che potrebbe disallinearsi dallo schema reale.
+    """
+    info = cur.execute("PRAGMA table_info(game_maps)").fetchall()
+    if not info:
+        return  # tabella non ancora creata (converrà già nulla character_id da _create_tables)
+    character_id_col = next((c for c in info if c[1] == "character_id"), None)
+    if character_id_col is None or character_id_col[3] == 0:
+        return  # colonna assente, o già nullable — niente da fare
+    columns = [c[1] for c in info]
+    col_list = ", ".join(columns)
+    try:
+        cur.execute("PRAGMA foreign_keys=OFF")
+        cur.execute("""
+            CREATE TABLE game_maps_new (
+                id           TEXT PRIMARY KEY,
+                character_id TEXT REFERENCES characters(id) ON DELETE CASCADE,
+                name         TEXT NOT NULL DEFAULT '',
+                image_path   TEXT NOT NULL DEFAULT '',
+                image_data   TEXT DEFAULT '',
+                annotations  TEXT NOT NULL DEFAULT '[]',
+                notes        TEXT DEFAULT '',
+                world_id     TEXT DEFAULT '',
+                is_shared    INTEGER DEFAULT 0,
+                visible_to_players INTEGER DEFAULT 1,
+                created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        cur.execute(f"INSERT INTO game_maps_new ({col_list}) SELECT {col_list} FROM game_maps")
+        cur.execute("DROP TABLE game_maps")
+        cur.execute("ALTER TABLE game_maps_new RENAME TO game_maps")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_maps_character ON game_maps(character_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_maps_world ON game_maps(world_id)")
+        cur.execute("PRAGMA foreign_keys=ON")
+        logger.info("Migrazione: game_maps.character_id reso nullable (mappe condivise, passo 8)")
+    except sqlite3.OperationalError as e:
+        logger.error("Migrazione game_maps (character_id nullable) fallita: %s", e)
 
 
 def _create_tables(conn: sqlite3.Connection) -> None:
@@ -595,10 +711,15 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE TABLE IF NOT EXISTS game_maps (
             id           TEXT PRIMARY KEY,
-            character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+            character_id TEXT REFERENCES characters(id) ON DELETE CASCADE,
             name         TEXT NOT NULL DEFAULT '',
             image_path   TEXT NOT NULL DEFAULT '',
+            image_data   TEXT DEFAULT '',
             annotations  TEXT NOT NULL DEFAULT '[]',
+            notes        TEXT DEFAULT '',
+            world_id     TEXT DEFAULT '',
+            is_shared    INTEGER DEFAULT 0,
+            visible_to_players INTEGER DEFAULT 1,
             created_at   TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
         )
@@ -1022,4 +1143,36 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_world_change_requests_world_status
         ON world_change_requests(world_id, status)
+    """)
+
+    # Richieste del GIOCATORE di far rientrare nel mondo un'istanza
+    # archiviata (2026-08-12, gap trovato analizzando l'espulsione/rimozione:
+    # nessun punto del codice riattivava mai davvero un'istanza archiviata,
+    # nonostante alcuni commenti/testi UI lo dessero per scontato — vedi
+    # `character_repo.unarchive_world_instance`). Verso OPPOSTO a
+    # `world_change_requests` sopra (lì propone il master, risponde il
+    # giocatore; qui propone il giocatore, risponde il master), quindi
+    # tabella dedicata invece di sovraccaricare quella. `mode` distingue
+    # "riprendi lo stato con cui fu rimossa" da "aggiorna al contenuto
+    # attuale della scheda locale di origine" (`payload` porta l'export
+    # integrale solo nel secondo caso — vedi `core/world_backend.py::
+    # _handle_character_rejoin_request`).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS world_rejoin_requests (
+            id             TEXT PRIMARY KEY,
+            world_id       TEXT NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
+            character_id   TEXT NOT NULL,
+            requested_by   TEXT NOT NULL,
+            requester_name TEXT NOT NULL DEFAULT '',
+            mode           TEXT NOT NULL DEFAULT 'frozen',
+            payload        TEXT NOT NULL DEFAULT '{}',
+            reason         TEXT NOT NULL DEFAULT '',
+            status         TEXT NOT NULL DEFAULT 'pending',
+            created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            resolved_at    TEXT NOT NULL DEFAULT ''
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_world_rejoin_requests_world_status
+        ON world_rejoin_requests(world_id, status)
     """)

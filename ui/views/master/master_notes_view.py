@@ -18,14 +18,18 @@ per `actions=`, `Any` per gli handler):
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, cast
 
 import flet as ft
 
+from core import world_permissions as perm
+from core import world_sync
+from core.world_backend import LocalBackend
 from data.models import MasterCampaignNote, MasterNpc, WorldMember
 from data.repositories import master_repo, world_repo
-from ui.widgets import wrap_dialog_actions, responsive_dialog_width
+from ui.widgets import wrap_dialog_actions, responsive_dialog_width, show_snack
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -168,10 +172,16 @@ class MasterNotesView(ft.Column):
     (56px orizzontali) resta invariato su schermi larghi, dove è
     un'intenzione estetica valida, e si riduce solo sotto il breakpoint."""
 
-    def __init__(self, world_id: str = "", is_mobile: bool = False):
+    def __init__(self, world_id: str = "", is_mobile: bool = False, device_id: str = ""):
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
         self._world_id = world_id
+        self._device_id = device_id
+        #: Cache di `RemoteBackend` per mondo (stesso pattern di
+        #: `WorldsView._remote_backends`/`MasterEncounterView._remote_backends`),
+        #: usata da `_send_note_share_command()` per raggiungere l'host
+        #: anche quando questo dispositivo non lo ospita.
+        self._remote_backends: dict = {}
         self._is_mobile = is_mobile
         #: Solo rilevante se `_is_mobile`: quale dei due pannelli mostrare
         #: (False = categorie+lista, True = dettaglio nota). Ignorato su
@@ -854,17 +864,61 @@ class MasterNotesView(ft.Column):
         self._note_edit = False
         self._update_detail()
 
+    def _send_note_share_command(self, payload: dict) -> bool:
+        """
+        Invia `CMD_NOTE_SHARE` per il mondo attivo — risolve l'host giusto
+        (`LocalBackend` se questo dispositivo ospita, altrimenti un
+        `RemoteBackend` in cache, stesso meccanismo già usato da
+        `WorldsView`/`MasterEncounterView`) invece di scrivere direttamente
+        su `master_repo`: è l'unico modo per cui condividere/aggiornare una
+        nota finisce nel registro (§6.2, "cambiare la visibilità è
+        un'azione registrata") e raggiunge davvero l'host anche quando il
+        master gioca da un dispositivo che non lo ospita.
+        """
+        world = world_repo.get_world(self._world_id)
+        if world is None:
+            if self._page is not None:
+                show_snack(self._page, "Mondo non trovato.", tone="danger")
+            return False
+        backend = world_sync.resolve_backend_for_world(
+            world, self._device_id or "", LocalBackend(), self._remote_backends,
+        )
+        if backend is None:
+            if self._page is not None:
+                show_snack(self._page, "Impossibile raggiungere l'host del mondo — riprova.", tone="danger")
+            return False
+        result = backend.send_command(
+            self._world_id, self._device_id or "", perm.CMD_NOTE_SHARE, payload,
+            target_type="note", target_id=str(payload.get("note_id") or ""),
+        )
+        if not result.success:
+            if self._page is not None:
+                show_snack(self._page, result.error or "Condivisione della nota fallita.", tone="danger")
+            return False
+        return True
+
     def _on_note_save_edit(self, note: MasterCampaignNote) -> None:
         name   = (self._nf_name.value or "").strip() or "Senza nome"
         status = (self._nf_status.value or "").strip()
         tags   = (self._nf_tags.value or "").strip()
         desc   = (self._nf_desc.value or "").strip()
         npc_id = (self._nf_npc.value or "").strip()
-        visibility, visible_ids = self._collect_visibility_fields()
-        master_repo.update_master_campaign_note(
-            note.id, name, desc, status, tags, npc_id,
-            visibility=visibility, visible_to_device_ids=visible_ids,
-        )
+        visibility, visible_ids_json = self._collect_visibility_fields()
+        if self._world_id:
+            ok = self._send_note_share_command({
+                "note_id": note.id, "category": note.category,
+                "name": name, "description": desc, "status": status,
+                "tags": tags, "linked_npc_id": npc_id,
+                "visibility": visibility,
+                "visible_to_device_ids": json.loads(visible_ids_json or "[]"),
+            })
+            if not ok:
+                return
+        else:
+            master_repo.update_master_campaign_note(
+                note.id, name, desc, status, tags, npc_id,
+                visibility=visibility, visible_to_device_ids=visible_ids_json,
+            )
         logger.info("Master campaign note aggiornata: %s", note.id)
         self._note_edit = False
         self._load_notes(self._active_cat)
@@ -952,11 +1006,22 @@ class MasterNotesView(ft.Column):
             status = (f_status.value or "").strip()
             desc   = (f_desc.value or "").strip()
             npc_id = (f_npc.value or "").strip()
-            visibility, visible_ids = self._collect_visibility_fields()
-            master_repo.create_master_campaign_note(
-                cat, name, desc, status, "", npc_id,
-                world_id=self._world_id, visibility=visibility, visible_to_device_ids=visible_ids,
-            )
+            visibility, visible_ids_json = self._collect_visibility_fields()
+            if self._world_id:
+                ok = self._send_note_share_command({
+                    "category": cat, "name": name, "description": desc,
+                    "status": status, "tags": "", "linked_npc_id": npc_id,
+                    "visibility": visibility,
+                    "visible_to_device_ids": json.loads(visible_ids_json or "[]"),
+                })
+                if not ok:
+                    return
+            else:
+                master_repo.create_master_campaign_note(
+                    cat, name, desc, status, "", npc_id,
+                    world_id=self._world_id, visibility=visibility,
+                    visible_to_device_ids=visible_ids_json,
+                )
             page.pop_dialog()
             self._load_notes(cat)
             notes = self._notes.get(cat, [])

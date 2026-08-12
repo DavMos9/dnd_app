@@ -382,6 +382,75 @@ def import_replica_character(
         return None
 
 
+def import_character_data_as_world_refresh(
+    data: dict[str, Any], target_id: str, *, world_id: str,
+    origin_character_id: str, owner_device_id: str, world_seq: int = 0,
+) -> str | None:
+    """
+    Sovrascrive il CONTENUTO di un'istanza di mondo ESISTENTE (`target_id`)
+    con un export — tipicamente quello di un personaggio LOCALE (§"Richiesta
+    di rientro", `core/world_backend.py::_handle_character_rejoin_respond`,
+    `mode="refresh_from_local"`: il giocatore vuole rientrare con lo stato
+    attuale della propria scheda locale invece di quello con cui l'istanza
+    fu archiviata).
+
+    A differenza di `import_replica_character()` sopra — che LEGGE
+    `world_id`/`origin_character_id`/`owner_device_id` dall'export stesso e
+    **rifiuta** un export senza `world_id` (pensata per una vera replica di
+    rete, mai per un personaggio locale) — qui questi tre campi sono
+    SEMPRE quelli passati esplicitamente dal chiamante, mai quelli
+    dell'export sorgente (che per un personaggio locale sono vuoti): il
+    contenuto cambia, l'identità e il collegamento al mondo dell'istanza
+    bersaglio no. Forza anche `world_instance_archived=0` nello stesso
+    `char_overrides` — un'unica scrittura transazionale fa contenuto e
+    riattivazione insieme, mai due passi separati (evita una finestra in
+    cui l'istanza sarebbe "riattivata ma con dati vecchi" o viceversa).
+
+    Ritorna `target_id` in caso di successo, `None` in caso di errore
+    (loggato) — nessuna scrittura parziale resta applicata, stessa garanzia
+    delle altre funzioni di questo modulo.
+    """
+    err = validate_export_data(data)
+    if err:
+        logger.error(f"import_character_data_as_world_refresh: dati non validi — {err}")
+        return None
+    if not target_id:
+        logger.error("import_character_data_as_world_refresh: target_id mancante")
+        return None
+
+    char_row: dict[str, Any] = dict(data["character"])
+    related: dict[str, list[dict[str, Any]]] = data.get("related", {})
+
+    try:
+        conn = get_connection()
+        try:
+            _write_character_and_children(
+                conn, char_row, related, target_id, delete_existing=True,
+                char_overrides={
+                    "world_id": world_id,
+                    "origin_character_id": origin_character_id,
+                    "owner_device_id": owner_device_id,
+                    "is_replica": 1,
+                    "world_seq": int(world_seq),
+                    "world_instance_archived": 0,
+                },
+            )
+            conn.commit()
+            logger.info(
+                "import_character_data_as_world_refresh: istanza aggiornata id=%s "
+                "(world=%s, seq=%s)", target_id, world_id, world_seq,
+            )
+            return target_id
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error(f"Errore import_character_data_as_world_refresh: {e}")
+        return None
+
+
 def import_character(data: dict[str, Any], mode: str, target_id: str | None = None) -> str | None:
     """
     Importa un personaggio da un dict di export (stessa forma prodotta da
@@ -469,6 +538,10 @@ def import_character(data: dict[str, Any], mode: str, target_id: str | None = No
                     "owner_device_id": "",
                     "is_replica": 0,
                     "world_seq": 0,
+                    # world_instance_archived (2026-08-07): stessa logica delle
+                    # 5 colonne sopra — ha senso solo per un'istanza di mondo,
+                    # un personaggio importato come locale non lo è mai.
+                    "world_instance_archived": 0,
                 },
             )
             conn.commit()

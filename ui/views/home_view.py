@@ -15,8 +15,9 @@ from data.repositories import character_repo, character_export, world_repo
 from core import character_instances as ci
 from core import world_permissions as perm
 from core import world_sync
-from core.world_backend import LocalBackend
+from core.world_backend import LocalBackend, RemoteBackend
 from ui.character_transfer import show_character_import_picker
+from ui.components.background_sync import BackgroundSyncLoop
 from ui.device_identity import resolve_device_id
 from ui.mobile_webview_picker import pick_file_via_webview
 from ui.theme import muted_text, primary_button, ghost_button
@@ -94,6 +95,23 @@ class HomeView(ft.Column):
         # del servizio di storage.
         self.device_id: str | None = None
 
+        # Sincronizzazione in background delle istanze di mondo possedute da
+        # questo dispositivo (2026-08-12, richiesta esplicita di Davide dopo
+        # l'aggiunta di "Rimuovi dal mondo" lato master: "come tutta l'app
+        # deve essere sincronizzata, anche l'app del giocatore ospitato, con
+        # la scomparsa dal mondo nella sua schermata Home" — principio
+        # generale: le app collegate mostrano gli stessi dati condivisi).
+        # DISTINTA da `_poll_loop`/`_start_polling` sopra (quella è solo per
+        # più schede web sullo stesso DB locale, mai per la rete LAN vera) —
+        # questa gira su QUALUNQUE piattaforma, chiama `world_sync.
+        # sync_replica()` per ogni mondo remoto in cui questo dispositivo ha
+        # un'istanza, esattamente come già fa `WorldsView._start_detail_sync`
+        # per la Sezione Mondi. `self.backend`/`self._remote_backends` sono
+        # lo stesso stato persistente (cache di connessione) di `WorldsView`.
+        self.backend = LocalBackend()
+        self._remote_backends: dict[str, RemoteBackend] = {}
+        self._world_sync_loop: BackgroundSyncLoop | None = None
+
         # NOTA: il timer anti-spam di `_push_instance_to_host()` NON vive
         # come attributo di istanza qui (stesso bug/fix di `WorldsView`,
         # 2026-08-07: `HomeView` viene ricreata ad ogni navigazione/cambio
@@ -146,6 +164,7 @@ class HomeView(ft.Column):
                 page.update()
             except RuntimeError:
                 pass
+        self._start_world_sync()
 
     def _start_polling(self):
         """
@@ -168,6 +187,81 @@ class HomeView(ft.Column):
     def stop_polling(self):
         """Ferma il polling di sincronizzazione (chiamare prima di navigare via)."""
         self._stop_event.set()
+        self._stop_world_sync()
+
+    # ------------------------------------------------------------------
+    # Sincronizzazione in background delle istanze di mondo (2026-08-12) —
+    # vedi il commento su `self._world_sync_loop` in `__init__` per il
+    # perché. Stesso `BackgroundSyncLoop` di `WorldsView`/
+    # `MasterEncounterView`, dominio diverso: qui si scaricano gli eventi
+    # nuovi di OGNI mondo remoto in cui questo dispositivo possiede
+    # un'istanza (non solo quello aperto in Sezione Mondi), così un
+    # cambiamento fatto dal master (PE, condizioni, e ora anche una
+    # rimozione dal mondo) si vede sulla Home senza dover aprire Sezione
+    # Mondi apposta.
+    # ------------------------------------------------------------------
+
+    def _my_remote_world_ids(self) -> list[str]:
+        """Mondi in cui questo dispositivo possiede almeno un'istanza e che
+        NON ospita (per i mondi ospitati il DB locale È già lo stato
+        autoritativo, sincronizzarli non avrebbe alcun effetto — stesso
+        principio di `WorldsView._start_detail_sync`)."""
+        if not self.device_id:
+            return []
+        world_ids: set[str] = set()
+        for c in character_repo.get_all():
+            if c.world_id and c.owner_device_id == self.device_id:
+                world_ids.add(c.world_id)
+        remote_ids = []
+        for world_id in world_ids:
+            world = world_repo.get_world(world_id)
+            if world is not None and not world.is_local_host:
+                remote_ids.append(world_id)
+        return remote_ids
+
+    def _start_world_sync(self):
+        if self._world_sync_loop is not None:
+            return
+
+        def _apply() -> None:
+            for world_id in self._my_remote_world_ids():
+                world = world_repo.get_world(world_id)
+                if world is None:
+                    continue
+                backend = world_sync.resolve_backend_for_world(
+                    world, self.device_id or "", self.backend, self._remote_backends,
+                )
+                if backend is not None:
+                    world_sync.sync_replica(backend, world_id)
+
+        def _signature() -> str | None:
+            return self._list_signature(character_repo.get_all())
+
+        async def _redraw() -> None:
+            page = self.page
+            if page is None:
+                return
+            if self.refresh(force=True):
+                try:
+                    page.update()
+                except RuntimeError:
+                    pass
+
+        loop = BackgroundSyncLoop(
+            get_page=lambda: self.page,
+            signature_fn=_signature,
+            async_redraw_fn=_redraw,
+            apply_fn=_apply,
+            interval_s=2.0,
+            thread_name="home-world-sync",
+        )
+        self._world_sync_loop = loop
+        loop.start()
+
+    def _stop_world_sync(self):
+        if self._world_sync_loop is not None:
+            self._world_sync_loop.stop()
+        self._world_sync_loop = None
 
     def _poll_loop(self):
         """
@@ -318,22 +412,37 @@ class HomeView(ft.Column):
         """
         Firma sintetica della lista personaggi, per capire se è cambiato
         qualcosa senza ricostruire le card. Include `updated_at` così una
-        modifica fatta in un'altra sessione web viene comunque rilevata, e
+        modifica fatta in un'altra sessione web viene comunque rilevata,
         `world_id`/`owner_device_id` (Multiplayer passo 3) così un
-        personaggio appena entrato in un mondo sposta sezione.
+        personaggio appena entrato in un mondo sposta sezione, e
+        `world_instance_archived` (2026-08-12) così la rimozione di
+        un'istanza dal mondo — che non tocca `updated_at` della RIGA
+        stessa in ogni percorso, es. `import_replica_character` durante un
+        resync — sposta comunque sezione senza aspettare un'altra modifica.
         """
         return "|".join(
-            f"{c.id}:{c.updated_at}:{c.world_id}:{c.owner_device_id}" for c in characters
+            f"{c.id}:{c.updated_at}:{c.world_id}:{c.owner_device_id}:"
+            f"{int(c.world_instance_archived)}"
+            for c in characters
         )
 
     def _partition_characters(
         self, characters: list[Character],
-    ) -> tuple[list[Character], dict[str, list[Character]]]:
+    ) -> tuple[list[Character], dict[str, list[Character]], list[Character]]:
         """
         Separa i personaggi locali dalle istanze possedute da QUESTO
         dispositivo, raggruppate per mondo (Multiplayer passo 3, §6 —
         "Home raggruppata per mondo, personaggio locale in una sezione
-        'Non in un mondo'").
+        'Non in un mondo'"), più le istanze RIMOSSE dal master (2026-08-12,
+        `characters.world_instance_archived`) in una terza sezione a sé —
+        richiesta esplicita di Davide: la rimozione lato master deve
+        "sparire dal mondo nella schermata Home" del giocatore, senza
+        toccare il personaggio (i dati restano, world_id compreso: la riga
+        NON diventa "locale", è solo trattata diversamente in questa
+        vista). Un'istanza archiviata non compare mai in `by_world` — un
+        master che l'ha rimossa non deve rivederla nella Sezione Master, e
+        un giocatore che l'ha ricevuta via resync non deve più vederla
+        "attiva" in quel mondo sulla propria Home.
 
         Un'istanza di un altro giocatore, presente nello stesso DB solo
         perché condiviso (web mode multi-scheda), non compare mai qui: si
@@ -342,12 +451,16 @@ class HomeView(ft.Column):
         """
         locals_: list[Character] = []
         by_world: dict[str, list[Character]] = {}
+        removed_from_world: list[Character] = []
         for c in characters:
             if not c.world_id:
                 locals_.append(c)
             elif self.device_id and c.owner_device_id == self.device_id:
-                by_world.setdefault(c.world_id, []).append(c)
-        return locals_, by_world
+                if c.world_instance_archived:
+                    removed_from_world.append(c)
+                else:
+                    by_world.setdefault(c.world_id, []).append(c)
+        return locals_, by_world, removed_from_world
 
     def refresh(self, force: bool = True):
         """
@@ -371,12 +484,12 @@ class HomeView(ft.Column):
             if not characters:
                 self._char_list_column.controls.append(self._empty_state())
             else:
-                locals_, by_world = self._partition_characters(characters)
+                locals_, by_world, removed_from_world = self._partition_characters(characters)
                 available_worlds = (
                     world_repo.get_worlds_for_device(self.device_id) if self.device_id else []
                 )
 
-                if not by_world:
+                if not by_world and not removed_from_world:
                     # Nessuna istanza posseduta da questo dispositivo (o
                     # identità non ancora risolta): lista piatta identica a
                     # sempre, nessuna sezione — nessuna sorpresa visiva per
@@ -407,6 +520,23 @@ class HomeView(ft.Column):
                         for char in locals_:
                             self._char_list_column.controls.append(
                                 self._character_card(char, available_worlds=available_worlds)
+                            )
+
+                    if removed_from_world:
+                        # Istanze rimosse dal master (2026-08-12): niente
+                        # "Aggiorna il mio foglio"/"Aggiungi a un mondo" —
+                        # non sono più un'istanza attiva, ma niente è stato
+                        # cancellato (Gioca/Esporta/Elimina restano).
+                        self._char_list_column.controls.append(
+                            self._section_label("Rimossi dai mondi")
+                        )
+                        self._char_list_column.controls.append(d.muted(
+                            "Il master li ha rimossi dal mondo — i dati restano intatti.",
+                        ))
+                        self._char_list_column.controls.append(ft.Container(height=d.Space.XS))
+                        for char in removed_from_world:
+                            self._char_list_column.controls.append(
+                                self._character_card(char, is_removed=True)
                             )
 
             # update() è valido solo dopo il mount sulla page
@@ -443,6 +573,7 @@ class HomeView(ft.Column):
         self, char: Character, *,
         available_worlds: list[World] | None = None,
         is_instance: bool = False,
+        is_removed: bool = False,
     ) -> ft.Container:
         """
         Card personaggio — riscritta nella Fase E del restyle (2026-07-26)
@@ -514,7 +645,20 @@ class HomeView(ft.Column):
                           icon_size=30, tooltip="Gioca con questo personaggio",
                           on_click=lambda e, cid=char.id: self.on_select(cid)),
         ]
-        if is_instance:
+        if is_removed:
+            pending_rejoin = world_repo.get_pending_rejoin_request_for_character(char.id)
+            if pending_rejoin is not None:
+                action_controls.append(ft.IconButton(
+                    icon=ft.Icons.HOURGLASS_TOP, icon_color=p.text_3, disabled=True,
+                    tooltip="Richiesta di rientro inviata — in attesa del master",
+                ))
+            else:
+                action_controls.append(ft.IconButton(
+                    icon=ft.Icons.PUBLIC, icon_color=p.magic,
+                    tooltip="Richiedi rientro nel mondo",
+                    on_click=lambda e, c=char: self._open_rejoin_request_dialog(c),
+                ))
+        elif is_instance:
             action_controls.append(ft.IconButton(
                 icon=ft.Icons.SYNC, icon_color=p.magic,
                 tooltip="Aggiorna il mio foglio personale da questa istanza",
@@ -596,6 +740,17 @@ class HomeView(ft.Column):
                 return
             result = ci.create_or_resume_instance(world_id, char.id, self.device_id, mode=mode)
             self.page.pop_dialog()
+            if result.archived:
+                # Rimossa dal mondo in passato (§"Richiesta di rientro") —
+                # MAI riprenderla in silenzio da qui: stesso flusso a
+                # richiesta/approvazione dell'entry point in "Rimossi dai
+                # mondi", `origin_character_id` è per costruzione `char.id`
+                # stesso quindi "aggiorna allo stato attuale" è sempre
+                # disponibile.
+                instance = character_repo.get_by_id(result.character_id)
+                if instance is not None:
+                    self._open_rejoin_request_dialog(instance)
+                return
             if not result.success:
                 self._show_error(result.error or "Impossibile aggiungere il personaggio al mondo.")
                 return
@@ -770,6 +925,133 @@ class HomeView(ft.Column):
             ]),
         )
         self.page.show_dialog(dlg)
+
+    # ------------------------------------------------------------------
+    # Richiesta di rientro (2026-08-12) — un personaggio rimosso dal mondo
+    # (`world_instance_archived`) non torna mai visibile in automatico: il
+    # giocatore deve chiedere, il master deve approvare (§"Richiesta di
+    # rientro" in `core/world_backend.py`). Punto unico condiviso dai due
+    # entry point (card in "Rimossi dai mondi" sopra, e il redirect da
+    # "Aggiungi a un mondo" in `_open_add_to_world_dialog._confirm` sopra)
+    # — nessuna logica di scelta-modalità/invio duplicata in due posti.
+    # ------------------------------------------------------------------
+
+    def _open_rejoin_request_dialog(self, instance: Character):
+        p = d.T()
+
+        pending = world_repo.get_pending_rejoin_request_for_character(instance.id)
+        if pending is not None:
+            self._show_error(
+                "Hai già una richiesta di rientro in attesa di risposta del master "
+                "per questo personaggio."
+            )
+            return
+
+        origin = (character_repo.get_by_id(instance.origin_character_id)
+                  if instance.origin_character_id else None)
+        origin_available = origin is not None and not origin.world_id
+
+        mode_options = [
+            ft.DropdownOption(key="frozen", text="Riprendi lo stato con cui era stato rimosso"),
+        ]
+        if origin_available:
+            mode_options.append(ft.DropdownOption(
+                key="refresh_from_local",
+                text="Aggiorna allo stato attuale della scheda locale",
+            ))
+        mode_dd = ft.Dropdown(
+            label="Con quale stato rientra", value="frozen",
+            options=mode_options, **d.field_style(),
+        )
+        reason_field = ft.TextField(
+            label="Nota per il master (opzionale)", multiline=True, min_lines=1,
+            max_lines=3, **d.field_style(),
+        )
+
+        content_controls: list[ft.Control] = [
+            d.muted(
+                'Il master dovrà approvare il rientro di "' + instance.name +
+                '" nel mondo — non tornerà visibile finché non lo fa.',
+            ),
+            ft.Container(height=d.Space.SM),
+            mode_dd,
+        ]
+        if not origin_available:
+            content_controls.append(d.muted(
+                "Il personaggio locale di origine non esiste più: disponibile solo "
+                "lo stato con cui era stato rimosso.",
+            ))
+        content_controls.append(reason_field)
+
+        def _confirm(e):
+            mode = mode_dd.value or "frozen"
+            reason = (reason_field.value or "").strip()
+            self.page.pop_dialog()
+            self._send_rejoin_request(instance, mode, reason)
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title(f'Richiedi rientro — "{instance.name}"', ft.Icons.PUBLIC),
+            content=ft.Column(content_controls, tight=True, spacing=d.Space.SM),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton("Invia richiesta", icon=ft.Icons.SEND, on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary)),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _send_rejoin_request(self, instance: Character, mode: str, reason: str):
+        if self.device_id is None:
+            self._show_error("Identità del dispositivo non ancora pronta — riprova tra poco.")
+            return
+
+        remaining = world_sync.network_request_cooldown_remaining()
+        if remaining > 0:
+            self._show_error(
+                f"Troppe richieste ravvicinate — riprova tra {int(remaining) + 1} secondi."
+            )
+            return
+        world_sync.mark_network_request()
+
+        world = world_repo.get_world(instance.world_id)
+        if world is None:
+            self._show_error("Mondo non trovato.")
+            return
+
+        payload: dict = {"mode": mode}
+        if mode == "refresh_from_local":
+            export_data = character_export.export_character(instance.origin_character_id)
+            if export_data is None:
+                self._show_error("Esportazione del personaggio locale fallita.")
+                return
+            payload["export"] = export_data
+        if reason:
+            payload["reason"] = reason
+
+        backend = world_sync.resolve_backend_for_world(
+            world, self.device_id or "", LocalBackend(), {},
+        )
+        if backend is None:
+            self._show_error(
+                "Impossibile contattare l'host del mondo — riprova tra poco."
+            )
+            return
+
+        result = backend.send_command(
+            instance.world_id, self.device_id, perm.CMD_CHARACTER_REJOIN_REQUEST,
+            payload, target_type="character", target_id=instance.id,
+        )
+        if not result.success:
+            self._show_error(result.error or "Invio della richiesta fallito.")
+            return
+        self.refresh()
+        try:
+            self.page.update()
+        except RuntimeError:
+            pass
+        self._show_success("Richiesta di rientro inviata al master.")
 
     # ------------------------------------------------------------------
     # Stato vuoto

@@ -7992,6 +7992,1045 @@ stato è coerente.
 
 ---
 
+## Due bug reali dal primo giro di test manuali sui pulsanti PG in Incontri (2026-08-07)
+
+Davide ha seguito l'elenco di test manuali proposto dopo la pulizia del codice
+(stesso giorno) e ha riportato due problemi concreti sulle pillole
+Danno/Cura/Condizione appena aggiunte alla Sezione Incontri (screenshot alla
+mano: errore "Il mittente non è membro di questo mondo" cliccando su un PG
+istanza di mondo presente e valido).
+
+**Bug 1 — `_send_pg_remote_command` usava il world_id sbagliato.**
+`MasterEncounterView._send_pg_remote_command()` inviava sempre
+`self._world_id` (il mondo selezionato nel menu a tendina in cima a Modalità
+Master) invece del world_id proprio del personaggio bersaglio. Se il
+dropdown è su "Locale" (`self._world_id == ""`, come nello screenshot di
+Davide) o su un mondo diverso da quello del PG nell'incontro, l'host rifiuta
+il comando perché nessun membro di QUEL world_id ha quel device_id — anche
+se il giocatore è membro del mondo VERO del personaggio. `_confirm_award_xp`
+("Assegna PE"), poco più sopra nello stesso file, faceva già la cosa giusta
+(`p.world_id`, il world_id proprio del personaggio) — pattern di riferimento
+per il fix. Corretto passando il world_id del personaggio (già disponibile
+nello scope dove nascono i pulsanti, `resolved.get("world_id")`) lungo tutta
+la catena `_open_pg_damage_dialog`/`_open_pg_heal_dialog`/
+`_open_pg_condition_dialog` → `_send_pg_remote_command`, mai più
+`self._world_id`. Aggiunto un test di regressione dedicato
+(`test_encounter_view_send_usa_world_id_del_personaggio`) che costruisce la
+vista con `world_id=""` (esattamente lo scenario dello screenshot) — il test
+esistente per questa funzionalità non l'avrebbe mai potuto scoprire, perché
+costruiva sempre la vista con lo STESSO world_id dell'istanza.
+
+**Bug 2 — la Sezione Incontri non aveva alcuna sincronizzazione in
+background.** Davide: "i PF si aggiornano ma... in Incontri non si
+aggiornano, il master deve andare in Sezione Mondi, aspettare, e tornare in
+Incontri". Causa: il ciclo di sync in background (thread dedicato +
+`page.run_task()`, introdotto il 2026-08-07 per "Interviene a distanza")
+viveva SOLO in `WorldsView` — `MasterEncounterView` non aveva alcun
+meccanismo equivalente, il suo `refresh()` veniva chiamato solo dopo
+un'azione locale riuscita, mai per riflettere un cambiamento arrivato da un
+altro dispositivo (es. `hp.self_update` del giocatore). Fix: estratta la
+parte davvero condivisibile di quel ciclo — gestione del thread + ponte
+thread-safe verso il loop asyncio di Flet, l'unica parte delicata e già
+corretta una volta (bug "serve il refresh manuale" della sessione
+precedente) — in un nuovo modulo `ui/components/background_sync.py`
+(`BackgroundSyncLoop`, con `signature_fn`/`apply_fn`/`async_redraw_fn`/
+`should_redraw_anyway_fn` iniettate dal chiamante, nessuna dipendenza da un
+mondo o una vista specifica — Dependency Inversion, non importa né
+`world_repo` né `world_sync`). `WorldsView._start_detail_sync` è stato
+rifattorizzato per delegare a questo helper (comportamento verificato
+identico: tutte le suite `test_mondo_senza_rete.py`,
+`test_world_view_remote_routing.py`, `test_ingresso_lan_sincronizzazione.py`,
+`test_cooldown_azioni_remote.py`, `test_lan_host_client.py`,
+`test_hosting_persistente_navigazione.py` rieseguite senza modifiche,
+tutte verdi) — rimosso di conseguenza `_maybe_redraw_detail`, diventato
+morto dopo l'estrazione. `MasterEncounterView` ora usa lo stesso helper con
+una firma di dominio propria (`_sync_signature`: PF/CA/nome di ogni
+combattente + round corrente, dato che `get_encounter_members_resolved()`
+legge già live da `characters` ad ogni chiamata — basta quindi rilevare
+quando quel valore cambia) e un `_sync_apply` che scarica gli eventi nuovi
+per ogni mondo distinto tra i PG dell'incontro non ospitato da questo
+dispositivo (`world_sync.resolve_backend_for_world`, stesso resolver già
+condiviso da `WorldsView`/`home_view.py`). Avviato in `did_mount()`, fermato
+in `will_unmount()`.
+
+**Limite noto, non risolto in questo giro (fuori scope della richiesta di
+Davide, già documentato nel codice prima di questo fix):**
+`_send_pg_remote_command` usa `LocalBackend()` incondizionatamente — corretto
+quando questo dispositivo ospita il mondo (il caso normale), ma un co-master
+collegato come CLIENT all'host di un altro dispositivo scriverebbe sulla
+propria replica invece che sull'host reale. Stesso limite già presente in
+"Assegna PE". Il lato LETTURA (sync in background, questo fix) invece usa
+correttamente `resolve_backend_for_world` e quindi FUNZIONA anche da un
+co-master client — l'asimmetria resta scritta nel codice per la prossima
+sessione che deciderà se vale la pena chiuderla.
+
+**Test.** `test_layout_incontri_e_pf_autosync.py` esteso da 50 a 61 controlli
+(11 nuovi: riproduzione del bug 1 con world_id vuoto, verifica che danno/cura
+raggiungano `characters` comunque, verifica che l'INVIO diretto con
+`self._world_id` vuoto fallisca ancora con lo stesso identico messaggio —
+documenta il vecchio bug perché non regredisca in futuro sotto altra forma;
+firma di sync che cambia quando i PF cambiano nel DB senza `refresh()`
+esplicito, `_sync_apply()` no-op sicuro da host, countdown
+`_sync_should_redraw_anyway()`, lifecycle avvio/arresto del thread). Suite
+completa (17 file, 1160 controlli): 1157 verdi, le stesse 3 cause d'ambiente
+pre-esistenti e indipendenti (vedi la voce di pulizia poco sopra), nessuna
+nuova regressione.
+
+Rimangono da chiarire con Davide, riportati nella stessa sessione insieme a
+questi due bug: (a) l'espulsione di un membro da un mondo non stacca i
+personaggi-istanza che possedeva, restano collegati al mondo per sempre —
+serve una decisione di design su cosa fare di quei personaggi orfani; (b)
+richiesta di sincronizzazione COMPLETA (non solo PF) tra la scheda del
+giocatore e la copia autoritativa sull'host — oggi solo `hp.self_update`
+esiste, tutto il resto (inventario, slot incantesimo, livello, equipaggiamento)
+scritto dal giocatore in locale non raggiunge mai l'host finché non viene
+esplicitamente usato "Aggiorna il mio foglio" (§6.1, che però è un
+meccanismo diverso: locale↔istanza, non replica↔host); (c) restyle della
+parte superiore di Modalità Master e ripristino dei Generatori Rapidi anche
+in Incontri (decisione precedente da invertire). Le tre voci non sono state
+implementate in questa sessione — sono scelte di design/scope che vanno
+decise con Davide, non arbitrariamente.
+
+---
+
+## Le tre voci aperte risolte: espulsione con archiviazione, estensione graduale della sincronizzazione, restyle di Modalità Master (2026-08-07/2026-08-11)
+
+Le tre voci lasciate aperte nella sessione precedente (espulsione che
+orfanizza i personaggi, ambito della sincronizzazione giocatore↔host,
+restyle) sono state sottoposte a Davide via `AskUserQuestion` invece di
+essere decise arbitrariamente. Risposte: (a) "Disattiva/archivia" per
+l'espulsione, (b) "Estendi gradualmente `hp.self_update` ad altri campi" per
+l'ambito della sincronizzazione, (c) "Sì, sempre visibili" per i Generatori
+Rapidi e "Raggruppa/nascondi dietro un pannello a comparsa" per la
+compattezza. Le tre implementazioni, in ordine:
+
+### (a) Espulsione: archivia, non distrugge
+
+Nuova colonna `characters.world_instance_archived INTEGER DEFAULT 0`
+(`data/database.py`, migrazione via `_add_column`), campo corrispondente su
+`Character` (`data/models.py`). `_handle_member_kick`
+(`core/world_backend.py`) ora chiama la nuova
+`character_repo.archive_world_instances(world_id, owner_device_id)` dopo
+aver rimosso il membro: `UPDATE characters SET world_instance_archived=1 ...
+WHERE world_id=? AND owner_device_id=? AND world_instance_archived=0`,
+restituisce il conteggio, incluso nel riepilogo/payload dell'evento
+(`archived_count`). `get_master_visible_characters(world_id)`
+(`data/repositories/character_repo.py`) filtra ora `AND
+world_instance_archived = 0`: un'istanza archiviata sparisce dalla vista
+master ma la riga resta nel DB, mai cancellata — reversibile.
+
+**Riattivazione**: nessuna nuova UI necessaria — riusa il meccanismo di
+resync già esistente. Se il giocatore (che non ha mai avuto il flag
+impostato sul proprio dispositivo, l'archiviazione è solo lato host) invia
+di nuovo `character_instance.sync` o un resync completo, l'istanza importata
+arriva con `world_instance_archived=0` e torna visibile. Un errore trovato e
+corretto scrivendo il test: esportare l'istanza DALLA STESSA riga host
+appena archiviata e reimportarla preserva ovviamente `archived=1` (nessuna
+vera riattivazione) — il test corretto simula invece cosa manderebbe
+davvero il dispositivo del giocatore, impostando esplicitamente
+`world_instance_archived=0` nell'export prima di reimportare.
+
+Import/export di un `.dndchar` locale (§14.1, `character_export.py`) aggiunge
+`"world_instance_archived": 0` ai `char_overrides` già esistenti che azzerano
+ogni collegamento a un mondo — coerente con gli altri 5 campi già trattati
+così.
+
+Test: `test_mondo_senza_rete.py`, nuovo blocco dopo il test di kick
+esistente — visibilità pre-kick, archiviazione post-kick (`archived_count`
+nel payload, istanza non cancellata, esclusa da
+`get_master_visible_characters`), idempotenza (ri-espellere un non-membro
+fallisce senza effetti), riattivazione via resync. 160/160 verdi (era
+158/160 alla prima stesura, per il bug di auto-esportazione sopra
+descritto).
+
+### (b) Sincronizzazione: estensione graduale di `hp.self_update` alle condizioni
+
+Decisione di Davide: non un resync completo indiscriminato, ma lo stesso
+pattern già validato per i PF (`hp.self_update`, invio automatico in tempo
+reale, mai bloccante per la UI locale, difesa in profondità con cooldown sia
+client sia host) esteso campo per campo. Primo campo scelto: le condizioni
+(accecato/affascinato/afferrato/assordato/avvelenato/incapacitato/
+invisibile/paralizzato/pietrificato/privo di sensi/prono/spaventato/
+stordito/trattenuto — nomi PHB IT, `GameDataLoader().get_conditions()`).
+
+Nuovi comandi `condition.self_apply`/`condition.self_remove`
+(`core/world_permissions.py`): ruolo minimo player, in
+`PLAYER_OWNED_COMMANDS` (serve la verifica di proprietà, non solo il ruolo)
+e in `CHARACTER_MUTATING_COMMANDS` (serve alla replica di un eventuale terzo
+dispositivo, es. co-master). Nuovo `CONDITION_SELF_UPDATE_COOLDOWN_S = 1.5`
+— più breve del debounce PF perché ogni applicazione/rimozione di una
+condizione è già un'azione discreta e deliberata (niente stream continuo da
+smorzare come i PF).
+
+Lato host (`core/world_backend.py`): la logica di applicazione condizione
+già esistente (usata dal master) è stata estratta in un helper condiviso
+`_apply_condition_to_character(ctx, character, *, kind, summary_verb)`,
+richiamato sia da `_handle_condition_apply` (master, invariato nel
+comportamento) sia dal nuovo `_handle_condition_self_apply` (verifica
+`perm.is_character_owner()` oltre al ruolo, poi delega allo stesso helper).
+
+La rimozione NON è stata condivisa allo stesso modo — scoperta
+architetturale fatta leggendo `character_export.py::_insert_row()`: ogni
+reimport/rimaterializzazione completa di una replica rigenera un nuovo UUID
+per ogni riga di tabella figlia (incluso `character_conditions.id`). Un
+`condition_id` noto sul dispositivo del giocatore NON corrisponde quindi
+all'id della stessa condizione logica sulla riga dell'host. Il gestore
+master `_remove_condition_from_character` (per id) resta usato SOLO dal
+master; il nuovo `_handle_condition_self_remove` è un percorso separato che
+identifica le condizioni da rimuovere per `condition_key` (rimuove tutte le
+righe che corrispondono), non per id — l'unica chiave stabile tra
+dispositivi diversi. Se questo bug non fosse stato trovato per tempo, la
+rimozione di una condizione da parte del giocatore avrebbe fallito
+silenziosamente o rimosso la condizione sbagliata su un host con righe id
+diverse.
+
+Difesa in profondità: cooldown lato host per `(actor_device_id, target_id)`
+in `_HostCooldownState.condition_self_update_last_at`
+(`rewind_host_condition_self_update_for_tests` per i test) e cooldown lato
+client per `character_id` in `core/world_sync.py`
+(`condition_self_update_cooldown_remaining`/`mark_condition_self_update`/
+`rewind_condition_self_update_for_tests`), stesso schema già usato per i PF.
+
+Lato scheda (`ui/views/character_sheet/combattimento_tab.py`):
+`_schedule_condition_apply_sync(condition_key, source, note)` e
+`_schedule_condition_remove_sync(condition_key)` (nota: per chiave, non per
+id, coerente col fix sopra), più `_push_condition_to_world(...)` asincrona
+che risolve il device_id, controlla il cooldown client, risolve il backend
+via `world_sync.resolve_backend_for_world` e invia — mai bloccante,
+eccezioni loggate e ignorate. Richiamate da `_on_condition_click()` (ramo
+rimozione) e `_open_condition_picker()` (ramo aggiunta).
+
+Test: `test_layout_incontri_e_pf_autosync.py` esteso con 5 nuove sezioni
+(permessi, handler, rate limit host, cooldown client, integrazione UI
+scheda→invio) — la prima stesura usava per errore chiavi inglesi
+(`"prone"`/`"blinded"`/`"stunned"`/`"frightened"`/`"poisoned"`), corrette
+nelle rispettive chiavi PHB IT (`prono`/`accecato`/`stordito`/`spaventato`/
+`avvelenato`) non appena scoperte dai fallimenti — violavano la regola
+critica di terminologia del progetto. 103/103 verdi dopo la correzione.
+
+Non ancora fatto (prossimo campo, se Davide chiede di continuare
+l'estensione graduale): slot incantesimo, inventario, livello,
+equipaggiamento — oggi restano locali fino a un resync manuale esplicito.
+
+### (c) Restyle di Modalità Master: pannello strumenti a comparsa
+
+`ui/views/master/master_view.py`: le due sezioni prima gestite
+separatamente (`_world_selector_row()`, e `_build_tools_row()` nascosta
+solo sulla tab Incontri per un'altra richiesta precedente) sono state
+unificate in un unico `_build_tools_panel()` — un pannello collassabile
+(header sempre visibile con freccia, contenuto selettore mondo + Generatori
+Rapidi mostrato solo da espanso) presente in modo UNIFORME su ogni tab,
+Incontri incluso, invertendo la scelta precedente "nascosti solo lì".
+Collassato di default (`self._tools_panel_expanded = False`).
+`_toggle_tools_panel()` ricostruisce il pannello e lo sostituisce IN PLACE
+nei `controls` (mai un semplice flip di `visible`, per evitare artefatti di
+layout residui di Flet già visti in passato — vedi
+`regole_flet_api.md`), preservando lo stato di un eventuale incontro aperto.
+Lo stato espanso/collassato sopravvive a un cambio di mondo (`_on_world_change`
+fa comunque una `_build()` completa). `_on_child_focus_change()` aggiornato
+per riferirsi al singolo `self._tools_panel_container` invece dei due
+contenitori precedenti.
+
+Test: `test_layout_incontri_e_pf_autosync.py`, sezione `[1]` riscritta da
+zero (`test_layout_pannello_strumenti`, sostituisce il vecchio test che
+verificava l'esclusione dalla tab Incontri) — presenza uniforme su ogni tab,
+collassato di default, toggle sostituisce il container, sopravvive al
+cambio mondo, `_on_child_focus_change` continua a nascondere/mostrare senza
+sollevare eccezioni.
+
+### Verifica finale
+
+Suite completa (17 file): tutte verdi tranne le 2 cause d'ambiente
+pre-esistenti già note in `test_qr_scan.py` (pacchetti nativi
+Android/iOS assenti in sandbox, non nel codice) e un fallimento isolato di
+`test_fase_4.py` ("il totale compare nel pannello", sezione tiri) risultato
+non riproducibile su 5 riesecuzioni consecutive e su codice non modificato
+tramite `git stash` — tiro di dado casuale occasionalmente coincidente con
+un valore che rompe il confronto testuale del pannello, test preesistente
+indipendente da questa sessione, non una regressione introdotta qui.
+
+---
+
+## Multiplayer, passi 7-9 — "Condivisione", "Mappe condivise", "Robustezza" (2026-08-11)
+
+Sessione pianificata in modalità Plan (3 agenti Explore in parallelo su
+tracker di combattimento/mappe/robustezza, poi 1 agente Plan per il
+progetto di implementazione file-per-file, approvato da Davide prima di
+scrivere codice — piano salvato e seguito passo passo). Scoperta iniziale
+importante: **§6.1 "Aggiorna il mio foglio" del passo 7 era già
+completamente implementato** (`core/character_instances.py::preview_refresh
+/apply_refresh` + `ui/views/home_view.py::_open_refresh_dialog`, fatto
+insieme al passo 3 senza aggiornare la tabella di stato in CLAUDE.md) — zero
+lavoro necessario lì, solo la tabella andava corretta.
+
+**Due bug di correttezza reali trovati rileggendo il codice PRIMA di
+scrivere il piano** (non ipotizzati, verificati riga per riga):
+1. `WorldHostServer.handle_snapshot()` chiamava `get_events_since(world_id,
+   0)` senza `limit` esplicito, ereditando silenziosamente `limit=200` — un
+   mondo con più di 200 eventi nella sua storia produceva uno snapshot
+   troncato per chi entrava ora.
+2. `core/world_sync.py::_finalize_join()` salvava gli eventi storici
+   (`save_replica_event`) ma non li **applicava** mai tramite
+   `apply_event_to_replica` — solo i personaggi di cui il nuovo arrivato è
+   proprietario venivano rimaterializzati. Una nota condivisa/mappa
+   pubblicata/combattimento reso visibile PRIMA che un giocatore entrasse
+   nel mondo non gli sarebbe mai arrivato, nemmeno in futuro (`last_synced_seq`
+   viene impostato subito al valore più alto ricevuto). Corretto in ognuna
+   delle tre feature sotto: `handle_snapshot()` porta anche lo stato
+   "attuale" (non solo gli eventi), `_finalize_join()` lo materializza con
+   le STESSE funzioni di scrittura della replica usate per un evento nuovo
+   — un solo scrittore condiviso, mai due copie della stessa logica.
+
+### 9A — Fix troncamento snapshot
+
+`data/repositories/world_repo.py::get_events_since()` accetta ora
+`limit: int | None = 200` — `None` salta la clausola `LIMIT` nell'SQL.
+`WorldHostServer.handle_snapshot()` la chiama con `limit=None`. Nessuna
+paginazione (non necessaria oggi, lasciato un commento per il futuro).
+
+### 9B — Verifica versione di protocollo lato host
+
+Il controllo esisteva SOLO lato client (`core.world_sync.start_lan_join()`
+confronta `GET /world`) — l'host non verificava nulla su `/join`/`/command`,
+quindi un client che saltasse `GET /world` poteva comunque entrare. Nuovo
+`WorldHostServer._check_protocol_version(body)`, chiamato in
+`handle_join()` (blocco primario) e `handle_command()` (difesa in
+profondità, un token valido con versione sbagliata viene comunque
+rifiutato). `RemoteBackend.join()`/`send_command()` mandano ora
+`protocol_version` nel body. Test: nuovo `test_robustezza_rete.py` (13/13
+— include anche il test end-to-end della [1] con host reale su 127.0.0.1).
+
+### 7B — Condivisione delle note (§6.2)
+
+Il lato master (scrittura/visibilità) era già completo (`master_repo.py`,
+`master_notes_view.py`, colonne `world_id`/`visibility`/
+`visible_to_device_ids` su `master_campaign_notes`) ma con due lacune: le
+scritture andavano dirette a `master_repo` (mai un evento nel registro,
+violando l'esplicita richiesta del design doc "cambiare la visibilità è
+un'azione registrata"), e non esisteva nessuna vista lato giocatore.
+
+Nuovo handler `CMD_NOTE_SHARE` in `core/world_backend.py` (il payload
+dell'evento porta l'intero contenuto della nota, non solo l'id — testo
+piccolo, evita un secondo giro di rete per materializzarlo sulla replica).
+`ui/views/master/master_notes_view.py` ora instrada create/edit attraverso
+`world_backend.send_command()` (risolvendo l'host giusto via
+`world_sync.resolve_backend_for_world()`, stesso meccanismo di
+`WorldsView`) quando `world_id` è valorizzato — le note locali restano
+dirette. Nuove funzioni `data/repositories/master_repo.py`:
+`get_master_campaign_note_by_id`, `get_notes_visible_to(world_id,
+device_id)` (mai le note `private`), `save_replica_note` (upsert, usata sia
+dal ramo evento in `apply_event_to_replica` sia da `_finalize_join`). Nuova
+sezione di sola lettura `WorldsView._shared_notes_section()`, visibile a
+QUALSIASI membro (non solo master/owner), aggiornamento live gratuito via
+`BackgroundSyncLoop` esistente (la firma include già `get_latest_seq`).
+
+Test: nuovo `test_note_sharing.py` (26/26) — handler, materializzazione
+sulla replica, note private mai visibili a nessun giocatore, un evento di
+kind sconosciuto non solleva mai eccezioni, e il bug #2 sopra (nota
+condivisa prima dell'ingresso arriva comunque). Nessuna regressione su
+`test_master_remote_actions.py` (81/81), `test_mondo_senza_rete.py`
+(160/160), `test_istanze_personaggio.py` (62/62), `test_lan_host_client.py`
+(99/99).
+
+### 7C — Tracker di combattimento per i giocatori (§6.5)
+
+Non esisteva nulla. Nuove colonne `master_encounters.world_id`/
+`visible_to_players` (spento di default). Nuove funzioni `master_repo.py`:
+`set_encounter_world`, `set_encounter_visibility`,
+`get_visible_encounter_for_world`, `resolved_members_to_dicts` (versione
+JSON-serializzabile di `get_encounter_members_resolved`, sostituisce
+l'oggetto `MasterEncounterMember` non serializzabile con i soli campi
+scalari), `replica_upsert_encounter_snapshot`, `get_replica_encounter_members`.
+
+**Scelta di design**: niente righe finte in `master_encounter_members` su
+una replica (gli id di `master_npcs`/`characters` referenziati da un membro
+npc/adhoc potrebbero non esistere affatto su quel dispositivo) — una nuova
+colonna `master_encounters.replica_members_json` (blob JSON) fa da
+specchio di sola lettura, popolata SOLO su una replica, mai sull'host (che
+legge sempre `get_encounter_members_resolved()` dal vivo). Stessa tabella
+riusata da host e replica, come ogni altra tabella del Multiplayer.
+
+**Bug reale trovato scrivendo il test**: la prima versione di
+`replica_upsert_encounter_snapshot` usava `INSERT OR REPLACE` — su SQLite
+questo è un DELETE+INSERT anche a parità di id, e
+`master_encounter_members.encounter_id` ha `ON DELETE CASCADE`. Nel test
+(un solo DB condiviso tra "host" e "replica" simulata, stesso principio di
+`test_lan_host_client.py`), applicare un evento su un id che coincideva con
+la riga autoritativa dell'host cancellava silenziosamente i membri veri
+dell'incontro. Corretto con UPDATE-se-esiste-altrimenti-INSERT, che non fa
+mai scattare un CASCADE.
+
+Nuovi handler `CMD_ENCOUNTER_MANAGE` (azioni `next_turn`/`end_combat`) e
+`CMD_COMBAT_TOGGLE_VISIBILITY` in `core/world_backend.py`, deliberatamente
+ESCLUSI da `MASTER_REMOTE_ACTION_COMMANDS` (nessun cooldown di 3s — azioni
+occasionali, non spam da combattimento, stessa scelta già presa per
+`CMD_WORLD_RENAME`). `ui/views/master/master_encounter_view.py`: nuovo
+interruttore "Visibile ai giocatori" nell'header (solo per incontri
+world-linked), `_on_next_turn_click`/`_on_end_encounter_click` instradano
+tramite comando quando `world_id` è valorizzato, chiamata diretta
+`master_repo` altrimenti. Nuova `ui/views/world/combat_status.py::
+wound_status_label(hp_current, hp_max)` — funzione pura, tabella
+Illeso/Ferito/Gravemente ferito/In fin di vita/Fuori combattimento,
+commentata esplicitamente come convenzione dell'app e non una regola del
+manuale (il PHB non definisce stati di ferita descrittivi). Nuova sezione
+`WorldsView._live_combat_section()`: PF esatti per `source=="character"`
+(tutti i PG, non solo il proprio — coerente col testo del design doc), solo
+lo stato descrittivo per mostri/PNG.
+
+Test: nuovo `test_combat_tracker_condiviso.py` (36/36) — fail-closed su un
+incontro fuori mondo, toggle visibilità, `next_turn` via comando identico
+alla chiamata diretta, materializzazione sulla replica, tabella di casi di
+`wound_status_label`, e il bug #2 (incontro visibile prima dell'ingresso
+arriva comunque). Nessuna regressione su `test_note_sharing.py` (26/26),
+`test_master_remote_actions.py` (81/81), `test_mondo_senza_rete.py`
+(160/160), `test_lan_host_client.py` (99/99),
+`test_layout_incontri_e_pf_autosync.py` (103/103).
+
+### 8a — Mappe condivise, backend (§6.4) — IN CORSO
+
+**Decisione di schema presa con Davide**: `game_maps.character_id` era
+`TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE` — una mappa
+condivisa non ha un personaggio proprietario sul dispositivo di un
+giocatore che non l'ha creata. Scelto (tra tre opzioni presentate:
+character_id nullable / mappe "solo live" senza riga locale / personaggio
+segnaposto): **rendere `character_id` nullable**. SQLite non permette di
+rilassare un vincolo NOT NULL/FK con `ALTER TABLE` — prima migrazione con
+ricostruzione di tabella del progetto (finora solo colonne additive via
+`_add_column` idempotente), in `data/database.py::
+_migrate_game_maps_nullable_character_id()`: guardata da `PRAGMA
+table_info` (procede solo se la colonna risulta ancora `notnull=1`, quindi
+a sua volta idempotente), elenco colonne da copiare letto dinamicamente
+(mai un elenco scritto a mano che potrebbe disallinearsi). **Verificata
+esplicitamente su schema vecchio**: riga esistente preservata, nuova riga
+con `character_id=NULL` si inserisce dopo la migrazione, una seconda
+`init_db()` è un no-op sicuro.
+
+Nuove colonne `game_maps.world_id`/`is_shared` (additive). Nuove funzioni
+`data/repositories/maps_repo.py`: `get_map(id)` (mancava — finora bastava
+sempre `get_maps(character_id)`), `get_shared_maps(world_id)`,
+`publish_map`/`unpublish_map`, `apply_stroke_batch` (unico punto che
+interpreta un pacchetto di operazioni di disegno — `add`/`clear`/
+`replace_all`, quest'ultimo usato dalla gomma invece di codificare un diff:
+cancellare è raro rispetto a disegnare — usata sia dall'handler sia dal
+ramo replica, nessuna logica duplicata), `replica_create_map_stub`
+(`character_id` resta `NULL`, mai `""`: la colonna ha FK con
+`PRAGMA foreign_keys=ON` attivo, una stringa vuota non combacerebbe con
+nessun personaggio e violerebbe il vincolo), `replica_set_shared`.
+
+Nuovo `core/image_utils.py::sniff_mime(bytes) -> str` — magic byte
+JPEG/PNG/GIF, estratto da `ui/views/maps_view.py::_data_uri()` (che ora lo
+riusa) perché servirà anche alla rotta HTTP dell'immagine (passo 8b, non
+ancora scritta). Nuovi handler `CMD_MAP_PUBLISH`/`CMD_MAP_DRAW` in
+`core/world_backend.py` — l'immagine NON viaggia mai nel payload
+dell'evento (troppo grande per il giornale), solo il nome; i replica la
+scaricheranno lazy dalla rotta dedicata quando aprono la mappa. Ramo
+replica in `core/world_sync.py` per `map.publish`/`map.draw`. Chiuso lo
+stesso bug #2 di sopra: `handle_snapshot()` porta i metadati (mai
+`image_data`) delle mappe condivise, `_finalize_join()` li materializza
+come stub.
+
+**Aggiornamento della stessa sessione**: il test dedicato del backend è
+stato scritto (`test_mappe_condivise.py`, 38/38) prima ancora della rotta
+HTTP e della UI — vedi la voce "8b/8c" sotto per come sono stati chiusi.
+
+### 8b/8c — Mappe condivise, rotta HTTP + UI (§6.4) — CHIUSO (2026-08-11)
+
+Chiude il passo 8 per intero. Tre pezzi, in ordine.
+
+**8b — `GET /map/<id>/image`** (già presente nel sorgente da questa stessa
+sessione, `network/host_server.py::WorldHostServer.handle_map_image` +
+`_RequestHandler.do_GET`, ma senza batteria dedicata): prima rotta
+non-JSON del progetto, ritorna `(status, content_type, bytes)` — l'errore
+è comunque servito come JSON (`content_type="application/json"`), un solo
+dispatcher per entrambi i casi. Permesso a QUALSIASI membro del mondo
+della mappa (non solo al proprietario, a differenza di
+`handle_get_character`): una mappa condivisa è per definizione visibile a
+tutto il tavolo. Nuovo `test_mappe_condivise_http.py` (22/22): percorso
+felice via `RemoteBackend.fetch_map_image()` reale su socket (bytes
+identici, PNG e JPEG), sei percorsi di rifiuto fail-closed (token non
+valido/assente, mappa inesistente, non condivisa, senza immagine ancora
+caricata, di un ALTRO mondo, dispositivo mai entrato), più una verifica a
+basso livello via `http.client` diretto (status/content-type/corpo esatti,
+non solo `None` dietro l'astrazione di `RemoteBackend`).
+
+**8c — UI** in `ui/views/world/world_view.py` (nuova sezione "Mappe
+condivise" nel dettaglio di un mondo, `WorldsView._shared_maps_section` e
+i metodi attorno). Due decisioni di scopo prese in questa sessione, non
+nel design doc originale — entrambe ora annotate anche in
+`multiplayer_design.md` §6.4:
+
+1. **Pubblicare/disegnare è permesso SOLO a master/owner che OSPITA il
+   mondo** (`world.is_local_host`), non a "chiunque abbia il permesso di
+   ruolo" come le altre azioni master di questa view. Motivo: una mappa
+   condivisa è sempre una riga `game_maps` posseduta da un personaggio
+   LOCALE di chi la pubblica — se un co-master non-host inviasse
+   `CMD_MAP_PUBLISH` via `RemoteBackend`, l'handler girerebbe sul DB
+   dell'HOST, dove quella riga semplicemente non esiste ("Mappa non
+   trovata", non un bug silenzioso, ma un vicolo cieco evitabile
+   nascondendo subito i controlli a chi non può usarli). Un co-master
+   non-host vede comunque le mappe già condivise, in sola lettura, come
+   un giocatore qualunque — verificato esplicitamente in
+   `test_mappe_condivise_ui.py` parte [1].
+2. **I tratti si inviano A FINE TRATTO** (`on_pan_end`), non raggruppati
+   ogni ~200ms durante il disegno come descritto in prima battuta dal
+   design doc — che dichiara esplicitamente questa come alternativa
+   valida "se su una Wi-Fi lenta risultasse a scatti... nessuna
+   riprogettazione". Scelta presa qui per semplicità implementativa (un
+   flush periodico concorrente ai callback sincroni di gesture avrebbe
+   richiesto un buffer condiviso tra thread), non per un problema di rete
+   riscontrato. I giocatori vedono comunque ogni tratto completo apparire
+   entro il ciclo di sincronizzazione già esistente
+   (`_DETAIL_SYNC_INTERVAL_S`, 2s) — se in prova reale risultasse troppo
+   "a scatti" per mappe di battaglia con molti tratti lunghi, il passo
+   successivo naturale è il batching a 200ms già previsto dal design doc,
+   non una riprogettazione.
+
+Dettaglio implementativo: pubblicazione (`_open_publish_map_dialog`) lista
+le mappe locali NON condivise di TUTTI i personaggi locali (non solo
+quelli legati a un mondo — un master pubblica una mappa che ha sul proprio
+dispositivo, non necessariamente su un PG di quel mondo), un bottone
+"Pubblica" per riga, niente step di selezione+conferma separato. L'overlay
+di apertura/disegno (`_open_shared_map`) usa `page.overlay` (stesso idioma
+di `ui/views/maps_view.py::MapsView._open_fullscreen`), MAI una sezione
+dentro `self._body`: `_render_detail` ricostruisce `self._body.controls`
+da zero ad ogni giro del ciclo di sincronizzazione in background (2s) — un
+canvas di disegno lì dentro verrebbe rimontato a metà tratto. Lato
+giocatore/co-master non-host, l'overlay non ha `GestureDetector` (sola
+lettura) e avvia un piccolo ciclo `async` dedicato (`_watch_loop`, stesso
+principio di `_poll_pending_join_loop` già in uso in questo file) che
+ridisegna il canvas ogni `_SHARED_MAP_REDRAW_INTERVAL_S` (= 2s, stesso
+valore di `_DETAIL_SYNC_INTERVAL_S`: interrogare più spesso non
+produrrebbe dati più freschi, il DB locale è già tenuto allineato da quel
+ciclo) finché l'overlay resta aperto. L'immagine (mai trasportata da un
+evento, §6.4) si scarica pigra una tantum alla prima apertura via
+`RemoteBackend.fetch_map_image()` se assente, poi in cache locale
+(`maps_repo.update_map(..., image_data=...)`) — esattamente come
+annotato mesi prima nel docstring di quella funzione. Toolbar di disegno
+volutamente ridotta rispetto a quella locale di `maps_view.py` (7 colori,
+"Annulla ultimo", "Cancella tutto" — niente gomma pixel-precisa/
+fullscreen doppio canvas): sufficiente per "il master disegna, i
+giocatori vedono", non un sostituto della vista mappe locale.
+
+Bug reale trovato scrivendo il test del dialogo di pubblicazione:
+`responsive_dialog_width(page)` chiamato senza l'argomento obbligatorio
+`base_width` — mai eseguito prima (nessun test invocava ancora quel
+dialogo), corretto con `responsive_dialog_width(page, 380)` (stesso
+valore già in uso per un dialogo simile più sotto nello stesso file).
+
+Nuovo `test_mappe_condivise_ui.py` (39/39), quattro parti: [1] visibilità/
+contenuto della sezione per le tre combinazioni di ruolo/hosting che
+contano (master host, player, master NON host — quest'ultimo sola lettura
+nonostante il ruolo); [2] click reali sui controlli Flet trovati per
+contenuto/icona (stesso approccio di `test_ingresso_lan_sincronizzazione.py`)
+per pubblicazione/ritiro; [3] overlay lato master host — un tratto
+disegnato via gesture produce esattamente un evento `CMD_MAP_DRAW` e
+un'annotazione persistita coi punti giusti, "Annulla ultimo"/"Cancella
+tutto" idem, chiusura rimuove l'overlay; [4] overlay lato replica con un
+vero `WorldHostServer` su socket — fetch pigro dell'immagine tracciato e
+verificato (bytes identici ai pubblicati), nessun controllo di disegno
+presente, un giro di `_watch_loop` rileva un tratto scritto nel frattempo.
+Limite dichiarato in [4], stesso della parte [3] di `test_mappe_condivise.py`
+e di `test_lan_host_client.py`: questo sandbox usa un solo DB condiviso
+tra "host" e "client", quindi lo stato "immagine non ancora scaricata" è
+simulato sull'oggetto Python passato a `_open_shared_map`, non sulla riga
+DB fisica (che qui è per forza la stessa riga per entrambi i lati) — il
+fetch via rete reale è comunque verificato per intero (bytes scaricati
+tracciati e confrontati).
+
+Suite di regressione completa rieseguita (23 file): tutte verdi tranne le
+2 cause pre-esistenti e note in `test_qr_scan.py` (dipendenze d'ambiente
+di questo sandbox — Android/iOS non disponibili qui — indipendenti da
+questa sessione, già segnalate il 2026-08-07).
+
+Con questo **il passo 8 (Mappe condivise) è chiuso per intero**. Resta il
+passo 9D (esportazione `.dndworld`), 9E (promemoria periodico), 9F (UI
+export/import), e la passata di regressione/documentazione finale del
+piano dei 9 passi.
+
+### 8d — Mappe condivise: quattro correzioni dopo il primo uso reale (2026-08-12)
+
+Sessione successiva alla chiusura del passo 8, con Davide che ha usato la
+sezione per la prima volta e segnalato tre problemi reali più una feature
+mancante (non sulle mappe, ma nella stessa sezione). Tutti e quattro
+risolti nella stessa sessione.
+
+**1. Bug reale — disegnare sulla mappa condivisa modificava anche la mappa
+personale.** Causa: `CMD_MAP_PUBLISH` riusava la STESSA riga `game_maps`
+del personaggio che l'aveva creata (`UPDATE ... SET world_id=?,
+is_shared=1 WHERE id=?`) — disegnare nel mondo scriveva quindi sulla
+stessa riga che compare anche nella Sezione Mappe personale di quel
+personaggio, **anche se non faceva parte di nessun mondo**. Fix:
+`maps_repo.clone_map_for_sharing(source_map_id, world_id)` — pubblicare
+ora CLONA (id nuovo, `character_id=NULL` come le mappe di replica,
+annotazioni vuote) invece di riusare la riga. Il personale non viene mai
+più toccato dopo la pubblicazione. Effetto collaterale accettato
+consapevolmente: la mappa personale di origine NON risulta mai `is_shared`
+(resta sempre un candidato ripubblicabile nel dialogo "Pubblica una mappa
+già salvata") — nessuna deduplicazione, ripubblicare crea un secondo clone
+indipendente; se Davide lo trova fastidioso in pratica è un'aggiunta
+piccola per una sessione successiva, non fatta ora per restare nello scope
+di ciò che è stato chiesto.
+
+**2. Bug reale — le annotazioni non si allineavano se la mappa non era a
+schermo intero** ("come se solo la mappa si rimpicciolisse"). Causa: i
+punti di ogni tratto si salvavano in pixel ASSOLUTI, relativi alla
+dimensione esatta che il riquadro di disegno aveva nell'istante del
+disegno — Flet non riscala il contenuto di un canvas al variare del
+riquadro che lo contiene, quindi lo stesso tratto visto in un riquadro di
+dimensione diversa (finestra del master vs. schermo del giocatore, anche
+se "entrambi a schermo intero" sui rispettivi dispositivi) restava ancorato
+alle vecchie coordinate. Fix, nuovo `ui/canvas_geometry.py` (puro, nessuna
+dipendenza Flet): i punti si salvano come FRAZIONE [0,1] della dimensione
+del riquadro al momento del disegno (`normalize_points`) e si riconvertono
+in pixel assoluti rispetto al riquadro CORRENTE ad ogni ridisegno
+(`denormalize_points`) — letto tramite `ft.Container(on_size_change=...)`,
+l'unico modo in Flet 0.86.5 di conoscere la dimensione effettiva di un
+controllo dopo il layout (niente `Container.on_resize`/
+`ContainerResizeEvent` in questa versione, verificato empiricamente).
+**Compatibilità con le annotazioni già disegnate prima del fix**: nessuna
+migrazione (la dimensione del riquadro con cui furono salvate non è
+ricostruibile) — `looks_normalized()` distingue euristicamente i due
+formati (un tratto in frazioni ha ogni punto in [0,1], un tratto in pixel
+assoluti quasi certamente no) e lascia invariati quelli vecchi, corregge
+solo i nuovi. Applicato SOLO alla mappa condivisa (`world_view.py::
+_open_shared_map`, che è sempre un overlay unico, mai due riquadri diversi
+come nel caso locale) — la vista Mappe locale (`maps_view.py`, inline +
+schermo intero, in uso da settimane senza segnalazioni) ha la stessa
+classe di bug in teoria ma NON è stata toccata: rischio di regressione su
+una funzionalità stabile e già rodata, sproporzionato rispetto a quanto
+chiesto — da riprendere solo se Davide conferma che serve anche lì.
+
+**3. Richiesta — "nascondi ai giocatori" faceva sparire la mappa anche dal
+proprio elenco.** Causa: l'unico controllo esistente era il "ritiro dalla
+condivisione" (`is_shared=0`), che nella UI corrispondeva a "Ritira" e
+faceva sparire la riga da `get_shared_maps()` per chiunque, master
+incluso. Fix: nuova colonna `game_maps.visible_to_players` (default 1),
+DISTINTA da `is_shared` — nuovo comando `CMD_MAP_VISIBILITY`
+(`maps_repo.set_map_visibility`), che nasconde/mostra ai giocatori SENZA
+toccare `is_shared`: la mappa resta sempre nell'elenco del master (con
+l'indicazione "nascosta ai giocatori"), un player smette di vederla in
+lista E `GET /map/<id>/image` nega l'immagine a chi non è master/owner
+(`network/host_server.py::handle_map_image`, stesso principio fail-closed
+di `handle_get_character`) — due strati, non solo un filtro UI aggirabile.
+Nuovo comando SEPARATO `CMD_MAP_DELETE` (`maps_repo.delete_map`, già
+esisteva la funzione, mai esposta come comando) per l'eliminazione VERA,
+l'unico modo per far sparire la mappa anche dall'elenco del master; la
+mappa personale di origine (se pubblicata per clonazione) non è mai
+toccata da nessuno dei due.
+
+**4. Richiesta — caricare una mappa nuova direttamente nella sezione
+condivisa**, senza doverla prima salvare sotto un personaggio locale.
+Nuovo comando `CMD_MAP_UPLOAD` (`maps_repo.create_shared_map`) — stesso
+risultato finale di `CMD_MAP_PUBLISH` (riga condivisa senza personaggio
+proprietario), ma senza mappa di origine: il master sceglie nome +
+immagine (stessi tre rami di selezione già in uso in `maps_view.py` —
+web/mobile/desktop, `_pick_from_library`/`_pick_mobile` riscritte per
+accettare una `Page` diretta invece di un `MapsView`, così `world_view.py`
+può riusarle senza duplicarle) e la visibilità iniziale in un unico
+dialogo. Il trailing della sezione ("+ Mappa") apre ora un piccolo dialogo
+di scelta tra le due sorgenti (`_open_add_map_dialog`) invece di andare
+dritto al vecchio dialogo "Pubblica".
+
+**5. Voce a sé, nella stessa sessione (Davide, di nuovo dopo il primo uso
+reale)**: "manca la possibilità di eliminare il personaggio dal mondo,
+attualmente posso eliminare solo la persona [il membro] dal mondo ma non
+il suo personaggio". Nuovo comando `CMD_CHARACTER_INSTANCE_REMOVE`
+(`character_repo.archive_world_instance`, singolare — a fianco
+dell'esistente `archive_world_instances`, plurale, usata dal kick per
+TUTTE le istanze di un dispositivo) — il master rimuove UN personaggio
+specifico dalla Sezione Master mentre il suo giocatore resta membro del
+mondo (morte permanente, doppione, personaggio mai più usato). Stessa
+non-distruttività già decisa con Davide per l'espulsione: archiviato
+(`characters.world_instance_archived`), mai cancellato, si riattiva da
+solo al primo resync del proprietario. Nuova pillola "Rimuovi dal mondo"
+(rossa) in fondo alla riga di ogni personaggio in "Interviene a distanza",
+con dialogo di conferma — passa da `_send_remote_command` (non una
+scorciatoia): stesso timer anti-spam per personaggio delle altre azioni
+della riga, `ctx.target_id` invece di un id nel payload (fix di
+coerenza trovato scrivendolo: il resto di `world_backend.py` per i
+comandi a bersaglio "character" legge sempre `ctx.target_id`, mai
+`ctx.payload["character_id"]`).
+
+Quattro nuovi/riscritti file di test, tutti verdi: `test_mappe_condivise.py`
+riscritto per intero (76/76, era 38/38 — copre clona/upload/visibilità/
+eliminazione/disegno/replica/migrazione), `test_mappe_condivise_http.py`
+riscritto (29/29, era 22/22 — aggiunge la parte sulla visibilità),
+`test_mappe_condivise_ui.py` riscritto (64/64, era 39/39 — aggiunge la
+regressione del bug #1, il fix delle coordinate con due riquadri di
+dimensione diversa, e la validazione del dialogo di caricamento), nuovo
+`test_rimozione_personaggio_mondo.py` (29/29). Un bug reale trovato
+scrivendo i test dell'interfaccia (non della sessione precedente, di
+questa: `wrap_dialog_actions` mette i pulsanti in `.actions`, non in
+`.content`/`.controls` — l'albero di controlli percorso dai test non li
+raggiungeva, corretto nel test stesso, nessun impatto sul codice
+applicativo). Suite di regressione completa rieseguita (24 file): tutte
+verdi tranne le stesse 2 cause pre-esistenti e note in `test_qr_scan.py`.
+
+### 8e — Due correzioni successive, stessa giornata (2026-08-12)
+
+Messaggio successivo di Davide, dopo aver riletto il riepilogo della voce
+"8d": (1) conferma che il bug delle coordinate (voce 8d, punto 2) c'era
+anche sulla mappa LOCALE, non solo su quella condivisa — "non me ne sono
+accorto prima, va allineato anche quello"; (2) segnala un buco reale nella
+sincronizzazione: dopo aver aggiunto "Rimuovi dal mondo" (voce 8d, punto
+5), l'app del giocatore rimosso non lo sapeva finché non apriva Sezione
+Mondi — principio generale dichiarato esplicitamente da Davide: **"le app
+collegate devono mostrare gli stessi dati condivisi"**.
+
+**1. Fix coordinate esteso a `ui/views/maps_view.py` (mappe locali).**
+Stesso identico bug della voce 8d — punto 2 (pixel assoluti invece di
+frazioni), ma con una complicazione in più: la vista locale ha DUE
+riquadri indipendenti (pannello inline + schermo intero, `self._detail_
+canvas`/`self._fs_canvas`) invece di uno solo, e una gomma con geometria
+precisa (`_split_stroke_by_circle`, intersezioni cerchio-segmento) che
+lavora in pixel assoluti. Soluzione: due dimensioni di riquadro tracciate
+separatamente (`self._detail_box_size`/`self._fs_box_size`, ciascuna col
+proprio `on_size_change`), `_redraw_canvas(canvas)` ora denormalizza
+rispetto al riquadro DI QUEL canvas specifico (`_box_size_for()`) — i due
+riquadri restano indipendenti, nessuno "vince" sull'altro. La gomma
+("Tratto" e "Libera") denormalizza i punti dei tratti esistenti PRIMA di
+fare la geometria (radius/intersezioni restano in pixel, coerenti con
+l'unità di misura di `self._eraser_size`) e rinormalizza il risultato
+subito dopo, prima di salvare — mai un mix di frazioni e pixel assoluti
+nella stessa lista `self._strokes`. Nuovo `test_mappe_locali_coordinate.py`
+(13/13): tratto allineato a due dimensioni di riquadro diverse sia inline
+sia a schermo intero (verificato che i due NON si influenzano a vicenda),
+gomma "Tratto" che cancella nel punto riscalato giusto invece che nel
+vecchio valore assoluto, gomma "Libera" che rinormalizza correttamente il
+pezzo di tratto rimasto dopo un taglio.
+
+**2. `HomeView` ora sincronizza in background le istanze di mondo REMOTE
+(2026-08-12).** Causa del buco: `HomeView._start_polling()`/`_poll_loop()`
+esisteva già, ma è SOLO per più schede web sullo stesso DB locale (stesso
+processo, "polling" tra sessioni), mai per la rete LAN — nessun
+meccanismo aggiornava le istanze di mondo di un giocatore mentre stava
+sulla Home (solo aprendo Sezione Mondi, che ha il proprio ciclo, o con
+"Aggiorna il mio foglio" manuale). Aggiunto un SECONDO ciclo, distinto,
+`HomeView._start_world_sync()`/`_stop_world_sync()` — stesso
+`ui.components.background_sync.BackgroundSyncLoop` già in uso da
+`WorldsView`/`MasterEncounterView`, gira su QUALUNQUE piattaforma (non
+solo web, a differenza del polling esistente: qui è rete LAN vera, non
+condivisione dello stesso DB), avviato da `_init_identity()` dopo la
+risoluzione del `device_id`, fermato dallo stesso `stop_polling()` già
+richiamato da `ui/app.py` prima di ogni navigazione. Ad ogni giro,
+`HomeView._my_remote_world_ids()` trova i mondi in cui questo dispositivo
+possiede un'istanza e che NON ospita (stesso principio di `WorldsView.
+_start_detail_sync`: un mondo ospitato ha già il proprio DB come stato
+autoritativo, sincronizzarlo non farebbe nulla), poi `world_sync.
+resolve_backend_for_world`/`sync_replica` per ciascuno — stessa coppia di
+funzioni già in uso ovunque nel Multiplayer per questo scopo, nessuna
+logica nuova duplicata.
+
+Effetto pratico immediato per "Rimuovi dal mondo": `_partition_
+characters()` ora legge anche `characters.world_instance_archived` (prima
+ignorato del tutto in questa vista) e sposta un'istanza rimossa dal
+mondo in una TERZA sezione dedicata, "Rimossi dai mondi" — non più nel
+gruppo del suo mondo, ma nemmeno tra i personaggi "locali" (richiesta
+esplicita di Davide: "senza toccare ovviamente il personaggio in
+locale" — `world_id` non viene mai azzerato, solo la sezione in cui la
+card compare cambia). La card in quella sezione perde "Aggiorna il mio
+foglio"/"Aggiungi a un mondo" (non è più un'istanza attiva) ma mantiene
+Gioca/Esporta/Elimina — nessun dato toccato, nessuna funzionalità
+rimossa. **Non implementato in questa sessione, deliberatamente fuori
+scope** (Davide non l'ha chiesto): un modo per il giocatore di "riunirsi"
+a un mondo dopo essere stato rimosso — oggi resta un'istanza archiviata
+senza percorso di ripristino lato UI, da riprendere se richiesto.
+
+`_list_signature()` include ora anche `world_instance_archived` (prima
+solo `updated_at`/`world_id`/`owner_device_id`), così la rimozione
+sposta sezione anche quando nessun altro campo della riga cambia nello
+stesso giro.
+
+Due nuovi file di test: `test_home_sync_rimozione_mondo.py` (14/14) —
+`_my_remote_world_ids()` isolato (mondi ospitati esclusi, personaggi
+locali/di altri dispositivi esclusi) e un vero round trip con host su
+socket (il master rimuove un personaggio, la Home del giocatore lo
+recepisce via `resolve_backend_for_world`/`sync_replica` reali, verificata
+la sezione finale corretta) — più 5 nuovi controlli nella parte [7] di
+`test_istanze_personaggio.py` (67/67, era 62/62) sulla partizione con
+un'istanza archiviata. **Limite dichiarato nel test del round trip**:
+stesso di sempre in questo sandbox, un solo DB condiviso tra "host" e
+"giocatore" — non è simulabile uno stato "prima della sincronizzazione"
+davvero diverso da quello dell'host (sarebbe la stessa riga fisica); la
+parte verificata per intero è che `resolve_backend_for_world`/
+`sync_replica` girino senza errori sulla rete vera e che la Home mostri
+lo stato finale corretto. Trovato E CORRETTO nel test stesso (non nel
+codice applicativo) un errore di setup: `world_repo.save_replica_world()`
+fa un `INSERT OR REPLACE` sulla riga `worlds` che, con `PRAGMA foreign_
+keys=ON`, cascade su `world_members` — chiamarla su un mondo che nello
+stesso DB è ANCHE l'host vero cancellava la sua membership reale; il test
+aggira il problema con un `UPDATE` diretto della sola colonna
+`is_local_host`, mai riproducibile nell'app reale (lì i due DB sono
+sempre fisicamente separati).
+
+Suite di regressione completa rieseguita (26 file): tutte verdi tranne le
+stesse 2 cause pre-esistenti e note in `test_qr_scan.py`.
+
+---
+
+## "Richiesta di rientro" — un personaggio rimosso torna nel mondo solo con l'approvazione del master (2026-08-12, sessione successiva)
+
+Richiesta esplicita di Davide, che riprende direttamente il "fuori scope"
+lasciato aperto nella voce sopra ("un modo per il giocatore di 'riunirsi' a
+un mondo dopo essere stato rimosso... da riprendere se richiesto"): dare
+la possibilità a un personaggio rimosso (espulsione via `member.kick` o
+rimozione singola via `CMD_CHARACTER_INSTANCE_REMOVE`, 2026-08-12 stesso
+giorno) di rientrare nel mondo, sia dalla scheda locale che lo ha
+originato sia dalla sezione "Rimossi dai mondi", **mai in automatico**:
+una richiesta che il master deve approvare, simmetrica all'ingresso in un
+mondo via LAN (PIN + approvazione).
+
+**Bug reale trovato prima di scrivere una riga di codice**: sia il
+docstring di `character_repo.archive_world_instance()` sia il testo del
+dialogo master "Rimuovi personaggio dal mondo" affermavano che l'istanza
+"si riattiva da sola al primo resync del proprietario". Verificato con
+grep sull'intero repo: **questo non è mai stato implementato**. Nessun
+punto del codice scriveva mai `world_instance_archived=0` dopo
+l'archiviazione — `import_replica_character()` rispecchia lo stato
+dell'host così com'è (e l'host stesso resta archiviato), e
+`create_or_resume_instance()`/`find_existing_instance()` trovava
+l'istanza archiviata e la restituiva come "resumed=True" **senza**
+toglierle l'archiviazione: un giocatore che ripeteva "Aggiungi a un
+mondo" sullo stesso personaggio locale otteneva un successo silenzioso
+ma il personaggio restava invisibile al master per sempre — esattamente
+il "personaggio fantasma" che Davide ha chiesto di evitare fin dalla
+richiesta iniziale. Corretti anche i due testi/commenti obsoleti che
+affermavano il contrario.
+
+**Punto sollevato da Davide in revisione del piano, decisivo per il
+design**: "il personaggio rimosso rimane statico quindi non cambia,
+quello che il giocatore ha in locale potrebbe cambiare rispetto a quello
+rimosso in passato, magari sale di livello o viene cambiato qualcosa,
+dobbiamo gestire questa cosa". Vero: l'istanza archiviata è congelata,
+ma il personaggio locale di ORIGINE (`origin_character_id`, riga
+separata) può nel frattempo essere cambiato dal giocatore, e le due righe
+non si risincronizzano mai da sole in nessuna direzione. Scelta: la
+richiesta di rientro porta un `mode`, deciso dal giocatore all'invio (mai
+dal master) — `"frozen"` (default) riprende l'istanza esattamente come fu
+archiviata; `"refresh_from_local"` sovrascrive il CONTENUTO (livello, PF,
+inventario, incantesimi...) con lo stato ATTUALE del personaggio locale
+di origine, preservando SEMPRE identità e collegamento al mondo
+dell'istanza (mai quelli, vuoti, del personaggio locale esportato) —
+disponibile solo se quel personaggio locale esiste ancora (il giocatore
+può averlo cancellato nel frattempo).
+
+**Schema**: nuova tabella `world_rejoin_requests` (stesso schema-gemello
+di `world_change_requests`, ma verso opposto: qui propone il giocatore,
+risponde il master), nuovo dataclass `WorldRejoinRequest`
+(`data/models.py`). Nuove funzioni repository: `character_repo.
+unarchive_world_instance()` (unico punto che toglie l'archiviazione per
+`mode="frozen"`), `character_export.import_character_data_as_world_refresh()`
+— sorella di `import_replica_character()` ma, a differenza di quella (che
+LEGGE `world_id`/`origin_character_id`/`owner_device_id` dall'export e
+rifiuta un export senza `world_id`, pensata per una vera replica di
+rete), riceve questi tre campi come parametri espliciti e li sovrascrive
+sempre con quelli dell'istanza bersaglio, indipendentemente da cosa
+contiene l'export sorgente — pensata apposta per un export di un
+personaggio LOCALE, forzando anche `world_instance_archived=0` nello
+stesso `char_overrides`: un'unica scrittura transazionale fa
+contenuto+riattivazione insieme, mai due passi separati. CRUD completo in
+`world_repo.py` (`create_rejoin_request`/`get_rejoin_request`/
+`get_pending_rejoin_requests`/`get_pending_rejoin_request_for_character`/
+`save_replica_rejoin_request`/`resolve_rejoin_request`).
+
+**Permessi** (`core/world_permissions.py`): due nuovi comandi,
+`character_rejoin.request` (player-owned, verificato per proprietà come
+`hp.self_update`/`character_instance.sync`) e `character_rejoin.respond`
+(master/owner, come `change_request.propose` — incluso in
+`CHARACTER_MUTATING_COMMANDS` per la rimaterializzazione su un terzo
+dispositivo e in `MASTER_REMOTE_ACTION_COMMANDS` per lo stesso cooldown
+per-personaggio a pillola già in uso per le altre azioni master).
+
+**Handler** (`core/world_backend.py`): `_handle_character_rejoin_request`
+— fail-closed su non-proprietario, non-archiviato, modalità invalida,
+export mancante/malformato/non-locale, e guardia anti-duplicati (una sola
+richiesta `pending` per personaggio alla volta).
+`_handle_character_rejoin_respond` — due guardie trovate necessarie in
+fase di progettazione, non nel design doc originale: (1) race — se
+l'istanza risulta già non-archiviata quando arriva l'accettazione (es.
+doppio accept da due dispositivi master), tratta come no-op e chiude
+comunque la richiesta, mai un errore né una doppia scrittura; (2) race —
+se il proprietario è stato espulso dal mondo DOPO l'invio della richiesta
+ma PRIMA della risposta del master, l'accettazione viene rifiutata e la
+richiesta chiusa come "expired" invece di riammettere un personaggio il
+cui proprietario non è più membro (stato altrimenti incoerente).
+
+**Sincronizzazione**: due nuovi rami in `world_sync.apply_event_to_replica`
+(stesso pattern di `change_request.propose`/`respond`), inclusione nello
+snapshot di ingresso (`network/host_server.py::handle_snapshot`,
+`core/world_sync.py::_finalize_join`) filtrata per `requested_by ==
+device_id` — più semplice del filtro `own_ids` usato per le richieste di
+modifica, perché qui il device richiedente è già scritto direttamente
+sulla riga. Cooldown lato invio: riusa il bucket condiviso
+`network_request_last_at`/`NETWORK_REQUEST_COOLDOWN_S`, già usato per
+ingresso in un mondo e `_push_instance_to_host` (stesso principio già
+dichiarato da Davide: "tutte le richieste online da sincronizzare").
+
+**`core/character_instances.py`**: `InstanceResult` guadagna un campo
+`archived: bool` — quando `create_or_resume_instance()` trova un'istanza
+esistente che è archiviata, NON restituisce più `resumed=True` in
+silenzio (il bug del fantasma descritto sopra): `success=False`,
+`archived=True`, `character_id` valorizzato con l'istanza trovata perché
+il chiamante possa aprire subito il flusso di richiesta di rientro senza
+un'altra ricerca.
+
+**UI master** (`ui/views/world/world_view.py`): nuova sezione "Richieste
+di rientro" in `_render_detail`, gated da
+`perm.can_perform(my_role, perm.CMD_CHARACTER_REJOIN_RESPOND)` (master/owner
+soltanto — a differenza di "Richieste in sospeso", non visibile a un
+giocatore qualunque: qui è il master a dover decidere). Ogni riga mostra
+la modalità scelta ("Riprende lo stato con cui era stato rimosso" /
+"Aggiorna allo stato attuale della scheda del giocatore (Liv. N)", letta
+dal payload della richiesta per trasparenza) e due pillole Accetta/Rifiuta
+che riusano `_send_remote_command()` — stesso cooldown per-personaggio con
+countdown visivo delle altre azioni master, nessuna scorciatoia.
+Aggiornato anche il testo del dialogo "Rimuovi personaggio dal mondo" (non
+più "si riattiva da solo").
+
+**UI giocatore** (`ui/views/home_view.py`): un solo dialogo/helper
+condiviso da entrambi gli entry point (`_open_rejoin_request_dialog`/
+`_send_rejoin_request`), per non duplicare la logica di scelta-modalità +
+invio + gestione errori/cooldown/duplicati in due posti. Entry point A —
+la card di un personaggio in "Rimossi dai mondi" (`_character_card`,
+nuovo parametro `is_removed`) guadagna un pulsante "Richiedi rientro nel
+mondo", sostituito da uno stato disabilitato "Richiesta inviata, in
+attesa del master" se esiste già una richiesta `pending`. Entry point B —
+`_open_add_to_world_dialog._confirm`: se `create_or_resume_instance()`
+ritorna `result.archived`, non apre più la scheda in silenzio, apre lo
+stesso dialogo condiviso (qui `origin_character_id` coincide sempre con
+`char.id` di partenza, quindi `refresh_from_local` è sempre disponibile).
+
+Nuovo `test_character_rejoin.py` (68/68): handler (successo entrambe le
+modalità, fail-closed, anti-duplicati, le due race guard), propagazione
+di replica, `create_or_resume_instance` su un'istanza archiviata (verifica
+esplicita che NON crei mai una seconda riga — "nessun personaggio
+fantasma"), UI master (click reale su Accetta) e UI giocatore (pulsante e
+stato "in attesa" con click reali sui controlli Flet). Suite di
+regressione completa rieseguita (27 file, oltre 1500 controlli): tutte
+verdi tranne le stesse 2 cause pre-esistenti e note in `test_qr_scan.py`
+(dipendenza `pyzbar` mancante in questo sandbox, indipendente dal
+codice).
+
+---
+
+## Passo 9 chiuso per intero — "Esportazione del mondo" (`.dndworld`, 2026-08-12, sessione successiva)
+
+Richiesta esplicita di Davide ("procediamo a implementare il passo 9 fai
+tutto senza chiedere l'autorizzazione, interrompi solo se ci sono delle
+cose che dobbiamo decidere insieme"): chiude l'ultimo passo del piano dei
+9 di `multiplayer_design.md` §13 — 9D (export/import `.dndworld`), 9E
+(promemoria periodico) e 9F (UI), rimasti aperti dalla sessione dell'11.
+
+**9D — `data/repositories/world_export.py`**, stesso principio di
+`character_export.py` (introspezione schema via `PRAGMA table_info`,
+"a prova di versione" in entrambe le direzioni) — non una seconda copia
+della stessa logica: `export_world()`/`import_world()` importano ed
+usano direttamente `_insert_row`/`_table_columns`/
+`_write_character_and_children`/`CHILD_TABLES` da `character_export.py`
+(funzioni già generiche, non specifiche del "personaggio" nonostante il
+nome del modulo). Contiene: mondo, membri, TUTTE le istanze di
+personaggio del mondo — **comprese quelle archiviate** (2026-08-12,
+stessa sessione della "Richiesta di rientro" sopra: un backup non deve
+mai perdere un personaggio rimosso, altrimenti la rimozione diventerebbe
+silenziosamente definitiva al primo export/import — nuova
+`character_repo.get_all_instances_of_world()`, a differenza di
+`get_master_visible_characters()` che filtra `world_instance_archived=0`
+apposta per la Sezione Master), giornale eventi, i due contenitori di
+bottino, note del master, richieste di modifica E di rientro pendenti,
+mappe condivise.
+
+Stesse 3 modalità di `.dndchar` (nuovo/sovrascrivi/copia). In OGNI
+modalità **questo dispositivo diventa l'owner/host del mondo da qui in
+avanti** (§6.3: "chi importa diventa owner e ospita da lì in avanti") —
+`_write_world_row()` è l'UNICA eccezione deliberata, oltre a
+`create_world()`, all'invariante "nessuna funzione fuori da
+`create_world()` impone `is_local_host=1`" (`world_repo.
+save_replica_world`, §11.5 "due dispositivi non possono ospitare lo
+stesso mondo"): un'importazione da file è un'azione esplicita
+dell'utente per iniziare/riprendere a ospitare, mai un effetto
+collaterale di sincronizzazione. `_write_members()` garantisce sempre un
+solo `owner` (chi importa, promosso se già tra i membri esportati —
+usando il NOME appena digitato nel dialogo, non quello vecchio del file
+— o aggiunto come nuovo membro; l'eventuale vecchio owner retrocesso a
+`master`, stesso schema a due passi già in uso in `_handle_transfer_
+ownership`). "Sovrascrivi" ripulisce tutto ciò che viveva sotto quell'id
+prima di riscrivere: `world_repo.delete_world()` già fa cascare
+membri/eventi/richieste (FK dirette verso `worlds`), più 4 `DELETE`
+espliciti per le tabelle che non hanno quella FK (`characters` —
+cascade sulle proprie 12 tabelle figlio —, `loot_stash_entries`,
+`master_campaign_notes`, `game_maps` condivise). "Copia" rigenera un id
+per mondo/membri/personaggi/ogni riga collegata, con una mappa
+vecchio→nuovo id dei personaggi riusata per rimappare correttamente i
+riferimenti (`target_id` degli eventi, `character_id` delle richieste) —
+mai lasciare un giornale copiato che punta a personaggi dell'originale.
+`world_events.seq` (l'AUTOINCREMENT reale della tabella) non viene MAI
+riportato da un file: omesso dalla riga prima di scriverla, un nuovo
+valore viene assegnato da SQLite nell'ordine originale.
+
+**9E — promemoria periodico**: il design doc lo segnava esplicitamente
+come una delle tre tarature da "portare a Davide invece di decidere da
+solo" (§12) — fermato con `AskUserQuestion` prima di scrivere il codice,
+non deciso a tavolino. Scelta di Davide: eventi di giornale dall'ultimo
+export riuscito (non calendario, non conteggio di aperture — "non
+disturba se il mondo è fermo, avvisa quando c'è davvero qualcosa di
+nuovo da perdere"), soglia 20 (valore medio tra le alternative
+proposte). Nuova colonna `worlds.last_export_seq`
+(`world_repo.mark_world_exported()`, chiamata SOLO dopo che il file è
+stato scritto/scaricato con successo — mai su un export fallito).
+**Bug reale trovato scrivendo il test di questa soglia**: `world_events.
+seq` è l'autoincrement GLOBALE della tabella, condiviso da TUTTI i
+mondi (non riparte da 1 per ciascuno) — la prima implementazione
+calcolava "eventi dall'ultimo export" come `get_latest_event_seq(world)
+- last_export_seq`, che per un mondo appena creato (`last_export_seq=0`)
+dava il valore ASSOLUTO del contatore globale, già ben oltre soglia se
+altri mondi avevano generato eventi prima. Corretto con
+`world_repo.count_events_since(world_id, since_seq)` — un `COUNT(*)
+WHERE world_id=? AND seq>?`, mai una sottrazione tra seq incomparabili.
+L'avviso, quando compare, è un banner non bloccante nella sezione
+"Backup del mondo" (mai un dialog che interrompe il flusso).
+
+**9F — UI** (`ui/views/world/world_view.py`): nuova sezione "Backup del
+mondo" (solo owner, prima della "Zona pericolosa") con la pillola
+"Esporta mondo" e, quando la soglia è superata, il banner del
+promemoria. "Importa mondo" nella lista dei mondi (pillola accanto a
+"Crea"/"Unisciti"), con un dialogo che chiede il nome del master PRIMA
+di procedere (stessa lezione già imparata il 2026-08-07 per "Unisciti
+con un codice": mai un default silenzioso come "Master" per tutti) e,
+se l'id del file collide con un mondo già presente, lo stesso dialogo
+di conflitto (Copia/Sovrascrivi/Annulla) già in uso per `.dndchar`.
+
+Per i dialoghi nativi del SO (salvataggio/apertura desktop, FilePicker
+mobile, staging web) — **decisione di scope deliberata**: NON un
+refactor di `home_view.py` (il codice per `.dndchar` è già in produzione
+e confermato funzionante da Davide su macOS/Windows/Linux; un refactor
+"a costo zero sulla carta" ha comunque un rischio reale su codice di
+automazione OS così delicato, vedi i bug -1700/System Events già
+risolti in passato). Estratta invece la logica GENERICA (parametrizzata
+per titolo/filtro invece che scritta a mano per ".dndchar") in un nuovo
+modulo `ui/file_export.py`, usato SOLO dal nuovo export/import del
+mondo — zero rischio di regressione sul flusso esistente, base pronta
+per il prossimo export/import che si aggiunga. Nuovo `ui/world_transfer.py`
+(picker cartella condivisa per l'import web, mirror di
+`character_transfer.py`).
+
+Nuovo `test_esportazione_mondo.py` (78/78): export (struttura completa,
+istanze archiviate incluse), import nelle 3 modalità (round trip fedele,
+pulizia su sovrascrivi, id nuovi e referenze rimappate su copia),
+validazione/fail-closed, UI (sezione Backup, flusso di import con nome
+obbligatorio e conflitto, click reali sui controlli Flet), promemoria
+(soglia superata/non superata, il bug del seq globale trovato e
+corretto qui). Suite di regressione completa rieseguita (28 file, oltre
+1500 controlli): tutte verdi tranne le stesse 2 cause pre-esistenti e
+note in `test_qr_scan.py`.
+
+Con questo il piano dei 9 passi di "Mondi condivisi / LAN party"
+(`multiplayer_design.md` §13) è chiuso per intero. Resta, come per ogni
+passo di questo piano, la verifica su Wi-Fi reale con dispositivi fisici
+a carico di Davide — nessun test di sandbox può sostituirla (§15 del
+design doc, DB separati non simulabili in modo affidabile qui).
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
