@@ -1744,8 +1744,8 @@ class MasterEncounterView(ft.Column):
             title=design.dialog_title("Creazione Rapida"),
             content=ft.Container(
                 content=ft.Column(
-                    [name_tf, ft.Row([ac_tf, hp_tf, xp_tf], spacing=8),
-                     ft.Row([init_tf, dex_tf], spacing=8), auto_cb, error_text],
+                    [name_tf, ft.Row([ac_tf, hp_tf, xp_tf], spacing=8, run_spacing=8, wrap=True),
+                     ft.Row([init_tf, dex_tf], spacing=8, run_spacing=8, wrap=True), auto_cb, error_text],
                     spacing=8, tight=True,
                 ),
                 width=responsive_dialog_width(page, 320),

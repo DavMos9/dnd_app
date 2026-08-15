@@ -4555,8 +4555,8 @@ class CombattimentoTab(ScrollMemoryListView):
             title=design.dialog_title("Inserimento manuale"),
             content=ft.Column([
                 f_name,
-                ft.Row([f_type, ft.Container(width=8), f_cr], spacing=0),
-                ft.Row([f_ac, ft.Container(width=8), f_hp], spacing=0),
+                ft.Row([f_type, ft.Container(width=8), f_cr], spacing=0, run_spacing=8, wrap=True),
+                ft.Row([f_ac, ft.Container(width=8), f_hp], spacing=0, run_spacing=8, wrap=True),
                 f_speed,
             ], spacing=10, tight=True),
             actions=cast(list[ft.Control], wrap_dialog_actions([

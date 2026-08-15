@@ -9436,6 +9436,147 @@ default `Space.LG` di `design.card()` in `home_view.py`, nessun valore
 
 ---
 
+## Sessione tema scuro troppo saturo + campi tagliati nei form Master (2026-08-15)
+
+Due bug report di Davide con screenshot nella stessa sessione.
+
+**1. Tema scuro "troppo fluo"** — Davide: sfondo dei pannelli troppo
+chiaro/contrastato rispetto al fondo pagina, colori d'accento troppo
+saturi. Causa: `DARK` in `ui/design.py` non era mai stato ricalibrato
+da quando esiste (i valori erano stati scelti per il minimo di
+contrasto WCAG, non per l'intensità percepita). Rifatti tutti i token
+che c'entrano, ricalcolando ogni rapporto di contrasto (non a occhio,
+stesso metodo — relative luminance WCAG — già usato per la scelta
+originale): `surface`/`surface_alt` riavvicinati a `bg` (`#1e1c26`→
+`#17161a`, `#282533`→`#211f27`, ora 1.02:1 invece di 1.10:1 — quasi
+indistinguibili in luminosità, i bordi restano l'unico segnale delle
+card, `border` lasciato invariato apposta); `primary`/`magic`/
+`warning`/`alert` desaturati e scuriti (`#f2696d`→`#de6165`,
+`#7aa2f7`→`#7897db`, `#e0a028`→`#bd8c32`, `#f0873f`→`#d57d40`); i
+riquadri tenui `note_bg`/`info_bg`/`success_bg` scuriti in coerenza.
+Tutti i minimi documentati nel docstring di `Palette` restano rispettati
+con margine (verificato: ogni accento ≥5:1 su `surface`/`bg`, `on_primary`
+5.19:1 su `primary`, testo 15.3:1 su `surface`) — nessuna soglia
+abbassata, solo meno saturazione/luminosità a parità di leggibilità.
+`danger` e `nav_accent` seguono `primary` (erano già alias). Verificato
+visivamente lanciando l'app in `FLET_WEB=true` con HOME isolata e
+pilotandola con Playwright (headless Chromium, nessun `chromium-cli`
+disponibile in questo sandbox) — schermata Modalità Master/Rubrica NPC
+in tema scuro, sensibilmente più tenue del prima.
+
+**2. Campi tagliati a destra nei form con statistiche creatura** — Davide,
+screenshot del dialog "Modifica NPC": riga FOR/DES/COS/INT/SAG/CAR e riga
+CA/PF Massimi/Formula PF uscivano dal bordo destro del dialog. Causa:
+in `ui/views/master/master_npc_list_view.py::_open_npc_form()`, quattro
+`ft.Row([...])` (tipo/taglia, CA/PF/formula, velocità/GS/PE, le 6 stat)
+sommavano larghezze fisse dei campi superiori alla larghezza del dialog
+(`responsive_dialog_width(page, 340)`), senza `wrap=True` — overflow
+puro, non il gotcha "Row non-expand dentro Row unbounded" già
+documentato in `regole_flet_api.md` (qui la catena Container→Column→Row
+è correttamente vincolata, quindi `wrap=True` da solo basta). Fix:
+aggiunto `wrap=True, run_spacing=N` alle quattro Row. Verificato con lo
+stesso giro Playwright del punto 1: tutti i campi ora visibili, disposti
+su più righe quando non entrano nella larghezza disponibile.
+
+Lo stesso pattern (Row di 2+ campi a larghezza fissa dentro un dialog,
+senza `wrap`) è stato cercato anche altrove su richiesta esplicita di
+Davide ("assicurati che le dimensioni siano giuste anche nelle altre
+schede") e corretto in altri 3 punti, stesso trattamento (`wrap=True,
+run_spacing=`):
+- `ui/views/master/master_encounter_view.py::_open_add_adhoc_dialog()`
+  (dialog "Creazione Rapida" incontri) — riga CA/PF/PE e riga
+  Iniziativa/DES.
+- `ui/components/monster_picker.py::show_monster_picker()` — riga
+  filtri Tipo/GS; questo file non aveva mai una `width=` esplicita sul
+  contenitore del dialog (unico tra quelli toccati), aggiunta
+  `responsive_dialog_width(page, 340)` sui tre punti dove viene
+  assegnato `dlg.content` (import di `responsive_dialog_width` aggiunto,
+  nessun import circolare con `ui/widgets.py`).
+- `ui/views/character_sheet/combattimento_tab.py::_open_manual_creature_dialog()`
+  ("Inserimento manuale" Forma Selvatica/Evocazione) — riga Tipo/GS e
+  riga CA/PF; qui il dialog non ha mai avuto un contenitore a larghezza
+  esplicita (divergenza strutturale rispetto agli altri form
+  `creature_entries`, segnalata ma non risolta per intero — solo
+  `wrap=True` aggiunto, meno rischio di overflow ma non lo stesso
+  controllo puntuale della larghezza degli altri tre punti).
+
+Suite di regressione rieseguita dopo ogni gruppo di modifiche
+(`test_fase_4.py`, `test_fase_d.py`, `test_layout_incontri_e_pf_autosync.py`,
+`test_regressione_wrap_expand.py`, `test_master_world_scoping.py`,
+`test_npc_race_autofill.py`, `test_mappe_condivise_ui.py`): tutte verdi,
+nessuna regressione.
+
+**Seguito, stessa giornata — sfondo ancora "blu" e rosso da rifare
+(bordeaux)**: secondo giro di bug report di Davide sullo stesso tema
+scuro. Due richieste:
+
+1. *"Lo sfondo mi sembra quasi blu, lo voglio nero opaco"* — `bg`/`bg_alt`/
+   `surface`/`surface_alt`/`border`/`nav_bg`/`nav_border` in `DARK`
+   (`ui/design.py`) avevano tutti una dominante blu-viola (tonalità
+   ~250°) fin dalla primissima stesura del tema scuro, mai notata prima
+   perché mascherata dal problema di saturazione degli accenti risolto
+   nel giro precedente. Desaturati a tonalità neutra (~0-2% di
+   saturazione residua) mantenendo la stessa luminosità:
+   `bg` `#14131a`→`#161617`, `surface` `#17161a`→`#181818`, `surface_alt`
+   `#211f27`→`#232224`, `nav_bg` `#0e0d13`→`#101010`,
+   `nav_border`→`#2c2c2e`. `note_bg`/`info_bg`/`success_bg` NON toccati
+   (la loro tinta calda/blu/verde è intenzionale, segnala la categoria
+   del riquadro — non fa parte del difetto lamentato).
+2. *"Il rosso non mi piace, bordeaux vino oppure il rosso originale
+   scurito"* — Davide ha indicato un hex preciso per il bordeaux,
+   `#8d2132`. Prima di applicarlo: audit completo (agente in background)
+   di ogni uso di `design.T().primary`/`.danger` in `ui/` — **478
+   occorrenze**, di cui **325 testo/icona/bordo** disegnate direttamente
+   sul fondo scuro (bordi sinistri delle card, "Annulla", icone, campi
+   attivi) contro solo **141 riempimenti** (bottoni/checkbox/badge) dove
+   il bordeaux vero avrebbe funzionato. `#8d2132` puro contro il nuovo
+   `surface` dà ~2:1 di contrasto — illeggibile nei 325 usi testo.
+   Presentate a Davide (artifact di confronto, poi scelta via
+   `AskUserQuestion`) due strade: singolo token schiarito quanto basta
+   vs. doppio token (bordeaux vero solo nei riempimenti + un secondo
+   token più chiaro per gli altri 325 punti, refactor su ~30 file).
+   **Scelta: singolo token.** Nuovo `primary` (= `danger` = `nav_accent`,
+   erano già alias) è `#d4596c` — stessa tonalità del bordeaux di Davide
+   (hue 350.6°, calcolata da `#8d2132`), schiarito al minimo che regge
+   4.5:1 su `surface`/`bg` (4.60/4.69), tutti gli altri minimi del
+   docstring `Palette` restano rispettati (`on_primary` 4.7:1 sopra il
+   nuovo `primary`). `on_primary` resta testo scuro (`#241012`, convenzione
+   Material 3 per un accento di luminosità medio-bassa in dark mode).
+   Verificato visivamente con lo stesso giro Playwright/`FLET_WEB=true`
+   del punto precedente: nero neutro senza più dominante blu, rosso
+   nettamente più "vino" che corallo, dialog "Modifica NPC" ancora
+   integro. Suite di regressione rieseguita, tutta verde.
+
+   Il colore `#8d2132` esatto di Davide non è quindi nel codice: è stato
+   valutato e scartato come token unico per il motivo di contrasto sopra.
+   Se in futuro si vuole il bordeaux vero nei bottoni/badge, resta
+   disponibile la strada a due token già scartata qui (non implementata).
+
+**Seguito, stessa giornata — quarto giro, "non corrisponde a quello visto
+online" + un secondo hex bordeaux**: Davide ha bocciato `#d4596c` (troppo
+tenue/rosato) e indicato un nuovo hex, `#761c2a` — ancora più scuro del
+precedente (`#8d2132`, contrasto ~1.7:1 su `surface`, peggio di prima),
+chiedendo esplicitamente più saturazione. Prima di applicare: verificato
+che alzare la sola saturazione HSL a parità di luminosità minima per
+4.5:1 non cambia praticamente nulla (`#d75469` vs il `#d4596c` già
+scartato — differenza impercettibile), perché la leggibilità dipende
+dalla luminanza, non dalla saturazione HSL. La causa vera del "non
+corrisponde": la saturazione **HSL** non è percettivamente uniforme — a
+`L` alta (necessaria per 4.5:1) la stessa "S" numerica appare più tenue
+all'occhio. Ricalcolato in **OKLCH** (croma percettivamente uniforme)
+sulla tonalità dei due hex di Davide (H≈17° OKLCH, coerente con l'hue
+HSL ~350° di entrambi): stesso minimo di luminosità per 4.5:1 su
+`surface`, ma croma alto (0.18) anziché vincolato dalla saturazione HSL.
+Risultato: `primary`(=`danger`=`nav_accent`) `#d4596c`→`#e04f61` — 4.62:1
+su `surface`/4.70:1 su `bg`, `on_primary` `#241012` sopra resta a 4.72:1.
+Verificato visivamente con lo stesso giro Playwright: rosso nettamente
+più vivo/saturo del tentativo precedente, sfondo nero neutro invariato.
+Suite di regressione rieseguita (`test_fase_4.py`,
+`test_layout_incontri_e_pf_autosync.py`, `test_master_world_scoping.py`),
+tutta verde.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

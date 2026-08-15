@@ -211,27 +211,40 @@ non stimati.
 | `warning` | `#a35a00` | 5.14 |
 | `danger` | `= primary` | 7.63 |
 
-**Tema scuro** (nuovo)
+**Tema scuro** (rivisto due volte il 2026-08-15, vedi `changelog_storico.md` —
+bug report Davide: pannelli troppo "accesi"/colori troppo fluo nel primo giro,
+poi sfondo ancora percepito "blu" invece di nero opaco e rosso da rifare in
+bordeaux nel secondo. I valori sotto sono quelli **attuali**, non quelli
+originali della Fase B — la tabella storica con i numeri di allora è nel
+changelog, non ripetuta qui)
 
 | token | hex | contrasto misurato |
 |---|---|---|
-| `bg` | `#14131a` | — |
-| `surface` | `#1e1c26` | — |
-| `surface_alt` | `#282533` | — |
-| `border` | `#3a3648` | — |
-| `text` | `#f0ece4` | 14.3 su surface (AAA) |
+| `bg` | `#161617` | — (neutro, niente più dominante blu-viola) |
+| `surface` | `#181818` | 1.02:1 su bg |
+| `surface_alt` | `#232224` | — |
+| `border` | `#3e3d41` | 1.65:1 su surface — unico segnale dei bordi card |
+| `text` | `#f0ece4` | 15.1 su surface (AAA) |
 | `text_2` | `#c2bcae` | 8.88 (AAA) |
 | `text_3` | `#9c94a8` | 5.14 (AA) |
-| `primary` | `#f2696d` | 5.62 su surface — foreground scuro `#241012` sul pieno 6.06 |
-| `magic` | `#7aa2f7` | 6.67 |
+| `primary` (= `danger` = `nav_accent`) | `#e04f61` | 4.62 su surface — foreground scuro `#241012` sul pieno 4.72 (ricalcolato in OKLCH per croma percepito, non HSL — vedi changelog) |
+| `magic` | `#7897db` | 6.22 |
 | `success` | `#4ec27f` | 7.48 |
-| `warning` | `#e0a028` | 7.39 |
+| `warning` | `#bd8c32` | 5.97 |
+| `alert` | `#d57d40` | 5.86 |
 
 Note importanti emerse dal calcolo:
 - In dark mode i bottoni pieni devono usare un **foreground scuro** sull'accento
-  chiaro (convenzione Material 3): bianco su `#f2696d` dà solo 3.91 → sotto la
-  soglia AA. Questa è la ragione per cui il `primary` scuro non può essere lo
-  stesso `#c0182c` del tema chiaro.
+  chiaro (convenzione Material 3): bianco su un accento di luminosità
+  medio-bassa scende sotto la soglia AA. Questa è la ragione per cui il
+  `primary` scuro non può essere lo stesso `#a4161a` (o un bordeaux altrettanto
+  scuro) del tema chiaro.
+- `primary`/`danger` sono lo **stesso token**, usato in 478 punti di `ui/`
+  (audit 2026-08-15): 325 come testo/icona/bordo diretto su `surface`/`bg`
+  (serve ≥4.5:1), solo 141 come riempimento con `on_primary` sopra. Qualunque
+  tonalità nuova va scelta pensando prima al vincolo testo, non al pulsante —
+  un bordeaux scuro "vero" (tipo `#8d2132`, valutato e scartato) scende a
+  ~2:1 e sparisce nei 325 usi non-riempimento.
 - Per confronto, i valori **attuali**: `COLOR_TEXT_MUTED #7880a0` su bianco =
   **3.89** (sotto AA per testo piccolo, e viene usato proprio per i testi
   piccoli); `danger_button` testo `#1c1e2c` su `#c0182c` = **2.68** (illeggibile).

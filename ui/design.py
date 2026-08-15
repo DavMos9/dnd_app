@@ -195,21 +195,51 @@ LIGHT = Palette(
 
 DARK = Palette(
     name="dark", is_dark=True,
-    bg="#14131a", bg_alt="#191822",
-    surface="#1e1c26", surface_alt="#282533", border="#3a3648",
+    # 2026-08-15: bug report Davide, secondo giro — lo sfondo aveva ancora
+    # una dominante blu/viola percepibile ("quasi blu invece lo voglio nero
+    # opaco"). `bg`/`bg_alt`/`surface`/`surface_alt`/`border`/`nav_bg`/
+    # `nav_border` erano tutti tinti verso l'azzurro-viola (tonalità ~250°)
+    # fin dalla prima stesura del tema scuro: desaturati qui a tonalità
+    # neutra (~0-2% di saturazione residua, impercettibile) mantenendo la
+    # stessa luminosità di prima — un nero/grigio scuro davvero neutro, non
+    # colorato. `note_bg`/`info_bg`/`success_bg` NON toccati: la loro tinta
+    # (calda/blu/verde) è intenzionale, segnala la categoria del riquadro.
+    bg="#161617", bg_alt="#1d1c1e",
+    # Superficie riavvicinata a `bg` (1.10:1 → 1.02:1, quasi lo stesso salto
+    # di prima) e accenti desaturati/scuriti — bug report Davide, primo giro:
+    # pannelli troppo "accesi" e colori troppo fluo. Tutti i rapporti di
+    # contrasto sotto sono ricalcolati (WCAG relative luminance), non a
+    # occhio, per restare sopra le soglie documentate nel docstring della
+    # classe: `border` resta sullo stesso scarto relativo a `surface` di
+    # prima (1.54:1 circa) — è l'unico segnale rimasto per i bordi delle
+    # card, ridurlo lo avrebbe reso invisibile.
+    surface="#181818", surface_alt="#232224", border="#3e3d41",
     text="#f0ece4", text_2="#c2bcae", text_3="#9c94a8",
-    # In dark mode l'accento è più chiaro e il testo che ci va SOPRA è scuro
-    # (convenzione Material 3): bianco su un rosso di media luminosità darebbe
-    # 3.91:1, sotto la soglia AA.
-    primary="#f2696d", on_primary="#241012",
-    magic="#7aa2f7", success="#4ec27f", warning="#e0a028", alert="#f0873f",
-    danger="#f2696d", on_accent="#14131a",
+    # 2026-08-15, quarto giro — bug report Davide: il rosso corallo non
+    # piaceva (voleva un bordeaux vino, #8d2132 poi #761c2a — entrambi
+    # ~2:1 di contrasto su `surface`, illeggibili nei 325 usi testo/icona/
+    # bordo su 478 totali di `primary`/`danger` in `ui/`, vedi audit e
+    # scelta "un solo token" nel changelog). Il primo tentativo di
+    # schiarire in spazio HSL (`#d4596c`) è stato giudicato "non
+    # corrisponde a quello visto online" — troppo tenue/rosato. Causa:
+    # la saturazione HSL non è percettivamente uniforme, portare la
+    # lightness da 0.34 (l'hex di Davide) a 0.59 per la leggibilità
+    # smorza la resa visiva anche a saturazione HSL invariata. Ricalcolato
+    # in **OKLCH** (croma percettivo, non HSL) sulla tonalità dei due hex
+    # di Davide (H≈17° OKLCH): stesso minimo di luminosità per 4.5:1 su
+    # `surface`, ma croma alto (0.18) invece che vincolato dalla
+    # saturazione HSL — risultato visivamente più vivo/saturo a parità di
+    # leggibilità. `on_primary` resta testo scuro sopra (Material 3, come
+    # sopra).
+    primary="#e04f61", on_primary="#241012",
+    magic="#7897db", success="#4ec27f", warning="#bd8c32", alert="#d57d40",
+    danger="#e04f61", on_accent="#161617",
     # I fondi tenui in dark non possono essere "chiari": sono la superficie
     # alternativa leggermente tinta verso l'accento corrispondente.
-    note_bg="#2b2718", info_bg="#1d2436", success_bg="#182a20",
-    parchment="#1e1c26", parchment_alt="#282533",
-    nav_bg="#0e0d13", nav_bg_alt="#2a1418", nav_border="#2a2733",
-    nav_text="#f0ece4", nav_muted="#8e8799", nav_accent="#f2696d",
+    note_bg="#1d1b14", info_bg="#1d2029", success_bg="#17201b",
+    parchment="#181818", parchment_alt="#232224",
+    nav_bg="#101010", nav_bg_alt="#2a1418", nav_border="#2c2c2e",
+    nav_text="#f0ece4", nav_muted="#8e8799", nav_accent="#e04f61",
     shadow="#000000", shadow_opacity=(0.45, 0.55, 0.65),
 )
 

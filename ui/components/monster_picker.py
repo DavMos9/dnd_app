@@ -31,6 +31,7 @@ import flet as ft
 # import cr_to_float`, comportamento identico a prima.
 from data.game_data.game_data_loader import cr_to_float  # noqa: F401
 from ui import design
+from ui.widgets import responsive_dialog_width
 
 _MONSTERS_PATH = (
     Path(__file__).parent.parent.parent / "data" / "game_data" / "monsters.json"
@@ -446,7 +447,7 @@ def show_monster_picker(
 
     def _list_content() -> ft.Column:
         controls: list[ft.Control] = [
-            ft.Row([type_dd, cr_dd], spacing=8),
+            ft.Row([type_dd, cr_dd], spacing=8, run_spacing=8, wrap=True),
             ft.Container(height=4),
             search_tf,
             ft.Container(height=6),
@@ -472,7 +473,7 @@ def show_monster_picker(
                 on_select(m)
 
         def _go_back(_e: Any) -> None:
-            dlg.content = ft.Container(content=_list_content(), height=480)
+            dlg.content = ft.Container(content=_list_content(), height=480, width=responsive_dialog_width(page, 340))
             dlg.title = ft.Text(title)
             dlg.actions = [ft.TextButton("Chiudi", on_click=lambda _e: page.pop_dialog())]
             try:
@@ -488,7 +489,7 @@ def show_monster_picker(
                 color=design.T().on_primary if not already else design.T().text_3,
             ),
         )
-        dlg.content = ft.Container(content=build_stat_block_column(m), height=480)
+        dlg.content = ft.Container(content=build_stat_block_column(m), height=480, width=responsive_dialog_width(page, 340))
         dlg.title = ft.Row(
             [
                 ft.IconButton(
@@ -524,7 +525,7 @@ def show_monster_picker(
 
     dlg = ft.AlertDialog(
         title=design.dialog_title(title),
-        content=ft.Container(content=_list_content(), height=480),
+        content=ft.Container(content=_list_content(), height=480, width=responsive_dialog_width(page, 340)),
         actions=[ft.TextButton("Chiudi", on_click=lambda _e: page.pop_dialog())],
     )
     page.show_dialog(dlg)

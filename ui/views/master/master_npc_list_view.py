@@ -607,12 +607,20 @@ class MasterNpcListView(ft.Column):
         stat_fields_col = ft.Column(
             [
                 ft.Divider(height=14, color=design.T().border),
-                ft.Row([type_picker.control, size_picker.control], spacing=8),
+                # wrap=True (2026-08-15, bug report Davide: campi tagliati a
+                # destra) — la somma delle larghezze fisse dei campi supera
+                # quella del dialog su schermi stretti; qui è sicuro perché
+                # il contenitore del dialog ha una width esplicita
+                # (responsive_dialog_width) e nessun Row non-expand si
+                # frappone sopra, quindi il vincolo di larghezza arriva
+                # bounded fino a questi Row (vedi regole_flet_api.md, sezione
+                # "WRAP=True DENTRO UNA ROW NON-EXPAND").
+                ft.Row([type_picker.control, size_picker.control], spacing=8, run_spacing=8, wrap=True),
                 align_picker.control,
-                ft.Row([ac_tf, hp_tf, hp_formula_tf], spacing=8),
+                ft.Row([ac_tf, hp_tf, hp_formula_tf], spacing=8, run_spacing=8, wrap=True),
                 ac_note_tf,
-                ft.Row([speed_tf, cr_picker.control, xp_tf], spacing=8),
-                ft.Row([str_tf, dex_tf, con_tf, int_tf, wis_tf, cha_tf], spacing=6),
+                ft.Row([speed_tf, cr_picker.control, xp_tf], spacing=8, run_spacing=8, wrap=True),
+                ft.Row([str_tf, dex_tf, con_tf, int_tf, wis_tf, cha_tf], spacing=6, run_spacing=6, wrap=True),
                 senses_tf, languages_tf,
                 _picker_label("Vulnerabilità ai danni"), vuln_picker.control,
                 _picker_label("Resistenze ai danni"), res_picker.control,
