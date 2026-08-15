@@ -302,8 +302,8 @@ def _weapon_choice_default(item: dict) -> dict:
     `ui/views/creation_wizard/creation_shared.py::CreationSharedMixin.
     _init_weapon_choice()` — non importabile da qui (quel modulo porta
     `import flet`, vietato in `core/*.py`). Tenerle sincronizzate a mano se
-    una delle due cambia: 4 righe, stesso algoritmo, stessa fonte dati
-    (`WEAPONS_BY_CATEGORY`).
+    una delle due cambia: stesso algoritmo, stessa fonte dati
+    (`WEAPONS_BY_CATEGORY`/`GameDataLoader.get_tool_categories()`).
     """
     if item.get("item_type") == "weapon_choice":
         cat = item.get("category", "semplice")
@@ -313,6 +313,14 @@ def _weapon_choice_default(item: dict) -> dict:
             item["chosen_weapons"] = [weapons[0]] * count if weapons else []
         else:
             item["chosen_weapon"] = weapons[0] if weapons else ""
+    elif item.get("item_type") == "tool_choice":
+        cat = item.get("category", "strumenti_musicali")
+        tools = _loader.get_tool_categories().get(cat, [])
+        count = item.get("count", 1)
+        if count > 1:
+            item["chosen_tools"] = [tools[0]] * count if tools else []
+        else:
+            item["chosen_tool"] = tools[0] if tools else ""
     return item
 
 
@@ -360,6 +368,20 @@ def _assign_default_starting_equipment(character_id: str, class_name: str) -> No
                 wname = item.get("chosen_weapon", "")
                 if wname:
                     _save_weapon_by_name(character_id, wname)
+        elif itype == "tool_choice":
+            item = _weapon_choice_default(item)
+            count = item.get("count", 1)
+            chosen_names = (
+                item.get("chosen_tools", []) if count > 1
+                else [item.get("chosen_tool", "")]
+            )
+            for tname in chosen_names:
+                if tname:
+                    character_repo.create_inventory_item(
+                        character_id=character_id, name=tname,
+                        quantity=1, weight=0.0, category="tool",
+                        is_equipped=False, description="",
+                    )
         elif itype == "currency":
             cur = character_repo.get_currencies(character_id)
             if cur:

@@ -99,6 +99,41 @@ def build_stat_block_column(m: dict) -> ft.Column:
             padding=ft.Padding.only(bottom=6),
         )
 
+    def collapsible_feature(title: str, tiles: list[ft.Control], *, expanded: bool,
+                             accent: str | None = None) -> ft.Control:
+        """
+        Avvolge una sezione facoltativa (Tratti/Azioni/ecc.) in
+        `design.collapsible_section()` invece di appenderla come testo piatto
+        — riduce lo spazio occupato dalle sezioni più lunghe (Azioni,
+        Azioni Leggendarie) tenendole chiuse finché non servono.
+
+        `build_stat_block_column()` è una funzione pura (nessun `self` su
+        cui tenere lo stato aperto/chiuso), quindi lo stato vive qui in una
+        chiusura locale con un `ft.Ref` come ancora stabile per il toggle
+        in place — non sopravvive alla chiusura del dialog/pannello che
+        contiene lo stat block, comportamento accettabile per contenuto di
+        sola lettura.
+        """
+        holder_ref: ft.Ref[ft.Container] = ft.Ref()
+
+        def _render(exp: bool) -> ft.Control:
+            return design.collapsible_section(
+                title,
+                lambda: ft.Column(tiles, spacing=6),
+                expanded=exp,
+                accent=accent,
+                on_toggle=_on_toggle,
+            )
+
+        def _on_toggle(new_state: bool) -> None:
+            holder_ref.current.content = _render(new_state)
+            try:
+                holder_ref.current.update()
+            except Exception:
+                pass
+
+        return ft.Container(content=_render(expanded), ref=holder_ref)
+
     def info_r(label: str, value: str) -> ft.Row | None:
         if not value:
             return None
@@ -155,42 +190,48 @@ def build_stat_block_column(m: dict) -> ft.Column:
     regional_l: list[str] = m.get("regional_effects", []) or []
     variants_l: list[dict] = m.get("variant_rules", []) or []
 
+    # Tratti aperta di default se presente (la più consultata per
+    # immunità/particolarità passive); altrimenti Azioni; tutte le altre
+    # sezioni facoltative partono chiuse — riduce lo spazio occupato dai
+    # mostri con molte azioni/azioni leggendarie.
+    default_open = "traits" if traits_l else ("actions" if actions_l else None)
+
     features: list[ft.Control] = []
     if traits_l:
-        features.append(ft.Text("Tratti", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
-        for t in traits_l:
-            features.append(feat_tile(t.get("name", ""), _desc(t)))
+        features.append(collapsible_feature(
+            "Tratti", [feat_tile(t.get("name", ""), _desc(t)) for t in traits_l],
+            expanded=(default_open == "traits")))
     if actions_l:
-        features.append(ft.Text("Azioni", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
-        for a in actions_l:
-            features.append(feat_tile(a.get("name", ""), _desc(a)))
+        features.append(collapsible_feature(
+            "Azioni", [feat_tile(a.get("name", ""), _desc(a)) for a in actions_l],
+            expanded=(default_open == "actions")))
     if react_l:
-        features.append(ft.Text("Reazioni", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
-        for r in react_l:
-            features.append(feat_tile(r.get("name", ""), _desc(r)))
+        features.append(collapsible_feature(
+            "Reazioni", [feat_tile(r.get("name", ""), _desc(r)) for r in react_l],
+            expanded=False))
     if leg_l:
-        features.append(ft.Text("Azioni Leggendarie", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
-        for la in leg_l:
-            features.append(feat_tile(la.get("name", ""), _desc(la)))
+        features.append(collapsible_feature(
+            "Azioni Leggendarie", [feat_tile(la.get("name", ""), _desc(la)) for la in leg_l],
+            expanded=False))
     if lair_l:
-        features.append(ft.Text("Azioni di Tana", size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
         lair_intro = m.get("lair_actions_intro", "")
+        lair_tiles: list[ft.Control] = []
         if lair_intro:
-            features.append(ft.Text(lair_intro, size=11, color=design.T().text_2, italic=True))
-        for eff in lair_l:
-            features.append(ft.Text(f"•  {eff}", size=11, color=design.T().text_2))
+            lair_tiles.append(ft.Text(lair_intro, size=11, color=design.T().text_2, italic=True))
+        lair_tiles.extend(ft.Text(f"•  {eff}", size=11, color=design.T().text_2) for eff in lair_l)
+        features.append(collapsible_feature("Azioni di Tana", lair_tiles, expanded=False))
     if regional_l:
         reg_label = m.get("regional_effects_label", "") or "Effetti Regionali"
-        features.append(ft.Text(reg_label, size=12, weight=ft.FontWeight.BOLD, color=design.T().primary))
         reg_intro = m.get("regional_effects_intro", "")
+        reg_tiles: list[ft.Control] = []
         if reg_intro:
-            features.append(ft.Text(reg_intro, size=11, color=design.T().text_2, italic=True))
-        for eff in regional_l:
-            features.append(ft.Text(f"•  {eff}", size=11, color=design.T().text_2))
+            reg_tiles.append(ft.Text(reg_intro, size=11, color=design.T().text_2, italic=True))
+        reg_tiles.extend(ft.Text(f"•  {eff}", size=11, color=design.T().text_2) for eff in regional_l)
+        features.append(collapsible_feature(reg_label, reg_tiles, expanded=False))
     if variants_l:
-        features.append(ft.Text("Varianti Opzionali", size=12, weight=ft.FontWeight.BOLD, color=design.T().magic))
-        for v in variants_l:
-            features.append(feat_tile(v.get("name", ""), _desc(v)))
+        features.append(collapsible_feature(
+            "Varianti Opzionali", [feat_tile(v.get("name", ""), _desc(v)) for v in variants_l],
+            expanded=False, accent=design.T().magic))
 
     items: list[ft.Control] = [
         ft.Text(

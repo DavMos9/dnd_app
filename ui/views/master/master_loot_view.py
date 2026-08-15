@@ -76,7 +76,7 @@ class MasterLootView(ft.Column):
     """Tab «Bottino»: archivio del Master + deposito del gruppo."""
 
     def __init__(self, world_id: str = "") -> None:
-        super().__init__(expand=True, spacing=0)
+        super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
         self._page: ft.Page | None = None
         #: Mondo correntemente selezionato in `MasterView` (2026-08-06,
         #: esteso all'Archivio del Master il 2026-08-12) — "" per la
@@ -87,7 +87,7 @@ class MasterLootView(ft.Column):
         #: indipendente da questo, invariata.
         self._world_id = world_id
         self._active_kind: str = "master"  # "master" | "party"
-        self._list_col = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+        self._list_col = ft.Column(spacing=8)
         self._build()
 
     def did_mount(self) -> None:
@@ -104,7 +104,7 @@ class MasterLootView(ft.Column):
     def _build(self) -> None:
         self.controls.clear()
         self.controls.append(self._build_header())
-        self.controls.append(ft.Container(content=self._list_col, expand=True,
+        self.controls.append(ft.Container(content=self._list_col,
                                            padding=ft.Padding.symmetric(horizontal=16, vertical=8)))
         self._populate_list()
 

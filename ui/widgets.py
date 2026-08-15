@@ -831,10 +831,10 @@ def format_equipment_item_body(item: dict, loader: Any) -> str:
 
     Ritorna stringa vuota per un oggetto che non è una dotazione nota (nulla
     da espandere, il solo nome nel titolo della card è già sufficiente) o
-    per una voce "weapon_choice" (la scelta dell'arma specifica avviene già
-    nei Dropdown dedicati mostrati sotto la card, non richiede un corpo).
+    per una voce "weapon_choice"/"tool_choice" (la scelta specifica avviene
+    già nei Dropdown dedicati mostrati sotto la card, non richiede un corpo).
     """
-    if item.get("item_type") == "weapon_choice":
+    if item.get("item_type") in ("weapon_choice", "tool_choice"):
         return ""
     name = item.get("name", "")
     if not name:
@@ -871,6 +871,9 @@ def equipment_option_card_options(options: list[list[dict]], loader: Any) -> lis
                 cat = it.get("category", "semplice").replace("_", " ")
                 cnt = it.get("count", 1)
                 parts.append(f"Qualsiasi arma {cat}" + (f" ×{cnt}" if cnt > 1 else ""))
+            elif it.get("item_type") == "tool_choice":
+                cnt = it.get("count", 1)
+                parts.append(it.get("name", "Qualsiasi strumento") + (f" ×{cnt}" if cnt > 1 else ""))
             else:
                 qty = it.get("quantity", 1)
                 parts.append(it.get("name", "") + (f" ×{qty}" if qty > 1 else ""))

@@ -81,7 +81,8 @@ ELEV_3  light: blur 32, offset (0,8),  #1a1c24 @ 18%   (dialog)
 |---|---|---|
 | `surface(content, level=1)` | i `Container(bgcolor=..., border=...)` generici | 3 livelli di profondità |
 | `card(content, accent=None)` | `fantasy_card()` + le 166 varianti inline | accento opzionale come barra sottile a sinistra, non filetto in cima |
-| `section(title, content, collapsible=False, key=None)` | `section_header()` + Column manuale | opzione comprimibile con memoria dello stato (serve al punto 4 della revisione) |
+| `section(title, content, collapsible=False, key=None)` | `section_header()` + Column manuale | opzione comprimibile con memoria dello stato (serve al punto 4 della revisione) — **nota**: implementata poi come funzione a sé `collapsible_section()`, non come parametro di `section()`, vedi sotto |
+| `collapsible_section(title, content_builder, expanded=False, on_toggle=None, ...)` | logica bespoke del pannello "STRUMENTI MASTER" | aggiunta 2026-08-15, fuori dalla Fase E — vedi nota sotto |
 | `pill(icon, label, color, on_click)` | le 3 copie di `_tool_pill`/`_action_pill`/`_header_actions` in master_view / master_encounter_view / home_view | oggi lo stesso widget è duplicato in 3 file |
 | `chip(text, tone)` | i ~40 chip/badge inline | toni: neutro/primario/magia/successo/attenzione/pericolo |
 | `stat_tile(value, label, on_click=None)` | `stat_badge()` (dead) + i box caratteristica di `sheet_view` | tap-target ≥44px |
@@ -96,8 +97,23 @@ migrano in Fase E, una per volta. Una view non migrata resta funzionante.
 > temporanei), `slot_dots()`/`dot_button()` (gli slot erano caratteri di testo),
 > `dialog_title()` e `field_style()` (allineamento delle 114 finestre),
 > `difficulty_color()`, `CURRENCY_COLORS` e `CHROME` (chrome dell'editor mappe).
-> `section(collapsible=…)` è invece rimasta **non implementata**: nessuna view
-> l'ha richiesta durante il restyle.
+> `section(collapsible=…)` è invece rimasta **non implementata** per tutta la
+> Fase E: nessuna view l'ha richiesta durante il restyle.
+>
+> **Implementata il 2026-08-15** (bug report/richiesta di Davide: "voglio
+> usare di più la tendina che collassa"), non come parametro aggiuntivo di
+> `section()` ma come funzione a sé, `design.collapsible_section(title_text,
+> content_builder, *, expanded=False, accent=None, level=1,
+> header_subtitle=None, on_toggle=None, alt=False)` — stateless (lo stato
+> aperto/chiuso resta nel chiamante, stesso principio di `set_mobile`),
+> `content_builder` invece di `content` già costruito per non pagare il
+> costo di sezioni pesanti tenute chiuse. Sostituisce la logica bespoke del
+> pannello "STRUMENTI MASTER" (`master_view.py`) e viene usata per le
+> sezioni facoltative della scheda mostro (`ui/components/monster_picker.py`
+> — Tratti/Azioni/Reazioni/ecc.) e per le note NPC lunghe
+> (`master_npc_list_view.py`). Dettaglio completo in `changelog_storico.md`,
+> voce "Sessione bug report multipli + primitiva collassabile + oggetti
+> magici personalizzati (2026-08-15)".
 
 ### A.3 — `get_theme()` riscritta
 

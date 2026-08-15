@@ -227,7 +227,7 @@ class CreationSharedMixin:
 
     @staticmethod
     def _init_weapon_choice(item: dict[str, Any]) -> dict[str, Any]:
-        """Inizializza chosen_weapon su un item weapon_choice."""
+        """Inizializza chosen_weapon/chosen_tool su un item weapon_choice/tool_choice."""
         if item.get("item_type") == "weapon_choice":
             cat = item.get("category", "semplice")
             weapons = WEAPONS_BY_CATEGORY.get(cat, [])
@@ -236,4 +236,12 @@ class CreationSharedMixin:
                 item["chosen_weapons"] = [weapons[0]] * count if weapons else []
             else:
                 item["chosen_weapon"] = weapons[0] if weapons else ""
+        elif item.get("item_type") == "tool_choice":
+            cat = item.get("category", "strumenti_musicali")
+            tools = _loader.get_tool_categories().get(cat, [])
+            count = item.get("count", 1)
+            if count > 1:
+                item["chosen_tools"] = [tools[0]] * count if tools else []
+            else:
+                item["chosen_tool"] = tools[0] if tools else ""
         return item

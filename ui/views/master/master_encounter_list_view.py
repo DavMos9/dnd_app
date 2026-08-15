@@ -65,7 +65,7 @@ class MasterEncounterListView(ft.Column):
         self._encounters: list[MasterEncounter] = []
         self._show_archived: bool = False
         self._open_encounter_id: str | None = None
-        self._list_col = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
+        self._list_col = ft.Column(spacing=10)
         self._body_area = ft.Container(expand=True)
         self._build()
         self.refresh()
@@ -80,6 +80,11 @@ class MasterEncounterListView(ft.Column):
     def _build(self):
         self.controls.clear()
         if self._open_encounter_id:
+            # `MasterEncounterView` gestisce da sé il proprio scroll (header +
+            # lista combattenti scorrono insieme al suo interno) — qui il
+            # contenitore esterno non deve scrollare, altrimenti si annida un
+            # secondo scroll attorno a quello del tracker.
+            self.scroll = None
             self._body_area.content = MasterEncounterView(
                 encounter_id=self._open_encounter_id,
                 on_back_to_list=self._close_encounter,
@@ -88,6 +93,8 @@ class MasterEncounterListView(ft.Column):
             )
             self.controls.append(self._body_area)
             return
+
+        self.scroll = ft.ScrollMode.AUTO
 
         header_children: list[ft.Control] = [title_text("Incontri", size=18)]
         if not self._show_archived:
@@ -118,7 +125,7 @@ class MasterEncounterListView(ft.Column):
             padding=ft.Padding.all(16),
         )
         body = ft.Container(
-            content=self._list_col, expand=True,
+            content=self._list_col,
             padding=ft.Padding.only(left=16, right=16, bottom=16),
         )
         self.controls.append(header)

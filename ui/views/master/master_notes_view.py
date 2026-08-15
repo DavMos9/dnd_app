@@ -250,7 +250,14 @@ class MasterNotesView(ft.Column):
         if notes and self._sel_note_id is None:
             self._sel_note_id = notes[0].id
 
-        self._detail_container = ft.Container(expand=True, content=self._build_detail_panel())
+        # Su mobile il pannello visibile non deve più espandersi/scrollare
+        # per conto proprio: scorre l'intera `MasterNotesView` (header
+        # incluso), stesso principio già applicato alle altre tab di
+        # Modalità Master. Su desktop/tablet resta un layout master-detail a
+        # due colonne, ciascuna con lo scroll indipendente di prima.
+        self._detail_container = ft.Container(expand=(not self._is_mobile),
+                                               content=self._build_detail_panel())
+        self.scroll = ft.ScrollMode.AUTO if self._is_mobile else None
 
         if self._is_mobile:
             # Drill-down a schermo intero invece di due pannelli fissi
@@ -371,11 +378,17 @@ class MasterNotesView(ft.Column):
             # semplicemente tagliato. Ora scorre l'intero pannello, e la lista
             # e' una Column normale — niente scroll annidato, stessa regola
             # gia' stabilita per il CardPicker.
+            # Su mobile lo scroll di questo pannello è responsabilità della
+            # `MasterNotesView` esterna (un solo pannello alla volta, header
+            # incluso, scorrono insieme) — niente scroll annidato. Su
+            # desktop/tablet resta un pannello indipendente nel layout a due
+            # colonne (pattern master-detail), con scroll proprio invariato.
             content=ft.Column(
                 [cat_nav, ft.Divider(height=1, color=design.T().border), list_label,
                  ft.Container(content=self._left_list_lv,
                               padding=ft.Padding.only(left=4, right=4, bottom=12))],
-                expand=True, spacing=0, scroll=ft.ScrollMode.AUTO,
+                expand=(not self._is_mobile), spacing=0,
+                scroll=(None if self._is_mobile else ft.ScrollMode.AUTO),
             ),
             # Larghezza fissa 200px SOLO quando condivide la riga col
             # pannello di dettaglio (desktop/tablet, vedi _build()) — su
@@ -383,7 +396,10 @@ class MasterNotesView(ft.Column):
             # tutta la larghezza dello schermo, non restare bloccato a
             # 200px (bug report Davide, vedi docstring della classe).
             width=(None if self._is_mobile else 200),
-            expand=self._is_mobile,
+            # Non più `expand=self._is_mobile`: su mobile questo pannello è
+            # un figlio naturale della `MasterNotesView` scrollabile (vedi
+            # `_build()`), non deve competere per lo spazio residuo — solo
+            # su desktop/tablet vive dentro una Row a spazio fisso.
             bgcolor=design.T().parchment_alt,
         )
 
@@ -580,7 +596,14 @@ class MasterNotesView(ft.Column):
 
         page_content_items.append(ft.Container(height=32))
 
-        page_content = ft.Column(page_content_items, scroll=ft.ScrollMode.AUTO, expand=True, spacing=0)
+        # Su mobile niente scroll/expand propri: scorre l'intera
+        # `MasterNotesView` (vedi `_build()`). Su desktop resta un pannello
+        # indipendente col proprio scroll, come prima.
+        page_content = ft.Column(
+            page_content_items, spacing=0,
+            scroll=(None if self._is_mobile else ft.ScrollMode.AUTO),
+            expand=(not self._is_mobile),
+        )
 
         action_bar = ft.Container(
             content=ft.Row(
@@ -602,7 +625,8 @@ class MasterNotesView(ft.Column):
         return ft.Column(
             [
                 ft.Container(
-                    content=page_content, expand=True, bgcolor=design.T().parchment,
+                    content=page_content, expand=(not self._is_mobile),
+                    bgcolor=design.T().parchment,
                     # 56/32px di margine "pergamena" è un'intenzione estetica
                     # valida quando il pannello condivide la finestra col
                     # riquadro categorie (desktop/tablet) — su mobile, dove
@@ -615,7 +639,7 @@ class MasterNotesView(ft.Column):
                 ),
                 action_bar,
             ],
-            spacing=0, expand=True,
+            spacing=0, expand=(not self._is_mobile),
         )
 
     # ──────────────────────────────────────────────────────────────────────
@@ -769,9 +793,11 @@ class MasterNotesView(ft.Column):
                     content=ft.Column(
                         [self._nf_name, self._nf_status, self._nf_npc, self._nf_tags,
                          visibility_section, self._nf_desc],
-                        spacing=14, scroll=ft.ScrollMode.AUTO,
+                        spacing=14,
+                        scroll=(None if self._is_mobile else ft.ScrollMode.AUTO),
+                        expand=(not self._is_mobile),
                     ),
-                    expand=True, bgcolor=design.T().parchment,
+                    expand=(not self._is_mobile), bgcolor=design.T().parchment,
                     # Stesso motivo del pannello di lettura sopra.
                     padding=ft.Padding.symmetric(
                         horizontal=(16 if self._is_mobile else 48),
@@ -779,7 +805,7 @@ class MasterNotesView(ft.Column):
                 ),
                 action_bar,
             ],
-            spacing=0, expand=True,
+            spacing=0, expand=(not self._is_mobile),
         )
 
     def _full_empty_state(self, icon: Any, title: str, msg: str) -> ft.Container:

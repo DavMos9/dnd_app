@@ -130,7 +130,9 @@
         [
           {
             "name": "Qualsiasi strumento musicale",
-            "item_type": "item"
+            "item_type": "tool_choice",
+            "category": "strumenti_musicali",
+            "count": 1
           }
         ]
       ]

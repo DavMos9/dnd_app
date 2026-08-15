@@ -551,6 +551,32 @@ muted_text(text, size=12, text_align=..., weight=...)
 #   Per colonne "greedy" in orizzontale: usare ft.Container(expand=True) come spacer
 #   Per bordi laterali colorati: usare BorderSide sul Container esterno invece di una sidebar STRETCH
 
+# DROPDOWN — il menu a tendina (popup delle opzioni) NON eredita lo stile
+# dell'app da solo, nemmeno se `ft.Theme.dropdown_theme.text_style` è già
+# impostato (bug report Davide 2026-08-15, screenshot: il menu di "Stato" in
+# Note di Campagna si apriva come un riquadro grigio/nero semitrasparente,
+# testo a malapena leggibile, sovrapposto al campo sopra invece di allinearsi
+# sotto/sopra la tendina in modo pulito).
+# Causa: `ft.DropdownTheme` ha DUE proprietà indipendenti — `text_style`
+# (stile del testo scelto/delle opzioni, già impostato in questo progetto fin
+# dalla Fase E) e `menu_style: ft.MenuStyle` (sfondo/ombra/forma del riquadro
+# popup stesso, MAI impostato prima d'ora). Senza `menu_style`, il popup
+# ricade sul default Material di Flutter — un riquadro con l'overlay di
+# elevazione semitrasparente usato per il tema SCURO, visibile anche in tema
+# chiaro perché non deriva affatto dalla palette dell'app. Colpisce OGNI
+# `ft.Dropdown`/`DropdownAltro` dell'intera app (nessuna eccezione: non è un
+# problema di un singolo campo), perché `dropdown_theme` è impostato una sola
+# volta a livello di `ft.Theme` (`ui/theme.py::_build_theme()`).
+# Fix (`ui/theme.py`, dentro `ft.DropdownTheme(...)`):
+#   menu_style=ft.MenuStyle(
+#       bgcolor=p.surface, shadow_color=p.shadow, elevation=8,
+#       shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
+#       side=ft.BorderSide(1, p.border),
+#   )
+# Un solo punto di fix per entrambi i temi (chiaro/scuro), stesso principio
+# già in uso per `dialog_theme`/`card_theme`/ecc. — non serve toccare i
+# singoli `ft.Dropdown(...)` sparsi nell'app.
+
 # TYPE STUBS Flet 0.85.3 — firme on_click / on_blur / on_select
 # ControlEvent è troppo generico per Pylance; usare il tipo specifico:
 #   def handler(ev: ft.Event[ft.TextButton]) -> None:   # on_click TextButton

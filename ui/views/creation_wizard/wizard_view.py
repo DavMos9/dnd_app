@@ -2805,6 +2805,36 @@ class WizardView(CreationSharedMixin, ft.Column):
                                 on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
                                 **design.field_style()),
                         ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                elif item.get("item_type") == "tool_choice":
+                    # Tool picker: Dropdown al posto del checkbox (stesso schema di weapon_choice)
+                    cat = item.get("category", "strumenti_musicali")
+                    tools = _loader.get_tool_categories().get(cat, [])
+                    count = item.get("count", 1)
+                    if count > 1:
+                        chosen = item.setdefault("chosen_tools", [tools[0]] * count if tools else [])
+                        fixed_checks.append(label_text(f"Scegli {count} strumenti:", size=12))
+                        for ti in range(count):
+                            def _on_tsel(e: Any, it=item, idx=ti) -> None:
+                                it["chosen_tools"][idx] = e.control.value or ""
+                            fixed_checks.append(ft.Dropdown(
+                                value=chosen[ti] if ti < len(chosen) else (tools[0] if tools else ""),
+                                options=[ft.DropdownOption(key=t, text=t) for t in tools],
+                                width=220,
+                                text_size=13,
+                                on_select=_on_tsel,
+                                **design.field_style()))
+                    else:
+                        chosen_t = item.setdefault("chosen_tool", tools[0] if tools else "")
+                        fixed_checks.append(ft.Row([
+                            label_text("Strumento:", size=12),
+                            ft.Dropdown(
+                                value=chosen_t,
+                                options=[ft.DropdownOption(key=t, text=t) for t in tools],
+                                width=220,
+                                text_size=13,
+                                on_select=lambda e, it=item: it.update({"chosen_tool": e.control.value or ""}),
+                                **design.field_style()),
+                        ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                 else:
                     qty = item.get("quantity", 1)
                     label = item["name"] + (f" ×{qty}" if qty > 1 else "")
@@ -2867,33 +2897,58 @@ class WizardView(CreationSharedMixin, ft.Column):
                 chosen_opt = c_opts[idx] if 0 <= idx < len(c_opts) else []
                 pickers: list[ft.Control] = []
                 for item in chosen_opt:
-                    if item.get("item_type") != "weapon_choice":
-                        continue
-                    cat = item.get("category", "semplice")
-                    weapons = WEAPONS_BY_CATEGORY.get(cat, [])
-                    count = item.get("count", 1)
-                    if count > 1:
-                        chosen_ws = item.setdefault("chosen_weapons", [weapons[0]] * count if weapons else [])
-                        pickers.append(label_text(f"Scegli {count} armi ({cat.replace('_', ' ')}):", size=12))
-                        for wi in range(count):
-                            def _on_wc(e: Any, it=item, idx=wi) -> None:
-                                it["chosen_weapons"][idx] = e.control.value or ""
-                            pickers.append(ft.Dropdown(
-                                value=chosen_ws[wi] if wi < len(chosen_ws) else (weapons[0] if weapons else ""),
-                                options=[ft.DropdownOption(key=w, text=w) for w in weapons],
-                                width=220, text_size=13, on_select=_on_wc,
-                                **design.field_style()))
-                    else:
-                        chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
-                        pickers.append(ft.Row([
-                            label_text(f"Arma ({cat.replace('_', ' ')}):", size=12),
-                            ft.Dropdown(
-                                value=chosen_w,
-                                options=[ft.DropdownOption(key=w, text=w) for w in weapons],
-                                width=220, text_size=13,
-                                on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
-                                **design.field_style()),
-                        ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                    if item.get("item_type") == "weapon_choice":
+                        cat = item.get("category", "semplice")
+                        weapons = WEAPONS_BY_CATEGORY.get(cat, [])
+                        count = item.get("count", 1)
+                        if count > 1:
+                            chosen_ws = item.setdefault("chosen_weapons", [weapons[0]] * count if weapons else [])
+                            pickers.append(label_text(f"Scegli {count} armi ({cat.replace('_', ' ')}):", size=12))
+                            for wi in range(count):
+                                def _on_wc(e: Any, it=item, idx=wi) -> None:
+                                    it["chosen_weapons"][idx] = e.control.value or ""
+                                pickers.append(ft.Dropdown(
+                                    value=chosen_ws[wi] if wi < len(chosen_ws) else (weapons[0] if weapons else ""),
+                                    options=[ft.DropdownOption(key=w, text=w) for w in weapons],
+                                    width=220, text_size=13, on_select=_on_wc,
+                                    **design.field_style()))
+                        else:
+                            chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
+                            pickers.append(ft.Row([
+                                label_text(f"Arma ({cat.replace('_', ' ')}):", size=12),
+                                ft.Dropdown(
+                                    value=chosen_w,
+                                    options=[ft.DropdownOption(key=w, text=w) for w in weapons],
+                                    width=220, text_size=13,
+                                    on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
+                                    **design.field_style()),
+                            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                    elif item.get("item_type") == "tool_choice":
+                        cat = item.get("category", "strumenti_musicali")
+                        tools = _loader.get_tool_categories().get(cat, [])
+                        count = item.get("count", 1)
+                        if count > 1:
+                            chosen_ts = item.setdefault("chosen_tools", [tools[0]] * count if tools else [])
+                            pickers.append(label_text(f"Scegli {count} strumenti:", size=12))
+                            for ti in range(count):
+                                def _on_tc(e: Any, it=item, idx=ti) -> None:
+                                    it["chosen_tools"][idx] = e.control.value or ""
+                                pickers.append(ft.Dropdown(
+                                    value=chosen_ts[ti] if ti < len(chosen_ts) else (tools[0] if tools else ""),
+                                    options=[ft.DropdownOption(key=t, text=t) for t in tools],
+                                    width=220, text_size=13, on_select=_on_tc,
+                                    **design.field_style()))
+                        else:
+                            chosen_t = item.setdefault("chosen_tool", tools[0] if tools else "")
+                            pickers.append(ft.Row([
+                                label_text("Strumento:", size=12),
+                                ft.Dropdown(
+                                    value=chosen_t,
+                                    options=[ft.DropdownOption(key=t, text=t) for t in tools],
+                                    width=220, text_size=13,
+                                    on_select=lambda e, it=item: it.update({"chosen_tool": e.control.value or ""}),
+                                    **design.field_style()),
+                            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                 return pickers
 
             def _make_picker_select(c: dict, col: ft.Column) -> Any:
@@ -3737,6 +3792,21 @@ class WizardView(CreationSharedMixin, ft.Column):
                             wname = item.get("chosen_weapon", "")
                             if wname:
                                 _save_weapon_by_name(character_id, wname)
+                    elif itype == "tool_choice":
+                        count = item.get("count", 1)
+                        chosen_names = (
+                            item.get("chosen_tools", []) if count > 1
+                            else [item.get("chosen_tool", "")]
+                        )
+                        for tname in chosen_names:
+                            if tname:
+                                character_repo.create_inventory_item(
+                                    character_id=character_id,
+                                    name=tname,
+                                    quantity=1,
+                                    weight=0.0, category="tool",
+                                    is_equipped=False, description="",
+                                )
                     elif itype == "currency":
                         cur = character_repo.get_currencies(character_id)
                         if cur:

@@ -9263,6 +9263,179 @@ pre-esistenti di `test_qr_scan.py`.
 
 ---
 
+## Sessione bug report multipli + primitiva collassabile + oggetti magici personalizzati (2026-08-15)
+
+Sei richieste distinte da Davide (screenshot + testo), pianificate in
+modalità Plan (esplorazione parallela, poi progettazione, poi piano scritto
+approvato con due giri di allargamento scope da parte di Davide durante la
+revisione) prima di scrivere codice. Tutte verificate con l'app reale
+costruita (non solo `py_compile`): 30 batterie di test esistenti rieseguite
+verdi dopo ogni gruppo di modifiche, più smoke test dedicati per le parti
+nuove (stat block collassabile su tutto il bestiario, flusso oggetto
+magico personalizzato end-to-end incluso salvataggio in `loot_repo`).
+
+**1. Chip multiclasse mancante in home** — `home_view.py::_character_card()`
+leggeva `char.class_name` (solo classe primaria) invece di
+`character_repo.get_class_display_string(char.id, char.class_name or "")`,
+la funzione già esistente e già usata correttamente altrove
+(`profilo_tab.py`) per produrre "Ladro 5 / Mago 3". Bug di sola UI: il dato
+multiclasse era già completo e corretto a livello di repository/DB (vedi
+`multiclasse_design.md` §8.4), semplicemente non letto in un punto. Fix a
+una riga.
+
+**2. Bardo, "Qualsiasi strumento musicale" non selezionabile** —
+`data/game_data/classes/bardo.json`, scelta 3 dell'equipaggiamento
+iniziale, aveva `item_type: "item"` per quella voce invece di un tipo
+scelta dedicato (le scelte-arma nello stesso file usano già
+`item_type: "weapon_choice"` + `category`). Aggiunto un nuovo tipo
+parallelo `"tool_choice"` (dato: `category: "strumenti_musicali"`), con
+rami paralleli a `weapon_choice` in tre punti di `wizard_view.py`
+(oggetti fissi, scelte A/B via `_build_weapon_pickers()`, salvataggio in
+`_save_item()`) e nel loro specchio `manual_form.py`, più
+`creation_shared.py::_init_weapon_choice()` (metodo condiviso, un solo
+punto invece di due). Fonte del vocabolario strumenti:
+`GameDataLoader.get_tool_categories()["strumenti_musicali"]`, già
+esistente e già usata per le competenze-strumento del Bardo — nessun
+duplicato. `ui/widgets.py` (`format_equipment_item_body()`,
+`equipment_option_card_options()`) esteso per non trattare `tool_choice`
+come un oggetto letterale nel titolo/corpo della card. **Trovato durante
+la revisione**: `core/character_instances.py` duplica (non può importare
+`creation_shared.py`, che porta `import flet`, vietato in `core/*.py`) la
+stessa logica per l'assegnazione equipaggiamento non interattiva di
+un'istanza di personaggio "dal 1° livello" (`_weapon_choice_default()`/
+`_assign_default_starting_equipment()`, usata dal Multiplayer) — senza
+estenderla, un `tool_choice` avrebbe riprodotto lì lo stesso bug appena
+corretto altrove (gap di correttezza reale, anche se non innescato dal
+dato Bardo attuale: la sua scelta 3 risolve di default su `options[0]` =
+"Liuto", non sull'opzione `tool_choice`). Esteso anche questo file,
+verificato che il Bardo di default resta invariato ("Liuto", non ancora
+uno strumento a scelta) e che la risoluzione `tool_choice` in isolamento
+produce uno strumento valido del catalogo.
+
+**3. Scroll bloccato in tutta Modalità Master** — segnalato da Davide
+inizialmente solo su Bottino, poi esteso esplicitamente da lui a "tutte le
+sezioni che usano quel tipo di layout" durante la revisione del piano.
+Causa comune: `MasterView._content_area` non fornisce scroll di pagina,
+quindi ogni tab doveva gestirselo da sé — e lo faceva con lo stesso
+pattern sbagliato (header fisso fuori da un `ft.Column(scroll=AUTO,
+expand=True)` che intrappola la lista in un riquadro con scroll
+indipendente, invece di lasciar scorrere tutto insieme). Stesso fix
+applicato uniformemente: rimosso `scroll`+`expand` dalla lista interna e
+dal suo contenitore, spostato `scroll=ft.ScrollMode.AUTO` sulla vista
+esterna. Toccati: `master_loot_view.py` (Bottino, segnalazione originale),
+`master_npc_list_view.py` (Rubrica NPC), `master_encounter_list_view.py`
+(Incontri, vista elenco — gestito anche il caso "incontro aperto",
+`self.scroll` va disattivato in quel ramo per non annidare un secondo
+scroll attorno a quello di `MasterEncounterView`), `master_encounter_view.py`
+(tracker di combattimento, incluso il pulsante "+ Aggiungi Combattente" ora
+dentro la stessa regione di scroll invece di restare pinnato),
+`ui/views/magic_items_view.py` (tab Oggetti Magici — verificato che non ha
+altri call site oltre a Modalità Master: la voce lato giocatore era già
+stata rimossa in una sessione precedente, `2026-07-30`). **Nota di Campagna**
+(`master_notes_view.py`) ha ricevuto un trattamento differenziato,
+deliberato: è un layout master-detail a due pannelli, e sul desktop i due
+pannelli scorrono ciascuno per conto proprio (pattern convenzionale,
+diverso dal bug lamentato) — il fix è stato applicato SOLO al ramo mobile
+(`_is_mobile=True`, un pannello alla volta), dove il layout collassava
+nella stessa forma buggata delle altre tab; la variante desktop non è
+stata toccata.
+
+**4. Nuova primitiva `design.collapsible_section()`** — generalizza il
+pannello "STRUMENTI MASTER" di `master_view.py` (`_build_tools_panel()`),
+mai estratto come primitiva pur essendo pianificato fin dalla Fase A del
+restyle (`restyle_design.md` documentava `section(collapsible=...)` come
+"mai implementata, nessuna view l'ha richiesta"). API: `title_text,
+content_builder, *, expanded=False, accent=None, level=1,
+header_subtitle=None, on_toggle=None, alt=False` — stateless per design
+(Flet ricostruisce le view da zero, quindi lo stato aperto/chiuso resta un
+attributo di istanza nel chiamante, passato come `expanded=` e restituito
+via `on_toggle(new_state)`, stesso principio già in uso per
+`_tools_panel_expanded`/`set_mobile`). `master_view._build_tools_panel()`
+migrato ad essa (comportamento invariato, verificato dal test esistente
+`test_layout_incontri_e_pf_autosync.py` dopo aver aggiornato le 3 chiamate
+al metodo rinominato `_toggle_tools_panel` → `_on_tools_panel_toggle`).
+Applicata anche a `ui/components/monster_picker.py::build_stat_block_column()`:
+le 7 sezioni facoltative (Tratti/Azioni/Reazioni/Azioni Leggendarie/Azioni
+di Tana/Effetti Regionali/Varianti Opzionali) sono ora collassabili
+singolarmente (Tratti aperta di default se presente, altrimenti Azioni,
+tutte le altre chiuse) — dato che la funzione è pura (nessun `self`), il
+toggle usa un `ft.Ref` locale per sostituire in place solo la sezione
+toccata, senza ricostruire l'intero stat block. Verificato costruendo e
+"cliccando" (simulando l'`on_click`) tutte le sezioni del mostro con più
+sezioni facoltative del bestiario (DEMILICH, 5/5 sezioni). Estensione
+collegata in `master_npc_list_view.py::_open_detail()`: le note/background
+NPC lunghe (>180 caratteri o ≥3 righe) sono ora avvolte nello stesso
+collassabile, chiuse di default.
+
+**5. Oggetti magici personalizzati creati dal Master** — prima
+`master_magic_item_generator_dialog.py` pescava solo dal Compendio
+(264 voci ufficiali, sola lettura); nessun percorso per una voce
+inventata dal Master esisteva. Aggiunta una modalità **"Personalizzato"**
+allo stesso dialog (switch a due pillole in cima, stesso pattern di
+`master_loot_view._build_kind_switch()`), invece di un secondo dialog
+separato: un solo punto d'ingresso "ottieni un oggetto magico", casuale o
+creato a mano, che riusa senza duplicazione le card di risultato e i
+pulsanti azione già esistenti (Aggiungi all'inventario/Assegna…/Salva
+nell'archivio). Form: Nome (libero), Categoria (`DropdownAltro` sulle
+stesse `mig.get_category_options()` del generatore casuale + "Altro" per
+categorie non standard), Rarità (tendina chiusa sui 6 bucket canonici,
+niente "Altro" — è un valore che pilota filtri/colori altrove nell'app),
+Richiede sintonia (checkbox + campo restrizione condizionale),
+Descrizione/Effetto (libero, multilinea). Al salvataggio, `source_note`
+usa lo stesso formato del generatore casuale ma con prefisso "Creato dal
+Master" invece di "Generatore Oggetti Magici" — nessuna migrazione di
+schema: `LootStashEntry` non ha mai avuto colonne dedicate a
+rarità/categoria/sintonia, il generatore casuale le codifica già come
+testo dentro `source_note`, la nuova modalità segue la stessa convenzione.
+Verificato end-to-end con un fake `ft.Page` (pattern già in uso nei test
+del progetto): switch di modalità, validazione campi obbligatori, "Crea
+oggetto", "Assegna…"/"Salva nell'archivio" con verifica della riga
+effettivamente scritta in `loot_repo` (`source_note` = "Creato dal Master
+· Anello · Comune"), e round trip Personalizzato→Casuale→Genera per
+confermare che la modalità casuale resta invariata.
+
+**6. Bug trovato durante la revisione (non nel piano iniziale): menu a
+tendina con sfondo semitrasparente scuro** — segnalato da Davide con
+screenshot (il menu "Stato" in Note di Campagna si apriva come un riquadro
+grigio/nero a bassa leggibilità, sovrapposto al campo sopra). Causa
+sistemica, non specifica di un campo: `ft.Theme.dropdown_theme` in
+`ui/theme.py` impostava solo `text_style`, mai `menu_style` — il popup di
+OGNI `Dropdown`/`DropdownAltro` dell'intera app cadeva sul default
+Material di Flutter (l'overlay di elevazione pensato per il tema scuro,
+visibile anche in chiaro perché non deriva dalla palette dell'app). Fix in
+un solo punto: `menu_style=ft.MenuStyle(bgcolor=p.surface,
+shadow_color=p.shadow, elevation=8, shape=RoundedRectangleBorder(radius=
+Radius.SM), side=BorderSide(1, p.border))` dentro `ft.DropdownTheme(...)`
+— risolve tutti i Dropdown dell'app, entrambi i temi, senza toccare i
+singoli call site. Dettaglio API in `regole_flet_api.md`.
+
+File coinvolti (riepilogo): `home_view.py`, `data/game_data/classes/bardo.json`,
+`wizard_view.py`, `manual_form.py`, `creation_shared.py`, `ui/widgets.py`,
+`core/character_instances.py`, `master_loot_view.py`, `master_npc_list_view.py`,
+`master_encounter_list_view.py`, `master_encounter_view.py`,
+`magic_items_view.py`, `master_notes_view.py`, `ui/design.py`,
+`master_view.py`, `ui/components/monster_picker.py`,
+`master_magic_item_generator_dialog.py`, `ui/theme.py`,
+`test_layout_incontri_e_pf_autosync.py` (3 chiamate aggiornate al metodo
+rinominato). Suite di regressione completa rieseguita ad ogni gruppo di
+modifiche: tutte verdi tranne le 2 cause pre-esistenti di
+`test_qr_scan.py` (pacchetto `pyzbar` assente nel sandbox).
+
+Tre voci del piano originale sono state verificate come **già risolte o
+non applicabili**, non implementate di riflesso: la migrazione
+`fantasy_card()` → `design.card()` nel wizard (il primo delega già al
+secondo, nessuna differenza visiva/comportamentale residua); un
+`set_mobile()` per `SheetView` (già gestito da `app.py::_show_main_layout()`,
+che ricostruisce la scheda con `is_mobile` aggiornato ad ogni
+attraversamento del breakpoint — un `set_mobile()` sarebbe stato codice
+morto, dato che `_on_page_resize()` non lo avrebbe mai chiamato per il
+layout principale); l'audit del padding nelle liste dense (già ai valori
+compatti della scala `Space` — `Space.MD` in `master_npc_list_view.py`,
+default `Space.LG` di `design.card()` in `home_view.py`, nessun valore
+`Space.XL` fuori posto trovato sulle card di lista).
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

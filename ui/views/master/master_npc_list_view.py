@@ -62,7 +62,7 @@ class MasterNpcListView(ft.Column):
     """Lista/ricerca NPC di rubrica + creazione/modifica/eliminazione."""
 
     def __init__(self, world_id: str = ""):
-        super().__init__(expand=True, spacing=0)
+        super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
         self._page: ft.Page | None = None
         #: Mondo correntemente selezionato in `MasterView` (2026-08-12, bug
         #: report Davide: "in Master... npc... tutto deve essere dipendente
@@ -72,7 +72,7 @@ class MasterNpcListView(ft.Column):
         self._world_id = world_id
         self._npcs: list[MasterNpc] = []
         self._search_query: str = ""
-        self._list_col = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
+        self._list_col = ft.Column(spacing=10)
         self._build()
         self.refresh()
 
@@ -109,7 +109,7 @@ class MasterNpcListView(ft.Column):
             padding=ft.Padding.all(16),
         )
         body = ft.Container(
-            content=self._list_col, expand=True,
+            content=self._list_col,
             padding=ft.Padding.only(left=16, right=16, bottom=16),
         )
         self.controls.append(header)
@@ -236,7 +236,32 @@ class MasterNpcListView(ft.Column):
             info_rows.append(body_text(f"Tag: {npc.tags}", size=12, color=design.T().text_3))
         if npc.notes:
             info_rows.append(ft.Container(height=6))
-            info_rows.append(body_text(npc.notes, size=13, color=design.T().text))
+            # Note lunghe (>~3-4 righe) dietro un collassabile — stesso
+            # principio della scheda mostro: ridurre lo spazio occupato
+            # senza nascondere l'informazione (chiusa di default solo se
+            # abbastanza lunga da valerne la pena). Nessuno stato su `self`:
+            # basta sopravvivere alla vita di questo dialog, stesso pattern
+            # a `ft.Ref` locale già usato in `monster_picker.py`.
+            notes_text = npc.notes
+            if len(notes_text) > 180 or notes_text.count("\n") >= 3:
+                notes_ref: ft.Ref[ft.Container] = ft.Ref()
+
+                def _render_notes(exp: bool) -> ft.Control:
+                    return design.collapsible_section(
+                        "Note", lambda: body_text(notes_text, size=13, color=design.T().text),
+                        expanded=exp, on_toggle=_on_notes_toggle,
+                    )
+
+                def _on_notes_toggle(new_state: bool) -> None:
+                    notes_ref.current.content = _render_notes(new_state)
+                    try:
+                        notes_ref.current.update()
+                    except Exception:
+                        pass
+
+                info_rows.append(ft.Container(content=_render_notes(False), ref=notes_ref))
+            else:
+                info_rows.append(body_text(notes_text, size=13, color=design.T().text))
 
         dlg = ft.AlertDialog(
             title=design.dialog_title(npc.name or "(senza nome)"),

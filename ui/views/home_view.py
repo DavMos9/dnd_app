@@ -622,8 +622,9 @@ class HomeView(ft.Column):
             )
 
         meta: list[ft.Control] = [d.chip(f"Liv. {char.level}", "primary", filled=True)]
-        if char.class_name:
-            meta.append(d.chip(char.class_name, "magic"))
+        class_display = character_repo.get_class_display_string(char.id, char.class_name or "")
+        if class_display:
+            meta.append(d.chip(class_display, "magic"))
         if char.race:
             meta.append(d.chip(char.race, "neutral"))
 

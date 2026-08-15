@@ -458,6 +458,88 @@ def section(title_text: str, content: ft.Control, *,
     )
 
 
+def collapsible_section(
+    title_text: str,
+    content_builder: Callable[[], ft.Control],
+    *,
+    expanded: bool = False,
+    accent: str | None = None,
+    level: int = 1,
+    header_subtitle: str | None = None,
+    on_toggle: Callable[[bool], None] | None = None,
+    alt: bool = False,
+) -> ft.Control:
+    """
+    Sezione con intestazione cliccabile che mostra/nasconde il contenuto —
+    generalizza il pannello "STRUMENTI MASTER" di `master_view.py`
+    (`_build_tools_panel()`), mai estratto come primitiva pur essendo
+    pianificato (`docs/restyle_design.md`: `section(collapsible=...)`).
+    Pensata per descrizioni lunghe (es. le sezioni di una scheda mostro) da
+    tenere chiuse finché non servono, riducendo lo spazio occupato.
+
+    Nessuno stato interno: Flet ricostruisce le view da zero ad ogni
+    `_build()`/navigazione, quindi lo stato aperto/chiuso non può vivere
+    qui — resta un attributo di istanza nel chiamante (stesso principio già
+    in uso per `_tools_panel_expanded`/`set_mobile`), passato con
+    `expanded=` e restituito via `on_toggle(new_state)`: il chiamante
+    decide se sostituire l'intero controllo in place (`self.controls[idx] =
+    ...`) o rigenerare solo un `ft.Ref` locale.
+
+    `content_builder` è una funzione, non un controllo già costruito: se la
+    sezione parte chiusa, il contenuto (potenzialmente pesante — liste di
+    azioni di un mostro, dropdown, ecc.) non viene costruito finché l'utente
+    non apre.
+    """
+    p = T()
+    header_children: list[ft.Control] = [
+        ft.Container(width=3, height=14, bgcolor=accent or p.primary,
+                     border_radius=Radius.SM),
+        ft.Container(width=Space.SM),
+    ]
+    label_col: list[ft.Control] = [
+        ft.Text(title_text.upper(), size=Size.LABEL, weight=ft.FontWeight.BOLD,
+                color=p.text_2, font_family=Font.BODY,
+                style=ft.TextStyle(letter_spacing=1.5)),
+    ]
+    if header_subtitle:
+        label_col.append(ft.Text(header_subtitle, size=Size.BODY_SM, color=p.text_2,
+                                 no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS))
+    header_children.append(ft.Column(label_col, spacing=1, expand=True))
+    header_children.append(ft.Icon(
+        ft.Icons.EXPAND_LESS if expanded else ft.Icons.EXPAND_MORE,
+        size=20, color=p.text_3,
+    ))
+
+    def _on_header_click(e: Any) -> None:
+        if on_toggle is not None:
+            on_toggle(not expanded)
+
+    header = ft.Container(
+        content=ft.Row(header_children, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        padding=ft.Padding.symmetric(horizontal=Space.LG, vertical=Space.SM),
+        on_click=_on_header_click,
+        ink=True,
+    )
+
+    if not expanded:
+        return surface(header, level=level, padding=0, alt=alt)
+
+    return surface(
+        ft.Column(
+            [
+                header,
+                ft.Container(
+                    content=content_builder(),
+                    padding=ft.Padding.only(left=Space.LG, right=Space.LG, bottom=Space.MD),
+                    animate=ft.Animation(Duration.BASE, CURVE),
+                ),
+            ],
+            spacing=0, tight=True,
+        ),
+        level=level, padding=0, alt=alt,
+    )
+
+
 def pill(icon: ft.IconData | None, text: str, *,
          color: str | None = None, on_click: Callable[[Any], None] | None = None,
          filled: bool = False, tooltip: str | None = None) -> ft.Container:

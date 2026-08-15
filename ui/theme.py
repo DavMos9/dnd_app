@@ -112,8 +112,23 @@ def _build_theme(p: "d.Palette") -> ft.Theme:
         ),
         # Controlli Material che l'app usa dentro i dialog: uniformati dal tema
         # (Fase E, coda 2026-07-30) invece che stilizzati caso per caso.
+        #
+        # `menu_style` (bug report Davide 2026-08-15, "Note di Campagna"):
+        # senza uno sfondo esplicito, il menu a tendina di OGNI `Dropdown`
+        # dell'app (non solo quello segnalato) cade sul default Material —
+        # un riquadro semitrasparente scuro che si vede a malapena sul testo,
+        # indipendentemente dal tema chiaro/scuro dell'app. Impostare
+        # `bgcolor`/`shadow_color`/`shape` qui risolve tutti i Dropdown in un
+        # colpo solo, stesso principio già applicato sopra a dialog/bottoni.
         dropdown_theme=ft.DropdownTheme(
             text_style=txt(d.Size.BODY_SM, p.text),
+            menu_style=ft.MenuStyle(
+                bgcolor=p.surface,
+                shadow_color=p.shadow,
+                elevation=8,
+                shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
+                side=ft.BorderSide(1, p.border),
+            ),
         ),
         checkbox_theme=ft.CheckboxTheme(
             fill_color=p.primary,

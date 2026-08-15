@@ -188,6 +188,31 @@ UI Flet scritta in questo giro):
 - `CLASS_SUGGESTED_RACES`: mapping classe → razze consigliate
 - `CLASS_DESCRIPTIONS`: descrizione breve per schermata raccomandazione
 
+### `ui/design.py` — Design system (Fase A/B/C del restyle)
+Token e primitive riusabili — vedi `restyle_design.md` per il racconto completo
+del restyle; qui solo un indice rapido delle primitive con firma stabile,
+aggiornato quando se ne aggiunge una nuova (15 in uso a fine Fase E, +1 sotto).
+
+- Scale: `Space` (XS4..XXL32), `Radius` (SM8..PILL999), `Duration`, `Font`, `Size`
+- `Palette` (dataclass) con istanze `LIGHT`/`DARK`, contrasti WCAG calcolati — `T()` ritorna
+  quella attiva (`set_mode("light"|"dark")`), non una costante: serve al tema scuro
+- `surface()`, `card()`, `section()`, `pill()`, `chip()`, `hp_bar()`, `slot_dots()`/`dot_button()`,
+  `dialog_title()`, `field_style()`, `empty_state()`, `difficulty_color()`, `CURRENCY_COLORS`, `Chrome`
+- **`collapsible_section(title_text, content_builder, *, expanded=False, accent=None, level=1,
+  header_subtitle=None, on_toggle=None, alt=False)`** (2026-08-15, richiesta Davide: "voglio usare
+  di più la tendina che collassa... quando ci sono descrizioni lunghe") — sezione con header
+  cliccabile (barra accento + label, chevron EXPAND_MORE/EXPAND_LESS) che mostra/nasconde
+  `content_builder()`. **Stateless**: nessuno stato interno (le view Flet si ricostruiscono da
+  zero), lo stato aperto/chiuso resta un attributo di istanza nel chiamante, passato con
+  `expanded=` e restituito via `on_toggle(new_state)` — il chiamante decide se sostituire il
+  controllo in place (`self.controls[idx] = ...`, come `master_view.py::_build_tools_panel()`) o
+  aggiornare un `ft.Ref` locale (come `ui/components/monster_picker.py::build_stat_block_column()`,
+  funzione pura senza `self`). `content_builder` è una funzione, non un controllo già costruito:
+  se la sezione parte chiusa, il contenuto pesante non viene costruito finché non si apre.
+  Sostituisce la logica bespoke del pannello "STRUMENTI MASTER"; usata anche per le sezioni
+  facoltative della scheda mostro e le note NPC lunghe (`master_npc_list_view.py`). Dettaglio
+  completo in `changelog_storico.md`.
+
 ### `ui/theme.py`
 Helper Flet: `get_theme()`, `title_text()`, `body_text()`, `muted_text()`,
 `label_text()`, `fantasy_card()`, `section_header()`, `primary_button()`,
@@ -518,6 +543,22 @@ Struttura gerarchica JSON per classi, razze e background PHB. Utilizzabile in fu
 - `"weapon_choice"` — scelta libera da categoria: campi `category` (`"semplice"`, `"semplice_mischia"`, `"guerra"`,
   `"guerra_mischia"`) e `count` (N armi da scegliere); la UI mostra N Dropdown popolati da
   `WEAPONS_BY_CATEGORY[category]`
+- `"tool_choice"` (2026-08-15, bug report Davide: "qualsiasi strumento musicale" del Bardo
+  non permetteva di scegliere) — stesso schema di `weapon_choice` ma per strumenti: campi
+  `category` (chiave di `GameDataLoader.get_tool_categories()`, es. `"strumenti_musicali"`) e
+  `count`; la UI mostra N Dropdown popolati da `_loader.get_tool_categories()[category]` invece
+  di `WEAPONS_BY_CATEGORY`. Rami paralleli a `weapon_choice` in tutti e 3 i punti di
+  `wizard_view.py`/`manual_form.py` (oggetti fissi, `_build_weapon_pickers()`, `_save_item()`) e
+  in `CreationSharedMixin._init_weapon_choice()` (vedi sotto). Salva con `category="tool"` su
+  `create_inventory_item()`, mai su `weapons`. **Terzo punto di sincronizzazione**, trovato
+  durante la stessa sessione: `core/character_instances.py::_weapon_choice_default()`/
+  `_assign_default_starting_equipment()` duplica (per lo stesso motivo di `import flet` vietato
+  in `core/*.py`, vedi il commento lì) la risoluzione di `weapon_choice` per l'assegnazione
+  equipaggiamento non interattiva di un'istanza di personaggio "dal 1° livello" — esteso con lo
+  stesso ramo `tool_choice`, altrimenti un `tool_choice` come prima opzione di una scelta
+  (non il caso di Bardo oggi, dove option[0] è "Liuto", ma un gap di correttezza reale per
+  qualunque dato futuro) sarebbe silenziosamente salvato come oggetto generico col nome
+  letterale del placeholder, riproducendo lì lo stesso bug appena corretto altrove.
 
 **Schema `item_type` in `backgrounds/*.json → equipment`:**
 - `"currency"` — monete: campi `currency_type` (`"gold"`, `"silver"`, `"copper"`, `"electrum"`, `"platinum"`) e `quantity`; al salvataggio → `update_currencies()`, NON `create_inventory_item()`
@@ -733,6 +774,23 @@ manual_form (rimosso `CLASS_SAVING_THROWS` da settings.py il 2026-07-09, vedi "N
   presenza del flag.
 
 ### `ui/theme.py` — Tema Marmo Classico
+
+> Voce storica, superata dal restyle Fase A (`ui/design.py`) per gran parte
+> dei dettagli sotto (`fantasy_card()` oggi delega a `design.card()`,
+> `danger_card()`/`stat_badge()`/`gold_button()` sono morte, vedi "Note
+> Importanti") — non riscritta per intero qui, il contenuto attivo e
+> verificato vive in `restyle_design.md`. L'unica voce ancora accurata e
+> rilevante per `_build_theme()` (il vero `ft.Theme` passato a
+> `page.theme`/`page.dark_theme`, non gli helper legacy sotto) è quella
+> aggiunta il 2026-08-15:
+
+- **`dropdown_theme=ft.DropdownTheme(text_style=..., menu_style=ft.MenuStyle(bgcolor=p.surface, shadow_color=p.shadow, elevation=8, shape=RoundedRectangleBorder(radius=Radius.SM), side=BorderSide(1, p.border)))`**
+  (2026-08-15, bug report Davide) — `menu_style` mancava, quindi il popup di
+  OGNI `Dropdown`/`DropdownAltro` dell'app cadeva sul default Material
+  semitrasparente scuro di Flutter invece di ereditare la palette
+  chiaro/scuro dell'app. Un solo punto di fix per tutti i Dropdown
+  dell'app, entrambi i temi — vedi `regole_flet_api.md` per il dettaglio
+  API e `changelog_storico.md` per il bug report completo.
 - `fantasy_card()`: card bianca, bordo top rosso 3px, bordi laterali `COLOR_BORDER`
 - `danger_card()`: bordo rosso pieno 2px
 - `section_header()`: blocco rosso a sinistra + testo MAIUSCOLO grigio con letter-spacing

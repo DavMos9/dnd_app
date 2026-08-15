@@ -133,7 +133,7 @@ def _initiative_options() -> tuple[ft.Checkbox, ft.Checkbox, ft.Control]:
 class MasterEncounterView(ft.Column):
     def __init__(self, encounter_id: str, on_back_to_list, world_id: str = "",
                  device_id: str = ""):
-        super().__init__(expand=True, spacing=0)
+        super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
         self.encounter_id = encounter_id
         self.on_back_to_list = on_back_to_list
         #: Mondo correntemente selezionato in `MasterView` (2026-08-06) — ""
@@ -150,7 +150,7 @@ class MasterEncounterView(ft.Column):
         self.encounter: MasterEncounter | None = None
         self._members: list[dict] = []  # resolved, vedi master_repo.get_encounter_members_resolved
         self._header_area = ft.Container()
-        self._list_col = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+        self._list_col = ft.Column(spacing=8)
         #: Cache di connessioni `RemoteBackend` per mondo, tenuta da questa
         #: vista sull'intera durata di un incontro aperto — stesso pattern
         #: di `WorldsView._remote_backends`, passata a
@@ -175,7 +175,7 @@ class MasterEncounterView(ft.Column):
         self.controls.clear()
         self.controls.append(self._header_area)
         self.controls.append(
-            ft.Container(content=self._list_col, expand=True, padding=ft.Padding.all(16))
+            ft.Container(content=self._list_col, padding=ft.Padding.all(16))
         )
         self.controls.append(
             ft.Container(

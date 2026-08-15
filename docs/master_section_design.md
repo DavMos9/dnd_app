@@ -8,14 +8,17 @@
 > 3. Iniziativa → **ordine unificato**: il Master vede in un unico ordine turni sia le
 >    proprie creature sia i personaggi giocanti già presenti nel DB.
 
-> **Stato (aggiornato 2026-08-07 in una pulizia della documentazione — era
-> rimasto fermo a "nessun codice scritto" dal 2026-07-24, ormai falso): la
-> Sezione Master è **implementata per intero** (Rubrica NPC, tracker di
-> combattimento con azioni remote su PG istanza di mondo, Note di Campagna
-> con visibilità, Bottino, i 6 Generatori Rapidi), salvo il **Compendio
-> Oggetti Magici**, mai iniziato. Le decisioni di design qui sotto restano
-> valide e non vanno riprogettate da capo; lo stato di avanzamento vive in
-> `CLAUDE.md`.
+> **Stato (aggiornato 2026-08-15 — la voce precedente, "salvo il Compendio
+> Oggetti Magici, mai iniziato", era già falsa da tempo: il Compendio
+> (`ui/views/magic_items_view.py`, 264 voci) e il Generatore Oggetti Magici
+> casuale erano già stati completati in una sessione non registrata qui):
+> la Sezione Master è **implementata per intero**, incluso il Compendio
+> Oggetti Magici (sola consultazione, 264 voci ufficiali) e il suo
+> Generatore Rapido casuale, che dal 2026-08-15 include anche una modalità
+> **"Personalizzato"** per creare un oggetto magico inventato dal Master
+> (vedi §7 sotto e `changelog_storico.md` per il dettaglio completo). Le
+> decisioni di design qui sotto restano valide e non vanno riprogettate da
+> capo; lo stato di avanzamento vive in `CLAUDE.md`.
 
 ---
 
@@ -392,6 +395,24 @@ descrizione completa, stesso stile già consolidato per `FeatsView`/il picker be
 **Effort**: **grande, su scala bestiario** — esplicitamente da NON considerare "poco
 lavoro", e da non promettere completo nella stessa sessione che implementa il resto della
 Sezione Master.
+
+> **Completato** (in una sessione non documentata verbatim qui — vedi il
+> banner di stato in cima al file): la classe che implementa questo design
+> è `MagicItemsView` (`ui/views/magic_items_view.py`, non
+> `MagicItemCompendiumView` come nominato sopra), riusata sia da
+> `ui/views/master/master_magic_items_view.py` (shim di re-export) sia,
+> storicamente, da una voce sidebar lato giocatore poi rimossa su
+> decisione di Davide (vedi docstring del file: "è di fatto un manuale del
+> DM"). `magic_items.json` contiene le 264 voci complete, non solo esempi.
+> **Nuovo, 2026-08-15**: `master_magic_item_generator_dialog.py` (il
+> Generatore Rapido casuale che pesca da questo compendio) ha ora anche una
+> modalità "Personalizzato" per creare un oggetto magico inventato dal
+> Master — vedi `changelog_storico.md` per il dettaglio implementativo
+> completo. Non esiste ancora un modo per aggiungere una voce personalizzata
+> permanente al *compendio* (`magic_items.json`, sola lettura): la
+> creazione personalizzata produce solo una voce di `loot_stash_entries`
+> (Bottino), non una nuova riga del catalogo — distinzione deliberata,
+> mai richiesta diversamente da Davide.
 
 ### Procedura di riferimento per il popolamento (quando si deciderà di iniziare)
 

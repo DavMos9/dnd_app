@@ -122,17 +122,17 @@ def test_layout_pannello_strumenti() -> None:
     # Toggle: apre e mostra selettore mondo + Generatori Rapidi, richiude.
     mv = MasterView(on_back_to_home=lambda: None, active_tab="encounters")
     panel_before = mv._tools_panel_container
-    mv._toggle_tools_panel()
+    mv._on_tools_panel_toggle(not mv._tools_panel_expanded)
     check("un click sul pannello lo espande", mv._tools_panel_expanded is True)
     check("il pannello espanso è un controllo NUOVO (sostituito in place, "
           "non un semplice flip di 'visible')", mv._tools_panel_container is not panel_before)
     check("il pannello espanso resta nei controls", mv._tools_panel_container in mv.controls)
-    mv._toggle_tools_panel()
+    mv._on_tools_panel_toggle(not mv._tools_panel_expanded)
     check("un secondo click lo richiude", mv._tools_panel_expanded is False)
 
     # Cambiare mondo (_on_world_change) fa una _build() completa: lo stato
     # di apertura/chiusura del pannello non deve azzerarsi da solo.
-    mv._toggle_tools_panel()
+    mv._on_tools_panel_toggle(not mv._tools_panel_expanded)
     check("pannello espanso prima del cambio mondo", mv._tools_panel_expanded is True)
 
     class _FakeEvent:

@@ -40,7 +40,7 @@ from data.repositories import character_repo
 from ui.views.magic_items_view import (
     _rarity_color, _RARITY_LABELS, _RARITY_ORDER, _category_icon,
 )
-from ui.widgets import responsive_dialog_width, wrap_dialog_actions
+from ui.widgets import DropdownAltro, responsive_dialog_width, wrap_dialog_actions
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,12 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
     characters = character_repo.get_master_visible_characters(world_id)
 
     result_state: dict[str, Any] = {"items": []}
+    #: "random" (pesca dal Compendio, comportamento invariato) o "custom"
+    #: (oggetto creato a mano dal Master) — decide solo l'etichetta di
+    #: provenienza salvata in `source_note` quando si passa al Bottino
+    #: (`_source_label()`), il resto del flusso (card risultato, Assegna…,
+    #: Salva nell'archivio, Aggiungi all'inventario) è identico nei due modi.
+    mode_state: dict[str, str] = {"mode": "random"}
 
     rarity_dd = ft.Dropdown(
         label="Rarità", value="", dense=True, border_radius=design.Radius.SM,
@@ -84,6 +90,48 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
         text_style=design.field_style()['text_style'])
     pool_hint = ft.Text("", size=11, color=design.T().text_3)
     result_col = ft.Column(spacing=8)
+
+    # -- Modalità "Personalizzato" (2026-08-15, richiesta Davide: il Master
+    # deve poter creare un oggetto magico proprio, non solo pescarlo dal
+    # Compendio) — stesso vocabolario a tendina del generatore casuale
+    # (nessun duplicato: `category_options`/`_RARITY_ORDER` sono le stesse
+    # liste), ma "Categoria" ammette anche un valore libero via `DropdownAltro`
+    # (un oggetto inventato dal Master può non rientrare nelle 9 categorie
+    # ufficiali), mentre "Rarità" resta un vocabolario chiuso sui 6 bucket
+    # canonici — è un valore che altrove nell'app pilota filtri/colori,
+    # un valore fuori bucket romperebbe quella logica.
+    custom_name_tf = ft.TextField(
+        label="Nome", dense=True, border_radius=design.Radius.SM,
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
+        text_style=design.field_style()['text_style'])
+    custom_category_dd = DropdownAltro(
+        "Categoria", options=category_options,
+        value=category_options[0] if category_options else "",
+    )
+    custom_rarity_dd = ft.Dropdown(
+        label="Rarità", value=_RARITY_ORDER[0], dense=True, border_radius=design.Radius.SM,
+        options=[ft.DropdownOption(key=k, text=_RARITY_LABELS[k]) for k in _RARITY_ORDER],
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
+        text_style=design.field_style()['text_style'])
+    custom_attunement_cb = ft.Checkbox(
+        label="Richiede sintonia", value=False,
+        fill_color=design.T().primary, check_color=design.T().on_primary,
+        label_style=ft.TextStyle(size=13, color=design.T().text))
+    custom_attunement_restriction_tf = ft.TextField(
+        label="Restrizione di sintonia (opzionale)", dense=True, visible=False,
+        border_radius=design.Radius.SM,
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
+        text_style=design.field_style()['text_style'])
+    custom_desc_tf = ft.TextField(
+        label="Descrizione / Effetto", multiline=True, min_lines=4, max_lines=12,
+        border_radius=design.Radius.SM,
+        border_color=design.T().border, focused_border_color=design.T().primary,
+        bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
+        text_style=design.field_style()['text_style'])
+    custom_error_text = ft.Text("", size=11, color=design.T().danger)
     char_dd = ft.Dropdown(
         label="Aggiungi all'inventario di...",
         value=characters[0].id if characters else "",
@@ -190,6 +238,41 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
         except RuntimeError:
             pass
 
+    def _on_attunement_toggle(ev: Any) -> None:
+        custom_attunement_restriction_tf.visible = bool(custom_attunement_cb.value)
+        try:
+            custom_attunement_restriction_tf.update()
+        except RuntimeError:
+            pass
+
+    def _on_create_custom(ev: Any) -> None:
+        name = (custom_name_tf.value or "").strip()
+        desc = (custom_desc_tf.value or "").strip()
+        if not name or not desc:
+            custom_error_text.value = "Nome e Descrizione/Effetto sono obbligatori."
+            try:
+                custom_error_text.update()
+            except RuntimeError:
+                pass
+            return
+        custom_error_text.value = ""
+        item = {
+            "name": name,
+            "category": custom_category_dd.value or "",
+            "rarity": custom_rarity_dd.value or _RARITY_ORDER[0],
+            "requires_attunement": bool(custom_attunement_cb.value),
+            "attunement_restriction": (custom_attunement_restriction_tf.value or "").strip(),
+            "description": desc,
+        }
+        result_state["items"] = [item]
+        feedback_text.value = ""
+        _render_result()
+        try:
+            custom_error_text.update()
+            feedback_text.update()
+        except RuntimeError:
+            pass
+
     def _on_add_to_inventory(ev: Any) -> None:
         char_id = char_dd.value or ""
         items = result_state["items"]
@@ -225,6 +308,9 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
     # -- Bottino: "Assegna…"/"Salva nell'archivio" (loot_design.md §6, punto
     # 2/6) — "Aggiungi all'inventario" sopra resta la scorciatoia a un solo
     # destinatario, invariata.
+    def _source_label() -> str:
+        return "Creato dal Master" if mode_state["mode"] == "custom" else "Generatore Oggetti Magici"
+
     def _build_loot_items() -> list[dict[str, Any]]:
         from ui.views.master.master_loot_assign_dialog import simple_item
         items = result_state["items"]
@@ -240,7 +326,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
                 note_bits.append("Richiede sintonia" + (f" ({att_restriction})" if att_restriction else ""))
             out.append(simple_item(
                 "magic_item", name, quantity=qty, description=item.get("description", ""),
-                source_note="Generatore Oggetti Magici" + (" · " + " · ".join(note_bits) if note_bits else ""),
+                source_note=_source_label() + (" · " + " · ".join(note_bits) if note_bits else ""),
                 requires_attunement=requires_att,
             ))
         return out
@@ -271,12 +357,20 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
 
     rarity_dd.on_select = _on_filter_change
     category_dd.on_select = _on_filter_change
+    custom_attunement_cb.on_change = _on_attunement_toggle
 
     _update_pool_hint()
     _render_result()
 
-    content = ft.Column(
-        [
+    # -- Selettore modalità "Casuale"/"Personalizzato" (stesso pattern pill
+    # a due voci già in uso in `master_loot_view._build_kind_switch()` per
+    # Archivio/Deposito) — un solo punto d'ingresso "ottieni un oggetto
+    # magico", invece di un secondo dialog separato per la creazione.
+    generator_body_col = ft.Column(spacing=10)
+    mode_switch_holder: ft.Ref[ft.Container] = ft.Ref()
+
+    def _random_body() -> list[ft.Control]:
+        return [
             ft.Row([rarity_dd, category_dd], spacing=10, wrap=True),
             ft.Row([count_tf], spacing=10),
             pool_hint,
@@ -284,6 +378,84 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
                 "Genera", icon=ft.Icons.AUTO_AWESOME, on_click=_on_generate,
                 style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
             ),
+        ]
+
+    def _custom_body() -> list[ft.Control]:
+        return [
+            custom_name_tf,
+            custom_category_dd.control,
+            custom_rarity_dd,
+            custom_attunement_cb,
+            custom_attunement_restriction_tf,
+            custom_desc_tf,
+            custom_error_text,
+            ft.ElevatedButton(
+                "Crea oggetto", icon=ft.Icons.ADD_CIRCLE_OUTLINE, on_click=_on_create_custom,
+                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+            ),
+        ]
+
+    def _build_mode_switch() -> ft.Control:
+        items = []
+        for key, label, icon in (
+            ("random", "Casuale", ft.Icons.CASINO_OUTLINED),
+            ("custom", "Personalizzato", ft.Icons.EDIT_OUTLINED),
+        ):
+            is_sel = key == mode_state["mode"]
+            items.append(ft.Container(
+                content=ft.Row(
+                    [ft.Icon(icon, size=14, color=design.T().primary if is_sel else design.T().text_3),
+                     ft.Container(width=6),
+                     ft.Text(label, size=12, weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.W_500,
+                             color=design.T().primary if is_sel else design.T().text_2)],
+                    alignment=ft.MainAxisAlignment.CENTER, tight=True,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.Padding.symmetric(horizontal=design.Space.MD, vertical=design.Space.SM),
+                border_radius=design.Radius.PILL,
+                bgcolor=design.T().surface_alt if is_sel else "transparent",
+                shadow=design.elevation(1) if is_sel else None,
+                on_click=lambda e, k=key: _on_mode_switch(k),
+                ink=True, expand=True,
+            ))
+        return ft.Container(
+            content=ft.Row(items, spacing=design.Space.XS),
+            bgcolor=design.T().bg, border_radius=design.Radius.PILL, padding=design.Space.XS,
+        )
+
+    def _refresh_generator_body() -> None:
+        generator_body_col.controls.clear()
+        generator_body_col.controls.extend(
+            _random_body() if mode_state["mode"] == "random" else _custom_body()
+        )
+        try:
+            generator_body_col.update()
+        except RuntimeError:
+            pass
+
+    def _on_mode_switch(key: str) -> None:
+        if key == mode_state["mode"]:
+            return
+        mode_state["mode"] = key
+        result_state["items"] = []
+        feedback_text.value = ""
+        custom_error_text.value = ""
+        _refresh_generator_body()
+        _render_result()
+        new_switch = _build_mode_switch()
+        mode_switch_holder.current.content = new_switch
+        try:
+            mode_switch_holder.current.update()
+            feedback_text.update()
+        except RuntimeError:
+            pass
+
+    _refresh_generator_body()
+
+    content = ft.Column(
+        [
+            ft.Container(content=_build_mode_switch(), ref=mode_switch_holder),
+            generator_body_col,
             ft.Divider(height=1, color=design.T().border),
             ft.Container(content=result_col, expand=True),
             ft.Divider(height=1, color=design.T().border),

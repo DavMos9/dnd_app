@@ -91,7 +91,7 @@ class MagicItemsView(ft.Column):
     """Browser compendio Oggetti Magici: ricerca + filtri + card cliccabili."""
 
     def __init__(self) -> None:
-        super().__init__(expand=True, spacing=0)
+        super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
         self._page: ft.Page | None = None
         self._all_items: list[dict[str, Any]] = sorted(
             _loader.get_magic_items(), key=lambda it: it.get("name", "")
@@ -102,7 +102,7 @@ class MagicItemsView(ft.Column):
         self._query: str = ""
         self._rarity_filter: str = ""
         self._category_filter: str = ""
-        self._list_col = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+        self._list_col = ft.Column(spacing=8)
         self._build()
 
     def did_mount(self) -> None:
@@ -157,7 +157,7 @@ class MagicItemsView(ft.Column):
             padding=ft.Padding.all(16),
         )
         body = ft.Container(
-            content=self._list_col, expand=True,
+            content=self._list_col,
             padding=ft.Padding.only(left=16, right=16, bottom=16),
         )
 

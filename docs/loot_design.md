@@ -7,6 +7,17 @@
 > e `dnd_app/docs/changelog_storico.md`. Resta solo il **passo 6** (deposito
 > del gruppo lato giocatore), bloccato sul modello mondo del Multiplayer — le
 > scelte di design restano tutte valide, questo documento non va riscritto.
+>
+> **Aggiunta 2026-08-15**: il Generatore Oggetti Magici ha ora anche una
+> modalità "Personalizzato" (oggetto inventato dal Master, non pescato dal
+> Compendio) — produce lo stesso tipo di voce (`entry_kind="magic_item"`,
+> via `simple_item()`/`_build_loot_items()`) con `source_note` che inizia
+> per `"Creato dal Master"` invece di `"Generatore Oggetti Magici"`, unica
+> differenza rispetto a un oggetto generato casualmente. Nessun cambio di
+> schema: `LootStashEntry` non ha mai avuto colonne per rarità/categoria/
+> sintonia, entrambi i percorsi le codificano come testo dentro
+> `source_note`, per convenzione già esistente. Dettaglio in
+> `changelog_storico.md`.
 
 ---
 
