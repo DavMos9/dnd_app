@@ -45,7 +45,7 @@ from ui.components.monster_picker import (
 from ui.components.roll_panel import show_roll
 from ui.theme import title_text, muted_text, primary_button
 from ui import design
-from ui.widgets import wrap_dialog_actions, responsive_dialog_width, show_snack
+from ui.widgets import ScrollMemoryColumn, wrap_dialog_actions, responsive_dialog_width, show_snack
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,14 @@ def _initiative_options() -> tuple[ft.Checkbox, ft.Checkbox, ft.Control]:
     return auto_cb, group_cb, help_txt
 
 
-class MasterEncounterView(ft.Column):
+class MasterEncounterView(ScrollMemoryColumn):
+    """`ScrollMemoryColumn` (2026-08-16, bug segnalato da Davide: "flash a
+    schermo e uno scattino che riporta la vista in cima" durante la
+    sincronizzazione) — `refresh()` ricostruisce `_list_col` ad ogni giro
+    del ciclo di sync (2s) e del ticker di countdown (1s, mentre un
+    cooldown è attivo), un `ft.Column` semplice perdeva lo scroll ogni
+    volta anche senza alcuna azione del master."""
+
     def __init__(self, encounter_id: str, on_back_to_list, world_id: str = "",
                  device_id: str = ""):
         super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
@@ -206,6 +213,7 @@ class MasterEncounterView(ft.Column):
             self.update()
         except RuntimeError:
             pass
+        self.restore_scroll()
 
     # ------------------------------------------------------------------
     # Sincronizzazione automatica in background (fix 2026-08-07, bug

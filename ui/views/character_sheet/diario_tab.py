@@ -10,8 +10,10 @@ Struttura (ListView scrollabile):
 import flet as ft
 import logging
 from typing import Callable, cast
-from data.models import Character, DiaryEntry
+from data.models import Character, DiaryEntry, MasterCampaignNote
 import data.repositories.character_repo as character_repo
+from data.repositories import master_repo
+from ui.device_identity import resolve_device_id
 from ui.theme import muted_text
 from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
 from ui import design
@@ -23,6 +25,20 @@ class DiarioTab(ScrollMemoryListView):
     """
     Tab diario: voci di sessione con creazione, lettura, modifica, eliminazione.
     Eredita da ft.ListView per scroll corretto in Flet 0.85.3.
+
+    Note condivise dal Master (2026-08-16, richiesta di Davide: "la nota
+    nella sezione diario/note del giocatore anche questa già esistente") —
+    questo è il vero tab "Diario" che il giocatore usa dalla scheda
+    (`SheetView`, tab "diario"): il feature di note condivise era stato
+    costruito in un round precedente su `ui/views/diary_view.py::DiaryView`,
+    una sezione SEPARATA raggiungibile dalla sidebar generale — non questo
+    tab. Nessun bug di sincronizzazione dietro (`test_nota_arriva_a_chi_
+    entra_dopo` in `test_note_sharing.py` conferma il meccanismo lato
+    replica corretto): il posto sbagliato, semplicemente. Sola lettura qui
+    — modificarle resta compito del Master. Si aggiornano da sole tramite
+    `SheetView._soft_refresh()` (nessun ciclo di sync proprio: questo tab
+    non è mai montato mentre l'utente guarda un altro tab, si affida al
+    ridisegno del tab attivo quando `last_synced_seq` del mondo cambia).
     """
 
     def __init__(self, character: Character, on_refresh: Callable[[], None] | None = None):
@@ -31,10 +47,34 @@ class DiarioTab(ScrollMemoryListView):
         self._on_refresh = on_refresh
         self._page: ft.Page | None = None
         self._entries: list[DiaryEntry] = character_repo.get_diary_entries(character.id)
+        self.device_id: str | None = None
+        self._shared_notes: list[MasterCampaignNote] = []
         self._build()
 
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
+        page = self.page
+        if page is not None and self.character.world_id:
+            page.run_task(self._init_shared_notes)
+
+    async def _init_shared_notes(self) -> None:
+        page = self.page
+        if page is None:
+            return
+        self.device_id = await resolve_device_id(page)
+        self._load_shared_notes()
+        self._build()
+        try:
+            self.update()
+        except RuntimeError:
+            pass
+
+    def _load_shared_notes(self) -> None:
+        if not self.character.world_id or self.device_id is None:
+            return
+        self._shared_notes = master_repo.get_notes_visible_to(
+            self.character.world_id, self.device_id,
+        )
 
     # ------------------------------------------------------------------
     # Build principale
@@ -74,6 +114,72 @@ class DiarioTab(ScrollMemoryListView):
         else:
             for entry in self._entries:
                 self.controls.append(self._entry_card(entry))
+
+        # Note condivise dal Master — in coda alla stessa lista (niente
+        # riquadro separato, richiesta di Davide), con un'etichetta di
+        # sezione se ce n'è almeno una.
+        if self._shared_notes:
+            self.controls.append(ft.Container(height=8))
+            self.controls.append(ft.Text(
+                "NOTE CONDIVISE DAL MASTER", size=10, weight=ft.FontWeight.BOLD,
+                color=design.T().text_3, style=ft.TextStyle(letter_spacing=1.5),
+            ))
+            for note in self._shared_notes:
+                self.controls.append(self._shared_note_card(note))
+
+    # ------------------------------------------------------------------
+    # Nota condivisa dal Master (sola lettura)
+    # ------------------------------------------------------------------
+
+    def _shared_note_card(self, note: MasterCampaignNote) -> ft.Container:
+        preview_lines = [l for l in (note.description or "").split("\n") if l.strip()]
+        preview = " · ".join(preview_lines[:2])
+        if len(preview) > 120:
+            preview = preview[:117] + "…"
+
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Text(
+                                note.name or "Senza nome", size=14,
+                                weight=ft.FontWeight.BOLD, color=design.T().text,
+                                overflow=ft.TextOverflow.ELLIPSIS, expand=True,
+                            ),
+                            ft.Container(
+                                content=ft.Row(
+                                    [ft.Icon(ft.Icons.PUBLIC, size=11,
+                                             color=design.T().on_primary),
+                                     ft.Text("Condivisa dal Master", size=9,
+                                             color=design.T().on_primary,
+                                             weight=ft.FontWeight.BOLD)],
+                                    spacing=3, tight=True,
+                                ),
+                                bgcolor=design.T().primary, border_radius=8,
+                                padding=ft.Padding.symmetric(horizontal=6, vertical=2),
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                    ),
+                    *([ft.Container(height=6),
+                       ft.Text(preview, size=12, color=design.T().text_2,
+                               max_lines=2, overflow=ft.TextOverflow.ELLIPSIS)]
+                      if preview else []),
+                ],
+                spacing=0,
+            ),
+            bgcolor=design.T().surface,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=12),
+            border=ft.Border(
+                left=ft.BorderSide(3, design.T().primary),
+                top=ft.BorderSide(1, design.T().border),
+                right=ft.BorderSide(1, design.T().border),
+                bottom=ft.BorderSide(1, design.T().border),
+            ),
+            border_radius=design.Radius.MD,
+        )
 
     # ------------------------------------------------------------------
     # Stato vuoto
@@ -325,6 +431,7 @@ class DiarioTab(ScrollMemoryListView):
 
     def _refresh(self):
         self._entries = character_repo.get_diary_entries(self.character.id)
+        self._load_shared_notes()
         self.controls.clear()
         self._build()
         try:

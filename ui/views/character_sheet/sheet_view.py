@@ -165,7 +165,7 @@ class SheetView(ft.Column):
             return f"{updated.updated_at}|{self._connection_state}|{cond_sig}|{seq}"
 
         async def _redraw() -> None:
-            self._refresh_all()
+            self._soft_refresh()
 
         loop = BackgroundSyncLoop(
             get_page=lambda: self.page,
@@ -759,6 +759,36 @@ class SheetView(ft.Column):
         # Ricostruisce il tab corrente
         self.content_container.content = self._get_tab_content(self.active_tab)
 
+        try:
+            self.update()
+        except RuntimeError:
+            pass
+
+    def _soft_refresh(self) -> None:
+        """
+        Refresh NON distruttivo, usato dal ciclo di sync in background
+        (2026-08-16, bug segnalato da Davide: "una specie di flash a
+        schermo e uno scattino che riporta la vista in cima" ad ogni
+        sincronizzazione). A differenza di `_refresh_all()` (usato dai
+        dialog interni, azione rara e deliberata dell'utente), qui il tab
+        corrente NON viene mai ricreato da zero: tutti e 5 i tab
+        (`ProfiloTab`/`CombattimentoTab`/`EsplorazioneTab`/`InventarioTab`/
+        `DiarioTab`) sono `ScrollMemoryListView` e già espongono un proprio
+        `_refresh()` che ricarica i dati, ricostruisce SULLA STESSA istanza
+        e chiude con `restore_scroll()` — richiamarlo invece di sostituire
+        l'intero controllo evita che lo scroll dell'utente salti in cima
+        solo perché è arrivato un evento remoto irrilevante per il tab
+        aperto in quel momento.
+        """
+        self._refresh_bar_and_header()
+        content = self.content_container.content
+        tab_refresh = getattr(content, "_refresh", None)
+        if callable(tab_refresh):
+            tab_refresh()
+            return
+        # Tab placeholder senza un proprio _refresh() (non dovrebbe più
+        # capitare: tutti e 5 i tab reali ce l'hanno) — fallback sicuro.
+        self.content_container.content = self._get_tab_content(self.active_tab)
         try:
             self.update()
         except RuntimeError:

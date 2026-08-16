@@ -151,6 +151,61 @@ class ScrollMemoryListView(ft.ListView):
             # ripristino dello scroll non deve mai far fallire un refresh.
             pass
 
+
+class ScrollMemoryColumn(ft.Column):
+    """
+    `ft.Column` con la stessa memoria di scroll di `ScrollMemoryListView`
+    (bug B10) — introdotta il 2026-08-16 per un bug gemello segnalato da
+    Davide sui cicli di sincronizzazione in background: `WorldsView._body`
+    e `MasterEncounterView` sono `ft.Column(scroll=...)` semplici, quindi
+    ogni ridisegno periodico (`BackgroundSyncLoop`, i ticker di countdown a
+    1s) ricostruisce `.controls` da zero e riporta lo scroll in cima —
+    "una specie di flash a schermo e uno scattino" durante la
+    sincronizzazione, anche senza alcuna interazione dell'utente.
+
+    Stessa API di `ScrollMemoryListView` (`restore_scroll()`, sempre da
+    richiamare dopo `.update()`): duplicata invece di condivisa via mixin
+    per restare un `ft.Column`/`ft.ListView` "puro" ciascuna, senza rischi
+    di ordine di risoluzione tra basi Flet diverse — sono ~20 righe
+    identiche, il rischio di un bug di ereditarietà multipla non vale il
+    risparmio.
+    """
+
+    _SCROLL_INTERVAL_MS = 100
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        user_on_scroll = kwargs.pop("on_scroll", None)
+        kwargs.setdefault("scroll_interval", self._SCROLL_INTERVAL_MS)
+        super().__init__(*args, **kwargs)
+        self._scroll_offset: float = 0.0
+        self._user_on_scroll = user_on_scroll
+        self.on_scroll = self._track_scroll
+
+    def _track_scroll(self, e: Any) -> None:
+        try:
+            px = getattr(e, "pixels", None)
+            if px is not None:
+                self._scroll_offset = float(px)
+        except (TypeError, ValueError):
+            pass
+        if self._user_on_scroll is not None:
+            self._user_on_scroll(e)
+
+    def restore_scroll(self) -> None:
+        if self._scroll_offset <= 0:
+            return
+        try:
+            page = self.page
+        except (RuntimeError, AssertionError):
+            return
+        if page is None:
+            return
+        try:
+            page.run_task(self.scroll_to, offset=self._scroll_offset, duration=0)
+        except Exception:
+            pass
+
+
 class CardPicker:
     """
     Lista scorrevole di card cliccabili — sostituisce il pattern

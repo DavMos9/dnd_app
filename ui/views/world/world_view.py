@@ -43,8 +43,8 @@ from ui.views.world.qr_scanner_view import QrScannerView, qr_scanner_supported
 from ui.world_transfer import show_world_import_picker
 from ui import design as d
 from ui.device_identity import resolve_device_id
-from ui.widgets import (CardPicker, responsive_dialog_width, show_snack, spell_card_options,
-                        wrap_dialog_actions)
+from ui.widgets import (CardPicker, ScrollMemoryColumn, responsive_dialog_width, show_snack,
+                        spell_card_options, wrap_dialog_actions)
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +206,13 @@ class WorldsView(ft.Column):
         #: al volo da `_ensure_file_picker()` se non già presente.
         self._file_picker: ft.FilePicker | None = None
 
-        self._body = ft.Column(spacing=d.Space.MD, scroll=ft.ScrollMode.AUTO, expand=True)
+        # `ScrollMemoryColumn` (2026-08-16, bug segnalato da Davide: "flash
+        # a schermo e uno scattino che riporta la vista in cima" durante la
+        # sincronizzazione) — `_render()` ricostruisce `.controls` da zero
+        # ad ogni ridisegno periodico (`_start_detail_sync`,
+        # `_master_cooldown_ticker_loop`), un `ft.Column` semplice perdeva
+        # lo scroll ogni volta anche senza alcuna azione dell'utente.
+        self._body = ScrollMemoryColumn(spacing=d.Space.MD, scroll=ft.ScrollMode.AUTO, expand=True)
         self._build_shell()
         self._render_loading()
 
@@ -1857,12 +1863,14 @@ class WorldsView(ft.Column):
                             self.page.update()
                         except RuntimeError:
                             pass
+                        self._body.restore_scroll()
                     return
                 self._render()
                 try:
                     self.page.update()
                 except RuntimeError:
                     return  # scheda mondo chiusa — nessun altro giro
+                self._body.restore_scroll()
                 await asyncio.sleep(1.0)
         finally:
             self._master_cooldown_ticker_running = False
@@ -3220,6 +3228,7 @@ class WorldsView(ft.Column):
             self.page.update()
         except RuntimeError:
             pass
+        self._body.restore_scroll()
 
     # ------------------------------------------------------------------
     # Crea / unisciti

@@ -45,7 +45,7 @@ from ui.image_library import show_image_library_picker
 from ui.mobile_webview_picker import pick_file_via_webview
 from ui.native_image_picker import pick_image_native, ImagePickerUnavailable
 from ui import design
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +197,12 @@ class MapsView(ft.Column):
         self.character = character
         self._page: ft.Page | None = None
         self._maps: list[GameMap] = []
-        self._list_view = ft.ListView(expand=True, spacing=10, padding=16)
+        # `ScrollMemoryListView` (2026-08-16, bug segnalato da Davide:
+        # "flash a schermo e uno scattino che riporta la vista in cima"
+        # durante la sincronizzazione) — `_refresh_shared_maps()` ricostruisce
+        # questa lista ad ogni giro del ciclo di sync in background, un
+        # `ft.ListView` semplice perdeva lo scroll ogni volta.
+        self._list_view = ScrollMemoryListView(expand=True, spacing=10, padding=16)
 
         # ── Stato disegno ──────────────────────────────────────────────
         self._strokes: list[dict] = []
@@ -370,6 +375,7 @@ class MapsView(ft.Column):
             self.update()
         except RuntimeError:
             pass
+        self._list_view.restore_scroll()
 
     # ------------------------------------------------------------------
     # Build root
