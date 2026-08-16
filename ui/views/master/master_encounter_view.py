@@ -157,6 +157,9 @@ class MasterEncounterView(ft.Column):
         #: `world_sync.resolve_backend_for_world()` nel ciclo di sync sotto.
         self._remote_backends: dict = {}
         self._sync_loop_obj: BackgroundSyncLoop | None = None
+        #: Guardia contro ticker di countdown sovrapposti — vedi
+        #: `_start_pg_cooldown_ticker` (2026-08-16).
+        self._pg_cooldown_ticker_running: bool = False
         self._build()
         self.refresh()
 
@@ -1372,6 +1375,7 @@ class MasterEncounterView(ft.Column):
                 )
             return
         world_sync.mark_master_action(character_id)
+        self._start_pg_cooldown_ticker()
         result = LocalBackend().send_command(
             world_id, self._device_id, kind, payload,
             target_type="character", target_id=character_id,
@@ -1380,6 +1384,31 @@ class MasterEncounterView(ft.Column):
             self.refresh()
         elif page:
             show_snack(page, result.error, tone="danger")
+
+    def _start_pg_cooldown_ticker(self) -> None:
+        """Countdown affidabile delle pillole Danno/Cura/Condizione
+        (2026-08-16 — stesso bug/fix di `WorldsView.
+        _start_master_cooldown_ticker`: il poll condiviso di `_start_sync`
+        può perdere il tick esatto in cui un cooldown scade). `async`
+        dedicato via `page.run_task()`, 1s, si ferma da solo non appena
+        nessun PG dell'incontro è più in cooldown."""
+        page = self._page
+        if page is None or not hasattr(page, "run_task") or self._pg_cooldown_ticker_running:
+            return
+        self._pg_cooldown_ticker_running = True
+        page.run_task(self._pg_cooldown_ticker_loop)
+
+    async def _pg_cooldown_ticker_loop(self) -> None:
+        import asyncio
+
+        try:
+            while True:
+                self.refresh()  # si occupa già di update()/RuntimeError da sola
+                if not self._sync_should_redraw_anyway():
+                    return
+                await asyncio.sleep(1.0)
+        finally:
+            self._pg_cooldown_ticker_running = False
 
     def _open_pg_damage_dialog(self, character_id: str, character_name: str,
                                 world_id: str) -> None:

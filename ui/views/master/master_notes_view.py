@@ -694,15 +694,20 @@ class MasterNotesView(ft.Column):
             value=current_visibility or "private",
             options=[ft.DropdownOption(key=k, text=label) for k, label in _VISIBILITY_OPTIONS],
             border_color=design.T().border, focused_border_color=design.T().primary,
-            bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
+            # Causa reale trovata 2026-08-16 (il fix "difensivo" via solo
+            # `menu_style`, tentato prima, non bastava: confermato ancora
+            # rotto da Davide su build reale): NON `bgcolor="transparent"`.
+            # `menu_style.bgcolor` (sotto) governa ombra/forma/bordo del
+            # popup, ma in questa versione di Flet il riempimento del menu
+            # a tendina segue il `bgcolor` del CAMPO stesso — un campo
+            # trasparente produce un popup trasparente che lascia
+            # intravedere il contenuto sottostante (da qui "sfondo nero":
+            # l'overlay di elevazione Material di default dietro). Ogni
+            # altro Dropdown dell'app con `**design.field_style()` (bgcolor
+            # opaco) non ha mai mostrato questo sintomo — correlazione
+            # confermata su tutti e tre i Dropdown di questo file.
+            bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_3, size=11),
             border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'],
-            # Fix difensivo (2026-08-16, bug report Davide: menu semitrasparente
-            # nero) — il tema globale già imposta `dropdown_theme.menu_style`
-            # per OGNI Dropdown (`ui/theme.py`, commit 2026-08-15), ma questo
-            # dropdown vive in un dialog di condivisione nota aperto con
-            # `page.show_dialog()`: se per qualunque motivo runtime non eredita
-            # il tema di pagina, l'override esplicito qui sotto lo garantisce
-            # comunque, stesso identico stile del tema globale.
             menu_style=ft.MenuStyle(
                 bgcolor=design.T().surface, shadow_color=design.T().shadow,
                 elevation=8, shape=ft.RoundedRectangleBorder(radius=design.Radius.SM),
@@ -752,7 +757,12 @@ class MasterNotesView(ft.Column):
             value=note.status or (opts[0] if opts else ""),
             options=[ft.DropdownOption(key=s, text=s) for s in opts],
             border_color=design.T().border, focused_border_color=design.T().primary,
-            bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
+            # 2026-08-16: NON "transparent" — vedi il commento su
+            # `_nf_visibility` qui sopra, causa reale del menu a tendina
+            # semitrasparente/nero (correlazione confermata: ogni Dropdown
+            # rotto in questo file aveva `bgcolor="transparent"`, quelli con
+            # `**design.field_style()` — bgcolor opaco — mai segnalati rotti).
+            bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_3, size=11),
             border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         self._nf_tags = ft.TextField(
             value=note.tags or "",
@@ -769,7 +779,7 @@ class MasterNotesView(ft.Column):
             value=note.linked_npc_id or "",
             options=npc_opts,
             border_color=design.T().border, focused_border_color=design.T().primary,
-            bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
+            bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_3, size=11),
             border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         self._nf_desc = ft.TextField(
             value=note.description or "", label="Descrizione / Note",

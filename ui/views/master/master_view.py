@@ -230,6 +230,7 @@ class MasterView(ft.Column):
                     ft.Icon(ft.Icons.CASTLE_OUTLINED, color=design.T().primary_icon, size=22),
                     ft.Container(width=8),
                     ft.Container(content=title, expand=True),
+                    *self._world_quick_nav_action(),
                     *self._theme_action(),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -399,6 +400,21 @@ class MasterView(ft.Column):
         from ui.widgets import theme_toggle_pill
         return [theme_toggle_pill(self.theme_preference, self.on_toggle_theme)]
 
+    def _world_quick_nav_action(self) -> list[ft.Control]:
+        """Pulsante "Vai alla Sezione Mondo" nell'header, accanto al tema
+        (2026-08-16, richiesta esplicita di Davide: "in una posizione
+        comoda e sempre disponibile", spostato qui dal pannello "STRUMENTI
+        MASTER" — quello richiede di essere aperto, questo è sempre
+        visibile qualunque tab/pannello sia attivo). Lista vuota se non è
+        selezionato un mondo o il callback non è stato passato."""
+        if self.on_open_world is None or self._active_world_id == _NO_WORLD_KEY:
+            return []
+        return [ft.IconButton(
+            ft.Icons.PUBLIC, icon_color=design.T().primary_icon,
+            tooltip="Vai alla Sezione Mondo",
+            on_click=lambda e: self.on_open_world(self._active_world_id),
+        )]
+
     def _build_tools_panel(self) -> ft.Control:
         """
         Pannello a comparsa (2026-08-07, restyle su richiesta di Davide):
@@ -459,24 +475,11 @@ class MasterView(ft.Column):
                 self._tool_pill(ft.Icons.DIAMOND, "Artefatti", self._open_artifacts_dialog),
             ]
 
-            world_row_children: list[ft.Control] = [world_dropdown]
-            if self.on_open_world is not None and self._active_world_id != _NO_WORLD_KEY:
-                # Navigazione rapida (2026-08-16, richiesta di Davide: "un
-                # tasto sia nella sezione master... che porti velocemente
-                # alla sezione mondo").
-                world_row_children.append(ft.IconButton(
-                    ft.Icons.PUBLIC, icon_color=p.magic, tooltip="Vai alla Sezione Mondo",
-                    on_click=lambda e: self.on_open_world(self._active_world_id),
-                ))
-
             return ft.Column(
                 [
                     ft.Container(
                         padding=ft.Padding.only(bottom=design.Space.SM),
-                        content=ft.Row(
-                            world_row_children, spacing=4,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
+                        content=world_dropdown,
                     ),
                     ft.Row(
                         [

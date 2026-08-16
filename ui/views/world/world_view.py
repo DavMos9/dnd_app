@@ -193,6 +193,9 @@ class WorldsView(ft.Column):
         #: nel dettaglio aperto (2026-08-16) — alimenta il LED in
         #: `_render_detail()`, aggiornato ad ogni giro di `_start_detail_sync`.
         self._detail_connection_state: str = "connected"
+        #: Guardia contro ticker di countdown sovrapposti — vedi
+        #: `_start_master_cooldown_ticker`.
+        self._master_cooldown_ticker_running: bool = False
         #: Protegge la mutazione di `self._body.controls`, condivisa tra il
         #: thread Flet (azioni utente) e il thread di sync in background —
         #: stesso principio già in uso in `home_view.py::_refresh_lock`.
@@ -1796,6 +1799,7 @@ class WorldsView(ft.Column):
         # ha già generato traffico di rete verso l'host — non deve essere
         # possibile aggirare il limite martellando durante un errore.
         world_sync.mark_master_action(character.id)
+        self._start_master_cooldown_ticker(world)
 
         result = self._send_command(
             world, kind, payload, target_type="character", target_id=character.id,
@@ -1804,6 +1808,64 @@ class WorldsView(ft.Column):
             self._refresh_detail()
         else:
             self._show_error(result.error)
+
+    def _start_master_cooldown_ticker(self, world: World) -> None:
+        """
+        Countdown affidabile dei pulsanti "Interviene a distanza" (2026-08-16
+        — Davide, dopo il primo giro di test reali, ha confermato che il
+        countdown restava bloccato anche dopo il tentativo di fix via
+        `_should_redraw_anyway`/`_any_master_cooldown_active`, che dipende
+        dal poll a `_DETAIL_SYNC_INTERVAL_S=2.0` di `_start_detail_sync`:
+        con un cooldown di 3.0s il tick di sblocco può cadere in un
+        istante non osservato da un poll così largo, e teoricamente si
+        rischia di perderlo comunque su ritardi del thread). Stesso
+        principio, PIÙ affidabile, di `_network_cooldown_ticker_loop` qui
+        sopra: un `async` dedicato schedulato con `page.run_task()`
+        (nessun `threading.Thread`: gira già nel loop asyncio della
+        sessione), a 1s invece di 2s, che si ferma da solo non appena
+        nessun personaggio del mondo è più in cooldown.
+
+        `_master_cooldown_ticker_running` evita tanti cicli sovrapposti se
+        il master invia più azioni ravvicinate su personaggi diversi —
+        innocuo comunque (ogni ciclo si fermerebbe da solo), solo spreco
+        evitabile.
+        """
+        if self._master_cooldown_ticker_running:
+            return
+        try:
+            page = self.page
+        except RuntimeError:
+            return  # controllo non ancora agganciato alla pagina (es. test)
+        if page is None or not hasattr(page, "run_task"):
+            return
+        self._master_cooldown_ticker_running = True
+        page.run_task(self._master_cooldown_ticker_loop, world.id)
+
+    async def _master_cooldown_ticker_loop(self, world_id: str) -> None:
+        import asyncio
+
+        try:
+            while True:
+                world = world_repo.get_world(world_id)
+                if (world is None or self._current_world is None
+                        or self._current_world.id != world_id
+                        or not self._any_master_cooldown_active(world)):
+                    if world is not None and self._current_world is not None \
+                            and self._current_world.id == world_id:
+                        self._render()
+                        try:
+                            self.page.update()
+                        except RuntimeError:
+                            pass
+                    return
+                self._render()
+                try:
+                    self.page.update()
+                except RuntimeError:
+                    return  # scheda mondo chiusa — nessun altro giro
+                await asyncio.sleep(1.0)
+        finally:
+            self._master_cooldown_ticker_running = False
 
     def _open_xp_dialog(self, world: World, character: Character):
         p = d.T()

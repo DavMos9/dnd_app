@@ -33,10 +33,13 @@ from typing import Any, Optional, cast
 import flet as ft
 import flet.canvas as cv
 
+from core import world_sync
 from core.image_utils import sniff_mime
+from core.world_backend import LocalBackend, RemoteBackend
 from data.models import Character, GameMap
-from data.repositories import maps_repo
+from data.repositories import maps_repo, world_repo
 from ui import canvas_geometry as geo
+from ui.device_identity import resolve_device_id
 from ui.image_library import show_image_library_picker
 from ui.mobile_webview_picker import pick_file_via_webview
 from ui.native_image_picker import pick_image_native, ImagePickerUnavailable
@@ -241,6 +244,21 @@ class MapsView(ft.Column):
         self._fs_ersub_refs:   list[ft.Container] = []
         self._fs_toolbar_body: ft.Container | None = None
 
+        # Mappe condivise dal Master (2026-08-16, richiesta di Davide:
+        # "voglio che... le mappe condivise vengano visualizzate... nella
+        # sezione mappa già presente nella scheda giocatore") — SOLO se
+        # `character.world_id` è valorizzato. Sola lettura qui (disegnare
+        # resta compito del Master dalla Sezione Mondi): niente
+        # GestureDetector nel viewer, solo immagine + annotazioni già
+        # presenti. `backend`/`_remote_backends` servono solo per lo
+        # scaricamento pigro dell'immagine (§6.4, stesso principio di
+        # `WorldsView._open_shared_map`), mai per scrivere.
+        self.device_id: str | None = None
+        self.backend = LocalBackend()
+        self._remote_backends: dict[str, RemoteBackend] = {}
+        self._shared_maps: list[GameMap] = []
+        self._shared_maps_expanded: bool = False
+
         # NOTA (2026-08-06): non c'è più un self._file_picker qui.
         # ft.FilePicker è stato abbandonato per la selezione mobile —
         # confermato non funzionante su build Android reali (log adb
@@ -253,6 +271,9 @@ class MapsView(ft.Column):
 
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
+        page = self.page
+        if page is not None and self.character.world_id:
+            page.run_task(self._init_shared_maps)
 
         # Storico (fino al 2026-08-06): questo blocco registrava
         # ft.FilePicker in page.overlay, con vari tentativi di timing
@@ -264,6 +285,33 @@ class MapsView(ft.Column):
         # adb logcat: nessuna Activity nativa Android viene mai avviata,
         # bug non risolvibile lato applicazione).
 
+    async def _init_shared_maps(self) -> None:
+        page = self.page
+        if page is None:
+            return
+        self.device_id = await resolve_device_id(page)
+        self._refresh_shared_maps()
+
+    def _refresh_shared_maps(self) -> None:
+        """Ricarica la lista mappe condivise visibili a questo giocatore e
+        ridisegna — chiamata dopo la risoluzione di `device_id` e ad ogni
+        chiusura del viewer di sola lettura (una mappa appena pubblicata dal
+        master mentre il giocatore ha già aperto Mappe non comparirebbe
+        altrimenti finché non si torna alla lista a mano — nessun ciclo di
+        sync in background qui, coerente con l'assenza di polling
+        automatico nel resto di questa vista prima d'ora)."""
+        if not self.character.world_id:
+            return
+        self._shared_maps = [
+            m for m in maps_repo.get_shared_maps(self.character.world_id)
+            if m.visible_to_players
+        ]
+        self._build()
+        try:
+            self.update()
+        except RuntimeError:
+            pass
+
     # ------------------------------------------------------------------
     # Build root
     # ------------------------------------------------------------------
@@ -272,7 +320,199 @@ class MapsView(ft.Column):
         self._maps = maps_repo.get_maps(self.character.id)
         self.controls.clear()
         self.controls.append(self._build_top_toolbar())
+        shared_section = self._build_shared_maps_section()
+        if shared_section is not None:
+            self.controls.append(shared_section)
         self.controls.append(ft.Container(expand=True, content=self._build_list_panel()))
+
+    # ------------------------------------------------------------------
+    # Mappe condivise dal Master (2026-08-16) — sola lettura
+    # ------------------------------------------------------------------
+
+    def _build_shared_maps_section(self) -> ft.Control | None:
+        if not self.character.world_id or self.device_id is None:
+            return None
+
+        def _content() -> ft.Control:
+            if not self._shared_maps:
+                return ft.Text("Il master non ha ancora condiviso nessuna mappa.",
+                                size=12, color=design.T().text_3, italic=True)
+            return ft.Column(
+                [self._shared_map_card(gm) for gm in self._shared_maps],
+                spacing=8, tight=True,
+            )
+
+        def _toggle(new_state: bool) -> None:
+            self._shared_maps_expanded = new_state
+            self._build()
+            try:
+                self.update()
+            except RuntimeError:
+                pass
+
+        return ft.Container(
+            content=design.collapsible_section(
+                f"MAPPE CONDIVISE DAL MASTER ({len(self._shared_maps)})", _content,
+                expanded=self._shared_maps_expanded, on_toggle=_toggle,
+            ),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+        )
+
+    def _shared_map_card(self, gm: GameMap) -> ft.Control:
+        p = design.T()
+        if gm.image_data:
+            thumb: ft.Control = ft.Container(
+                content=ft.Image(src=_data_uri(gm.image_data), fit=ft.BoxFit.COVER),
+                width=72, height=54, border_radius=design.Radius.SM,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            )
+        else:
+            thumb = ft.Container(
+                content=ft.Icon(ft.Icons.MAP_OUTLINED, size=22, color=p.text_3),
+                width=72, height=54, border_radius=design.Radius.SM,
+                bgcolor=p.surface_alt, alignment=ft.Alignment.CENTER,
+            )
+        return ft.Container(
+            content=ft.Row(
+                [
+                    thumb,
+                    ft.Text(gm.name or "Mappa senza nome", size=13, weight=ft.FontWeight.BOLD,
+                            color=p.text, expand=True),
+                    ft.IconButton(ft.Icons.OPEN_IN_FULL, tooltip="Apri", icon_size=18,
+                                  icon_color=p.text_2,
+                                  on_click=lambda e, m=gm: self._open_shared_map_readonly(m)),
+                ],
+                spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            bgcolor=p.surface_alt, border_radius=design.Radius.SM, padding=8,
+        )
+
+    def _open_shared_map_readonly(self, gm: GameMap) -> None:
+        """
+        Viewer di sola lettura per una mappa condivisa dal master
+        (2026-08-16) — stesso principio di
+        `WorldsView._open_shared_map(can_manage=False)`, ma auto-contenuto
+        qui (questa vista non ha accesso a quella classe): niente
+        `GestureDetector`/toolbar di disegno, solo immagine + annotazioni
+        già presenti, riallineate con `geo.contain_rect()` esattamente come
+        lato Sezione Mondi (stesso fix 2026-08-16 del disallineamento
+        cross-device).
+        """
+        page = self.page
+        if page is None:
+            return
+        p = design.T()
+
+        if not gm.image_data:
+            world = world_repo.get_world(self.character.world_id)
+            if world is not None and not world.is_local_host:
+                backend = world_sync.resolve_backend_for_world(
+                    world, self.device_id or "", self.backend, self._remote_backends,
+                )
+                if isinstance(backend, RemoteBackend):
+                    raw = backend.fetch_map_image(gm.id)
+                    if raw:
+                        gm.image_data = base64.b64encode(raw).decode("ascii")
+                        maps_repo.update_map(gm.id, image_data=gm.image_data)
+
+        try:
+            strokes: list[dict] = json.loads(gm.annotations or "[]")
+        except (json.JSONDecodeError, TypeError):
+            strokes = []
+        canvas = cv.Canvas(expand=True)
+        box_size = [0.0, 0.0]
+        img_size = [0.0, 0.0]
+        if gm.image_data:
+            try:
+                from PIL import Image as PILImage
+                import io
+                with PILImage.open(io.BytesIO(base64.b64decode(gm.image_data))) as _img:
+                    img_size[0], img_size[1] = float(_img.width), float(_img.height)
+            except Exception as e:
+                logger.debug("Lettura dimensioni immagine mappa condivisa fallita: %s", e)
+
+        def _redraw():
+            ox, oy, dw, dh = geo.contain_rect(box_size[0], box_size[1], img_size[0], img_size[1])
+            shapes: list[cv.Shape] = []
+            for stroke in strokes:
+                if stroke.get("type") != "stroke":
+                    continue
+                pts = geo.denormalize_points(stroke.get("points", []), dw, dh, ox, oy)
+                if len(pts) < 2:
+                    continue
+                elems: list = [cv.Path.MoveTo(pts[0][0], pts[0][1])]
+                for x, y in pts[1:]:
+                    elems.append(cv.Path.LineTo(x, y))
+                shapes.append(cv.Path(
+                    elements=elems,
+                    paint=ft.Paint(
+                        color=stroke.get("color", "#e63946"), stroke_width=stroke.get("width", 5.0),
+                        style=ft.PaintingStyle.STROKE, stroke_cap=ft.StrokeCap.ROUND,
+                    ),
+                ))
+            canvas.shapes = shapes
+
+        def _on_box_resize(e: ft.LayoutSizeChangeEvent):
+            box_size[0], box_size[1] = e.width, e.height
+            _redraw()
+            try:
+                canvas.update()
+            except RuntimeError:
+                pass
+
+        _redraw()
+
+        if gm.image_data:
+            img_layer: ft.Control = ft.Image(src=_data_uri(gm.image_data),
+                                             fit=ft.BoxFit.CONTAIN, expand=True)
+        else:
+            img_layer = ft.Container(
+                expand=True, bgcolor=p.surface_alt, alignment=ft.Alignment.CENTER,
+                content=ft.Column(
+                    [ft.Icon(ft.Icons.MAP_OUTLINED, size=48, color=p.border),
+                     design.muted("Nessuna immagine per questa mappa")],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+        draw_stack = ft.Stack([img_layer, canvas], expand=True)
+
+        overlay_list: list[ft.Control] = []
+
+        def _close(e=None):
+            if overlay_list and overlay_list[0] in page.overlay:
+                page.overlay.remove(overlay_list[0])
+            try:
+                page.update()
+            except RuntimeError:
+                pass
+
+        header = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Text(gm.name or "Mappa", size=16, color=design.CHROME.text,
+                            weight=ft.FontWeight.BOLD, expand=True,
+                            no_wrap=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                    design.chip("sola lettura", "neutral"),
+                    ft.IconButton(ft.Icons.CLOSE, icon_color=design.CHROME.text, on_click=_close),
+                ],
+                spacing=design.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+            bgcolor=design.CHROME.backdrop,
+        )
+        overlay = ft.Container(
+            expand=True, bgcolor=design.CHROME.canvas,
+            content=ft.Column(
+                [header, ft.Container(expand=True, content=draw_stack, on_size_change=_on_box_resize)],
+                spacing=0, expand=True,
+            ),
+        )
+        overlay_list.append(overlay)
+        page.overlay.append(overlay)
+        try:
+            page.update()
+        except RuntimeError:
+            pass
 
     def _build_top_toolbar(self) -> ft.Container:
         return ft.Container(

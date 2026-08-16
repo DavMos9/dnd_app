@@ -573,9 +573,24 @@ muted_text(text, size=12, text_align=..., weight=...)
 #       shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
 #       side=ft.BorderSide(1, p.border),
 #   )
-# Un solo punto di fix per entrambi i temi (chiaro/scuro), stesso principio
-# già in uso per `dialog_theme`/`card_theme`/ecc. — non serve toccare i
-# singoli `ft.Dropdown(...)` sparsi nell'app.
+#
+# CORREZIONE 2026-08-16 (Davide ha confermato su build reale che il bug
+# persisteva — su un ALTRO Dropdown dello stesso file, "Visibilità" — anche
+# con questo fix già applicato): il fix sopra è necessario ma NON
+# sufficiente da solo. In questa versione di Flet il riempimento del popup
+# segue anche il `bgcolor` del CAMPO Dropdown stesso, non solo
+# `menu_style.bgcolor` — un `ft.Dropdown(..., bgcolor="transparent")`
+# produce un popup trasparente indipendentemente dal tema globale.
+# Correlazione confermata su `master_notes_view.py`/`diary_view.py`: ogni
+# Dropdown con `bgcolor="transparent"` mostrava il bug, ogni Dropdown con
+# `**design.field_style()` (bgcolor opaco, `p.surface`) non l'ha mai
+# mostrato. Fix completo: il `menu_style` del tema globale resta comunque
+# necessario (ombra/forma/bordo del popup, e copre la maggioranza dei
+# Dropdown già scritti con bgcolor opaco), MA un Dropdown scritto a mano con
+# `bgcolor="transparent"` va corretto caso per caso a `bgcolor=p.surface`
+# (o `**design.field_style()`) — non esiste un fix a un solo punto per
+# questo caso, va cercato ogni `ft.Dropdown(...)` con `bgcolor="transparent"`
+# nell'app (TextField non è interessato: nessun popup).
 
 # TYPE STUBS Flet 0.85.3 — firme on_click / on_blur / on_select
 # ControlEvent è troppo generico per Pylance; usare il tipo specifico:

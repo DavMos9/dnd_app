@@ -32,9 +32,11 @@ import flet as ft
 import logging
 from typing import Any, cast
 
-from data.models import Character, DiaryEntry, CampaignNote
+from data.models import Character, DiaryEntry, CampaignNote, MasterCampaignNote
 import data.repositories.character_repo as character_repo
+from data.repositories import master_repo
 from ui import design
+from ui.device_identity import resolve_device_id
 from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
@@ -184,11 +186,33 @@ class DiaryView(ft.Column):
                                                   color=design.T().text_3,
                                                   style=ft.TextStyle(letter_spacing=2))
 
+        # ── Note condivise dal Master (2026-08-16, richiesta di Davide:
+        # "voglio che le note condivise... vengano visualizzate... nella
+        # sezione diario/note del giocatore già esistente") — SOLO se
+        # `character.world_id` è valorizzato (personaggio in un mondo
+        # condiviso). Sola lettura: modificarle resta compito del Master.
+        self.device_id: str | None = None
+        self._shared_notes_expanded: bool = False
+
         self._load_all()
         self._build()
 
     def did_mount(self) -> None:
         self._page = cast(ft.Page, self.page)
+        page = self.page
+        if page is not None and self.character.world_id:
+            page.run_task(self._init_shared_notes)
+
+    async def _init_shared_notes(self) -> None:
+        page = self.page
+        if page is None:
+            return
+        self.device_id = await resolve_device_id(page)
+        self._build()
+        try:
+            self.update()
+        except RuntimeError:
+            pass
 
     # ──────────────────────────────────────────────────────────────────────────
     # Data
@@ -249,8 +273,87 @@ class DiaryView(ft.Column):
         )
 
         self.controls.append(self._build_header())
+        shared_section = self._build_shared_notes_section()
+        if shared_section is not None:
+            self.controls.append(shared_section)
         self.controls.append(ft.Divider(height=1, color=design.T().border))
         self.controls.append(body)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Note condivise dal Master (2026-08-16) — sola lettura, raggruppate per
+    # categoria come nella Sezione Master. Stessa fonte dati/filtro di
+    # `WorldsView._shared_notes_section` (`master_repo.get_notes_visible_to`),
+    # qui integrata nella scheda del giocatore invece che nella Sezione
+    # Mondi — più facile da trovare, richiesta esplicita di Davide.
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _build_shared_notes_section(self) -> ft.Control | None:
+        if not self.character.world_id:
+            return None
+        if self.device_id is None:
+            return None  # identità non ancora risolta — vedi _init_shared_notes
+        notes = master_repo.get_notes_visible_to(self.character.world_id, self.device_id)
+
+        def _content() -> ft.Control:
+            if not notes:
+                return ft.Text("Il master non ha ancora condiviso nessuna nota.",
+                                size=12, color=design.T().text_3, italic=True)
+            # Etichette locali (non `_cat_meta`, pensata per le categorie del
+            # giocatore): `MasterCampaignNote.category` include anche
+            # "event"/"secret", assenti da `CATEGORIES` — vedi il docstring
+            # del modello.
+            cat_labels = {
+                "npc": "PNG", "npc_todo": "PNG da cercare", "place": "Luoghi",
+                "place_todo": "Da esplorare", "quest": "Missioni",
+                "faction": "Fazioni", "event": "Eventi", "secret": "Segreti",
+            }
+            by_cat: dict[str, list[MasterCampaignNote]] = {}
+            for n in notes:
+                by_cat.setdefault(n.category, []).append(n)
+            cards: list[ft.Control] = []
+            for cat_key, cat_notes in by_cat.items():
+                label = cat_labels.get(cat_key, cat_key)
+                cards.append(ft.Text(label.upper(), size=9, weight=ft.FontWeight.BOLD,
+                                      color=design.T().text_3,
+                                      style=ft.TextStyle(letter_spacing=1.2)))
+                for n in cat_notes:
+                    cards.append(self._shared_note_card(n))
+            return ft.Column(cards, spacing=8, tight=True)
+
+        def _toggle(new_state: bool) -> None:
+            self._shared_notes_expanded = new_state
+            self._build()
+            try:
+                self.update()
+            except RuntimeError:
+                pass
+
+        return ft.Container(
+            content=design.collapsible_section(
+                f"NOTE CONDIVISE DAL MASTER ({len(notes)})", _content,
+                expanded=self._shared_notes_expanded, on_toggle=_toggle,
+            ),
+            padding=ft.Padding.symmetric(horizontal=18, vertical=8),
+        )
+
+    def _shared_note_card(self, note: MasterCampaignNote) -> ft.Control:
+        p = design.T()
+        header: list[ft.Control] = [
+            ft.Text(note.name or "(senza nome)", size=13, weight=ft.FontWeight.BOLD,
+                    color=p.text, expand=True),
+        ]
+        if note.status:
+            header.append(design.chip(note.status, "primary"))
+        rows: list[ft.Control] = [ft.Row(header, vertical_alignment=ft.CrossAxisAlignment.CENTER)]
+        if note.description:
+            rows.append(ft.Text(note.description, size=12, color=p.text_2))
+        if note.tags:
+            rows.append(design.muted(note.tags))
+        return ft.Container(
+            content=ft.Column(rows, spacing=4, tight=True),
+            bgcolor=p.surface_alt, border_radius=design.Radius.SM,
+            padding=10,
+        )
 
     # ──────────────────────────────────────────────────────────────────────────
     # Header
@@ -885,7 +988,11 @@ class DiaryView(ft.Column):
             options=[ft.DropdownOption(key=s, text=s) for s in opts],
             border_color=design.T().border,
             focused_border_color=design.T().primary,
-            bgcolor="transparent",
+            # 2026-08-16: NON "transparent" — causa del menu a tendina
+            # semitrasparente/nero (bug report Davide su `master_notes_view.py`,
+            # stesso identico pattern qui): in questa versione di Flet il
+            # riempimento del popup segue il `bgcolor` del campo stesso.
+            bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_3, size=11),
             border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         self._nf_tags = ft.TextField(

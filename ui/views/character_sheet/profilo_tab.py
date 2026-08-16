@@ -822,10 +822,20 @@ class ProfiloTab(ScrollMemoryListView):
             abbr = ABILITY_ABBR[ABILITY_KEYS.index(ability_key)]
             skill_rows.append(_dot_row(skill_name, mod_str, is_prof, is_expert, f"({abbr})"))
 
-        # Due colonne per le abilità
+        # Due colonne per le abilità — `expand=True` su ENTRAMBE (fix
+        # 2026-08-16, bug report Davide: "la colonna destra delle abilità
+        # esce fuori dallo schermo"): senza, ogni `ft.Column` si dimensiona
+        # sulla larghezza naturale del proprio contenuto invece di dividersi
+        # lo spazio disponibile nella Row che le contiene — su schermi
+        # stretti la somma delle due larghezze naturali eccede lo schermo,
+        # e Flet non fa mai wrap automatico di una Row. Con `expand=True` su
+        # entrambe, la Row le vincola a metà spazio ciascuna, e il
+        # `ft.Text(name, expand=True)` di ogni `_dot_row` (già presente)
+        # si accorcia/eventualmente-ellissa dentro quel vincolo invece di
+        # spingere la colonna oltre il bordo.
         mid = (len(skill_rows) + 1) // 2
-        col_a = ft.Column(skill_rows[:mid], spacing=3)
-        col_b = ft.Column(skill_rows[mid:], spacing=3)
+        col_a = ft.Column(skill_rows[:mid], spacing=3, expand=True)
+        col_b = ft.Column(skill_rows[mid:], spacing=3, expand=True)
 
         edit_btn = ft.TextButton(
             "✎ Modifica",
