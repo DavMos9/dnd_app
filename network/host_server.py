@@ -654,35 +654,68 @@ class WorldHostServer:
             for r in world_repo.get_pending_rejoin_requests(self.world_id)
             if r.requested_by == device_id
         ]
+
+        # Isolamento per sezione (2026-08-16, bug segnalato da Davide:
+        # nella replica di un giocatore, note/mappe condivise restavano
+        # bloccate su un sottoinsieme minuscolo — sia in Diario/Mappe SIA in
+        # Sezione Mondo, due viste indipendenti che condividono solo
+        # QUESTA chiamata). Prima di questo fix, un'eccezione in QUALUNQUE
+        # sezione sotto (es. un incontro con dati residui da una sessione di
+        # test precedente, un NPC collegato ormai cancellato) faceva
+        # fallire l'INTERA risposta con 500 — e da quando `sync_replica()`
+        # (core/world_sync.py) richiama questo endpoint ad OGNI ciclo,
+        # anche quando non ci sono eventi nuovi (fix dello stesso giorno),
+        # un solo dato residuo rotto blocca per sempre ogni sincronizzazione
+        # successiva su TUTTE le sezioni, non solo quella incidentata —
+        # il dispositivo resta congelato allo stato dell'ultimo snapshot
+        # riuscito (tipicamente quello del primo ingresso). Ogni sezione
+        # qui sotto degrada quindi a "vuota" invece di far fallire tutto,
+        # con un log per poterla poi correggere.
+
         # Note condivise visibili a questo device (§7B, chiude lo stesso gap
         # delle istanze sopra: senza questo, un giocatore che entra DOPO che
         # una nota è stata condivisa non la riceverebbe mai — gli eventi
         # storici vengono salvati ma non "applicati" da `_finalize_join()`).
-        notes = [
-            asdict(n) for n in master_repo.get_notes_visible_to(self.world_id, device_id)
-        ]
+        try:
+            notes = [
+                asdict(n) for n in master_repo.get_notes_visible_to(self.world_id, device_id)
+            ]
+        except Exception as e:
+            logger.error("handle_snapshot: errore costruendo le note condivise: %s", e)
+            notes = []
+
         # Incontro visibile ai giocatori, se c'è (§6.5, passo 7C) — stesso
         # gap delle note sopra: senza questo, un giocatore che entra mentre
         # un combattimento è già visibile non lo vedrebbe mai finché non
         # arriva un evento successivo (next_turn/toggle).
-        visible_encounter = master_repo.get_visible_encounter_for_world(self.world_id)
-        encounter_payload = None
-        if visible_encounter is not None:
-            encounter_payload = {
-                "encounter": asdict(visible_encounter),
-                "members": master_repo.resolved_members_to_dicts(
-                    master_repo.get_encounter_members_resolved(visible_encounter.id),
-                ),
-            }
+        try:
+            visible_encounter = master_repo.get_visible_encounter_for_world(self.world_id)
+            encounter_payload = None
+            if visible_encounter is not None:
+                encounter_payload = {
+                    "encounter": asdict(visible_encounter),
+                    "members": master_repo.resolved_members_to_dicts(
+                        master_repo.get_encounter_members_resolved(visible_encounter.id),
+                    ),
+                }
+        except Exception as e:
+            logger.error("handle_snapshot: errore costruendo l'incontro visibile: %s", e)
+            encounter_payload = None
+
         # Mappe pubblicate in questo mondo (§6.4, passo 8) — solo metadati
         # (id/nome), MAI `image_data`: resta sulla rotta dedicata
         # `GET /map/<id>/image`, scaricata lazy alla prima apertura. Stesso
         # gap delle note/dell'incontro sopra: senza questo, un giocatore che
         # entra dopo che una mappa è stata pubblicata non la vedrebbe mai.
-        shared_maps = [
-            {"id": m.id, "name": m.name}
-            for m in maps_repo.get_shared_maps(self.world_id)
-        ]
+        try:
+            shared_maps = [
+                {"id": m.id, "name": m.name}
+                for m in maps_repo.get_shared_maps(self.world_id)
+            ]
+        except Exception as e:
+            logger.error("handle_snapshot: errore costruendo le mappe condivise: %s", e)
+            shared_maps = []
+
         return 200, {
             "world": protocol.world_to_dict(world),
             "members": [protocol.member_to_dict(m) for m in members],

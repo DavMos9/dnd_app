@@ -529,15 +529,27 @@ def _refresh_snapshot_derived_state(remote_backend, local_world_id: str) -> None
         if local_member.device_id not in still_present:
             world_repo.remove_replica_member(local_world_id, local_member.device_id)
 
+    # Un elemento non processa mai gli altri: un `try` per riga, non uno
+    # per l'intero ciclo — un singolo dato malformato (es. residuo di una
+    # sessione di test precedente) non deve impedire agli ALTRI elementi,
+    # per il resto sani, di arrivare sulla replica.
     for note_data in snapshot.get("notes", []):
         if note_data.get("id"):
-            master_repo.save_replica_note(note_data)
+            try:
+                master_repo.save_replica_note(note_data)
+            except Exception as e:
+                logger.error("_refresh_snapshot_derived_state: nota %r scartata: %s",
+                             note_data.get("id"), e)
 
     for map_data in snapshot.get("shared_maps", []):
         if map_data.get("id"):
-            maps_repo.replica_create_map_stub(
-                map_data["id"], local_world_id, str(map_data.get("name", "")),
-            )
+            try:
+                maps_repo.replica_create_map_stub(
+                    map_data["id"], local_world_id, str(map_data.get("name", "")),
+                )
+            except Exception as e:
+                logger.error("_refresh_snapshot_derived_state: mappa %r scartata: %s",
+                             map_data.get("id"), e)
 
 
 # ---------------------------------------------------------------------------
@@ -743,21 +755,44 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
     for event in events:
         world_repo.save_replica_event(event)
 
+    # Isolamento per elemento (2026-08-16, stesso bug/stessa cura di
+    # `_refresh_snapshot_derived_state` più sotto e di `handle_snapshot()`
+    # lato host): un'eccezione su UNA scheda/nota/mappa (dati residui di
+    # una sessione di test precedente) qui non era isolata — faceva
+    # fallire l'INTERA `_finalize_join()` con un'eccezione non gestita,
+    # DOPO che `world_repo.save_replica_world(world)` sopra aveva già
+    # scritto la riga del mondo sulla replica locale. Risultato osservato
+    # da Davide: l'app del giocatore non mostra alcun esito (l'eccezione
+    # risale silenziosa fino al gestore del pulsante "Controlla di nuovo"
+    # o al ciclo di polling automatico, nessuno dei due la intercetta),
+    # ma il mondo risulta comunque "registrato" al riavvio dell'app,
+    # perché quella riga era già stata salvata prima del crash. Ogni voce
+    # qui sotto degrada quindi a "salta questo singolo elemento" invece di
+    # far fallire l'intero ingresso, con un log per poterla poi correggere.
     for char_data in snapshot.get("characters", []):
         char_row = char_data.get("character") or {}
         character_id = str(char_row.get("id") or "")
         if character_id:
-            character_export.import_replica_character(char_data, character_id, world_seq=latest_seq)
+            try:
+                character_export.import_replica_character(char_data, character_id, world_seq=latest_seq)
+            except Exception as e:
+                logger.error("_finalize_join: personaggio %r scartato: %s", character_id, e)
 
     for req_data in snapshot.get("change_requests", []):
         request_id = str(req_data.get("id") or "")
         if request_id:
-            world_repo.save_replica_change_request(protocol.change_request_from_dict(req_data))
+            try:
+                world_repo.save_replica_change_request(protocol.change_request_from_dict(req_data))
+            except Exception as e:
+                logger.error("_finalize_join: richiesta di modifica %r scartata: %s", request_id, e)
 
     for req_data in snapshot.get("rejoin_requests", []):
         request_id = str(req_data.get("id") or "")
         if request_id:
-            world_repo.save_replica_rejoin_request(protocol.rejoin_request_from_dict(req_data))
+            try:
+                world_repo.save_replica_rejoin_request(protocol.rejoin_request_from_dict(req_data))
+            except Exception as e:
+                logger.error("_finalize_join: richiesta di rientro %r scartata: %s", request_id, e)
 
     # Note condivise (§7B) visibili a questo device — stesso motivo dei due
     # loop sopra: gli `events` salvati qui sopra sono solo storia (mai
@@ -768,24 +803,33 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
     # sulla replica.
     for note_data in snapshot.get("notes", []):
         if note_data.get("id"):
-            master_repo.save_replica_note(note_data)
+            try:
+                master_repo.save_replica_note(note_data)
+            except Exception as e:
+                logger.error("_finalize_join: nota %r scartata: %s", note_data.get("id"), e)
 
     # Incontro visibile ai giocatori (§7C), se c'è — stesso motivo del loop
     # sopra: riusa lo stesso scrittore del ramo evento in
     # `apply_event_to_replica`, un solo punto che sa scrivere lo specchio.
-    visible_encounter = snapshot.get("visible_encounter")
-    if isinstance(visible_encounter, dict) and isinstance(visible_encounter.get("encounter"), dict):
-        master_repo.replica_upsert_encounter_snapshot(
-            world.id, visible_encounter["encounter"], visible_encounter.get("members", []),
-        )
+    try:
+        visible_encounter = snapshot.get("visible_encounter")
+        if isinstance(visible_encounter, dict) and isinstance(visible_encounter.get("encounter"), dict):
+            master_repo.replica_upsert_encounter_snapshot(
+                world.id, visible_encounter["encounter"], visible_encounter.get("members", []),
+            )
+    except Exception as e:
+        logger.error("_finalize_join: incontro visibile scartato: %s", e)
 
     # Mappe pubblicate (§8) — solo lo stub (id/nome): l'immagine si scarica
     # lazy alla prima apertura, mai qui. Stesso scrittore del ramo evento
     # `map.publish` in `apply_event_to_replica`.
     for map_data in snapshot.get("shared_maps", []):
         if map_data.get("id"):
-            maps_repo.replica_create_map_stub(
-                map_data["id"], world.id, str(map_data.get("name", "")),
-            )
+            try:
+                maps_repo.replica_create_map_stub(
+                    map_data["id"], world.id, str(map_data.get("name", "")),
+                )
+            except Exception as e:
+                logger.error("_finalize_join: mappa %r scartata: %s", map_data.get("id"), e)
 
     return LanJoinResult(True, world=world_repo.get_world(world.id), backend=backend)
