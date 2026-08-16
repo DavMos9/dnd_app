@@ -46,15 +46,29 @@ from config.settings import *
 from config.settings import get_modifier, char_prof_bonus
 from data.models import Character, KnownSpell, SpellSlot
 import data.repositories.character_repo as character_repo
+from data.repositories import world_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text
 import core.character_stats as cs
+from core import world_sync
+from core.world_backend import LocalBackend, RemoteBackend
+from ui.components.background_sync import BackgroundSyncLoop
+from ui.device_identity import resolve_device_id
 from ui.components.roll_panel import show_roll
 from ui.widgets import (CardPicker, ScrollMemoryListView, spell_card_options,
                         wrap_dialog_actions, responsive_dialog_width)
 from ui import design
 
 logger = logging.getLogger(__name__)
+
+#: Stesso intervallo già validato altrove (`sheet_view.py::_SHEET_SYNC_INTERVAL_S`)
+#: — copre il caso trovato da Davide (2026-08-16): un incantesimo/abilità
+#: bonus concesso dal master non compariva finché il giocatore non lasciava
+#: la sezione Incantesimi e ci rientrava, perché questa vista (di primo
+#: livello nella sidebar, non un tab di `SheetView`) non aveva mai avuto un
+#: `BackgroundSyncLoop` — nessuna vista scaricava eventi dall'host finché il
+#: giocatore restava qui.
+_SPELLS_SYNC_INTERVAL_S = 2.0
 
 _loader = GameDataLoader()
 
@@ -274,10 +288,77 @@ class SpellsView(ScrollMemoryListView):
         # usavano già prima di questo fix), MAI usata per decidere se
         # mostrare il nuovo rendering multiclasse.
         self._caster_rows: list[tuple[Any, list[dict[str, Any]]]] = _caster_class_rows(character)
+
+        # Sincronizzazione in background (2026-08-16) — vedi commento su
+        # `_SPELLS_SYNC_INTERVAL_S`. Scoped al SOLO mondo di questo
+        # personaggio, stesso pattern di `sheet_view.py::SheetView`.
+        self.device_id: str | None = None
+        self.backend = LocalBackend()
+        self._remote_backends: dict[str, RemoteBackend] = {}
+        self._sync_loop: BackgroundSyncLoop | None = None
+        self._connection_state: str = "connected"
+
         self._build()
 
     def did_mount(self) -> None:
         self._page = cast(ft.Page, self.page)
+        page = self.page
+        if page is not None:
+            page.run_task(self._init_world_sync)
+
+    def will_unmount(self) -> None:
+        self._stop_world_sync()
+
+    async def _init_world_sync(self) -> None:
+        if not self.character.world_id:
+            return
+        page = self.page
+        if page is None:
+            return
+        self.device_id = await resolve_device_id(page)
+        self._start_world_sync()
+
+    def _start_world_sync(self) -> None:
+        if self._sync_loop is not None or not self.character.world_id:
+            return
+        world_id = self.character.world_id
+
+        def _apply() -> None:
+            world = world_repo.get_world(world_id)
+            if world is None or world.is_local_host:
+                return
+            backend = world_sync.resolve_backend_for_world(
+                world, self.device_id or "", self.backend, self._remote_backends,
+            )
+            if backend is not None and isinstance(backend, RemoteBackend):
+                self._connection_state = backend.connection_state()
+                world_sync.sync_replica(backend, world_id)
+            else:
+                self._connection_state = "disconnected"
+
+        def _signature() -> str | None:
+            world = world_repo.get_world(world_id)
+            seq = world.last_synced_seq if world is not None else 0
+            return f"{self._connection_state}|{seq}"
+
+        async def _redraw() -> None:
+            self._refresh()
+
+        loop = BackgroundSyncLoop(
+            get_page=lambda: self.page,
+            signature_fn=_signature,
+            async_redraw_fn=_redraw,
+            apply_fn=_apply,
+            interval_s=_SPELLS_SYNC_INTERVAL_S,
+            thread_name=f"spells-sync-{self.character.id[:8]}",
+        )
+        self._sync_loop = loop
+        loop.start()
+
+    def _stop_world_sync(self) -> None:
+        if self._sync_loop is not None:
+            self._sync_loop.stop()
+        self._sync_loop = None
 
     # ------------------------------------------------------------------
     # Helpers

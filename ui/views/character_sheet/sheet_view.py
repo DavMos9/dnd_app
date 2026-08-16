@@ -141,6 +141,13 @@ class SheetView(ft.Column):
             if backend is not None and isinstance(backend, RemoteBackend):
                 self._connection_state = backend.connection_state()
                 world_sync.sync_replica(backend, world_id)
+            else:
+                # Nessun backend risolvibile (host irraggiungibile, token
+                # scaduto) — bug segnalato da Davide (2026-08-16): il LED
+                # restava verde nella scheda perché questo ramo mancava,
+                # lo stato restava congelato sull'ultimo valore noto. Stessa
+                # correzione già presente in `home_view.py`/`world_view.py`.
+                self._connection_state = "disconnected"
 
         def _signature() -> str | None:
             updated = character_repo.get_by_id(self.character.id)
@@ -148,7 +155,14 @@ class SheetView(ft.Column):
                 return None
             conditions = character_repo.get_conditions(updated.id)
             cond_sig = "|".join(sorted(c.condition_key for c in conditions))
-            return f"{updated.updated_at}|{self._connection_state}|{cond_sig}"
+            # `last_synced_seq` (2026-08-16) invece di enumerare a mano ogni
+            # campo che può cambiare via evento remoto — qualunque nuovo
+            # evento applicato (incantesimo/abilità bonus, nota condivisa,
+            # ecc.) incrementa questo numero, garantendo il ridisegno anche
+            # per campi non coperti esplicitamente qui sopra.
+            world = world_repo.get_world(self.character.world_id)
+            seq = world.last_synced_seq if world is not None else 0
+            return f"{updated.updated_at}|{self._connection_state}|{cond_sig}|{seq}"
 
         async def _redraw() -> None:
             self._refresh_all()

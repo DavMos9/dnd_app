@@ -815,8 +815,12 @@ def _handle_hp_heal(ctx: HandlerContext) -> CommandResult:
         return CommandResult(False, "La quantità di cura deve essere positiva.")
 
     before_hp = character.hp_current
-    damage_rules.apply_heal(character, amount)
+    outcome = damage_rules.apply_heal(character, amount)
     character_repo.update_hp(character.id, character.hp_current, character.hp_temp)
+    if outcome.death_saves_reset:
+        character_repo.update_death_saves(
+            character.id, character.death_saves_success, character.death_saves_failure,
+        )
 
     event = world_repo.append_event(
         ctx.world_id, ctx.actor_device_id, ctx.actor_name,

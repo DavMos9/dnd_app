@@ -110,6 +110,29 @@ CATEGORIES: list[dict[str, Any]] = [
         "add_label":  "Aggiungi Fazione",
         "empty_msg":  "Nessuna fazione registrata.\nTieni traccia delle organizzazioni.",
     },
+    # "event"/"secret" (2026-08-16): categorie di `MasterCampaignNote` non
+    # presenti finora tra quelle del giocatore — aggiunte qui perché una
+    # nota condivisa dal master in queste categorie deve poter comparire
+    # in una scheda "già esistente" (richiesta di Davide: niente più un
+    # riquadro "condiviso" separato), non solo nelle 6 categorie storiche.
+    {
+        "key":        "event",
+        "label":      "Eventi",
+        "icon_off":   ft.Icons.EVENT_OUTLINED,
+        "icon_on":    ft.Icons.EVENT,
+        "list_label": "EVENTI",
+        "add_label":  "Aggiungi Evento",
+        "empty_msg":  "Nessun evento registrato.",
+    },
+    {
+        "key":        "secret",
+        "label":      "Segreti",
+        "icon_off":   ft.Icons.LOCK_OUTLINE,
+        "icon_on":    ft.Icons.LOCK,
+        "list_label": "SEGRETI",
+        "add_label":  "Aggiungi Segreto",
+        "empty_msg":  "Nessun segreto registrato.",
+    },
 ]
 
 STATUS_OPTIONS: dict[str, list[str]] = {
@@ -119,6 +142,8 @@ STATUS_OPTIONS: dict[str, list[str]] = {
     "place_todo": ["da esplorare", "sentito nominare", "leggenda/rumor"],
     "quest":      ["attiva", "completata", "fallita", "in pausa"],
     "faction":    ["alleata", "neutrale", "ostile", "sconosciuta"],
+    "event":      ["in corso", "concluso", "futuro"],
+    "secret":     ["non rivelato", "parzialmente noto", "rivelato"],
 }
 
 _STATUS_TONES: dict[str, str] = {
@@ -186,13 +211,16 @@ class DiaryView(ft.Column):
                                                   color=design.T().text_3,
                                                   style=ft.TextStyle(letter_spacing=2))
 
-        # ── Note condivise dal Master (2026-08-16, richiesta di Davide:
+        # Note condivise dal Master (2026-08-16, richiesta di Davide:
         # "voglio che le note condivise... vengano visualizzate... nella
-        # sezione diario/note del giocatore già esistente") — SOLO se
-        # `character.world_id` è valorizzato (personaggio in un mondo
-        # condiviso). Sola lettura: modificarle resta compito del Master.
+        # sezione diario/note del giocatore già esistente", niente più un
+        # riquadro "condiviso" separato) — SOLO se `character.world_id` è
+        # valorizzato. Fuse direttamente in `self._notes[cat]` da
+        # `_merge_shared_notes()`; `_shared_note_ids` distingue quelle non
+        # modificabili da questo dispositivo (chip + pannello di sola
+        # lettura, vedi `_note_list_item`/`_build_note_reading_panel`).
         self.device_id: str | None = None
-        self._shared_notes_expanded: bool = False
+        self._shared_note_ids: set[str] = set()
 
         self._load_all()
         self._build()
@@ -208,6 +236,7 @@ class DiaryView(ft.Column):
         if page is None:
             return
         self.device_id = await resolve_device_id(page)
+        self._merge_shared_notes()
         self._build()
         try:
             self.update()
@@ -225,6 +254,25 @@ class DiaryView(ft.Column):
                 self._notes[cat["key"]] = character_repo.get_campaign_notes(
                     self.character.id, cat["key"]
                 )
+        self._merge_shared_notes()
+
+    def _merge_shared_notes(self) -> None:
+        """Aggiunge le note condivise dal master (già filtrate per
+        visibilità, `master_repo.get_notes_visible_to`) in coda alla lista
+        di ogni categoria — stessi campi di `CampaignNote`
+        (`id/name/description/status/tags`), niente sezione separata. No-op
+        finché `device_id` non è risolto (prima di `did_mount`) o se il
+        personaggio non è in un mondo."""
+        if not self.character.world_id or self.device_id is None:
+            return
+        shared = master_repo.get_notes_visible_to(self.character.world_id, self.device_id)
+        self._shared_note_ids = {n.id for n in shared}
+        by_cat: dict[str, list[MasterCampaignNote]] = {}
+        for n in shared:
+            by_cat.setdefault(n.category, []).append(n)
+        for cat_key, shared_notes in by_cat.items():
+            own = [n for n in self._notes.get(cat_key, []) if n.id not in self._shared_note_ids]
+            self._notes[cat_key] = own + shared_notes
 
     def _load_diary(self) -> None:
         raw = character_repo.get_diary_entries(self.character.id)
@@ -273,87 +321,8 @@ class DiaryView(ft.Column):
         )
 
         self.controls.append(self._build_header())
-        shared_section = self._build_shared_notes_section()
-        if shared_section is not None:
-            self.controls.append(shared_section)
         self.controls.append(ft.Divider(height=1, color=design.T().border))
         self.controls.append(body)
-
-    # ──────────────────────────────────────────────────────────────────────────
-    # Note condivise dal Master (2026-08-16) — sola lettura, raggruppate per
-    # categoria come nella Sezione Master. Stessa fonte dati/filtro di
-    # `WorldsView._shared_notes_section` (`master_repo.get_notes_visible_to`),
-    # qui integrata nella scheda del giocatore invece che nella Sezione
-    # Mondi — più facile da trovare, richiesta esplicita di Davide.
-    # ──────────────────────────────────────────────────────────────────────────
-
-    def _build_shared_notes_section(self) -> ft.Control | None:
-        if not self.character.world_id:
-            return None
-        if self.device_id is None:
-            return None  # identità non ancora risolta — vedi _init_shared_notes
-        notes = master_repo.get_notes_visible_to(self.character.world_id, self.device_id)
-
-        def _content() -> ft.Control:
-            if not notes:
-                return ft.Text("Il master non ha ancora condiviso nessuna nota.",
-                                size=12, color=design.T().text_3, italic=True)
-            # Etichette locali (non `_cat_meta`, pensata per le categorie del
-            # giocatore): `MasterCampaignNote.category` include anche
-            # "event"/"secret", assenti da `CATEGORIES` — vedi il docstring
-            # del modello.
-            cat_labels = {
-                "npc": "PNG", "npc_todo": "PNG da cercare", "place": "Luoghi",
-                "place_todo": "Da esplorare", "quest": "Missioni",
-                "faction": "Fazioni", "event": "Eventi", "secret": "Segreti",
-            }
-            by_cat: dict[str, list[MasterCampaignNote]] = {}
-            for n in notes:
-                by_cat.setdefault(n.category, []).append(n)
-            cards: list[ft.Control] = []
-            for cat_key, cat_notes in by_cat.items():
-                label = cat_labels.get(cat_key, cat_key)
-                cards.append(ft.Text(label.upper(), size=9, weight=ft.FontWeight.BOLD,
-                                      color=design.T().text_3,
-                                      style=ft.TextStyle(letter_spacing=1.2)))
-                for n in cat_notes:
-                    cards.append(self._shared_note_card(n))
-            return ft.Column(cards, spacing=8, tight=True)
-
-        def _toggle(new_state: bool) -> None:
-            self._shared_notes_expanded = new_state
-            self._build()
-            try:
-                self.update()
-            except RuntimeError:
-                pass
-
-        return ft.Container(
-            content=design.collapsible_section(
-                f"NOTE CONDIVISE DAL MASTER ({len(notes)})", _content,
-                expanded=self._shared_notes_expanded, on_toggle=_toggle,
-            ),
-            padding=ft.Padding.symmetric(horizontal=18, vertical=8),
-        )
-
-    def _shared_note_card(self, note: MasterCampaignNote) -> ft.Control:
-        p = design.T()
-        header: list[ft.Control] = [
-            ft.Text(note.name or "(senza nome)", size=13, weight=ft.FontWeight.BOLD,
-                    color=p.text, expand=True),
-        ]
-        if note.status:
-            header.append(design.chip(note.status, "primary"))
-        rows: list[ft.Control] = [ft.Row(header, vertical_alignment=ft.CrossAxisAlignment.CENTER)]
-        if note.description:
-            rows.append(ft.Text(note.description, size=12, color=p.text_2))
-        if note.tags:
-            rows.append(design.muted(note.tags))
-        return ft.Container(
-            content=ft.Column(rows, spacing=4, tight=True),
-            bgcolor=p.surface_alt, border_radius=design.Radius.SM,
-            padding=10,
-        )
 
     # ──────────────────────────────────────────────────────────────────────────
     # Header
@@ -596,6 +565,7 @@ class DiaryView(ft.Column):
 
     def _note_list_item(self, note: CampaignNote) -> ft.Container:
         is_sel = note.id == self._sel_note_id
+        is_shared = note.id in self._shared_note_ids
         sc = _status_color(note.status)
 
         status_chip = ft.Container(
@@ -607,6 +577,16 @@ class DiaryView(ft.Column):
             border_radius=8,
             padding=ft.Padding.symmetric(horizontal=6, vertical=2),
         ) if note.status else ft.Container(height=0)
+
+        shared_chip = ft.Container(
+            content=ft.Text(
+                "Condivisa dal Master", size=9, color=design.T().on_primary,
+                weight=ft.FontWeight.BOLD,
+            ),
+            bgcolor=design.T().primary,
+            border_radius=8,
+            padding=ft.Padding.symmetric(horizontal=6, vertical=2),
+        ) if is_shared else ft.Container(height=0)
 
         preview = (note.description or "").replace("\n", " ")
         if len(preview) > 60:
@@ -621,7 +601,8 @@ class DiaryView(ft.Column):
                         color=design.T().text if is_sel else design.T().text,
                         overflow=ft.TextOverflow.ELLIPSIS, max_lines=1,
                     ),
-                    ft.Row([status_chip], spacing=4) if note.status else ft.Container(height=0),
+                    ft.Row([status_chip, shared_chip], spacing=4)
+                        if (note.status or is_shared) else ft.Container(height=0),
                     ft.Text(
                         preview, size=10, color=design.T().text_3,
                         overflow=ft.TextOverflow.ELLIPSIS, max_lines=1,
@@ -851,15 +832,35 @@ class DiaryView(ft.Column):
                 f"Nessuna {meta['label'].lower()} selezionata",
                 meta["empty_msg"],
             )
+        # Nota condivisa dal master (2026-08-16): sola lettura, modificarla
+        # resta compito del master — mai il pannello di modifica, che
+        # presume `character_repo.update_campaign_note` (scrittura su
+        # `campaign_notes`, non su `master_campaign_notes`).
+        if note.id in self._shared_note_ids:
+            return self._build_note_reading_panel(note)
         if self._note_edit:
             return self._build_note_edit_panel(note)
         return self._build_note_reading_panel(note)
 
     def _build_note_reading_panel(self, note: CampaignNote) -> ft.Column:
+        is_shared = note.id in self._shared_note_ids
         sc = _status_color(note.status)
 
         # Status badge
         status_row: list[ft.Control] = []
+        if is_shared:
+            status_row.append(
+                ft.Container(
+                    content=ft.Row(
+                        [ft.Icon(ft.Icons.PUBLIC, size=12, color=design.T().on_primary),
+                         ft.Text("Condivisa dal Master", size=11, color=design.T().on_primary,
+                                 weight=ft.FontWeight.BOLD)],
+                        spacing=4, tight=True,
+                    ),
+                    bgcolor=design.T().primary, border_radius=12,
+                    padding=ft.Padding.symmetric(horizontal=12, vertical=4),
+                )
+            )
         if note.status:
             status_row.append(
                 ft.Container(
@@ -941,6 +942,9 @@ class DiaryView(ft.Column):
         action_bar = ft.Container(
             content=ft.Row(
                 [
+                    ft.Text("Sola lettura — modificarla è compito del Master.",
+                            size=11, italic=True, color=design.T().text_3),
+                ] if is_shared else [
                     ft.OutlinedButton(
                         "Modifica", icon=ft.Icons.EDIT_OUTLINED,
                         on_click=lambda e: self._on_note_start_edit(),

@@ -233,7 +233,35 @@ def apply_event_to_replica(local_world_id: str, event: WorldEvent, remote_backen
         # l'evento che chiude la richiesta stessa (va segnata risolta) —
         # entrambe le scritture devono avvenire per quell'evento, quindi
         # niente `elif` tra i due.
-        if event.kind in perm.CHARACTER_MUTATING_COMMANDS and event.target_type == "character":
+        #
+        # Eccezione (2026-08-16, bug segnalato da Davide: "il tiro salvezza
+        # segnato manualmente scompare, oppure riappare in ritardo"):
+        # `CMD_HP_SELF_UPDATE` è per costruzione inviato SOLO dal
+        # proprietario del personaggio (`perm.is_character_owner` in
+        # `world_backend.py::_handle_hp_self_update`), che scrive la
+        # propria replica locale PRIMA di spedire il comando
+        # (`combattimento_tab.py::_push_hp_to_world`, valori assoluti,
+        # debounce con generation token). Quando l'eco di quello stesso
+        # invio torna indietro su QUESTO dispositivo, un reimport completo
+        # non porta mai informazione più fresca — solo il rischio di
+        # sovrascrivere con uno stato meno recente un click successivo già
+        # scritto in locale ma non ancora spedito (debounce ancora in
+        # corso). Va quindi saltato SOLO quando l'attore coincide con
+        # questo stesso dispositivo — un hp.self_update di un ALTRO device
+        # (impossibile oggi, ma il controllo resta per chiarezza) o
+        # qualunque altro comando mutante deve continuare a rimaterializzare
+        # normalmente.
+        local_device_id = getattr(remote_backend, "device_id", None)
+        is_own_hp_self_update_echo = (
+            event.kind == perm.CMD_HP_SELF_UPDATE
+            and local_device_id is not None
+            and event.actor_device_id == local_device_id
+        )
+        if (
+            event.kind in perm.CHARACTER_MUTATING_COMMANDS
+            and event.target_type == "character"
+            and not is_own_hp_self_update_echo
+        ):
             _resync_character_from_host(remote_backend, event.target_id, event.seq)
 
         if event.kind == perm.CMD_CHANGE_REQUEST_PROPOSE:
@@ -531,11 +559,30 @@ def resolve_backend_for_world(world: World, device_id: str, local_backend,
 
     remote = RemoteBackend(host, port, device_id or "", world_id=world.id)
     if not remote.reconnect_with_token(world.session_token):
-        # Token non più valido (host riavviato: §9.4, nuovo PIN/token ad
-        # ogni apertura) o host irraggiungibile — mai un ritentativo
-        # automatico con credenziali scadute.
+        # Token non più valido — quasi sempre perché il master ha fermato e
+        # riavviato l'hosting: `WorldHostServer.stop()` svuota TUTTI i
+        # token in memoria e `start()` rigenera il PIN (§9.4). Prima del
+        # 2026-08-16 questo era un vicolo cieco ("mai un ritentativo
+        # automatico con credenziali scadute") — bug segnalato da Davide:
+        # un giocatore già membro restava bloccato con l'errore "host non
+        # connesso o PIN cambiato" finché non reinseriva codice+PIN a mano.
+        #
+        # Fix ("implementare registrazione"): un dispositivo già presente
+        # in `world_members` (persistito su DB dall'host, sopravvive al
+        # riavvio) rientra con il solo `join_code` — MAI col PIN, vedi
+        # `network/host_server.py::handle_join`. Se questa replica ricorda
+        # un `join_code` (sempre vero dopo il primo ingresso,
+        # `_finalize_join` sotto), ritentare subito un ingresso completo:
+        # se l'host è raggiungibile e questo dispositivo è ancora membro,
+        # va a buon fine in silenzio, senza alcuna azione dell'utente.
         remote_cache.pop(world.id, None)
-        return None
+        if not world.join_code:
+            return None
+        retry = start_lan_join(host, port, world.join_code, "", device_id or "", "")
+        if not retry.success or retry.backend is None:
+            return None
+        remote_cache[world.id] = retry.backend
+        return retry.backend
     remote_cache[world.id] = remote
     return remote
 

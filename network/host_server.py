@@ -507,19 +507,31 @@ class WorldHostServer:
             return 404, {"error": "Mondo non trovato su questo host."}
         if world.join_code.upper() != join_code:
             return 403, {"error": "Codice del mondo errato."}
-        if not self.pin or pin != self.pin:
-            return 403, {"error": "PIN errato."}
 
         member = world_repo.get_member(self.world_id, device_id)
         if member is not None:
-            # Dispositivo già noto: rientra senza approvazione del master
-            # (§9.4: "I dispositivi già noti rientrano senza chiedere").
+            # Dispositivo già noto ("registrato" — §9.4: "I dispositivi già
+            # noti rientrano senza chiedere"): rientra con il solo
+            # join_code, NESSUN controllo PIN (2026-08-16, bug segnalato da
+            # Davide — "implementare registrazione": un riavvio
+            # dell'hosting da parte del master rigenera un PIN nuovo e
+            # svuota tutti i token in memoria, `WorldHostServer.stop()`,
+            # ma NON tocca `world_members`, persistito su DB — quindi
+            # l'appartenenza già approvata resta valida indipendentemente
+            # dal PIN corrente. Un dispositivo MAI approvato prima deve
+            # ancora passare dal PIN, vedi ramo sotto — solo l'accesso di
+            # un dispositivo già vetted non richiede più che il master
+            # condivida un PIN fresco ad ogni riavvio).
             token = self._issue_token(device_id)
             world_repo.set_member_connected(self.world_id, device_id, True)
             return 200, {"status": "approved", "token": token, "role": member.role}
 
-        # Nuovo dispositivo: in coda per l'approvazione esplicita del
-        # master (§9.4: «Marco vuole entrare»).
+        # Nuovo dispositivo: il PIN resta obbligatorio (un estraneo in LAN
+        # non può entrare per la prima volta senza che il master lo
+        # condivida esplicitamente), poi in coda per l'approvazione
+        # esplicita del master (§9.4: «Marco vuole entrare»).
+        if not self.pin or pin != self.pin:
+            return 403, {"error": "PIN errato."}
         req = PendingJoinRequest(id=str(_uuid.uuid4()), device_id=device_id,
                                   display_name=display_name)
         with self._lock:

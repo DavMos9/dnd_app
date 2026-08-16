@@ -654,7 +654,7 @@ class MultiSelectAltro:
             pass
 
 
-def spell_card_options(spells: list[dict]) -> list[dict[str, str]]:
+def spell_card_options(spells: list[dict], known_names: set[str] | None = None) -> list[dict[str, str]]:
     """
     Opzioni CardPicker da una lista di dict incantesimo/trucchetto (stesso
     input di `make_spell_describe`, es. `_loader.get_spells(classe)`).
@@ -667,6 +667,13 @@ def spell_card_options(spells: list[dict]) -> list[dict[str, str]]:
     Stessa convenzione testo/colore già usata nei dialog di dettaglio di
     `spells_view.py` ("0" blu per i trucchetti, "Lv{N}" crimson per gli
     incantesimi) — coerenza visiva tra la lista di scelta e i dialog.
+
+    `known_names` (2026-08-16, bug report Davide: "il master può concedere
+    anche incantesimi bonus che già sono stati aggiunti... o già concessi
+    in precedenza"): se passato, i nomi presenti vengono marcati nel titolo
+    con "· Già posseduto" — solo un flag visibile (`CardPicker` supporta un
+    solo badge, già occupato dal livello), nessun blocco: il master resta
+    libero di concederlo comunque.
     """
     opts: list[dict[str, str]] = []
     for s in spells:
@@ -674,8 +681,11 @@ def spell_card_options(spells: list[dict]) -> list[dict[str, str]]:
         if not name:
             continue
         level = s.get("level", 0)
+        title = name
+        if known_names and name in known_names:
+            title = f"{name} · Già posseduto"
         opts.append({
-            "key": name, "title": name, "body": format_spell_body(s),
+            "key": name, "title": title, "body": format_spell_body(s),
             "badge": "0" if level == 0 else f"Lv{level}",
             "badge_color": design.T().magic if level == 0 else design.T().primary_fill,
         })

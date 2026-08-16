@@ -39,6 +39,7 @@ from core.world_backend import LocalBackend, RemoteBackend
 from data.models import Character, GameMap
 from data.repositories import maps_repo, world_repo
 from ui import canvas_geometry as geo
+from ui.components.background_sync import BackgroundSyncLoop
 from ui.device_identity import resolve_device_id
 from ui.image_library import show_image_library_picker
 from ui.mobile_webview_picker import pick_file_via_webview
@@ -47,6 +48,13 @@ from ui import design
 from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
+
+#: Stesso intervallo già validato altrove (`sheet_view.py::_SHEET_SYNC_INTERVAL_S`)
+#: — bug segnalato da Davide (2026-08-16): "sincronizzazione mappa
+#: condivisa non coerente, aggiornamento manuale per vederla". Questa vista
+#: (sezione di primo livello, non un tab di `SheetView`) scaricava le
+#: mappe condivise solo una volta al mount, mai in un ciclo periodico.
+_MAPS_SYNC_INTERVAL_S = 2.0
 
 
 # ── Geometria gomma precisa ────────────────────────────────────────────────
@@ -257,7 +265,8 @@ class MapsView(ft.Column):
         self.backend = LocalBackend()
         self._remote_backends: dict[str, RemoteBackend] = {}
         self._shared_maps: list[GameMap] = []
-        self._shared_maps_expanded: bool = False
+        self._sync_loop: BackgroundSyncLoop | None = None
+        self._connection_state: str = "connected"
 
         # NOTA (2026-08-06): non c'è più un self._file_picker qui.
         # ft.FilePicker è stato abbandonato per la selezione mobile —
@@ -272,8 +281,8 @@ class MapsView(ft.Column):
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
         page = self.page
-        if page is not None and self.character.world_id:
-            page.run_task(self._init_shared_maps)
+        if page is not None:
+            page.run_task(self._init_world_sync)
 
         # Storico (fino al 2026-08-06): questo blocco registrava
         # ft.FilePicker in page.overlay, con vari tentativi di timing
@@ -285,21 +294,71 @@ class MapsView(ft.Column):
         # adb logcat: nessuna Activity nativa Android viene mai avviata,
         # bug non risolvibile lato applicazione).
 
-    async def _init_shared_maps(self) -> None:
+    def will_unmount(self) -> None:
+        self._stop_world_sync()
+
+    async def _init_world_sync(self) -> None:
+        if not self.character.world_id:
+            return
         page = self.page
         if page is None:
             return
         self.device_id = await resolve_device_id(page)
         self._refresh_shared_maps()
+        self._start_world_sync()
+
+    def _start_world_sync(self) -> None:
+        """Ciclo periodico (2026-08-16, vedi `_MAPS_SYNC_INTERVAL_S`) —
+        stesso pattern di `sheet_view.py::SheetView`/`spells_view.py::SpellsView`:
+        finché la sezione Mappe resta aperta, scarica gli eventi nuovi
+        dall'host (mappe condivise pubblicate/aggiornate dal master) e
+        ridisegna, senza richiedere di uscire e rientrare nella sezione."""
+        if self._sync_loop is not None or not self.character.world_id:
+            return
+        world_id = self.character.world_id
+
+        def _apply() -> None:
+            world = world_repo.get_world(world_id)
+            if world is None or world.is_local_host:
+                return
+            backend = world_sync.resolve_backend_for_world(
+                world, self.device_id or "", self.backend, self._remote_backends,
+            )
+            if backend is not None and isinstance(backend, RemoteBackend):
+                self._connection_state = backend.connection_state()
+                world_sync.sync_replica(backend, world_id)
+            else:
+                self._connection_state = "disconnected"
+
+        def _signature() -> str | None:
+            world = world_repo.get_world(world_id)
+            seq = world.last_synced_seq if world is not None else 0
+            return f"{self._connection_state}|{seq}"
+
+        async def _redraw() -> None:
+            self._refresh_shared_maps()
+
+        loop = BackgroundSyncLoop(
+            get_page=lambda: self.page,
+            signature_fn=_signature,
+            async_redraw_fn=_redraw,
+            apply_fn=_apply,
+            interval_s=_MAPS_SYNC_INTERVAL_S,
+            thread_name=f"maps-sync-{self.character.id[:8]}",
+        )
+        self._sync_loop = loop
+        loop.start()
+
+    def _stop_world_sync(self) -> None:
+        if self._sync_loop is not None:
+            self._sync_loop.stop()
+        self._sync_loop = None
 
     def _refresh_shared_maps(self) -> None:
         """Ricarica la lista mappe condivise visibili a questo giocatore e
-        ridisegna — chiamata dopo la risoluzione di `device_id` e ad ogni
-        chiusura del viewer di sola lettura (una mappa appena pubblicata dal
-        master mentre il giocatore ha già aperto Mappe non comparirebbe
-        altrimenti finché non si torna alla lista a mano — nessun ciclo di
-        sync in background qui, coerente con l'assenza di polling
-        automatico nel resto di questa vista prima d'ora)."""
+        ridisegna — chiamata dal ciclo periodico di sync, dopo la
+        risoluzione di `device_id`, e ad ogni chiusura del viewer di sola
+        lettura."""
         if not self.character.world_id:
             return
         self._shared_maps = [
@@ -317,75 +376,15 @@ class MapsView(ft.Column):
     # ------------------------------------------------------------------
 
     def _build(self):
-        self._maps = maps_repo.get_maps(self.character.id)
+        # Mappe proprie + mappe condivise dal master (2026-08-16, richiesta
+        # di Davide: niente più un riquadro "condiviso" separato — vanno
+        # nella stessa lista già esistente, con un chip che le distingue,
+        # vedi `_map_card`). `self._shared_maps` è tenuta aggiornata dal
+        # ciclo di sync in background (`_refresh_shared_maps`).
+        self._maps = maps_repo.get_maps(self.character.id) + self._shared_maps
         self.controls.clear()
         self.controls.append(self._build_top_toolbar())
-        shared_section = self._build_shared_maps_section()
-        if shared_section is not None:
-            self.controls.append(shared_section)
         self.controls.append(ft.Container(expand=True, content=self._build_list_panel()))
-
-    # ------------------------------------------------------------------
-    # Mappe condivise dal Master (2026-08-16) — sola lettura
-    # ------------------------------------------------------------------
-
-    def _build_shared_maps_section(self) -> ft.Control | None:
-        if not self.character.world_id or self.device_id is None:
-            return None
-
-        def _content() -> ft.Control:
-            if not self._shared_maps:
-                return ft.Text("Il master non ha ancora condiviso nessuna mappa.",
-                                size=12, color=design.T().text_3, italic=True)
-            return ft.Column(
-                [self._shared_map_card(gm) for gm in self._shared_maps],
-                spacing=8, tight=True,
-            )
-
-        def _toggle(new_state: bool) -> None:
-            self._shared_maps_expanded = new_state
-            self._build()
-            try:
-                self.update()
-            except RuntimeError:
-                pass
-
-        return ft.Container(
-            content=design.collapsible_section(
-                f"MAPPE CONDIVISE DAL MASTER ({len(self._shared_maps)})", _content,
-                expanded=self._shared_maps_expanded, on_toggle=_toggle,
-            ),
-            padding=ft.Padding.symmetric(horizontal=16, vertical=8),
-        )
-
-    def _shared_map_card(self, gm: GameMap) -> ft.Control:
-        p = design.T()
-        if gm.image_data:
-            thumb: ft.Control = ft.Container(
-                content=ft.Image(src=_data_uri(gm.image_data), fit=ft.BoxFit.COVER),
-                width=72, height=54, border_radius=design.Radius.SM,
-                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-            )
-        else:
-            thumb = ft.Container(
-                content=ft.Icon(ft.Icons.MAP_OUTLINED, size=22, color=p.text_3),
-                width=72, height=54, border_radius=design.Radius.SM,
-                bgcolor=p.surface_alt, alignment=ft.Alignment.CENTER,
-            )
-        return ft.Container(
-            content=ft.Row(
-                [
-                    thumb,
-                    ft.Text(gm.name or "Mappa senza nome", size=13, weight=ft.FontWeight.BOLD,
-                            color=p.text, expand=True),
-                    ft.IconButton(ft.Icons.OPEN_IN_FULL, tooltip="Apri", icon_size=18,
-                                  icon_color=p.text_2,
-                                  on_click=lambda e, m=gm: self._open_shared_map_readonly(m)),
-                ],
-                spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            bgcolor=p.surface_alt, border_radius=design.Radius.SM, padding=8,
-        )
 
     def _open_shared_map_readonly(self, gm: GameMap) -> None:
         """
@@ -561,6 +560,11 @@ class MapsView(ft.Column):
         )
 
     def _map_card(self, gm: GameMap) -> ft.Container:
+        # Mappa condivisa dal master, non posseduta da questo personaggio
+        # (2026-08-16, fusione nella lista esistente — vedi `_build`):
+        # niente Modifica/Elimina (scrivere resta compito del master), solo
+        # apertura in sola lettura, con un chip a distinguerla.
+        is_shared = gm.character_id != self.character.id
         if gm.image_data:
             thumb = ft.Container(
                 content=ft.Image(src=_data_uri(gm.image_data), fit=ft.BoxFit.COVER),
@@ -593,11 +597,20 @@ class MapsView(ft.Column):
                                     overflow=ft.TextOverflow.ELLIPSIS),
                             ft.Text((gm.notes or "—")[:80], size=design.Size.BODY_SM,
                                     color=design.T().text_3, max_lines=2),
-                            ft.Container(
-                                content=design.chip(f"{n} annotazioni", "magic",
-                                                    icon=ft.Icons.GESTURE),
-                                visible=bool(n),
-                                margin=ft.Margin.only(top=design.Space.XS),
+                            ft.Row(
+                                [
+                                    ft.Container(
+                                        content=design.chip(f"{n} annotazioni", "magic",
+                                                            icon=ft.Icons.GESTURE),
+                                        visible=bool(n),
+                                    ),
+                                    ft.Container(
+                                        content=design.chip("Condiviso dal Master", "primary",
+                                                            icon=ft.Icons.PUBLIC),
+                                        visible=is_shared,
+                                    ),
+                                ],
+                                spacing=6,
                             ),
                         ],
                         spacing=2, expand=True,
@@ -605,15 +618,19 @@ class MapsView(ft.Column):
                     ft.Column(
                         [
                             ft.IconButton(ft.Icons.OPEN_IN_FULL, icon_size=18,
-                                          on_click=lambda e, m=gm: self._open_detail(m),
+                                          on_click=lambda e, m=gm: (
+                                              self._open_shared_map_readonly(m) if is_shared
+                                              else self._open_detail(m)
+                                          ),
                                           icon_color=design.T().text_2),
+                        ] + ([] if is_shared else [
                             ft.IconButton(ft.Icons.EDIT_OUTLINED, icon_size=18,
                                           on_click=lambda e, m=gm: self._open_edit_dialog(m),
                                           icon_color=design.T().text_2),
                             ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_size=18,
                                           on_click=lambda e, m=gm: self._confirm_delete(m),
                                           icon_color=design.T().primary_icon),
-                        ],
+                        ]),
                         spacing=0,
                     ),
                 ],
@@ -623,7 +640,10 @@ class MapsView(ft.Column):
             border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
             shadow=design.elevation(1),
             border_radius=design.Radius.MD,
-            on_click=lambda e, m=gm: self._open_detail(m), ink=True,
+            on_click=lambda e, m=gm: (
+                self._open_shared_map_readonly(m) if is_shared else self._open_detail(m)
+            ),
+            ink=True,
             animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
         )
 

@@ -1985,6 +1985,12 @@ class WorldsView(ft.Column):
             return
         default_class = character.class_name if character.class_name in class_names else class_names[0]
 
+        # Nomi già posseduti (incantesimi normali, bonus già concessi in
+        # passato, o aggiunti manualmente dal giocatore) — 2026-08-16, vedi
+        # `spell_card_options(known_names=...)`. Calcolato fresco
+        # all'apertura del dialog: sufficiente, il dialog è a vita breve.
+        known_names = {s.name for s in character_repo.get_known_spells(character.id)}
+
         class_dd = ft.Dropdown(
             label="Lista incantesimi", value=default_class,
             options=[ft.DropdownOption(key=n, text=n) for n in class_names],
@@ -1995,11 +2001,13 @@ class WorldsView(ft.Column):
         def _spells_for(cls: str) -> list[dict]:
             return sorted(loader.get_spells(cls), key=lambda s: (s.get("level", 0), s.get("name", "")))
 
-        spell_picker = CardPicker(options=spell_card_options(_spells_for(default_class)))
+        spell_picker = CardPicker(
+            options=spell_card_options(_spells_for(default_class), known_names=known_names)
+        )
 
         def _refresh_spell_options(ev=None):
             opts = _spells_for(class_dd.value or default_class)
-            spell_picker.options = spell_card_options(opts)
+            spell_picker.options = spell_card_options(opts, known_names=known_names)
             spell_picker.value = opts[0]["name"] if opts else None
             spell_picker.update()
 
