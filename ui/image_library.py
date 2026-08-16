@@ -165,7 +165,7 @@ def show_image_library_picker(page: ft.Page, on_select: Callable[[str], None]):
                             max_lines=2, selectable=True),
                     ft.IconButton(
                         ft.Icons.CHECK_CIRCLE_OUTLINE, icon_size=22,
-                        icon_color=design.T().primary,
+                        icon_color=design.T().primary_icon,
                         tooltip="Seleziona questa immagine",
                         on_click=lambda e, p=path: _select(p),
                     ),

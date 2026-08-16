@@ -438,7 +438,7 @@ class EsplorazioneTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(width=3, height=14, bgcolor=design.T().primary, border_radius=1),
+                    ft.Container(width=3, height=14, bgcolor=design.T().primary_fill, border_radius=1),
                     ft.Container(width=8),
                     ft.Text(
                         "LINGUE",
@@ -489,7 +489,7 @@ class EsplorazioneTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(width=3, height=14, bgcolor=design.T().primary, border_radius=1),
+                    ft.Container(width=3, height=14, bgcolor=design.T().primary_fill, border_radius=1),
                     ft.Container(width=8),
                     ft.Text(
                         "STRUMENTI",
@@ -545,7 +545,7 @@ class EsplorazioneTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(width=3, height=14, bgcolor=design.T().primary, border_radius=1),
+                    ft.Container(width=3, height=14, bgcolor=design.T().primary_fill, border_radius=1),
                     ft.Container(width=8),
                     ft.Text(
                         "ABILITÀ SPECIALI",
@@ -603,7 +603,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                         padding=ft.Padding.all(2),
                     ),
                     ft.IconButton(
-                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().primary,
+                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().primary_icon,
                         tooltip="Elimina",
                         on_click=lambda e, a=ab: self._on_delete_custom_ability(a),
                         padding=ft.Padding.all(2),
@@ -691,7 +691,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
                     "Elimina", on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )
@@ -711,7 +711,7 @@ class EsplorazioneTab(ScrollMemoryListView):
             prof = spec.proficient
             total_str = spec.modifier_str
 
-            indicator_color = design.T().primary if prof else design.T().border
+            indicator_color = design.T().primary_fill if prof else design.T().border
             text_color = design.T().text if prof else design.T().text_3
 
             cells.append(

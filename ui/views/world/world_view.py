@@ -117,11 +117,34 @@ class WorldsView(ft.Column):
     """
 
     def __init__(self, on_back_to_home, on_toggle_theme=None, theme_preference: str = "system",
-                 host_server_slot: HostServerSlot | None = None):
+                 host_server_slot: HostServerSlot | None = None,
+                 initial_world_id: str | None = None,
+                 on_open_master=None, on_open_character=None):
+        """
+        `initial_world_id` (2026-08-16, navigazione rapida): se valorizzato,
+        apre direttamente il dettaglio di quel mondo invece dell'elenco —
+        usato dai nuovi pulsanti "Vai al Mondo" in `SheetView`/`MasterView`
+        (`ui/app.py::_show_worlds_view`). Risolto in `_init_identity()`
+        (serve `device_id` per validare l'appartenenza), silenziosamente
+        ignorato se il mondo non esiste più o questo dispositivo non ne fa
+        più parte — stessa tolleranza già usata per `active_world_id` in
+        `MasterView`.
+
+        `on_open_master`/`on_open_character` (2026-08-16, navigazione
+        rapida): callback dal dettaglio di un mondo verso, rispettivamente,
+        la Sezione Master su quel mondo (`(world_id) -> None`, mostrato solo
+        a master/owner) e la scheda del personaggio posseduto in quel mondo
+        da questo dispositivo (`(character_id) -> None`, mostrato solo se
+        esiste un'istanza propria non archiviata). `None` (default) nasconde
+        i rispettivi pulsanti — vedi `_render_detail()`.
+        """
         super().__init__(expand=True, spacing=0)
+        self.on_open_master = on_open_master
+        self.on_open_character = on_open_character
         self.on_back_to_home = on_back_to_home
         self.on_toggle_theme = on_toggle_theme
         self.theme_preference = theme_preference
+        self._initial_world_id = initial_world_id
 
         #: Backend "locale" — corretto SOLO per i mondi che QUESTO
         #: dispositivo ospita (`world.is_local_host`); per un mondo a cui ci
@@ -166,6 +189,10 @@ class WorldsView(ft.Column):
         #: nuovi finché la scheda di un mondo resta aperta.
         self._detail_sync_loop_obj: BackgroundSyncLoop | None = None
         self._detail_signature: str | None = None
+        #: Ultimo `RemoteBackend.connection_state()` osservato per il mondo
+        #: nel dettaglio aperto (2026-08-16) — alimenta il LED in
+        #: `_render_detail()`, aggiornato ad ogni giro di `_start_detail_sync`.
+        self._detail_connection_state: str = "connected"
         #: Protegge la mutazione di `self._body.controls`, condivisa tra il
         #: thread Flet (azioni utente) e il thread di sync in background —
         #: stesso principio già in uso in `home_view.py::_refresh_lock`.
@@ -219,6 +246,15 @@ class WorldsView(ft.Column):
         if page is None:
             return
         self.device_id = await resolve_device_id(page)
+        world_id = self._initial_world_id
+        self._initial_world_id = None  # una tantum: non riaprire il dettaglio ad ogni rebuild
+        if world_id:
+            world = world_repo.get_world(world_id)
+            member = (world_repo.get_member(world_id, self.device_id)
+                      if world is not None and self.device_id else None)
+            if world is not None and member is not None:
+                self._open_detail(world)
+                return
         self._render()
         try:
             page.update()
@@ -300,7 +336,7 @@ class WorldsView(ft.Column):
 
         actions_row = ft.Row(
             [
-                d.pill(ft.Icons.ADD, "Crea un mondo", filled=True, color=p.primary,
+                d.pill(ft.Icons.ADD, "Crea un mondo", filled=True, color=p.primary_fill,
                        on_click=lambda e: self._open_create_dialog()),
                 d.pill(ft.Icons.MEETING_ROOM, "Unisciti con un codice", color=p.magic,
                        on_click=lambda e: self._open_join_dialog()),
@@ -335,27 +371,66 @@ class WorldsView(ft.Column):
         role = member.role if member else "?"
         role_tone: d.Tone = {"owner": "magic", "master": "primary", "player": "neutral"}.get(role, "neutral")
         members = world_repo.get_members(world.id)
+        row_children: list[ft.Control] = [
+            ft.Column(
+                [
+                    ft.Text(world.name, size=d.Size.SUBTITLE, weight=ft.FontWeight.BOLD,
+                            color=p.text, font_family=d.Font.DISPLAY),
+                    ft.Row(
+                        [d.chip(role, role_tone),
+                         d.muted(f"{len(members)} membri")],
+                        spacing=d.Space.SM,
+                    ),
+                ],
+                spacing=d.Space.XS, expand=True,
+            ),
+        ]
+        if not world.is_local_host:
+            # Riconnessione rapida (2026-08-16, richiesta di Davide: "se il
+            # master chiude l'app... vorrei un tasto di riconnessione
+            # rapida... senza dover reinserire i codici") — `_backend_for`
+            # riusa già `world.session_token` (§9.4), qui lo si rende
+            # un'azione ESPLICITA con un esito visibile invece di un
+            # side-effect silenzioso alla prossima apertura del dettaglio.
+            row_children.append(ft.IconButton(
+                ft.Icons.WIFI_PROTECTED_SETUP, icon_color=p.magic,
+                tooltip="Riconnettiti",
+                on_click=lambda e, w=world: self._reconnect_world(w),
+            ))
+        row_children.append(ft.Icon(ft.Icons.CHEVRON_RIGHT, color=p.text_3))
         return d.card(
             ft.Row(
-                [
-                    ft.Column(
-                        [
-                            ft.Text(world.name, size=d.Size.SUBTITLE, weight=ft.FontWeight.BOLD,
-                                    color=p.text, font_family=d.Font.DISPLAY),
-                            ft.Row(
-                                [d.chip(role, role_tone),
-                                 d.muted(f"{len(members)} membri")],
-                                spacing=d.Space.SM,
-                            ),
-                        ],
-                        spacing=d.Space.XS, expand=True,
-                    ),
-                    ft.Icon(ft.Icons.CHEVRON_RIGHT, color=p.text_3),
-                ],
+                row_children,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             on_click=lambda e, w=world: self._open_detail(w),
         )
+
+    def _reconnect_world(self, world: World) -> None:
+        """Tentativo esplicito di riconnessione (pulsante sulla card del
+        mondo) — stesso `_backend_for()` usato ovunque, con feedback
+        immediato invece del side-effect silenzioso alla prossima apertura
+        del dettaglio. Chiamata sincrona diretta nell'handler di click,
+        stessa convenzione già in uso per `world_sync.start_lan_join()` nel
+        dialogo "Unisciti in LAN" — una richiesta HTTP su rete locale con
+        timeout breve, nessun thread dedicato necessario."""
+        backend = self._backend_for(world)
+        if backend is not None and (
+            not isinstance(backend, RemoteBackend) or backend.connection_state() == "connected"
+        ):
+            show_snack(self.page, f"Riconnesso a «{world.name}».")
+        else:
+            show_snack(
+                self.page,
+                f"Impossibile riconnettersi a «{world.name}» — l'host potrebbe "
+                "essere offline o il PIN potrebbe essere cambiato.",
+                tone="danger",
+            )
+        self._render()
+        try:
+            self.page.update()
+        except RuntimeError:
+            pass
 
     def _open_detail(self, world: World):
         self._current_world = world
@@ -394,13 +469,42 @@ class WorldsView(ft.Column):
         my_role = my_member.role if my_member else ""
         is_owner = my_role == perm.ROLE_OWNER
 
+        title_row: list[ft.Control] = [
+            ft.Text(world.name, size=d.Size.TITLE, weight=ft.FontWeight.BOLD,
+                    color=p.text, font_family=d.Font.DISPLAY),
+        ]
+        if not world.is_local_host:
+            title_row.append(d.connection_led(self._detail_connection_state))
         sections: list[ft.Control] = [
             d.pill(ft.Icons.ARROW_BACK, "Tutti i mondi", color=p.text_2,
                    on_click=lambda e: self._back_to_list()),
             ft.Container(height=d.Space.SM),
-            ft.Text(world.name, size=d.Size.TITLE, weight=ft.FontWeight.BOLD,
-                    color=p.text, font_family=d.Font.DISPLAY),
+            ft.Row(title_row, spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         ]
+
+        # Navigazione rapida (2026-08-16, richiesta di Davide: "un tasto...
+        # dalla sezione mondo del player porti velocemente alla scheda del
+        # personaggio registrato in quel mondo, per il master invece porti
+        # alla sezione master") — una riga di pillole, mostrata solo se il
+        # chiamante ha passato il relativo callback E c'è qualcosa da
+        # mostrare (nessun pulsante fantasma per un ruolo che non lo usa).
+        quick_nav: list[ft.Control] = []
+        if self.on_open_master is not None and perm.can_perform(my_role, perm.CMD_XP_GRANT):
+            quick_nav.append(d.pill(ft.Icons.CASTLE_OUTLINED, "Vai alla Sezione Master", color=p.magic,
+                                     on_click=lambda e, wid=world.id: self.on_open_master(wid)))
+        if self.on_open_character is not None:
+            my_instance = next(
+                (c for c in character_repo.get_all_instances_of_world(world.id)
+                 if c.owner_device_id == self.device_id and not c.world_instance_archived),
+                None,
+            )
+            if my_instance is not None:
+                quick_nav.append(d.pill(
+                    ft.Icons.PERSON, "Vai alla mia scheda", color=p.primary,
+                    on_click=lambda e, cid=my_instance.id: self.on_open_character(cid),
+                ))
+        if quick_nav:
+            sections.append(ft.Row(quick_nav, spacing=d.Space.SM, wrap=True))
 
         if is_owner:
             sections.append(self._rename_section(world))
@@ -585,7 +689,7 @@ class WorldsView(ft.Column):
                 and member.role != perm.ROLE_OWNER and not is_me):
             actions.append(ft.IconButton(
                 ft.Icons.PERSON_REMOVE, tooltip="Espelli dal mondo",
-                icon_color=p.danger,
+                icon_color=p.danger_icon,
                 on_click=lambda e, m=member: self._confirm_kick(world, m),
             ))
 
@@ -619,7 +723,7 @@ class WorldsView(ft.Column):
                 ft.ElevatedButton(
                     "Espelli", icon=ft.Icons.PERSON_REMOVE,
                     on_click=lambda e: self._do_kick(world, member),
-                    style=ft.ButtonStyle(bgcolor=p.danger, color=p.text),
+                    style=ft.ButtonStyle(bgcolor=p.danger_fill, color=p.text),
                 ),
             ]),
         )
@@ -670,7 +774,7 @@ class WorldsView(ft.Column):
                 )
             rows.append(ft.Row(
                 [
-                    ft.Icon(ft.Icons.PLAY_ARROW, size=16, color=p.primary) if is_current_turn
+                    ft.Icon(ft.Icons.PLAY_ARROW, size=16, color=p.primary_icon) if is_current_turn
                     else ft.Container(width=16),
                     ft.Text(m.get("name", "?"), size=d.Size.BODY,
                             weight=ft.FontWeight.BOLD if is_current_turn else ft.FontWeight.NORMAL,
@@ -818,7 +922,7 @@ class WorldsView(ft.Column):
             ))
             actions.append(ft.IconButton(
                 ft.Icons.DELETE_OUTLINE, tooltip="Elimina", icon_size=18,
-                icon_color=p.danger,
+                icon_color=p.danger_icon,
                 on_click=lambda e, m=gm: self._confirm_delete_map(world, m),
             ))
         return ft.Row(
@@ -963,7 +1067,7 @@ class WorldsView(ft.Column):
         )
         visible_state = [True]
         visible_switch = ft.Switch(
-            value=True, active_color=p.primary,
+            value=True, active_color=p.primary_fill,
             on_change=lambda e: visible_state.__setitem__(0, bool(e.control.value)),
         )
         error_text = ft.Text("", size=11, color=p.danger)
@@ -1036,7 +1140,7 @@ class WorldsView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Carica", on_click=on_upload,
-                                  style=ft.ButtonStyle(bgcolor=p.primary, color=p.on_primary)),
+                                  style=ft.ButtonStyle(bgcolor=p.primary_fill, color=p.on_primary_fill)),
             ]),
         ))
 
@@ -1068,7 +1172,7 @@ class WorldsView(ft.Column):
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE,
                     on_click=lambda e: self._do_delete_map(world, gm),
-                    style=ft.ButtonStyle(bgcolor=p.danger, color=p.text),
+                    style=ft.ButtonStyle(bgcolor=p.danger_fill, color=p.text),
                 ),
             ]),
         )
@@ -1130,6 +1234,26 @@ class WorldsView(ft.Column):
         # di ereditare la dimensione di chi ha disegnato per primo.
         box_size = [0.0, 0.0]
 
+        # Dimensione NATIVA dell'immagine (2026-08-16, fix disallineamento
+        # cross-device — vedi `geo.contain_rect()`): letta una volta sola,
+        # pigra (PIL non decodifica il raster per leggere `.size`), da
+        # `gm.image_data`. Con `fit=ft.BoxFit.CONTAIN` (sotto) l'immagine
+        # occupa solo una PARTE di `box_size` se l'aspect ratio non
+        # coincide — le coordinate normalizzate vanno prese rispetto a
+        # quella parte, non all'intero riquadro.
+        img_size = [0.0, 0.0]
+        if gm.image_data:
+            try:
+                from PIL import Image as PILImage
+                import io
+                with PILImage.open(io.BytesIO(base64.b64decode(gm.image_data))) as _img:
+                    img_size[0], img_size[1] = float(_img.width), float(_img.height)
+            except Exception as e:
+                logger.debug("Lettura dimensioni immagine mappa fallita: %s", e)
+
+        def _draw_rect() -> tuple[float, float, float, float]:
+            return geo.contain_rect(box_size[0], box_size[1], img_size[0], img_size[1])
+
         def _path_from_abs_points(points: list, color: str, width: float) -> cv.Path | None:
             if len(points) < 2:
                 return None
@@ -1155,11 +1279,12 @@ class WorldsView(ft.Column):
             chiamata, cosicché restino allineati anche se questo overlay è
             più piccolo/grande di quello con cui furono disegnati."""
             shapes: list[cv.Shape] = []
+            ox, oy, dw, dh = _draw_rect()
             for stroke in strokes:
                 if stroke.get("type") != "stroke":
                     continue
                 abs_points = geo.denormalize_points(
-                    stroke.get("points", []), box_size[0], box_size[1])
+                    stroke.get("points", []), dw, dh, ox, oy)
                 path = _path_from_abs_points(
                     abs_points, stroke.get("color", _PEN_COLORS[0]), stroke.get("width", 5.0))
                 if path is not None:
@@ -1216,10 +1341,11 @@ class WorldsView(ft.Column):
             # prossimo giro (l'handler legge le annotazioni correnti dal DB e
             # ci APPENDE il pacchetto, non le sostituisce).
             if len(current_points) >= 2:
+                ox, oy, dw, dh = _draw_rect()
                 stroke = {
                     "type": "stroke", "color": _PEN_COLORS[pen_color_idx[0]],
                     "width": 5.0,
-                    "points": geo.normalize_points(current_points, box_size[0], box_size[1]),
+                    "points": geo.normalize_points(current_points, dw, dh, ox, oy),
                 }
                 strokes.append(stroke)
                 _sync_to_world([{"op": "add", **stroke}])
@@ -1467,7 +1593,7 @@ class WorldsView(ft.Column):
                     ],
                     spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                bgcolor=p.danger, border_radius=d.Radius.SM,
+                bgcolor=p.danger_fill, border_radius=d.Radius.SM,
                 padding=ft.Padding.only(left=8, right=2),
             ))
 
@@ -1550,7 +1676,7 @@ class WorldsView(ft.Column):
                 ft.ElevatedButton(
                     "Rimuovi", icon=ft.Icons.PERSON_REMOVE,
                     on_click=lambda e: self._do_remove_character(world, character),
-                    style=ft.ButtonStyle(bgcolor=p.danger, color=p.text),
+                    style=ft.ButtonStyle(bgcolor=p.danger_fill, color=p.text),
                 ),
             ]),
         )
@@ -1909,7 +2035,7 @@ class WorldsView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
                               style=ft.ButtonStyle(color=p.text_2)),
                 ft.ElevatedButton("Scrivi", icon=ft.Icons.CHECK, on_click=_confirm,
-                                  style=ft.ButtonStyle(bgcolor=p.primary, color=p.on_primary)),
+                                  style=ft.ButtonStyle(bgcolor=p.primary_fill, color=p.on_primary_fill)),
             ]),
         )
         self.page.show_dialog(dlg)
@@ -2305,7 +2431,7 @@ class WorldsView(ft.Column):
             logger.error("Errore nella generazione del QR d'ingresso: %s", e)
             return ft.Row(
                 [
-                    ft.Icon(ft.Icons.ERROR_OUTLINE, size=16, color=p.danger),
+                    ft.Icon(ft.Icons.ERROR_OUTLINE, size=16, color=p.danger_icon),
                     ft.Text(f"QR non generato: {e}", color=p.danger, size=d.Size.BODY_SM,
                             expand=True),
                 ],
@@ -2334,9 +2460,9 @@ class WorldsView(ft.Column):
             [
                 ft.Icon(ft.Icons.PERSON_ADD, size=16, color=p.text_3),
                 ft.Text(req.display_name, color=p.text, expand=True),
-                ft.IconButton(ft.Icons.CHECK, icon_color=p.primary, tooltip="Approva ingresso",
+                ft.IconButton(ft.Icons.CHECK, icon_color=p.primary_icon, tooltip="Approva ingresso",
                               on_click=lambda e, r=req: self._approve_join(world, r.id)),
-                ft.IconButton(ft.Icons.CLOSE, icon_color=p.danger, tooltip="Rifiuta ingresso",
+                ft.IconButton(ft.Icons.CLOSE, icon_color=p.danger_icon, tooltip="Rifiuta ingresso",
                               on_click=lambda e, r=req: self._reject_join(world, r.id)),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -2786,7 +2912,7 @@ class WorldsView(ft.Column):
                 ft.ElevatedButton(
                     "Sovrascrivi", icon=ft.Icons.WARNING_AMBER_ROUNDED,
                     on_click=lambda e: self._confirm_import_world(data, "overwrite", display_name),
-                    style=ft.ButtonStyle(bgcolor=p.danger, color=p.text),
+                    style=ft.ButtonStyle(bgcolor=p.danger_fill, color=p.text),
                 ),
             ]),
         )
@@ -2819,7 +2945,7 @@ class WorldsView(ft.Column):
             "Zona pericolosa",
             d.pill(ft.Icons.DELETE_FOREVER, "Elimina mondo", color=p.danger,
                    on_click=lambda e: self._confirm_delete(world)),
-            accent=p.danger,
+            accent=p.danger_fill,
         )
 
     def _confirm_delete(self, world: World):
@@ -2838,7 +2964,7 @@ class WorldsView(ft.Column):
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_FOREVER,
                     on_click=lambda e: self._do_delete(world),
-                    style=ft.ButtonStyle(bgcolor=p.danger, color=p.text),
+                    style=ft.ButtonStyle(bgcolor=p.danger_fill, color=p.text),
                 ),
             ]),
         )
@@ -2901,6 +3027,7 @@ class WorldsView(ft.Column):
         self._stop_detail_sync()
         world = world_repo.get_world(world_id)
         self._detail_signature = self._detail_signature_of(world) if world else None
+        self._detail_connection_state = "connected"
 
         def _apply() -> None:
             world = world_repo.get_world(world_id)
@@ -2908,15 +3035,39 @@ class WorldsView(ft.Column):
                 return
             backend = self._backend_for(world)
             if backend is not None:
+                if isinstance(backend, RemoteBackend):
+                    self._detail_connection_state = backend.connection_state()
                 world_sync.sync_replica(backend, world_id)
+            else:
+                self._detail_connection_state = "disconnected"
 
         def _signature() -> str | None:
             world = world_repo.get_world(world_id)
-            return self._detail_signature_of(world) if world is not None else None
+            if world is None:
+                return None
+            return f"{self._detail_signature_of(world)}|{self._detail_connection_state}"
+
+        # Cattura la transizione "era in cooldown, ora non più" — bug reale
+        # segnalato da Davide (2026-08-16, primo giro di test su Wi-Fi
+        # reale): il cooldown (`MASTER_ACTION_COOLDOWN_S=3.0`) e il poll di
+        # questo loop (`_DETAIL_SYNC_INTERVAL_S=2.0`) hanno periodi diversi,
+        # quindi lo scadere del cooldown può cadere TRA due tick. Se
+        # `_any_master_cooldown_active` torna già `False` al tick in cui lo
+        # sblocco dovrebbe apparire, nessun ridisegno viene programmato (la
+        # firma di stato non cambia da un timer locale che scade) e il
+        # pulsante resta bloccato sull'ultimo countdown disegnato finché non
+        # arriva un evento reale o il master naviga via e ritorna. Tenendo
+        # traccia dello stato del giro precedente si garantisce SEMPRE un
+        # ridisegno extra esattamente nel tick in cui il cooldown passa da
+        # attivo a scaduto — quello che riabilita il pulsante a schermo.
+        cooldown_was_active = [False]
 
         def _should_redraw_anyway() -> bool:
             world = world_repo.get_world(world_id)
-            return self._any_master_cooldown_active(world) if world is not None else False
+            active = self._any_master_cooldown_active(world) if world is not None else False
+            was_active = cooldown_was_active[0]
+            cooldown_was_active[0] = active
+            return active or was_active
 
         async def _redraw() -> None:
             await self._async_redraw_detail(world_id)
@@ -3032,7 +3183,7 @@ class WorldsView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
                               style=ft.ButtonStyle(color=p.text_2)),
                 ft.ElevatedButton("Crea", icon=ft.Icons.ADD, on_click=_create,
-                                  style=ft.ButtonStyle(bgcolor=p.primary, color=p.on_primary)),
+                                  style=ft.ButtonStyle(bgcolor=p.primary_fill, color=p.on_primary_fill)),
             ]),
         )
         self.page.show_dialog(dlg)
@@ -3049,12 +3200,24 @@ class WorldsView(ft.Column):
             if not code:
                 self._show_error("Inserisci il codice d'ingresso.")
                 return
-            if not display_name:
+            # Fix 2026-08-16 (stesso bug di `_attempt()` nel dialogo LAN qui
+            # sotto — segnalato da Davide sul rientro via QR, ma presente
+            # identico anche qui): `join_world_by_code()` ignora già
+            # `display_name` se questo `device_id` è già membro del mondo
+            # (vedi il suo docstring) — nessuna chiamata di rete qui, stesso
+            # DB, quindi il controllo è locale e immediato.
+            existing_world = world_repo.get_world_by_join_code(code)
+            already_member = (
+                existing_world is not None
+                and world_repo.get_member(existing_world.id, self.device_id) is not None
+            )
+            if not display_name and not already_member:
                 # Fix 2026-08-07 (richiesta di Davide dopo il primo test
                 # reale su Wi-Fi): prima il nome cadeva su "Giocatore" se
                 # lasciato vuoto — nel registro/Sezione Master diventava
                 # impossibile distinguere due giocatori entrambi "senza
-                # nome". Obbligatorio, nessun ripiego silenzioso.
+                # nome". Obbligatorio per un ingresso NUOVO, nessun ripiego
+                # silenzioso — non serve invece per chi è già membro.
                 self._show_error("Inserisci il tuo nome prima di entrare nel mondo.")
                 return
             remaining = self._network_cooldown_remaining()
@@ -3283,15 +3446,37 @@ class WorldsView(ft.Column):
                 self.page.update()
                 return
             display_name = (display_field.value or "").strip()
-            if not display_name:
+            # Fix 2026-08-16 (bug segnalato da Davide: un giocatore che
+            # rientra con lo stesso QR in un mondo in cui è GIÀ membro si
+            # vede comunque richiedere il nome) — sonda leggera (`GET
+            # /world`, nessun side-effect, stesso identico primo passo che
+            # `world_sync.start_lan_join()` rifà comunque subito dopo) per
+            # sapere se questo dispositivo è già un membro noto di quel
+            # mondo PRIMA di obbligare il nome: lato server `handle_join()`
+            # ignora comunque `display_name` per un device_id già in
+            # `world_members` (rientro immediato, nessuna approvazione), qui
+            # si evita solo di bloccare inutilmente la UI su un dato che il
+            # server non userebbe.
+            already_member = False
+            if self.device_id:
+                probe = RemoteBackend(host_addr, port, self.device_id)
+                info = probe.check_world()
+                probed_world_id = str(info.get("world_id", "")) if info else ""
+                if probed_world_id:
+                    already_member = world_repo.get_member(
+                        probed_world_id, self.device_id) is not None
+            if not display_name and not already_member:
                 # Fix 2026-08-07 (richiesta di Davide dopo il primo test
                 # reale su Wi-Fi, stesso principio di _open_join_dialog qui
                 # sopra): prima il nome cadeva su "Giocatore" se lasciato
-                # vuoto — anche qui, obbligatorio senza ripiego silenzioso.
-                # Protegge anche l'ingresso via QR (_on_qr_scanned chiama
-                # questa stessa funzione): se il nome non è ancora stato
-                # scritto, l'inquadratura del QR non entra più in silenzio
-                # come "Giocatore", mostra questo stesso errore.
+                # vuoto — anche qui, obbligatorio senza ripiego silenzioso
+                # per un ingresso NUOVO. Protegge anche l'ingresso via QR
+                # (_on_qr_scanned chiama questa stessa funzione): se il nome
+                # non è ancora stato scritto, l'inquadratura del QR non
+                # entra più in silenzio come "Giocatore", mostra questo
+                # stesso errore — a meno che (sopra) il dispositivo non sia
+                # già membro noto di questo mondo, nel qual caso il nome non
+                # serve affatto.
                 status_text.color = p.danger
                 status_text.value = "Inserisci il tuo nome prima di entrare nel mondo."
                 self.page.update()

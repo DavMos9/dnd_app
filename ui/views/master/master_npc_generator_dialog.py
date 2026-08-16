@@ -289,7 +289,7 @@ def show_npc_generator_dialog(
             ft.Row([count_tf], spacing=10),
             ft.ElevatedButton(
                 "Genera", icon=ft.Icons.AUTO_AWESOME, on_click=_on_generate,
-                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
             ),
             ft.Divider(height=1, color=design.T().border),
             ft.Container(content=result_col, expand=True),

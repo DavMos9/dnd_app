@@ -171,7 +171,7 @@ class MasterNpcListView(ft.Column):
                         width=44, height=44,
                         alignment=ft.Alignment.CENTER,
                         bgcolor=ft.Colors.with_opacity(
-                            0.12, design.T().primary if npc.has_stat_block else design.T().text_3),
+                            0.12, design.T().primary_fill if npc.has_stat_block else design.T().text_3),
                         border_radius=design.Radius.PILL,
                     ),
                     ft.Container(width=design.Space.MD),
@@ -313,7 +313,7 @@ class MasterNpcListView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=_do_delete,
-                    style=ft.ButtonStyle(bgcolor=design.T().danger, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().danger_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )
@@ -745,7 +745,7 @@ class MasterNpcListView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Salva" if is_edit else "Crea NPC", icon=ft.Icons.SAVE, on_click=_do_save,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )

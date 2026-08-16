@@ -309,7 +309,7 @@ def show_treasure_generator_dialog(page: ft.Page, world_id: str = "") -> None:
                 [
                     ft.ElevatedButton(
                         "Tira", icon=ft.Icons.CASINO, on_click=_on_roll,
-                        style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                        style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                     ),
                     ft.OutlinedButton("+ Cimelio", icon=ft.Icons.AUTO_AWESOME, on_click=_on_trinket),
                 ],

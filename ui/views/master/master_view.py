@@ -22,11 +22,22 @@ istanze di ogni mondo mescolati. Ora il Master sceglie esplicitamente quale
 mondo sta gestendo (o "Nessun mondo", il comportamento locale di sempre) da
 un menu SEMPRE visibile nell'header — mai un menu nascosto dietro un'icona
 aggiuntiva, stessa convenzione già stabilita per la barra "Generatori
-Rapidi". La scelta vive SOLO per la sessione (decisione di Davide,
-2026-08-06: si azzera ogni volta che si riapre la Modalità Master, per non
-rischiare di restare per errore sul mondo sbagliato) ma sopravvive al
-rebuild della vista causato dal cambio tema, con lo stesso meccanismo già
-usato per `active_tab` (vedi `ui/app.py._show_master_view`).
+Rapidi".
+
+**Persistenza della scelta (rivista 2026-08-16)** — fino al 2026-08-12 la
+scelta viveva SOLO per la sessione (decisione di Davide, 2026-08-06: "per
+non rischiare di restare per errore sul mondo sbagliato"), azzerata ogni
+volta che si riapriva la Modalità Master. Richiesta esplicita di Davide dopo
+il primo giro di test su Wi-Fi reale: riaprire l'app in Modalità Master deve
+restare sull'ULTIMO mondo masterato, non su "Nessun mondo" — decisione
+invertita consapevolmente. La scelta è ora salvata in `app_settings`
+(`data/repositories/settings_repo.py`, chiave `LAST_MASTER_WORLD_KEY`) ad
+ogni cambio dal menu (`_on_world_change`), e riletta in `_init_identity()`
+SOLO quando questa view viene aperta senza un `active_world_id` esplicito
+(cioè non durante un rebuild per cambio tema/tab, che passa già lo stato
+corrente — vedi `ui/app.py._show_master_view`) — stessa validazione di
+sempre: se il mondo salvato non è più tra quelli masterabili da questo
+dispositivo, si torna a "Nessun mondo".
 """
 
 from typing import Any, cast
@@ -35,10 +46,14 @@ import flet as ft
 
 from core.world_permissions import ROLE_MASTER, ROLE_OWNER
 from data.models import World
-from data.repositories import world_repo
+from data.repositories import settings_repo, world_repo
 from ui.device_identity import resolve_device_id
 from ui.theme import title_text, muted_text
 from ui import design
+
+#: Chiave `app_settings` per l'ultimo mondo masterato — vedi il docstring
+#: del modulo, "Persistenza della scelta (rivista 2026-08-16)".
+LAST_MASTER_WORLD_KEY = "last_master_world_id"
 
 
 _TABS: list[dict[str, Any]] = [
@@ -63,8 +78,14 @@ class MasterView(ft.Column):
 
     def __init__(self, on_back_to_home, on_toggle_theme=None,
                  theme_preference: str = "system", active_tab: str = "npcs",
-                 active_world_id: str = "", is_mobile: bool = False):
+                 active_world_id: str | None = None, is_mobile: bool = False,
+                 on_open_world=None):
         """
+        `on_open_world` (2026-08-16, navigazione rapida): callback
+        `(world_id) -> None` verso `DnDApp._show_worlds_view`, propagato dal
+        pulsante accanto al selettore mondo — mostrato solo se un mondo è
+        selezionato. `None` (default) nasconde il pulsante.
+
         `on_toggle_theme` (Fase D del restyle, 2026-07-30): se assente la
         pillola del tema non compare — stesso comportamento "nascosto se
         assente" già usato per `on_open_master` in `HomeView`, così una
@@ -73,8 +94,14 @@ class MasterView(ft.Column):
         `active_tab` permette a `DnDApp` di riaprire la Sezione Master sulla
         stessa tab dopo un cambio di tema, che ricostruisce la vista da zero.
 
-        `active_world_id` (2026-08-06): stesso principio di `active_tab`, ma
-        per il mondo correntemente selezionato — vedi il docstring del modulo.
+        `active_world_id` (2026-08-06, rivisto 2026-08-16): stesso principio
+        di `active_tab` — MA `None` (non passato) ha un significato diverso
+        da `""`: `None` significa "nessuna richiesta esplicita", e fa
+        rileggere l'ultimo mondo masterato da `app_settings` in
+        `_init_identity()`; `""` (o qualunque world_id) è una richiesta
+        esplicita del chiamante (rebuild per cambio tema, o un futuro arco
+        di navigazione diretto verso questo mondo) e non consulta mai le
+        preferenze salvate — vedi il docstring del modulo.
 
         `is_mobile` (2026-08-06): decide lo stile della tab bar (icona+testo
         o solo icona) — vedi il docstring di `_build_tab_bar()`. Passato da
@@ -92,6 +119,7 @@ class MasterView(ft.Column):
         self.on_back_to_home = on_back_to_home
         self.on_toggle_theme = on_toggle_theme
         self.theme_preference = theme_preference
+        self.on_open_world = on_open_world
         self._compact_tabs = is_mobile
         valid = {t["key"] for t in _TABS}
         self.active_tab: str = active_tab if active_tab in valid else "npcs"
@@ -101,7 +129,11 @@ class MasterView(ft.Column):
         # finché è None il selettore mostra solo "Nessun mondo", nessun
         # blocco dell'apertura della Modalità Master in attesa della rete/
         # del servizio di storage.
-        self._active_world_id: str = active_world_id
+        #: `True` solo se il chiamante NON ha passato `active_world_id`
+        #: esplicitamente (`None`) — unico caso in cui `_init_identity()`
+        #: rilegge l'ultimo mondo masterato da `app_settings`.
+        self._world_id_from_settings = active_world_id is None
+        self._active_world_id: str = active_world_id or _NO_WORLD_KEY
         self.device_id: str | None = None
         self._masterable_worlds: list[World] = []
 
@@ -143,6 +175,13 @@ class MasterView(ft.Column):
         self._masterable_worlds = world_repo.get_worlds_for_device(
             self.device_id, roles=_MASTERABLE_ROLES,
         )
+        # Nessuna richiesta esplicita del chiamante (vedi
+        # `_world_id_from_settings` in `__init__`): rilegge l'ultimo mondo
+        # masterato salvato in `app_settings` — 2026-08-16, richiesta di
+        # Davide di non tornare più a "Nessun mondo" ad ogni apertura.
+        if self._world_id_from_settings:
+            self._active_world_id = settings_repo.get_setting(
+                LAST_MASTER_WORLD_KEY, _NO_WORLD_KEY)
         # Se il mondo selezionato in precedenza non è (più) tra quelli
         # masterabili da questo dispositivo (mondo eliminato, espulsione,
         # degradazione di ruolo), torna a "Nessun mondo" invece di restare
@@ -188,7 +227,7 @@ class MasterView(ft.Column):
                         tooltip="Torna alla Home",
                         on_click=lambda e: self.on_back_to_home(),
                     ),
-                    ft.Icon(ft.Icons.CASTLE_OUTLINED, color=design.T().primary, size=22),
+                    ft.Icon(ft.Icons.CASTLE_OUTLINED, color=design.T().primary_icon, size=22),
                     ft.Container(width=8),
                     ft.Container(content=title, expand=True),
                     *self._theme_action(),
@@ -346,6 +385,7 @@ class MasterView(ft.Column):
         if new_world_id == self._active_world_id:
             return
         self._active_world_id = new_world_id
+        settings_repo.set_setting(LAST_MASTER_WORLD_KEY, new_world_id)
         self._build()
         try:
             self.update()
@@ -419,11 +459,24 @@ class MasterView(ft.Column):
                 self._tool_pill(ft.Icons.DIAMOND, "Artefatti", self._open_artifacts_dialog),
             ]
 
+            world_row_children: list[ft.Control] = [world_dropdown]
+            if self.on_open_world is not None and self._active_world_id != _NO_WORLD_KEY:
+                # Navigazione rapida (2026-08-16, richiesta di Davide: "un
+                # tasto sia nella sezione master... che porti velocemente
+                # alla sezione mondo").
+                world_row_children.append(ft.IconButton(
+                    ft.Icons.PUBLIC, icon_color=p.magic, tooltip="Vai alla Sezione Mondo",
+                    on_click=lambda e: self.on_open_world(self._active_world_id),
+                ))
+
             return ft.Column(
                 [
                     ft.Container(
                         padding=ft.Padding.only(bottom=design.Space.SM),
-                        content=world_dropdown,
+                        content=ft.Row(
+                            world_row_children, spacing=4,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
                     ),
                     ft.Row(
                         [

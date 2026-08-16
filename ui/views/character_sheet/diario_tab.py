@@ -54,8 +54,8 @@ class DiarioTab(ScrollMemoryListView):
                 icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_new_entry(),
                 style=ft.ButtonStyle(
-                    bgcolor=design.T().primary,
-                    color=design.T().on_primary,
+                    bgcolor=design.T().primary_fill,
+                    color=design.T().on_primary_fill,
                 ),
             ),
         ]
@@ -144,7 +144,7 @@ class DiarioTab(ScrollMemoryListView):
                                     ft.IconButton(
                                         icon=ft.Icons.DELETE_OUTLINE,
                                         icon_size=16,
-                                        icon_color=design.T().primary,
+                                        icon_color=design.T().primary_icon,
                                         tooltip="Elimina",
                                         on_click=lambda e, en=entry: self._on_delete_entry(en),
                                         padding=ft.Padding.all(4),
@@ -273,8 +273,8 @@ class DiarioTab(ScrollMemoryListView):
                     icon=ft.Icons.SAVE_OUTLINED,
                     on_click=save,
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary,
-                        color=design.T().on_primary,
+                        bgcolor=design.T().primary_fill,
+                        color=design.T().on_primary_fill,
                     ),
                 ),
             ]),
@@ -312,8 +312,8 @@ class DiarioTab(ScrollMemoryListView):
                     icon=ft.Icons.DELETE_OUTLINE,
                     on_click=do_delete,
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary,
-                        color=design.T().on_primary,
+                        bgcolor=design.T().primary_fill,
+                        color=design.T().on_primary_fill,
                     ),
                 ),
             ]),

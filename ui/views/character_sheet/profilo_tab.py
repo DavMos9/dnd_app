@@ -353,7 +353,7 @@ class ProfiloTab(ScrollMemoryListView):
             on_click=self._on_level_up_click,
             disabled=(c.level >= 20),
             style=ft.ButtonStyle(
-                bgcolor=design.T().primary,
+                bgcolor=design.T().primary_fill,
                 padding=ft.Padding.symmetric(horizontal=10, vertical=0),
             ),
             height=30,
@@ -638,7 +638,7 @@ class ProfiloTab(ScrollMemoryListView):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary, color=design.T().on_primary,
+                        bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                     ),
                 ),
             ]),
@@ -904,7 +904,7 @@ class ProfiloTab(ScrollMemoryListView):
                     "+ Aggiungi", icon=ft.Icons.ADD,
                     on_click=lambda e: self._open_add_competenza_dialog("weapon"),
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary, color=design.T().on_primary,
+                        bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                     ),
                 ),
@@ -967,7 +967,7 @@ class ProfiloTab(ScrollMemoryListView):
                     "+ Aggiungi", icon=ft.Icons.ADD,
                     on_click=lambda e: self._open_add_competenza_dialog("language"),
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary, color=design.T().on_primary,
+                        bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                     ),
                 ),
@@ -1151,7 +1151,7 @@ class ProfiloTab(ScrollMemoryListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=design.T().on_primary)),
+                                      bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -1189,7 +1189,7 @@ class ProfiloTab(ScrollMemoryListView):
                 ft.ElevatedButton(
                     "Rimuovi",
                     on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )
@@ -1270,7 +1270,7 @@ class ProfiloTab(ScrollMemoryListView):
                         "Salva",
                         on_click=_save_feats,
                         style=ft.ButtonStyle(
-                            bgcolor=design.T().primary, color=design.T().on_primary,
+                            bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                         ),
                     ),
                 ]),
@@ -1438,7 +1438,7 @@ class ProfiloTab(ScrollMemoryListView):
 
             page.show_dialog(ft.AlertDialog(
                 title=ft.Row([
-                    ft.Icon(ft.Icons.AUTO_AWESOME, color=design.T().primary, size=16),
+                    ft.Icon(ft.Icons.AUTO_AWESOME, color=design.T().primary_icon, size=16),
                     ft.Container(width=6),
                     ft.Text("Modifica Scelte di Classe", size=13, weight=ft.FontWeight.BOLD,
                             color=design.T().text),
@@ -1448,7 +1448,7 @@ class ProfiloTab(ScrollMemoryListView):
                     ft.TextButton("Annulla", on_click=lambda ev_inner: page.pop_dialog()),
                     ft.ElevatedButton(
                         "Salva", on_click=_save,
-                        style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                        style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                     ),
                 ]),
             ))
@@ -1469,7 +1469,7 @@ class ProfiloTab(ScrollMemoryListView):
                 rows.append(ft.Container(
                     content=ft.Column([
                         ft.Row([
-                            ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().primary),
+                            ft.Icon(ft.Icons.AUTO_AWESOME, size=14, color=design.T().primary_icon),
                             ft.Text(label, size=11, color=design.T().text_3,
                                     weight=ft.FontWeight.BOLD),
                         ], spacing=6),
@@ -1597,7 +1597,7 @@ class ProfiloTab(ScrollMemoryListView):
                         ft.TextButton("Annulla", on_click=lambda ev_inner: page.pop_dialog()),
                         ft.ElevatedButton(
                             "Salva", on_click=_save,
-                            style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                            style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                         ),
                     ]),
                 ))
@@ -1617,7 +1617,7 @@ class ProfiloTab(ScrollMemoryListView):
             if c.pact_boon:
                 rows.append(ft.Container(
                     content=ft.Row([
-                        ft.Icon(ft.Icons.BOOK, size=14, color=design.T().primary),
+                        ft.Icon(ft.Icons.BOOK, size=14, color=design.T().primary_icon),
                         ft.Text(c.pact_boon, size=12, color=design.T().text),
                     ], spacing=6),
                     bgcolor=design.T().surface,
@@ -2414,7 +2414,7 @@ class ProfiloTab(ScrollMemoryListView):
                     dlg_rows += [
                         ft.Divider(color=design.T().border),
                         ft.Row([
-                            ft.Icon(ft.Icons.BOOK, size=14, color=design.T().primary),
+                            ft.Icon(ft.Icons.BOOK, size=14, color=design.T().primary_icon),
                             ft.Text("Dono del Patto — scegli il tuo patto",
                                     size=13, weight=ft.FontWeight.BOLD,
                                     color=design.T().primary),
@@ -2425,7 +2425,7 @@ class ProfiloTab(ScrollMemoryListView):
                 else:
                     dlg_rows.append(ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.BOOK, size=14, color=design.T().primary),
+                            ft.Icon(ft.Icons.BOOK, size=14, color=design.T().primary_icon),
                             ft.Text(f"Dono del Patto: {c.pact_boon} (già scelto)",
                                     size=12, color=design.T().text, expand=True),
                         ], spacing=6),
@@ -2539,7 +2539,7 @@ class ProfiloTab(ScrollMemoryListView):
                     # Nessuna nuova da scegliere (caso edge: downgrade/undo)
                     dlg_rows.append(ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14, color=design.T().primary),
+                            ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=14, color=design.T().primary_icon),
                             ft.Text(step.label, size=12, color=design.T().text, expand=True),
                         ], spacing=6),
                         bgcolor=design.T().surface_alt,
@@ -4217,7 +4217,7 @@ class ProfiloTab(ScrollMemoryListView):
                     f"Sali a Lv.{new_level}",
                     on_click=do_level_up,
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary, color=design.T().on_primary,
+                        bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                     ),
                 ),
             ]),
@@ -4575,7 +4575,7 @@ class ProfiloTab(ScrollMemoryListView):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Aggiungi Classe", on_click=do_add_class,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )
@@ -4799,8 +4799,8 @@ class ProfiloTab(ScrollMemoryListView):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary,
-                        color=design.T().on_primary,
+                        bgcolor=design.T().primary_fill,
+                        color=design.T().on_primary_fill,
                     ),
                 ),
             ]),
@@ -5006,8 +5006,8 @@ class ProfiloTab(ScrollMemoryListView):
                                   icon=ft.Icons.UPLOAD,
                                   on_click=_confirm,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary,
-                                      color=design.T().on_primary,
+                                      bgcolor=design.T().primary_fill,
+                                      color=design.T().on_primary_fill,
                                   )),
             ]),
         )

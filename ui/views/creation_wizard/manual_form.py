@@ -1530,7 +1530,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             for i, skill in enumerate(opts):
                 cb = ft.Checkbox(
                     label=skill, value=skill in self._review_skills,
-                    fill_color=design.T().primary, check_color=design.T().on_primary,
+                    fill_color=design.T().primary_fill, check_color=design.T().on_primary_fill,
                     label_style=ft.TextStyle(size=12, color=design.T().text),
                     on_change=lambda e, s=skill: _on_skill_toggle(s, bool(e.control.value)),
                 )
@@ -2435,7 +2435,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     qty   = item.get("quantity", 1)
                     label = item["name"] + (f" ×{qty}" if qty > 1 else "")
                     fixed_row = ft.Row([
-                        ft.Icon(ft.Icons.CHECK_BOX, color=design.T().primary, size=20),
+                        ft.Icon(ft.Icons.CHECK_BOX, color=design.T().primary_icon, size=20),
                         ft.Text(label, size=13, color=design.T().text),
                     ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                     # Se l'oggetto è una Dotazione, mostra sempre il suo

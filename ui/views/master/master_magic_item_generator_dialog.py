@@ -117,7 +117,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
         text_style=design.field_style()['text_style'])
     custom_attunement_cb = ft.Checkbox(
         label="Richiede sintonia", value=False,
-        fill_color=design.T().primary, check_color=design.T().on_primary,
+        fill_color=design.T().primary_fill, check_color=design.T().on_primary_fill,
         label_style=ft.TextStyle(size=13, color=design.T().text))
     custom_attunement_restriction_tf = ft.TextField(
         label="Restrizione di sintonia (opzionale)", dense=True, visible=False,
@@ -182,7 +182,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
                 [
                     ft.Row(
                         [
-                            ft.Icon(_category_icon(category), size=16, color=design.T().primary),
+                            ft.Icon(_category_icon(category), size=16, color=design.T().primary_icon),
                             ft.Container(width=8),
                             ft.Text(name, size=13, weight=ft.FontWeight.BOLD,
                                     color=design.T().text, expand=True),
@@ -376,7 +376,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
             pool_hint,
             ft.ElevatedButton(
                 "Genera", icon=ft.Icons.AUTO_AWESOME, on_click=_on_generate,
-                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
             ),
         ]
 
@@ -391,7 +391,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
             custom_error_text,
             ft.ElevatedButton(
                 "Crea oggetto", icon=ft.Icons.ADD_CIRCLE_OUTLINE, on_click=_on_create_custom,
-                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
             ),
         ]
 
@@ -404,7 +404,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
             is_sel = key == mode_state["mode"]
             items.append(ft.Container(
                 content=ft.Row(
-                    [ft.Icon(icon, size=14, color=design.T().primary if is_sel else design.T().text_3),
+                    [ft.Icon(icon, size=14, color=design.T().primary_icon if is_sel else design.T().text_3),
                      ft.Container(width=6),
                      ft.Text(label, size=12, weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.W_500,
                              color=design.T().primary if is_sel else design.T().text_2)],

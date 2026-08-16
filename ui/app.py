@@ -292,7 +292,14 @@ class DnDApp:
         self._navigate(home)
 
     def _show_master_view(self, active_tab: str | None = None, active_world_id: str | None = None):
-        """Mostra la Modalità Master — indipendente da ogni personaggio giocante."""
+        """Mostra la Modalità Master — indipendente da ogni personaggio giocante.
+
+        `active_world_id=None` (2026-08-16): nessuna richiesta esplicita —
+        `MasterView` rilegge da sola l'ultimo mondo masterato salvato (vedi
+        il docstring del modulo). Non coercizzare più a `""` qui: `""` è una
+        richiesta esplicita di "Nessun mondo" (usata dal rebuild per cambio
+        tema sotto), diversa da "nessuna richiesta".
+        """
         from ui.views.master.master_view import MasterView
         self._stop_home_polling()
         master = MasterView(
@@ -300,8 +307,9 @@ class DnDApp:
             on_toggle_theme=self._cycle_theme,
             theme_preference=self._theme_pref,
             active_tab=active_tab or "npcs",
-            active_world_id=active_world_id or "",
+            active_world_id=active_world_id,
             is_mobile=self._is_mobile(),
+            on_open_world=self._show_worlds_view,
         )
         self._master_view = master
         # Il rebuild legge la tab/il mondo attivi al momento del cambio tema,
@@ -316,9 +324,14 @@ class DnDApp:
         self._on_main_layout = False
         self._navigate(master)
 
-    def _show_worlds_view(self):
+    def _show_worlds_view(self, world_id: str | None = None):
         """Mostra la Sezione Mondi (Multiplayer, passo 2) — indipendente da
-        ogni personaggio, stesso trattamento di `_show_master_view`."""
+        ogni personaggio, stesso trattamento di `_show_master_view`.
+
+        `world_id` (2026-08-16, navigazione rapida): se passato, apre
+        direttamente il dettaglio di quel mondo — vedi
+        `WorldsView.__init__` (`initial_world_id`).
+        """
         from ui.views.world.world_view import WorldsView
         self._stop_home_polling()
         worlds = WorldsView(
@@ -326,6 +339,9 @@ class DnDApp:
             on_toggle_theme=self._cycle_theme,
             theme_preference=self._theme_pref,
             host_server_slot=self._host_server_slot,
+            initial_world_id=world_id,
+            on_open_master=lambda wid: self._show_master_view(active_world_id=wid),
+            on_open_character=self._on_character_selected,
         )
         self._worlds_view = worlds
         self._rebuild_route = self._show_worlds_view
@@ -521,7 +537,7 @@ class DnDApp:
                         spacing=3,
                     ),
                     padding=ft.Padding.symmetric(horizontal=6, vertical=10),
-                    bgcolor=p.primary if is_sel else "transparent",
+                    bgcolor=p.primary_fill if is_sel else "transparent",
                     border_radius=8,
                     width=80,
                     on_click=lambda e, k=s["key"]: self._on_nav_click(k),
@@ -660,7 +676,8 @@ class DnDApp:
             char = character_repo.get_by_id(self.current_character_id)
             profs = character_repo.get_proficiencies(self.current_character_id)
             if char:
-                return SheetView(char, profs, is_mobile=self._mobile)
+                return SheetView(char, profs, is_mobile=self._mobile,
+                                  on_open_world=self._show_worlds_view)
             return self._placeholder_view("Personaggio non trovato", ft.Icons.ERROR_OUTLINE, "")
         elif key == "spells":
             from data.repositories import character_repo

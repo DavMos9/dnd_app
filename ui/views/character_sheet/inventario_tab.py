@@ -332,7 +332,7 @@ class InventarioTab(ScrollMemoryListView):
         total_weight = sum(item.weight * item.quantity for item in self._items)
         pct = min(1.0, total_weight / max_carry) if max_carry > 0 else 0.0
         if pct >= 1.0:
-            bar_color, status = design.T().primary, "Sovraccarico"
+            bar_color, status = design.T().primary_fill, "Sovraccarico"
         elif pct >= 0.666:
             bar_color, status = design.T().warning, "Carico pesante"
         else:
@@ -455,7 +455,7 @@ class InventarioTab(ScrollMemoryListView):
                 "Aggiungi Arma", icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_add_weapon(),
                 style=ft.ButtonStyle(
-                    bgcolor=design.T().primary, color=design.T().on_primary,
+                    bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                 ),
             ),
@@ -556,7 +556,7 @@ class InventarioTab(ScrollMemoryListView):
             ),
             ft.IconButton(
                 icon=ft.Icons.DELETE,
-                icon_color=design.T().primary, icon_size=16,
+                icon_color=design.T().primary_icon, icon_size=16,
                 tooltip="Elimina",
                 on_click=lambda e, ww=w: self._on_delete_weapon(ww),
                 padding=ft.Padding.all(2),
@@ -637,7 +637,7 @@ class InventarioTab(ScrollMemoryListView):
                 "Aggiungi Armatura", icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_add_armor(),
                 style=ft.ButtonStyle(
-                    bgcolor=design.T().primary, color=design.T().on_primary,
+                    bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                 ),
             ),
@@ -711,7 +711,7 @@ class InventarioTab(ScrollMemoryListView):
             ),
             ft.IconButton(
                 icon=ft.Icons.DELETE,
-                icon_color=design.T().primary, icon_size=16,
+                icon_color=design.T().primary_icon, icon_size=16,
                 tooltip="Elimina",
                 on_click=lambda e, ii=item: self._on_delete_item(ii),
                 padding=ft.Padding.all(2),
@@ -792,7 +792,7 @@ class InventarioTab(ScrollMemoryListView):
                 "Aggiungi Oggetto", icon=ft.Icons.ADD,
                 on_click=lambda e: self._on_add_item(),
                 style=ft.ButtonStyle(
-                    bgcolor=design.T().primary, color=design.T().on_primary,
+                    bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                 ),
             ),
@@ -867,7 +867,7 @@ class InventarioTab(ScrollMemoryListView):
             muted_text(wt_str, 11),
             ft.IconButton(
                 icon=ft.Icons.CHECK_CIRCLE if item.is_equipped else ft.Icons.RADIO_BUTTON_UNCHECKED,
-                icon_color=design.T().primary if item.is_equipped else design.T().border,
+                icon_color=design.T().primary_icon if item.is_equipped else design.T().border,
                 icon_size=14,
                 tooltip="Disequipaggia" if item.is_equipped else "Equipaggia",
                 on_click=lambda e, it=item: self._toggle_item_equipped(it),
@@ -890,7 +890,7 @@ class InventarioTab(ScrollMemoryListView):
             ),
             ft.IconButton(
                 icon=ft.Icons.DELETE,
-                icon_color=design.T().primary, icon_size=14, tooltip="Elimina",
+                icon_color=design.T().primary_icon, icon_size=14, tooltip="Elimina",
                 on_click=lambda e, it=item: self._on_delete_item(it),
                 padding=ft.Padding.all(2),
             ),
@@ -970,7 +970,7 @@ class InventarioTab(ScrollMemoryListView):
             text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
         )
         btn_style_add = ft.ButtonStyle(
-            bgcolor=design.T().primary, color=design.T().on_primary,
+            bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
             text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
         )
 
@@ -1275,7 +1275,7 @@ class InventarioTab(ScrollMemoryListView):
             r = ft.Row(
                 cast(list[ft.Control], [row_dice, row_type, row_note,
                      ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE,
-                                   icon_color=design.T().primary, icon_size=16,
+                                   icon_color=design.T().primary_icon, icon_size=16,
                                    on_click=remove_this, tooltip="Rimuovi",
                                    padding=ft.Padding.all(0))]),
                 spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1422,7 +1422,7 @@ class InventarioTab(ScrollMemoryListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=design.T().on_primary)),
+                                      bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -1447,7 +1447,7 @@ class InventarioTab(ScrollMemoryListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=design.T().on_primary)),
+                                      bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -1997,7 +1997,7 @@ class InventarioTab(ScrollMemoryListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=design.T().on_primary)),
+                                      bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -2022,7 +2022,7 @@ class InventarioTab(ScrollMemoryListView):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=design.T().on_primary)),
+                                      bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 

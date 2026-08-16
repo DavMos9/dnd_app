@@ -503,7 +503,7 @@ class CombattimentoTab(ScrollMemoryListView):
             on_click=self._on_damage_click,
             expand=True,
             style=ft.ButtonStyle(
-                bgcolor=p.danger, color=p.on_primary, elevation=2,
+                bgcolor=p.danger_fill, color=p.on_primary_fill, elevation=2,
                 shadow_color=p.shadow,
                 shape=ft.RoundedRectangleBorder(radius=design.Radius.SM),
                 padding=ft.Padding.symmetric(vertical=design.Space.MD),
@@ -617,8 +617,8 @@ class CombattimentoTab(ScrollMemoryListView):
                         "Tira TS contro morte",
                         icon=ft.Icons.CASINO_OUTLINED,
                         on_click=lambda e: self._roll_death_save(),
-                        bgcolor=design.T().danger,
-                        color=design.T().on_primary,
+                        bgcolor=design.T().danger_fill,
+                        color=design.T().on_primary_fill,
                     ),
                 ], wrap=True)
             )
@@ -1052,7 +1052,7 @@ class CombattimentoTab(ScrollMemoryListView):
             label="Colpo critico",
             value=False,
             label_style=ft.TextStyle(size=12, color=design.T().text_2),
-            active_color=design.T().danger,
+            active_color=design.T().danger_fill,
         )
 
         def apply(ev):
@@ -1102,7 +1102,7 @@ class CombattimentoTab(ScrollMemoryListView):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Applica", on_click=apply,
-                                  style=ft.ButtonStyle(bgcolor=design.T().danger, color=design.T().on_primary)),
+                                  style=ft.ButtonStyle(bgcolor=design.T().danger_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -1251,7 +1251,7 @@ class CombattimentoTab(ScrollMemoryListView):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
-                                  style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                                  style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -1452,7 +1452,7 @@ class CombattimentoTab(ScrollMemoryListView):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", on_click=save,
-                                  style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                                  style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -1558,7 +1558,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 ft.IconButton(
                     ft.Icons.REMOVE_CIRCLE_OUTLINE,
                     icon_size=22,
-                    icon_color=design.T().primary,
+                    icon_color=design.T().primary_icon,
                     on_click=self._on_exhaustion_decrement,
                     disabled=level <= 0,
                     tooltip="Riduci di 1 livello",
@@ -1668,7 +1668,7 @@ class CombattimentoTab(ScrollMemoryListView):
                     spacing=3,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                bgcolor=design.T().primary if not used else design.T().text_3,
+                bgcolor=design.T().primary_fill if not used else design.T().text_3,
                 padding=ft.Padding.symmetric(horizontal=10, vertical=8),
                 border_radius=8,
                 on_click=on_click,
@@ -2093,7 +2093,7 @@ class CombattimentoTab(ScrollMemoryListView):
                         ink=True,
                         on_click=(lambda e, wid=w.id: self._roll_weapon(wid, "damage")),
                     ),
-                    ft.Icon(ft.Icons.CASINO_OUTLINED, size=14, color=design.T().primary),
+                    ft.Icon(ft.Icons.CASINO_OUTLINED, size=14, color=design.T().primary_icon),
                 ], spacing=8),
             ]
             if props:
@@ -2753,7 +2753,7 @@ class CombattimentoTab(ScrollMemoryListView):
         chip = ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(ft.Icons.BOLT, size=16, color=design.T().primary),
+                    ft.Icon(ft.Icons.BOLT, size=16, color=design.T().primary_icon),
                     ft.Text("Frenesia attiva — Termina Ira (+1 Indebolimento)", size=12,
                             color=design.T().primary, weight=ft.FontWeight.BOLD,
                             expand=True),
@@ -2880,7 +2880,7 @@ class CombattimentoTab(ScrollMemoryListView):
         reset_label = "Ripristino: riposo breve" if res.reset_on == "short_rest" else "Ripristino: riposo lungo"
 
         ratio = (res.current_value / res.max_value) if res.max_value > 0 else 0.0
-        bar_color = design.T().primary if ratio > 0.4 else design.T().warning
+        bar_color = design.T().primary_fill if ratio > 0.4 else design.T().warning
 
         return ft.Column([
             ft.Row(
@@ -2893,7 +2893,7 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.IconButton(
                         ft.Icons.REMOVE_CIRCLE_OUTLINE,
                         icon_size=18,
-                        icon_color=design.T().primary,
+                        icon_color=design.T().primary_icon,
                         on_click=lambda e, r=res: self._decrement_resource(r),
                         disabled=res.current_value <= 0,
                         tooltip="Usa 1",
@@ -3133,7 +3133,7 @@ class CombattimentoTab(ScrollMemoryListView):
 
         row = ft.Container(
             content=ft.Row([
-                ft.Icon(ft.Icons.SPORTS_MARTIAL_ARTS, size=18, color=design.T().primary),
+                ft.Icon(ft.Icons.SPORTS_MARTIAL_ARTS, size=18, color=design.T().primary_icon),
                 ft.Container(width=8),
                 ft.Text(style_name, size=13, color=design.T().text,
                         weight=ft.FontWeight.W_600, expand=True),
@@ -3217,7 +3217,7 @@ class CombattimentoTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(width=3, height=14, bgcolor=design.T().primary, border_radius=1),
+                    ft.Container(width=3, height=14, bgcolor=design.T().primary_fill, border_radius=1),
                     ft.Container(width=8),
                     ft.Text(
                         "ABILITÀ SPECIALI",
@@ -3285,7 +3285,7 @@ class CombattimentoTab(ScrollMemoryListView):
                         padding=ft.Padding.all(2),
                     ),
                     ft.IconButton(
-                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().primary,
+                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().primary_icon,
                         tooltip="Elimina",
                         on_click=lambda e, a=ab: self._on_delete_custom_ability(a),
                         padding=ft.Padding.all(2),
@@ -3373,7 +3373,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
                     "Elimina", on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )
@@ -3469,7 +3469,7 @@ class CombattimentoTab(ScrollMemoryListView):
                             size=10, color=design.T().on_primary,
                             weight=ft.FontWeight.BOLD,
                         ),
-                        bgcolor=design.T().primary,
+                        bgcolor=design.T().primary_fill,
                         padding=ft.Padding.symmetric(horizontal=6, vertical=3),
                         border_radius=design.Radius.SM,
                     ),
@@ -3504,7 +3504,7 @@ class CombattimentoTab(ScrollMemoryListView):
                     rows.append(ft.Divider(color=design.T().border, height=1))
 
             is_subclass = feat["source"].lower() != (self.character.class_name or "").lower()
-            badge_color = design.T().magic if is_subclass else design.T().primary
+            badge_color = design.T().magic if is_subclass else design.T().primary_fill
 
             # Attacco Furtivo (Ladro): il dado scala col livello — mostrato
             # in coda al nome, mai persistito (calcolato a runtime, stesso
@@ -3547,7 +3547,7 @@ class CombattimentoTab(ScrollMemoryListView):
             rows.append(row)
 
         legend = ft.Row([
-            ft.Container(width=10, height=10, bgcolor=design.T().primary,
+            ft.Container(width=10, height=10, bgcolor=design.T().primary_fill,
                          border_radius=2),
             ft.Text(" classe base  ", size=10, color=design.T().text_3),
             ft.Container(width=10, height=10, bgcolor=design.T().magic,
@@ -4053,7 +4053,7 @@ class CombattimentoTab(ScrollMemoryListView):
                             font_family=design.Font.MONO),
                     ft.Container(expand=True),
                     ft.IconButton(ft.Icons.REMOVE, on_click=_on_apply_damage,
-                                  icon_color=design.T().primary,
+                                  icon_color=design.T().primary_icon,
                                   tooltip="Applica danno"),
                     ft.IconButton(ft.Icons.ADD, on_click=_on_apply_heal,
                                   icon_color=design.T().success,
@@ -4130,8 +4130,8 @@ class CombattimentoTab(ScrollMemoryListView):
                     on_click=trasformati,
                     disabled=is_active or (active is not None and not is_active),
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary if not (active and not is_active) else design.T().surface_alt,
-                        color=design.T().on_primary if not (active and not is_active) else design.T().text_3,
+                        bgcolor=design.T().primary_fill if not (active and not is_active) else design.T().surface_alt,
+                        color=design.T().on_primary_fill if not (active and not is_active) else design.T().text_3,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                     ),
                 ),
@@ -4331,7 +4331,7 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.Text(f" — GS {evoc.cr}" if evoc.cr else "", size=11, color=design.T().text_3),
                     ft.Container(expand=True),
                     ft.IconButton(ft.Icons.REMOVE, on_click=apply_damage,
-                                  icon_color=design.T().primary, icon_size=18,
+                                  icon_color=design.T().primary_icon, icon_size=18,
                                   tooltip="Applica danno"),
                     ft.IconButton(ft.Icons.ADD, on_click=apply_heal,
                                   icon_color=design.T().success, icon_size=18,
@@ -4455,7 +4455,7 @@ class CombattimentoTab(ScrollMemoryListView):
             for e in (self._forme if entry_type == "forma" else self._evocazioni)
         }
         select_label = "✔ Aggiungi al Bestiary" if entry_type == "forma" else "✔ Evoca"
-        select_color = design.T().primary if entry_type == "forma" else design.T().magic
+        select_color = design.T().primary_fill if entry_type == "forma" else design.T().magic
 
         # ── Salva nel DB e chiude (specifico del personaggio, resta locale) ──
         def _save_creature(m: dict) -> None:

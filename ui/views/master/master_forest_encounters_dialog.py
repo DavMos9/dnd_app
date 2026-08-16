@@ -197,7 +197,7 @@ def show_forest_encounters_dialog(page: ft.Page, world_id: str = "") -> None:
                 env_dd,
                 ft.ElevatedButton(
                     "Tira 1d12+1d8", icon=ft.Icons.CASINO, on_click=_on_roll,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
                 ft.Divider(height=1, color=design.T().border),
                 ft.Container(

@@ -139,7 +139,7 @@ class MagicItemsView(ft.Column):
                 [
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.AUTO_AWESOME, color=design.T().primary, size=20),
+                            ft.Icon(ft.Icons.AUTO_AWESOME, color=design.T().primary_icon, size=20),
                             ft.Container(width=8),
                             title_text("Oggetti Magici", size=18),
                             ft.Container(width=8),
@@ -258,7 +258,7 @@ class MagicItemsView(ft.Column):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(_category_icon(category), size=18, color=design.T().primary),
+                    ft.Icon(_category_icon(category), size=18, color=design.T().primary_icon),
                     ft.Container(width=10),
                     ft.Column(
                         [
@@ -333,7 +333,7 @@ class MagicItemsView(ft.Column):
         dlg = ft.AlertDialog(
             title=ft.Row(
                 [
-                    ft.Icon(_category_icon(category), color=design.T().primary, size=18),
+                    ft.Icon(_category_icon(category), color=design.T().primary_icon, size=18),
                     ft.Container(width=8),
                     ft.Text(name, size=15, weight=ft.FontWeight.BOLD, color=design.T().text, expand=True),
                 ],

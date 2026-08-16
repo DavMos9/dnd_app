@@ -142,8 +142,8 @@ class DiceView(ft.Column):
                                     "🎲   LANCIA",
                                     on_click=self._roll,
                                     style=ft.ButtonStyle(
-                                        bgcolor=design.T().primary,
-                                        color=design.T().on_primary,
+                                        bgcolor=design.T().primary_fill,
+                                        color=design.T().on_primary_fill,
                                         padding=ft.Padding.symmetric(horizontal=48, vertical=18),
                                     ),
                                 ),
@@ -348,8 +348,8 @@ class DiceView(ft.Column):
         p = design.T()
         active = (d == self._selected_die)
         return ft.ButtonStyle(
-            bgcolor=p.primary if active else p.surface_alt,
-            color=p.on_primary if active else p.text_2,
+            bgcolor=p.primary_fill if active else p.surface_alt,
+            color=p.on_primary_fill if active else p.text_2,
             elevation=3 if active else 0,
             shadow_color=p.shadow,
             side=ft.BorderSide(0 if active else 1, p.border),
@@ -366,7 +366,7 @@ class DiceView(ft.Column):
         active = (mode == self._adv_mode)
         return ft.ButtonStyle(
             color=p.primary if active else p.text_3,
-            bgcolor=(ft.Colors.with_opacity(0.12, p.primary) if active
+            bgcolor=(ft.Colors.with_opacity(0.12, p.primary_fill) if active
                      else ft.Colors.TRANSPARENT),
             shape=ft.RoundedRectangleBorder(radius=design.Radius.PILL),
             padding=ft.Padding.symmetric(horizontal=design.Space.LG,

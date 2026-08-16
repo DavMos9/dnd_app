@@ -74,6 +74,13 @@ CHILD_TABLES: tuple[str, ...] = (
     "creature_entries",
     "campaign_notes",
     "custom_abilities",
+    # 2026-08-16: mancava — le condizioni imposte dal master a distanza
+    # (§7, `core/world_backend.py::_apply_condition_to_character`) venivano
+    # scritte solo sull'host e non arrivavano mai sulla replica del
+    # giocatore, perché `_resync_character_from_host()` rimaterializza il
+    # personaggio SOLO dalle tabelle qui elencate (bug segnalato da Davide
+    # nel primo giro di test su Wi-Fi reale).
+    "character_conditions",
 )
 
 

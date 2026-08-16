@@ -131,17 +131,17 @@ def _build_theme(p: "d.Palette") -> ft.Theme:
             ),
         ),
         checkbox_theme=ft.CheckboxTheme(
-            fill_color=p.primary,
-            check_color=p.on_primary,
+            fill_color=p.primary_fill,
+            check_color=p.on_primary_fill,
             shape=ft.RoundedRectangleBorder(radius=d.Radius.SM // 2),
             border_side=ft.BorderSide(1.5, p.border),
         ),
-        radio_theme=ft.RadioTheme(fill_color=p.primary),
+        radio_theme=ft.RadioTheme(fill_color=p.primary_fill),
         slider_theme=ft.SliderTheme(
-            active_track_color=p.primary,
+            active_track_color=p.primary_fill,
             inactive_track_color=p.surface_alt,
-            thumb_color=p.primary,
-            value_indicator_color=p.primary,
+            thumb_color=p.primary_fill,
+            value_indicator_color=p.primary_fill,
         ),
         chip_theme=ft.ChipTheme(
             bgcolor=p.surface_alt,
@@ -223,7 +223,7 @@ def section_header(text: str, accent: str | None = None) -> ft.Container:
     return ft.Container(
         content=ft.Row(
             [
-                ft.Container(width=3, height=16, bgcolor=accent or p.primary,
+                ft.Container(width=3, height=16, bgcolor=accent or p.primary_fill,
                              border_radius=d.Radius.SM),
                 ft.Container(width=d.Space.SM),
                 ft.Text(
@@ -256,8 +256,8 @@ def primary_button(text: str, on_click=None, icon: ft.IconData | None = None) ->
         icon=icon,
         on_click=on_click,
         style=ft.ButtonStyle(
-            bgcolor=p.primary,
-            color=p.on_primary,
+            bgcolor=p.primary_fill,
+            color=p.on_primary_fill,
             elevation=2,
             shadow_color=p.shadow,
             shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),

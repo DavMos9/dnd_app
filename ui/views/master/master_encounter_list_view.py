@@ -142,7 +142,7 @@ class MasterEncounterListView(ft.Column):
             is_sel = is_archived == self._show_archived
             items.append(ft.Container(
                 content=ft.Row(
-                    [ft.Icon(icon, size=14, color=design.T().primary if is_sel else design.T().text_3),
+                    [ft.Icon(icon, size=14, color=design.T().primary_icon if is_sel else design.T().text_3),
                      ft.Container(width=6),
                      ft.Text(label, size=12, weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.W_500,
                              color=design.T().primary if is_sel else design.T().text_2)],
@@ -209,7 +209,7 @@ class MasterEncounterListView(ft.Column):
         reopen_btn: list[ft.Control] = []
         if self._show_archived:
             reopen_btn.append(ft.IconButton(
-                icon=ft.Icons.UNARCHIVE_OUTLINED, icon_color=design.T().primary, icon_size=18,
+                icon=ft.Icons.UNARCHIVE_OUTLINED, icon_color=design.T().primary_icon, icon_size=18,
                 tooltip="Riapri incontro",
                 on_click=lambda e, en=enc: self._on_reopen(en),
             ))
@@ -217,9 +217,9 @@ class MasterEncounterListView(ft.Column):
             content=ft.Row(
                 [
                     ft.Container(
-                        content=ft.Icon(card_icon, color=design.T().primary, size=22),
+                        content=ft.Icon(card_icon, color=design.T().primary_icon, size=22),
                         width=44, height=44, alignment=ft.Alignment.CENTER,
-                        bgcolor=ft.Colors.with_opacity(0.12, design.T().primary),
+                        bgcolor=ft.Colors.with_opacity(0.12, design.T().primary_fill),
                         border_radius=design.Radius.PILL,
                     ),
                     ft.Container(width=design.Space.MD),
@@ -281,7 +281,7 @@ class MasterEncounterListView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=_do_delete,
-                    style=ft.ButtonStyle(bgcolor=design.T().danger, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().danger_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )

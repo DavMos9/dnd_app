@@ -114,14 +114,14 @@ class MasterLootView(ft.Column):
                 [
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.INVENTORY_2_OUTLINED, color=design.T().primary, size=20),
+                            ft.Icon(ft.Icons.INVENTORY_2_OUTLINED, color=design.T().primary_icon, size=20),
                             ft.Container(width=8),
                             ft.Text("Bottino", size=15, weight=ft.FontWeight.BOLD, color=design.T().text,
                                     expand=True),
                             ft.ElevatedButton(
                                 "+ Aggiungi voce", icon=ft.Icons.ADD,
                                 on_click=lambda e: self._open_add_dialog(),
-                                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                                style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                             ),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -145,7 +145,7 @@ class MasterLootView(ft.Column):
             is_sel = key == self._active_kind
             items.append(ft.Container(
                 content=ft.Row(
-                    [ft.Icon(icon, size=14, color=design.T().primary if is_sel else design.T().text_3),
+                    [ft.Icon(icon, size=14, color=design.T().primary_icon if is_sel else design.T().text_3),
                      ft.Container(width=6),
                      ft.Text(label, size=12, weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.W_500,
                              color=design.T().primary if is_sel else design.T().text_2)],
@@ -232,7 +232,7 @@ class MasterLootView(ft.Column):
                             ft.IconButton(icon=ft.Icons.EDIT_OUTLINED, icon_size=18,
                                           tooltip="Modifica", on_click=lambda e, en=entry: self._open_edit_dialog(en)),
                             ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_size=18,
-                                          icon_color=design.T().danger, tooltip="Elimina",
+                                          icon_color=design.T().danger_icon, tooltip="Elimina",
                                           on_click=lambda e, en=entry: self._on_delete(en)),
                         ],
                         spacing=6, wrap=True,
@@ -301,7 +301,7 @@ class MasterLootView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
-                                  style=ft.ButtonStyle(bgcolor=design.T().danger, color=design.T().on_primary)),
+                                  style=ft.ButtonStyle(bgcolor=design.T().danger_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -349,7 +349,7 @@ class MasterLootView(ft.Column):
                 actions=wrap_dialog_actions([
                     ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog() if page else None),
                     ft.ElevatedButton("Salva", icon=ft.Icons.SAVE_OUTLINED, on_click=save_coins,
-                                      style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                                      style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
                 ]),
             ))
             return
@@ -383,7 +383,7 @@ class MasterLootView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Salva", icon=ft.Icons.SAVE_OUTLINED, on_click=save_item,
-                                  style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                                  style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -474,6 +474,6 @@ class MasterLootView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog() if page else None),
                 ft.ElevatedButton("Aggiungi", icon=ft.Icons.ADD, on_click=save,
-                                  style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                                  style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         ))

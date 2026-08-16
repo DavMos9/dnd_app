@@ -246,7 +246,7 @@ def show_health_hazards_dialog(page: ft.Page, world_id: str = "") -> None:
             madness_dd,
             ft.ElevatedButton(
                 "Tira 1d100", icon=ft.Icons.CASINO, on_click=_on_madness_roll,
-                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
             ),
             ft.Container(
                 content=madness_result_col, bgcolor=design.T().bg,

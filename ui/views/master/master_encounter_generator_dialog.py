@@ -385,7 +385,7 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
             party_col,
             ft.ElevatedButton(
                 "Genera", icon=ft.Icons.CASINO, on_click=_on_generate,
-                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
             ),
             ft.Divider(height=1, color=design.T().border),
             ft.Container(

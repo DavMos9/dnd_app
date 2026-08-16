@@ -106,7 +106,7 @@ def show_traps_dialog(page: ft.Page) -> None:
                 [
                     ft.ElevatedButton(
                         "Suggerisci", icon=ft.Icons.CALCULATE, on_click=_on_suggest,
-                        style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                        style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                     ),
                     ft.OutlinedButton("Tira Danno", icon=ft.Icons.CASINO, on_click=_on_roll_damage),
                 ],

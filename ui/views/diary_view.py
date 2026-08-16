@@ -263,7 +263,7 @@ class DiaryView(ft.Column):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(meta["icon_on"], color=design.T().primary, size=20),
+                    ft.Icon(meta["icon_on"], color=design.T().primary_icon, size=20),
                     ft.Container(width=10),
                     ft.Column(
                         [
@@ -285,8 +285,8 @@ class DiaryView(ft.Column):
                         icon=ft.Icons.ADD,
                         on_click=lambda e: self._on_add(),
                         style=ft.ButtonStyle(
-                            bgcolor=design.T().primary,
-                            color=design.T().on_primary,
+                            bgcolor=design.T().primary_fill,
+                            color=design.T().on_primary_fill,
                             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
                         ),
                     ),
@@ -391,7 +391,7 @@ class DiaryView(ft.Column):
             ),
             padding=ft.Padding.symmetric(horizontal=design.Space.MD,
                                          vertical=design.Space.SM),
-            bgcolor=design.T().primary if is_sel else "transparent",
+            bgcolor=design.T().primary_fill if is_sel else "transparent",
             border_radius=design.Radius.PILL,
             shadow=design.elevation(1) if is_sel else None,
             margin=ft.Margin.only(left=6, right=6),
@@ -444,7 +444,7 @@ class DiaryView(ft.Column):
                 text_align=ft.TextAlign.CENTER,
             ),
             width=22, height=22,
-            bgcolor=design.T().primary if is_sel else "transparent",
+            bgcolor=design.T().primary_fill if is_sel else "transparent",
             border=ft.Border.all(1, design.T().primary),
             border_radius=11,
             alignment=ft.Alignment.CENTER,
@@ -474,7 +474,7 @@ class DiaryView(ft.Column):
         return ft.Container(
             content=ft.Column(rows, spacing=3),
             padding=ft.Padding.symmetric(horizontal=8, vertical=8),
-            bgcolor=ft.Colors.with_opacity(0.10, design.T().primary) if is_sel else "transparent",
+            bgcolor=ft.Colors.with_opacity(0.10, design.T().primary_fill) if is_sel else "transparent",
             border_radius=design.Radius.MD,
             border=(ft.Border.only(left=ft.BorderSide(3, design.T().primary))
                     if is_sel else None),
@@ -527,7 +527,7 @@ class DiaryView(ft.Column):
                 spacing=3,
             ),
             padding=ft.Padding.symmetric(horizontal=8, vertical=8),
-            bgcolor=ft.Colors.with_opacity(0.10, design.T().primary) if is_sel else "transparent",
+            bgcolor=ft.Colors.with_opacity(0.10, design.T().primary_fill) if is_sel else "transparent",
             border_radius=design.Radius.MD,
             border=(ft.Border.only(left=ft.BorderSide(3, design.T().primary))
                     if is_sel else None),
@@ -578,7 +578,7 @@ class DiaryView(ft.Column):
             [
                 ft.Container(expand=True, height=1, bgcolor=design.T().border),
                 ft.Container(
-                    content=ft.Icon(ft.Icons.STAR, size=11, color=design.T().primary),
+                    content=ft.Icon(ft.Icons.STAR, size=11, color=design.T().primary_icon),
                     padding=ft.Padding.symmetric(horizontal=10),
                 ),
                 ft.Container(expand=True, height=1, bgcolor=design.T().border),
@@ -629,7 +629,7 @@ class DiaryView(ft.Column):
                             ),
                             ft.IconButton(
                                 icon=ft.Icons.DELETE_OUTLINE,
-                                icon_color=design.T().primary, icon_size=18,
+                                icon_color=design.T().primary_icon, icon_size=18,
                                 tooltip="Elimina voce",
                                 on_click=lambda e: self._on_diary_delete(),
                             ),
@@ -711,7 +711,7 @@ class DiaryView(ft.Column):
                         "Salva", icon=ft.Icons.SAVE_OUTLINED,
                         on_click=lambda e: self._on_diary_save_edit(entry),
                         style=ft.ButtonStyle(
-                            bgcolor=design.T().primary, color=design.T().on_primary,
+                            bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                         ),
                     ),
                 ],
@@ -786,7 +786,7 @@ class DiaryView(ft.Column):
             [
                 ft.Container(expand=True, height=1, bgcolor=design.T().border),
                 ft.Container(
-                    content=ft.Icon(ft.Icons.STAR, size=11, color=design.T().primary),
+                    content=ft.Icon(ft.Icons.STAR, size=11, color=design.T().primary_icon),
                     padding=ft.Padding.symmetric(horizontal=10),
                 ),
                 ft.Container(expand=True, height=1, bgcolor=design.T().border),
@@ -845,7 +845,7 @@ class DiaryView(ft.Column):
                     ft.Container(width=8),
                     ft.IconButton(
                         icon=ft.Icons.DELETE_OUTLINE,
-                        icon_color=design.T().primary, icon_size=18,
+                        icon_color=design.T().primary_icon, icon_size=18,
                         tooltip="Elimina",
                         on_click=lambda e: self._on_note_delete(),
                     ),
@@ -919,7 +919,7 @@ class DiaryView(ft.Column):
                         "Salva", icon=ft.Icons.SAVE_OUTLINED,
                         on_click=lambda e: self._on_note_save_edit(note),
                         style=ft.ButtonStyle(
-                            bgcolor=design.T().primary, color=design.T().on_primary,
+                            bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                         ),
                     ),
                 ],
@@ -1084,7 +1084,7 @@ class DiaryView(ft.Column):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ])),
         ))
@@ -1149,7 +1149,7 @@ class DiaryView(ft.Column):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ])),
         ))
@@ -1217,7 +1217,7 @@ class DiaryView(ft.Column):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=save,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ])),
         ))
@@ -1287,7 +1287,7 @@ class DiaryView(ft.Column):
                               on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=save,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ])),
         ))

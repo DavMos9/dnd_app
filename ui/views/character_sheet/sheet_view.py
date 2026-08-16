@@ -17,12 +17,27 @@ from config.settings import *
 from data.models import Character, CharacterProficiency
 from ui.theme import show_error_dialog
 import data.repositories.character_repo as character_repo
+from data.repositories import world_repo
 from ui import design
 from ui.widgets import wrap_dialog_actions
 import core.character_stats as cs
 from ui.components.roll_panel import show_roll
+from core import world_sync
+from core.world_backend import LocalBackend, RemoteBackend
+from ui.components.background_sync import BackgroundSyncLoop
+from ui.device_identity import resolve_device_id
 
 logger = logging.getLogger(__name__)
+
+#: Stesso intervallo già validato in `WorldsView`/`HomeView`
+#: (`ui/views/world/world_view.py::_DETAIL_SYNC_INTERVAL_S`) — qui copre il
+#: caso mancante trovato da Davide nel primo giro di test su Wi-Fi reale
+#: (2026-08-16): la scheda personaggio restava l'unica vista multiplayer
+#: senza alcun `BackgroundSyncLoop`, quindi un giocatore che teneva la
+#: scheda aperta non vedeva MAI un intervento del master (PF, condizioni,
+#: risorse) finché non tornava alla Home e ci rientrava — o chiudeva e
+#: riapriva la scheda a mano.
+_SHEET_SYNC_INTERVAL_S = 2.0
 
 SHEET_TABS = [
     {"key": "profilo",       "label": "Profilo",       "icon": ft.Icons.PERSON_OUTLINE},
@@ -40,7 +55,7 @@ class SheetView(ft.Column):
     """
 
     def __init__(self, character: Character, proficiencies: list[CharacterProficiency],
-                 is_mobile: bool = False):
+                 is_mobile: bool = False, on_open_world=None):
         """
         `is_mobile` (2026-08-06): decide lo stile della tab bar — vedi il
         docstring di `_build_header_and_tabs()`. Passato da `DnDApp` con lo
@@ -49,20 +64,110 @@ class SheetView(ft.Column):
         "mobile", si riusa quello che l'app ha già. Default `False` per
         restare compatibile con i costruttori esistenti (test, chiamate
         legacy) che non lo passano.
+
+        `on_open_world` (2026-08-16, navigazione rapida): callback
+        `(world_id) -> None` verso `DnDApp._show_worlds_view`, propagato
+        dal pulsante "Vai al Mondo" nell'header — mostrato SOLO se
+        `character.world_id` non è vuoto. `None` (default) nasconde il
+        pulsante, stesso principio già usato per `on_toggle_theme` altrove.
         """
         super().__init__(expand=True, spacing=0)
         self.character = character
         self.proficiencies = proficiencies
+        self.on_open_world = on_open_world
         self.active_tab = "profilo"
         self._tab_buttons: dict[str, ft.Container] = {}
         self._compact_tabs = is_mobile
         self._page: ft.Page | None = None
         self._stat_bar_container: ft.Container | None = None
         self._header_container: ft.Container | None = None
+
+        # Sincronizzazione in background (2026-08-16, vedi commento su
+        # `_SHEET_SYNC_INTERVAL_S`) — stesso stato persistente (device_id,
+        # cache backend remoti) già usato da `WorldsView`/`HomeView`, qui
+        # scoped al SOLO mondo di questo personaggio (`character.world_id`).
+        self.device_id: str | None = None
+        self.backend = LocalBackend()
+        self._remote_backends: dict[str, RemoteBackend] = {}
+        self._sync_loop: BackgroundSyncLoop | None = None
+        self._connection_state: str = "connected"
+
         self._build()
 
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
+        page = self.page
+        if page is not None:
+            page.run_task(self._init_world_sync)
+
+    def will_unmount(self):
+        self._stop_world_sync()
+
+    async def _init_world_sync(self):
+        """Risolve `device_id` e avvia la sincronizzazione in background —
+        SOLO se questo personaggio appartiene a un mondo condiviso
+        (`character.world_id` non vuoto). Un personaggio locale non ha
+        nulla da sincronizzare."""
+        if not self.character.world_id:
+            return
+        page = self.page
+        if page is None:
+            return
+        self.device_id = await resolve_device_id(page)
+        self._start_world_sync()
+
+    # ------------------------------------------------------------------
+    # Sincronizzazione automatica in background (2026-08-16) — stesso
+    # pattern di `WorldsView._start_detail_sync`/`_stop_detail_sync`
+    # (`ui/views/world/world_view.py`), qui scoped al mondo di QUESTO
+    # personaggio: finché la scheda resta aperta, un thread dedicato scarica
+    # gli eventi nuovi dall'host (interventi del master: PF, condizioni,
+    # risorse) e li applica alla replica locale, senza richiedere al
+    # giocatore di chiudere/riaprire la scheda o tornare alla Home.
+    # ------------------------------------------------------------------
+
+    def _start_world_sync(self):
+        if self._sync_loop is not None or not self.character.world_id:
+            return
+        world_id = self.character.world_id
+
+        def _apply() -> None:
+            world = world_repo.get_world(world_id)
+            if world is None or world.is_local_host:
+                return
+            backend = world_sync.resolve_backend_for_world(
+                world, self.device_id or "", self.backend, self._remote_backends,
+            )
+            if backend is not None and isinstance(backend, RemoteBackend):
+                self._connection_state = backend.connection_state()
+                world_sync.sync_replica(backend, world_id)
+
+        def _signature() -> str | None:
+            updated = character_repo.get_by_id(self.character.id)
+            if updated is None:
+                return None
+            conditions = character_repo.get_conditions(updated.id)
+            cond_sig = "|".join(sorted(c.condition_key for c in conditions))
+            return f"{updated.updated_at}|{self._connection_state}|{cond_sig}"
+
+        async def _redraw() -> None:
+            self._refresh_all()
+
+        loop = BackgroundSyncLoop(
+            get_page=lambda: self.page,
+            signature_fn=_signature,
+            async_redraw_fn=_redraw,
+            apply_fn=_apply,
+            interval_s=_SHEET_SYNC_INTERVAL_S,
+            thread_name=f"sheet-sync-{self.character.id[:8]}",
+        )
+        self._sync_loop = loop
+        loop.start()
+
+    def _stop_world_sync(self):
+        if self._sync_loop is not None:
+            self._sync_loop.stop()
+        self._sync_loop = None
 
     # ------------------------------------------------------------------
     # Build
@@ -223,13 +328,32 @@ class SheetView(ft.Column):
             tooltip="Clicca per modificare il bonus competenza",
         )
 
+        # LED di stato connessione (2026-08-16) — SOLO per un personaggio
+        # che è la replica locale di un mondo ospitato da un ALTRO
+        # dispositivo (`world_id` valorizzato e non ospitato qui): un
+        # personaggio locale o ospitato da questo stesso dispositivo non ha
+        # una "connessione" da monitorare. Colore aggiornato ad ogni giro
+        # del loop avviato in `_start_world_sync` (vedi `self._connection_state`).
+        name_row_children: list[ft.Control] = [
+            ft.Text(c.name, size=18, weight=ft.FontWeight.BOLD,
+                    color=design.T().text, font_family=design.Font.DISPLAY,
+                    no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
+            pb_btn,
+        ]
+        if c.world_id:
+            world = world_repo.get_world(c.world_id)
+            if world is not None and not world.is_local_host:
+                name_row_children.append(design.connection_led(self._connection_state))
+            if self.on_open_world is not None:
+                # Navigazione rapida (2026-08-16) — richiesta di Davide:
+                # "un tasto... che porti velocemente alla sezione mondo".
+                name_row_children.append(ft.IconButton(
+                    ft.Icons.PUBLIC, icon_size=18, icon_color=design.T().magic,
+                    tooltip="Vai al Mondo",
+                    on_click=lambda e: self.on_open_world(c.world_id),
+                ))
         name_row = ft.Row(
-            [
-                ft.Text(c.name, size=18, weight=ft.FontWeight.BOLD,
-                        color=design.T().text, font_family=design.Font.DISPLAY,
-                        no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
-                pb_btn,
-            ],
+            name_row_children,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
         # Chip invece di una riga di testo con i "•": stesso linguaggio visivo
@@ -478,7 +602,7 @@ class SheetView(ft.Column):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary, color=design.T().on_primary,
+                        bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                     ),
                 ),
             ]),
@@ -575,7 +699,7 @@ class SheetView(ft.Column):
                     "Salva",
                     on_click=on_save,
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary, color=design.T().on_primary,
+                        bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                     ),
                 ),
             ]),

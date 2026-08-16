@@ -607,7 +607,7 @@ def show_loot_assign_dialog(
         actions=wrap_dialog_actions([
             ft.TextButton("Annulla", on_click=_close),
             ft.ElevatedButton("Conferma assegnazione", icon=ft.Icons.CHECK, on_click=_on_confirm,
-                              style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                              style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
         ]),
     )
     page.show_dialog(dlg)

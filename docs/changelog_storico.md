@@ -9575,6 +9575,136 @@ Suite di regressione rieseguita (`test_fase_4.py`,
 `test_layout_incontri_e_pf_autosync.py`, `test_master_world_scoping.py`),
 tutta verde.
 
+**Seguito, stessa giornata — quinto/sesto giro, screenshot reale +
+sdoppiamento del token**: Davide ha mandato uno screenshot dell'app vera
+(non un mockup) mostrando due problemi residui: (1) l'header di
+`HomeView` e le card personaggio (entrambi `bgcolor=p.surface`) restavano
+percepibilmente "più luminosi" del corpo pagina nonostante il rapporto
+di contrasto surface/bg fosse già sceso a 1.02:1 nel giro precedente —
+causa: un rapporto WCAG basso non garantisce che due riquadri PIENI
+affiancati sembrino uguali all'occhio (simultaneous contrast), la
+formula misura leggibilità del testo, non uniformità percepita tra due
+campiture; fix: `surface`/`surface_alt` ora coincidono esattamente con
+`bg`/`bg_alt`, header e card si fondono col fondo, la card resta
+leggibile solo via `border` + ombra. (2) Il rosso "ancora non
+corrisponde", con un terzo colore proposto (`#e04f61`, OKLCH) ancora
+respinto.
+
+Diagnosi definitiva sul rosso: qualunque tinta bordeaux scura a
+sufficienza da sembrare "vino" e qualunque tinta chiara a sufficienza da
+leggersi da sola sul nero (≥4.5:1) sono **incompatibili per costruzione**
+— tre tentativi di schiaritura (uno HSL, uno a saturazione HSL massima,
+uno OKLCH) lo confermano tutti. L'unica soluzione reale è quella
+proposta e scartata due giri prima: **sdoppiare il token**. Aggiunti
+`primary_fill`/`on_primary_fill`/`danger_fill` a `Palette`
+(`ui/design.py`) — in light mode alias di `primary`/`on_primary` (nessun
+cambiamento visivo), in dark mode `primary_fill = "#761c2a"` (il
+bordeaux vero, ultimo hex di Davide) con `on_primary_fill = "#ffffff"`
+(10.7:1 di contrasto — un riempimento scuro come questo ha sempre bisogno
+di testo chiaro sopra, non scuro). `primary`/`danger` restano `#e04f61`,
+invariati, per i 325 usi testo/icona/bordo.
+
+Applicazione ai 141 call site di riempimento (bottoni pieni, badge,
+checkbox, chip, barre di accento piene — lista esatta dall'audit di due
+giri prima) fatta con due script Python mirati per file:riga esatti
+(non un find&replace globale, per evitare di toccare i 325 usi testo che
+dovevano restare invariati): un primo giro rinomina `.primary`→
+`.primary_fill`/`.danger`→`.danger_fill` sui 141 punti già classificati
+FILL; un secondo giro (20 punti aggiuntivi, trovati con un grep mirato
+`bgcolor=/fill_color=...primary_fill` seguito da `color=/check_color=
+...on_primary` entro 2 righe) rinomina il testo abbinato sopra quei
+riempimenti in `.on_primary_fill` — questi non erano nella lista
+originale perché su una riga diversa da quella con `.primary`/`.danger`
+(es. `ButtonStyle(bgcolor=..., \n color=p.on_primary)` su due righe). Due
+righe di `design.py` stesso (`card()`/`collapsible_section()`, barra di
+accento piena) sistemate a mano perché le modifiche di questo stesso
+file nei giri precedenti avevano spostato i numeri di riga rispetto
+all'audit. `pill()` (design.py) e i suoi call site senza `color=`
+esplicito **non** toccati — restano sul `primary` chiaro quando
+`filled=True`, non è un bug (sempre leggibile), solo meno scuro dei
+bottoni espliciti; unica eccezione già nell'audit,
+`world_view.py:303` (`pill(..., filled=True, color=p.primary)`), portata
+a `primary_fill` insieme al resto.
+
+Verificato: sintassi + import di tutti i 34 file toccati OK, suite di
+test completa rieseguita (tutti i file `test_*.py`) — verde ovunque
+tranne il limite noto di `test_qr_scan.py` (pyzbar assente nel sandbox,
+non una regressione). Verificato visivamente con lo stesso giro
+Playwright/`FLET_WEB=true`: header e corpo pagina uniformemente neri
+senza cuciture, "Wizard guidato"/"Nuovo Personaggio" ora nel bordeaux
+scuro vero, logo/bordi/pillole outline nel rosso chiaro invariato.
+
+**Seguito, stessa giornata — settimo giro, rifinitura finale**: Davide,
+soddisfatto dell'impianto (pulsanti bordeaux + fusione header/corpo), due
+ultime richieste di rifinitura:
+
+1. *"Scurisci anche i testi rossi"* — `primary`/`danger` (`#e04f61`,
+   325 usi testo/icona/bordo) andavano scuriti. Stesso vincolo di
+   sempre (≥4.5:1), ma questa volta calcolato **contro il peggiore dei
+   due fondi**: con `surface` diventato più chiaro di `bg` nel punto 2
+   sotto, un primo tentativo scurito solo contro `bg` (`#d35561`) falliva
+   su `surface` (4.16:1) — errore preso e corretto prima di consegnare.
+   Ricalcolato in OKLCH contro entrambi i fondi → `#da5b67` (croma 0.16
+   contro 0.18 di prima), 4.50:1 su `surface`/4.89:1 su `bg` — il minimo
+   raggiungibile restando "rosso" e non un grigio-mauve desaturato
+   (verificato: croma più basso scende oltre in luminosità ma perde il
+   carattere di rosso). Limite tecnico dichiarato a Davide: non si può
+   scurire oltre restando sia rosso sia leggibile da solo sul nero.
+2. *"Lo sfondo va bene ma lasciamo un po' di distacco, con un grigio
+   molto scuro"* — la fusione totale `surface = bg` del giro precedente
+   andava bene nell'insieme ma Davide voleva un po' di gerarchia visiva
+   indietro, con un **grigio puro** (0% saturazione — a differenza di
+   ogni tentativo precedente, mai stato un vero neutro) invece di
+   nessuna differenza o di una tinta. `surface`/`surface_alt` ora sono
+   valori neutri indipendenti (`#1e1e1e`/`#242424`, non più derivati da
+   `bg`+delta): 1.08:1/1.11:1 su `bg` — percettibile ma minimo,
+   deliberatamente diverso dal precedente `#181818` (1.02:1, quasi
+   invisibile) che aveva contribuito al problema del giro prima ancora.
+   `parchment`/`parchment_alt` aggiornati in coerenza.
+
+Verificato: sintassi + import OK, suite di test completa rieseguita
+(verde ovunque tranne il limite noto `test_qr_scan.py`/pyzbar).
+Verificato visivamente: header con un gradino di grigio percettibile ma
+sobrio sopra il corpo pagina, testo/bordi rossi visibilmente più scuri,
+pulsanti bordeaux invariati.
+
+**Seguito, stessa giornata — ottavo giro, terzo token per icone/testo
+grande**: Davide, con esempi concreti — il titolo "D&D" (48px bold) e i
+pulsanti icona "Elimina scheda"/"Avvia scheda" sulla card personaggio
+(`home_view.py`) restavano "troppo chiari", li voleva vicini al bordeaux
+dei pulsanti pieni. Novità rispetto ai giri precedenti: per queste due
+categorie **non serve davvero il 4.5:1** di `primary` — WCAG 1.4.3
+("large text": ≥18pt, o ≥14pt bold — il titolo "D&D" qualifica) e 1.4.11
+("graphical objects": icone isolate come i due bottoni citati) richiedono
+solo **3:1**, non 4.5:1. Aggiunto un terzo token, `primary_icon`
+(= `danger_icon`) — in dark mode `#bf384b` (OKLCH stesso hue ≈17°,
+croma 0.17, calcolato al minimo che regge 3:1 su ENTRAMBI `surface`/`bg`
+con margine 0.08 sopra il pavimento esatto), percettibilmente più scuro
+di `primary` (`#da5b67`) pur restando "rosso" e non un grigio-mauve; in
+light mode alias di `primary` (nessuna soglia diversa da rispettare lì).
+`primary`/`danger` (4.5:1, testo scorrevole/paragrafi) **non toccati**.
+
+Applicato a 61 punti trovati con un grep mirato su due pattern esatti
+(`icon_color=....primary/.danger` e `ft.Icon(..., color=....primary/
+.danger)` — sottoinsieme circoscritto e verificabile dei 325 usi
+testo/icona/bordo, non l'intera lista) più il titolo "D&D" a mano
+(`home_view.py`). Nota tecnica sul primo tentativo di script: un filtro
+`grep -v "_icon"` per escludere i punti già convertiti ha inizialmente
+scartato per errore righe legittime contenenti la sottostringa "_icon" in
+un nome di funzione non correlato (`_category_icon(category)`, in
+`magic_items_view.py`) — trovato e corretto prima di applicare lo script
+definitivo, che usa `\b` (confine di parola) invece di un filtro a
+sottostringa.
+
+Verificato: sintassi + import di tutti i file toccati OK, suite di test
+completa rieseguita — verde ovunque (un fallimento isolato di
+`test_fase_4.py` su un controllo legato a un tiro di dado casuale si è
+rivelato preesistente/instabile, non una regressione: confermato con 5
+riesecuzioni consecutive tutte verdi). Verificato visivamente creando un
+personaggio di prova nella replica web: titolo "D&D" e icone play/elimina
+sulla card ora percettibilmente più scuri, badge "Liv. N"/pulsanti pieni
+invariati.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

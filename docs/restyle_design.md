@@ -221,17 +221,36 @@ changelog, non ripetuta qui)
 | token | hex | contrasto misurato |
 |---|---|---|
 | `bg` | `#161617` | — (neutro, niente più dominante blu-viola) |
-| `surface` | `#181818` | 1.02:1 su bg |
-| `surface_alt` | `#232224` | — |
-| `border` | `#3e3d41` | 1.65:1 su surface — unico segnale dei bordi card |
-| `text` | `#f0ece4` | 15.1 su surface (AAA) |
+| `surface` | `#1e1e1e` | 1.08:1 su bg — grigio puro indipendente, non derivato da `bg` |
+| `surface_alt` | `#242424` | 1.11:1 su bg |
+| `border` | `#3e3d41` | 1.55:1 su surface — unico segnale dei bordi card |
+| `text` | `#f0ece4` | 14.2 su surface (AAA) |
 | `text_2` | `#c2bcae` | 8.88 (AAA) |
 | `text_3` | `#9c94a8` | 5.14 (AA) |
-| `primary` (= `danger` = `nav_accent`) | `#e04f61` | 4.62 su surface — foreground scuro `#241012` sul pieno 4.72 (ricalcolato in OKLCH per croma percepito, non HSL — vedi changelog) |
+| `primary` (= `danger` = `nav_accent`) | `#da5b67` | 4.50 su surface/4.89 su bg — testo scorrevole/paragrafi/etichette (soglia WCAG 1.4.3 normale, 4.5:1) |
+| `primary_icon` (= `danger_icon`) | `#bf384b` | 3.08 su surface/3.34 su bg — SOLO icone isolate e testo grande/bold ≥18pt (soglia WCAG 1.4.11/1.4.3 "large text/graphical object", 3:1) — più scuro di `primary`, MAI per paragrafi |
+| `primary_fill` (= `danger_fill`) | `#761c2a` | il bordeaux vero di Davide — SOLO riempimenti (bottoni/badge/checkbox), sempre con `on_primary_fill` (`#ffffff`, 10.7:1) sopra, mai da solo su `surface`/`bg` (~1.7:1, illeggibile) |
 | `magic` | `#7897db` | 6.22 |
 | `success` | `#4ec27f` | 7.48 |
 | `warning` | `#bd8c32` | 5.97 |
 | `alert` | `#d57d40` | 5.86 |
+
+**`surface` un gradino sopra `bg`, grigio puro** (rifinito il 2026-08-15,
+due volte): prima portato a coincidere esattamente con `bg` (un rapporto
+WCAG basso tra due riquadri PIENI non garantisce che sembrino uguali
+all'occhio — header/card restavano "più luminosi" anche a 1.02:1, la
+fusione totale ha risolto), poi Davide ha chiesto un "leggero distacco"
+con un grigio vero (0% saturazione, mai successo prima — ogni tentativo
+precedente aveva sempre una tinta residua) invece di nessuna differenza.
+`surface`/`surface_alt` sono ora valori neutri indipendenti, non derivati
+da `bg` per formula.
+
+**Due token per il rosso** (dal 2026-08-15): `primary` deve restare
+leggibile da solo (325 usi testo/icona/bordo in `ui/`, audit completo in
+`changelog_storico.md`) quindi non può essere scuro quanto un vero
+bordeaux; `primary_fill` non ha questo vincolo perché è sempre
+accompagnato da `on_primary_fill` sopra (141 usi, solo riempimenti). Le
+due tinte sono deliberatamente diverse — non è un refuso.
 
 Note importanti emerse dal calcolo:
 - In dark mode i bottoni pieni devono usare un **foreground scuro** sull'accento

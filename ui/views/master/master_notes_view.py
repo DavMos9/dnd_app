@@ -302,7 +302,7 @@ class MasterNotesView(ft.Column):
                 on_click=lambda e: self._on_mobile_back(),
             )]
             if show_back else
-            [ft.Icon(meta["icon_on"], color=design.T().primary, size=20),
+            [ft.Icon(meta["icon_on"], color=design.T().primary_icon, size=20),
              ft.Container(width=10)]
         )
         return ft.Container(
@@ -324,7 +324,7 @@ class MasterNotesView(ft.Column):
                         meta["add_label"], icon=ft.Icons.ADD,
                         on_click=lambda e: self._open_new_note_dialog(),
                         style=ft.ButtonStyle(
-                            bgcolor=design.T().primary, color=design.T().on_primary,
+                            bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
                         ),
                     ),
@@ -421,7 +421,7 @@ class MasterNotesView(ft.Column):
             ),
             padding=ft.Padding.symmetric(horizontal=design.Space.MD,
                                          vertical=design.Space.SM),
-            bgcolor=design.T().primary if is_sel else "transparent",
+            bgcolor=design.T().primary_fill if is_sel else "transparent",
             border_radius=design.Radius.PILL,
             shadow=design.elevation(1) if is_sel else None,
             margin=ft.Margin.only(left=6, right=6),
@@ -472,7 +472,7 @@ class MasterNotesView(ft.Column):
                 spacing=3,
             ),
             padding=ft.Padding.symmetric(horizontal=8, vertical=8),
-            bgcolor=ft.Colors.with_opacity(0.10, design.T().primary) if is_sel else "transparent",
+            bgcolor=ft.Colors.with_opacity(0.10, design.T().primary_fill) if is_sel else "transparent",
             border_radius=design.Radius.MD,
             border=(ft.Border.only(left=ft.BorderSide(3, design.T().primary))
                     if is_sel else None),
@@ -529,7 +529,7 @@ class MasterNotesView(ft.Column):
         ornament = ft.Row(
             [
                 ft.Container(expand=True, height=1, bgcolor=design.T().border),
-                ft.Container(content=ft.Icon(ft.Icons.STAR, size=11, color=design.T().primary),
+                ft.Container(content=ft.Icon(ft.Icons.STAR, size=11, color=design.T().primary_icon),
                              padding=ft.Padding.symmetric(horizontal=10)),
                 ft.Container(expand=True, height=1, bgcolor=design.T().border),
             ],
@@ -611,7 +611,7 @@ class MasterNotesView(ft.Column):
                     ft.OutlinedButton("Modifica", icon=ft.Icons.EDIT_OUTLINED,
                                        on_click=lambda e: self._on_note_start_edit()),
                     ft.Container(width=8),
-                    ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=design.T().primary,
+                    ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=design.T().primary_icon,
                                   icon_size=18, tooltip="Elimina",
                                   on_click=lambda e: self._on_note_delete()),
                 ],
@@ -696,6 +696,18 @@ class MasterNotesView(ft.Column):
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor="transparent", label_style=ft.TextStyle(color=design.T().text_3, size=11),
             border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'],
+            # Fix difensivo (2026-08-16, bug report Davide: menu semitrasparente
+            # nero) — il tema globale già imposta `dropdown_theme.menu_style`
+            # per OGNI Dropdown (`ui/theme.py`, commit 2026-08-15), ma questo
+            # dropdown vive in un dialog di condivisione nota aperto con
+            # `page.show_dialog()`: se per qualunque motivo runtime non eredita
+            # il tema di pagina, l'override esplicito qui sotto lo garantisce
+            # comunque, stesso identico stile del tema globale.
+            menu_style=ft.MenuStyle(
+                bgcolor=design.T().surface, shadow_color=design.T().shadow,
+                elevation=8, shape=ft.RoundedRectangleBorder(radius=design.Radius.SM),
+                side=ft.BorderSide(1, design.T().border),
+            ),
         )
 
         def _on_change(e: Any) -> None:
@@ -777,7 +789,7 @@ class MasterNotesView(ft.Column):
                     ft.ElevatedButton(
                         "Salva", icon=ft.Icons.SAVE_OUTLINED,
                         on_click=lambda e: self._on_note_save_edit(note),
-                        style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                        style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                     ),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -983,7 +995,7 @@ class MasterNotesView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         ))
@@ -1076,7 +1088,7 @@ class MasterNotesView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog() if page else None),
                 ft.ElevatedButton(
                     "Crea", icon=ft.Icons.ADD, on_click=save,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         ))

@@ -220,6 +220,13 @@ class MapsView(ft.Column):
         # intero, qualunque sia la dimensione di ciascuno.
         self._detail_box_size: list[float] = [0.0, 0.0]
         self._fs_box_size: list[float] = [0.0, 0.0]
+        #: Dimensione NATIVA dell'immagine della mappa aperta (2026-08-16,
+        #: fix disallineamento — vedi `geo.contain_rect()`): con
+        #: `fit=ft.BoxFit.CONTAIN` l'immagine occupa solo una PARTE del box
+        #: se l'aspect ratio non coincide, le coordinate normalizzate vanno
+        #: prese rispetto a quella parte, non all'intero riquadro. Popolata
+        #: in `_open_detail()`, azzerata in `_back_to_list()`.
+        self._img_size: list[float] = [0.0, 0.0]
 
         # ── Toolbar refs ────────────────────────────────────────────────
         self._swatch_refs:     list[ft.Container] = []
@@ -277,7 +284,7 @@ class MapsView(ft.Column):
                         "＋ Nuova Mappa", icon=ft.Icons.MAP,
                         on_click=lambda e: self._open_create_dialog(),
                         style=ft.ButtonStyle(
-                            bgcolor=design.T().primary, color=design.CHROME.text,
+                            bgcolor=design.T().primary_fill, color=design.CHROME.text,
                         ),
                     ),
                 ],
@@ -308,8 +315,8 @@ class MapsView(ft.Column):
             ft.ElevatedButton(
                 "Carica prima mappa", icon=ft.Icons.ADD_PHOTO_ALTERNATE,
                 on_click=lambda e: self._open_create_dialog(),
-                style=ft.ButtonStyle(bgcolor=design.T().primary,
-                                     color=design.T().on_primary),
+                style=ft.ButtonStyle(bgcolor=design.T().primary_fill,
+                                     color=design.T().on_primary_fill),
             ),
         )
 
@@ -365,7 +372,7 @@ class MapsView(ft.Column):
                                           icon_color=design.T().text_2),
                             ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_size=18,
                                           on_click=lambda e, m=gm: self._confirm_delete(m),
-                                          icon_color=design.T().primary),
+                                          icon_color=design.T().primary_icon),
                         ],
                         spacing=0,
                     ),
@@ -390,6 +397,15 @@ class MapsView(ft.Column):
         self._current_points.clear()
         self._eraser_cursor_pos = None
         self._current_gm = gm
+        self._img_size = [0.0, 0.0]
+        if gm.image_data:
+            try:
+                from PIL import Image as PILImage
+                import io
+                with PILImage.open(io.BytesIO(base64.b64decode(gm.image_data))) as _img:
+                    self._img_size[0], self._img_size[1] = float(_img.width), float(_img.height)
+            except Exception as e:
+                logger.debug("Lettura dimensioni immagine mappa fallita: %s", e)
 
         self.controls[-1] = ft.Container(expand=True, content=self._build_detail_panel(gm))
         try:
@@ -474,7 +490,7 @@ class MapsView(ft.Column):
                             ft.Row([ft.ElevatedButton(
                                 "Salva note", on_click=save_notes,
                                 style=ft.ButtonStyle(
-                                    bgcolor=design.T().primary, color=design.CHROME.text,
+                                    bgcolor=design.T().primary_fill, color=design.CHROME.text,
                                 ),
                             )], alignment=ft.MainAxisAlignment.END),
                         ],
@@ -526,6 +542,7 @@ class MapsView(ft.Column):
         self._strokes.clear()
         self._current_points.clear()
         self._eraser_cursor_pos = None
+        self._img_size = [0.0, 0.0]
         self._detail_canvas = None
         self._detail_draw_stack = None
         self._fs_draw_stack = None
@@ -550,6 +567,13 @@ class MapsView(ft.Column):
         commento su `self._detail_box_size` in `__init__`)."""
         box = self._fs_box_size if canvas is self._fs_canvas else self._detail_box_size
         return box[0], box[1]
+
+    def _draw_rect_for(self, canvas: cv.Canvas | None) -> tuple[float, float, float, float]:
+        """Rettangolo (`offset_x, offset_y, draw_w, draw_h`) effettivamente
+        occupato dall'immagine dentro il box di `canvas` dopo
+        `BoxFit.CONTAIN` — vedi `geo.contain_rect()` e `self._img_size`."""
+        box_w, box_h = self._box_size_for(canvas)
+        return geo.contain_rect(box_w, box_h, self._img_size[0], self._img_size[1])
 
     def _on_box_resize(self, is_fs: bool, e: ft.LayoutSizeChangeEvent):
         box = self._fs_box_size if is_fs else self._detail_box_size
@@ -577,7 +601,7 @@ class MapsView(ft.Column):
         che sta ricevendo la gesture in questo istante, nello stesso
         riquadro in cui sono stati generati.
         """
-        box_w, box_h = self._box_size_for(canvas)
+        ox, oy, dw, dh = self._draw_rect_for(canvas)
         shapes: list[cv.Shape] = []
 
         for stroke in self._strokes:
@@ -585,7 +609,7 @@ class MapsView(ft.Column):
             if stype != "stroke":
                 continue
 
-            pts = geo.denormalize_points(stroke.get("points", []), box_w, box_h)
+            pts = geo.denormalize_points(stroke.get("points", []), dw, dh, ox, oy)
             if len(pts) < 2:
                 continue
             elems: list = [cv.Path.MoveTo(pts[0][0], pts[0][1])]
@@ -700,12 +724,12 @@ class MapsView(ft.Column):
             return
         # pen
         if len(self._current_points) >= 2:
-            box_w, box_h = self._box_size_for(canvas)
+            ox, oy, dw, dh = self._draw_rect_for(canvas)
             self._strokes.append({
                 "type": "stroke",
                 "color": _PEN_COLORS[self._pen_color_idx],
                 "width": self._pen_width,
-                "points": geo.normalize_points(self._current_points, box_w, box_h),
+                "points": geo.normalize_points(self._current_points, dw, dh, ox, oy),
             })
             maps_repo.update_map(gm.id, annotations=json.dumps(self._strokes))
             gm.annotations = json.dumps(self._strokes)
@@ -727,13 +751,13 @@ class MapsView(ft.Column):
         riquadro prima del confronto di distanza, altrimenti la gomma
         cancellerebbe nel posto sbagliato ogni volta che il riquadro non ha
         la dimensione con cui il tratto fu disegnato."""
-        box_w, box_h = self._box_size_for(canvas)
+        ox, oy, dw, dh = self._draw_rect_for(canvas)
         radius = self._eraser_size / 2
         to_remove: list[int] = []
         for i, stroke in enumerate(self._strokes):
             if stroke.get("type") != "stroke":
                 continue
-            pts = geo.denormalize_points(stroke.get("points", []), box_w, box_h)
+            pts = geo.denormalize_points(stroke.get("points", []), dw, dh, ox, oy)
             for px, py in pts:
                 if math.hypot(px - x, py - y) <= radius:
                     to_remove.append(i)
@@ -761,7 +785,7 @@ class MapsView(ft.Column):
         riquadro corrente — i punti si denormalizzano prima del taglio e si
         rinormalizzano subito dopo, prima di salvare (`self._strokes` resta
         sempre in frazioni [0,1], mai un mix dei due formati)."""
-        box_w, box_h = self._box_size_for(canvas)
+        ox, oy, dw, dh = self._draw_rect_for(canvas)
         radius = self._eraser_size / 2
         new_strokes: list[dict] = []
         modified = False
@@ -770,7 +794,7 @@ class MapsView(ft.Column):
             if stroke.get("type") != "stroke":
                 continue
 
-            pts = geo.denormalize_points(stroke.get("points", []), box_w, box_h)
+            pts = geo.denormalize_points(stroke.get("points", []), dw, dh, ox, oy)
             color = stroke.get("color", _PEN_COLORS[0])
             width_s = stroke.get("width", 5.0)
 
@@ -790,7 +814,7 @@ class MapsView(ft.Column):
                             "type": "stroke",
                             "color": color,
                             "width": width_s,
-                            "points": geo.normalize_points(sub_pts, box_w, box_h),
+                            "points": geo.normalize_points(sub_pts, dw, dh, ox, oy),
                         })
 
         if modified:
@@ -965,8 +989,8 @@ class MapsView(ft.Column):
 
     @staticmethod
     def _style_mode_btn(btn: ft.Container, sel: bool) -> None:
-        btn.bgcolor = design.T().primary if sel else "transparent"
-        fg = design.T().on_primary if sel else design.CHROME.text_muted
+        btn.bgcolor = design.T().primary_fill if sel else "transparent"
+        fg = design.T().on_primary_fill if sel else design.CHROME.text_muted
         for c in getattr(btn.content, "controls", []):
             c.color = fg
 
@@ -980,7 +1004,7 @@ class MapsView(ft.Column):
 
     @staticmethod
     def _style_ersub_btn(btn: ft.Container, sel: bool) -> None:
-        btn.bgcolor = design.T().primary if sel else design.CHROME.btn
+        btn.bgcolor = design.T().primary_fill if sel else design.CHROME.btn
         btn.border = None
         if btn.content:
             cast(ft.Text, btn.content).color = (
@@ -1017,7 +1041,7 @@ class MapsView(ft.Column):
                     _slider_label("LARGHEZZA"),
                     ft.Slider(
                         min=1, max=30, value=self._pen_width, divisions=29,
-                        active_color=design.T().primary, thumb_color=design.CHROME.text,
+                        active_color=design.T().primary_fill, thumb_color=design.CHROME.text,
                         inactive_color=design.CHROME.border, expand=True, height=32,
                         on_change=lambda e: self._on_pen_width_change(e, gm),
                     ),
@@ -1348,7 +1372,7 @@ class MapsView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Salva", on_click=on_save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=design.CHROME.text)),
+                                      bgcolor=design.T().primary_fill, color=design.CHROME.text)),
             ]),
         ))
 
@@ -1462,7 +1486,7 @@ class MapsView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Salva", on_click=on_save,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=design.CHROME.text)),
+                                      bgcolor=design.T().primary_fill, color=design.CHROME.text)),
             ]),
         ))
 
@@ -1490,7 +1514,7 @@ class MapsView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary, color=design.CHROME.text)),
+                                      bgcolor=design.T().primary_fill, color=design.CHROME.text)),
             ]),
         ))
 

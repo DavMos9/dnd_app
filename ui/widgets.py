@@ -677,7 +677,7 @@ def spell_card_options(spells: list[dict]) -> list[dict[str, str]]:
         opts.append({
             "key": name, "title": name, "body": format_spell_body(s),
             "badge": "0" if level == 0 else f"Lv{level}",
-            "badge_color": design.T().magic if level == 0 else design.T().primary,
+            "badge_color": design.T().magic if level == 0 else design.T().primary_fill,
         })
     return opts
 

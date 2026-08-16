@@ -592,7 +592,7 @@ class SpellsView(ScrollMemoryListView):
                         f"Lv{level}" if level > 0 else "0",
                         size=10, color=design.T().on_accent, weight=ft.FontWeight.BOLD,
                     ),
-                    bgcolor=design.T().magic if level == 0 else design.T().primary,
+                    bgcolor=design.T().magic if level == 0 else design.T().primary_fill,
                     padding=ft.Padding.symmetric(horizontal=6, vertical=3),
                     border_radius=design.Radius.SM,
                 ),
@@ -1951,7 +1951,7 @@ class SpellsView(ScrollMemoryListView):
                     ),
                     ft.IconButton(
                         ft.Icons.DELETE_OUTLINE, icon_size=18,
-                        icon_color=design.T().primary,
+                        icon_color=design.T().primary_icon,
                         tooltip="Rimuovi incantesimo bonus",
                         on_click=_remove,
                     ),
@@ -2115,7 +2115,7 @@ class SpellsView(ScrollMemoryListView):
         return ft.Container(
             content=ft.Column([
                 ft.Row([
-                    ft.Icon(ft.Icons.AUTO_AWESOME, size=16, color=design.T().primary),
+                    ft.Icon(ft.Icons.AUTO_AWESOME, size=16, color=design.T().primary_icon),
                     ft.Text(
                         f"Da tratto di razza — CD {dc} (8 + comp. {pb:+d} + CAR {cha_mod:+d}), "
                         f"sempre attivi indipendentemente dalla classe.",

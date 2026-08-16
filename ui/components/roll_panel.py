@@ -128,7 +128,7 @@ class RollPanel:
 
         header = ft.Row(
             [
-                ft.Icon(ft.Icons.CASINO, size=16, color=p.primary),
+                ft.Icon(ft.Icons.CASINO, size=16, color=p.primary_icon),
                 ft.Container(width=d.Space.SM),
                 ft.Container(
                     content=ft.Text(spec.label, size=d.Size.BODY_SM,
@@ -294,7 +294,7 @@ def roll_button(spec_factory: Callable[[], RollSpec | None],
     return ft.IconButton(
         ft.Icons.CASINO_OUTLINED,
         icon_size=icon_size,
-        icon_color=color or d.T().primary,
+        icon_color=color or d.T().primary_icon,
         tooltip=tooltip or "Tira",
         on_click=_do,
         padding=ft.Padding.all(2),

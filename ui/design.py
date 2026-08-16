@@ -128,8 +128,19 @@ class Palette:
       * `text` ≥ 14:1 su ogni superficie (AAA)
       * `text_2` ≥ 6.4:1 (AA/AAA)
       * `text_3` ≥ 4.7:1 (AA anche per testo piccolo)
-      * ogni accento ≥ 4.5:1 sulla superficie su cui viene scritto
-      * `on_primary` ≥ 4.5:1 sul rispettivo accento pieno
+      * `on_primary`/`on_primary_fill` ≥ 4.5:1 sul rispettivo accento pieno
+
+    Il rosso (`primary`/`danger`, alias tra loro) dal 2026-08-15 è su TRE
+    livelli, non uno solo — usare quello sbagliato o rompe la leggibilità
+    o resta più chiaro del necessario (dettaglio/storia in
+    `docs/changelog_storico.md`, cerca "ottavo giro"):
+      * `primary`/`danger` ≥ 4.5:1 — testo scorrevole, paragrafi, etichette
+      * `primary_icon`/`danger_icon` ≥ 3:1 — SOLO icone isolate e testo
+        grande/bold ≥18pt (WCAG 1.4.11/1.4.3 "large text/graphical
+        object"), più scuro del testo normale
+      * `primary_fill`/`danger_fill` — SOLO riempimenti pieni (bottoni/
+        badge/checkbox), sempre con `on_primary_fill` sopra, nessun vincolo
+        di contrasto proprio perché non compare mai da solo su `surface`/`bg`
     """
     name: str
     is_dark: bool
@@ -152,6 +163,29 @@ class Palette:
     alert: str           # gradino tra `warning` e `danger` (vedi difficulty_color)
     danger: str
     on_accent: str       # testo su success/warning/magic pieni
+
+    # 2026-08-15 — SOLO per riempimenti pieni (bottoni/badge/checkbox), MAI
+    # per testo/icona/bordo scritti direttamente su `surface`/`bg`: `primary`
+    # deve restare leggibile da solo (usato così in 325 punti di `ui/`, audit
+    # 2026-08-15), quindi in dark mode non può essere scuro quanto un vero
+    # bordeaux. `primary_fill` invece ha sempre `on_primary_fill` sopra, può
+    # essere scuro quanto serve. In light mode sono alias di `primary`/
+    # `on_primary` — il rosso chiaro non ha questo problema.
+    primary_fill: str
+    on_primary_fill: str
+    danger_fill: str     # come `primary_fill`, per i call site che riempiono con `danger`
+
+    # 2026-08-15, ottavo giro — via di mezzo tra `primary` (testo scorrevole,
+    # serve 4.5:1) e `primary_fill` (mai da solo, nessun vincolo): icone
+    # isolate (IconButton "Elimina"/"Avvia scheda", ecc.) e testo grande/
+    # bold (titolo "D&D", ≥18pt bold) ricadono nella soglia WCAG "large
+    # text / graphical object" — 3:1, non 4.5:1 (1.4.11/1.4.3) — quindi
+    # possono essere più scuri di `primary` restando comunque conformi.
+    # MAI per paragrafi/etichette di testo normale: lì serve `primary`.
+    # In light mode alias di `primary` (il rosso chiaro non ha soglie
+    # diverse da rispettare).
+    primary_icon: str
+    danger_icon: str
 
     # Fondi tenui per i riquadri informativi (Fase B.2): prima erano 6 hex
     # diversi sparsi nelle view (#fef9ec, #e8eef8, #eef4ff, #dce8f8, #d4edda…),
@@ -186,6 +220,8 @@ LIGHT = Palette(
     primary="#a4161a", on_primary="#ffffff",
     magic="#2f4b8f", success="#1f6b3a", warning="#a35a00", alert="#b8420a",
     danger="#a4161a", on_accent="#ffffff",
+    primary_fill="#a4161a", on_primary_fill="#ffffff", danger_fill="#a4161a",
+    primary_icon="#a4161a", danger_icon="#a4161a",
     note_bg="#fdf6e6", info_bg="#e9eff9", success_bg="#e2efe5",
     parchment="#fffef6", parchment_alt="#f7f2e8",
     nav_bg="#1a0d0d", nav_bg_alt="#3a1010", nav_border="#3a2828",
@@ -207,13 +243,30 @@ DARK = Palette(
     bg="#161617", bg_alt="#1d1c1e",
     # Superficie riavvicinata a `bg` (1.10:1 → 1.02:1, quasi lo stesso salto
     # di prima) e accenti desaturati/scuriti — bug report Davide, primo giro:
-    # pannelli troppo "accesi" e colori troppo fluo. Tutti i rapporti di
-    # contrasto sotto sono ricalcolati (WCAG relative luminance), non a
-    # occhio, per restare sopra le soglie documentate nel docstring della
-    # classe: `border` resta sullo stesso scarto relativo a `surface` di
-    # prima (1.54:1 circa) — è l'unico segnale rimasto per i bordi delle
-    # card, ridurlo lo avrebbe reso invisibile.
-    surface="#181818", surface_alt="#232224", border="#3e3d41",
+    # pannelli troppo "accesi" e colori troppo fluo. `border` resta sullo
+    # stesso scarto relativo di prima — è l'unico segnale rimasto per i
+    # bordi delle card, ridurlo lo avrebbe reso invisibile.
+    #
+    # 2026-08-15, quinto giro — bug report Davide con screenshot reale: la
+    # barra header (HomeView) e le card personaggio (entrambe su
+    # `bgcolor=p.surface`, vedi `home_view.py`/`design.card()`) leggevano
+    # ancora "troppo luminose" rispetto al corpo pagina, anche col rapporto
+    # di contrasto surface/bg già sceso a 1.02:1 nel giro precedente: un
+    # rapporto WCAG basso non garantisce che due riquadri PIENI affiancati
+    # sembrino uguali all'occhio (simultaneous contrast) — la formula WCAG
+    # misura leggibilità del testo, non l'uniformità percepita tra due
+    # campiture. Portati a coincidere esattamente con `bg`/`bg_alt` per
+    # eliminare del tutto la dominante di quel giro (blu/viola).
+    #
+    # 2026-08-15, settimo giro — Davide: la fusione totale andava bene ma
+    # voleva un "leggero distacco" tra card/header e fondo pagina, con un
+    # GRIGIO puro (0% saturazione — non una tinta, come lo erano tutti i
+    # tentativi precedenti) invece di nessuna differenza. `surface`/
+    # `surface_alt` ora sono grigio neutro puro, un gradino sopra `bg`/
+    # `bg_alt` (1.08:1/1.11:1 — percettibile ma minimo, niente "glow"):
+    # non derivano più da `bg` per costruzione, sono valori indipendenti
+    # apposta per restare desaturati anche se `bg` cambiasse in futuro.
+    surface="#1e1e1e", surface_alt="#242424", border="#3e3d41",
     text="#f0ece4", text_2="#c2bcae", text_3="#9c94a8",
     # 2026-08-15, quarto giro — bug report Davide: il rosso corallo non
     # piaceva (voleva un bordeaux vino, #8d2132 poi #761c2a — entrambi
@@ -225,21 +278,56 @@ DARK = Palette(
     # la saturazione HSL non è percettivamente uniforme, portare la
     # lightness da 0.34 (l'hex di Davide) a 0.59 per la leggibilità
     # smorza la resa visiva anche a saturazione HSL invariata. Ricalcolato
-    # in **OKLCH** (croma percettivo, non HSL) sulla tonalità dei due hex
-    # di Davide (H≈17° OKLCH): stesso minimo di luminosità per 4.5:1 su
-    # `surface`, ma croma alto (0.18) invece che vincolato dalla
-    # saturazione HSL — risultato visivamente più vivo/saturo a parità di
-    # leggibilità. `on_primary` resta testo scuro sopra (Material 3, come
-    # sopra).
-    primary="#e04f61", on_primary="#241012",
+    # in OKLCH (croma percettivo, non HSL) sulla tonalità dei due hex di
+    # Davide (H≈17° OKLCH) → `#e04f61`.
+    #
+    # 2026-08-15, settimo giro — dopo l'introduzione di `primary_fill` per
+    # il bordeaux vero (sesto giro, sotto), Davide: i pulsanti vanno bene
+    # così, ma anche il testo rosso resta troppo chiaro, va scurito. Stesso
+    # vincolo tecnico di sempre (325 usi testo/icona/bordo, servono ≥4.5:1)
+    # ma stavolta calcolato contro il **peggiore dei due** fondi su cui
+    # questo testo può comparire — `surface` (ora più chiaro di `bg`, vedi
+    # sopra) è il vincolo binante, non `bg` come nei giri precedenti: un
+    # primo calcolo fatto solo contro `bg` (`#d35561`) risultava sotto
+    # soglia su `surface` (4.16:1) e andava scartato. Ricalcolato in OKLCH
+    # contro ENTRAMBI → `#da5b67`, croma 0.16 (contro 0.18 di `#e04f61`) —
+    # percettibilmente più scuro/meno acceso, margine minimo ma sopra
+    # soglia su entrambi (4.50 su surface, 4.89 su bg). Limite tecnico:
+    # non si può scurire oltre restando sia "rosso" (non grigio-mauve) sia
+    # leggibile da solo su entrambi i fondi.
+    primary="#da5b67", on_primary="#241012",
     magic="#7897db", success="#4ec27f", warning="#bd8c32", alert="#d57d40",
-    danger="#e04f61", on_accent="#161617",
+    danger="#da5b67", on_accent="#161617",
+    # 2026-08-15, sesto giro — Davide, dopo tre schiariture successive di
+    # `primary` (tutte respinte, "non corrisponde a quello visto online"):
+    # nessuna schiaritura di un bordeaux può bastare, perché la richiesta
+    # ("bordeaux vino scuro") e il vincolo di leggibilità testo (≥4.5:1 su
+    # `surface` quasi-nera) sono in conflitto diretto per costruzione — non
+    # esiste una tinta che sia insieme "scura come il vino" e "chiara
+    # abbastanza da leggersi da sola sul nero". Sdoppiato come preannunciato:
+    # `primary_fill` è il bordeaux vero di Davide (ultimo hex indicato,
+    # `#761c2a`), usato SOLO nei ~141 punti di riempimento (bottoni/badge/
+    # checkbox) dove sopra c'è sempre `on_primary_fill` (bianco, 10.7:1 di
+    # contrasto) — mai da solo su `surface`/`bg`. `primary` resta `#e04f61`
+    # per i 325 punti testo/icona/bordo, invariato.
+    primary_fill="#761c2a", on_primary_fill="#ffffff", danger_fill="#761c2a",
+    # 2026-08-15, ottavo giro — Davide: anche icone isolate (bottoni
+    # "Elimina scheda"/"Avvia scheda" in home_view.py, ecc.) e il titolo
+    # "D&D" (48px bold) restano "troppo chiari", li vuole vicini al
+    # bordeaux dei pulsanti. Non possono usare `primary_fill` (1.7:1 su
+    # `surface`, illeggibile da soli) ma non serve nemmeno il 4.5:1 di
+    # `primary`: WCAG 1.4.11/1.4.3 richiedono solo 3:1 per icone isolate e
+    # testo grande/bold — via di mezzo calcolata in OKLCH sullo stesso hue
+    # (H≈17°), croma 0.17, fino al minimo che regge 3:1 su ENTRAMBI i
+    # fondi (3.08 su surface, 3.34 su bg — margine minimo voluto sopra il
+    # pavimento esatto 3.00, non sotto).
+    primary_icon="#bf384b", danger_icon="#bf384b",
     # I fondi tenui in dark non possono essere "chiari": sono la superficie
     # alternativa leggermente tinta verso l'accento corrispondente.
     note_bg="#1d1b14", info_bg="#1d2029", success_bg="#17201b",
-    parchment="#181818", parchment_alt="#232224",
+    parchment="#1e1e1e", parchment_alt="#242424",
     nav_bg="#101010", nav_bg_alt="#2a1418", nav_border="#2c2c2e",
-    nav_text="#f0ece4", nav_muted="#8e8799", nav_accent="#e04f61",
+    nav_text="#f0ece4", nav_muted="#8e8799", nav_accent="#da5b67",
     shadow="#000000", shadow_opacity=(0.45, 0.55, 0.65),
 )
 
@@ -465,7 +553,7 @@ def section(title_text: str, content: ft.Control, *,
     """Sezione con intestazione — sostituisce `section_header()` + Column manuale."""
     p = T()
     head: list[ft.Control] = [
-        ft.Container(width=3, height=14, bgcolor=accent or p.primary,
+        ft.Container(width=3, height=14, bgcolor=accent or p.primary_fill,
                      border_radius=Radius.SM),
         ft.Container(width=Space.SM),
         ft.Text(title_text.upper(), size=Size.LABEL, weight=ft.FontWeight.BOLD,
@@ -522,7 +610,7 @@ def collapsible_section(
     """
     p = T()
     header_children: list[ft.Control] = [
-        ft.Container(width=3, height=14, bgcolor=accent or p.primary,
+        ft.Container(width=3, height=14, bgcolor=accent or p.primary_fill,
                      border_radius=Radius.SM),
         ft.Container(width=Space.SM),
     ]
@@ -631,6 +719,33 @@ def chip(text: str, tone: Tone = "neutral", *, icon: ft.IconData | None = None,
         padding=ft.Padding.symmetric(horizontal=Space.SM, vertical=3),
         bgcolor=col if filled else ft.Colors.with_opacity(0.12, col),
         border_radius=Radius.PILL,
+    )
+
+
+#: Stati di `RemoteBackend.connection_state()` (`core/world_backend.py`)
+#: considerati "online" — solo `"connected"` mostra il LED verde, ogni altro
+#: valore (`disconnected|pending|rejected|error`) mostra rosso: un giocatore
+#: deve poter fidarsi del verde senza dover distinguere le sfumature del
+#: perché non è connesso.
+_CONNECTION_OK_STATES = {"connected"}
+
+
+def connection_led(state: str, *, tooltip: str | None = None) -> ft.Container:
+    """
+    Pallino di stato connessione (richiesta di Davide, 2026-08-16: "il
+    player sa sempre se è sincronizzato o se l'hosting si è interrotto",
+    senza dover aprire la Sezione Mondi) — verde/rosso, riusato identico in
+    Home (`home_view.py`, un LED per gruppo-mondo remoto), sulla scheda
+    personaggio (`sheet_view.py`, header, solo lato giocatore/replica) e nel
+    dettaglio Sezione Mondi (`world_view.py`, accanto al pulsante
+    "Riconnettiti").
+    """
+    p = T()
+    online = state in _CONNECTION_OK_STATES
+    col = p.success if online else p.danger
+    return ft.Container(
+        width=9, height=9, border_radius=Radius.PILL, bgcolor=col,
+        tooltip=tooltip or ("Sincronizzato" if online else "Non connesso all'host"),
     )
 
 

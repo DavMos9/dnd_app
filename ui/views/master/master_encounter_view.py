@@ -344,7 +344,7 @@ class MasterEncounterView(ft.Column):
                             ft.ElevatedButton(
                                 "Prossimo Turno", icon=ft.Icons.SKIP_NEXT,
                                 on_click=self._on_next_turn_click,
-                                style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                                style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                             ),
                         ],
                         spacing=8, wrap=True,
@@ -429,7 +429,7 @@ class MasterEncounterView(ft.Column):
                     [
                         ft.IconButton(
                             ft.Icons.FAVORITE_BORDER, icon_size=16,
-                            icon_color=design.T().text_3 if on_cd else design.T().danger,
+                            icon_color=design.T().text_3 if on_cd else design.T().danger_icon,
                             tooltip=f"Aspetta{cd_suffix}" if on_cd else "Applica danno",
                             disabled=on_cd,
                             on_click=(None if on_cd else
@@ -437,7 +437,7 @@ class MasterEncounterView(ft.Column):
                         ),
                         ft.IconButton(
                             ft.Icons.HEALING, icon_size=16,
-                            icon_color=design.T().text_3 if on_cd else design.T().primary,
+                            icon_color=design.T().text_3 if on_cd else design.T().primary_icon,
                             tooltip=f"Aspetta{cd_suffix}" if on_cd else "Applica cura",
                             disabled=on_cd,
                             on_click=(None if on_cd else
@@ -524,7 +524,7 @@ class MasterEncounterView(ft.Column):
                                              color=design.T().on_primary if is_current else design.T().text,
                                              text_align=ft.TextAlign.CENTER),
                             width=38, height=38, alignment=ft.Alignment.CENTER,
-                            bgcolor=design.T().primary if is_current else design.T().surface_alt,
+                            bgcolor=design.T().primary_fill if is_current else design.T().surface_alt,
                             border_radius=design.Radius.PILL,
                             shadow=design.elevation(1) if is_current else None,
                             on_click=lambda e, mm=m: self._on_edit_initiative(mm),
@@ -782,7 +782,7 @@ class MasterEncounterView(ft.Column):
         sections.append(ft.Row(
             [
                 ft.Container(content=formula_tf, expand=True),
-                ft.IconButton(ft.Icons.CASINO, icon_color=design.T().primary,
+                ft.IconButton(ft.Icons.CASINO, icon_color=design.T().primary_icon,
                               tooltip="Tira", on_click=_on_custom_roll),
             ],
             spacing=8,
@@ -812,7 +812,7 @@ class MasterEncounterView(ft.Column):
             [
                 ft.Switch(
                     value=enc.visible_to_players,
-                    active_color=design.T().primary,
+                    active_color=design.T().primary_fill,
                     on_change=self._on_toggle_visibility,
                 ),
                 ft.Text(
@@ -907,7 +907,7 @@ class MasterEncounterView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Termina", icon=ft.Icons.FLAG, on_click=_do_end,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )
@@ -982,8 +982,8 @@ class MasterEncounterView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton(
                     "Tira", icon=ft.Icons.CASINO_OUTLINED, on_click=_do_roll,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary,
-                                         color=design.T().on_primary),
+                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill,
+                                         color=design.T().on_primary_fill),
                 ),
             ]),
         ))
@@ -1448,7 +1448,7 @@ class MasterEncounterView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Salva", icon=ft.Icons.SAVE, on_click=_do_save,
-                                   style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                                   style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         )
         page.show_dialog(dlg)
@@ -1625,7 +1625,7 @@ class MasterEncounterView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
-                                   style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                                   style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         )
         page.show_dialog(dlg)
@@ -1671,7 +1671,7 @@ class MasterEncounterView(ft.Column):
 
             show_monster_picker(
                 page, "Mostro dal Bestiario", pool, existing_names=set(), on_select=_on_select,
-                select_label="Aggiungi all'incontro", select_color=design.T().primary,
+                select_label="Aggiungi all'incontro", select_color=design.T().primary_fill,
             )
 
         dlg = ft.AlertDialog(
@@ -1692,7 +1692,7 @@ class MasterEncounterView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Scegli Mostro...", icon=ft.Icons.MENU_BOOK_OUTLINED, on_click=_open_picker,
-                                   style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                                   style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         )
         page.show_dialog(dlg)
@@ -1753,7 +1753,7 @@ class MasterEncounterView(ft.Column):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog()),
                 ft.ElevatedButton("Aggiungi", icon=ft.Icons.ADD, on_click=_do_add,
-                                   style=ft.ButtonStyle(bgcolor=design.T().primary, color=design.T().on_primary)),
+                                   style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
             ]),
         )
         page.show_dialog(dlg)

@@ -108,7 +108,7 @@ def show_character_import_picker(page: ft.Page, on_select: Callable[[str], None]
             level_part = f" · Liv. {info['level']}" if info.get("level") else ""
             subtitle = f"{info.get('class_name', '')}{level_part}  ·  {info.get('race', '')}".strip(" ·")
             title_text = info.get("name") or name
-            icon = ft.Icon(ft.Icons.PERSON, color=design.T().primary, size=24)
+            icon = ft.Icon(ft.Icons.PERSON, color=design.T().primary_icon, size=24)
             clickable = True
         else:
             title_text = name
@@ -134,7 +134,7 @@ def show_character_import_picker(page: ft.Page, on_select: Callable[[str], None]
             ] + ([
                 ft.IconButton(
                     ft.Icons.DOWNLOAD_OUTLINED, icon_size=22,
-                    icon_color=design.T().primary,
+                    icon_color=design.T().primary_icon,
                     tooltip="Importa questo personaggio",
                     on_click=lambda e, p=path: _select(p),
                 ),

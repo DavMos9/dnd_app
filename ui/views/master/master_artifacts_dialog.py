@@ -67,7 +67,7 @@ def show_artifacts_dialog(page: ft.Page, world_id: str = "") -> None:
                             color=p.on_primary if active else p.text_2,
                             font_family=design.Font.BODY),
             padding=ft.Padding.symmetric(horizontal=14, vertical=7),
-            bgcolor=p.primary if active else "transparent",
+            bgcolor=p.primary_fill if active else "transparent",
             border_radius=design.Radius.PILL,
             on_click=lambda e, k=key: _switch(k),
             ink=True,

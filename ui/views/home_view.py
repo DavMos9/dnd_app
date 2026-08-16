@@ -111,6 +111,10 @@ class HomeView(ft.Column):
         self.backend = LocalBackend()
         self._remote_backends: dict[str, RemoteBackend] = {}
         self._world_sync_loop: BackgroundSyncLoop | None = None
+        #: Ultimo `RemoteBackend.connection_state()` osservato per ogni
+        #: mondo remoto (2026-08-16) — alimenta il LED di `_section_label`,
+        #: aggiornato ad ogni giro di `_start_world_sync`.
+        self._world_connection_states: dict[str, str] = {}
 
         # NOTA: il timer anti-spam di `_push_instance_to_host()` NON vive
         # come attributo di istanza qui (stesso bug/fix di `WorldsView`,
@@ -232,10 +236,17 @@ class HomeView(ft.Column):
                     world, self.device_id or "", self.backend, self._remote_backends,
                 )
                 if backend is not None:
+                    if isinstance(backend, RemoteBackend):
+                        self._world_connection_states[world_id] = backend.connection_state()
                     world_sync.sync_replica(backend, world_id)
+                else:
+                    self._world_connection_states[world_id] = "disconnected"
 
         def _signature() -> str | None:
-            return self._list_signature(character_repo.get_all())
+            conn_sig = "|".join(
+                f"{wid}:{state}" for wid, state in sorted(self._world_connection_states.items())
+            )
+            return f"{self._list_signature(character_repo.get_all())}|{conn_sig}"
 
         async def _redraw() -> None:
             page = self.page
@@ -300,7 +311,7 @@ class HomeView(ft.Column):
         logo_widget = ft.Column(
             [
                 ft.Text("D&D", size=48, weight=ft.FontWeight.BOLD,
-                        color=p.primary, font_family=d.Font.DISPLAY),
+                        color=p.primary_icon, font_family=d.Font.DISPLAY),
                 ft.Text("COMPANION", size=d.Size.LABEL, weight=ft.FontWeight.BOLD,
                         color=p.text_3, font_family=d.Font.BODY,
                         style=ft.TextStyle(letter_spacing=4)),
@@ -362,8 +373,8 @@ class HomeView(ft.Column):
             icon=ft.Icons.ADD,
             on_click=self._on_new_click,
             style=ft.ButtonStyle(
-                bgcolor=p.primary,
-                color=p.on_primary,
+                bgcolor=p.primary_fill,
+                color=p.on_primary_fill,
                 shape=ft.RoundedRectangleBorder(radius=d.Radius.PILL),
                 padding=ft.Padding.symmetric(horizontal=d.Space.LG,
                                              vertical=d.Space.MD),
@@ -506,7 +517,11 @@ class HomeView(ft.Column):
                         world = next((w for w in available_worlds if w.id == world_id), None)
                         if world is None:
                             continue
-                        self._char_list_column.controls.append(self._section_label(world.name))
+                        conn_state = (None if world.is_local_host
+                                      else self._world_connection_states.get(world_id, "connected"))
+                        self._char_list_column.controls.append(
+                            self._section_label(world.name, connection_state=conn_state)
+                        )
                         for char in by_world[world_id]:
                             self._char_list_column.controls.append(
                                 self._character_card(char, is_instance=True)
@@ -547,19 +562,27 @@ class HomeView(ft.Column):
             return True
 
     @staticmethod
-    def _section_label(text: str) -> ft.Control:
+    def _section_label(text: str, connection_state: str | None = None) -> ft.Control:
         """Intestazione di sezione leggera per il raggruppamento per mondo —
         non `design.section()` (pensato per pannelli a sé, troppo pesante
-        ripetuto più volte in una lista che scorre)."""
+        ripetuto più volte in una lista che scorre).
+
+        `connection_state` (2026-08-16, richiesta di Davide — vedi
+        `design.connection_led`): passato solo per un gruppo-mondo REMOTO
+        (non per "Non in un mondo"/"Rimossi dai mondi"), mostra il LED
+        verde/rosso aggiornato ad ogni giro di `_start_world_sync`."""
         p = d.T()
+        row_children: list[ft.Control] = [
+            ft.Icon(ft.Icons.PUBLIC, size=13, color=p.magic),
+            ft.Text(text.upper(), size=d.Size.LABEL, weight=ft.FontWeight.BOLD,
+                    color=p.text_2, font_family=d.Font.BODY,
+                    style=ft.TextStyle(letter_spacing=1.5)),
+        ]
+        if connection_state is not None:
+            row_children.append(d.connection_led(connection_state))
         return ft.Container(
             content=ft.Row(
-                [
-                    ft.Icon(ft.Icons.PUBLIC, size=13, color=p.magic),
-                    ft.Text(text.upper(), size=d.Size.LABEL, weight=ft.FontWeight.BOLD,
-                            color=p.text_2, font_family=d.Font.BODY,
-                            style=ft.TextStyle(letter_spacing=1.5)),
-                ],
+                row_children,
                 spacing=d.Space.XS,
             ),
             padding=ft.Padding.only(top=d.Space.SM, bottom=d.Space.XS, left=d.Space.XS),
@@ -642,7 +665,7 @@ class HomeView(ft.Column):
         )
 
         action_controls: list[ft.Control] = [
-            ft.IconButton(icon=ft.Icons.PLAY_CIRCLE_FILL, icon_color=p.primary,
+            ft.IconButton(icon=ft.Icons.PLAY_CIRCLE_FILL, icon_color=p.primary_icon,
                           icon_size=30, tooltip="Gioca con questo personaggio",
                           on_click=lambda e, cid=char.id: self.on_select(cid)),
         ]
@@ -675,7 +698,7 @@ class HomeView(ft.Column):
             ft.IconButton(icon=ft.Icons.IOS_SHARE, icon_color=p.text_3,
                           tooltip="Esporta personaggio (file .dndchar)",
                           on_click=lambda e, c=char: self._on_export_click(c)),
-            ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=p.danger,
+            ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=p.danger_icon,
                           tooltip="Elimina personaggio",
                           on_click=lambda e, c=char: self._confirm_delete(c)),
         ]
@@ -1160,7 +1183,7 @@ class HomeView(ft.Column):
                     icon=ft.Icons.DELETE,
                     on_click=lambda e: self._do_delete(dlg, char.id),
                     style=ft.ButtonStyle(
-                        bgcolor=d.T().danger,
+                        bgcolor=d.T().danger_fill,
                         color=d.T().text,
                     ),
                 ),
@@ -1311,7 +1334,7 @@ class HomeView(ft.Column):
                     "Esporta comunque",
                     icon=ft.Icons.WARNING_AMBER_ROUNDED,
                     on_click=lambda e: self._confirm_export_proceed(char),
-                    style=ft.ButtonStyle(bgcolor=d.T().danger, color=d.T().text),
+                    style=ft.ButtonStyle(bgcolor=d.T().danger_fill, color=d.T().text),
                 ),
             ]),
         )
@@ -1924,7 +1947,7 @@ class HomeView(ft.Column):
                     "Importa comunque",
                     icon=ft.Icons.WARNING_AMBER_ROUNDED,
                     on_click=lambda e: self._confirm_import_world_linked(data, summary),
-                    style=ft.ButtonStyle(bgcolor=d.T().danger, color=d.T().text),
+                    style=ft.ButtonStyle(bgcolor=d.T().danger_fill, color=d.T().text),
                 ),
             ]),
         )
@@ -1990,7 +2013,7 @@ class HomeView(ft.Column):
                     icon=ft.Icons.WARNING_AMBER_ROUNDED,
                     on_click=lambda e: self._confirm_import(data, "overwrite"),
                     style=ft.ButtonStyle(
-                        bgcolor=d.T().danger,
+                        bgcolor=d.T().danger_fill,
                         color=d.T().text,
                     ),
                 ),

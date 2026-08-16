@@ -1896,8 +1896,8 @@ class WizardView(CreationSharedMixin, ft.Column):
                 cb = ft.Checkbox(
                     label=skill,
                     value=skill in self._review_skills,
-                    fill_color=design.T().primary,
-                    check_color=design.T().on_primary,
+                    fill_color=design.T().primary_fill,
+                    check_color=design.T().on_primary_fill,
                     label_style=ft.TextStyle(size=12, color=design.T().text),
                     on_change=lambda e, s=skill: _on_skill_toggle(s, bool(e.control.value)),
                 )
@@ -2841,8 +2841,8 @@ class WizardView(CreationSharedMixin, ft.Column):
                     cb = ft.Checkbox(
                         label=label,
                         value=item["selected"],
-                        fill_color=design.T().primary,
-                        check_color=design.T().on_primary,
+                        fill_color=design.T().primary_fill,
+                        check_color=design.T().on_primary_fill,
                         label_style=ft.TextStyle(size=13, color=design.T().text),
                         on_change=lambda e, it=item: it.update({"selected": bool(e.control.value)}),
                     )

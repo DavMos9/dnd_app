@@ -485,8 +485,8 @@ def show_monster_picker(
             btn_label, icon=ft.Icons.CHECK if already else ft.Icons.ADD, disabled=already,
             on_click=_do_select,
             style=ft.ButtonStyle(
-                bgcolor=(select_color or design.T().primary) if not already else None,
-                color=design.T().on_primary if not already else design.T().text_3,
+                bgcolor=(select_color or design.T().primary_fill) if not already else None,
+                color=design.T().on_primary_fill if not already else design.T().text_3,
             ),
         )
         dlg.content = ft.Container(content=build_stat_block_column(m), height=480, width=responsive_dialog_width(page, 340))

@@ -56,7 +56,7 @@ def show_damage_dialog(page: ft.Page, character_name: str, on_confirm: OnConfirm
             ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog(),
                           style=ft.ButtonStyle(color=design.T().text_2)),
             ft.ElevatedButton("Conferma", icon=ft.Icons.CHECK, on_click=_confirm,
-                               style=ft.ButtonStyle(bgcolor=design.T().danger,
+                               style=ft.ButtonStyle(bgcolor=design.T().danger_fill,
                                                     color=design.T().on_accent)),
         ]),
     ))
@@ -88,8 +88,8 @@ def show_heal_dialog(page: ft.Page, character_name: str, on_confirm: OnConfirm) 
             ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog(),
                           style=ft.ButtonStyle(color=design.T().text_2)),
             ft.ElevatedButton("Conferma", icon=ft.Icons.CHECK, on_click=_confirm,
-                               style=ft.ButtonStyle(bgcolor=design.T().primary,
-                                                    color=design.T().on_primary)),
+                               style=ft.ButtonStyle(bgcolor=design.T().primary_fill,
+                                                    color=design.T().on_primary_fill)),
         ]),
     ))
 
