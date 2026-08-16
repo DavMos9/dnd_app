@@ -34,12 +34,23 @@ from typing import Any, cast
 
 from data.models import Character, DiaryEntry, CampaignNote, MasterCampaignNote
 import data.repositories.character_repo as character_repo
-from data.repositories import master_repo
+from data.repositories import master_repo, world_repo
+from core import world_sync
+from core.world_backend import LocalBackend, RemoteBackend
 from ui import design
+from ui.components.background_sync import BackgroundSyncLoop
 from ui.device_identity import resolve_device_id
 from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
+
+#: Stesso intervallo già validato altrove (`sheet_view.py::_SHEET_SYNC_INTERVAL_S`)
+#: — bug segnalato da Davide (2026-08-16): le note condivise non si
+#: aggiornavano da sole in questa sezione (di primo livello nella sidebar,
+#: non un tab di `SheetView`), che non aveva mai avuto un ciclo di sync in
+#: background — una sola risoluzione di `device_id` al mount, mai più
+#: ripetuta.
+_DIARY_SYNC_INTERVAL_S = 2.0
 
 # ── Costanti visive ────────────────────────────────────────────────────────────
 
@@ -221,6 +232,10 @@ class DiaryView(ft.Column):
         # lettura, vedi `_note_list_item`/`_build_note_reading_panel`).
         self.device_id: str | None = None
         self._shared_note_ids: set[str] = set()
+        self.backend = LocalBackend()
+        self._remote_backends: dict[str, RemoteBackend] = {}
+        self._sync_loop: BackgroundSyncLoop | None = None
+        self._connection_state: str = "connected"
 
         self._load_all()
         self._build()
@@ -230,6 +245,9 @@ class DiaryView(ft.Column):
         page = self.page
         if page is not None and self.character.world_id:
             page.run_task(self._init_shared_notes)
+
+    def will_unmount(self) -> None:
+        self._stop_world_sync()
 
     async def _init_shared_notes(self) -> None:
         page = self.page
@@ -242,6 +260,59 @@ class DiaryView(ft.Column):
             self.update()
         except RuntimeError:
             pass
+        self._start_world_sync()
+
+    def _start_world_sync(self) -> None:
+        """Ciclo periodico (2026-08-16, vedi `_DIARY_SYNC_INTERVAL_S`) —
+        stesso pattern di `sheet_view.py::SheetView`/`spells_view.py::SpellsView`/
+        `maps_view.py::MapsView`: finché la sezione Diario resta aperta,
+        scarica gli eventi nuovi dall'host (note condivise dal master) e
+        ridisegna, senza richiedere di uscire e rientrare nella sezione."""
+        if self._sync_loop is not None or not self.character.world_id:
+            return
+        world_id = self.character.world_id
+
+        def _apply() -> None:
+            world = world_repo.get_world(world_id)
+            if world is None or world.is_local_host:
+                return
+            backend = world_sync.resolve_backend_for_world(
+                world, self.device_id or "", self.backend, self._remote_backends,
+            )
+            if backend is not None and isinstance(backend, RemoteBackend):
+                self._connection_state = backend.connection_state()
+                world_sync.sync_replica(backend, world_id)
+            else:
+                self._connection_state = "disconnected"
+
+        def _signature() -> str | None:
+            world = world_repo.get_world(world_id)
+            seq = world.last_synced_seq if world is not None else 0
+            return f"{self._connection_state}|{seq}"
+
+        async def _redraw() -> None:
+            self._merge_shared_notes()
+            self._build()
+            try:
+                self.update()
+            except RuntimeError:
+                pass
+
+        loop = BackgroundSyncLoop(
+            get_page=lambda: self.page,
+            signature_fn=_signature,
+            async_redraw_fn=_redraw,
+            apply_fn=_apply,
+            interval_s=_DIARY_SYNC_INTERVAL_S,
+            thread_name=f"diary-sync-{self.character.id[:8]}",
+        )
+        self._sync_loop = loop
+        loop.start()
+
+    def _stop_world_sync(self) -> None:
+        if self._sync_loop is not None:
+            self._sync_loop.stop()
+        self._sync_loop = None
 
     # ──────────────────────────────────────────────────────────────────────────
     # Data

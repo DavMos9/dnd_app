@@ -477,23 +477,47 @@ def sync_replica(remote_backend, local_world_id: str, refresh_members: bool = Tr
         return 0
 
     events = remote_backend.fetch_events(local_world_id, since_seq=world.last_synced_seq)
-    if not events:
-        return 0
+    applied = 0
+    if events:
+        for event in events:
+            apply_event_to_replica(local_world_id, event, remote_backend=remote_backend)
+            world_repo.save_replica_event(event)
+        latest_seq = max(e.seq for e in events)
+        world_repo.update_last_synced_seq(local_world_id, latest_seq)
+        applied = len(events)
 
-    for event in events:
-        apply_event_to_replica(local_world_id, event, remote_backend=remote_backend)
-        world_repo.save_replica_event(event)
-
-    latest_seq = max(e.seq for e in events)
-    world_repo.update_last_synced_seq(local_world_id, latest_seq)
-
+    # Fix 2026-08-16 (bug segnalato da Davide: note/mappe condivise "già
+    # esistenti" invisibili a un personaggio entrato dopo, e sincronizzazione
+    # "molto lenta, alcune note non compaiono"): PRIMA questo passo viveva
+    # dopo un `if not events: return 0` — quindi, non appena un dispositivo
+    # aveva raggiunto la punta del giornale (nessun evento incrementale
+    # nuovo da applicare, il caso più comune durante una sessione tranquilla
+    # o subito dopo un ingresso), lo snapshot smetteva di essere
+    # ri-scaricato del tutto: se per qualunque motivo una nota/mappa non era
+    # stata seminata correttamente al primo ingresso (`_finalize_join`),
+    # nessun ciclo successivo aveva più occasione di correggerlo.  Ora gira
+    # SEMPRE (quando `refresh_members=True`, il default), a prescindere da
+    # `events` — costo di una sola chiamata di rete in più ogni ciclo, già
+    # accettato per i soli membri, qui esteso a note e mappe condivise (che
+    # riusano gli stessi identici scrittori di `_finalize_join`, un solo
+    # punto di verità su "come si materializza lo stato derivato dallo
+    # snapshot", mai due copie della stessa logica).
     if refresh_members:
-        _refresh_members_from_snapshot(remote_backend, local_world_id)
+        _refresh_snapshot_derived_state(remote_backend, local_world_id)
 
-    return len(events)
+    return applied
 
 
-def _refresh_members_from_snapshot(remote_backend, local_world_id: str) -> None:
+def _refresh_snapshot_derived_state(remote_backend, local_world_id: str) -> None:
+    """
+    Ri-materializza sulla replica locale lo stato che uno `GET /snapshot`
+    porta ma che il giornale incrementale (`fetch_events`) da solo non
+    garantisce sempre di riportare — membri, note condivise, mappe
+    condivise (§9.2/§7B/§6.4). Chiamata ad ogni giro di `sync_replica`
+    (vedi il commento lì sopra), non solo al primo ingresso: un
+    "auto-guarigione" periodico, indipendente dalla causa esatta per cui
+    qualcosa non fosse arrivato prima.
+    """
     snapshot = remote_backend.get_snapshot()
     if snapshot is None:
         return
@@ -504,6 +528,16 @@ def _refresh_members_from_snapshot(remote_backend, local_world_id: str) -> None:
     for local_member in world_repo.get_members(local_world_id):
         if local_member.device_id not in still_present:
             world_repo.remove_replica_member(local_world_id, local_member.device_id)
+
+    for note_data in snapshot.get("notes", []):
+        if note_data.get("id"):
+            master_repo.save_replica_note(note_data)
+
+    for map_data in snapshot.get("shared_maps", []):
+        if map_data.get("id"):
+            maps_repo.replica_create_map_stub(
+                map_data["id"], local_world_id, str(map_data.get("name", "")),
+            )
 
 
 # ---------------------------------------------------------------------------
