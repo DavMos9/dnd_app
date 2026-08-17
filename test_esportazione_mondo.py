@@ -97,10 +97,19 @@ def _build_rich_world(name: str, owner_device: str, owner_name: str) -> tuple:
     )
     loot_repo.create_entry("master", "item", name="Spada", world_id=world.id)
     loot_repo.create_entry("party", "coins", world_id=world.id, gold=50)
+    # NPC creato PRIMA della nota, e la nota collegata (linked_npc_id) —
+    # bug reale trovato da Davide su un dispositivo Android il 2026-08-17:
+    # "FOREIGN KEY constraint failed" durante import_world(), perché
+    # _WORLD_FLAT_TABLES scriveva master_campaign_notes PRIMA di
+    # master_npcs. Il seed precedente creava la nota senza mai collegarla a
+    # un NPC (linked_npc_id sempre NULL) — la FK non scattava mai, quindi
+    # questa intera suite non avrebbe potuto trovare il bug. Vedi
+    # changelog_storico.md.
+    npc = master_repo.create_npc(name="Un NPC di Rubrica", role="Alleato", world_id=world.id)
     master_repo.create_master_campaign_note(
         category="npc", name="Un PNG", description="desc", world_id=world.id,
+        linked_npc_id=npc.id,
     )
-    master_repo.create_npc(name="Un NPC di Rubrica", role="Alleato", world_id=world.id)
     maps_repo.create_shared_map(world.id, "Mappa Condivisa", image_data="")
     world_repo.create_rejoin_request(
         world.id, archived.id, "dev-player-x", "Giocatore X", "frozen", "{}",
@@ -207,9 +216,14 @@ def test_import_new_round_trip() -> None:
     check("bottino reimportato (entrambi i tipi)",
           len(loot_repo.get_entries("master", new_id)) == 1
           and len(loot_repo.get_entries("party", new_id)) == 1)
-    check("nota del master reimportata",
-          len(master_repo.get_master_campaign_notes(world_id=new_id)) == 1)
-    check("NPC di rubrica reimportato", len(master_repo.get_npcs(world_id=new_id)) == 1)
+    reimported_notes = master_repo.get_master_campaign_notes(world_id=new_id)
+    check("nota del master reimportata", len(reimported_notes) == 1)
+    reimported_npcs = master_repo.get_npcs(world_id=new_id)
+    check("NPC di rubrica reimportato", len(reimported_npcs) == 1)
+    check("la nota resta collegata al suo NPC dopo l'import (bug reale "
+          "2026-08-17: FOREIGN KEY constraint failed, master_npcs scritto "
+          "DOPO master_campaign_notes)",
+          reimported_notes[0].linked_npc_id == reimported_npcs[0].id)
     check("mappa condivisa reimportata", len(maps_repo.get_shared_maps(new_id)) == 1)
     check("richiesta di rientro reimportata",
           len(world_repo.get_pending_rejoin_requests(new_id)) == 1)
@@ -293,6 +307,11 @@ def test_import_copy_nuovi_id() -> None:
     check("NPC copiato con id nuovo (non collide col mondo originale)",
           len(copied_npcs) == 1 and copied_npcs[0].id not in {n.id for n in original_npcs})
     check("l'NPC ORIGINALE non è stato toccato dalla copia", len(original_npcs) == 1)
+    copied_notes = master_repo.get_master_campaign_notes(world_id=new_id)
+    check("la nota copiata punta al NUOVO id dell'NPC copiato, non al vecchio "
+          "(bug reale 2026-08-17: linked_npc_id mai rimappato in modalità "
+          "'copy', l'NPC riceve un id nuovo ma la nota restava sul vecchio)",
+          len(copied_notes) == 1 and copied_notes[0].linked_npc_id == copied_npcs[0].id)
     copied_requests = world_repo.get_pending_rejoin_requests(new_id)
     check("richiesta di rientro copiata e ricollegata al personaggio copiato",
           len(copied_requests) == 1 and copied_requests[0].character_id == copied_archived.id)

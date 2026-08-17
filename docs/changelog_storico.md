@@ -10515,6 +10515,30 @@ cartella (cronologia aggiornata).
 
 ---
 
+## 2026-08-17 (stesso giorno) — Picker nativo CONFERMATO funzionante su Android reale; import mondo rotto da un bug reale, trovato dal log e corretto
+
+Davide ha ricompilato con i due fix di `pubspec.yaml`/`file_picker_service.dart` (voce precedente) e testato dal vivo: **il picker nativo funziona**. Import personaggio riuscito per intero (scelta file → import corretto). Import mondo: il selettore di sistema si apre correttamente, ma l'import fallisce con un errore generico ("Errore durante l'importazione del mondo").
+
+**Log `adb logcat` reale fornito da Davide, decisivo** (stessa disciplina di ogni bug precedente in questo file — mai un'altra ipotesi al buio):
+```
+23346 23346 W FilePickerUtils: Custom file type 'dndworld' is unsupported and will not be filtered.
+23346 23551 W ActivityTaskManager: START ... com.android.documentsui/.picker.PickActivity ...
+23346 23439 E flet.python: [ERROR] data.repositories.world_export: Errore import_world (mode=new): FOREIGN KEY constraint failed
+```
+Due informazioni chiave: (1) il warning "Custom file type... unsupported" è innocuo — `file_picker` non riconosce l'estensione `.dndworld` come MIME type per il filtro nativo, ma il picker si apre comunque (mostra tutti i file, `type: FileType.custom` con `allowedExtensions` sconosciute non blocca nulla — solo il filtro visivo non scatta, l'estensione va scelta a mano dalla lista); (2) il vero fallimento è un `IntegrityError` SQLite reale dentro `import_world()`, **non** un problema del picker.
+
+**Causa, verificata nello schema (non ipotizzata)**: `master_campaign_notes.linked_npc_id TEXT REFERENCES master_npcs(id)` (`data/database.py`). `_WORLD_FLAT_TABLES` (`data/repositories/world_export.py`) scriveva `"master_campaign_notes"` **prima** di `"master_npcs"` nel tuple — `import_world()` itera quel tuple in ordine e scrive ogni tabella con INSERT sequenziali sulla stessa connessione (FK verificate per riga, immediate, non deferred). Qualunque mondo con almeno una nota collegata a un NPC falliva **sempre**, su qualunque dispositivo — non un caso limite. Stessa classe di bug già diagnosticata una volta per il path di sync LAN ("round 5", `world_sync.py`, voce precedente in questo file), qui riemersa **indipendentemente** nel path di export/import perché sono due funzioni diverse che scrivono le stesse due tabelle senza condividere codice.
+
+**Fix**: `master_npcs` spostato prima di `master_campaign_notes` in `_WORLD_FLAT_TABLES`. Trovato anche un secondo bug correlato, mai manifestatosi ancora ma sicuro al primo uso reale: in modalità `"copy"` gli NPC ricevono un id nuovo (`regenerate_ids=True`) ma `linked_npc_id` nelle note non veniva mai rimappato — la nota copiata sarebbe rimasta agganciata al vecchio id, con lo stesso `FOREIGN KEY constraint failed` (o, se l'NPC vecchio non esiste più nel DB di destinazione, un riferimento pendente). `_write_flat_table()` ora ritorna la mappa vecchio→nuovo id di ogni riga scritta; `import_world()` la cattura sull'iterazione di `master_npcs` e la passa a `_write_flat_table()` per `master_campaign_notes`, che rimappa `linked_npc_id` con lo stesso meccanismo già in uso per `character_id`/`char_id_map`.
+
+**Perché la suite di test non l'aveva mai trovato**: `test_esportazione_mondo.py::_build_rich_world()` (il seed condiviso da 5 dei 7 blocchi della suite) creava una nota del master e un NPC **separatamente**, senza mai collegarli — `linked_npc_id` restava sempre `NULL`, e una FK su `NULL` è sempre valida. 84/84 verde non voleva dire "il percorso è corretto", voleva dire "il percorso non è mai stato attraversato con questo dato". Corretto il seed (NPC creato prima, nota creata con `linked_npc_id=npc.id`) e aggiunte due asserzioni dedicate (round trip `mode="new"` e rimappatura `mode="copy"`) — **verificate in entrambe le direzioni**: ripristinato temporaneamente l'ordine sbagliato del tuple, la suite fallisce riproducendo esattamente l'errore di Davide (`FOREIGN KEY constraint failed`, stesso identico messaggio); con il fix, **86/86** (84 + 2 nuove).
+
+File toccati: `data/repositories/world_export.py` (`_WORLD_FLAT_TABLES`, `_write_flat_table()`, `import_world()`), `test_esportazione_mondo.py` (seed + 2 nuove asserzioni).
+
+**Stato aggiornato**: import personaggio su mobile **confermato funzionante end-to-end** (picker nativo + logica). Import mondo: bug di fondo corretto e verificato in isolamento (86/86), ma **non ancora ritestato da Davide su dispositivo reale** con questo fix — prossimo passo.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

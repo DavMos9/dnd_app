@@ -79,7 +79,6 @@ _WORLD_FLAT_TABLES: tuple[str, ...] = (
     "world_change_requests",
     "world_rejoin_requests",
     "loot_stash_entries",
-    "master_campaign_notes",
     # NPC di rubrica (2026-08-12, Sezione Master world-scoped — bug report
     # Davide: "tutto deve essere dipendente dal mondo"): `master_npcs` ha
     # guadagnato una colonna `world_id` solo in questa stessa sessione,
@@ -93,7 +92,19 @@ _WORLD_FLAT_TABLES: tuple[str, ...] = (
     # trattamento dedicato di `characters`/`CHILD_TABLES`, non il percorso
     # "piatto" qui sotto: un backup/trasferimento di mondo oggi NON porta
     # con sé gli incontri creati in quel mondo, solo NPC/note/bottino/mappe.
+    #
+    # PRIMA di "master_campaign_notes" (2026-08-17, fix bug reale — vedi
+    # changelog_storico.md): `master_campaign_notes.linked_npc_id` ha una FK
+    # verso `master_npcs(id)`. SQLite la verifica riga per riga al momento
+    # dell'INSERT (nessun deferred/PRAGMA che lo cambi in questo progetto):
+    # scrivere le note prima degli NPC referenziati falliva SEMPRE con
+    # "FOREIGN KEY constraint failed" su qualunque mondo con almeno una nota
+    # collegata a un NPC — stessa classe di bug già diagnosticata una volta
+    # per il path di sync LAN (`world_sync.py`, "round 5"), qui riemersa
+    # indipendentemente nel path di export/import perché sono due funzioni
+    # diverse che scrivono le stesse due tabelle.
     "master_npcs",
+    "master_campaign_notes",
 )
 
 MODES = ("new", "overwrite", "copy")
@@ -381,14 +392,33 @@ def _write_events(conn, events: list[dict[str, Any]], *, world_id: str,
 
 
 def _write_flat_table(conn, table: str, rows: list[dict[str, Any]], *, world_id: str,
-                       char_id_map: dict[str, str], regenerate_ids: bool) -> None:
+                       char_id_map: dict[str, str], regenerate_ids: bool,
+                       npc_id_map: dict[str, str] | None = None) -> dict[str, str]:
+    """
+    Scrive una tabella "piatta" del mondo, ritornando la mappa
+    vecchio_id->nuovo_id di ogni riga scritta (usata SOLO da `master_npcs`,
+    per rimappare `master_campaign_notes.linked_npc_id` in modalità "copy"
+    — dove gli NPC ricevono un id nuovo ma le note nel file continuano a
+    puntare al vecchio, altrimenti la FK punterebbe a un id che non esiste
+    più sotto questo mondo appena copiato).
+
+    `npc_id_map`: se passata, rimappa `linked_npc_id` come già avviene per
+    `character_id`/`char_id_map` — usata solo per `master_campaign_notes`.
+    """
     live_cols = _table_columns(conn, table)
+    written_id_map: dict[str, str] = {}
     for row in rows:
-        new_id = str(uuid.uuid4()) if regenerate_ids else row.get("id")
+        old_id = row.get("id")
+        new_id = str(uuid.uuid4()) if regenerate_ids else old_id
         overrides = {"id": new_id, "world_id": world_id}
         if row.get("character_id") in char_id_map:
             overrides["character_id"] = char_id_map[row["character_id"]]
+        if npc_id_map and row.get("linked_npc_id") in npc_id_map:
+            overrides["linked_npc_id"] = npc_id_map[row["linked_npc_id"]]
         _insert_row(conn, table, row, live_cols, overrides)
+        if old_id:
+            written_id_map[old_id] = new_id
+    return written_id_map
 
 
 def _write_shared_maps(conn, maps: list[dict[str, Any]], *, world_id: str,
@@ -499,11 +529,23 @@ def import_world(
 
             _write_events(conn, data.get("events") or [], world_id=target_world_id,
                            char_id_map=char_id_map, regenerate_ids=regenerate)
+            # `master_npcs` viene PRIMA di `master_campaign_notes` in
+            # _WORLD_FLAT_TABLES apposta (vedi il commento lì): la nota
+            # dipende dall'NPC via `linked_npc_id`, mai il contrario. La
+            # mappa vecchio->nuovo id degli NPC scritti va salvata qui e
+            # passata alla scrittura delle note, stesso principio di
+            # `char_id_map` sopra — necessaria in modalità "copy", dove gli
+            # NPC ricevono un id nuovo e le note nel file puntano ancora al
+            # vecchio.
+            npc_id_map: dict[str, str] = {}
             for table in _WORLD_FLAT_TABLES:
-                _write_flat_table(
+                written = _write_flat_table(
                     conn, table, data.get(table) or [], world_id=target_world_id,
                     char_id_map=char_id_map, regenerate_ids=regenerate,
+                    npc_id_map=npc_id_map if table == "master_campaign_notes" else None,
                 )
+                if table == "master_npcs":
+                    npc_id_map = written
             _write_shared_maps(conn, data.get("shared_maps") or [],
                                 world_id=target_world_id, regenerate_ids=regenerate)
 
