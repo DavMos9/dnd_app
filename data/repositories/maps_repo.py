@@ -46,48 +46,57 @@ def _row_to_map(row) -> GameMap:
 
 def get_maps(character_id: str) -> list[GameMap]:
     """Restituisce tutte le mappe del personaggio, ordinate per updated_at DESC."""
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM game_maps WHERE character_id=? ORDER BY updated_at DESC",
             (character_id,),
         ).fetchall()
-        conn.close()
         return [_row_to_map(r) for r in rows]
     except Exception as e:
         logger.error("get_maps(%s): %s", character_id, e)
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_map(map_id: str) -> GameMap | None:
     """Una singola mappa per id — usata dagli handler di comando e dalla
     rotta HTTP dell'immagine (Multiplayer passo 8), oggi assente perché
     finora bastava sempre `get_maps(character_id)`."""
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute("SELECT * FROM game_maps WHERE id=?", (map_id,)).fetchone()
-        conn.close()
         return _row_to_map(row) if row else None
     except Exception as e:
         logger.error("get_map(%s): %s", map_id, e)
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_shared_maps(world_id: str) -> list[GameMap]:
     """Mappe pubblicate in un mondo (`is_shared=1`) — scoperta lato
     giocatore, indipendente da quale personaggio locale le possiede (una
     mappa condivisa non posseduta ha `character_id` NULL)."""
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM game_maps WHERE world_id=? AND is_shared=1 ORDER BY updated_at DESC",
             (world_id,),
         ).fetchall()
-        conn.close()
         return [_row_to_map(r) for r in rows]
     except Exception as e:
         logger.error("get_shared_maps(%s): %s", world_id, e)
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_map(
@@ -109,6 +118,7 @@ def create_map(
         created_at=now,
         updated_at=now,
     )
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -120,11 +130,13 @@ def create_map(
              gm.created_at, gm.updated_at),
         )
         conn.commit()
-        conn.close()
         return gm
     except Exception as e:
         logger.error("create_map: %s", e)
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_map(
@@ -150,6 +162,7 @@ def update_map(
         sets.append("annotations=?")
         params.append(_s(annotations))
     params.append(map_id)
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -157,24 +170,29 @@ def update_map(
             params,
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error("update_map(%s): %s", map_id, e)
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_map(map_id: str) -> bool:
     """Elimina una mappa."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM game_maps WHERE id=?", (map_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error("delete_map(%s): %s", map_id, e)
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +239,7 @@ def _insert_shared_map(name: str, image_data: str, world_id: str,
         annotations="[]", notes="", world_id=world_id, is_shared=True,
         visible_to_players=visible_to_players, created_at=now, updated_at=now,
     )
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -232,11 +251,13 @@ def _insert_shared_map(name: str, image_data: str, world_id: str,
              int(visible_to_players), now, now),
         )
         conn.commit()
-        conn.close()
         return gm
     except Exception as e:
         logger.error("_insert_shared_map(%s, %s): %s", name, world_id, e)
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def set_map_visibility(map_id: str, visible: bool) -> bool:
@@ -246,6 +267,7 @@ def set_map_visibility(map_id: str, visible: bool) -> bool:
     Stessa funzione usata sia dall'handler sull'host sia dal ramo replica
     in `core.world_sync` (identica alla scrittura, nessuna logica in più
     da duplicare)."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -253,11 +275,13 @@ def set_map_visibility(map_id: str, visible: bool) -> bool:
             (int(visible), datetime.now().isoformat(), map_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error("set_map_visibility(%s): %s", map_id, e)
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def apply_stroke_batch(map_id: str, batch: list[dict]) -> bool:
@@ -310,6 +334,7 @@ def replica_create_map_stub(map_id: str, world_id: str, name: str,
     replica non distingue le due origini.
     """
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         existing = conn.execute(
@@ -330,8 +355,10 @@ def replica_create_map_stub(map_id: str, world_id: str, name: str,
                 (map_id, _s(name), _s(world_id), int(visible_to_players), now, now),
             )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error("replica_create_map_stub(%s): %s", map_id, e)
         return False
+    finally:
+        if conn is not None:
+            conn.close()

@@ -87,6 +87,7 @@ def get_npcs(query: str = "", world_id: str = "") -> list[MasterNpc]:
     ritorna solo gli NPC locali/di nessun mondo, un id di mondo ritorna
     solo i suoi. Mai un OR/"mostra tutti" — un mondo è un container.
     """
+    conn = None
     try:
         conn = get_connection()
         if query.strip():
@@ -102,11 +103,13 @@ def get_npcs(query: str = "", world_id: str = "") -> list[MasterNpc]:
                 "SELECT * FROM master_npcs WHERE world_id=? ORDER BY name",
                 (world_id,),
             ).fetchall()
-        conn.close()
         return [_row_to_npc(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_npcs: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_npc_by_id(npc_id: str) -> MasterNpc | None:
@@ -117,14 +120,17 @@ def get_npc_by_id(npc_id: str) -> MasterNpc | None:
     direttamente dal tracker di combattimento, senza dover tornare alla
     Rubrica NPC).
     """
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute("SELECT * FROM master_npcs WHERE id=?", (npc_id,)).fetchone()
-        conn.close()
         return _row_to_npc(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_npc_by_id: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_npc(
@@ -177,6 +183,7 @@ def create_npc(
     import uuid as _uuid
     npc_id = str(_uuid.uuid4())
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -204,11 +211,13 @@ def create_npc(
         )
         conn.commit()
         row = conn.execute("SELECT * FROM master_npcs WHERE id=?", (npc_id,)).fetchone()
-        conn.close()
         return _row_to_npc(row) if row else None
     except Exception as e:
         logger.error(f"Errore create_npc: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_npc_from_monster(
@@ -280,6 +289,7 @@ def update_npc(npc: MasterNpc) -> bool:
     la creazione: un Master che scopre "in realtà è un cambiaforma" deve
     poter correggerla e vederla persistere.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -309,11 +319,13 @@ def update_npc(npc: MasterNpc) -> bool:
             ),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_npc: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_npc(npc_id: str) -> bool:
@@ -323,15 +335,18 @@ def delete_npc(npc_id: str) -> bool:
     nello storico dell'incontro con i valori già cachati al momento
     dell'aggiunta (display_name/ac/hp_*), invece di sparire.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM master_npcs WHERE id=?", (npc_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore delete_npc: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -364,6 +379,7 @@ def get_encounters(include_archived: bool = False, world_id: str = "") -> list[M
     esisteva già (Tracker condiviso §6.5) ma prima serviva solo al flag
     "visibile ai giocatori", mai a filtrare questa lista.
     """
+    conn = None
     try:
         conn = get_connection()
         if include_archived:
@@ -376,24 +392,29 @@ def get_encounters(include_archived: bool = False, world_id: str = "") -> list[M
                 "SELECT * FROM master_encounters WHERE is_archived=0 AND world_id=? ORDER BY updated_at DESC",
                 (world_id,),
             ).fetchall()
-        conn.close()
         return [_row_to_encounter(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_encounters: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_encounter_by_id(encounter_id: str) -> MasterEncounter | None:
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT * FROM master_encounters WHERE id=?", (encounter_id,)
         ).fetchone()
-        conn.close()
         return _row_to_encounter(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_encounter_by_id: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_encounter(name: str, notes: str = "", world_id: str = "") -> MasterEncounter | None:
@@ -407,6 +428,7 @@ def create_encounter(name: str, notes: str = "", world_id: str = "") -> MasterEn
     import uuid as _uuid
     enc_id = str(_uuid.uuid4())
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -417,15 +439,18 @@ def create_encounter(name: str, notes: str = "", world_id: str = "") -> MasterEn
         )
         conn.commit()
         row = conn.execute("SELECT * FROM master_encounters WHERE id=?", (enc_id,)).fetchone()
-        conn.close()
         return _row_to_encounter(row) if row else None
     except Exception as e:
         logger.error(f"Errore create_encounter: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def archive_encounter(encounter_id: str, archived: bool = True) -> bool:
     """"Termina Incontro" — archivia (o ripristina se archived=False, house rule)."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -433,24 +458,29 @@ def archive_encounter(encounter_id: str, archived: bool = True) -> bool:
             (int(archived), datetime.now().isoformat(), encounter_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore archive_encounter: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_encounter(encounter_id: str) -> bool:
     """Elimina l'incontro e, via CASCADE, tutti i suoi membri."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM master_encounters WHERE id=?", (encounter_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore delete_encounter: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def advance_turn(encounter_id: str) -> MasterEncounter | None:
@@ -462,13 +492,13 @@ def advance_turn(encounter_id: str) -> MasterEncounter | None:
     l'incontro aggiornato, o None se l'incontro non esiste o non ha membri
     attivi (in quel caso non modifica nulla).
     """
+    conn = None
     try:
         conn = get_connection()
         enc_row = conn.execute(
             "SELECT * FROM master_encounters WHERE id=?", (encounter_id,)
         ).fetchone()
         if not enc_row:
-            conn.close()
             return None
         members = conn.execute(
             """SELECT id FROM master_encounter_members
@@ -478,7 +508,6 @@ def advance_turn(encounter_id: str) -> MasterEncounter | None:
         ).fetchall()
         n = len(members)
         if n == 0:
-            conn.close()
             return _row_to_encounter(enc_row)
 
         current_idx = dict(enc_row).get("current_turn_index", 0)
@@ -494,17 +523,20 @@ def advance_turn(encounter_id: str) -> MasterEncounter | None:
         )
         conn.commit()
         row = conn.execute("SELECT * FROM master_encounters WHERE id=?", (encounter_id,)).fetchone()
-        conn.close()
         return _row_to_encounter(row) if row else None
     except Exception as e:
         logger.error(f"Errore advance_turn: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def set_encounter_world(encounter_id: str, world_id: str) -> bool:
     """Collega un incontro a un mondo (Multiplayer passo 7C) — chiamata
     quando `MasterEncounterView` riceve un `world_id` non vuoto e
     l'incontro non ce l'ha ancora impostato."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -512,14 +544,17 @@ def set_encounter_world(encounter_id: str, world_id: str) -> bool:
             (_s(world_id), datetime.now().isoformat(), encounter_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore set_encounter_world: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def set_encounter_visibility(encounter_id: str, visible: bool) -> bool:
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -527,11 +562,13 @@ def set_encounter_visibility(encounter_id: str, visible: bool) -> bool:
             (int(visible), datetime.now().isoformat(), encounter_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore set_encounter_visibility: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_visible_encounter_for_world(world_id: str) -> MasterEncounter | None:
@@ -543,6 +580,7 @@ def get_visible_encounter_for_world(world_id: str) -> MasterEncounter | None:
     `replica_upsert_encounter_snapshot`) — un solo schema, come ogni altra
     tabella del Multiplayer.
     """
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
@@ -551,11 +589,13 @@ def get_visible_encounter_for_world(world_id: str) -> MasterEncounter | None:
                ORDER BY updated_at DESC LIMIT 1""",
             (world_id,),
         ).fetchone()
-        conn.close()
         return _row_to_encounter(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_visible_encounter_for_world: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def resolved_members_to_dicts(resolved: list[dict]) -> list[dict]:
@@ -604,6 +644,7 @@ def replica_upsert_encounter_snapshot(world_id: str, encounter_data: dict, membe
     if not encounter_id:
         return False
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         existing = conn.execute(
@@ -636,11 +677,13 @@ def replica_upsert_encounter_snapshot(world_id: str, encounter_data: dict, membe
                 (*params, encounter_id, now),
             )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore replica_upsert_encounter_snapshot: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_replica_encounter_members(encounter_id: str) -> list[dict]:
@@ -649,18 +692,21 @@ def get_replica_encounter_members(encounter_id: str) -> list[dict]:
     dispositivo che OSPITA il mondo questa colonna resta vuota (l'host
     legge sempre `get_encounter_members_resolved()` dal vivo): il chiamante
     lato UI decide quale delle due usare in base a chi ospita."""
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT replica_members_json FROM master_encounters WHERE id=?", (encounter_id,)
         ).fetchone()
-        conn.close()
         if not row:
             return []
         return json.loads(row["replica_members_json"] or "[]")
     except Exception as e:
         logger.error(f"Errore get_replica_encounter_members: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -693,6 +739,7 @@ def _row_to_member(row) -> MasterEncounterMember:
 def get_encounter_members(encounter_id: str, active_only: bool = False) -> list[MasterEncounterMember]:
     """Membri grezzi (senza risoluzione nome/CA/PF) — vedi `get_encounter_members_resolved`
     per la versione pronta per la UI, con i dati di `characters`/`master_npcs` già uniti."""
+    conn = None
     try:
         conn = get_connection()
         if active_only:
@@ -709,11 +756,13 @@ def get_encounter_members(encounter_id: str, active_only: bool = False) -> list[
                    ORDER BY initiative DESC, order_index ASC""",
                 (encounter_id,),
             ).fetchall()
-        conn.close()
         return [_row_to_member(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_encounter_members: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_encounter_members_resolved(encounter_id: str, active_only: bool = True) -> list[dict]:
@@ -728,6 +777,7 @@ def get_encounter_members_resolved(encounter_id: str, active_only: bool = True) 
     members = get_encounter_members(encounter_id, active_only=active_only)
     if not members:
         return []
+    conn = None
     try:
         conn = get_connection()
         out: list[dict] = []
@@ -796,11 +846,13 @@ def get_encounter_members_resolved(encounter_id: str, active_only: bool = True) 
                     "xp": m.xp,
                     "source": "adhoc",
                 })
-        conn.close()
         return out
     except Exception as e:
         logger.error(f"Errore get_encounter_members_resolved: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def add_member(
@@ -829,6 +881,7 @@ def add_member(
     import uuid as _uuid
     member_id = str(_uuid.uuid4())
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -848,17 +901,20 @@ def add_member(
         row = conn.execute(
             "SELECT * FROM master_encounter_members WHERE id=?", (member_id,)
         ).fetchone()
-        conn.close()
         return _row_to_member(row) if row else None
     except Exception as e:
         logger.error(f"Errore add_member: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_member_hp(member_id: str, hp_current: int) -> bool:
     """Aggiorna i PF correnti di un membro npc/adhoc (per kind="character"
     la UI non deve mai chiamare questa funzione — gli HP restano gestiti
     solo dal giocatore sulla propria scheda)."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -866,14 +922,17 @@ def update_member_hp(member_id: str, hp_current: int) -> bool:
             (max(0, hp_current), datetime.now().isoformat(), member_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_member_hp: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_member_initiative(member_id: str, initiative: int) -> bool:
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -881,17 +940,20 @@ def update_member_initiative(member_id: str, initiative: int) -> bool:
             (initiative, datetime.now().isoformat(), member_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_member_initiative: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def remove_member(member_id: str) -> bool:
     """Rimozione soft (is_active=0) — il membro resta nello storico
     dell'incontro invece di sparire, coerente con `is_archived` sull'incontro
     stesso e con la nota di design "storico" già usata per `creature_entries`."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -899,11 +961,13 @@ def remove_member(member_id: str) -> bool:
             (datetime.now().isoformat(), member_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore remove_member: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -941,6 +1005,7 @@ def get_master_campaign_notes(category: str = "", world_id: str | None = None) -
     stessa convenzione già stabilita per
     `character_repo.get_master_visible_characters()`.
     """
+    conn = None
     try:
         conn = get_connection()
         clauses: list[str] = []
@@ -956,24 +1021,29 @@ def get_master_campaign_notes(category: str = "", world_id: str | None = None) -
             f"SELECT * FROM master_campaign_notes{where} ORDER BY category, created_at ASC",
             params,
         ).fetchall()
-        conn.close()
         return [_row_to_campaign_note(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_master_campaign_notes: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_master_campaign_note_by_id(note_id: str) -> MasterCampaignNote | None:
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT * FROM master_campaign_notes WHERE id=?", (note_id,)
         ).fetchone()
-        conn.close()
         return _row_to_campaign_note(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_master_campaign_note_by_id: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_notes_visible_to(world_id: str, device_id: str) -> list[MasterCampaignNote]:
@@ -985,6 +1055,7 @@ def get_notes_visible_to(world_id: str, device_id: str) -> list[MasterCampaignNo
     nella lista JSON `visible_to_device_ids` (colonna non indicizzabile in
     SQL, filtro fatto in Python dopo aver ristretto a "selected" via SQL).
     """
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
@@ -993,7 +1064,6 @@ def get_notes_visible_to(world_id: str, device_id: str) -> list[MasterCampaignNo
                ORDER BY category, created_at ASC""",
             (world_id,),
         ).fetchall()
-        conn.close()
         notes = [_row_to_campaign_note(r) for r in rows]
         visible = []
         for note in notes:
@@ -1010,6 +1080,9 @@ def get_notes_visible_to(world_id: str, device_id: str) -> list[MasterCampaignNo
     except Exception as e:
         logger.error(f"Errore get_notes_visible_to: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def save_replica_note(note_data: dict) -> bool:
@@ -1104,6 +1177,7 @@ def create_master_campaign_note(
     import uuid as _uuid
     note_id = str(_uuid.uuid4())
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1119,11 +1193,13 @@ def create_master_campaign_note(
         row = conn.execute(
             "SELECT * FROM master_campaign_notes WHERE id=?", (note_id,)
         ).fetchone()
-        conn.close()
         return _row_to_campaign_note(row) if row else None
     except Exception as e:
         logger.error(f"Errore create_master_campaign_note: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_master_campaign_note(
@@ -1141,6 +1217,7 @@ def update_master_campaign_note(
     `origin_character_id` sulle istanze di personaggio — l'appartenenza a un
     mondo è decisa alla nascita, non un campo editabile in un secondo
     momento)."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1153,20 +1230,25 @@ def update_master_campaign_note(
              datetime.now().isoformat(), note_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_master_campaign_note: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_master_campaign_note(note_id: str) -> bool:
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM master_campaign_notes WHERE id=?", (note_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore delete_master_campaign_note: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()

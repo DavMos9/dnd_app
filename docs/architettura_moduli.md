@@ -91,9 +91,33 @@ Entità correlate: `CharacterProficiency`, `Weapon`, `InventoryItem`, `Currency`
   successiva del processo** fallisce con "database is locked" fino al riavvio dell'app — è la causa radice del
   bug del round 5 del Multiplayer (vedi `changelog_storico.md`, "round 5 — CHIUSO"). Il ritentativo è sicuro:
   una statement che non ha ottenuto il lock non ha applicato niente.
-  ⚠️ Questa è una **rete di sicurezza**, non la soluzione definitiva: quando si scrive una nuova funzione che
-  usa `get_connection()`, chiudere in un `finally`. La conversione delle 167 esistenti resta una voce aperta —
-  non rimuovere la rete prima di averla completata.
+  ⚠️ Questa è una **difesa in profondità, non la difesa principale**. Le 165 funzioni sono state tutte
+  convertite a `try/finally` nella stessa giornata, quindi oggi non esiste più nessun punto noto che abbandoni
+  una connessione e questo ritentativo non dovrebbe mai scattare — **se il suo `logger.warning` appare nei log,
+  c'è una connessione abbandonata da trovare.**
+- 🔒 **Invariante, verificata da `test_connessioni_db.py`** (2026-08-17): ogni funzione che apre
+  `get_connection()` deve chiudere la connessione in un `finally` (o gestirla con un `with`), mai come ultima
+  riga del blocco `try`. La forma corretta:
+  ```python
+  conn = None
+  try:
+      conn = get_connection()
+      ...
+      return risultato
+  except Exception as e:
+      logger.error(f"Errore f(): {e}")
+      return fallback
+  finally:
+      if conn is not None:
+          conn.close()
+  ```
+  `conn = None` prima del `try` non è decorativo: se `get_connection()` stessa solleva, senza quello il
+  `finally` darebbe `NameError` mascherando l'errore vero. È corretto anche il pattern annidato già usato da
+  `character_export.py`/`settings_repo.py` (`try: conn = ...; try: ... finally: conn.close()`).
+  Il test analizza l'AST di **tutto** il codebase (per-funzione **e** per-`try`, così da intercettare anche una
+  funzione che apre due connessioni e ne protegge una sola) e fallisce elencando le funzioni non conformi —
+  ha una allowlist di due voci, `get_connection`/`_open_connection`, le sole a cui spetta restituire una
+  connessione aperta.
 - `_migrate(conn)` aggiunge via `ALTER TABLE` (idempotente):
   - `characters`: `image_data`, `ca_bonus`, `proficiency_bonus_override`, `session_notes`, `dragon_ancestry`,
     `fighting_style`, `totem_animal`, `land_terrain`, `pact_boon`, `initiative_bonus INTEGER DEFAULT 0`

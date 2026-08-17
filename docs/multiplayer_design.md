@@ -916,3 +916,21 @@ connessioni ferme, lo può verificare solo Davide su dispositivi veri.**
 
 Va messo in conto fin da ora, e per questo il passo 4 va fatto arrivare presto:
 è il primo momento in cui si scopre se la cosa regge davvero.
+
+> **Esito, 2026-08-17** — questo rischio si è materializzato esattamente come
+> previsto, e si è chiuso: sono serviti **5 round di test su due dispositivi
+> fisici** per confermare il piano, ciascuno con bug reali che nessun test del
+> sandbox aveva colto (il più insidioso, il round 5, era una FK violata solo
+> sulla replica di un giocatore — vedi `changelog_storico.md`, "round 5 —
+> CHIUSO"). Oggi sono confermati dal vivo: scoperta LAN, ingresso via QR,
+> ingresso e approvazione del master con aggiornamento automatico della
+> schermata del giocatore, interventi del master a distanza, sync live di
+> Incantesimi/Mappe/Diario, riconnessione dopo riavvio dell'host, note e mappe
+> condivise. Restano non ancora provati dal vivo il tracker di combattimento
+> condiviso (passo 7) e l'esportazione `.dndworld` (passo 9).
+>
+> Lezione da tenere, per la prossima feature che dipende da dati reali
+> accumulati: i round 3-5 sono stati risolti solo quando si è smesso di provare
+> con dati freschi e si è **riprodotto il flusso sul DB reale di Davide**
+> (costruire lo snapshot con lo stesso codice dell'host, poi darlo al vero
+> `_finalize_join()` con un backend finto su un DB replica vuoto).

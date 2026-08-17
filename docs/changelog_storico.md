@@ -10148,7 +10148,7 @@ controllo di questa sessione.
 
 ---
 
-## Multiplayer, round 5 — CHIUSO: causa radice trovata sui dati reali (FK `linked_npc_id` + connessione SQLite abbandonata che blocca tutto il processo) (2026-08-17, sessione successiva)
+## Multiplayer, round 5 — CHIUSO e CONFERMATO DAL VIVO: causa radice trovata sui dati reali (FK `linked_npc_id` + connessione SQLite abbandonata che blocca tutto il processo) (2026-08-17, sessione successiva)
 
 > Chiude il bug lasciato APERTO dalla voce qui sopra. **Nessuna delle 4
 > ipotesi elencate là era la causa** — la vera causa non era stata
@@ -10280,15 +10280,144 @@ schermo.
   giro in batch `test_fase_4.py` ha fallito un controllo ("il totale compare
   nel pannello") ma passa 296/296 da solo e nel giro successivo: flake di
   isolamento tra test nello stesso HOME, non una regressione.
-- ⚠️ **Resta la verifica su due dispositivi fisici a carico di Davide**: la
-  causa è stata riprodotta e corretta sui suoi dati veri, ma il giro
-  completo (ingresso nuovo giocatore → approvazione → dialogo che si chiude
-  da solo → personaggio che entra nel mondo → note/mappe condivise
-  visibili) va rifatto dal vivo su una build che includa questi fix.
+- ✅ **Confermato dal vivo da Davide (2026-08-17, stessa giornata)** su due
+  dispositivi fisici, parole sue: "funziona tutto, sia le mappe sia le note
+  condivise sia l'accettazione da parte del master". Cioè il giro completo
+  che prima si bloccava — ingresso di un nuovo giocatore → approvazione del
+  master → **la schermata del giocatore si aggiorna da sola** (il controllo
+  automatico dell'approvazione arriva a uno stato di successo visibile,
+  senza più riavviare l'app) → personaggio che entra nel mondo senza
+  "Copia del personaggio fallita" → note e mappe condivise tutte visibili
+  sulla replica. Il bug del round 5 è chiuso a tutti gli effetti.
+- Restano da verificare dal vivo, mai arrivati a un giro di test reale (non
+  regressioni, semplicemente non ancora provati): il tracker di
+  combattimento condiviso (passo 7) e l'esportazione/importazione
+  `.dndworld` (passo 9).
+
+**Seguito**: la voce tecnica lasciata aperta qui (le 167 `close()` fuori dal
+`finally`) è stata chiusa nella stessa giornata — vedi la voce subito sotto.
 
 File toccati: `data/database.py`, `data/repositories/master_repo.py`,
 `core/world_sync.py`, `ui/views/world/world_view.py`, nuovo
-`test_replica_note_fk_lock.py`.
+`test_replica_note_fk_lock.py`. Commit: **`a108062`** ("Make replica join
+resilient and fix DB lock"), tag **v0.2.12** — la build su cui Davide ha
+confermato dal vivo. Include anche i fix diagnostici `raise_errors` su
+`character_export.py`/`character_instances.py` che il round precedente
+aveva lasciato non committati (e che quindi non erano mai finiti in
+nessuna build: né v0.2.10 `9b8243e` né v0.2.11 `9bd2584` — è il motivo per
+cui il messaggio d'eccezione dettagliato che quella voce dava per
+disponibile non era mai comparso sullo schermo del giocatore).
+
+---
+
+## Connessioni SQLite — chiusa la voce tecnica del round 5: 167 `close()` spostati in `finally` su 165 funzioni, più una guardia permanente (2026-08-17, stessa giornata)
+
+Chiude la voce lasciata aperta dalla sezione qui sopra. Non è un bug
+segnalato da Davide: è la **classe** di difetto che ha causato il round 5,
+eliminata alla radice su richiesta sua ("risolviamo la voce tecnica") subito
+dopo la conferma dal vivo.
+
+### Il problema, in una riga
+
+Il pattern dominante del progetto era `conn.close()` come **ultima riga del
+blocco `try`**. Se una query solleva, quella connessione non viene mai
+chiusa — e nemmeno liberata dal refcount, perché l'eccezione crea un ciclo
+di riferimenti (eccezione → traceback → frame → variabile locale `conn`) che
+solo il garbage collector generazionale può rompere. Nel frattempo trattiene
+la transazione di scrittura fallita e con essa il lock del file, e **ogni
+scrittura successiva del processo** fallisce con "database is locked" fino al
+riavvio dell'app.
+
+### Come è stato fatto (metodo, non a mano)
+
+Uno scan AST ha prima **classificato le forme** invece di aprire 165 file a
+caso — ed è quello che ha reso il lavoro sicuro, perché il pattern è risultato
+quasi perfettamente regolare:
+
+| forma | quante |
+|---|---|
+| un solo `try`, una `open`, un `close`, nessun generatore | 159 |
+| due `try` (quello interno è sempre un `json.loads`/parsing, non la connessione) | 5 |
+| `advance_turn` — 3 `close()` su rami di uscita diversi | 1 |
+| `get_connection`/`_open_connection` — falsi positivi, **devono** restituire una connessione aperta | 2 |
+
+Verificati prima tre presupposti, ciascuno con una prova eseguita e non
+assunta: `sqlite3.Connection.close()` è **idempotente** (doppia chiusura non
+solleva); la variabile è **sempre** chiamata `conn` (188 occorrenze, nessuna
+eccezione); **nessun** `try` bersaglio aveva già un `finally` con cui fondersi;
+e nessuna funzione restituisce un cursore o la connessione stessa (l'unico
+`return cur.rowcount` è un `int`, valutato prima del `finally`).
+
+La trasformazione è stata poi applicata da uno **script AST** (`conn = None`
+prima del `try`, rimozione dei `close()` isolati dal corpo, `finally: if conn
+is not None: conn.close()` in coda al `try` che apre la connessione), con
+`ast.parse()` di controllo su ogni file prima di scriverlo e un dry-run
+ispezionato prima dell'applicazione. Attaccare il `finally` al `try` **che
+apre la connessione** (non al primo che si incontra) è ciò che rende corretti
+i 5 casi a due `try`: lì l'interno resta intatto.
+
+Risultato: **165 funzioni, 167 `close()` spostati**, su
+`core/character_instances.py`, `core/world_backend.py`, `core/world_sync.py`,
+`data/repositories/character_repo.py` (86), `loot_repo.py` (5),
+`maps_repo.py` (9), `master_repo.py` (28), `world_export.py` (1),
+`world_repo.py` (32). `character_export.py`/`settings_repo.py` non sono stati
+toccati: usavano già il pattern annidato corretto (`try: conn = ...; try: ...
+finally: conn.close()`).
+
+### La guardia permanente — nuovo `test_connessioni_db.py` (8/8)
+
+Il vero valore non è la conversione una volta sola, è che non possa
+ricomparire. Tre parti:
+
+1. **Invariante statica per-funzione** — nessuna funzione del progetto apre
+   `get_connection()` senza chiusura garantita (`try/finally` o `with`). Se
+   fallisce, il messaggio elenca `file:riga nome()` di ogni funzione da
+   correggere. Allowlist di 2 voci (`get_connection`/`_open_connection`).
+2. **Invariante per-`try`** — più granulare della precedente: intercetta anche
+   una funzione che apre due connessioni in due `try` distinti e ne protegge
+   solo uno. ⚠️ Attenzione se si tocca questo controllo: la prima versione
+   cercava `.close()` nel *testo* del corpo del `try` e produceva **20 falsi
+   positivi**, perché contava il `close()` di un `try/finally` **annidato**
+   come se fosse del `try` esterno (tutto `character_export.py`,
+   `settings_repo.py`, parti di `world_repo.py`, già corretti). Va valutato
+   per nodo AST, non per stringa.
+3. **Test di comportamento** — una funzione di repository che fallisce a metà
+   scrittura (`create_master_campaign_note` con una FK `linked_npc_id`
+   invalida) non lascia il database bloccato, nemmeno dopo **20 errori
+   consecutivi**. Verificato con una connessione `sqlite3` **grezza** e
+   `timeout=0`, deliberatamente non `get_connection()`: così si prova che il
+   lock è rilasciato dal `finally` e non semplicemente mascherato dalla rete
+   di sicurezza `_ResilientConnection`.
+
+La guardia è stata **verificata in entrambe le direzioni**, non solo "passa":
+creando un file temporaneo con il pattern incriminato, i controlli 1 e 2
+hanno fallito indicando riga e nome della funzione; rimosso il file, 8/8. Un
+test-lint che non può fallire non protegge niente.
+
+### `_ResilientConnection` resta, con un ruolo diverso
+
+Non è stata rimossa, ma il suo docstring è stato aggiornato: **non è più la
+difesa principale**, lo è ora l'invariante strutturale verificata dal test.
+Resta come difesa in profondità per una funzione nuova che sfugga alla
+guardia, e converte un errore permanente e invisibile in un recupero
+trasparente. Con una conseguenza operativa utile da sapere: **se il suo
+`logger.warning` ("SQLite bloccato… riprovo") appare nei log, c'è una
+connessione abbandonata da trovare** — non è funzionamento normale.
+
+### Verifica
+
+- Nuovo `test_connessioni_db.py`: **8/8**, e fallisce correttamente su una
+  ricomparsa simulata del pattern.
+- Suite completa: **31/32** (`test_qr_scan.py` unico fallimento, noto e
+  ambientale — libzbar assente nel sandbox).
+- Riprovato anche il flusso reale di ingresso sullo snapshot vero di Davide
+  dopo il refactor: **11 note / 3 mappe / copia personaggio riuscita**,
+  identico a prima della conversione — nessuna regressione su un cambio che
+  ha toccato 165 funzioni.
+
+File toccati: i 9 moduli elencati sopra, `data/database.py` (docstring),
+nuovo `test_connessioni_db.py`, più `docs/architettura_moduli.md` (la forma
+corretta, con il perché di `conn = None`).
 
 ---
 

@@ -204,8 +204,9 @@ class _ResilientConnection(sqlite3.Connection):
     Bug segnalato da Davide: dopo essere entrato in un mondo LAN,
     "impossibile copiare personaggio" **sempre**, fino al riavvio dell'app.
     Causa: la quasi totalità delle funzioni dei repository di questo
-    progetto scrive `conn.close()` come ULTIMA riga del blocco `try`, non
-    in un `finally` (167 funzioni, verificato con uno scan AST). Se una
+    progetto scriveva `conn.close()` come ULTIMA riga del blocco `try`, non
+    in un `finally` (167 `close()` in 165 funzioni, contati con uno scan
+    AST — tutti convertiti, vedi la nota in fondo a questo docstring). Se una
     query solleva — es. `save_replica_note()` su una FK violata da dati
     residui, vedi il fix dello stesso giorno lì — quella connessione non
     viene mai chiusa. E non basta il refcount a liberarla: l'eccezione
@@ -216,14 +217,25 @@ class _ResilientConnection(sqlite3.Connection):
     scrittura successiva del processo** fallisce con "database is locked",
     in pratica per tutta la vita dell'app.
 
-    Invece di riscrivere quelle 167 funzioni in `try/finally` (cambio
-    meccanico enorme, da fare a parte con calma), il rimedio vive qui,
-    nell'unico punto da cui passa ogni query: al primo "database is
-    locked" si forza un `gc.collect()` — che chiude le connessioni orfane
-    rompendo quei cicli — e si riprova UNA volta. Un lock legittimo (un
-    altro thread che sta davvero scrivendo) è già coperto da
+    Al primo "database is locked" si forza un `gc.collect()` — che chiude le
+    connessioni orfane rompendo quei cicli — e si riprova UNA volta. Un lock
+    legittimo (un altro thread che sta davvero scrivendo) è già coperto da
     `_SQLITE_TIMEOUT_S`: qui si ritenta una volta e poi l'errore risale al
     chiamante esattamente come prima.
+
+    ⚠️ **Questa classe NON è più la difesa principale** (aggiornato
+    2026-08-17, stessa giornata): quelle 165 funzioni sono state tutte
+    convertite a `try/finally`, quindi oggi non esiste più nessun punto noto
+    che abbandoni una connessione, e questo ritentativo non dovrebbe mai
+    scattare. La difesa principale è ora strutturale e verificata da
+    `test_connessioni_db.py`, che analizza l'AST di tutto il codebase e
+    fallisce se una qualsiasi funzione torna a chiudere la connessione solo
+    sul percorso felice. Questa resta come difesa in profondità, per il caso
+    in cui una funzione nuova sfugga alla guardia (o un percorso di terze
+    parti abbandoni una connessione): converte un errore permanente e
+    invisibile in un recupero trasparente con un `logger.warning` che dice
+    dov'è il problema. **Se questo warning appare nei log, c'è una
+    connessione abbandonata da trovare** — non è un funzionamento normale.
 
     Il ritentativo è sicuro: una statement che non ha ottenuto il lock non
     ha applicato NIENTE, quindi rieseguirla non può duplicare scritture.

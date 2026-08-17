@@ -241,14 +241,17 @@ def peek_world_summary(data: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def world_id_exists(world_id: str) -> bool:
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute("SELECT 1 FROM worlds WHERE id = ?", (world_id,)).fetchone()
-        conn.close()
         return row is not None
     except Exception as e:
         logger.error(f"Errore world_id_exists({world_id}): {e}")
         return True  # in dubbio, fa passare dal dialog di conflitto
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------

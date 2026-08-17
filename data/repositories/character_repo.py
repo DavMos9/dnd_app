@@ -123,16 +123,19 @@ def _row_to_character(row) -> Character:
 
 def get_all() -> list[Character]:
     """Restituisce tutti i personaggi ordinati per data di aggiornamento (più recente prima)."""
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM characters ORDER BY updated_at DESC"
         ).fetchall()
-        conn.close()
         return [_row_to_character(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore nel recupero personaggi: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_all_instances_of_world(world_id: str) -> list[Character]:
@@ -146,17 +149,20 @@ def get_all_instances_of_world(world_id: str) -> list[Character]:
     silenziosamente definitiva al primo export/import, contraddicendo la
     scelta esplicita di non cancellarle mai).
     """
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM characters WHERE world_id = ? ORDER BY updated_at DESC",
             (world_id,),
         ).fetchall()
-        conn.close()
         return [_row_to_character(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_all_instances_of_world({world_id!r}): {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_master_visible_characters(world_id: str = "") -> list[Character]:
@@ -181,6 +187,7 @@ def get_master_visible_characters(world_id: str = "") -> list[Character]:
       un'istanza è nata non compare mai accanto alla sua istanza — risolve
       "il player entrato in un mondo appare duplicato".
     """
+    conn = None
     try:
         conn = get_connection()
         if world_id:
@@ -198,25 +205,30 @@ def get_master_visible_characters(world_id: str = "") -> list[Character]:
             rows = conn.execute(
                 "SELECT * FROM characters WHERE world_id = '' ORDER BY updated_at DESC"
             ).fetchall()
-        conn.close()
         return [_row_to_character(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore nel recupero personaggi (contesto Master, world_id={world_id!r}): {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_by_id(character_id: str) -> Optional[Character]:
     """Restituisce un personaggio per ID, None se non trovato."""
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT * FROM characters WHERE id = ?", (character_id,)
         ).fetchone()
-        conn.close()
         return _row_to_character(row) if row else None
     except Exception as e:
         logger.error(f"Errore nel recupero personaggio {character_id}: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create(character: Character) -> bool:
@@ -228,6 +240,7 @@ def create(character: Character) -> bool:
     character.created_at = now
     character.updated_at = now
 
+    conn = None
     try:
         conn = get_connection()
         conn.execute("""
@@ -393,7 +406,6 @@ def create(character: Character) -> bool:
         )
 
         conn.commit()
-        conn.close()
         logger.info(f"Personaggio creato: {character.name} ({character.id})")
 
         # Inizializza risorse di classe
@@ -406,11 +418,15 @@ def create(character: Character) -> bool:
         _last_create_error = f"{type(e).__name__}: {e}"
         logger.error(f"Errore nella creazione del personaggio: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update(character: Character) -> bool:
     """Aggiorna tutti i campi di un personaggio esistente."""
     character.updated_at = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute("""
@@ -540,11 +556,13 @@ def update(character: Character) -> bool:
             "updated_at": character.updated_at,
         })
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore nell'aggiornamento del personaggio {character.id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def archive_world_instances(world_id: str, owner_device_id: str) -> int:
@@ -568,6 +586,7 @@ def archive_world_instances(world_id: str, owner_device_id: str) -> int:
     affermava il contrario, ma nessun punto del codice lo ha mai
     implementato davvero (verificato con grep sull'intero repo).
     """
+    conn = None
     try:
         conn = get_connection()
         cur = conn.execute(
@@ -576,11 +595,13 @@ def archive_world_instances(world_id: str, owner_device_id: str) -> int:
             (datetime.now().isoformat(), world_id, owner_device_id),
         )
         conn.commit()
-        conn.close()
         return cur.rowcount
     except Exception as e:
         logger.error(f"Errore archive_world_instances: {e}")
         return 0
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def archive_world_instance(world_id: str, character_id: str) -> bool:
@@ -603,6 +624,7 @@ def archive_world_instance(world_id: str, character_id: str) -> bool:
     character = get_by_id(character_id)
     if character is None or character.world_id != world_id:
         return False
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -610,11 +632,13 @@ def archive_world_instance(world_id: str, character_id: str) -> bool:
             (datetime.now().isoformat(), character_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore archive_world_instance({character_id}): {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def unarchive_world_instance(character_id: str) -> bool:
@@ -631,6 +655,7 @@ def unarchive_world_instance(character_id: str) -> bool:
     già fatta risolvendo `request.character_id` a un personaggio di questo
     mondo) — stessa scelta di `archive_world_instance`.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -638,11 +663,13 @@ def unarchive_world_instance(character_id: str) -> bool:
             (datetime.now().isoformat(), character_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore unarchive_world_instance({character_id}): {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete(character_id: str) -> bool:
@@ -650,16 +677,19 @@ def delete(character_id: str) -> bool:
     Elimina un personaggio e tutti i dati collegati (CASCADE).
     Restituisce True in caso di successo.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM characters WHERE id = ?", (character_id,))
         conn.commit()
-        conn.close()
         logger.info(f"Personaggio eliminato: {character_id}")
         return True
     except Exception as e:
         logger.error(f"Errore nell'eliminazione del personaggio {character_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _save_single_proficiency(
@@ -678,6 +708,7 @@ def _save_single_proficiency(
                      0 = sconosciuto (wizard, house rules). Usato da undo_level.
     """
     import uuid
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -688,11 +719,13 @@ def _save_single_proficiency(
              int(is_expert), bonus_data, level_obtained),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore salvataggio competenza '{name}': {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # Token bare per le competenze bonus di sottoclasse ("bonus_proficiencies"
@@ -789,6 +822,7 @@ def apply_subclass_bonus_proficiencies(character_id: str, resolved_entries: list
     """
     if not resolved_entries:
         return
+    conn = None
     try:
         conn = get_connection()
         existing = {
@@ -798,10 +832,12 @@ def apply_subclass_bonus_proficiencies(character_id: str, resolved_entries: list
                 (character_id,),
             ).fetchall()
         }
-        conn.close()
     except Exception as e:
         logger.error(f"Errore lettura competenze esistenti per bonus sottoclasse: {e}")
         existing = set()
+    finally:
+        if conn is not None:
+            conn.close()
 
     for entry_name in resolved_entries:
         if not entry_name:
@@ -921,6 +957,7 @@ def apply_feat_proficiency_grants(
     grants = fd.get("proficiency_grants", []) or []
     choice_values = list(choice_values or [])
 
+    conn = None
     try:
         conn = get_connection()
         existing = {
@@ -930,10 +967,12 @@ def apply_feat_proficiency_grants(
                 (character_id,),
             ).fetchall()
         }
-        conn.close()
     except Exception as e:
         logger.error(f"Errore lettura competenze esistenti per talento '{feat_name}': {e}")
         existing = set()
+    finally:
+        if conn is not None:
+            conn.close()
 
     granted: list[dict] = []
     choice_idx = 0
@@ -984,6 +1023,7 @@ def get_feat_names_at_level(character_id: str, level: int) -> list[str]:
     classe (get_permanent_class_hp_bonus), calcolato in profilo_tab.py
     nello scope che racchiude do_level_down, non dentro undo_level stesso.
     """
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
@@ -991,11 +1031,13 @@ def get_feat_names_at_level(character_id: str, level: int) -> list[str]:
             "WHERE character_id=? AND proficiency_type='feat' AND level_obtained=?",
             (character_id, level),
         ).fetchall()
-        conn.close()
         return [r["name"] for r in rows]
     except Exception as e:
         logger.error(f"Errore get_feat_names_at_level({level}) per {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def undo_level(character_id: str, level_removed: int) -> bool:
@@ -1018,6 +1060,7 @@ def undo_level(character_id: str, level_removed: int) -> bool:
 
     Usato da _on_level_down_click PRIMA di decrementare c.level.
     """
+    conn = None
     try:
         conn = get_connection()
 
@@ -1080,11 +1123,13 @@ def undo_level(character_id: str, level_removed: int) -> bool:
         )
 
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore undo_level({level_removed}) per {character_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def remove_feat_with_bonuses(character_id: str, feat_name: str) -> bool:
@@ -1111,6 +1156,7 @@ def remove_feat_with_bonuses(character_id: str, feat_name: str) -> bool:
     l'unico punto che tocca già la tabella characters per la reversione
     ability/other.
     """
+    conn = None
     try:
         conn = get_connection()
 
@@ -1206,11 +1252,13 @@ def remove_feat_with_bonuses(character_id: str, feat_name: str) -> bool:
             (character_id, feat_name),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore rimozione talento '{feat_name}': {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def replace_proficiencies_by_types(
@@ -1224,6 +1272,7 @@ def replace_proficiencies_by_types(
     Usato dalla dialog di modifica manuale competenze in ProfiloTab.
     """
     import uuid
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1238,11 +1287,13 @@ def replace_proficiencies_by_types(
                 (str(uuid.uuid4()), character_id, proficiency_type, name, int(is_expert)),
             )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore replace_proficiencies_by_types ({proficiency_type}): {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def set_expertise(character_id: str, skill_names: list[str]) -> bool:
@@ -1252,6 +1303,7 @@ def set_expertise(character_id: str, skill_names: list[str]) -> bool:
     """
     if not skill_names:
         return True
+    conn = None
     try:
         conn = get_connection()
         for name in skill_names:
@@ -1263,22 +1315,24 @@ def set_expertise(character_id: str, skill_names: list[str]) -> bool:
                 (character_id, name),
             )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore set_expertise {character_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_proficiencies(character_id: str) -> list[CharacterProficiency]:
     """Restituisce tutte le competenze di un personaggio."""
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM character_proficiencies WHERE character_id = ?",
             (character_id,)
         ).fetchall()
-        conn.close()
         return [
             CharacterProficiency(
                 id=r["id"],
@@ -1292,10 +1346,14 @@ def get_proficiencies(character_id: str) -> list[CharacterProficiency]:
     except Exception as e:
         logger.error(f"Errore nel recupero competenze {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_hp(character_id: str, hp_current: int, hp_temp: int | None = None) -> bool:
     """Aggiornamento rapido degli HP senza ricaricare tutto il personaggio."""
+    conn = None
     try:
         conn = get_connection()
         if hp_temp is not None:
@@ -1309,22 +1367,24 @@ def update_hp(character_id: str, hp_current: int, hp_temp: int | None = None) ->
                 (hp_current, datetime.now().isoformat(), character_id)
             )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento HP: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_spell_slots(character_id: str) -> list[SpellSlot]:
     """Restituisce i 9 slot incantesimo del personaggio (livelli 1-9)."""
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM spell_slots WHERE character_id = ? ORDER BY slot_level",
             (character_id,)
         ).fetchall()
-        conn.close()
         return [
             SpellSlot(
                 character_id=r["character_id"],
@@ -1337,6 +1397,9 @@ def get_spell_slots(character_id: str) -> list[SpellSlot]:
     except Exception as e:
         logger.error(f"Errore recupero slot incantesimo {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def reset_all_spell_slots(character_id: str) -> bool:
@@ -1344,6 +1407,7 @@ def reset_all_spell_slots(character_id: str) -> bool:
     Ripristina tutti gli slot incantesimo (used=0).
     Usato dal riposo lungo (tutte le classi) e dal riposo breve (Warlock — Patto della Magia PHB p.107).
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1351,15 +1415,18 @@ def reset_all_spell_slots(character_id: str) -> bool:
             (character_id,)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore reset slot per {character_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_spell_slot(character_id: str, slot_level: int, used: int) -> bool:
     """Aggiorna il contatore 'used' di uno slot incantesimo."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1367,11 +1434,13 @@ def update_spell_slot(character_id: str, slot_level: int, used: int) -> bool:
             (used, character_id, slot_level)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento slot Lv.{slot_level}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1387,16 +1456,19 @@ def update_spell_slot(character_id: str, slot_level: int, used: int) -> bool:
 
 def get_character_classes(character_id: str) -> list[CharacterClass]:
     """Tutte le classi del personaggio, ordinate per order_index (ordine di acquisizione)."""
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM character_classes WHERE character_id=? ORDER BY order_index ASC",
             (character_id,),
         ).fetchall()
-        conn.close()
     except Exception as e:
         logger.error(f"Errore lettura character_classes per {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
     return [
         CharacterClass(
             id=row["id"], character_id=row["character_id"],
@@ -1457,6 +1529,7 @@ def add_character_class(
     new_id = str(uuid.uuid4())
     existing = get_character_classes(character_id)
     order_index = len(existing)
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1467,15 +1540,18 @@ def add_character_class(
              1 if is_primary else 0, order_index),
         )
         conn.commit()
-        conn.close()
         logger.info(f"Nuova classe multiclasse: {class_name} Lv{level} su {character_id}")
     except Exception as e:
         logger.error(f"Errore add_character_class {character_id}/{class_name}: {e}")
+    finally:
+        if conn is not None:
+            conn.close()
     return new_id
 
 
 def set_character_class_level(character_classes_id: str, new_level: int) -> bool:
     """Aggiorna il livello di UNA riga character_classes (level-up/level-down su quella classe)."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1483,11 +1559,13 @@ def set_character_class_level(character_classes_id: str, new_level: int) -> bool
             (new_level, character_classes_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore set_character_class_level {character_classes_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def set_character_class_subclass(character_classes_id: str, subclass: str) -> bool:
@@ -1499,6 +1577,7 @@ def set_character_class_subclass(character_classes_id: str, subclass: str) -> bo
     sempre quella della classe primaria, vedi `CharacterClass` in
     data/models.py).
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1506,11 +1585,13 @@ def set_character_class_subclass(character_classes_id: str, subclass: str) -> bo
             (subclass or "", character_classes_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore set_character_class_subclass {character_classes_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def sync_character_total_level(character_id: str) -> int:
@@ -1527,6 +1608,7 @@ def sync_character_total_level(character_id: str) -> int:
     total = sum(cc.level for cc in get_character_classes(character_id))
     if total <= 0:
         return 0
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1534,9 +1616,11 @@ def sync_character_total_level(character_id: str) -> int:
             (total, character_id),
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         logger.error(f"Errore sync_character_total_level {character_id}: {e}")
+    finally:
+        if conn is not None:
+            conn.close()
     return total
 
 
@@ -1547,15 +1631,18 @@ def remove_character_class(character_classes_id: str) -> bool:
     è l'unica rimasta: la UI deve impedirlo (un personaggio ha sempre almeno
     una classe).
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM character_classes WHERE id=?", (character_classes_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore remove_character_class {character_classes_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 _ABILITY_SCORE_FIELDS = {
@@ -1688,6 +1775,7 @@ def auto_init_spell_slots(character_id: str, class_name: str, level: int) -> boo
 
     lv_idx = max(0, min(level - 1, 19))
     slots = table[lv_idx]
+    conn = None
     try:
         conn = get_connection()
         for slot_lv, total in enumerate(slots, start=1):
@@ -1697,12 +1785,14 @@ def auto_init_spell_slots(character_id: str, class_name: str, level: int) -> boo
                 (total, total, character_id, slot_lv),
             )
         conn.commit()
-        conn.close()
         logger.info("Slot auto-init: %s Lv%d → %s", class_name, level, slots)
         return True
     except Exception as e:
         logger.error(f"Errore auto_init_spell_slots {character_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def sync_multiclass_spell_slots(character_id: str) -> bool:
@@ -1761,6 +1851,7 @@ def sync_multiclass_spell_slots(character_id: str) -> bool:
             "vedi multiclasse_design.md §3 punto 5)", character_id, slots,
         )
 
+    conn = None
     try:
         conn = get_connection()
         for slot_lv, total in enumerate(slots, start=1):
@@ -1770,13 +1861,15 @@ def sync_multiclass_spell_slots(character_id: str) -> bool:
                 (total, total, character_id, slot_lv),
             )
         conn.commit()
-        conn.close()
         logger.info("Slot multiclasse auto-init: %s livello incantatore %s → %s",
                      character_id, caster_level, slots)
         return True
     except Exception as e:
         logger.error(f"Errore sync_multiclass_spell_slots {character_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def init_borrowed_caster_slots(
@@ -1805,6 +1898,7 @@ def init_borrowed_caster_slots(
     slots = row.get("slots", {})
     if not slots:
         return False
+    conn = None
     try:
         conn = get_connection()
         for slot_lv_str, total in slots.items():
@@ -1815,7 +1909,6 @@ def init_borrowed_caster_slots(
                 (total, total, character_id, slot_lv),
             )
         conn.commit()
-        conn.close()
         logger.info(
             "Slot borrowed-caster auto-init: %s/%s Lv%d → %s",
             class_name, subclass, level, slots,
@@ -1824,6 +1917,9 @@ def init_borrowed_caster_slots(
     except Exception as e:
         logger.error(f"Errore init_borrowed_caster_slots {character_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def sync_borrowed_spellcasting_ability(character: "Character") -> bool:
@@ -1854,6 +1950,7 @@ def sync_borrowed_spellcasting_ability(character: "Character") -> bool:
     if character.spellcasting_ability == new_ability:
         return False  # già sincronizzato, nessuna scrittura necessaria
 
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1861,12 +1958,14 @@ def sync_borrowed_spellcasting_ability(character: "Character") -> bool:
             (new_ability, datetime.now().isoformat(), character.id),
         )
         conn.commit()
-        conn.close()
         character.spellcasting_ability = new_ability
         return True
     except Exception as e:
         logger.error(f"Errore sync_borrowed_spellcasting_ability {character.id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def sync_bonus_domain_spells(character: "Character") -> None:
@@ -1960,6 +2059,7 @@ def sync_bonus_domain_spells(character: "Character") -> None:
         )
 
     expected_keys = set(expected.keys())
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
@@ -1967,7 +2067,6 @@ def sync_bonus_domain_spells(character: "Character") -> None:
             "WHERE character_id=? AND always_prepared=1",
             (character.id,),
         ).fetchall()
-        conn.close()
         for r in rows:
             key = (r["name"], r["spell_level"])
             if key in expected_keys:
@@ -1978,10 +2077,14 @@ def sync_bonus_domain_spells(character: "Character") -> None:
                 remove_known_spell(character.id, r["name"], r["spell_level"])
     except Exception as e:
         logger.error(f"Errore sync_bonus_domain_spells (cleanup) {character.id}: {e}")
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _clear_always_prepared_flag(character_id: str, name: str, level: int) -> None:
     """Rimuove SOLO il flag always_prepared, senza toccare il resto della riga."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1990,9 +2093,11 @@ def _clear_always_prepared_flag(character_id: str, name: str, level: int) -> Non
             (character_id, name, level),
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         logger.error(f"Errore _clear_always_prepared_flag {character_id}/{name}: {e}")
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_spell_slot_total(character_id: str, slot_level: int, total: int) -> bool:
@@ -2000,6 +2105,7 @@ def update_spell_slot_total(character_id: str, slot_level: int, total: int) -> b
     Aggiorna il totale massimo di uno slot incantesimo.
     Se il nuovo totale è inferiore all'usato corrente, riduce anche 'used'.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2007,15 +2113,18 @@ def update_spell_slot_total(character_id: str, slot_level: int, total: int) -> b
             (total, total, character_id, slot_level)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento totale slot Lv.{slot_level}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_death_saves(character_id: str, success: int, failure: int) -> bool:
     """Aggiorna i tiri salvezza contro morte."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2023,15 +2132,18 @@ def update_death_saves(character_id: str, success: int, failure: int) -> bool:
             (success, failure, datetime.now().isoformat(), character_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento death saves: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_hit_dice(character_id: str, remaining: int) -> bool:
     """Aggiorna il contatore di dadi vita rimanenti."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2039,16 +2151,19 @@ def update_hit_dice(character_id: str, remaining: int) -> bool:
             (remaining, datetime.now().isoformat(), character_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento dadi vita: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_weapons(character_id: str, equipped_only: bool = True) -> list:
     """Restituisce le armi del personaggio (di default solo quelle equipaggiate)."""
     from data.models import Weapon
+    conn = None
     try:
         conn = get_connection()
         q = "SELECT * FROM weapons WHERE character_id=?"
@@ -2057,7 +2172,6 @@ def get_weapons(character_id: str, equipped_only: bool = True) -> list:
             q += " AND is_equipped=1"
         q += " ORDER BY rowid"
         rows = conn.execute(q, params).fetchall()
-        conn.close()
         return [
             Weapon(
                 id=r["id"],
@@ -2087,18 +2201,21 @@ def get_weapons(character_id: str, equipped_only: bool = True) -> list:
     except Exception as e:
         logger.error(f"Errore recupero armi {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_prepared_spells(character_id: str) -> list:
     """Restituisce gli incantesimi preparati (is_prepared=True), ordinati per livello."""
     from data.models import KnownSpell
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM known_spells WHERE character_id=? AND is_prepared=1 ORDER BY spell_level, name",
             (character_id,)
         ).fetchall()
-        conn.close()
         return [
             KnownSpell(
                 id=r["id"],
@@ -2120,18 +2237,21 @@ def get_prepared_spells(character_id: str) -> list:
     except Exception as e:
         logger.error(f"Errore recupero incantesimi preparati {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_known_spells(character_id: str) -> list:
     """Restituisce tutti gli incantesimi in known_spells (preparati e non)."""
     from data.models import KnownSpell
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM known_spells WHERE character_id=? ORDER BY spell_level, name",
             (character_id,)
         ).fetchall()
-        conn.close()
         return [
             KnownSpell(
                 id=r["id"], character_id=r["character_id"], name=r["name"],
@@ -2151,6 +2271,9 @@ def get_known_spells(character_id: str) -> list:
     except Exception as e:
         logger.error(f"Errore get_known_spells {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def upsert_known_spell(
@@ -2191,6 +2314,7 @@ def upsert_known_spell(
     preservato.
     """
     import uuid as _uuid
+    conn = None
     try:
         conn = get_connection()
         existing = conn.execute(
@@ -2227,15 +2351,18 @@ def upsert_known_spell(
                  int(final_bonus), int(final_always)),
             )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore upsert_known_spell {character_id}/{name}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def remove_known_spell(character_id: str, name: str, level: int) -> bool:
     """Rimuove un incantesimo dalla tabella known_spells."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2243,23 +2370,25 @@ def remove_known_spell(character_id: str, name: str, level: int) -> bool:
             (character_id, name, level),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore remove_known_spell {character_id}/{name}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_inventory(character_id: str) -> list:
     """Restituisce tutti gli oggetti in inventario del personaggio."""
     from data.models import InventoryItem
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM inventory_items WHERE character_id=? ORDER BY rowid",
             (character_id,)
         ).fetchall()
-        conn.close()
         return [
             InventoryItem(
                 id=r["id"],
@@ -2281,6 +2410,9 @@ def get_inventory(character_id: str) -> list:
     except Exception as e:
         logger.error(f"Errore recupero inventario {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_weapon(character_id: str, name: str, damage_dice: str = "",
@@ -2308,6 +2440,7 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
     CLAUDE.md.
     """
     import uuid as _uuid
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2327,11 +2460,13 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
              attack_override_value)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore creazione arma: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_weapon(weapon_id: str, name: str, damage_dice: str, damage_type: str,
@@ -2347,6 +2482,7 @@ def update_weapon(weapon_id: str, name: str, damage_dice: str, damage_type: str,
                   attack_total_override: bool = False,
                   attack_override_value: int = 0) -> bool:
     """Aggiorna un'arma esistente."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2365,24 +2501,29 @@ def update_weapon(weapon_id: str, name: str, damage_dice: str, damage_type: str,
              attack_override_value, weapon_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento arma {weapon_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_weapon(weapon_id: str) -> bool:
     """Elimina un'arma."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM weapons WHERE id=?", (weapon_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore eliminazione arma {weapon_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_inventory_item(character_id: str, name: str, quantity: int = 1,
@@ -2404,6 +2545,7 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
     """
     import uuid as _uuid
     new_id = str(_uuid.uuid4())
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2417,11 +2559,13 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
              int(requires_attunement), 0)
         )
         conn.commit()
-        conn.close()
         return new_id
     except Exception as e:
         logger.error(f"Errore creazione oggetto inventario: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_inventory_item(item_id: str, name: str, quantity: int, weight: float,
@@ -2435,6 +2579,7 @@ def update_inventory_item(item_id: str, name: str, quantity: int, weight: float,
     `requires_attunement=None` lascia il valore invariato: i chiamanti storici
     non lo passano e non devono azzerarlo senza volerlo.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2449,35 +2594,40 @@ def update_inventory_item(item_id: str, name: str, quantity: int, weight: float,
              item_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento oggetto {item_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_inventory_item(item_id: str) -> bool:
     """Elimina un oggetto dall'inventario."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM inventory_items WHERE id=?", (item_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore eliminazione oggetto {item_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_currencies(character_id: str) -> "Currency | None":
     """Restituisce le monete del personaggio, None se non trovate."""
     from data.models import Currency
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT * FROM currencies WHERE character_id=?", (character_id,)
         ).fetchone()
-        conn.close()
         if row:
             return Currency(
                 character_id=row["character_id"],
@@ -2491,11 +2641,15 @@ def get_currencies(character_id: str) -> "Currency | None":
     except Exception as e:
         logger.error(f"Errore recupero valute {character_id}: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_currencies(character_id: str, copper: int, silver: int,
                       electrum: int, gold: int, platinum: int) -> bool:
     """Aggiorna le monete del personaggio."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2503,23 +2657,25 @@ def update_currencies(character_id: str, copper: int, silver: int,
             (copper, silver, electrum, gold, platinum, character_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento valute {character_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_diary_entries(character_id: str) -> list:
     """Restituisce le voci di diario ordinate per data di creazione (più recente prima)."""
     from data.models import DiaryEntry
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM diary_entries WHERE character_id=? ORDER BY created_at DESC",
             (character_id,)
         ).fetchall()
-        conn.close()
         return [
             DiaryEntry(
                 id=r["id"],
@@ -2535,6 +2691,9 @@ def get_diary_entries(character_id: str) -> list:
     except Exception as e:
         logger.error(f"Errore recupero diario {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_diary_entry(character_id: str, title: str, content: str,
@@ -2542,6 +2701,7 @@ def create_diary_entry(character_id: str, title: str, content: str,
     """Crea una nuova voce di diario."""
     import uuid as _uuid
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2551,17 +2711,20 @@ def create_diary_entry(character_id: str, title: str, content: str,
             (str(_uuid.uuid4()), character_id, title, content, session_date, now, now)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore creazione voce diario: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_diary_entry(entry_id: str, title: str, content: str,
                        session_date: str = "") -> bool:
     """Aggiorna una voce di diario esistente."""
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2569,24 +2732,29 @@ def update_diary_entry(entry_id: str, title: str, content: str,
             (title, content, session_date, now, entry_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento voce diario: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_diary_entry(entry_id: str) -> bool:
     """Elimina una voce di diario."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM diary_entries WHERE id=?", (entry_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore eliminazione voce diario: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -2601,6 +2769,7 @@ def get_campaign_notes(character_id: str,
     Ordine: created_at ASC (cronologico).
     """
     from data.models import CampaignNote
+    conn = None
     try:
         conn = get_connection()
         if category:
@@ -2615,7 +2784,6 @@ def get_campaign_notes(character_id: str,
                 " ORDER BY category, created_at ASC",
                 (character_id,)
             ).fetchall()
-        conn.close()
         return [
             CampaignNote(
                 id=r["id"],
@@ -2633,6 +2801,9 @@ def get_campaign_notes(character_id: str,
     except Exception as e:
         logger.error(f"Errore recupero campaign_notes {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_campaign_note(character_id: str, category: str, name: str,
@@ -2641,6 +2812,7 @@ def create_campaign_note(character_id: str, category: str, name: str,
     """Crea una nuova nota di campagna."""
     import uuid as _uuid
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2652,17 +2824,20 @@ def create_campaign_note(character_id: str, category: str, name: str,
              description, status, tags, now, now)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore creazione campaign_note: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_campaign_note(note_id: str, name: str, description: str,
                           status: str, tags: str) -> bool:
     """Aggiorna una nota di campagna esistente."""
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2672,24 +2847,29 @@ def update_campaign_note(note_id: str, name: str, description: str,
             (name, description, status, tags, now, note_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento campaign_note {note_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_campaign_note(note_id: str) -> bool:
     """Elimina una nota di campagna."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM campaign_notes WHERE id=?", (note_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore eliminazione campaign_note {note_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -2703,6 +2883,7 @@ def get_custom_abilities(character_id: str, category: str | None = None) -> list
     "combattimento"). Ordine: created_at ASC (cronologico).
     """
     from data.models import CustomAbility
+    conn = None
     try:
         conn = get_connection()
         if category:
@@ -2717,7 +2898,6 @@ def get_custom_abilities(character_id: str, category: str | None = None) -> list
                 " ORDER BY category, created_at ASC",
                 (character_id,)
             ).fetchall()
-        conn.close()
         return [
             CustomAbility(
                 id=r["id"],
@@ -2733,6 +2913,9 @@ def get_custom_abilities(character_id: str, category: str | None = None) -> list
     except Exception as e:
         logger.error(f"Errore lettura custom_abilities per {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_custom_ability(character_id: str, category: str, name: str,
@@ -2741,6 +2924,7 @@ def create_custom_ability(character_id: str, category: str, name: str,
     import uuid as _uuid
     now = datetime.now().isoformat()
     new_id = str(_uuid.uuid4())
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2750,16 +2934,19 @@ def create_custom_ability(character_id: str, category: str, name: str,
             (new_id, character_id, category, name, description, now, now)
         )
         conn.commit()
-        conn.close()
         return new_id
     except Exception as e:
         logger.error(f"Errore creazione custom_ability: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_custom_ability(ability_id: str, name: str, description: str) -> bool:
     """Aggiorna nome/descrizione di un'abilità speciale custom esistente."""
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2769,28 +2956,34 @@ def update_custom_ability(ability_id: str, name: str, description: str) -> bool:
             (name, description, now, ability_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento custom_ability {ability_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_custom_ability(ability_id: str) -> bool:
     """Elimina un'abilità speciale custom."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM custom_abilities WHERE id=?", (ability_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore eliminazione custom_ability {ability_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_ca_bonus(character_id: str, ca_bonus: int) -> bool:
     """Aggiorna il bonus CA temporaneo (da incantesimi, reazioni, ecc.)."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2798,15 +2991,18 @@ def update_ca_bonus(character_id: str, ca_bonus: int) -> bool:
             (ca_bonus, datetime.now().isoformat(), character_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento CA bonus: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_max_prepared_override(character_id: str, value: int) -> bool:
     """Salva l'override manuale del massimo incantesimi preparabili (0 = usa formula PHB)."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2814,11 +3010,13 @@ def update_max_prepared_override(character_id: str, value: int) -> bool:
             (value, datetime.now().isoformat(), character_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_max_prepared_override: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_passive_perception_override(character_id: str, value: int) -> bool:
@@ -2828,6 +3026,7 @@ def update_passive_perception_override(character_id: str, value: int) -> bool:
     su richiesta di Davide ("rendiamo modificabili... percezione passiva"),
     stesso pattern di update_max_prepared_override/proficiency_bonus_override.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2835,11 +3034,13 @@ def update_passive_perception_override(character_id: str, value: int) -> bool:
             (value, datetime.now().isoformat(), character_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_passive_perception_override: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_carry_capacity_override(character_id: str, value: float) -> bool:
@@ -2851,6 +3052,7 @@ def update_carry_capacity_override(character_id: str, value: float) -> bool:
     (es. "Corporatura Possente" raddoppia il carico) senza toccare la
     formula base né inventare un talento non ancora nei dati PHB.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2858,11 +3060,13 @@ def update_carry_capacity_override(character_id: str, value: float) -> bool:
             (value, datetime.now().isoformat(), character_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_carry_capacity_override: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_exhaustion_level(character_id: str, value: int) -> bool:
@@ -2874,6 +3078,7 @@ def update_exhaustion_level(character_id: str, value: int) -> bool:
     applicato altrove nel repository, es. update_death_saves).
     """
     value = max(0, min(6, value))
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2881,11 +3086,13 @@ def update_exhaustion_level(character_id: str, value: int) -> bool:
             (value, datetime.now().isoformat(), character_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_exhaustion_level: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_frenzy_state(character_id: str, active: bool) -> bool:
@@ -2897,6 +3104,7 @@ def update_frenzy_state(character_id: str, active: bool) -> bool:
     (active=False, es. per correggere un click accidentale senza subire il
     livello di Indebolimento).
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2904,11 +3112,13 @@ def update_frenzy_state(character_id: str, active: bool) -> bool:
             (int(active), datetime.now().isoformat(), character_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_frenzy_state: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def end_frenzy_rage(character_id: str, current_exhaustion: int) -> int | None:
@@ -2923,6 +3133,7 @@ def end_frenzy_rage(character_id: str, current_exhaustion: int) -> int | None:
     (nessuna scrittura viene applicata).
     """
     new_level = max(0, min(6, current_exhaustion + 1))
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2930,11 +3141,13 @@ def end_frenzy_rage(character_id: str, current_exhaustion: int) -> int | None:
             (new_level, datetime.now().isoformat(), character_id),
         )
         conn.commit()
-        conn.close()
         return new_level
     except Exception as e:
         logger.error(f"Errore end_frenzy_rage: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_speed(character_id: str, speed: float) -> bool:
@@ -2945,6 +3158,7 @@ def update_speed(character_id: str, speed: float) -> bool:
     aggiunto in Esplorazione (2026-07-16, richiesta Davide: "rendiamo
     modificabili... velocità").
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2952,15 +3166,18 @@ def update_speed(character_id: str, speed: float) -> bool:
             (speed, datetime.now().isoformat(), character_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_speed: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_session_notes(character_id: str, notes: str) -> bool:
     """Aggiorna gli appunti di sessione del personaggio."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -2968,11 +3185,13 @@ def update_session_notes(character_id: str, notes: str) -> bool:
             (notes, datetime.now().isoformat(), character_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento note sessione: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def calculate_and_update_ca(character_id: str) -> int:
@@ -3012,6 +3231,7 @@ def calculate_and_update_ca(character_id: str) -> int:
     futuro che non passi da resolve_armor_equip().
     """
     from config.settings import get_modifier
+    conn = None
     try:
         char = get_by_id(character_id)
         if not char:
@@ -3061,12 +3281,14 @@ def calculate_and_update_ca(character_id: str) -> int:
             (new_ca, datetime.now().isoformat(), character_id)
         )
         conn.commit()
-        conn.close()
         logger.info(f"CA aggiornata: {new_ca} (base={base_ca}, scudo={shield_ca})")
         return new_ca
     except Exception as e:
         logger.error(f"Errore calcolo CA: {e}")
         return 10
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_effective_speed(character: Character) -> float:
@@ -3148,13 +3370,13 @@ def get_effective_speed(character: Character) -> float:
 
 def get_class_resources(character_id: str) -> list[ClassResource]:
     """Restituisce tutte le risorse di classe del personaggio."""
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
             "SELECT * FROM class_resources WHERE character_id=? ORDER BY rowid",
             (character_id,)
         ).fetchall()
-        conn.close()
         return [
             (lambda d: ClassResource(
                 id=d["id"],
@@ -3171,10 +3393,14 @@ def get_class_resources(character_id: str) -> list[ClassResource]:
     except Exception as e:
         logger.error(f"Errore recupero risorse di classe {character_id}: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_class_resource(resource_id: str, current_value: int) -> bool:
     """Aggiorna il valore corrente di una risorsa di classe."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -3182,11 +3408,13 @@ def update_class_resource(resource_id: str, current_value: int) -> bool:
             (current_value, resource_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento risorsa {resource_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_class_resource_bonus(resource_id: str, max_value_bonus: int) -> bool:
@@ -3199,6 +3427,7 @@ def update_class_resource_bonus(resource_id: str, max_value_bonus: int) -> bool:
     risorse dopo un level-up), altrimenti il bonus resterebbe salvato ma
     non ancora riflesso nel pool visibile.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -3206,11 +3435,13 @@ def update_class_resource_bonus(resource_id: str, max_value_bonus: int) -> bool:
             (max_value_bonus, resource_id)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento bonus risorsa {resource_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def reset_class_resources(character_id: str, reset_on: str) -> bool:
@@ -3218,6 +3449,7 @@ def reset_class_resources(character_id: str, reset_on: str) -> bool:
     Ripristina current_value = max_value per tutte le risorse con il reset_on indicato.
     Usato da riposo breve (reset_on='short_rest') e riposo lungo (chiamare due volte).
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -3225,11 +3457,13 @@ def reset_class_resources(character_id: str, reset_on: str) -> bool:
             (character_id, reset_on)
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore reset risorse {reset_on} per {character_id}: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def init_class_resources(
@@ -3262,6 +3496,7 @@ def init_class_resources(
     """
     import uuid as _uuid
     from config.settings import get_class_resource_defaults, get_race_resource_defaults
+    conn = None
     try:
         # Risorse di classe — unione su tutte le classi possedute (multiclasse)
         owned_classes = get_character_classes(character_id)
@@ -3351,11 +3586,13 @@ def init_class_resources(
                 )
 
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore init_class_resources ({class_name} lv{level}): {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -3422,6 +3659,7 @@ def get_creature_entries(
     entry_type = "forma" | "evocazione" | None (tutte).
     active_only = True → solo quelle is_active=1.
     """
+    conn = None
     try:
         conn = get_connection()
         clauses = ["character_id=?"]
@@ -3435,11 +3673,13 @@ def get_creature_entries(
             f"SELECT * FROM creature_entries WHERE {' AND '.join(clauses)} ORDER BY name",
             params,
         ).fetchall()
-        conn.close()
         return [_row_to_creature(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_creature_entries: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_creature_entry(
@@ -3488,6 +3728,7 @@ def create_creature_entry(
     import uuid as _uuid
     entry_id = str(_uuid.uuid4())
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute("""
@@ -3517,15 +3758,18 @@ def create_creature_entry(
         ))
         conn.commit()
         row = conn.execute("SELECT * FROM creature_entries WHERE id=?", (entry_id,)).fetchone()
-        conn.close()
         return _row_to_creature(row) if row else None
     except Exception as e:
         logger.error(f"Errore create_creature_entry: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_creature_hp(creature_id: str, hp_current: int) -> bool:
     """Aggiorna hp_current di una creatura durante il combattimento."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -3533,11 +3777,13 @@ def update_creature_hp(creature_id: str, hp_current: int) -> bool:
             (max(0, hp_current), datetime.now().isoformat(), creature_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_creature_hp: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def set_creature_active(creature_id: str, is_active: bool, reset_hp: bool = False) -> bool:
@@ -3545,6 +3791,7 @@ def set_creature_active(creature_id: str, is_active: bool, reset_hp: bool = Fals
     Segna la creatura come attiva (in-campo) o inattiva.
     reset_hp=True → ripristina hp_current = hp_max (utile a fine combattimento).
     """
+    conn = None
     try:
         conn = get_connection()
         if reset_hp:
@@ -3560,11 +3807,13 @@ def set_creature_active(creature_id: str, is_active: bool, reset_hp: bool = Fals
                 (int(is_active), datetime.now().isoformat(), creature_id),
             )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore set_creature_active: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def deactivate_all_creatures(character_id: str, entry_type: str | None = None) -> bool:
@@ -3572,6 +3821,7 @@ def deactivate_all_creatures(character_id: str, entry_type: str | None = None) -
     Disattiva tutte le creature del personaggio (fine combattimento / fine turno).
     entry_type = "forma" | "evocazione" | None (tutte).
     """
+    conn = None
     try:
         conn = get_connection()
         if entry_type:
@@ -3587,24 +3837,29 @@ def deactivate_all_creatures(character_id: str, entry_type: str | None = None) -
                 (datetime.now().isoformat(), character_id),
             )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore deactivate_all_creatures: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_creature_entry(creature_id: str) -> bool:
     """Elimina definitivamente una voce dal bestiary personale."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM creature_entries WHERE id=?", (creature_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore delete_creature_entry: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -3612,6 +3867,7 @@ def delete_creature_entry(creature_id: str) -> bool:
 def update_turn_state(character_id: str, action: bool, bonus: bool,
                       reaction: bool, movement: float, prev_state: str) -> bool:
     """Aggiornamento rapido dello stato turno."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("""
@@ -3622,11 +3878,13 @@ def update_turn_state(character_id: str, action: bool, bonus: bool,
         """, (int(action), int(bonus), int(reaction), movement,
               prev_state, datetime.now().isoformat(), character_id))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento stato turno: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------

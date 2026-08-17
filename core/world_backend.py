@@ -623,6 +623,7 @@ def _update_world_owner(world_id: str, new_owner_device_id: str) -> bool:
     trasferimento di proprietà già validato qui, mai come scrittura diretta
     dalla UI."""
     from data.database import get_connection
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -630,11 +631,13 @@ def _update_world_owner(world_id: str, new_owner_device_id: str) -> bool:
             (new_owner_device_id, datetime.now().isoformat(), world_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error("Errore _update_world_owner: %s", e)
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 @register_handler(perm.CMD_WORLD_TRANSFER_OWNERSHIP)

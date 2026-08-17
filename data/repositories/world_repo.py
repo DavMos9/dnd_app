@@ -214,27 +214,33 @@ def create_world(name: str, owner_device_id: str, owner_display_name: str,
 
 
 def get_world(world_id: str) -> World | None:
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute("SELECT * FROM worlds WHERE id=?", (world_id,)).fetchone()
-        conn.close()
         return _row_to_world(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_world: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_world_by_join_code(join_code: str) -> World | None:
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT * FROM worlds WHERE join_code=?", (_s(join_code).strip().upper(),)
         ).fetchone()
-        conn.close()
         return _row_to_world(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_world_by_join_code: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_worlds_for_device(device_id: str, roles: tuple[str, ...] | None = None) -> list[World]:
@@ -248,6 +254,7 @@ def get_worlds_for_device(device_id: str, roles: tuple[str, ...] | None = None) 
     "masterare" un mondo in cui è solo un giocatore). Filtro qui e non in
     Python lato chiamante: stessa query, un `IN (...)` in più, evita N
     round-trip su `get_member()` per ogni mondo del dispositivo."""
+    conn = None
     try:
         conn = get_connection()
         query = """
@@ -262,11 +269,13 @@ def get_worlds_for_device(device_id: str, roles: tuple[str, ...] | None = None) 
             params.extend(roles)
         query += " ORDER BY w.updated_at DESC"
         rows = conn.execute(query, params).fetchall()
-        conn.close()
         return [_row_to_world(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_worlds_for_device: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def rename_world(world_id: str, new_name: str) -> bool:
@@ -276,6 +285,7 @@ def rename_world(world_id: str, new_name: str) -> bool:
     new_name = _s(new_name).strip()
     if not new_name:
         return False
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -283,16 +293,19 @@ def rename_world(world_id: str, new_name: str) -> bool:
             (new_name, _now(), world_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore rename_world: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def regenerate_join_code(world_id: str) -> str | None:
     """Genera un nuovo codice d'ingresso (es. il vecchio è trapelato)."""
     new_code = generate_join_code()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -300,11 +313,13 @@ def regenerate_join_code(world_id: str) -> str | None:
             (new_code, _now(), world_id),
         )
         conn.commit()
-        conn.close()
         return new_code
     except Exception as e:
         logger.error(f"Errore regenerate_join_code: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def mark_world_exported(world_id: str, seq: int) -> bool:
@@ -313,6 +328,7 @@ def mark_world_exported(world_id: str, seq: int) -> bool:
     `ui/views/world/world_view.py::_backup_section`). Chiamata SOLO dopo
     che il file è stato scritto con successo su disco/scaricato — un
     export fallito non deve mai spegnere il promemoria."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -320,11 +336,13 @@ def mark_world_exported(world_id: str, seq: int) -> bool:
             (int(seq), _now(), world_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore mark_world_exported: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def count_events_since(world_id: str, since_seq: int) -> int:
@@ -341,17 +359,20 @@ def count_events_since(world_id: str, since_seq: int) -> int:
     era già avanti). Un `COUNT(*)` filtrato per `world_id` E `seq`
     corrisponde sempre al numero VERO di eventi di QUESTO mondo, qualunque
     sia la posizione del contatore globale."""
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT COUNT(*) AS c FROM world_events WHERE world_id=? AND seq>?",
             (world_id, int(since_seq)),
         ).fetchone()
-        conn.close()
         return int(row["c"]) if row else 0
     except Exception as e:
         logger.error(f"Errore count_events_since: {e}")
         return 0
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_latest_event_seq(world_id: str) -> int:
@@ -359,16 +380,19 @@ def get_latest_event_seq(world_id: str) -> int:
     ha ancora nessuno) — usato per calcolare "quanto è cambiato dall'ultimo
     export" (passo 9E) senza dover scaricare l'intero giornale solo per
     contarne la lunghezza."""
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT MAX(seq) AS m FROM world_events WHERE world_id=?", (world_id,)
         ).fetchone()
-        conn.close()
         return int(row["m"]) if row and row["m"] is not None else 0
     except Exception as e:
         logger.error(f"Errore get_latest_event_seq: {e}")
         return 0
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_world(world_id: str) -> bool:
@@ -376,15 +400,18 @@ def delete_world(world_id: str) -> bool:
     modifica. NON tocca le istanze di personaggio (passo 3): quando
     esisteranno, la loro `world_id` punterà a un mondo inesistente e andranno
     gestite esplicitamente (non responsabilità di questo passo)."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM worlds WHERE id=?", (world_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore delete_world: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -394,6 +421,7 @@ def delete_world(world_id: str) -> bool:
 def get_members(world_id: str) -> list[WorldMember]:
     """Membri di un mondo, owner sempre per primo poi per ordine d'ingresso —
     è la gerarchia in cui la UI deve mostrarli (§4)."""
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
@@ -404,25 +432,30 @@ def get_members(world_id: str) -> list[WorldMember]:
             """,
             (world_id,),
         ).fetchall()
-        conn.close()
         return [_row_to_member(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_members: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_member(world_id: str, device_id: str) -> WorldMember | None:
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT * FROM world_members WHERE world_id=? AND device_id=?",
             (world_id, device_id),
         ).fetchone()
-        conn.close()
         return _row_to_member(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_member: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def join_world_by_code(join_code: str, device_id: str, display_name: str) -> tuple[World, WorldMember] | None:
@@ -490,6 +523,7 @@ def update_member_role(world_id: str, device_id: str, new_role: str) -> bool:
     if new_role not in ROLES:
         logger.error(f"update_member_role: ruolo non valido {new_role!r}")
         return False
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -497,16 +531,19 @@ def update_member_role(world_id: str, device_id: str, new_role: str) -> bool:
             (new_role, _now(), world_id, device_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_member_role: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def remove_member(world_id: str, device_id: str) -> bool:
     """Espulsione (o uscita volontaria) — usato solo da `core.world_backend`
     dopo la validazione dei permessi."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -514,16 +551,19 @@ def remove_member(world_id: str, device_id: str) -> bool:
             (world_id, device_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore remove_member: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def set_member_connected(world_id: str, device_id: str, connected: bool) -> bool:
     """Aggiorna solo lo stato di connessione — significativo dal passo 4
     (rete) in poi; innocuo chiamarlo ora."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -532,11 +572,13 @@ def set_member_connected(world_id: str, device_id: str, connected: bool) -> bool
             (1 if connected else 0, _now(), _now(), world_id, device_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore set_member_connected: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -612,6 +654,7 @@ def get_events_since(world_id: str, since_seq: int = 0, limit: int | None = 200)
     implicito di 200 uno snapshot di un mondo più vecchio risulterebbe
     silenziosamente troncato.
     """
+    conn = None
     try:
         conn = get_connection()
         if limit is None:
@@ -633,24 +676,29 @@ def get_events_since(world_id: str, since_seq: int = 0, limit: int | None = 200)
                 """,
                 (world_id, since_seq, max(1, limit)),
             ).fetchall()
-        conn.close()
         return [_row_to_event(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_events_since: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_latest_seq(world_id: str) -> int:
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT MAX(seq) AS s FROM world_events WHERE world_id=?", (world_id,)
         ).fetchone()
-        conn.close()
         return int(row["s"]) if row and row["s"] is not None else 0
     except Exception as e:
         logger.error(f"Errore get_latest_seq: {e}")
         return 0
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -672,6 +720,7 @@ def save_replica_world(world: World) -> bool:
     garantito per costruzione: nessuna funzione imposta `is_local_host=1`
     tranne `create_world()`). Preserva `created_at` se il mondo esiste già
     localmente (un ri-sincronizzazione non deve invecchiare la riga)."""
+    conn = None
     try:
         conn = get_connection()
         existing = conn.execute(
@@ -691,17 +740,20 @@ def save_replica_world(world: World) -> bool:
              int(world.last_synced_seq), created_at, _now()),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore save_replica_world: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def save_replica_member(member: WorldMember) -> bool:
     """Inserisce o aggiorna la replica locale di un membro — usata sia per
     seminare l'elenco completo ricevuto da uno snapshot, sia per applicare
     un singolo evento `member.joined`/`member.promote`/`member.demote`."""
+    conn = None
     try:
         conn = get_connection()
         existing = conn.execute(
@@ -720,11 +772,13 @@ def save_replica_member(member: WorldMember) -> bool:
              created_at, _now()),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore save_replica_member: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def remove_replica_member(world_id: str, device_id: str) -> bool:
@@ -746,6 +800,7 @@ def save_replica_event(event: WorldEvent) -> bool:
     `INSERT OR REPLACE` lo rende idempotente: ririchiedere lo stesso evento
     dopo una riconnessione non lo duplica.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -761,11 +816,13 @@ def save_replica_event(event: WorldEvent) -> bool:
              _s(event.before_state), event.created_at or _now()),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore save_replica_event: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_last_synced_seq(world_id: str, seq: int) -> bool:
@@ -773,6 +830,7 @@ def update_last_synced_seq(world_id: str, seq: int) -> bool:
     prossima sincronizzazione (§5: "un client chiede 'cosa è successo dopo
     il #481'"). Significativo solo su una replica (`is_local_host=False`);
     innocuo ma senza effetto pratico se chiamato sull'host."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -780,11 +838,13 @@ def update_last_synced_seq(world_id: str, seq: int) -> bool:
             (int(seq), _now(), world_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_last_synced_seq: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_last_seen_host(world_id: str, host_port: str) -> bool:
@@ -792,6 +852,7 @@ def update_last_seen_host(world_id: str, host_port: str) -> bool:
     dopo ogni ingresso o riconnessione riuscita, così il prossimo avvio
     dell'app puo' ritentare lo stesso indirizzo prima di ricorrere alla
     scoperta automatica (passo 5) o a chiederlo di nuovo all'utente."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -799,11 +860,13 @@ def update_last_seen_host(world_id: str, host_port: str) -> bool:
             (_s(host_port), _now(), world_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_last_seen_host: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -815,6 +878,7 @@ def create_change_request(world_id: str, character_id: str, requested_by: str,
                            payload: str, reason: str = "") -> WorldChangeRequest | None:
     request_id = str(_uuid.uuid4())
     now = _now()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -831,11 +895,13 @@ def create_change_request(world_id: str, character_id: str, requested_by: str,
         row = conn.execute(
             "SELECT * FROM world_change_requests WHERE id=?", (request_id,)
         ).fetchone()
-        conn.close()
         return _row_to_change_request(row) if row else None
     except Exception as e:
         logger.error(f"Errore create_change_request: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_change_request(request_id: str) -> WorldChangeRequest | None:
@@ -843,19 +909,23 @@ def get_change_request(request_id: str) -> WorldChangeRequest | None:
     `change_request.respond` (Multiplayer passo 6) per verificare che
     esista, sia ancora `pending` e riguardi davvero il personaggio di chi
     sta rispondendo, prima di risolverla."""
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT * FROM world_change_requests WHERE id=?", (request_id,)
         ).fetchone()
-        conn.close()
         return _row_to_change_request(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_change_request: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_pending_change_requests(world_id: str) -> list[WorldChangeRequest]:
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
@@ -863,11 +933,13 @@ def get_pending_change_requests(world_id: str) -> list[WorldChangeRequest]:
             "ORDER BY created_at ASC",
             (world_id,),
         ).fetchall()
-        conn.close()
         return [_row_to_change_request(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_pending_change_requests: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def save_replica_change_request(request: WorldChangeRequest) -> bool:
@@ -880,6 +952,7 @@ def save_replica_change_request(request: WorldChangeRequest) -> bool:
     VALIDATA resta sempre `create_change_request()`/`resolve_change_request()`
     sull'host — qui si specchia solo il risultato.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -894,17 +967,20 @@ def save_replica_change_request(request: WorldChangeRequest) -> bool:
              request.status, request.created_at or _now(), _s(request.resolved_at)),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore save_replica_change_request: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def resolve_change_request(request_id: str, status: str) -> bool:
     if status not in ("accepted", "rejected", "expired"):
         logger.error(f"resolve_change_request: stato non valido {status!r}")
         return False
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -912,11 +988,13 @@ def resolve_change_request(request_id: str, status: str) -> bool:
             (status, _now(), request_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore resolve_change_request: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -932,6 +1010,7 @@ def create_rejoin_request(world_id: str, character_id: str, requested_by: str,
                            reason: str = "") -> WorldRejoinRequest | None:
     request_id = str(_uuid.uuid4())
     now = _now()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -949,24 +1028,29 @@ def create_rejoin_request(world_id: str, character_id: str, requested_by: str,
         row = conn.execute(
             "SELECT * FROM world_rejoin_requests WHERE id=?", (request_id,)
         ).fetchone()
-        conn.close()
         return _row_to_rejoin_request(row) if row else None
     except Exception as e:
         logger.error(f"Errore create_rejoin_request: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_rejoin_request(request_id: str) -> WorldRejoinRequest | None:
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
             "SELECT * FROM world_rejoin_requests WHERE id=?", (request_id,)
         ).fetchone()
-        conn.close()
         return _row_to_rejoin_request(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_rejoin_request: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_pending_rejoin_requests(world_id: str) -> list[WorldRejoinRequest]:
@@ -974,6 +1058,7 @@ def get_pending_rejoin_requests(world_id: str) -> list[WorldRejoinRequest]:
     `get_pending_change_requests` (dove chi risponde è sempre il
     proprietario del personaggio), qui chi risponde è il master: deve
     vedere le richieste su QUALSIASI personaggio del mondo."""
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
@@ -981,11 +1066,13 @@ def get_pending_rejoin_requests(world_id: str) -> list[WorldRejoinRequest]:
             "ORDER BY created_at ASC",
             (world_id,),
         ).fetchall()
-        conn.close()
         return [_row_to_rejoin_request(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_pending_rejoin_requests: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_pending_rejoin_request_for_character(character_id: str) -> WorldRejoinRequest | None:
@@ -993,6 +1080,7 @@ def get_pending_rejoin_request_for_character(character_id: str) -> WorldRejoinRe
     alla volta — usata sia dall'handler (`_handle_character_rejoin_request`)
     sia dalla UI (per mostrare "richiesta già inviata" invece di riaprire
     il dialogo)."""
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
@@ -1000,11 +1088,13 @@ def get_pending_rejoin_request_for_character(character_id: str) -> WorldRejoinRe
             "ORDER BY created_at DESC LIMIT 1",
             (character_id,),
         ).fetchone()
-        conn.close()
         return _row_to_rejoin_request(row) if row else None
     except Exception as e:
         logger.error(f"Errore get_pending_rejoin_request_for_character: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def save_replica_rejoin_request(request: WorldRejoinRequest) -> bool:
@@ -1012,6 +1102,7 @@ def save_replica_rejoin_request(request: WorldRejoinRequest) -> bool:
     `save_replica_change_request`: scrive lo stato così com'è ricevuto
     dall'host, `INSERT OR REPLACE` per restare idempotente a una
     riconnessione."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1028,17 +1119,20 @@ def save_replica_rejoin_request(request: WorldRejoinRequest) -> bool:
              _s(request.resolved_at)),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore save_replica_rejoin_request: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def resolve_rejoin_request(request_id: str, status: str) -> bool:
     if status not in ("accepted", "rejected", "expired"):
         logger.error(f"resolve_rejoin_request: stato non valido {status!r}")
         return False
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -1046,8 +1140,10 @@ def resolve_rejoin_request(request_id: str, status: str) -> bool:
             (status, _now(), request_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore resolve_rejoin_request: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()

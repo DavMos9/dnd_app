@@ -92,6 +92,7 @@ def find_existing_instance(world_id: str, origin_character_id: str,
     """Id dell'istanza già esistente per questa terna, o None. Query diretta
     (nessun repository dedicato: è un lookup a una riga, non vale una nuova
     funzione pubblica in `character_repo.py` per un solo uso)."""
+    conn = None
     try:
         conn = get_connection()
         row = conn.execute(
@@ -99,11 +100,13 @@ def find_existing_instance(world_id: str, origin_character_id: str,
             "AND owner_device_id=?",
             (world_id, origin_character_id, owner_device_id),
         ).fetchone()
-        conn.close()
         return row["id"] if row else None
     except Exception as e:
         logger.error("Errore find_existing_instance: %s", e)
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_or_resume_instance(world_id: str, local_character_id: str,
@@ -187,6 +190,7 @@ def _link_to_world(character_id: str, world_id: str, origin_character_id: str,
     `import_character()` le azzera sempre (§14.1) — corretto per un
     `.dndchar` importato da fuori, ma qui serve il passo successivo
     esplicito per collegarla davvero al mondo."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -195,11 +199,13 @@ def _link_to_world(character_id: str, world_id: str, origin_character_id: str,
             (world_id, origin_character_id, owner_device_id, character_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error("Errore _link_to_world: %s", e)
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------

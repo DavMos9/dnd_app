@@ -444,6 +444,7 @@ def _update_replica_owner(world_id: str, new_owner_device_id: str) -> None:
     from datetime import datetime
 
     from data.database import get_connection
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -451,9 +452,11 @@ def _update_replica_owner(world_id: str, new_owner_device_id: str) -> None:
             (new_owner_device_id, datetime.now().isoformat(), world_id),
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         logger.error("Errore _update_replica_owner: %s", e)
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def sync_replica(remote_backend, local_world_id: str, refresh_members: bool = True) -> int:

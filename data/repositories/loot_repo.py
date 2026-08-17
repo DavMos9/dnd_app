@@ -59,6 +59,7 @@ def get_entries(stash_kind: str = "master", world_id: str = "") -> list[LootStas
     `world_id` filtra esattamente (stringa vuota = solo le voci senza mondo,
     coerente con l'archivio del Master pre-multiplayer).
     """
+    conn = None
     try:
         conn = get_connection()
         rows = conn.execute(
@@ -67,11 +68,13 @@ def get_entries(stash_kind: str = "master", world_id: str = "") -> list[LootStas
                ORDER BY created_at ASC""",
             (stash_kind, world_id),
         ).fetchall()
-        conn.close()
         return [_row_to_entry(r) for r in rows]
     except Exception as e:
         logger.error(f"Errore get_entries: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def create_entry(
@@ -97,6 +100,7 @@ def create_entry(
     import uuid as _uuid
     entry_id = str(_uuid.uuid4())
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -122,11 +126,13 @@ def create_entry(
         row = conn.execute(
             "SELECT * FROM loot_stash_entries WHERE id=?", (entry_id,)
         ).fetchone()
-        conn.close()
         return _row_to_entry(row) if row else None
     except Exception as e:
         logger.error(f"Errore create_entry: {e}")
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_entry(
@@ -137,6 +143,7 @@ def update_entry(
     source_note: str = "",
 ) -> bool:
     """Aggiorna i campi testuali/quantità di una voce non monetaria."""
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -147,23 +154,28 @@ def update_entry(
              datetime.now().isoformat(), entry_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore update_entry: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def delete_entry(entry_id: str) -> bool:
+    conn = None
     try:
         conn = get_connection()
         conn.execute("DELETE FROM loot_stash_entries WHERE id=?", (entry_id,))
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore delete_entry: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def move_entry(entry_id: str, new_stash_kind: str, new_world_id: str = "") -> bool:
@@ -172,6 +184,7 @@ def move_entry(entry_id: str, new_stash_kind: str, new_world_id: str = "") -> bo
     del Master al deposito comune del gruppo) senza perdere id/storico —
     un semplice UPDATE, non una cancellazione+ricreazione.
     """
+    conn = None
     try:
         conn = get_connection()
         conn.execute(
@@ -180,8 +193,10 @@ def move_entry(entry_id: str, new_stash_kind: str, new_world_id: str = "") -> bo
              datetime.now().isoformat(), entry_id),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore move_entry: {e}")
         return False
+    finally:
+        if conn is not None:
+            conn.close()
