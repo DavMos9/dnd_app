@@ -1487,6 +1487,103 @@ fidarsi che la build vada a buon fine.
 
 ---
 
+### Aggiornamento in-app (2026-08-17)
+
+**`core/update_checker.py`** (riscritto) — prima leggeva solo `tag_name` e
+`html_url` della release: sapeva DIRE che c'era un aggiornamento ma non da dove
+scaricarlo. Ora legge anche l'array `assets` e individua quello della
+piattaforma corrente (`ASSET_NAMES`, i cui nomi sono un contratto col job
+`release` del workflow — un test li confronta col YAML reale). Restituisce
+`(bool, UpdateInfo | None)` invece della vecchia tripla. Due funzioni nuove
+degne di nota: `is_dev_checkout()` (disattiva il controllo quando si gira dal
+repository, dove `APP_VERSION` non è affidabile perché la CI lo riscrive dal tag
+solo in build) e `crosses_signing_migration()` (pura: decide se l'aggiornamento
+attraversa la soglia che richiede la disinstallazione manuale). Nessun import
+Flet: la piattaforma si rileva da `ANDROID_DATA`/`platform.system()`, non da
+`page.platform`.
+
+**`core/update_downloader.py`** (nuovo) — download in streaming con avanzamento
+reale. `DownloadProgress` è stato mutabile condiviso (nessun lock: interi e
+stringhe, assegnazioni atomiche sotto il GIL, letti indipendentemente — un lock
+non comprerebbe nulla e andrebbe preso ad ogni blocco). Scrive su `.part` e
+chiude con `os.replace()` atomico: il nome definitivo è anche il segnale "questo
+file è installabile", quindi un APK troncato col nome giusto verrebbe passato
+all'installer. Verifica la dimensione attesa (una risposta troncata da un proxy
+non produce alcun errore di rete); **nessun checksum**, perché l'API di GitHub
+Releases non pubblica digest per gli asset — dichiarato invece di simulare un
+controllo che non esiste. `find_downloaded()` evita di riscaricare decine di MB
+già su disco; `cleanup_old_downloads()` libera lo spazio dopo l'installazione.
+
+**`core/update_state.py`** (nuovo) — la scritta "Aggiornamento completato" non
+può essere mostrata dal processo che ha avviato l'aggiornamento: su Android
+l'installer lo uccide. Viaggia quindi in un segnalibro su `app_settings`
+(versione attesa + istante), scritto prima della consegna e letto al primo avvio
+successivo. `classify_pending_update()` è **pura** (`none`/`completed`/`failed`/
+`stale`) proprio per essere testabile senza Flet, senza DB e senza dispositivo:
+è una tabella di casi, e le tabelle di casi sbagliano in silenzio.
+
+**`ui/update_dialogs.py`** (nuovo) — i tre dialoghi (migrazione della firma,
+download, esito). Il ponte fra il thread che scarica e la barra che si muove
+riusa il pattern già in produzione in
+`world_view.py::_start_network_cooldown_ticker`: il download gira in
+`asyncio.to_thread`, un ciclo `async` schedulato con `page.run_task` legge lo
+stato ogni 200 ms e aggiorna i controlli. Zero mutazioni di controlli Flet fuori
+dal thread della UI, nessuna `run_task` per blocco scaricato. `ui/app.py` resta
+un router sottile: decide QUALE dialogo, non come.
+
+**`ui/native_apk_installer.py`** + **`extensions/flet_apk_installer/`** (nuovi) —
+l'ultimo passo su Android: consegnare l'APK all'installer di **sistema**. Non
+ottenibile dal Python (serve un FileProvider per l'URI `content://` e un intent
+nativo, e nessuna chiave di `pyproject.toml` letta da flet_cli permette di
+aggiungere la risorsa XML che un FileProvider richiede). Terza estensione nativa
+del progetto, ma la prima **senza una riga di Kotlin**: si appoggia al plugin
+Flutter `open_filex`, che porta con sé il proprio FileProvider e il proprio
+`filepaths.xml`, uniti ai nostri dal manifest merger di Gradle. Il wrapper
+solleva `ApkInstallerUnavailable` se l'estensione non è compilata in questa
+build, e il dialogo mostra allora il percorso del file già scaricato invece di
+un pulsante inerte. ⚠️ Lato Dart **mai compilato né eseguito qui** — il README
+della cartella elenca i quattro punti da verificare, in particolare i vincoli di
+versione su pub.dev (c'è un precedente di CI rotta su tutte e 4 le piattaforme
+per esattamente quel motivo con `flet_file_picker`).
+
+**`data/database.py::get_updates_path()`** (nuovo) — cartella di staging,
+ricavata dal parent di `get_db_path()` per non duplicare le tre strategie di
+ripiego Android. Deliberatamente **non** la cache, che Android può svuotare a
+metà scaricamento. ⚠️ Su Android è spazio privato e viene cancellata dalla
+disinstallazione: per questo l'APK della migrazione alla firma deve scaricarlo il
+browser, non l'app.
+
+### Trasferimento del personaggio su un altro dispositivo (2026-08-17)
+
+Design completo in `multiplayer_design.md` §11.9.
+
+**`data/repositories/world_transfer_repo.py`** (nuovo) — le due metà: il codice
+(8 caratteri, monouso, TTL 7 giorni, emetterne uno revoca il precedente) e
+`rebind_device()`, la transazione che sposta appartenenza, istanze (anche
+archiviate), visibilità delle note e richieste di rientro dal vecchio
+`device_id` al nuovo. Il commento sopra `rebind_device` enumera **tutte** le
+colonne del progetto che contengono un device_id, incluse quelle che si lasciano
+deliberatamente ferme e perché — è la parte in cui un'implementazione distratta
+perde dati in silenzio.
+
+**`network/protocol.py::HOST_FEATURES`** (nuovo) — capacità opzionali annunciate
+da `GET /world`, per non dover incrementare `PROTOCOL_VERSION` ad ogni aggiunta
+retrocompatibile (quel numero è confrontato con un'uguaglianza stretta e
+rifiuterebbe l'ingresso a tutti gli accoppiamenti esistenti).
+
+**`core/world_backend.py`** — `CommandResult` guadagna un campo `data`: dati di
+risposta destinati al SOLO mittente, perché `event.payload` finisce nel giornale
+trasmesso a ogni replica e il codice di trasferimento è un segreto per un solo
+membro. Attraversa la rete via `handle_command` → JSON → `RemoteBackend`.
+
+**`core/world_sync.py`** — `is_world_transferred_away()` /
+`_mark_world_transferred_away()`: la replica del vecchio dispositivo resta come
+copia in sola lettura, marcata in `app_settings` (nessuna modifica di schema) e
+con `session_token` azzerato, senza il quale `resolve_backend_for_world`
+ritenterebbe un ingresso completo e mostrerebbe un errore sul PIN.
+
+---
+
 
 ---
 

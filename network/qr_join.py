@@ -111,6 +111,110 @@ def parse_join_text(text: str) -> dict | None:
     }
 
 
+#: Prima riga del QR di TRASFERIMENTO (2026-08-17, §11.9) — magic diversa da
+#: quella dell'ingresso, e coppia di funzioni separata.
+#:
+#: Perché non aggiungere una riga `Trasferimento:` a `build_join_text()`, che
+#: sarebbe stato più corto: (a) il QR di hosting è mostrato sullo schermo a TUTTO
+#: il tavolo, e un codice che autorizza a subentrare nell'identità di un singolo
+#: membro non può stare lì; (b) `parse_join_text()` è fail-closed e coperto da
+#: `test_qr_scan.py` — un campo in più avrebbe richiesto di decidere se è
+#: obbligatorio, rimettendo in discussione quel contratto per nulla.
+_TRANSFER_TEXT_MAGIC = "D&D Companion — trasferimento personaggio"
+
+
+def build_transfer_text(world_name: str, host: str, port: int, join_code: str,
+                         transfer_code: str) -> str:
+    """
+    Testo del QR che il master mostra al giocatore per il cambio dispositivo
+    (§11.9). Contiene tutto il necessario per l'ingresso TRANNE il PIN, che il
+    codice di trasferimento sostituisce.
+
+    Generabile solo dal dispositivo che ospita: solo lì si conoscono indirizzo e
+    porta. Quando il codice viene emesso da una replica (un master collegato a
+    distanza) la UI mostra il solo codice, senza QR.
+    """
+    return (
+        f"{_TRANSFER_TEXT_MAGIC}\n"
+        f"Mondo: {world_name}\n"
+        f"Host: {host}\n"
+        f"Porta: {port}\n"
+        f"Codice: {join_code}\n"
+        f"Trasferimento: {transfer_code}"
+    )
+
+
+def parse_transfer_text(text: str) -> dict | None:
+    """
+    Inverso di `build_transfer_text()`, con lo stesso contratto fail-closed di
+    `parse_join_text()`: `None` se manca anche uno solo dei campi richiesti, mai
+    un dizionario a metà.
+
+    Chiavi restituite: `host: str`, `port: int`, `join_code: str`,
+    `transfer_code: str`, più `world_name: str` per la conferma in UI.
+    """
+    if not text or not text.strip().startswith(_TRANSFER_TEXT_MAGIC):
+        return None
+
+    patterns = {
+        "world_name": r"^Mondo:\s*(.+)$",
+        "host": r"^Host:\s*(.+)$",
+        "port": r"^Porta:\s*(\d+)$",
+        "join_code": r"^Codice:\s*(\S+)$",
+        "transfer_code": r"^Trasferimento:\s*(\S+)$",
+    }
+    found: dict[str, str] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        for key, pattern in patterns.items():
+            if key in found:
+                continue
+            m = re.match(pattern, line)
+            if m:
+                found[key] = m.group(1).strip()
+
+    required = ("host", "port", "join_code", "transfer_code")
+    if not all(k in found for k in required):
+        return None
+    try:
+        port = int(found["port"])
+    except ValueError:
+        return None
+    if not (0 < port < 65536):
+        return None
+
+    return {
+        "world_name": found.get("world_name", ""),
+        "host": found["host"],
+        "port": port,
+        "join_code": found["join_code"],
+        "transfer_code": found["transfer_code"],
+    }
+
+
+def parse_any_join_text(text: str) -> dict | None:
+    """
+    Riconosce ENTRAMBI i formati di QR e dichiara quale ha letto, nel campo
+    `kind`: `"join"` (ingresso normale, con PIN) o `"transfer"` (cambio
+    dispositivo, con codice di trasferimento).
+
+    Esiste perché lo scanner in-app non sa in anticipo quale QR gli metteranno
+    davanti: prova prima l'ingresso, poi il trasferimento, e se nessuno dei due
+    combacia restituisce `None` → "QR non riconosciuto", il comportamento già
+    in essere. Le due `parse_*` restano pubbliche e usabili singolarmente: i
+    test esistenti le chiamano direttamente e devono continuare a funzionare
+    (in particolare `parse_join_text` DEVE restituire `None` su un QR di
+    trasferimento, perché la prima riga è diversa).
+    """
+    parsed = parse_join_text(text)
+    if parsed is not None:
+        return {**parsed, "kind": "join"}
+    parsed = parse_transfer_text(text)
+    if parsed is not None:
+        return {**parsed, "kind": "transfer"}
+    return None
+
+
 def generate_qr_png_base64(data: str, *, box_size: int = 8, border: int = 2) -> str:
     """
     Genera un QR per `data` e lo ritorna come PNG codificato in base64,

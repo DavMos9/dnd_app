@@ -184,6 +184,38 @@ def _find_by_text(controls: list, text: str):
     return None
 
 
+def _find_field(dlg, label: str):
+    """
+    Il `ft.TextField` del dialogo con questa etichetta esatta.
+
+    Esiste per non dipendere dalla POSIZIONE dei controlli nella colonna del
+    dialogo: quel dialogo cresce (scoperta automatica, QR, codice di
+    trasferimento…) e un test agganciato agli indici si rompe ad ogni aggiunta,
+    con un errore che punta altrove rispetto alla causa.
+    """
+    for c in dlg.content.controls:
+        if isinstance(c, ft.TextField) and c.label == label:
+            return c
+    raise AssertionError(f"campo «{label}» non trovato nel dialogo")
+
+
+def _find_status_and_retry(dlg) -> tuple:
+    """
+    `(status_text, retry_btn)`: la riga di stato è l'ultimo `ft.Text` della
+    colonna, il pulsante è il `TextButton` "Controlla di nuovo".
+    """
+    status = None
+    retry = None
+    for c in dlg.content.controls:
+        if isinstance(c, ft.Text) and not isinstance(c, ft.TextField):
+            status = c
+        if isinstance(c, ft.TextButton) and getattr(c, "content", None) == "Controlla di nuovo":
+            retry = c
+    assert status is not None, "riga di stato non trovata nel dialogo"
+    assert retry is not None, "pulsante «Controlla di nuovo» non trovato nel dialogo"
+    return status, retry
+
+
 def _find_poll_loop_call(page: _FakePage) -> tuple | None:
     """Tra le chiamate a `page.run_task()` (che includono anche i cicli
     del countdown visivo sui pulsanti, avviati più volte con argomenti),
@@ -304,11 +336,18 @@ def _reach_pending_state(host: WorldHostServer, port: int, device_id: str):
     check("il dialogo «Unisciti in LAN» si apre", len(page.dialogs) == 1)
     dlg = page.dialogs[-1]
 
-    host_field, port_field, code_field, pin_field, display_field, status_text, retry_btn = (
-        dlg.content.controls[-7], dlg.content.controls[-6], dlg.content.controls[-5],
-        dlg.content.controls[-4], dlg.content.controls[-3],
-        dlg.content.controls[-2], dlg.content.controls[-1],
-    )
+    # Ricerca per ETICHETTA, non per posizione (corretto il 2026-08-17).
+    # Prima questi sette controlli venivano presi per indice negativo
+    # (`controls[-7]`…`controls[-1]`): aggiungere un campo al dialogo — come è
+    # successo col codice di trasferimento, §11.9 — spostava tutti gli indici e
+    # questo test riempiva i campi SBAGLIATI, fallendo con un `AssertionError`
+    # a valle che non diceva nulla sulla causa vera.
+    host_field = _find_field(dlg, "Indirizzo IP dell'host")
+    port_field = _find_field(dlg, "Porta")
+    code_field = _find_field(dlg, "Codice a 6 caratteri")
+    pin_field = _find_field(dlg, "PIN a 6 cifre")
+    display_field = _find_field(dlg, "Il tuo nome")
+    status_text, retry_btn = _find_status_and_retry(dlg)
     enter_btn = _find_by_text(dlg.actions[0].controls, "Entra")
     assert enter_btn is not None, "pulsante «Entra» non trovato nel dialogo"
 

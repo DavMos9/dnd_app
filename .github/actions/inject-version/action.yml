@@ -1,0 +1,58 @@
+name: "Inject version from git tag"
+description: >-
+  Riscrive version.py e pyproject.toml con la versione e il versionCode Android
+  derivati dal tag git che ha innescato il workflow (GITHUB_REF_NAME).
+
+# Perché una composite action e non 4 copie inline (2026-08-17): i quattro job
+# di build (windows/macos/linux/android) avevano lo stesso script Python
+# duplicato quattro volte. Una modifica applicata a 3 copie su 4 non rompe
+# nulla in modo visibile — produce silenziosamente un artefatto con la versione
+# sbagliata per una sola piattaforma. Ed era già successo: il pattern
+# `app.version` era rimasto in tutte e quattro le copie come no-op dopo che
+# quella chiave era stata rimossa da pyproject.toml (2026-08-07), senza che
+# nessuno se ne accorgesse.
+#
+# La formula del versionCode NON vive qui ma in `version.compute_build_number()`,
+# importato con `sys.path.insert(0, '.')`: così è coperta da un test reale
+# invece di essere logica non testabile sepolta in un file YAML.
+
+runs:
+  using: "composite"
+  steps:
+    - name: Inject version from git tag
+      shell: python
+      run: |
+        import os
+        import re
+        import sys
+
+        sys.path.insert(0, ".")
+        from version import compute_build_number
+
+        tag = os.environ["GITHUB_REF_NAME"]
+        ver = tag.lstrip("v")
+        build_number = compute_build_number(tag)
+
+        if build_number <= 0:
+            # Meglio fermare la build che pubblicare un APK con versionCode 0
+            # (minore di quello di ogni installazione esistente: Android
+            # rifiuterebbe l'aggiornamento come downgrade).
+            sys.exit(f"Tag non interpretabile come versione: {tag!r}")
+
+        replacements = [
+            ("version.py",     r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
+            ("pyproject.toml", r'^version = ".+"$',            f'version = "{ver}"'),
+            ("pyproject.toml", r'^build_number = \d+$',        f"build_number = {build_number}"),
+        ]
+
+        for path, pattern, repl in replacements:
+            original = open(path, encoding="utf-8").read()
+            patched, n = re.subn(pattern, repl, original, flags=re.MULTILINE)
+            if n == 0:
+                # Una sostituzione a vuoto è esattamente il bug `app.version`:
+                # fallire qui invece di produrre un artefatto con la versione
+                # vecchia e scoprirlo dal dispositivo.
+                sys.exit(f"Nessuna corrispondenza per {pattern!r} in {path}")
+            open(path, "w", encoding="utf-8").write(patched)
+
+        print(f"version={ver} build_number={build_number}")

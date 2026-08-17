@@ -1,0 +1,54 @@
+name: flet_apk_installer
+description: Flet ApkInstaller control — consegna un APK all'installer di pacchetti di sistema su Android, wrapper del plugin open_filex.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.2.3 <4.0.0'
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # open_filex: apre un file col gestore di sistema associato al suo MIME type.
+  #
+  # SCELTO PER UN MOTIVO PRECISO, non perché sia il più popolare: porta con sé il
+  # PROPRIO AndroidManifest.xml con un <provider> FileProvider e il proprio
+  # res/xml/filepaths.xml, che il manifest merger di Gradle unisce ai nostri.
+  # È l'unico modo di ottenere un URI `content://` per l'APK — obbligatorio da
+  # Android 7, un `file://` solleva FileUriExposedException — SENZA scrivere
+  # codice Kotlin e senza dover aggiungere una risorsa XML al progetto Android
+  # generato, cosa che nessuna chiave di pyproject.toml letta da flet_cli
+  # permette di fare (verificate tutte nel sorgente installato di flet_cli
+  # 0.86.5). È ciò che rende questa estensione molto meno rischiosa delle due
+  # precedenti di questo progetto: zero Kotlin.
+  #
+  # ⚠️ VINCOLO DI VERSIONE NON VERIFICATO SU PUB.DEV da questo sandbox (nessuna
+  # rete verso pub.dev, nessun toolchain Dart). C'è un precedente REALE e
+  # costoso: `flet_file_picker` fu scritto con `file_picker: ^8.1.7` e ruppe la
+  # CI su tutte e 4 le piattaforme ("version solving failed") perché
+  # flet==0.86.5 richiede internamente `^11.0.2`. PRIMA del primo giro di CI
+  # controllare su pub.dev che `open_filex` e `path_provider` in questi
+  # intervalli coesistano con ciò che pinnano `flet` 0.86.5 e `file_picker`
+  # 11.x — e in caso contrario allineare, non abbassare.
+  open_filex: ^4.4.0
+
+  # path_provider: plugin UFFICIALE del team Flutter, per ottenere
+  # getExternalFilesDir(null) — l'albero che i provider_paths di open_filex
+  # espongono. Vedi ApkInstaller.download_dir() sul lato Python: è il punto più
+  # probabile di rottura dell'estensione, e averlo dietro un metodo significa che
+  # il rimedio è cambiare una riga.
+  path_provider: ^2.1.0
+
+  # Stesso path relativo (e stesso avviso di NON verificato) degli altri due
+  # pubspec di questo progetto — va corretto puntando alla vera posizione del
+  # pacchetto Dart "flet" nell'albero generato da `flet build`, non ricostruibile
+  # senza un toolchain Flutter/Flet reale.
+  flet:
+    path: ../../../../../../../packages/flet
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0

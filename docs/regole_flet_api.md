@@ -150,10 +150,18 @@ ft.ColorScheme(primary=..., surface=..., error=...)  # NON background= o on_back
 #   pulito di riportare un risultato Intent async in puro Python senza glue
 #   Kotlin/Java); estensione Flutter nativa custom (costo molto più alto,
 #   stesso risultato ottenibile con WebView a costo minore).
-#   **Ancora fuori scope**: `home_view.py::_on_mobile_export()` (save_file)
-#   non è stato migrato — un download via WebView è un meccanismo diverso
-#   (mai verificato), probabilmente soggetto allo stesso bug ma non ancora
-#   confermato con un log dedicato.
+#   **RISOLTO il 2026-08-17 (contraddizione fra due documenti, chiusa da
+#   Davide)**: fino a quella data questa nota diceva che
+#   `home_view.py::_on_mobile_export()` (save_file) era "probabilmente
+#   soggetto allo stesso bug ma non ancora confermato", mentre un commento in
+#   `world_view.py::_on_mobile_export_world()` sosteneva che l'export mobile
+#   funzionasse — due affermazioni opposte sullo stesso meccanismo, entrambe
+#   nella documentazione del progetto. Chiesto direttamente a Davide durante il
+#   lavoro sull'aggiornamento in-app (l'export è il backup obbligatorio prima
+#   dell'unica disinstallazione della migrazione alla firma, quindi la risposta
+#   era bloccante): **l'export da tablet Android funziona, il file si ritrova.**
+#   L'export mobile è quindi utilizzabile; resta il caso dell'IMPORT, per cui
+#   esiste `flet_file_picker`.
 #
 # Il ragionamento (SBAGLIATO nella diagnosi del banner "Unknown control",
 # ma la causa di fondo — FilePicker non utilizzabile su questa build
@@ -771,6 +779,48 @@ muted_text(text, size=12, text_align=..., weight=...)
 # controllo sia aggiunto a `page.controls`. Usato per la prima volta in
 # `esplorazione_tab.py::_section_skills()` (2026-08-05).
 ```
+
+---
+
+## APRIRE UN URL — `url=` sul bottone, mai `webbrowser.open()` (2026-08-17)
+
+`webbrowser.open(url)` è **quasi certamente un no-op su Android**: nel sandbox
+dell'app non esiste alcun binario browser né `xdg-open`, e in quel caso
+`webbrowser.open()` restituisce `False` **in silenzio** — nessuna eccezione,
+nessun log. Trovato analizzando il pulsante "Scarica" del dialogo di
+aggiornamento (`ui/app.py`), che su Android probabilmente non faceva
+letteralmente nulla da quando esisteva.
+
+**Unico meccanismo verificato funzionante in questo progetto:** la proprietà
+`url=` NATIVA dei controlli bottone.
+
+```python
+ft.ElevatedButton(
+    "Scarica", icon=ft.Icons.DOWNLOAD,
+    url=ft.Url(url=release_url, target=ft.UrlTarget.BLANK),
+    on_click=lambda e: page.pop_dialog(),   # campi INDIPENDENTI: entrambi valgono
+)
+```
+
+- `page.launch_url()` / `ft.UrlLauncher()` sono controlli **Service**, confermati
+  rotti in web mode dallo stesso bug upstream di `FilePicker`
+  (flet-dev/flet#6250/#6251). `url=` è gestita interamente lato client, non passa
+  da un controllo Service registrato sul server, e quindi non è soggetta al bug —
+  già documentato in `ui/views/home_view.py::_show_export_success_dialog` e usato
+  in `world_view.py`.
+- `url=` e `on_click` sono campi indipendenti (verificato nel sorgente
+  installato, `flet/controls/material/button.py:99` e `:104`): il click apre
+  l'URL **e** chiama l'handler. Utile per chiudere il dialogo contestualmente,
+  senza annullare l'apertura.
+
+## PROGRESSBAR — vedi la sezione dedicata sopra
+
+Ribadito qui perché è ricomparso il 2026-08-17 scrivendo la barra di download
+dell'aggiornamento (`ui/update_dialogs.py`): la `ft.ProgressBar` va **sempre**
+dentro una `ft.Row` con `expand=True` sulla barra. Un test lo presidia ora
+(`test_aggiornamento_app.py`, parte [5]): cerca la ProgressBar nell'albero del
+dialogo e verifica che il genitore sia una Row e che `expand` sia `True`, così la
+regola non può essere dimenticata in silenzio in un dialogo nuovo.
 
 ---
 

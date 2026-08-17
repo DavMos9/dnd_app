@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import threading
+from datetime import datetime
 
 import flet as ft
 import flet.canvas as cv
@@ -33,7 +34,7 @@ from data.models import (
 )
 from data.repositories import character_repo, maps_repo, master_repo, world_export, world_repo
 from network.host_server import HostServerSlot, PendingJoinRequest, WorldHostServer, local_ip_hint
-from network.qr_join import build_join_text, generate_qr_png_base64
+from network.qr_join import build_join_text, build_transfer_text, generate_qr_png_base64
 from ui.components.background_sync import BackgroundSyncLoop
 from ui import canvas_geometry as geo
 from ui import file_export
@@ -382,21 +383,25 @@ class WorldsView(ft.Column):
         role = member.role if member else "?"
         role_tone: d.Tone = {"owner": "magic", "master": "primary", "player": "neutral"}.get(role, "neutral")
         members = world_repo.get_members(world.id)
+        # §11.9: il personaggio di questo dispositivo è stato spostato altrove.
+        transferred_away = world_sync.is_world_transferred_away(world.id)
+        badges: list[ft.Control] = [d.chip(role, role_tone),
+                                     d.muted(f"{len(members)} membri")]
+        if transferred_away:
+            badges.append(d.chip("trasferito", "danger"))
         row_children: list[ft.Control] = [
             ft.Column(
                 [
                     ft.Text(world.name, size=d.Size.SUBTITLE, weight=ft.FontWeight.BOLD,
                             color=p.text, font_family=d.Font.DISPLAY),
-                    ft.Row(
-                        [d.chip(role, role_tone),
-                         d.muted(f"{len(members)} membri")],
-                        spacing=d.Space.SM,
-                    ),
+                    ft.Row(badges, spacing=d.Space.SM, wrap=True),
                 ],
                 spacing=d.Space.XS, expand=True,
             ),
         ]
-        if not world.is_local_host:
+        # Nessun pulsante di riconnessione su un mondo trasferito: non esiste più
+        # una sessione da riprendere, e offrirlo produrrebbe solo un errore.
+        if not world.is_local_host and not transferred_away:
             # Riconnessione rapida (2026-08-16, richiesta di Davide: "se il
             # master chiude l'app... vorrei un tasto di riconnessione
             # rapida... senza dover reinserire i codici") — `_backend_for`
@@ -415,6 +420,45 @@ class WorldsView(ft.Column):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             on_click=lambda e, w=world: self._open_detail(w),
+        )
+
+    def _transferred_away_banner(self, world: World) -> ft.Control:
+        """
+        Avviso sul dettaglio di un mondo il cui personaggio è stato spostato su
+        un altro dispositivo (2026-08-17, §11.9).
+
+        La replica NON viene cancellata: contiene il giornale, le note condivise
+        e le mappe ricevute, cioè la memoria della campagna vista da qui, e il
+        diario del giocatore. Resta consultabile in sola lettura — è la stessa
+        condizione di §11.3 ("scollegati, l'istanza è in sola lettura"), qui
+        definitiva invece che temporanea — e si rimuove quando l'utente vuole,
+        dal pulsante che esiste già nell'elenco dei mondi.
+        """
+        p = d.T()
+        return d.section(
+            "Trasferito su un altro dispositivo",
+            ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Icon(ft.Icons.PHONELINK_ERASE, size=18, color=p.danger_icon),
+                            ft.Text(
+                                "Il personaggio di questo dispositivo è stato spostato "
+                                "su un altro dispositivo.",
+                                color=p.text, size=d.Size.BODY_SM, expand=True,
+                            ),
+                        ],
+                        spacing=d.Space.XS,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    d.muted(
+                        "Qui resta una copia di sola lettura: puoi consultare il "
+                        "registro, le note e le mappe ricevute, ma non inviare più "
+                        "nulla al master. Puoi rimuovere il mondo quando vuoi."
+                    ),
+                ],
+                spacing=d.Space.XS, tight=True,
+            ),
         )
 
     def _reconnect_world(self, world: World) -> None:
@@ -516,6 +560,13 @@ class WorldsView(ft.Column):
                 ))
         if quick_nav:
             sections.append(ft.Row(quick_nav, spacing=d.Space.SM, wrap=True))
+
+        # Questo dispositivo è stato sostituito da un altro (2026-08-17, §11.9):
+        # va detto subito e in modo inequivocabile, prima di qualunque sezione
+        # che invita ad agire — altrimenti il giocatore prova a mandare comandi
+        # e li vede fallire senza capire perché.
+        if world_sync.is_world_transferred_away(world.id):
+            sections.append(self._transferred_away_banner(world))
 
         if is_owner:
             sections.append(self._rename_section(world))
@@ -704,6 +755,24 @@ class WorldsView(ft.Column):
                 on_click=lambda e, m=member: self._confirm_kick(world, m),
             ))
 
+        # Codice per il cambio dispositivo (2026-08-17, §11.9). Visibile per il
+        # PROPRIO membro (sto per cambiare telefono e ho ancora questo in mano)
+        # e, se sono master/owner, anche per i giocatori (il loro telefono è
+        # perso o rotto e non possono generarselo). Mai per l'owner: il suo
+        # device_id è su `worlds.owner_device_id` e la sua via è l'export
+        # `.dndworld` — l'handler lo rifiuta comunque, ma mostrare un pulsante
+        # che porta solo a un errore sarebbe peggio che non mostrarlo.
+        if (member.role != perm.ROLE_OWNER
+                and perm.can_perform(my_role, perm.CMD_DEVICE_TRANSFER_ISSUE)
+                and (is_me or perm.role_at_least(my_role, perm.ROLE_MASTER))):
+            actions.append(ft.IconButton(
+                ft.Icons.PHONELINK_SETUP,
+                tooltip=("Cambio dispositivo: genera un codice per te"
+                         if is_me else
+                         f"Genera un codice di trasferimento per {member.display_name}"),
+                on_click=lambda e, m=member: self._open_transfer_code_dialog(world, m),
+            ))
+
         return ft.Row(
             [
                 ft.Icon(ft.Icons.PERSON, color=p.text_3, size=18),
@@ -721,6 +790,127 @@ class WorldsView(ft.Column):
             self._refresh_detail()
         else:
             self._show_error(result.error)
+
+    def _open_transfer_code_dialog(self, world: World, member: WorldMember):
+        """
+        Genera e mostra un codice di trasferimento per `member` (2026-08-17,
+        §11.9): il codice con cui un ALTRO dispositivo subentra a questo membro
+        portandosi via i suoi personaggi.
+
+        Il codice arriva in `CommandResult.data`, non nell'evento di giornale:
+        `world_events.payload` viene trasmesso a ogni replica via `GET /events` e
+        questo è un segreto per un solo membro (vedi
+        `world_backend._handle_device_transfer_issue`).
+
+        Il QR si può generare SOLO se questo dispositivo ospita il mondo: solo
+        lì si conoscono indirizzo e porta da incorporarvi. Un master collegato a
+        distanza vede il solo codice, che è comunque sufficiente.
+        """
+        p = d.T()
+        is_me = member.device_id == self.device_id
+
+        result = self._send_command(
+            world, perm.CMD_DEVICE_TRANSFER_ISSUE, {"device_id": member.device_id},
+        )
+        if not result.success:
+            self._show_error(result.error)
+            return
+        code = (result.data or {}).get("code", "")
+        expires_at = (result.data or {}).get("expires_at", "")
+        if not code:
+            # L'host ha accettato il comando ma non ha restituito il codice:
+            # succede solo parlando con un host di una versione che non conosce
+            # il campo `data`. Dirlo, invece di mostrare un dialogo vuoto.
+            self._show_error(
+                "L'host ha generato il codice ma non lo ha restituito: "
+                "probabilmente ha una versione dell'app più vecchia."
+            )
+            return
+
+        body: list[ft.Control] = [
+            ft.Text(
+                (
+                    "Usa questo codice sul nuovo dispositivo, nella schermata "
+                    "«Unisciti in LAN», al posto del PIN."
+                    if is_me else
+                    f"Comunica questo codice a {member.display_name}: lo userà sul "
+                    f"nuovo dispositivo al posto del PIN."
+                ),
+                color=p.text, size=d.Size.BODY_SM,
+            ),
+            ft.Container(height=d.Space.SM),
+            ft.Row(
+                [
+                    ft.Text(code, size=22, weight=ft.FontWeight.BOLD, color=p.magic,
+                            font_family=d.Font.MONO,
+                            style=ft.TextStyle(letter_spacing=4)),
+                ],
+            ),
+        ]
+
+        if expires_at:
+            try:
+                scadenza = datetime.fromisoformat(expires_at)
+                body.append(d.muted(
+                    f"Valido fino al {scadenza.strftime('%d/%m/%Y alle %H:%M')}."
+                ))
+            except ValueError:
+                pass
+
+        body.append(d.muted(
+            "Il master dovrà comunque approvare il nuovo dispositivo. "
+            "Da quel momento questo dispositivo non farà più parte del mondo."
+            if is_me else
+            "Dovrai comunque approvare il nuovo dispositivo quando si presenta. "
+            "Da quel momento il dispositivo attuale non farà più parte del mondo."
+        ))
+
+        # Il QR solo dall'host: altrove non conosciamo indirizzo e porta.
+        if world.is_local_host and self._host_server is not None and self._host_server.is_running:
+            try:
+                qr_text = build_transfer_text(
+                    world.name, local_ip_hint(), self._host_server.port,
+                    world.join_code, code,
+                )
+                b64 = generate_qr_png_base64(qr_text)
+                body.append(ft.Container(height=d.Space.SM))
+                body.append(d.muted("Oppure inquadra questo QR dal nuovo dispositivo"))
+                body.append(ft.Container(
+                    content=ft.Image(src=f"data:image/png;base64,{b64}",
+                                      width=170, height=170, fit=ft.BoxFit.CONTAIN),
+                    bgcolor=ft.Colors.WHITE, padding=d.Space.SM,
+                    border_radius=d.Radius.SM,
+                ))
+            except Exception as e:
+                # Stessa scelta del QR d'ingresso (`_hosting_qr_image`): l'errore
+                # va detto in UI, non solo loggato — un log su stderr non è
+                # raggiungibile dall'app impacchettata. Il codice testuale sopra
+                # basta comunque da solo.
+                logger.error("Errore nella generazione del QR di trasferimento: %s", e)
+                body.append(ft.Text(f"QR non generato: {e}", color=p.danger,
+                                     size=d.Size.BODY_SM))
+
+        def _revoke(e):
+            self.page.pop_dialog()
+            res = self._send_command(
+                world, perm.CMD_DEVICE_TRANSFER_REVOKE, {"device_id": member.device_id},
+            )
+            if res.success:
+                show_snack(self.page, "Codice di trasferimento revocato.")
+            else:
+                self._show_error(res.error)
+
+        dlg = ft.AlertDialog(
+            title=d.dialog_title("Cambio dispositivo", ft.Icons.PHONELINK_SETUP),
+            content=ft.Column(body, spacing=d.Space.XS, tight=True,
+                               scroll=ft.ScrollMode.AUTO),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Revoca", icon=ft.Icons.BLOCK, on_click=_revoke,
+                              style=ft.ButtonStyle(color=p.danger)),
+                ft.ElevatedButton("Ho capito", on_click=lambda e: self.page.pop_dialog()),
+            ]),
+        )
+        self.page.show_dialog(dlg)
 
     def _confirm_kick(self, world: World, member: WorldMember):
         p = d.T()
@@ -2536,14 +2726,41 @@ class WorldsView(ft.Column):
 
     def _pending_request_row(self, world: World, req: PendingJoinRequest) -> ft.Control:
         p = d.T()
+        # Un trasferimento NON è un giocatore nuovo che entra (2026-08-17,
+        # §11.9): è uno scambio di identità, e approvarlo fa smettere di
+        # funzionare il vecchio dispositivo. Il master deve poterlo capire dalla
+        # riga, non dopo — icona e testo diversi, e un chip che lo dichiara.
+        is_transfer = bool(req.transfer_id)
+        if is_transfer:
+            nome = req.transfer_member_name or req.display_name
+            testo = (
+                f"«{req.display_name}» vuole spostare il personaggio di "
+                f"{nome} su un nuovo dispositivo"
+            )
+        else:
+            testo = req.display_name
+
         return ft.Row(
             [
-                ft.Icon(ft.Icons.PERSON_ADD, size=16, color=p.text_3),
-                ft.Text(req.display_name, color=p.text, expand=True),
-                ft.IconButton(ft.Icons.CHECK, icon_color=p.primary_icon, tooltip="Approva ingresso",
-                              on_click=lambda e, r=req: self._approve_join(world, r.id)),
-                ft.IconButton(ft.Icons.CLOSE, icon_color=p.danger_icon, tooltip="Rifiuta ingresso",
-                              on_click=lambda e, r=req: self._reject_join(world, r.id)),
+                ft.Icon(ft.Icons.PHONELINK_SETUP if is_transfer else ft.Icons.PERSON_ADD,
+                        size=16, color=p.magic if is_transfer else p.text_3),
+                ft.Column(
+                    [
+                        ft.Text(testo, color=p.text, size=d.Size.BODY_SM),
+                        *([d.muted(
+                            "Il dispositivo attuale perderà l'accesso al mondo."
+                        )] if is_transfer else []),
+                    ],
+                    spacing=0, tight=True, expand=True,
+                ),
+                ft.IconButton(
+                    ft.Icons.CHECK, icon_color=p.primary_icon,
+                    tooltip="Approva il trasferimento" if is_transfer else "Approva ingresso",
+                    on_click=lambda e, r=req: self._approve_join(world, r.id)),
+                ft.IconButton(
+                    ft.Icons.CLOSE, icon_color=p.danger_icon,
+                    tooltip="Rifiuta il trasferimento" if is_transfer else "Rifiuta ingresso",
+                    on_click=lambda e, r=req: self._reject_join(world, r.id)),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
@@ -3379,6 +3596,21 @@ class WorldsView(ft.Column):
                                   max_length=6, **d.field_style())
         display_field = ft.TextField(label="Il tuo nome", dense=True, **d.field_style())
         status_text = ft.Text("", color=p.danger, size=12)
+
+        # Modalità "cambio dispositivo" (2026-08-17, §11.9): il codice di
+        # trasferimento prende il posto del PIN. Nasconde il campo PIN invece di
+        # limitarsi ad affiancarlo, così non resta ambiguo quale dei due conta.
+        transfer_mode: dict = {"on": False}
+        transfer_field = ft.TextField(
+            label="Codice di trasferimento", dense=True, max_length=8,
+            visible=False, **d.field_style(),
+        )
+        transfer_hint = d.muted(
+            "Con il codice di trasferimento non serve il PIN. Il master deve "
+            "comunque approvare, e il dispositivo che aveva il personaggio "
+            "perderà l'accesso al mondo."
+        )
+        transfer_hint.visible = False
         retry_btn = ft.TextButton("Controlla di nuovo", icon=ft.Icons.REFRESH,
                                    visible=False)
         #: "polling_started" (fix 2026-08-07): evita di avviare più cicli
@@ -3598,6 +3830,13 @@ class WorldsView(ft.Column):
                 status_text.value = "La porta deve essere un numero."
                 self.page.update()
                 return
+            transfer_code = ((transfer_field.value or "").strip().upper()
+                              if transfer_mode["on"] else "")
+            if transfer_mode["on"] and not transfer_code:
+                status_text.color = p.danger
+                status_text.value = "Inserisci il codice di trasferimento."
+                self.page.update()
+                return
             display_name = (display_field.value or "").strip()
             # Fix 2026-08-16 (bug segnalato da Davide: un giocatore che
             # rientra con lo stesso QR in un mondo in cui è GIÀ membro si
@@ -3618,7 +3857,13 @@ class WorldsView(ft.Column):
                 if probed_world_id:
                     already_member = world_repo.get_member(
                         probed_world_id, self.device_id) is not None
-            if not display_name and not already_member:
+            # In modalità trasferimento il nome NON è obbligatorio (2026-08-17,
+            # §11.9): si subentra a un membro che ha già un nome, e l'host lo
+            # conserva quando il campo arriva vuoto (`display_name or
+            # member.display_name` in `_handle_transfer_join`) — cambiare
+            # dispositivo non è un rinomino. Se l'utente scrive un nome quello
+            # vince: è una scelta esplicita, non un ripiego silenzioso.
+            if not display_name and not already_member and not transfer_mode["on"]:
                 # Fix 2026-08-07 (richiesta di Davide dopo il primo test
                 # reale su Wi-Fi, stesso principio di _open_join_dialog qui
                 # sopra): prima il nome cadeva su "Giocatore" se lasciato
@@ -3649,8 +3894,9 @@ class WorldsView(ft.Column):
             pending_state["host_port"] = f"{host_addr}:{port}"
             result = world_sync.start_lan_join(
                 host_addr, port, (code_field.value or "").strip(),
-                (pin_field.value or "").strip(), self.device_id or "",
-                display_name,
+                "" if transfer_mode["on"] else (pin_field.value or "").strip(),
+                self.device_id or "", display_name,
+                transfer_code=transfer_code,
             )
             _report(result)
 
@@ -3696,6 +3942,32 @@ class WorldsView(ft.Column):
 
         retry_btn.on_click = _retry
 
+        def _set_transfer_mode(on: bool) -> None:
+            """
+            Entra/esce dalla modalità "cambio dispositivo". Il campo PIN e quello
+            del codice di trasferimento si escludono a vicenda: mostrarli
+            entrambi lascerebbe ambiguo quale dei due l'host guarderà.
+            """
+            transfer_mode["on"] = on
+            transfer_field.visible = on
+            transfer_hint.visible = on
+            pin_field.visible = not on
+            transfer_toggle.text = (
+                "Torna all'ingresso normale (con PIN)" if on
+                else "Ho già un personaggio in questo mondo (cambio dispositivo)"
+            )
+            try:
+                self.page.update()
+            except RuntimeError:
+                pass
+
+        transfer_toggle = ft.TextButton(
+            "Ho già un personaggio in questo mondo (cambio dispositivo)",
+            icon=ft.Icons.PHONELINK_SETUP,
+            on_click=lambda e: _set_transfer_mode(not transfer_mode["on"]),
+            style=ft.ButtonStyle(color=p.text_2),
+        )
+
         def _on_qr_scanned(parsed: dict):
             # Il QR non porta il nome del giocatore (§7 di build_join_text:
             # solo i 4 dati tecnici) — display_field resta quello che
@@ -3706,7 +3978,18 @@ class WorldsView(ft.Column):
             host_field.value = parsed["host"]
             port_field.value = str(parsed["port"])
             code_field.value = parsed["join_code"]
-            pin_field.value = parsed["pin"]
+            # Due formati di QR possibili (2026-08-17, §11.9), distinti da `kind`
+            # (vedi `network.qr_join.parse_any_join_text`): quello d'ingresso
+            # porta il PIN, quello di trasferimento porta il codice di
+            # trasferimento e attiva da sé la modalità corrispondente — così
+            # "inquadri e sei dentro" vale anche per il cambio dispositivo,
+            # senza dover prima premere il pulsante giusto.
+            if parsed.get("kind") == "transfer":
+                _set_transfer_mode(True)
+                transfer_field.value = parsed["transfer_code"]
+            else:
+                _set_transfer_mode(False)
+                pin_field.value = parsed["pin"]
             try:
                 self.page.update()
             except RuntimeError:
@@ -3764,7 +4047,9 @@ class WorldsView(ft.Column):
                     discovery_status,
                     discovery_results,
                     ft.Divider(height=1),
-                    host_field, port_field, code_field, pin_field, display_field,
+                    host_field, port_field, code_field,
+                    pin_field, transfer_field, transfer_hint, transfer_toggle,
+                    display_field,
                     status_text, retry_btn,
                 ],
                 tight=True, spacing=d.Space.SM, scroll=ft.ScrollMode.AUTO,

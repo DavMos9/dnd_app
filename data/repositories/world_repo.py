@@ -31,7 +31,12 @@ logger = logging.getLogger(__name__)
 #: Alfabeto del codice d'ingresso a 6 caratteri (§9.3): esclude 0/O, 1/I/L —
 #: caratteri facilmente confondibili quando qualcuno lo detta o lo digita a
 #: mano da uno schermo di un altro dispositivo.
-_JOIN_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+#:
+#: Pubblico dal 2026-08-17: lo riusa anche `world_transfer_repo.
+#: generate_transfer_code()` (§11.9), che ha bisogno dello stesso alfabeto con
+#: una lunghezza diversa. Importato invece di ricopiato — due copie
+#: divergerebbero appena una delle due venisse ritoccata.
+JOIN_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 _JOIN_CODE_LENGTH = 6
 
 #: Ruoli ammessi, in scala di privilegio (§4). Il primo è quello dell'owner:
@@ -50,7 +55,7 @@ def _now() -> str:
 
 def generate_join_code() -> str:
     """Codice a 6 caratteri leggibile a voce/mano — §9.3 del design doc."""
-    return "".join(secrets.choice(_JOIN_CODE_ALPHABET) for _ in range(_JOIN_CODE_LENGTH))
+    return "".join(secrets.choice(JOIN_CODE_ALPHABET) for _ in range(_JOIN_CODE_LENGTH))
 
 
 # ---------------------------------------------------------------------------
@@ -863,6 +868,35 @@ def update_last_seen_host(world_id: str, host_port: str) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore update_last_seen_host: {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def clear_session_token(world_id: str) -> bool:
+    """
+    Azzera `worlds.session_token` su una replica (2026-08-17, §11.9).
+
+    Serve quando questo dispositivo scopre di essere stato SOSTITUITO da un
+    altro (trasferimento del personaggio): senza azzerare il token,
+    `core.world_sync.resolve_backend_for_world` proverebbe a riconnettersi, si
+    vedrebbe rifiutare il token, e ritenterebbe da sé un ingresso completo con
+    PIN vuoto — arrivando a mostrare "PIN errato" invece della verità. Con il
+    token azzerato il backend remoto non viene nemmeno costruito e la replica
+    resta una copia locale in sola lettura.
+    """
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE worlds SET session_token='', updated_at=? WHERE id=?",
+            (_now(), world_id),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Errore clear_session_token: {e}")
         return False
     finally:
         if conn is not None:

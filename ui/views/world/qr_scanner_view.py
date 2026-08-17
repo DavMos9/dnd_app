@@ -32,8 +32,10 @@ esplicitamente prima di inizializzare il controllo).
 ⚠️ Non verificabile da questo sandbox: nessuna fotocamera reale, nessun
 toolchain di build Android/iOS, e `pyzbar` richiede la libreria nativa
 `libzbar` che qui non è installabile (l'ambiente non ha permessi di root).
-Il parsing del testo QR (`network.qr_join.parse_join_text`) è testato in
-isolamento in `test_scoperta_lan.py`; il ciclo vero fotocamera → pyzbar →
+Il parsing del testo QR (`network.qr_join.parse_any_join_text`, che riconosce
+sia il QR d'ingresso sia quello di trasferimento del personaggio su un altro
+dispositivo — §11.9) è testato in isolamento in `test_scoperta_lan.py` e
+`test_trasferimento_dispositivo.py`; il ciclo vero fotocamera → pyzbar →
 ingresso può essere verificato solo da Davide su un dispositivo Android/iOS
 reale — è esattamente il tipo di limite già documentato per il resto del
 Multiplayer (§15 del design doc).
@@ -46,7 +48,7 @@ import logging
 
 import flet as ft
 
-from network.qr_join import parse_join_text
+from network.qr_join import parse_any_join_text
 from ui import design as d
 
 logger = logging.getLogger(__name__)
@@ -80,9 +82,10 @@ class QrScannerView(ft.Column):
     Mirino live per l'ingresso in un mondo LAN via QR.
 
     Callbacks:
-        on_scanned(parsed: dict)  → un QR d'ingresso valido è stato letto
-                                     (stessa forma di ritorno di
-                                     `network.qr_join.parse_join_text`).
+        on_scanned(parsed: dict)  → un QR valido è stato letto (stessa forma di
+                                     ritorno di
+                                     `network.qr_join.parse_any_join_text`,
+                                     quindi con `kind` = "join" | "transfer").
                                      Il chiamante decide cosa farne (di
                                      norma: chiudere il dialogo, compilare
                                      i campi, avviare l'ingresso) — questa
@@ -325,7 +328,12 @@ class QrScannerView(ft.Column):
                 text = result.data.decode("utf-8", errors="replace")
             except Exception:
                 continue
-            parsed = parse_join_text(text)
+            # `parse_any_join_text` (2026-08-17, §11.9) riconosce sia il QR
+            # d'ingresso normale sia quello di trasferimento del personaggio su
+            # un altro dispositivo, e dichiara quale ha letto in `kind`. Un QR
+            # di nessuno dei due formati continua a dare None → "QR non
+            # riconosciuto", comportamento invariato.
+            parsed = parse_any_join_text(text)
             if parsed is not None:
                 return parsed
         return None

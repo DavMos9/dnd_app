@@ -50,7 +50,7 @@ from core import world_permissions as perm
 from core.image_utils import sniff_mime
 from core.world_backend import LocalBackend
 from data.repositories import character_repo, maps_repo, master_repo, world_repo
-from data.repositories import character_export
+from data.repositories import character_export, world_transfer_repo
 from network import protocol
 from network.discovery import LanAnnouncer
 
@@ -100,6 +100,15 @@ class PendingJoinRequest:
     token: str = ""
     role: str = ""
     created_at: str = field(default_factory=_now)
+    #: Id del codice di trasferimento riscattato (2026-08-17, §11.9). Vuoto per
+    #: un ingresso normale. Quando è valorizzato, `approve()` NON crea un nuovo
+    #: membro: riassegna quello esistente a questo dispositivo. Il master deve
+    #: vedere la differenza — non è un giocatore nuovo che entra, è uno scambio
+    #: di identità che farà smettere di funzionare il vecchio dispositivo.
+    transfer_id: str = ""
+    #: Nome del membro che si sta sostituendo, copiato dal codice: serve alla UI
+    #: del master per scrivere «X vuole spostare il personaggio di Y».
+    transfer_member_name: str = ""
 
 
 class _WorldHTTPServer(ThreadingHTTPServer):
@@ -430,10 +439,21 @@ class WorldHostServer:
         world = world_repo.get_world(self.world_id)
         if world is None:
             return False
-        joined = world_repo.join_world_by_code(world.join_code, req.device_id, req.display_name)
-        if joined is None:
-            return False
-        _world, member = joined
+
+        # Due esiti diversi per la stessa approvazione (2026-08-17, §11.9): un
+        # ingresso normale crea un membro nuovo, un trasferimento riassegna
+        # quello esistente a un altro dispositivo.
+        if req.transfer_id:
+            member = self._approve_transfer(req)
+            if member is None:
+                return False
+        else:
+            joined = world_repo.join_world_by_code(
+                world.join_code, req.device_id, req.display_name,
+            )
+            if joined is None:
+                return False
+            _world, member = joined
 
         token = self._issue_token(req.device_id)
         world_repo.set_member_connected(self.world_id, req.device_id, True)
@@ -442,6 +462,75 @@ class WorldHostServer:
             req.token = token
             req.role = member.role
         return True
+
+    def _approve_transfer(self, req: PendingJoinRequest):
+        """
+        Riassegna un membro esistente al dispositivo di `req` e chiude il codice.
+        Restituisce il `WorldMember` aggiornato, oppure `None` se qualcosa è
+        andato storto — e in quel caso nulla è stato scritto (la riassegnazione è
+        una singola transazione in `world_transfer_repo.rebind_device`).
+
+        L'ordine conta: prima la riassegnazione, poi il codice segnato come
+        usato, poi l'evento di giornale, infine la revoca dei token del vecchio
+        dispositivo. Se il primo passo fallisce, il codice resta valido e il
+        master può riprovare.
+        """
+        transfer = world_transfer_repo.get_transfer(req.transfer_id)
+        if transfer is None or transfer.status != world_transfer_repo.STATUS_PENDING:
+            logger.warning(
+                "_approve_transfer: codice %s non più riscattabile", req.transfer_id,
+            )
+            return None
+
+        old_device_id = transfer.member_device_id
+        summary_data = world_transfer_repo.rebind_device(
+            self.world_id, old_device_id, req.device_id,
+        )
+        if summary_data is None:
+            return None
+
+        if not world_transfer_repo.mark_redeemed(transfer.id, req.device_id):
+            # `mark_redeemed` ha un `WHERE status='pending'`: un fallimento qui
+            # significa che un altro riscatto ha vinto la corsa nel frattempo.
+            # La riassegnazione è già avvenuta e non si annulla — si registra e
+            # si prosegue, perché il membro ORA appartiene davvero a questo
+            # dispositivo e negarglielo lo lascerebbe fuori da un mondo di cui è
+            # già proprietario.
+            logger.warning(
+                "_approve_transfer: codice %s già chiuso da un altro riscatto "
+                "(riassegnazione a %s comunque completata)",
+                transfer.id, req.device_id,
+            )
+
+        display_name = summary_data.get("display_name") or req.display_name
+        world_repo.append_event(
+            self.world_id, req.device_id, display_name,
+            kind=perm.DEVICE_TRANSFER_REDEEM_KIND, target_type="member",
+            target_id=summary_data.get("member_id", ""),
+            summary=(
+                f"{display_name} ha spostato il personaggio su un nuovo dispositivo."
+            ),
+            payload=json.dumps({
+                "old_device_id": old_device_id,
+                "new_device_id": req.device_id,
+                "transfer_id": transfer.id,
+                "characters": summary_data.get("characters", 0),
+                "notes_remapped": summary_data.get("notes_remapped", 0),
+                "rejoin_requests": summary_data.get("rejoin_requests", 0),
+            }),
+            before_state=json.dumps({"device_id": old_device_id}),
+        )
+
+        # Il vecchio dispositivo non deve poter continuare a scrivere con un
+        # token già emesso: la sua attesa lunga su `GET /events` torna 401 al
+        # giro successivo (`handle_events` risolve il token e non lo trova più),
+        # che è esattamente il segnale con cui scopre di essere stato sostituito.
+        with self._lock:
+            for tok, dev in list(self._tokens.items()):
+                if dev == old_device_id:
+                    del self._tokens[tok]
+
+        return world_repo.get_member(self.world_id, req.device_id)
 
     def reject(self, request_id: str) -> bool:
         with self._lock:
@@ -464,6 +553,17 @@ class WorldHostServer:
             "name": world.name if world else "",
             "protocol_version": protocol.PROTOCOL_VERSION,
             "accepting": self.accepting,
+            # Capacità opzionali dell'host (2026-08-17, §11.9). Meccanismo
+            # deliberatamente scelto INVECE di alzare `PROTOCOL_VERSION` a 2:
+            # `_check_protocol_version` è un'uguaglianza stretta e rifiuta
+            # l'ingresso con "Aggiorna l'app su entrambi i dispositivi", quindi
+            # un bump romperebbe OGNI accoppiamento esistente per una
+            # funzionalità che nessuno sta ancora usando. Un client che vuole
+            # riscattare un codice di trasferimento controlla qui prima di
+            # provarci, e con un host più vecchio (che non manda la chiave)
+            # riceve un messaggio specifico invece di un "codice non valido"
+            # fuorviante.
+            "features": protocol.HOST_FEATURES,
         }
 
     def _check_protocol_version(self, body: dict) -> str | None:
@@ -508,6 +608,21 @@ class WorldHostServer:
         if world.join_code.upper() != join_code:
             return 403, {"error": "Codice del mondo errato."}
 
+        # Terzo percorso d'ingresso (2026-08-17, §11.9): un dispositivo NUOVO
+        # che presenta un codice di trasferimento per subentrare a un membro
+        # esistente, portandosi via le sue istanze di personaggio. Va valutato
+        # PRIMA del ramo "dispositivo già noto": per definizione questo
+        # dispositivo non è ancora membro, e il codice deve poter essere
+        # riscattato una volta sola anche se il richiedente ritenta.
+        #
+        # Il codice SOSTITUISCE il PIN — è strettamente più forte (8 caratteri,
+        # monouso, a scadenza, legato a un solo membro, emesso dall'host) — ma
+        # NON sostituisce l'approvazione del master, che resta obbligatoria:
+        # chi intercetta un codice non entra comunque senza che il master dica sì.
+        transfer_code = str(body.get("transfer_code", "")).strip().upper()
+        if transfer_code:
+            return self._handle_transfer_join(transfer_code, device_id, display_name)
+
         member = world_repo.get_member(self.world_id, device_id)
         if member is not None:
             # Dispositivo già noto ("registrato" — §9.4: "I dispositivi già
@@ -526,6 +641,23 @@ class WorldHostServer:
             world_repo.set_member_connected(self.world_id, device_id, True)
             return 200, {"status": "approved", "token": token, "role": member.role}
 
+        # Questo dispositivo è stato SOSTITUITO da un altro (§11.9): dirglielo,
+        # invece di lasciarlo cadere nel ramo del PIN qui sotto. Senza questo
+        # controllo il percorso reale è: token non più valido →
+        # `core.world_sync.resolve_backend_for_world` ritenta da sé un ingresso
+        # completo con PIN vuoto → "PIN errato." — un messaggio che manda a
+        # cercare il problema esattamente nel posto sbagliato. È il motivo per
+        # cui le righe `redeemed` di `world_device_transfers` non si cancellano.
+        transferred = world_transfer_repo.was_transferred_away(self.world_id, device_id)
+        if transferred is not None:
+            return 403, {
+                "error": (
+                    "Il personaggio di questo dispositivo è stato trasferito su "
+                    "un altro dispositivo: questo non fa più parte del mondo."
+                ),
+                "reason": "transferred_away",
+            }
+
         # Nuovo dispositivo: il PIN resta obbligatorio (un estraneo in LAN
         # non può entrare per la prima volta senza che il master lo
         # condivida esplicitamente), poi in coda per l'approvazione
@@ -537,6 +669,71 @@ class WorldHostServer:
         with self._lock:
             self._pending[req.id] = req
         return 200, {"status": "pending", "request_id": req.id}
+
+    def _handle_transfer_join(self, transfer_code: str, device_id: str,
+                               display_name: str) -> tuple[int, dict]:
+        """
+        Riscatto di un codice di trasferimento (§11.9) — accoda la richiesta,
+        non riassegna nulla: la riassegnazione avviene solo se il master
+        approva, in `_approve_transfer()`.
+
+        Il rate limit su `device_id` è già stato applicato da `handle_join`
+        prima di arrivare qui, quindi la barriera contro chi prova codici a
+        raffica è quella (10 s per dispositivo, `perm.NETWORK_REQUEST_COOLDOWN_S`).
+        """
+        # Igiene, non sicurezza: `get_pending_transfer_by_code` scarta comunque i
+        # codici scaduti da sé. Serve a non tenere righe morte nell'elenco che il
+        # master vede.
+        world_transfer_repo.expire_stale_transfers(self.world_id)
+
+        transfer = world_transfer_repo.get_pending_transfer_by_code(
+            self.world_id, transfer_code,
+        )
+        if transfer is None:
+            # Messaggio IDENTICO per "inesistente", "scaduto", "revocato" e "già
+            # usato": non rivelare quale dei quattro a chi sta provando codici —
+            # lo stesso principio già applicato al PIN.
+            return 403, {"error": "Codice di trasferimento non valido o scaduto."}
+
+        if transfer.member_device_id == device_id:
+            return 400, {
+                "error": "Questo è già il dispositivo registrato per quel personaggio.",
+            }
+
+        if world_repo.get_member(self.world_id, device_id) is not None:
+            # `UNIQUE (world_id, device_id)`: due appartenenze nello stesso
+            # mondo non si possono fondere, e non è questa la sede per decidere
+            # quale delle due tenere.
+            return 409, {
+                "error": (
+                    "Questo dispositivo è già membro del mondo con un'altra "
+                    "identità. Esci dal mondo prima di usare un codice di "
+                    "trasferimento."
+                ),
+            }
+
+        member = world_repo.get_member(self.world_id, transfer.member_device_id)
+        if member is None:
+            # Il membro è stato espulso dopo l'emissione del codice: non c'è più
+            # nulla in cui subentrare.
+            return 409, {
+                "error": (
+                    "Il membro a cui appartiene questo codice non fa più parte "
+                    "del mondo."
+                ),
+            }
+
+        req = PendingJoinRequest(
+            id=str(_uuid.uuid4()), device_id=device_id,
+            # Se il nuovo dispositivo non manda un nome, si eredita quello del
+            # membro che sta sostituendo: cambiare telefono non è un rinomino.
+            display_name=display_name or member.display_name,
+            transfer_id=transfer.id,
+            transfer_member_name=member.display_name,
+        )
+        with self._lock:
+            self._pending[req.id] = req
+        return 200, {"status": "pending", "request_id": req.id, "kind": "transfer"}
 
     def join_status(self, request_id: str) -> dict:
         with self._lock:
@@ -592,6 +789,10 @@ class WorldHostServer:
             "success": result.success,
             "error": result.error,
             "event": protocol.event_to_dict(result.event) if result.event else None,
+            # Dati destinati SOLO al mittente (2026-08-17, §11.9): il codice di
+            # trasferimento non può viaggiare in `event.payload`, che finisce nel
+            # giornale trasmesso a tutte le repliche.
+            "data": result.data,
         }
 
     def handle_snapshot(self, token: str) -> tuple[int, dict]:

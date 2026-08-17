@@ -33,3 +33,15 @@ qrcode==8.2
 # pyproject.toml. ⚠️ NON compilata/testata da questo sandbox — vedi
 # dnd_app/extensions/flet_file_picker/README.md.
 -e ./extensions/flet_file_picker
+
+# Aggiunto il 2026-08-17: ultimo passo dell'aggiornamento in-app — consegnare
+# l'APK scaricato all'installer di pacchetti di SISTEMA su Android. Non
+# ottenibile dal Python (serve un FileProvider per l'URI content:// e un intent
+# nativo). A differenza delle due estensioni sopra NON contiene codice Kotlin: si
+# appoggia al plugin Flutter open_filex, che porta con sé il proprio
+# FileProvider. Vedi il commento gemello e più esteso in pyproject.toml.
+# ⚠️ NON compilata/testata da questo sandbox — vedi
+# dnd_app/extensions/flet_apk_installer/README.md, che elenca i quattro punti da
+# verificare (in particolare i vincoli di versione su pub.dev: esiste già un
+# precedente di CI rotta su tutte e 4 le piattaforme con flet_file_picker).
+-e ./extensions/flet_apk_installer

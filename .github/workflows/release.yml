@@ -34,25 +34,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Inject version from git tag
-        shell: python
-        run: |
-          import re, os
-          ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
-          for path, pattern, repl in [
-              ('version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
-              ('pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
-              ('pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
-          ]:
-              content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
-              open(path, 'w').write(content)
-          print(f'Version set to: {ver}')
+        uses: ./.github/actions/inject-version
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Setup Flutter 3.41.7
+      - name: Setup Flutter 3.44.8
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.44.8"
@@ -86,25 +75,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Inject version from git tag
-        shell: python
-        run: |
-          import re, os
-          ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
-          for path, pattern, repl in [
-              ('version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
-              ('pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
-              ('pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
-          ]:
-              content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
-              open(path, 'w').write(content)
-          print(f'Version set to: {ver}')
+        uses: ./.github/actions/inject-version
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Setup Flutter 3.41.7
+      - name: Setup Flutter 3.44.8
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.44.8"
@@ -150,18 +128,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Inject version from git tag
-        shell: python
-        run: |
-          import re, os
-          ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
-          for path, pattern, repl in [
-              ('version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
-              ('pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
-              ('pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
-          ]:
-              content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
-              open(path, 'w').write(content)
-          print(f'Version set to: {ver}')
+        uses: ./.github/actions/inject-version
 
       - name: System dependencies
         run: |
@@ -175,7 +142,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Setup Flutter 3.41.7
+      - name: Setup Flutter 3.44.8
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.44.8"
@@ -215,18 +182,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Inject version from git tag
-        shell: python
-        run: |
-          import re, os
-          ver = os.environ['GITHUB_REF_NAME'].lstrip('v')
-          for path, pattern, repl in [
-              ('version.py',    r'APP_VERSION = ["\'].+?["\']', f'APP_VERSION = "{ver}"'),
-              ('pyproject.toml', r'^version = ".+"$',           f'version = "{ver}"'),
-              ('pyproject.toml', r'^app\.version = ".+"$',       f'app.version = "{ver}"'),
-          ]:
-              content = re.sub(pattern, repl, open(path).read(), flags=re.MULTILINE)
-              open(path, 'w').write(content)
-          print(f'Version set to: {ver}')
+        uses: ./.github/actions/inject-version
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -239,7 +195,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Setup Flutter 3.41.7
+      - name: Setup Flutter 3.44.8
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.44.8"
@@ -249,8 +205,84 @@ jobs:
       - name: Install Python dependencies
         run: pip install flet==0.86.5 "Pillow>=10.0.0"
 
+      # ─── Firma di rilascio permanente ────────────────────────────────
+      # Causa radice del problema "devo disinstallare e reinstallare l'app ogni
+      # volta" segnalato da Davide (2026-08-17). Senza questa configurazione
+      # `flet build apk` genera un APK firmato col keystore di DEBUG, che
+      # Flutter/Gradle rigenera su OGNI runner: ogni release aveva una firma
+      # diversa e Android rifiutava l'aggiornamento in loco
+      # (INSTALL_FAILED_UPDATE_INCOMPATIBLE), obbligando a disinstallare — e la
+      # disinstallazione cancella il database, `app_settings` incluso, quindi
+      # anche il `device_id`.
+      #
+      # Verificato nel sorgente installato di flet_cli 0.86.5
+      # (`commands/build_base.py:1217` e `:2166`): le quattro variabili
+      # d'ambiente qui sotto bastano da sole — `FLET_ANDROID_SIGNING_KEY_STORE`
+      # attiva anche il blocco `signingConfigs { create("release") }` nel
+      # template gradle (che è condizionato a `cookiecutter.options.
+      # android_signing`), quindi NON serve nulla in `pyproject.toml`.
+      #
+      # Il percorso del keystore DEVE essere assoluto: nel gradle generato è
+      # `file(it)` dentro il modulo `app`, quindi un percorso relativo verrebbe
+      # risolto rispetto a `build/flutter/android/app`. `${{ runner.temp }}` è
+      # assoluto.
+      - name: Decode upload keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Secret ANDROID_KEYSTORE_BASE64 mancante. Senza la"
+            echo "::error::chiave di rilascio l'APK sarebbe firmato in debug e"
+            echo "::error::obbligherebbe di nuovo a disinstallare l'app."
+            echo "::error::Vedi RELEASE.md, «Migrazione alla firma di rilascio»."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
+          echo "Keystore decodificato ($(stat -c%s "$RUNNER_TEMP/upload-keystore.jks") byte)"
+
       - name: Build Android APK
+        env:
+          FLET_ANDROID_SIGNING_KEY_STORE: ${{ runner.temp }}/upload-keystore.jks
+          FLET_ANDROID_SIGNING_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FLET_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FLET_ANDROID_SIGNING_KEY_ALIAS: upload
         run: echo "y" | flet build apk --no-rich-output
+
+      # Lo step che DIMOSTRA il fix, invece di sperarlo: se per qualunque motivo
+      # l'APK tornasse a essere firmato in debug (secret svuotato, template
+      # cambiato in un aggiornamento di Flet, variabile rinominata), la release
+      # si ferma qui invece di uscire e costringere tutti a disinstallare di
+      # nuovo. Stampa anche versionCode/versionName, così l'iniezione della
+      # versione è verificabile dal log.
+      - name: Verify APK signature and version
+        run: |
+          set -euo pipefail
+          APK=$(find build -name "app-release.apk" | head -1)
+          echo "APK: $APK"
+
+          APKSIGNER=$(find "$ANDROID_HOME" -name apksigner -type f 2>/dev/null | sort -r | head -1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner non trovato in ANDROID_HOME ($ANDROID_HOME)."
+            exit 1
+          fi
+          "$APKSIGNER" verify --print-certs "$APK" | tee certs.txt
+
+          if grep -qi "CN=Android Debug" certs.txt; then
+            echo "::error::L'APK è firmato con il keystore di DEBUG: un'installazione"
+            echo "::error::esistente non potrebbe aggiornarsi in loco. Release interrotta."
+            exit 1
+          fi
+          if ! grep -qi "CN=DnD Companion" certs.txt; then
+            echo "::error::L'APK non è firmato con la chiave di rilascio attesa"
+            echo "::error::(CN=DnD Companion). Release interrotta."
+            exit 1
+          fi
+          echo "Firma di rilascio verificata."
+
+          AAPT=$(find "$ANDROID_HOME" -name aapt2 -type f 2>/dev/null | sort -r | head -1)
+          if [ -n "$AAPT" ]; then
+            "$AAPT" dump badging "$APK" | grep -E "package: name" || true
+          fi
 
       - name: Find and rename APK
         run: |

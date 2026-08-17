@@ -380,6 +380,35 @@ def apply_event_to_replica(local_world_id: str, event: WorldEvent, remote_backen
             if isinstance(strokes, list) and strokes:
                 maps_repo.apply_stroke_batch(event.target_id, strokes)
 
+        elif event.kind == perm.DEVICE_TRANSFER_REDEEM_KIND:
+            # Un membro ha spostato il proprio personaggio su un altro
+            # dispositivo (§11.9). Due letture completamente diverse dello
+            # stesso evento, a seconda di chi lo riceve:
+            #
+            #  - Se il vecchio dispositivo sono IO, non è un aggiornamento
+            #    dell'elenco membri: è la mia estromissione dal mondo. Va
+            #    marcata subito, perché il mio token è già stato revocato
+            #    dall'host e senza questo la replica proverebbe a
+            #    riconnettersi in eterno.
+            #  - Su un TERZO dispositivo non si riscrive nulla a mano:
+            #    l'elenco membri si risana da sé al prossimo
+            #    `sync_replica(refresh_members=True)`, che lo rilegge dallo
+            #    snapshot. Il payload non porta il `display_name`, quindi
+            #    ricostruire il membro da qui darebbe una riga peggiore di
+            #    quella che arriva dallo snapshot.
+            old_device_id = str(payload.get("old_device_id", ""))
+            new_device_id = str(payload.get("new_device_id", ""))
+            if old_device_id and new_device_id:
+                if local_device_id is not None and local_device_id == old_device_id:
+                    _mark_world_transferred_away(local_world_id)
+
+        elif event.kind in (perm.CMD_DEVICE_TRANSFER_ISSUE, perm.CMD_DEVICE_TRANSFER_REVOKE):
+            # Emissione/revoca di un codice: nessun effetto sulla replica. Il
+            # codice non è mai nel payload (è un segreto per un solo membro,
+            # vedi `_handle_device_transfer_issue`) e `world_device_transfers`
+            # vive solo sull'host. L'evento serve al registro degli interventi.
+            pass
+
         elif event.kind in ("world.created", "world.join_code.regenerate", "member.joined"):
             # "world.created": già applicato dal join iniziale (snapshot).
             # "world.join_code.regenerate": il nuovo codice non viaggia nel
@@ -457,6 +486,50 @@ def _update_replica_owner(world_id: str, new_owner_device_id: str) -> None:
     finally:
         if conn is not None:
             conn.close()
+
+
+#: Prefisso della chiave `app_settings` che marca una replica come "trasferita
+#: via" (§11.9). Una chiave per mondo, non una colonna nuova su `worlds`:
+#: `app_settings` è già il registro degli stati per-installazione del progetto
+#: (`device_id`, `display_name`) e questa informazione è esattamente di quel
+#: tipo — vale per QUESTA installazione, non per il mondo, che sull'host è
+#: perfettamente vivo.
+_TRANSFERRED_AWAY_KEY_PREFIX = "world_transferred_away:"
+
+
+def transferred_away_key(world_id: str) -> str:
+    return f"{_TRANSFERRED_AWAY_KEY_PREFIX}{world_id}"
+
+
+def is_world_transferred_away(world_id: str) -> bool:
+    """
+    True se il personaggio di questo dispositivo in questo mondo è stato
+    spostato su un altro dispositivo (§11.9): la replica locale resta
+    consultabile ma non può più inviare nulla al master.
+    """
+    from data.repositories import settings_repo
+    return settings_repo.get_setting(transferred_away_key(world_id), "") == "1"
+
+
+def _mark_world_transferred_away(world_id: str) -> None:
+    """
+    Marca la replica come trasferita e azzera il token di sessione.
+
+    Azzerare il token è la metà che conta: senza,
+    `resolve_backend_for_world()` proverebbe a riconnettersi, si vedrebbe
+    rifiutare il token e ritenterebbe da sé un ingresso completo col solo
+    `join_code` — arrivando a mostrare all'utente un errore che parla di PIN.
+    Con il token azzerato quella funzione esce subito con `None` e la replica
+    resta una copia locale in sola lettura, che è il comportamento voluto.
+    """
+    from data.repositories import settings_repo
+
+    settings_repo.set_setting(transferred_away_key(world_id), "1")
+    world_repo.clear_session_token(world_id)
+    logger.info(
+        "Mondo %s marcato come trasferito su un altro dispositivo: replica "
+        "locale in sola lettura.", world_id,
+    )
 
 
 def sync_replica(remote_backend, local_world_id: str, refresh_members: bool = True) -> int:
@@ -592,6 +665,14 @@ def resolve_backend_for_world(world: World, device_id: str, local_backend,
     if world.is_local_host:
         return local_backend
 
+    # Questa replica è già stata dichiarata trasferita su un altro dispositivo
+    # (§11.9): non esiste più un backend raggiungibile per essa, e insistere
+    # porterebbe al ritentativo automatico qui sotto e quindi a un messaggio
+    # sbagliato sul PIN.
+    if is_world_transferred_away(world.id):
+        remote_cache.pop(world.id, None)
+        return None
+
     cached = remote_cache.get(world.id)
     if cached is not None and cached.connection_state() == "connected":
         return cached
@@ -629,6 +710,15 @@ def resolve_backend_for_world(world: World, device_id: str, local_backend,
             return None
         retry = start_lan_join(host, port, world.join_code, "", device_id or "", "")
         if not retry.success or retry.backend is None:
+            # Percorso REALE del vecchio dispositivo dopo un trasferimento
+            # (2026-08-17, §11.9): quasi sempre era spento o fuori portata nel
+            # momento in cui il master ha approvato, quindi non ha mai visto
+            # l'evento `device_transfer.redeem` e non si è marcato da sé. Lo
+            # scopre qui, dalla risposta dell'host al primo ritentativo. Senza
+            # questo, ogni avvio dell'app rifarebbe lo stesso giro inutile e la
+            # UI non potrebbe spiegare perché il mondo non risponde più.
+            if retry.reason == "transferred_away":
+                _mark_world_transferred_away(world.id)
             return None
         remote_cache[world.id] = retry.backend
         return retry.backend
@@ -650,10 +740,17 @@ class LanJoinResult:
                                          # evitare un import circolare con core.world_backend
     pending_request_id: str = ""
     error: str = ""
+    #: `"join"` o `"transfer"` (§11.9) — la UI usa un testo di attesa diverso
+    #: per il trasferimento di un personaggio su un altro dispositivo.
+    kind: str = "join"
+    #: Motivo strutturato del rifiuto quando l'host ne dà uno; oggi solo
+    #: `"transferred_away"`.
+    reason: str = ""
 
 
 def start_lan_join(host: str, port: int, join_code: str, pin: str,
-                    device_id: str, display_name: str) -> LanJoinResult:
+                    device_id: str, display_name: str,
+                    transfer_code: str = "") -> LanJoinResult:
     """
     Primo passo dell'ingresso in un mondo in LAN (§9.3/§9.4):
     1. `GET /world` — verifica che l'host risponda e che la versione del
@@ -665,6 +762,14 @@ def start_lan_join(host: str, port: int, join_code: str, pin: str,
     nuovo, ritorna con `pending_request_id` valorizzato: la UI deve
     richiamare `finish_pending_join()` (tipicamente con un pulsante
     «Controlla di nuovo») finché il master non approva o rifiuta.
+
+    `transfer_code` (2026-08-17, §11.9): riscatta un codice di trasferimento per
+    subentrare a un membro esistente e riprendersi i suoi personaggi, invece di
+    entrare come dispositivo nuovo. Sostituisce il PIN, non l'approvazione del
+    master. La capacità dell'host viene verificata al passo 1, sullo stesso
+    `GET /world` già in uso: con un host più vecchio si esce con un messaggio
+    specifico invece di mandargli una richiesta che interpreterebbe come un
+    ingresso normale con PIN vuoto (→ "PIN errato", fuorviante).
     """
     from core.world_backend import RemoteBackend
 
@@ -686,15 +791,36 @@ def start_lan_join(host: str, port: int, join_code: str, pin: str,
     if not info.get("accepting", False):
         return LanJoinResult(False, error="Il master non sta accettando ingressi in questo momento.")
 
+    if transfer_code:
+        features = info.get("features") or []
+        if protocol.FEATURE_DEVICE_TRANSFER not in features:
+            return LanJoinResult(
+                False,
+                kind="transfer",
+                error=(
+                    "L'app sul dispositivo del master è troppo vecchia per il "
+                    "trasferimento del personaggio. Chiedi al master di "
+                    "aggiornarla."
+                ),
+            )
+
     backend.world_id = str(info.get("world_id", ""))
 
-    outcome = backend.join(join_code, pin, display_name)
+    outcome = backend.join(join_code, pin, display_name, transfer_code=transfer_code)
     if outcome.status == "error":
-        return LanJoinResult(False, error=outcome.error)
+        return LanJoinResult(
+            False, error=outcome.error, reason=outcome.reason,
+            kind="transfer" if transfer_code else "join",
+        )
     if outcome.status == "pending":
+        attesa = (
+            "In attesa che il master approvi il trasferimento."
+            if outcome.kind == "transfer"
+            else "In attesa dell'approvazione del master."
+        )
         return LanJoinResult(
             False, backend=backend, pending_request_id=outcome.request_id,
-            error="In attesa dell'approvazione del master.",
+            kind=outcome.kind, error=attesa,
         )
     return _finalize_join(backend, f"{host}:{port}")
 

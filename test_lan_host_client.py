@@ -473,7 +473,13 @@ class _FakeRemoteBackend:
     def check_world(self):
         return self._world_info
 
-    def join(self, join_code, pin, display_name):
+    def join(self, join_code, pin, display_name, transfer_code=""):
+        # `transfer_code` (2026-08-17, §11.9): il finto backend deve rispecchiare
+        # la firma reale di `RemoteBackend.join`, altrimenti `start_lan_join`
+        # solleva TypeError qui invece di verificare ciò che questa parte
+        # verifica. Il riscatto di un codice ha la sua batteria dedicata
+        # (test_trasferimento_dispositivo.py), su socket veri.
+        self.last_transfer_code = transfer_code
         return self._join_outcome
 
     def poll_join_status(self, request_id):

@@ -187,6 +187,34 @@ CMD_CONDITION_SELF_REMOVE = "condition.self_remove"
 #: master, `CMD_CHARACTER_REJOIN_RESPOND` sopra.
 CMD_CHARACTER_REJOIN_REQUEST = "character_rejoin.request"
 
+#: Emette/revoca un codice di trasferimento del personaggio su un altro
+#: dispositivo (2026-08-17, "cambio dispositivo" — §11.9 del design doc).
+#:
+#: Ruolo minimo `player` come gli altri comandi di questo gruppo, ma con una
+#: verifica di proprietà in DUE forme, applicata dall'handler in
+#: `core/world_backend.py`: l'attore deve essere il membro indicato in
+#: `payload["device_id"]` (un giocatore emette un codice solo per se stesso,
+#: prima di cambiare telefono) OPPURE avere ruolo master/owner (il master emette
+#: un codice per un giocatore il cui dispositivo è perso, rotto o venduto —
+#: senza questa seconda via il caso "telefono rotto" non sarebbe coperto).
+#:
+#: Nessuno dei due muta un personaggio: creano/annullano solo un codice, quindi
+#: NON entrano in `CHARACTER_MUTATING_COMMANDS` — stesso criterio di
+#: `CMD_CHARACTER_REJOIN_REQUEST`.
+CMD_DEVICE_TRANSFER_ISSUE = "device_transfer.issue"
+CMD_DEVICE_TRANSFER_REVOKE = "device_transfer.revoke"
+
+#: Tipo dell'evento di giornale scritto quando un codice viene RISCATTATO.
+#:
+#: Deliberatamente NON registrato in `_MIN_ROLE_FOR_COMMAND`: `can_perform()` è
+#: fail-closed, quindi un tipo non registrato non può essere inviato da nessuno
+#: come comando, che è esattamente ciò che serve. Il riscatto non è un comando —
+#: avviene dentro `WorldHostServer._approve_transfer()`, sull'host, senza token
+#: e senza passare da `LocalBackend.send_command`. La costante vive qui, accanto
+#: ai due comandi, solo per essere trovabile: `core/world_sync.py` la usa per
+#: riconoscere l'evento sulle repliche.
+DEVICE_TRANSFER_REDEEM_KIND = "device_transfer.redeem"
+
 PLAYER_OWNED_COMMANDS: frozenset[str] = frozenset({
     CMD_CHANGE_REQUEST_RESPOND,
     CMD_CHARACTER_INSTANCE_SYNC,
@@ -194,6 +222,8 @@ PLAYER_OWNED_COMMANDS: frozenset[str] = frozenset({
     CMD_CONDITION_SELF_APPLY,
     CMD_CONDITION_SELF_REMOVE,
     CMD_CHARACTER_REJOIN_REQUEST,
+    CMD_DEVICE_TRANSFER_ISSUE,
+    CMD_DEVICE_TRANSFER_REVOKE,
 })
 
 #: Ogni comando conosciuto -> ruolo minimo richiesto per inviarlo.
@@ -331,6 +361,24 @@ def is_character_owner(actor_device_id: str, character_owner_device_id: str) -> 
     """Confronto puro, nessun accesso al DB: il chiamante (l'handler in
     `core/world_backend.py`) ha già letto `characters.owner_device_id`."""
     return bool(actor_device_id) and actor_device_id == character_owner_device_id
+
+
+def role_at_least(role: str, minimum: str) -> bool:
+    """
+    True se `role` ha privilegio pari o superiore a `minimum` nella scala
+    player < master < owner. Fail-closed su un ruolo non valido, come
+    `can_perform`.
+
+    Aggiunta il 2026-08-17 per il codice di trasferimento (§11.9), dove serve
+    distinguere "il membro stesso" da "un master o l'owner" DENTRO un comando
+    che `can_perform` autorizza già a partire da `player`. È l'unico modo di
+    fare quel confronto senza che un altro modulo legga `_ROLE_RANK`, che è
+    privato proprio perché la scala dei ruoli non deve essere reinterpretata
+    fuori da qui.
+    """
+    if not is_valid_role(role) or not is_valid_role(minimum):
+        return False
+    return _ROLE_RANK[role] >= _ROLE_RANK[minimum]
 
 
 def can_perform(role: str, command_kind: str) -> bool:

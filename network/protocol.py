@@ -23,6 +23,27 @@ from data.models import World, WorldChangeRequest, WorldEvent, WorldMember, Worl
 #: PRIMA di mostrare il dialogo del PIN (§11.6).
 PROTOCOL_VERSION = 1
 
+#: Capacità OPZIONALI dell'host, esposte da `GET /world` e verificate dal client
+#: prima di usarle (2026-08-17, §11.9).
+#:
+#: Esiste per NON dover incrementare `PROTOCOL_VERSION` a ogni aggiunta
+#: retrocompatibile. Il numero di versione sopra è controllato con
+#: un'uguaglianza stretta e rifiuta l'ingresso con "Aggiorna l'app su entrambi i
+#: dispositivi": alzarlo per una funzionalità nuova che nessuno sta ancora
+#: usando spegnerebbe tutti gli accoppiamenti già funzionanti. Una capacità va
+#: qui quando l'aggiunta è puramente additiva — un client vecchio non la chiede,
+#: un host vecchio non la annuncia e il client nuovo se ne accorge — e va invece
+#: incrementato `PROTOCOL_VERSION` quando cambia il significato di qualcosa che
+#: esiste già.
+#:
+#:   "device_transfer" → l'host accetta `transfer_code` in `POST /join` e sa
+#:                       riassegnare un membro a un altro dispositivo (§11.9).
+HOST_FEATURES: tuple[str, ...] = ("device_transfer",)
+
+#: Nome della capacità di trasferimento, per non ripetere la stringa nei
+#: controlli sparsi fra client e host.
+FEATURE_DEVICE_TRANSFER = "device_transfer"
+
 #: §9.2 — porta di partenza per l'host, con ripiego sulle 5 successive se
 #: occupata (es. da un'altra istanza dell'app, o da un mondo ospitato in
 #: precedenza non ancora rilasciato dal sistema operativo).

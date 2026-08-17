@@ -441,6 +441,12 @@ con autore, momento e valori prima/dopo.
 | Proporre una richiesta di modifica | §7.1 |
 | Rimuovere un personaggio dal mondo (senza espellere il giocatore) | archiviato, non cancellato — come l'espulsione, 2026-08-12 |
 | Accettare o rifiutare una richiesta di rientro di un personaggio archiviato | §7.2, 2026-08-12 |
+| Generare (o revocare) un codice di trasferimento per un giocatore | §11.9, 2026-08-17 — mai per l'owner |
+
+**Consentito anche al `player`, ma solo su se stesso:** aggiornare i propri PF,
+applicare/rimuovere le proprie condizioni, rispondere a una richiesta di
+modifica, chiedere il rientro di una propria istanza archiviata, e **generare un
+codice di trasferimento per il proprio dispositivo** (§11.9, 2026-08-17).
 
 **Vietato a chiunque tranne il giocatore** — sono le scelte che definiscono il
 personaggio, e toglierle svuoterebbe l'app del suo scopo:
@@ -809,6 +815,133 @@ chiede l'indirizzo. Nessun blocco definitivo.
 
 **11.8 — Lo stesso personaggio in due mondi.** Non è un errore: sono due
 istanze indipendenti (§6). Va reso evidente nella UI, non impedito.
+
+---
+
+## 11.9 — Il giocatore cambia dispositivo (2026-08-17, implementato)
+
+Caso **non previsto** dai §11.1-11.8, aggiunto su richiesta di Davide: *"vorrei
+inserire un modo in cui un utente può accedere anche con un dispositivo diverso
+al mondo, magari scaricando il proprio personaggio dall'host, assegnando un
+codice univoco per accedere al mondo con quel personaggio in caso cambi
+dispositivo"*.
+
+### Il problema
+
+L'identità di un giocatore è il `device_id` (§4): un UUID generato per
+installazione e conservato in `app_settings`. Le sue istanze di personaggio sono
+legate a quello (`characters.owner_device_id`), e così la sua appartenenza
+(`world_members.device_id`, con `UNIQUE (world_id, device_id)`).
+
+Un dispositivo nuovo è quindi, per l'host, uno sconosciuto senza personaggi. Lo
+è anche **lo stesso dispositivo dopo una reinstallazione**, perché disinstallare
+cancella `app_settings` e con esso il `device_id` — motivo per cui questa
+sezione è strettamente legata alla migrazione alla firma di rilascio descritta in
+RELEASE.md, l'unico aggiornamento che obbliga a disinstallare.
+
+Le vie che esistevano già non risolvono il caso: esportare `.dndchar` e
+importarlo sul dispositivo nuovo produce un personaggio LOCALE (l'import azzera
+di proposito `world_id`/`is_replica`/`owner_device_id`, §14.1), che entrando nel
+mondo creerebbe una SECONDA istanza — il master vedrebbe un doppione e la prima
+resterebbe orfana sull'host.
+
+### Le quattro decisioni (Davide, 2026-08-17)
+
+| Domanda | Scelta |
+|---|---|
+| Trasferimento o multi-dispositivo? | **Trasferimento esclusivo.** Il vecchio dispositivo perde l'accesso. Niente `player_id` portabile separato dal `device_id`: sarebbe più potente ma un refactor che toccherebbe membri, proprietà delle schede, visibilità delle note, permessi, export/import e tutta la batteria multiplayer. |
+| Chi emette il codice? | **Il giocatore per sé** (sta per cambiare telefono e ha ancora quello vecchio in mano) **e il master per un giocatore** (il telefono è perso, rotto o venduto). Senza la seconda via il caso che rende utile la funzione resterebbe scoperto. |
+| Serve anche l'approvazione del master? | **Sì.** Il codice sostituisce il PIN, non l'approvazione: chi intercetta un codice non entra comunque. Riusa `PendingJoinRequest`, già collaudato. |
+| L'owner può trasferirsi così? | **No.** Il suo `device_id` è su `worlds.owner_device_id` e la riassegnazione non lo tocca (riscriverlo sposterebbe la proprietà del mondo, che è un'altra operazione). Per lui la via esiste già ed è migliore: esportare `.dndworld` e importarlo sul dispositivo nuovo, che ne diventa owner e host (§6.3/§11.4). |
+
+### Il codice
+
+8 caratteri dall'alfabeto del codice d'ingresso (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`,
+senza `0/O/1/I/L`), **monouso**, con **scadenza a 7 giorni**, legato a UN membro.
+Emetterne uno nuovo revoca automaticamente il precedente: un membro ha sempre al
+massimo un codice valido, così un codice letto ad alta voce per sbaglio muore
+appena se ne genera un altro.
+
+**Persistito in una tabella** (`world_device_transfers`), non in memoria come il
+PIN. `WorldHostServer.stop()` azzera PIN e token per progetto (§9.4) e l'hosting
+si riavvia spesso (il fix `HostServerSlot` del 2026-08-07 esiste proprio per
+questo): un codice emesso dal master per un dispositivo rotto e riscattato giorni
+dopo, in memoria, evaporerebbe. La tabella è stato dell'HOST — non viaggia
+nell'export `.dndworld` e non viene replicata ai client.
+
+Le righe `redeemed` non si cancellano mai: sono l'audit trail **e** la fonte del
+messaggio con cui l'host spiega al vecchio dispositivo perché non è più membro.
+
+### Il protocollo: `PROTOCOL_VERSION` resta 1
+
+`POST /join` accetta un campo `transfer_code` opzionale. **Non** è stata creata
+una rotta `POST /transfer`: `handle_join` regala già la verifica di versione, il
+rate limit su `device_id` (10 s), il controllo del `join_code`, la coda di
+approvazione e il polling `/join/status`; e lato client `start_lan_join` →
+`finish_pending_join` → `_finalize_join` esistono già. Soprattutto:
+`handle_snapshot` restituisce di suo le istanze del chiamante
+(`owner_device_id == device_id`), quindi **una volta fatta la riassegnazione lo
+scaricamento del personaggio funziona senza una riga nuova**. Una rotta separata
+avrebbe richiesto una copia parallela di tutto.
+
+`PROTOCOL_VERSION` **non** è stato alzato a 2: la modifica è puramente additiva
+(un client vecchio non manda `transfer_code`, un host vecchio ignora la chiave) e
+`_check_protocol_version` è un'uguaglianza stretta che rifiuta l'ingresso con
+"Aggiorna l'app su entrambi i dispositivi" — alzarlo avrebbe spento OGNI
+accoppiamento esistente per una funzionalità che nessuno stava ancora usando.
+
+Al suo posto, `GET /world` annuncia le **capacità opzionali** in
+`features: ["device_transfer"]` (`protocol.HOST_FEATURES`). Un client che vuole
+riscattare un codice lo verifica prima: con un host più vecchio riceve un
+messaggio specifico invece di mandargli una richiesta che quello interpreterebbe
+come un ingresso normale con PIN vuoto — cioè "PIN errato", fuorviante.
+
+### La riassegnazione: cosa si sposta e cosa NON si sposta
+
+Una sola transazione (`world_transfer_repo.rebind_device`). La riga
+`world_members` mantiene lo **stesso `id`**, così le repliche la aggiornano in
+posizione (`save_replica_member` fa `INSERT OR REPLACE` per `id`) senza violare
+`UNIQUE (world_id, device_id)`; ruolo e nome sono preservati — cambiare
+dispositivo non è né una promozione né un rinomino.
+
+| Colonna | Azione | Perché |
+|---|---|---|
+| `world_members.device_id` | spostata | L'appartenenza è la cosa che si trasferisce. `is_connected` va a 0. |
+| `characters.owner_device_id` | spostata, **incluse le istanze archiviate** | Senza le archiviate, il nuovo dispositivo non potrebbe mai chiederne il rientro e resterebbero orfane sull'host. |
+| `master_campaign_notes.visible_to_device_ids` | rimappata (lista JSON, in Python) | Senza, il giocatore perde **in silenzio** ogni nota condivisa specificamente con lui: nessun errore, la nota semplicemente non compare più. Ristretta a `visibility='selected'` e a QUESTO mondo. |
+| `world_rejoin_requests.requested_by` | spostata (solo le `pending`) | `handle_snapshot` le filtra per `requested_by`: una richiesta lasciata sul vecchio id diventa invisibile per sempre — il master la vede, il giocatore no. |
+| `worlds.owner_device_id` | **mai** | Sposterebbe la proprietà del mondo; per l'owner la via è `.dndworld`. |
+| `world_events.actor_device_id` | **mai** | Il giornale è un registro storico (§5): non si riscrive la storia, si aggiunge un evento. |
+| `loot_stash_entries.added_by_device_id` | **mai** | Verificato: scritta, **mai letta** per autorizzare o mostrare. È pura provenienza ("chi ha messo questo qui"), e riscriverla falsificherebbe un dato storico esatto. |
+| `world_change_requests.requested_by` | **mai** | È il `device_id` del MASTER che propone, non del giocatore. |
+| `app_settings` | **mai** | Per installazione, per progetto (§14.2). |
+
+Segue un evento `device_transfer.redeem` nel giornale, e la **revoca dei token
+vivi** del vecchio dispositivo: la sua attesa lunga su `GET /events` torna 401 al
+giro successivo, che è il segnale con cui scopre di essere stato sostituito.
+
+Il codice non compare **mai** nel payload di un evento: il giornale è trasmesso a
+tutte le repliche, il codice è un segreto per un solo membro. Torna al solo
+chiamante in `CommandResult.data`, campo aggiunto per questo.
+
+### Il destino del vecchio dispositivo: conserva, marca, congela
+
+Non si cancella (la replica contiene il giornale, le note e le mappe ricevute,
+cioè la memoria della campagna vista da lì, più il diario del giocatore) e non si
+archivia (richiederebbe una colonna nuova). Diventa una **copia locale in sola
+lettura**, con un chip "trasferito" nell'elenco dei mondi e un banner nel
+dettaglio; l'utente la rimuove quando vuole, con l'azione che esiste già.
+
+Marcata con `settings_repo.set_setting("world_transferred_away:<world_id>", "1")`
+— nessuna modifica di schema — più l'azzeramento di `worlds.session_token`, senza
+il quale `resolve_backend_for_world` ritenterebbe un ingresso completo con PIN
+vuoto e mostrerebbe un errore sul PIN.
+
+Due strade portano alla marcatura, perché il caso realistico è il secondo:
+l'evento `device_transfer.redeem` visto sulla replica (se il dispositivo era
+collegato al momento dell'approvazione), oppure la risposta `403` con
+`reason="transferred_away"` al primo ritentativo di riconnessione (se era spento,
+che è quasi sempre).
 
 ---
 

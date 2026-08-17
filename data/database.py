@@ -79,6 +79,38 @@ def get_db_path() -> str:
         return str(app_dir / "dnd_companion.db")
 
 
+def get_updates_path() -> str:
+    """
+    Cartella di staging degli aggiornamenti scaricati dall'app (2026-08-17).
+
+    Ricavata dalla cartella del database (`get_db_path()`), non reimplementando
+    le tre strategie di ripiego Android: quelle sono già scritte, commentate e
+    collaudate in un solo posto, e duplicarle qui garantirebbe solo che le due
+    copie divergano.
+
+    Deliberatamente NON la cache: su Android il sistema può svuotare la cache in
+    qualunque momento, anche a metà scaricamento di un APK da decine di MB.
+
+    ⚠️ Su Android questa cartella è privata dell'app e viene CANCELLATA dalla
+    disinstallazione. È il motivo per cui l'APK della migrazione alla firma di
+    rilascio — l'unico aggiornamento che richiede di disinstallare — deve essere
+    scaricato dal BROWSER nella cartella Download pubblica, non da qui: un file
+    scaricato qui svanirebbe proprio nel momento in cui serve. Vedi
+    `core.update_checker.UpdateInfo.requires_reinstall`.
+    """
+    updates_dir = Path(get_db_path()).parent / "updates"
+    try:
+        updates_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        # Stesso spirito difensivo di get_db_path(): su Android le directory
+        # padre esistono già e `parents=True` può fallire su percorsi di
+        # sistema. Meglio restituire il percorso e far fallire il download con
+        # un errore chiaro che sollevare all'avvio dell'app.
+        logger.warning("Impossibile creare la cartella aggiornamenti %s: %s",
+                        updates_dir, e)
+    return str(updates_dir)
+
+
 def get_image_library_path() -> str:
     """
     Cartella "libreria immagini" server-side, gestita a mano da Davide via
@@ -1314,6 +1346,57 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_world_rejoin_requests_world_status
         ON world_rejoin_requests(world_id, status)
+    """)
+
+    # Codici di trasferimento di un personaggio su un ALTRO dispositivo
+    # (2026-08-17, richiesta di Davide: "un modo in cui un utente può accedere
+    # anche con un dispositivo diverso al mondo, scaricando il proprio
+    # personaggio dall'host"). Design in
+    # `dnd_app/docs/multiplayer_design.md` §11.9.
+    #
+    # Il problema: l'identità di un giocatore è il `device_id` (UUID per
+    # installazione, `ui/device_identity.py`), e le istanze di personaggio sono
+    # legate a quello via `characters.owner_device_id`. Un dispositivo nuovo —
+    # o lo STESSO dispositivo dopo una reinstallazione, che azzera
+    # `app_settings` e quindi il `device_id` — è per l'host uno sconosciuto
+    # senza personaggi. Il codice qui è la prova, monouso e a scadenza, che
+    # autorizza a subentrare nell'appartenenza di un membro esistente.
+    #
+    # Perché una TABELLA e non un campo in memoria come `self.pin` di
+    # WorldHostServer: `stop()` azzera PIN e token per progetto (§9.4) e
+    # l'hosting si riavvia spesso (il fix `HostServerSlot` del 2026-08-07 esiste
+    # proprio perché si riavviava a ogni navigazione). Un codice emesso dal
+    # master per un dispositivo PERSO O ROTTO può essere riscattato giorni dopo:
+    # in memoria evaporerebbe. Inoltre le righe `redeemed` restano per sempre
+    # (sono minuscole) perché sono l'audit trail e la fonte del messaggio con
+    # cui l'host spiega al VECCHIO dispositivo perché non è più membro —
+    # altrimenti riceverebbe "PIN errato", attivamente fuorviante.
+    #
+    # `ON DELETE CASCADE` fa sì che `world_export.py::_delete_existing_world_data`
+    # la ripulisca gratis. NON va aggiunta a `_WORLD_FLAT_TABLES`: è stato
+    # effimero dell'host, come i token, e non deve viaggiare in un `.dndworld`.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS world_device_transfers (
+            id                  TEXT PRIMARY KEY,
+            world_id            TEXT NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
+            code                TEXT NOT NULL,
+            member_device_id    TEXT NOT NULL,
+            member_display_name TEXT NOT NULL DEFAULT '',
+            issued_by_device_id TEXT NOT NULL,
+            status              TEXT NOT NULL DEFAULT 'pending',
+            new_device_id       TEXT NOT NULL DEFAULT '',
+            expires_at          TEXT NOT NULL DEFAULT '',
+            created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+            resolved_at         TEXT NOT NULL DEFAULT ''
+        )
+    """)
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_world_device_transfers_code
+        ON world_device_transfers(world_id, code)
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_world_device_transfers_status
+        ON world_device_transfers(world_id, status)
     """)
 
     # Multiclasse (PHB IT cap.6, p.163-165 — 2026-08-12, vedi

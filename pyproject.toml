@@ -73,6 +73,25 @@ dependencies = [
     # questo sandbox — nessun toolchain Flutter/Dart disponibile, vedi il
     # README della cartella dell'estensione.
     "flet-file-picker",
+    # Aggiunta il 2026-08-17: terza estensione nativa su misura, per l'ultimo
+    # passo dell'aggiornamento in-app — consegnare l'APK scaricato all'installer
+    # di pacchetti di SISTEMA. Non è ottenibile dal Python: serve un FileProvider
+    # per esporre il file come URI `content://` (da Android 7 un `file://`
+    # solleva FileUriExposedException) e un intent nativo, e nessuna chiave di
+    # pyproject.toml letta da flet_cli permette di aggiungere la risorsa XML che
+    # un FileProvider richiede. A differenza delle due estensioni sopra, questa
+    # NON contiene codice Kotlin: si appoggia al plugin Flutter `open_filex`, che
+    # porta con sé il proprio FileProvider e il proprio filepaths.xml, uniti ai
+    # nostri dal manifest merger di Gradle. Percorso locale in
+    # `[tool.flet.dev_packages]` più sotto, non qui — stesso motivo già spiegato.
+    # Usata da ui/native_apk_installer.py, che solleva ApkInstallerUnavailable se
+    # l'estensione non è compilata in questa build: in quel caso il dialogo
+    # mostra il percorso del file scaricato invece di un pulsante inerte.
+    # ⚠️ NON compilata/testata da questo sandbox — vedi il README della cartella
+    # per l'elenco di cosa resta da verificare, in particolare i vincoli di
+    # versione su pub.dev (c'è un precedente di CI rotta su tutte e 4 le
+    # piattaforme per esattamente quel motivo con flet-file-picker).
+    "flet-apk-installer",
     # Aggiunte il 2026-08-06 (sessione successiva): scanner QR in-app per
     # l'ingresso in un mondo LAN ("inquadri e sei dentro", richiesta di
     # Davide) — vedi ui/views/world/qr_scanner_view.py per l'analisi
@@ -123,6 +142,7 @@ dependencies = [
 [tool.flet.dev_packages]
 flet-image-picker = "extensions/flet_image_picker"
 flet-file-picker = "extensions/flet_file_picker"
+flet-apk-installer = "extensions/flet_apk_installer"
 
 [tool.flet]
 # CORRETTO 2026-08-07: le chiavi sotto `app.*` (app.name/app.bundle_id/
@@ -154,8 +174,52 @@ app.module = "main"
 # "&", niente rischio residuo. Dettaglio in changelog_storico.md.
 product = "DnD Companion"
 bundle_id = "com.davmos9.dndcompanion"
+# build_number = versionCode Android. NON modificare a mano: la CI lo riscrive
+# dal tag git ad ogni release (`.github/actions/inject-version`, formula in
+# `version.compute_build_number()`: major*1_000_000 + minor*1_000 + patch, quindi
+# v0.3.0 → 3000). Il valore committato è solo un segnaposto.
+#
+# CORRETTO 2026-08-17: prima era fisso a 1 e la CI non lo toccava affatto —
+# riscriveva invece una chiave `app.version` che non esiste più dal 2026-08-07,
+# una sostituzione a vuoto silenziosa. Risultato: OGNI apk mai rilasciato porta
+# versionCode 1. Un test lo presidia (`test_versione_app.py`), e lo step
+# "Verify APK signature and version" della CI stampa il valore reale.
 build_number = 1
 # Icona: assets/icon.png (vedi sopra — nessuna chiave pyproject per questo)
+
+# Cartelle da NON impacchettare nell'app (2026-08-17). Chiave verificata nel
+# sorgente installato di flet_cli 0.86.5 (`commands/build_base.py:1964-1974`:
+# legge `tool.flet.<piattaforma>.app.exclude` e poi `tool.flet.app.exclude`) —
+# non dedotta, dopo il precedente di `app.version`, una chiave di uno schema
+# vecchio che per mesi non veniva letta da nessuno.
+#
+# Il valore predefinito esclude SOLO `build`, quindi finora finivano dentro ogni
+# APK e ogni zip desktop: `.git/` (43 MB), `.venv/` (179 MB in locale; assente
+# sui runner CI, che installano a livello globale), `docs/` (2,5 MB di markdown).
+# Rilevante ora che l'app scarica i propri aggiornamenti da sé
+# (`core/update_downloader.py`): è peso che ogni giocatore scarica ad ogni
+# aggiornamento, spesso in tethering al tavolo.
+#
+# ⚠️ SOLO nomi di cartella, nessun glob tipo `test_*.py` o `*.md`. La lista
+# viene passata al packager Dart (`serious_python:main package --exclude a,b,c`),
+# che NON è installato in questo ambiente: se interpreti i glob o no non è
+# verificabile da qui, e un pattern ignorato in silenzio darebbe l'illusione di
+# un'esclusione che non avviene. I ~30 file di test pesano in tutto 760 KB —
+# irrilevanti accanto ai 222 MB sopra, non vale correre il rischio di scoprire
+# solo da una build reale che il glob non funziona.
+#
+# Da NON aggiungere qui: `assets/` e `data/game_data/` servono a RUNTIME (icona,
+# JSON delle regole D&D). `extensions/` invece contiene i SORGENTI Dart delle
+# estensioni native, che `flet build` compila per conto suo a partire da
+# `[tool.flet.dev_packages]`: nel payload Python non servono.
+app.exclude = [
+    ".git",
+    ".github",
+    ".venv",
+    "docs",
+    "extensions",
+    "storage",
+]
 
 # Permesso mancante trovato il 2026-08-05 indagando il bug "Unknown control:
 # FilePicker" su Android segnalato da Davide: pyproject.toml non dichiarava
@@ -212,6 +276,18 @@ permissions = ["photo_library", "camera"]
 # Necessario dal passo 5 (scoperta automatica via broadcast UDP), innocuo
 # dichiararlo già ora insieme agli altri due permessi di rete.
 "android.permission.CHANGE_WIFI_MULTICAST_STATE" = true
+# Aggiornamento in-app (2026-08-17): l'app scarica l'APK della nuova versione e
+# lo passa all'installer di SISTEMA, che chiede conferma all'utente. Android non
+# può mai installare in silenzio — è il modello di sicurezza del SO, non un
+# limite di questo progetto: anche con questo permesso l'utente deve toccare
+# "Installa" nella finestra di sistema, e la prima volta anche autorizzare
+# "installa app sconosciute" per questa app.
+#
+# Il permesso da solo non basta: serve anche un FileProvider per esporre l'APK
+# come URI `content://` (da Android 7 un `file://` solleva
+# FileUriExposedException) e un intent nativo per lanciare l'installer — nulla di
+# cui Flet offra un'API. Vedi `extensions/flet_apk_installer/`.
+"android.permission.REQUEST_INSTALL_PACKAGES" = true
 
 [tool.flet.ios]
 team_id = ""  # Da compilare con l'Apple Team ID quando si pubblica su App Store

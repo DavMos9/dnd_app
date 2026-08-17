@@ -890,3 +890,33 @@ class WorldRejoinRequest:
     status: str = "pending"       # "pending" | "accepted" | "rejected" | "expired"
     created_at: str = ""
     resolved_at: str = ""
+
+
+@dataclass
+class WorldDeviceTransfer:
+    """
+    Codice monouso che autorizza un ALTRO dispositivo a subentrare
+    nell'appartenenza di un membro, portandosi via le sue istanze di
+    personaggio (2026-08-17, §11.9 del design doc).
+
+    Vive SOLO sul dispositivo che ospita il mondo: è stato dell'host come il PIN
+    e i token, non viaggia nell'export `.dndworld` e non viene replicato ai
+    client. `code` non compare MAI nel payload di un `world_event` — il giornale
+    è trasmesso a tutte le repliche, il codice è un segreto per un solo membro:
+    torna al chiamante in `CommandResult.data`.
+
+    `member_display_name` è copiato alla creazione con lo stesso criterio di
+    `WorldRejoinRequest.requester_name`: resta leggibile per il master anche se
+    il dispositivo di origine non si collega mai più.
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    world_id: str = ""
+    code: str = ""                # 8 caratteri, alfabeto senza 0/O/1/I/L
+    member_device_id: str = ""    # il dispositivo da sostituire
+    member_display_name: str = ""
+    issued_by_device_id: str = ""  # il membro stesso, oppure un master/owner
+    status: str = "pending"       # "pending" | "redeemed" | "revoked" | "expired"
+    new_device_id: str = ""       # valorizzato al riscatto
+    expires_at: str = ""          # ISO; oltre questa data il codice non vale più
+    created_at: str = ""
+    resolved_at: str = ""

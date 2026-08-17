@@ -3,9 +3,15 @@ Configurazione globale dell'app: colori, font, costanti di gioco.
 """
 
 APP_NAME = "D&D Companion"
-APP_VERSION = "0.1.0"
 # DB_NAME rimosso (2026-07-26, pulizia Fase 2): mai letto da nessun modulo —
 # il nome del file è deciso da data/database.py -> get_db_path().
+#
+# APP_VERSION rimosso (2026-08-17, lavoro sull'aggiornamento in-app): era un
+# duplicato fermo a "0.1.0" che nessun modulo importava — la versione vera vive
+# in `version.py`, unica fonte di verità, riscritta dalla CI dal tag git. Non
+# era codice inerte ma una mina: `ui/app.py` fa `from config.settings import *`,
+# quindi la costante sbagliata ENTRAVA nel namespace di app.py e sarebbe stata
+# usata al primo `APP_VERSION` scritto lì senza import esplicito.
 
 # ---------------------------------------------------------------------------
 # Colori e font — NON più qui

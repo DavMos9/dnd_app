@@ -8,6 +8,101 @@
 
 ## Note Importanti
 
+- **Aggiornamento automatico in-app + trasferimento del personaggio su un altro dispositivo (2026-08-17)** — due
+  richieste di Davide nella stessa sessione, che si sono rivelate lo stesso problema visto da due lati.
+  Progettazione in `multiplayer_design.md` §11.9 (trasferimento) e `RELEASE.md` (firma di rilascio); dettaglio dei
+  moduli in `architettura_moduli.md`. Le richieste: *"l'upgrade automatico dell'app con la barra del download e la
+  scritta aggiornamento completato, senza dover eliminare e reinstallare l'app ogni volta"* e *"un modo in cui un
+  utente può accedere anche con un dispositivo diverso al mondo, magari scaricando il proprio personaggio
+  dall'host... in caso cambi dispositivo"*.
+
+  **LA CAUSA RADICE DELLA DISINSTALLAZIONE NON ERA LA UI — ERA LA FIRMA DELL'APK.** `pyproject.toml` non aveva
+  alcuna configurazione di firma Android, quindi il gradle generato ricadeva su
+  `signingConfig = signingConfigs.getByName("debug")` (verificato nel file realmente prodotto,
+  `build/flutter/android/app/build.gradle.kts`, non dedotto) e Flutter/Gradle rigenera il keystore di debug su
+  **ogni runner CI**: ogni release aveva una firma diversa e Android rifiutava l'aggiornamento in loco
+  (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`), obbligando a disinstallare — e la disinstallazione cancella il database,
+  `app_settings` incluso, quindi anche il `device_id`. Nessuna barra di download poteva aggirarlo: **è per questo
+  che la firma è stata affrontata prima della UI.** (Concorrente storico, secondario: `applicationId` è cambiato da
+  `com.flet.dnd_companion` a `com.davmos9.dndcompanion` alla v0.1.36 — le installazioni ≤ v0.1.35 non potevano
+  aggiornarsi in loco a prescindere dalla firma.) Fix: le quattro variabili `FLET_ANDROID_SIGNING_*` come `env:`
+  dello step di build — verificato nel sorgente installato di flet_cli 0.86.5 (`build_base.py:1217` e `:2166`) che
+  `FLET_ANDROID_SIGNING_KEY_STORE` attiva ANCHE il blocco `signingConfigs { create("release") }` del template
+  gradle, condizionato a `cookiecutter.options.android_signing`, quindi non serve nulla in `pyproject.toml`; il
+  percorso del keystore deve essere ASSOLUTO perché nel gradle è `file(it)` dentro il modulo `app`. Più uno step
+  **"Verify APK signature and version"** che fa fallire la release se l'APK torna a essere firmato in debug: è lo
+  step che *dimostra* il fix invece di sperarlo.
+
+  **Perché le due richieste erano la stessa cosa.** La disinstallazione una-volta-sola della migrazione cancella il
+  `device_id`, quindi un dispositivo reinstallato è per ogni host un dispositivo NUOVO, senza personaggi. Il codice
+  di trasferimento è esattamente il meccanismo di recupero per quella disinstallazione. Ordine di consegna scelto
+  con Davide: **prima il trasferimento** (tutto verificabile in sandbox, nessun dispositivo necessario), poi la
+  firma.
+
+  **Tre bug preesistenti trovati strada facendo, tutti silenziosi:**
+  1. `pyproject.toml` aveva `build_number = 1` hardcoded e la CI non lo iniettava affatto: riscriveva invece una
+     chiave `app.version` **che non esiste più dal 2026-08-07** — una sostituzione a vuoto, nessun errore. Ogni APK
+     mai rilasciato porta `versionCode 1`. Ora la formula vive in `version.compute_build_number()` (testabile) e la
+     composite action `.github/actions/inject-version` **fallisce** se una sostituzione non trova nulla — la classe
+     di bug non può ripetersi.
+  2. `config/settings.py` conteneva un secondo `APP_VERSION = "0.1.0"` che nessuno importava. Non era codice
+     inerte: `ui/app.py` fa `from config.settings import *`, quindi la costante sbagliata *entrava* nel namespace.
+     Rimosso, con un test che impedisce il ritorno.
+  3. `webbrowser.open(url)` in `ui/app.py` — il pulsante "Scarica" del dialogo di aggiornamento — è quasi
+     certamente **un no-op su Android**: nessun binario browser né `xdg-open` nel sandbox dell'app, e in quel caso
+     `webbrowser.open()` restituisce `False` in silenzio. Il pulsante probabilmente non faceva nulla da quando
+     esisteva. Sostituito con `url=ft.Url(...)`, l'unico meccanismo verificato in questo progetto (vedi
+     `regole_flet_api.md`, sezione nuova "APRIRE UN URL").
+
+  **Contraddizione nella documentazione, chiusa da Davide.** `regole_flet_api.md` diceva che `save_file` su Android
+  era "probabilmente soggetto allo stesso bug ma non confermato", `world_view.py` sosteneva che l'export mobile
+  funzionasse. La risposta era bloccante (l'export è il backup obbligatorio prima della disinstallazione): chiesto
+  direttamente, **l'export da tablet Android funziona e il file si ritrova.** Documentazione allineata.
+
+  **Scelte deliberate, con la motivazione:**
+  - **Nessuna auto-sostituzione dei file su desktop.** Richiederebbe di uscire dall'app, lanciare un helper che
+    aspetta la chiusura, scambiare i file e rilanciare: specifico per ogni SO, col rischio concreto che l'app non
+    riparta se lo scambio si interrompe a metà. Valutato e respinto il 2026-08-06, decisione riconfermata. Desktop
+    ha download con barra + apertura cartella + istruzioni per SO.
+  - **`PROTOCOL_VERSION` resta 1** per il trasferimento: la modifica è additiva, e quel numero è confrontato con
+    un'uguaglianza stretta che avrebbe spento ogni accoppiamento esistente per una funzionalità che nessuno stava
+    usando. Introdotto invece `protocol.HOST_FEATURES`, annunciato da `GET /world`.
+  - **Il codice di trasferimento è persistito su tabella, non in memoria come il PIN.** `WorldHostServer.stop()`
+    azzera PIN e token per progetto e l'hosting si riavvia spesso: un codice emesso dal master per un telefono
+    rotto e riscattato giorni dopo, in memoria, evaporerebbe.
+  - **Nessun checksum sul download.** L'API di GitHub Releases non pubblica digest per gli asset: dichiarato
+    invece di simulare un controllo d'integrità inesistente. Restano HTTPS e la verifica della dimensione (una
+    risposta troncata da un proxy non produce alcun errore di rete).
+  - **`app.exclude` senza glob.** Aggiunto per togliere `.git` (43 MB), `.venv` (179 MB in locale) e `docs`
+    (2,5 MB) dal pacchetto che ora l'app scarica da sé. **Solo nomi di cartella**: la lista va al packager Dart
+    (`serious_python:main package --exclude`), non installato in questo ambiente, e se interpreti `test_*.py`/`*.md`
+    non è verificabile da qui — un pattern ignorato in silenzio darebbe l'illusione di un'esclusione che non
+    avviene, e i ~30 file di test pesano in tutto 760 KB.
+  - **`loot_stash_entries.added_by_device_id` NON viene riscritto** dal trasferimento: verificato che è scritto ma
+    **mai letto** per autorizzare o mostrare qualcosa. È pura provenienza storica, riscriverla la falsificherebbe.
+    Stesso ragionamento per `world_events.actor_device_id` (il giornale è un registro: non si riscrive la storia, si
+    aggiunge un evento).
+
+  **Due regressioni introdotte e corrette nella stessa sessione**, entrambe in test che si agganciavano a dettagli
+  fragili: il finto backend di `test_lan_host_client.py` non accettava il nuovo parametro `transfer_code` (la firma
+  del doppio deve rispecchiare quella reale, altrimenti solleva `TypeError` invece di verificare ciò che verifica);
+  e `test_ingresso_lan_sincronizzazione.py` prendeva i campi del dialogo d'ingresso **per indice negativo**
+  (`controls[-7]`…`controls[-1]`), quindi aggiungere il campo del codice di trasferimento spostava tutto e il test
+  riempiva i campi sbagliati, fallendo con un `AssertionError` a valle che non diceva nulla sulla causa. Sostituita
+  con una ricerca per etichetta (`_find_field`), che sopravvive alle prossime aggiunte.
+
+  **Verifica.** Due batterie nuove, 265 controlli in tutto, tutti eseguibili in sandbox:
+  `test_trasferimento_dispositivo.py` (146 — codice, permessi, riassegnazione con iniezione di fallimento a metà
+  transazione, protocollo su socket reali, ciclo completo emetti→riscatta→approva→scarica, QR, costruzione UI) e
+  `test_aggiornamento_app.py` (119 — selezione asset, contratto dei nomi col workflow reale, download contro un
+  `http.server` locale con troncamento/annullamento/assenza di `Content-Length`, tabella dei casi di
+  "Aggiornamento completato", costruzione dei dialoghi incluso il vincolo `ProgressBar` dentro `Row(expand=True)`).
+  Più `test_versione_app.py` (29). Tutta la batteria multiplayer preesistente ri-eseguita: verde.
+  **Resta a Davide su dispositivo reale**: generare il keystore e caricare i 2 secret, un tag di prova per
+  verificare lo step di firma, il ciclo di migrazione, e tutto ciò che riguarda `flet_apk_installer` (mai compilato
+  qui — vedi il README della cartella per i quattro punti aperti, in particolare i vincoli di versione su pub.dev,
+  dove esiste già un precedente di CI rotta su tutte e 4 le piattaforme con `flet_file_picker`).
+
 - **Audit gestione risorse di classe e slot incantesimo (2026-07-09)** — completata la revisione di tutte e 12 le
   classi, Davide ha chiesto una verifica architetturale: l'app traccia correttamente slot incantesimo e risorse a
   consumo (Furia, Ki, Incanalare Divinità, Imposizione delle Mani, Punti Stregoneria, Ispirazione Bardica, Recupero

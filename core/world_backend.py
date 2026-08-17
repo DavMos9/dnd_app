@@ -33,7 +33,10 @@ from typing import Callable
 from core import damage_rules
 from core import world_permissions as perm
 from data.models import WorldEvent
-from data.repositories import character_export, character_repo, maps_repo, master_repo, world_repo
+from data.repositories import (
+    character_export, character_repo, maps_repo, master_repo, world_repo,
+    world_transfer_repo,
+)
 from network import protocol
 
 logger = logging.getLogger(__name__)
@@ -130,6 +133,15 @@ class CommandResult:
     success: bool
     error: str = ""
     event: WorldEvent | None = None
+    #: Dati di risposta destinati SOLO a chi ha inviato il comando
+    #: (2026-08-17, §11.9). Nasce dal codice di trasferimento: `event.payload`
+    #: finisce nel giornale, e il giornale viene trasmesso a OGNI replica via
+    #: `GET /events` — un segreto per un singolo membro non può passare da lì.
+    #: Attraversa la rete in `WorldHostServer.handle_command` → il campo `data`
+    #: della risposta JSON → `RemoteBackend.send_command`. Campo con valore
+    #: predefinito in coda: tutte le costruzioni esistenti di `CommandResult`
+    #: restano valide.
+    data: dict | None = None
 
 
 class WorldBackend(ABC):
@@ -542,6 +554,132 @@ def _handle_character_rejoin_request(ctx: HandlerContext) -> CommandResult:
         kind=perm.CMD_CHARACTER_REJOIN_REQUEST, target_type="character", target_id=character.id,
         summary=f"{ctx.actor_name} ha richiesto il rientro di «{character.name}» ({mode_label}).",
         payload=json.dumps({"request_id": request.id, "mode": mode}),
+    )
+    return CommandResult(True, event=event)
+
+
+# ---------------------------------------------------------------------------
+# Trasferimento del personaggio su un altro dispositivo (2026-08-17, §11.9)
+# ---------------------------------------------------------------------------
+#
+# Solo l'EMISSIONE e la REVOCA del codice passano da qui. Il riscatto no: vive
+# in `WorldHostServer.handle_join`/`_approve_transfer`, perché per definizione
+# lo esegue un dispositivo che non è ancora membro e quindi non ha un token né
+# un ruolo — `LocalBackend.send_command` lo respingerebbe al primo controllo
+# ("Il mittente non è membro di questo mondo").
+
+
+def _can_issue_transfer_for(ctx: HandlerContext, member) -> str | None:
+    """
+    Verifica di proprietà per i due comandi sul codice di trasferimento.
+    Restituisce un messaggio d'errore, oppure `None` se l'azione è consentita.
+
+    Due strade legittime, entrambe volute (vedi la decisione presa con Davide):
+    il GIOCATORE emette un codice per sé stesso (sta per cambiare telefono e ha
+    ancora quello vecchio in mano), il MASTER lo emette per un giocatore il cui
+    dispositivo è perso, rotto o venduto. Senza la seconda, il caso "telefono
+    rotto" — quello che rende la funzione davvero utile — resterebbe scoperto.
+    """
+    if member is None:
+        return "Membro non trovato in questo mondo."
+    if member.role == perm.ROLE_OWNER:
+        # L'owner ospita il mondo: il suo `device_id` è su `worlds.
+        # owner_device_id` e la riassegnazione NON lo tocca (riscriverlo
+        # sposterebbe la proprietà del mondo, che è un'altra operazione con un
+        # altro comando). Per lui la via corretta esiste già ed è migliore:
+        # esportare `.dndworld` e importarlo sul dispositivo nuovo, che rende
+        # importatore = owner + host (§6.3/§11.4).
+        return (
+            "Il proprietario del mondo non si trasferisce con un codice: "
+            "esporta il mondo in un file .dndworld e importalo sul nuovo "
+            "dispositivo, che ne diventerà l'host."
+        )
+    if member.device_id == ctx.actor_device_id:
+        return None
+    if perm.role_at_least(ctx.actor_role, perm.ROLE_MASTER):
+        return None
+    return "Puoi generare un codice di trasferimento solo per il tuo dispositivo."
+
+
+@register_handler(perm.CMD_DEVICE_TRANSFER_ISSUE)
+def _handle_device_transfer_issue(ctx: HandlerContext) -> CommandResult:
+    """
+    Emette un codice monouso che permette a un ALTRO dispositivo di subentrare
+    nell'appartenenza di un membro, portandosi via le sue istanze di personaggio.
+
+    `payload`: `{"device_id": "<device del membro da sostituire>"}`.
+
+    Il codice torna in `CommandResult.data`, **non** nel payload dell'evento: il
+    giornale viene trasmesso a ogni replica via `GET /events`, quindi un segreto
+    destinato a un solo membro non può passare da lì. L'evento resta comunque —
+    serve al registro degli interventi (§5) e a far sapere al tavolo che un
+    trasferimento è stato autorizzato — ma porta solo `device_id` e
+    `transfer_id`.
+    """
+    device_id = str(ctx.payload.get("device_id", "")).strip()
+    if not device_id:
+        return CommandResult(False, "Dispositivo da trasferire non indicato.")
+
+    member = world_repo.get_member(ctx.world_id, device_id)
+    denial = _can_issue_transfer_for(ctx, member)
+    if denial is not None:
+        return CommandResult(False, denial)
+
+    transfer = world_transfer_repo.issue_transfer(
+        ctx.world_id, device_id, member.display_name, ctx.actor_device_id,
+    )
+    if transfer is None:
+        return CommandResult(False, "Generazione del codice di trasferimento fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_DEVICE_TRANSFER_ISSUE, target_type="member",
+        target_id=member.id,
+        summary=(
+            f"{ctx.actor_name} ha generato un codice di trasferimento per "
+            f"{member.display_name}."
+        ),
+        payload=json.dumps({"device_id": device_id, "transfer_id": transfer.id}),
+    )
+    return CommandResult(True, event=event, data={
+        "transfer_id": transfer.id,
+        "code": transfer.code,
+        "expires_at": transfer.expires_at,
+        "member_display_name": member.display_name,
+    })
+
+
+@register_handler(perm.CMD_DEVICE_TRANSFER_REVOKE)
+def _handle_device_transfer_revoke(ctx: HandlerContext) -> CommandResult:
+    """
+    Annulla un codice non ancora riscattato — specchio dell'emissione, stessa
+    verifica di proprietà. Serve quando il codice è stato letto ad alta voce per
+    sbaglio, o quando il vecchio telefono riappare.
+    """
+    device_id = str(ctx.payload.get("device_id", "")).strip()
+    if not device_id:
+        return CommandResult(False, "Dispositivo da trasferire non indicato.")
+
+    member = world_repo.get_member(ctx.world_id, device_id)
+    denial = _can_issue_transfer_for(ctx, member)
+    if denial is not None:
+        return CommandResult(False, denial)
+
+    transfer = world_transfer_repo.get_pending_transfer_for_member(ctx.world_id, device_id)
+    if transfer is None:
+        return CommandResult(False, "Nessun codice di trasferimento attivo per questo dispositivo.")
+    if not world_transfer_repo.revoke_transfer(transfer.id):
+        return CommandResult(False, "Revoca del codice fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_DEVICE_TRANSFER_REVOKE, target_type="member",
+        target_id=member.id,
+        summary=(
+            f"{ctx.actor_name} ha revocato il codice di trasferimento di "
+            f"{member.display_name}."
+        ),
+        payload=json.dumps({"device_id": device_id, "transfer_id": transfer.id}),
     )
     return CommandResult(True, event=event)
 
@@ -1687,6 +1825,15 @@ class JoinOutcome:
     status: str  # "approved" | "pending" | "rejected" | "error"
     request_id: str = ""
     error: str = ""
+    #: `"join"` (ingresso normale) oppure `"transfer"` (riscatto di un codice di
+    #: trasferimento, §11.9): serve alla UI per scrivere "In attesa che il master
+    #: approvi il TRASFERIMENTO" invece di "l'ingresso". Lo dichiara l'host nella
+    #: risposta; un host più vecchio non manda la chiave e resta `"join"`.
+    kind: str = "join"
+    #: Motivo strutturato del rifiuto, quando l'host ne fornisce uno
+    #: (`"transferred_away"`: questo dispositivo è stato sostituito da un altro).
+    #: La UI può reagire in modo diverso da un errore generico.
+    reason: str = ""
 
 
 class RemoteBackend(WorldBackend):
@@ -1757,24 +1904,41 @@ class RemoteBackend(WorldBackend):
             return None
         return data
 
-    def join(self, join_code: str, pin: str, display_name: str) -> JoinOutcome:
+    def join(self, join_code: str, pin: str, display_name: str,
+              transfer_code: str = "") -> JoinOutcome:
         """Primo passo dell'ingresso (§9.4). Un dispositivo già membro del
         mondo ottiene subito `status="approved"`; un dispositivo nuovo
         ottiene `status="pending"` e un `request_id` da interrogare con
-        `poll_join_status()` finché il master non decide."""
+        `poll_join_status()` finché il master non decide.
+
+        `transfer_code` (2026-08-17, §11.9): se valorizzato, questo dispositivo
+        chiede di SUBENTRARE a un membro esistente invece di entrare come nuovo.
+        Sostituisce il PIN (che l'host in quel caso non guarda) ma non
+        l'approvazione del master. Campo aggiunto in coda alla richiesta JSON:
+        un host più vecchio ignora la chiave sconosciuta, per questo
+        `PROTOCOL_VERSION` non cambia — chi chiama deve però verificare prima la
+        capacità `device_transfer` in `check_world()`, altrimenti l'host vecchio
+        interpreterebbe la richiesta come un ingresso normale con PIN vuoto e
+        risponderebbe "PIN errato"."""
+        body = {
+            "join_code": join_code, "pin": pin,
+            "device_id": self.device_id, "display_name": display_name,
+            "protocol_version": protocol.PROTOCOL_VERSION,
+        }
+        if transfer_code:
+            body["transfer_code"] = transfer_code
         try:
-            status, data = self._request("POST", "/join", {
-                "join_code": join_code, "pin": pin,
-                "device_id": self.device_id, "display_name": display_name,
-                "protocol_version": protocol.PROTOCOL_VERSION,
-            })
+            status, data = self._request("POST", "/join", body)
         except (OSError, http.client.HTTPException) as e:
             self._state = "error"
             return JoinOutcome("error", error=f"Host non raggiungibile: {e}")
 
         if status != 200:
             self._state = "error"
-            return JoinOutcome("error", error=data.get("error", "Ingresso rifiutato."))
+            return JoinOutcome(
+                "error", error=data.get("error", "Ingresso rifiutato."),
+                reason=str(data.get("reason", "")),
+            )
 
         result_status = data.get("status")
         if result_status == "approved":
@@ -1783,7 +1947,10 @@ class RemoteBackend(WorldBackend):
             return JoinOutcome("approved")
         if result_status == "pending":
             self._state = "pending"
-            return JoinOutcome("pending", request_id=str(data.get("request_id", "")))
+            return JoinOutcome(
+                "pending", request_id=str(data.get("request_id", "")),
+                kind=str(data.get("kind", "join")),
+            )
         self._state = "error"
         return JoinOutcome("error", error="Risposta di ingresso inattesa dall'host.")
 
@@ -1887,7 +2054,15 @@ class RemoteBackend(WorldBackend):
             return CommandResult(False, data.get("error", "Comando rifiutato dall'host."))
 
         event = protocol.event_from_dict(data["event"]) if data.get("event") else None
-        return CommandResult(bool(data.get("success")), str(data.get("error", "")), event)
+        # `data` (2026-08-17, §11.9): dati di risposta destinati solo al
+        # mittente, che NON possono viaggiare nel payload dell'evento perché il
+        # giornale è trasmesso a tutte le repliche. Un host più vecchio non
+        # manda la chiave: `.get` la rende assente, non un errore.
+        extra = data.get("data")
+        return CommandResult(
+            bool(data.get("success")), str(data.get("error", "")), event,
+            data=extra if isinstance(extra, dict) else None,
+        )
 
     def get_character(self, character_id: str) -> dict | None:
         """`GET /character/<id>` (Multiplayer passo 6) — export integrale

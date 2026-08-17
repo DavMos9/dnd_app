@@ -12,7 +12,6 @@ Flusso:
 import flet as ft
 import logging
 import threading
-import webbrowser
 from typing import Any, Callable
 from config.settings import *
 from data.repositories import settings_repo
@@ -93,6 +92,11 @@ class DnDApp:
 
         self._setup_page()
         self._show_home()
+        # Prima l'esito dell'aggiornamento PRECEDENTE (lettura locale, immediata),
+        # poi il controllo di quello nuovo (che parte con 3 s di ritardo su un
+        # thread): così "Aggiornamento completato" appare subito all'avvio e non
+        # rischia di sovrapporsi al dialogo di un nuovo aggiornamento.
+        self._check_update_completion()
         self._start_update_check()
 
     def _is_mobile(self) -> bool:
@@ -718,6 +722,52 @@ class DnDApp:
     # Update checker
     # ------------------------------------------------------------------
 
+    def _check_update_completion(self):
+        """
+        Mostra "Aggiornamento completato" al primo avvio dopo un aggiornamento
+        (2026-08-17).
+
+        Non può essere mostrato dal processo che ha avviato l'aggiornamento: su
+        Android quel processo viene ucciso dall'installer di sistema, e su
+        desktop l'utente deve comunque chiudere l'app per sostituire i file. La
+        conferma viaggia quindi in un segnalibro su `app_settings`, scritto prima
+        della consegna all'installer e letto qui. La decisione su cosa mostrare è
+        una funzione pura in `core.update_state`, testata a parte.
+        """
+        if self.page.web:
+            return
+        try:
+            from core import update_downloader, update_state
+            from data.database import get_updates_path
+            from ui.update_dialogs import show_completion_dialog
+            from version import APP_VERSION
+
+            pending, started_at = update_state.read_pending_update()
+            outcome = update_state.classify_pending_update(
+                APP_VERSION, pending, started_at,
+            )
+            if outcome == "none":
+                return
+            if outcome == "stale":
+                # Un tentativo abbandonato settimane fa non deve infastidire per
+                # sempre: si dimentica in silenzio.
+                update_state.clear_pending_update()
+                return
+            if outcome == "completed":
+                update_state.clear_pending_update()
+                # Il pacchetto ha fatto il suo lavoro: liberare decine di MB.
+                update_downloader.cleanup_old_downloads(
+                    get_updates_path(), keep_version=APP_VERSION,
+                )
+            else:
+                # "failed": l'utente non ha completato l'installazione. Il
+                # segnalibro si cancella comunque, così l'avviso non si ripete a
+                # ogni avvio; il pacchetto resta su disco per un nuovo tentativo.
+                update_state.clear_pending_update()
+            show_completion_dialog(self.page, APP_VERSION, pending, outcome)
+        except Exception as e:
+            logger.debug(f"Verifica dell'esito dell'aggiornamento fallita: {e}")
+
     def _start_update_check(self):
         """Avvia il check aggiornamenti in background (non blocca la UI).
         Disabilitato in modalità web: il deploy è gestito dal server."""
@@ -729,8 +779,8 @@ class DnDApp:
             time.sleep(3)  # attende che la pagina sia completamente montata
             try:
                 from core.update_checker import check_for_updates
-                has_update, version, url = check_for_updates()
-                if not has_update:
+                has_update, info = check_for_updates()
+                if not has_update or info is None:
                     logger.info("Nessun aggiornamento disponibile.")
                     return
                 # Il dialog NON va aperto da questo thread: mutare l'albero dei
@@ -738,7 +788,7 @@ class DnDApp:
                 # usa asyncio.run_coroutine_threadsafe sul loop della sessione,
                 # quindi è il modo corretto di rientrare nel thread della UI.
                 try:
-                    self.page.run_task(self._show_update_banner_async, version, url)
+                    self.page.run_task(self._show_update_dialog_async, info)
                 except Exception as e:
                     logger.debug(f"Impossibile pianificare il dialog aggiornamento: {e}")
             except Exception as e:
@@ -747,39 +797,37 @@ class DnDApp:
         t = threading.Thread(target=_check, daemon=True, name="update-check")
         t.start()
 
-    async def _show_update_banner_async(self, version: str, url: str):
-        """Wrapper coroutine: esegue `_show_update_banner` sul loop della UI."""
-        self._show_update_banner(version, url)
+    async def _show_update_dialog_async(self, info):
+        """Wrapper coroutine: esegue `_show_update_dialog` sul loop della UI."""
+        self._show_update_dialog(info)
 
-    def _show_update_banner(self, version: str, url: str):
-        """Mostra dialog di aggiornamento disponibile."""
-        def _open(e):
-            webbrowser.open(url)
-            self.page.pop_dialog()
+    def _show_update_dialog(self, info):
+        """
+        Instrada verso il dialogo giusto — questa classe decide QUALE, il come
+        vive in `ui/update_dialogs.py` (2026-08-17).
 
+        Due casi, non uno:
+
+        - `info.requires_reinstall`: l'aggiornamento attraversa la migrazione
+          alla firma di rilascio, la sola che obbliga a disinstallare perdendo il
+          database. Serve il flusso guidato col backup, e il pacchetto deve
+          scaricarlo il browser — non noi, perché la nostra cartella di staging
+          viene cancellata dalla disinstallazione stessa.
+        - altrimenti: download in-app con barra di avanzamento, poi consegna
+          all'installer di sistema (Android) o al file manager (desktop).
+        """
         try:
-            dlg = ft.AlertDialog(
-                title=ft.Row([
-                    ft.Icon(ft.Icons.SYSTEM_UPDATE, color=design.T().magic, size=20),
-                    ft.Container(width=8),
-                    ft.Text("Aggiornamento disponibile", size=15,
-                            weight=ft.FontWeight.BOLD, color=design.T().text),
-                ]),
-                content=ft.Text(
-                    f"È disponibile la versione {version}.\nVuoi scaricarla?",
-                    size=13, color=design.T().text,
-                ),
-                actions=wrap_dialog_actions([
-                    ft.TextButton("Più tardi", on_click=lambda e: self.page.pop_dialog()),
-                    ft.ElevatedButton(
-                        "Scarica", icon=ft.Icons.DOWNLOAD,
-                        on_click=_open,
-                        bgcolor=design.T().magic, color=design.T().on_accent,
-                    ),
-                ]),
+            from ui.update_dialogs import show_download_dialog, show_migration_dialog
+
+            if info.requires_reinstall:
+                show_migration_dialog(self.page, info)
+            else:
+                show_download_dialog(self.page, info)
+            logger.info(
+                "Dialog aggiornamento mostrato per la versione %s "
+                "(reinstallazione necessaria: %s)",
+                info.latest_version, info.requires_reinstall,
             )
-            self.page.show_dialog(dlg)
-            logger.info(f"Dialog aggiornamento mostrato per versione {version}")
         except Exception as e:
             logger.warning(f"Impossibile mostrare dialog aggiornamento: {e}")
 

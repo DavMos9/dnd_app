@@ -1,0 +1,22 @@
+[project]
+name = "flet-apk-installer"
+version = "0.1.0"
+description = "Consegna un APK scaricato all'installer di pacchetti di sistema su Android — estensione Flet su misura per D&D Companion, wrapper del plugin Flutter open_filex."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "flet==0.86.5",
+]
+
+# Stesso schema di flet-image-picker/flet-file-picker (vedi il README di
+# flet_image_picker per la verifica originale che questa chiave imbarca davvero
+# `flutter/<nome>/` nella wheel installata).
+[tool.setuptools.package-data]
+"flutter.flet_apk_installer" = [
+    "pubspec.yaml",
+    "lib/**",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
