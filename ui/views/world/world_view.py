@@ -3526,12 +3526,41 @@ class WorldsView(ft.Column):
                 # stesso principio già usato da `BackgroundSyncLoop`
                 # (`ui/components/background_sync.py`) per lo stesso
                 # identico motivo.
-                result = await asyncio.to_thread(
-                    world_sync.finish_pending_join,
-                    pending_state["backend"], pending_state["request_id"],
-                    pending_state["host_port"],
-                )
-                _report(result)
+                # Fix 2026-08-17 (secondo giro sullo stesso bug): senza questo
+                # try/except, QUALSIASI eccezione sollevata da
+                # `finish_pending_join` — o da `_report`/`_open_detail` dopo un
+                # esito riuscito — uccide questa coroutine in silenzio.
+                # `page.run_task()` non ha alcun gestore che la mostri: il
+                # dialogo resta fermo su "In attesa dell'approvazione del
+                # master…" per sempre, senza né successo né errore, mentre il
+                # mondo risulta comunque registrato al riavvio dell'app perché
+                # `_finalize_join()` aveva già salvato la replica prima di
+                # incidentare. È esattamente il sintomo segnalato da Davide
+                # ("il giocatore rimane bloccato anche dopo l'accettazione del
+                # master... riavvio l'app e il mondo è visibile"), e l'unico
+                # motivo per cui è servito un round di test in più per
+                # trovarne la causa: l'errore vero non arrivava mai a schermo.
+                try:
+                    result = await asyncio.to_thread(
+                        world_sync.finish_pending_join,
+                        pending_state["backend"], pending_state["request_id"],
+                        pending_state["host_port"],
+                    )
+                    _report(result)
+                except Exception as ex:
+                    logger.exception("Ingresso nel mondo: errore non gestito nel polling")
+                    pending_state["backend"] = None
+                    pending_state["polling_started"] = False
+                    status_text.color = p.danger
+                    status_text.value = (
+                        f"Errore durante l'ingresso: {type(ex).__name__}: {ex}"
+                    )
+                    retry_btn.visible = False
+                    try:
+                        self.page.update()
+                    except RuntimeError:
+                        pass
+                    return
                 if pending_state["backend"] is None:
                     return  # _report ha appena risolto lo stato: un giro basta
 
@@ -3625,12 +3654,25 @@ class WorldsView(ft.Column):
             # gli handler `async def`, vedi `base_control.py`) evita che un
             # click su "Controlla di nuovo" congeli l'intera pagina per
             # tutta la sua durata.
-            result = await asyncio.to_thread(
-                world_sync.finish_pending_join,
-                pending_state["backend"], pending_state["request_id"],
-                pending_state["host_port"],
-            )
-            _report(result)
+            # Stesso try/except di `_poll_pending_join_loop` e per lo stesso
+            # motivo: un'eccezione in un handler `async def` non arriva a
+            # schermo da sola, e lascerebbe il pulsante "Controlla di nuovo"
+            # apparentemente senza effetto.
+            try:
+                result = await asyncio.to_thread(
+                    world_sync.finish_pending_join,
+                    pending_state["backend"], pending_state["request_id"],
+                    pending_state["host_port"],
+                )
+                _report(result)
+            except Exception as ex:
+                logger.exception("Ingresso nel mondo: errore non gestito in «Controlla di nuovo»")
+                status_text.color = p.danger
+                status_text.value = f"Errore durante l'ingresso: {type(ex).__name__}: {ex}"
+                try:
+                    self.page.update()
+                except RuntimeError:
+                    pass
 
         retry_btn.on_click = _retry
 

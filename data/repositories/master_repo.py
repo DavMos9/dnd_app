@@ -1028,12 +1028,42 @@ def save_replica_note(note_data: dict) -> bool:
     if not isinstance(visible_ids, str):
         visible_ids = json.dumps(visible_ids)
     now = datetime.now().isoformat()
+    conn = None
     try:
         conn = get_connection()
         existing = conn.execute(
             "SELECT created_at FROM master_campaign_notes WHERE id=?", (note_id,)
         ).fetchone()
         created_at = existing["created_at"] if existing else now
+        # `linked_npc_id` ha una FK verso `master_npcs(id)` (ON DELETE SET
+        # NULL) — ma la Rubrica NPC del master NON viaggia mai nello
+        # snapshot né negli eventi (`WorldHostServer.handle_snapshot()`
+        # spedisce mondo/membri/giornale/schede/note/incontro/mappe, mai gli
+        # NPC: sono materiale privato del master, §7B). Sulla replica di un
+        # giocatore quell'id quindi non esiste quasi mai, e l'INSERT
+        # falliva con "FOREIGN KEY constraint failed" — bug reale trovato il
+        # 2026-08-17 sui dati veri di Davide: 9 note su 11 erano collegate a
+        # un NPC e venivano TUTTE scartate, lasciando la replica con l'unica
+        # nota senza collegamento ("si vede solo 1 nota", segnalato da
+        # Davide e attribuito prima ad altro). Sulla replica il
+        # collegamento non ha comunque alcun uso — non c'è una Rubrica NPC
+        # da aprire — quindi si conserva solo se quell'NPC esiste davvero
+        # in locale (vero sull'host, dove questa funzione non viene usata,
+        # e in un eventuale futuro in cui gli NPC vengano condivisi), e
+        # altrimenti si degrada a NULL: esattamente il valore che la FK
+        # stessa prevede quando l'NPC non c'è più.
+        linked_npc_id = note_data.get("linked_npc_id") or None
+        if linked_npc_id is not None:
+            npc_exists = conn.execute(
+                "SELECT 1 FROM master_npcs WHERE id=?", (linked_npc_id,)
+            ).fetchone()
+            if npc_exists is None:
+                logger.info(
+                    "save_replica_note(%s): NPC collegato %s assente in locale "
+                    "(la Rubrica NPC non viene condivisa) — collegamento azzerato.",
+                    note_id, linked_npc_id,
+                )
+                linked_npc_id = None
         conn.execute(
             """INSERT OR REPLACE INTO master_campaign_notes
                (id, category, name, description, status, tags, linked_npc_id,
@@ -1041,16 +1071,23 @@ def save_replica_note(note_data: dict) -> bool:
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
             (note_id, _s(note_data.get("category")) or "npc", _s(note_data.get("name")),
              _s(note_data.get("description")), _s(note_data.get("status")),
-             _s(note_data.get("tags")), note_data.get("linked_npc_id") or None,
+             _s(note_data.get("tags")), linked_npc_id,
              _s(note_data.get("world_id")), _s(note_data.get("visibility")) or "private",
              _s(visible_ids) or "[]", created_at, note_data.get("updated_at") or now),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception as e:
         logger.error(f"Errore save_replica_note: {e}")
         return False
+    finally:
+        # In un `finally`, non come ultima riga del `try` (2026-08-17): una
+        # connessione lasciata aperta da un errore trattiene il lock di
+        # scrittura del file e fa fallire con "database is locked" OGNI
+        # scrittura successiva del processo — vedi
+        # `data/database.py::_ResilientConnection` per la catena completa.
+        if conn is not None:
+            conn.close()
 
 
 def create_master_campaign_note(

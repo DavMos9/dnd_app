@@ -137,9 +137,9 @@ def create_or_resume_instance(world_id: str, local_character_id: str,
             return InstanceResult(False, character_id=existing, archived=True)
         return InstanceResult(True, character_id=existing, resumed=True)
 
-    new_id = _copy_character(local_character_id)
+    new_id, copy_error = _copy_character(local_character_id)
     if new_id is None:
-        return InstanceResult(False, error="Copia del personaggio fallita.")
+        return InstanceResult(False, error=copy_error or "Copia del personaggio fallita.")
 
     if not _link_to_world(new_id, world_id, local_character_id, owner_device_id):
         return InstanceResult(False, error="Collegamento al mondo fallito.")
@@ -154,14 +154,31 @@ def create_or_resume_instance(world_id: str, local_character_id: str,
     return InstanceResult(True, character_id=new_id, resumed=False)
 
 
-def _copy_character(source_id: str) -> str | None:
+def _copy_character(source_id: str) -> tuple[str | None, str]:
     """Copia integrale (§6, "porta com'è"): riusa `character_export`
     (introspezione di schema) invece di duplicare la logica di copia —
-    stessa ragione per cui quel modulo esiste."""
-    data = character_export.export_character(source_id)
+    stessa ragione per cui quel modulo esiste.
+
+    Ritorna `(nuovo_id, "")` in caso di successo, `(None, dettaglio)` in
+    caso di errore — `dettaglio` è il testo REALE dell'eccezione
+    (2026-08-17, bug segnalato da Davide: "copia del personaggio non
+    riuscita" sempre, senza altro dettaglio). Prima, `export_character()`/
+    `import_character()` inghiottivano l'eccezione e la loggavano soltanto
+    — inutile per un fallimento che avviene sul dispositivo del
+    GIOCATORE, dove nessuno può leggere quel log. Con `raise_errors=True`
+    la rilanciano invece di restituire `None` in silenzio, così il
+    messaggio arriva fino allo snackbar sullo schermo del telefono."""
+    try:
+        data = character_export.export_character(source_id, raise_errors=True)
+    except Exception as e:
+        return None, f"Esportazione del personaggio fallita: {e}"
     if data is None:
-        return None
-    return character_export.import_character(data, mode="copy")
+        return None, "Personaggio non trovato."
+    try:
+        new_id = character_export.import_character(data, mode="copy", raise_errors=True)
+    except Exception as e:
+        return None, f"Importazione della copia fallita: {e}"
+    return new_id, "" if new_id is not None else "Copia del personaggio fallita."
 
 
 def _link_to_world(character_id: str, world_id: str, origin_character_id: str,

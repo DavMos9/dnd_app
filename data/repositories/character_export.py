@@ -98,13 +98,22 @@ def _table_columns(conn: sqlite3.Connection, table: str) -> list[str]:
 # Export
 # ---------------------------------------------------------------------------
 
-def export_character(character_id: str) -> dict[str, Any] | None:
+def export_character(character_id: str, *, raise_errors: bool = False) -> dict[str, Any] | None:
     """
     Costruisce il dizionario di export completo per un personaggio: la riga
     `characters` + tutte le righe di tutte le tabelle figlio, ciascuna come
     dict {colonna: valore} letto direttamente dallo schema reale.
 
     Ritorna None se il personaggio non esiste o in caso di errore (loggato).
+
+    `raise_errors` (2026-08-17): di default `False` per non cambiare il
+    contratto con i (molti) chiamanti esistenti, che si aspettano solo
+    `None` in caso di errore e leggono il dettaglio dal log. Un chiamante
+    che deve mostrare il dettaglio direttamente all'utente — es.
+    `core/character_instances.py::_copy_character`, dove l'unico modo per
+    Davide di vedere l'eccezione reale è lo schermo del telefono del
+    giocatore, senza alcun accesso alla console — può passare `True` per
+    farsi rilanciare l'eccezione originale invece che un `None` muto.
     """
     try:
         conn = get_connection()
@@ -134,6 +143,8 @@ def export_character(character_id: str) -> dict[str, Any] | None:
             conn.close()
     except Exception as e:
         logger.error(f"Errore export_character({character_id}): {e}")
+        if raise_errors:
+            raise
         return None
 
 
@@ -458,7 +469,8 @@ def import_character_data_as_world_refresh(
         return None
 
 
-def import_character(data: dict[str, Any], mode: str, target_id: str | None = None) -> str | None:
+def import_character(data: dict[str, Any], mode: str, target_id: str | None = None,
+                      *, raise_errors: bool = False) -> str | None:
     """
     Importa un personaggio da un dict di export (stessa forma prodotta da
     export_character()).
@@ -564,6 +576,8 @@ def import_character(data: dict[str, Any], mode: str, target_id: str | None = No
             conn.close()
     except Exception as e:
         logger.error(f"Errore import_character (mode={mode}): {e}")
+        if raise_errors:
+            raise
         return None
 
 

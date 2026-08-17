@@ -3,6 +3,7 @@ Inizializzazione e connessione al database SQLite.
 Tutte le operazioni DDL (creazione tabelle) sono qui.
 """
 
+import gc
 import sqlite3
 import os
 import logging
@@ -183,9 +184,83 @@ def get_web_export_staging_path() -> str:
     return str(staging)
 
 
+#: Attesa massima su un lock SQLite prima di sollevare "database is locked"
+#: (2026-08-17). Prima era il default di sqlite3 (5s) applicato solo al
+#: `connect()`; qui è esplicito e vale anche per le singole scritture, che
+#: su un dispositivo con il ciclo di sync in background attivo possono
+#: trovare il lock preso da un altro thread per una frazione di secondo.
+_SQLITE_TIMEOUT_S = 5.0
+
+
+def _is_lock_error(e: BaseException) -> bool:
+    msg = str(e).lower()
+    return "database is locked" in msg or "database is busy" in msg
+
+
+class _ResilientConnection(sqlite3.Connection):
+    """Connessione SQLite che sopravvive a una connessione ABBANDONATA da
+    un'altra funzione dello stesso processo (2026-08-17).
+
+    Bug segnalato da Davide: dopo essere entrato in un mondo LAN,
+    "impossibile copiare personaggio" **sempre**, fino al riavvio dell'app.
+    Causa: la quasi totalità delle funzioni dei repository di questo
+    progetto scrive `conn.close()` come ULTIMA riga del blocco `try`, non
+    in un `finally` (167 funzioni, verificato con uno scan AST). Se una
+    query solleva — es. `save_replica_note()` su una FK violata da dati
+    residui, vedi il fix dello stesso giorno lì — quella connessione non
+    viene mai chiusa. E non basta il refcount a liberarla: l'eccezione
+    crea un ciclo di riferimenti (eccezione → traceback → frame → la
+    variabile locale `conn`) che solo il garbage collector generazionale
+    può rompere. Fino a quel momento la connessione orfana trattiene la
+    transazione di scrittura fallita, e con essa il lock del file: **ogni
+    scrittura successiva del processo** fallisce con "database is locked",
+    in pratica per tutta la vita dell'app.
+
+    Invece di riscrivere quelle 167 funzioni in `try/finally` (cambio
+    meccanico enorme, da fare a parte con calma), il rimedio vive qui,
+    nell'unico punto da cui passa ogni query: al primo "database is
+    locked" si forza un `gc.collect()` — che chiude le connessioni orfane
+    rompendo quei cicli — e si riprova UNA volta. Un lock legittimo (un
+    altro thread che sta davvero scrivendo) è già coperto da
+    `_SQLITE_TIMEOUT_S`: qui si ritenta una volta e poi l'errore risale al
+    chiamante esattamente come prima.
+
+    Il ritentativo è sicuro: una statement che non ha ottenuto il lock non
+    ha applicato NIENTE, quindi rieseguirla non può duplicare scritture.
+    """
+
+    def _retry_on_lock(self, op, *args):
+        try:
+            return op(*args)
+        except sqlite3.OperationalError as e:
+            if not _is_lock_error(e):
+                raise
+            logger.warning(
+                "SQLite bloccato (%s) — forzo la raccolta delle connessioni "
+                "abbandonate e riprovo una volta.", e,
+            )
+            gc.collect()
+            return op(*args)
+
+    def execute(self, *args):  # type: ignore[override]
+        return self._retry_on_lock(super().execute, *args)
+
+    def executemany(self, *args):  # type: ignore[override]
+        return self._retry_on_lock(super().executemany, *args)
+
+    def commit(self):  # type: ignore[override]
+        return self._retry_on_lock(super().commit)
+
+
 def get_connection() -> sqlite3.Connection:
-    """Apre e restituisce una connessione SQLite con row_factory."""
-    conn = sqlite3.connect(get_db_path())
+    """Apre e restituisce una connessione SQLite con row_factory.
+
+    La connessione è una `_ResilientConnection` (vedi lì il perché): a
+    parte il ritentativo automatico su "database is locked", si comporta
+    in tutto e per tutto come una `sqlite3.Connection` normale.
+    """
+    conn = sqlite3.connect(get_db_path(), timeout=_SQLITE_TIMEOUT_S,
+                            factory=_ResilientConnection)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")

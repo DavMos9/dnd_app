@@ -80,6 +80,20 @@ Entità correlate: `CharacterProficiency`, `Weapon`, `InventoryItem`, `Currency`
   vedi sezioni dedicate `DiaryView` e `CreatureEntry` più sotto)
 - FK CASCADE su tutte le tabelle figlio
 - WAL mode attivato
+- `get_connection()` ritorna una **`_ResilientConnection`** (sottoclasse di `sqlite3.Connection`, passata via
+  `factory=`) e apre con `timeout=_SQLITE_TIMEOUT_S` (5s) — 2026-08-17. `execute`/`executemany`/`commit` sono
+  avvolte: al primo `"database is locked"` forzano un `gc.collect()` e riprovano **una** volta, poi propagano
+  l'errore come prima. **Perché**: il pattern dominante di questo progetto è `conn.close()` come ultima riga del
+  blocco `try`, non in un `finally` — **167 funzioni**, contate con uno scan AST. Se una query solleva, quella
+  connessione non viene mai chiusa, e nemmeno liberata dal refcount: l'eccezione crea un ciclo
+  (eccezione → traceback → frame → locale `conn`) che solo il gc generazionale rompe. Nel frattempo la
+  connessione orfana trattiene la transazione di scrittura fallita e il lock del file, e **ogni scrittura
+  successiva del processo** fallisce con "database is locked" fino al riavvio dell'app — è la causa radice del
+  bug del round 5 del Multiplayer (vedi `changelog_storico.md`, "round 5 — CHIUSO"). Il ritentativo è sicuro:
+  una statement che non ha ottenuto il lock non ha applicato niente.
+  ⚠️ Questa è una **rete di sicurezza**, non la soluzione definitiva: quando si scrive una nuova funzione che
+  usa `get_connection()`, chiudere in un `finally`. La conversione delle 167 esistenti resta una voce aperta —
+  non rimuovere la rete prima di averla completata.
 - `_migrate(conn)` aggiunge via `ALTER TABLE` (idempotente):
   - `characters`: `image_data`, `ca_bonus`, `proficiency_bonus_override`, `session_notes`, `dragon_ancestry`,
     `fighting_style`, `totem_animal`, `land_terrain`, `pact_boon`, `initiative_bonus INTEGER DEFAULT 0`

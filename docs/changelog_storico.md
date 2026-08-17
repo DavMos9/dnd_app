@@ -9707,6 +9707,591 @@ invariati.
 
 ---
 
+## Multiplayer, test reali round 3 — tiri salvezza contro morte, sync live Incantesimi/Mappe, incantesimi bonus duplicati, note/mappe fuse nelle sezioni esistenti, riconnessione dopo riavvio host (2026-08-16)
+
+Terzo giro di bug reali dopo i fix dei round 1/2 (§ sopra), riportato da
+Davide dopo un'altra sessione di test su Wi-Fi reale (master su PC,
+giocatore su smartphone). Nove problemi in un unico report, tutti con
+causa concreta trovata leggendo il sorgente (nessuna ipotesi campata in
+aria). Piano completo, decisioni e verifica dettagliata:
+`/Users/davide/.claude/plans/multiplayer-lan-funziona-e-harmonic-stroustrup.md`
+(se ancora presente sul disco — copiare il contenuto rilevante qui se
+sparisce, è il riferimento più preciso per questo round).
+
+**G1a — il pip di un tiro salvezza contro la morte segnato a mano
+spariva o riappariva in ritardo.** `core/world_sync.py::apply_event_to_replica`
+forzava un reimport completo del personaggio
+(`_resync_character_from_host`) anche per l'ECO del proprio
+`CMD_HP_SELF_UPDATE` — il comando che il giocatore stesso invia dopo un
+click. Fix: quando `event.kind == perm.CMD_HP_SELF_UPDATE` e
+`event.actor_device_id` coincide con `remote_backend.device_id`, il
+reimport viene saltato (è l'eco di una modifica già scritta in locale
+PRIMA di essere spedita, non porta mai informazione più fresca).
+
+**G1b — i pallini dei tiri salvezza restavano bloccati dopo una cura
+del master a distanza.** `core/world_backend.py::_handle_hp_heal`
+scartava il valore di ritorno di `damage_rules.apply_heal()` e non
+chiamava mai `character_repo.update_death_saves(...)` quando
+`outcome.death_saves_reset`, a differenza del gemello
+`_handle_hp_damage`. Fix: una riga, stesso pattern del gemello.
+
+**G2 — Incantesimi/Mappe non si aggiornavano mai da soli.**
+`ui/views/spells_view.py`/`ui/views/maps_view.py` sono sezioni di primo
+livello nella sidebar (non tab di `SheetView`) e non avevano MAI avuto
+un `BackgroundSyncLoop` (`ui/components/background_sync.py`) — se il
+giocatore restava su "Incantesimi" o "Mappe" senza mai passare da
+Home/Mondo/Scheda, nessun evento veniva scaricato finché non navigava
+altrove e tornava. Fix: aggiunto lo stesso pattern già maturo in
+`sheet_view.py::_start_world_sync`/`_stop_world_sync` a entrambe le
+viste. Contestualmente, la `signature_fn` di TUTTE le viste multiplayer
+(incluso `sheet_view.py`) è stata unificata su
+`world_repo.get_world(world_id).last_synced_seq` (mantenuto da
+`sync_replica()`) invece di elencare campo per campo cosa "conta" come
+cambiamento — più robusto, un futuro campo dimenticato non serve più
+essere aggiunto a mano ovunque.
+
+**G3 — il master poteva concedere lo stesso incantesimo bonus due
+volte.** `ui/views/world/world_view.py::_open_bonus_spell_dialog` non
+confrontava mai con `character_repo.get_known_spells(character.id)`.
+Fix: calcolo di `known_names` fresco all'apertura del dialog, badge
+"Già posseduto" sulle opzioni corrispondenti in
+`ui/widgets.py::spell_card_options` (nuovo parametro `known_names`) —
+nessun blocco rigido, solo un flag visibile (richiesta esplicita di
+Davide).
+
+**G4 — note/mappe condivise dal master non comparivano mai lato
+giocatore, o solo con refresh manuale.** Fusione richiesta esplicitamente
+da Davide: niente più sezione dedicata "condivisa dal master", gli
+elementi condivisi vanno DIRETTAMENTE nella lista già esistente di
+note/mappe del giocatore con un'etichetta "Condiviso dal Master".
+Implementato in `ui/views/diary_view.py` (note, `CATEGORIES` esteso con
+`event`/`secret` per allinearsi a `MasterCampaignNote.category`) e
+`ui/views/maps_view.py` (mappe, `_map_card()` mostra il chip e instrada
+al solo "Apri" in sola lettura per `gm.character_id != self.character.id`).
+**Nota importante emersa DOPO questo fix (vedi round 4 sotto): qui la
+causa della mancata sincronizzazione era stata attribuita solo
+all'assenza di una `signature_fn` sensibile — parzialmente vero, ma non
+la causa più profonda**, trovata solo nel round successivo.
+
+**G5 — il LED di connessione nella scheda personaggio (tab Profilo)
+restava congelato invece di passare a rosso quando l'host non era più
+raggiungibile.** `sheet_view.py::_start_world_sync._apply()` aggiornava
+`self._connection_state` solo nel ramo di successo, nessun `else`. Fix:
+aggiunto lo stesso ramo `else: ... = "disconnected"` già presente in
+`home_view.py`/`world_view.py`.
+
+**G6 — riconnessione bloccata dopo che il master ferma e riavvia
+l'hosting (il PIN cambia).** Causa doppia:
+- Host: `WorldHostServer.stop()` (`network/host_server.py`) svuota
+  `_tokens` e rigenera il PIN ad ogni `start()` — per progetto, ma
+  `handle_join()` richiedeva PIN corretto ANCHE per un dispositivo già
+  membro noto (`world_members`, persistito su DB, mai svuotato da
+  `stop()`).
+- Client: `core/world_sync.py::resolve_backend_for_world` non ritentava
+  mai in automatico se `reconnect_with_token` falliva.
+
+Fix (implementa la "registrazione" richiesta da Davide): in
+`handle_join()`, il lookup `world_repo.get_member(...)` è stato spostato
+PRIMA del controllo PIN — un dispositivo già membro rientra col solo
+`join_code`, PIN non più richiesto; un dispositivo nuovo continua a
+richiedere sia codice sia PIN (invariato). In
+`resolve_backend_for_world`, quando `reconnect_with_token` fallisce e
+`world.join_code` è valorizzato, retry automatico via
+`start_lan_join(host, port, world.join_code, "", device_id, "")`. Nota
+di sicurezza esplicitamente segnalata a Davide: il `join_code` (6
+caratteri) diventa da solo sufficiente per un dispositivo già approvato
+per rientrare indefinitamente — l'unico modo di revocare l'accesso resta
+l'espulsione esplicita del membro.
+
+Verificato: sintassi + import OK su tutti i file toccati, suite di test
+completa (`test_*.py`) verde tranne il limite noto `test_qr_scan.py`
+(pyzbar assente nel sandbox). Verifica su dispositivi reali: **round 4
+sotto**, alcuni di questi fix confermati insufficienti/parziali sui dati
+reali di Davide (mondo con molte sessioni di test accumulate).
+
+File toccati: `core/world_sync.py`, `core/world_backend.py`,
+`network/host_server.py`, `ui/views/spells_view.py`,
+`ui/views/maps_view.py`, `ui/views/character_sheet/sheet_view.py`,
+`ui/views/diary_view.py`, `ui/views/world/world_view.py`, `ui/widgets.py`.
+
+---
+
+## Multiplayer, round 4 — note/mappe condivise ancora bloccate ("si vede solo 1 nota e 1 mappa"): causa reale trovata e corretta (2026-08-16, sessione successiva)
+
+Davide riporta dopo aver testato il round 3: tutto confermato TRANNE
+note/mappe condivise. Sintomo esatto, in tre messaggi progressivi:
+1. "le mappe già esistenti non vengono visualizzate se il giocatore
+   entra dopo che la mappa sia già condivisa, le note condivise non si
+   sincronizzano... si è sincronizzata solo una nota in eventi".
+2. "è come se ci fosse un limite, mi fa vedere una sola nota e una sola
+   mappa delle già presenti, non mi carica le altre... rimane solo
+   quella nota e quella mappa" — anche condividendone di nuove.
+3. Con screenshot: stesso identico comportamento **sia** in Diario
+   (sezione appena aggiunta nel round 3) **sia** in Sezione Mondo
+   (`WorldsView`, codice NON toccato nel round 3) — indizio chiave: due
+   viste indipendenti che condividono solo la stessa chiamata di rete.
+   Inoltre, correzione di posizionamento: le note condivise devono stare
+   nella sezione sidebar "Diario" (`ui/views/diary_view.py`), MAI nel tab
+   "Diario" interno alla scheda personaggio
+   (`ui/views/character_sheet/diario_tab.py::DiarioTab`) — un primo
+   tentativo le aveva messe nel posto sbagliato per errore, poi
+   completamente revertito (vedi il docstring di `DiarioTab`, righe 27-32,
+   che spiega esplicitamente perché quel tab NON deve avere note
+   condivise).
+
+**Causa reale #1 — `sync_replica()` non richiamava mai il refresh dello
+snapshot quando non c'erano eventi incrementali nuovi.**
+`core/world_sync.py::sync_replica` (riga 459) aveva un `if not events:
+return 0` che saltava ANCHE `_refresh_members_from_snapshot` (allora
+usata solo per i membri) — condizione fin troppo comune in stato
+stazionario. Fix: rinominata in `_refresh_snapshot_derived_state` (riga
+511) ed estesa a note/mappe condivise (non solo membri), ora chiamata
+INCONDIZIONATAMENTE da `sync_replica` quando `refresh_members=True`
+(default) — riusa gli stessi scrittori (`master_repo.save_replica_note`,
+`maps_repo.replica_create_map_stub`) già usati da `_finalize_join()`.
+
+**Verifica di questo primo fix**: costruito un diagnostico a due
+PROCESSI/due DATABASE separati (`multiprocessing.get_context("spawn")`,
+ciascun processo con il proprio `HOME` prima di ogni accesso al DB) —
+a differenza della suite `test_note_sharing.py`/`test_mappe_condivise.py`
+esistente, che gira tutto in un solo processo/un solo DB e quindi non
+verifica mai una VERA scrittura sulla replica di un "secondo
+dispositivo". Risultato: 3 note/3 mappe scaricate al join, 4/4 dopo un
+successivo `sync_replica()` — il meccanismo di base funziona
+correttamente con dati freschi. **Questo NON bastava sui dati reali di
+Davide** (vedi sotto).
+
+**Causa reale #2 (quella vera, trovata dopo che Davide ha confermato che
+il fix #1 da solo non risolveva) — `handle_snapshot()` poteva fallire
+per intero per un singolo dato residuo, bloccando TUTTO per sempre.**
+`network/host_server.py::handle_snapshot` (riga 597) costruiva
+note/incontro-visibile/mappe condivise in un unico blocco, senza
+protezione. Se un SOLO elemento aveva un dato incoerente (residuo di
+mesi di sessioni di test sullo stesso mondo — l'indizio forte: Davide
+riusa lo stesso mondo/DB per ogni round da settimane), l'intera risposta
+HTTP falliva con 500 — non solo quella sezione, TUTTA la risposta,
+inclusi membri e personaggi. E poiché dal fix #1 sopra `sync_replica()`
+richiama questo endpoint ad OGNI ciclo (circa ogni 2s, non solo al
+join), un singolo dato rotto blocca per sempre ogni sincronizzazione
+successiva su TUTTE le sezioni — il dispositivo resta congelato
+esattamente allo stato del primo ingresso riuscito. Spiega perfettamente
+"vedo sempre e solo la stessa 1 nota e la stessa 1 mappa, sia in Diario
+sia in Sezione Mondo".
+
+Fix: isolamento per sezione in `handle_snapshot()` — le tre sezioni
+(note, incontro visibile, mappe condivise) sono ciascuna nel proprio
+`try/except Exception as e: logger.error(...)`, degradando a
+vuoto/`None` invece di far fallire l'intera risposta. Stessa protezione,
+elemento per elemento, lato client in
+`_refresh_snapshot_derived_state()` (`core/world_sync.py`, righe
+511-557 circa) — un singolo dato rotto nel loop di note/mappe non
+interrompe più gli elementi successivi dello stesso batch.
+
+**Causa reale #3 (trovata ancora dopo, stesso principio ma nel punto di
+INGRESSO invece che nella sincronizzazione periodica) — `_finalize_join()`
+aveva lo STESSO identico problema, mai protetto prima.**
+`core/world_sync.py::_finalize_join` (riga 714) — la funzione che semina
+la replica al primo ingresso — iterava su personaggi/richieste di
+modifica/richieste di rientro/note/incontro visibile/mappe in loop NON
+protetti. Un'eccezione su un singolo elemento interrompeva l'intera
+funzione con un'eccezione non gestita **dopo** che
+`world_repo.save_replica_world(world)` (riga 749) aveva già scritto la
+riga del mondo sulla replica locale — quindi l'eccezione risaliva fino
+al chiamante (vedi round 5 sotto) SENZA che nessuno la intercettasse,
+ma il mondo restava comunque "mezzo registrato" sul dispositivo del
+giocatore. Fix: stessa protezione per-elemento (try/except + log)
+applicata a tutti e 6 i loop di `_finalize_join` (personaggi, richieste
+di modifica, richieste di rientro, note, incontro visibile, mappe) — commit
+`9b8243e` ("Isolate errors during replica sync").
+
+Verificato: sintassi + import OK, suite di test completa verde (29/30,
+`test_qr_scan.py` limite noto ambientale). **Questo fix ha risolto la
+sparizione delle note/mappe MA ha fatto emergere un problema NUOVO e più
+grave, ancora aperto — vedi round 5 sotto, che è il lavoro da riprendere.**
+
+File toccati: `core/world_sync.py`, `network/host_server.py`.
+Commit: `15fb5d8` (fix #1 + spostamento note condivise fuori da
+`DiarioTab`), `9b8243e` (fix #2 + #3, isolamento per sezione/elemento).
+
+---
+
+## Multiplayer, round 5 — APERTO: giocatore bloccato nel dialogo di ingresso dopo l'approvazione del master, "Copia del personaggio non riuscita" (2026-08-17)
+
+> **Questo è il problema da riprendere in una nuova sessione.** Le sezioni
+> sopra (round 3-4) sono confermate/comunque migliorative; QUESTO è
+> l'unico bug ancora aperto e senza conferma finale di Davide. Leggi
+> tutto questo paragrafo prima di toccare codice — sono già stati
+> scartati diversi tentativi/ipotesi, dettagliati sotto per non
+> ripeterli.
+
+### Sintomo, esattamente come riportato da Davide (due messaggi in sequenza)
+
+**Primo messaggio** (dopo aver rebuildato con il fix del round 4 sopra,
+commit `9b8243e`): "adesso... la richiesta arriva subito al master, il
+master la accetta e il giocatore rimane bloccato, non può premere su
+annulla su entra e su prova di nuovo. A quel punto riavvio l'app e mi
+ritrovo il mondo a cui ho fatto l'accesso, ma quando provo a far entrare
+un personaggio del mondo mi esce il messaggio copia del personaggio non
+riuscita." — quindi: (a) il dialogo di ingresso lato giocatore si
+blocca DAVVERO, bottoni compresi, non solo "resta in attesa"; (b) dopo
+riavvio dell'app il mondo risulta comunque già registrato/membro; (c)
+tentare di portare un personaggio locale esistente in quel mondo fallisce
+sempre con "Copia del personaggio fallita" (`InstanceResult.error`,
+`core/character_instances.py`).
+
+**Fix intermedio applicato** (commit `9bd2584`, "Run finish_pending_join
+in background thread") — causa trovata con certezza per il punto (a):
+`ui/views/world/world_view.py::_open_lan_join_dialog._poll_pending_join_loop`
+(riga 3468, ciclo automatico ogni `_PENDING_JOIN_POLL_INTERVAL_S = 3.0`
+secondi, riga 94) e `_retry` (riga 3608, pulsante "Controlla di nuovo")
+chiamavano `world_sync.finish_pending_join(...)` — funzione SINCRONA e
+bloccante (rete + molte scritture SQLite dentro `_finalize_join`, una
+per ogni nota/mappa/personaggio dello snapshot, appena resa più lenta
+dal fix del round 4 che non abbandona più al primo elemento rotto ma
+prova ognuno) — DIRETTAMENTE dentro una coroutine che gira sull'UNICO
+thread asyncio di Flet (confermato leggendo
+`.venv/lib/python3.13/site-packages/flet/controls/base_control.py:485-530`:
+un handler sincrono viene chiamato inline, `await`ato direttamente sullo
+stesso loop che processa i click). Una chiamata bloccante lì congela
+LETTERALMENTE tutta la pagina, bottoni compresi, per tutta la sua
+durata — non solo questo dialogo. Su un mondo con tanta storia
+accumulata, la somma di più scritture (specialmente se in attesa di un
+lock SQLite conteso da un altro `BackgroundSyncLoop` attivo sullo stesso
+dispositivo, es. per un ALTRO mondo di cui Davide è già membro da round
+di test precedenti) può arrivare a durare svariati secondi consecutivi —
+abbastanza da sembrare bloccato per sempre. Fix: entrambe le chiamate ora
+passano da `await asyncio.to_thread(world_sync.finish_pending_join, ...)`
+— stesso principio già usato da `BackgroundSyncLoop`
+(`ui/components/background_sync.py`, thread dedicato + `page.run_task()`
+per il ponte verso il loop asyncio, mai il contrario). `_retry` è
+diventata `async def` (Flet supporta nativamente handler `async def`,
+stessa fonte sopra).
+
+**Secondo messaggio, DOPO questo fix intermedio** (conferma parziale, il
+problema resta): "I problemi sono sempre gli stessi, il giocatore rimane
+bloccato anche dopo l'accettazione del master, solo che adesso mi fa
+premere annulla e tornare alla schermata iniziale. riavvio l'app e il
+mondo è visibile da parte del giocatore e ci fa parte, ma esce comunque
+impossibile copiare personaggio." — quindi il fix `9bd2584` ha
+**confermato risolto** il freeze letterale dell'interfaccia (Annulla ora
+risponde), ma **NON** ha risolto il problema di fondo: il dialogo non
+arriva mai a uno stato di successo visibile (né un errore leggibile né
+la chiusura automatica con `_open_detail`), Davide deve comunque
+annullare ed è comunque costretto a riavviare l'app per vedere il mondo
+come membro. E "copia del personaggio non riuscita" **persiste sempre**,
+non in modo intermittente.
+
+### Diagnosi già fatta, ipotesi già scartate — NON ripartire da zero
+
+1. **Contesa SQLite transitoria (lock)** come causa sia del freeze sia di
+   "copia fallita" — ipotesi iniziale plausibile (spiegherebbe il freeze
+   E il fatto che `character_export.export_character()` (riga 101,
+   `data/repositories/character_export.py`) ritorna `None` sia se il
+   personaggio non esiste SIA in caso di qualunque eccezione, lock
+   compreso — vedi il docstring della funzione). **Ma Davide ha
+   esplicitamente detto che "copia personaggio" fallisce SEMPRE, non a
+   intermittenza** — una contesa transitoria darebbe un fallimento
+   intermittente (a volte va, a volte no, specialmente riprovando). Il
+   fatto che sia sistematico fa propendere per un errore deterministico
+   (dato/schema/percorso di codice specifico), non per contesa. **Non
+   scartare del tutto**, ma non è la spiegazione più probabile per la
+   PERSISTENZA — verificalo per primo col fix diagnostico sotto prima di
+   investigare altro.
+2. **Bug nello schema `character_conditions`** (tabella aggiunta
+   2026-07-30, "Fase 4 feature 2b", vedi `data/database.py` righe
+   1043-1056 e `CHILD_TABLES` in `character_export.py` riga 64-84, dove
+   è stata aggiunta il 2026-08-16) come causa sistemica di
+   `export_character()` che fallisce SEMPRE per QUALSIASI personaggio —
+   **verificato che la tabella esiste correttamente** in
+   `_create_tables()`/`init_db()` (chiamato ad ogni avvio app, quindi
+   presente su qualsiasi build recente). Scartata come causa
+   sistemica generale — ma **non verificato nello specifico per il
+   personaggio/mondo di Davide**: se lì c'è un problema diverso
+   (colonna mancante per una migrazione non applicata sul suo
+   dispositivo specifico, dato malformato in una riga sua) il fix
+   diagnostico sotto lo rivelerà direttamente.
+3. **Che l'operazione "far entrare un personaggio nel mondo" fosse
+   rotta in generale (bug preesistente, non una regressione di oggi)**
+   — scartato: è un'operazione base necessaria per aver mai potuto
+   testare spells/mappe/note nei round 1-4 precedenti, quindi ha
+   funzionato almeno una volta. Il fatto che fallisca ORA, specificamente
+   dopo un ingresso che si è bloccato ed è stato completato solo con un
+   riavvio dell'app, punta più verso "questo mondo/questa istanza di
+   ingresso specifica è rimasta in uno stato incompleto" che verso un
+   bug generale nella funzione di copia.
+4. **Che `_finalize_join()` lanci ancora un'eccezione NON protetta**
+   (cioè fuori dai 6 loop già isolati dal round 4, commit `9b8243e`) —
+   **ipotesi APERTA, non verificata**: `_finalize_join()` (riga 714) ha
+   ANCORA due punti non protetti da try/except PRIMA dei loop isolati:
+   `backend.get_snapshot()` (riga 728 — se fallisce ritorna già un
+   errore pulito, non un crash) e, soprattutto, i due loop iniziali
+   `for m in snapshot.get("members", [])` (riga 753) e
+   `for event in events` (riga 755) — MAI protetti, a differenza dei 6
+   loop sotto. Se il crash silente che spiegherebbe "il mondo risulta
+   già registrato dopo il riavvio ma il dialogo non chiude mai da solo"
+   avviene lì (es. un `WorldMember`/`WorldEvent` con un campo
+   incompatibile in `protocol.member_from_dict`/`event_from_dict`), non
+   sarebbe ancora coperto dal fix del round 4. **Primo posto dove
+   guardare per la nuova sessione.**
+
+### Fix diagnostico già applicato, non ancora verificato da Davide
+
+Commit ancora NON effettuato a fine di questa sessione (solo modificato
+su disco — verifica con `git status`/`git diff` a inizio della prossima
+sessione se risultano già committati da un processo automatico, come
+successo per i commit precedenti di questo stesso round):
+`data/repositories/character_export.py` e `core/character_instances.py`.
+
+- `export_character()` (riga 101) e `import_character()` (riga 472)
+  hanno un nuovo parametro opzionale `raise_errors: bool = False` —
+  default invariato per TUTTI gli altri chiamanti esistenti (loggano e
+  ritornano `None` come sempre). Quando `True`, l'eccezione originale
+  viene rilanciata invece di essere inghiottita.
+- `core/character_instances.py::_copy_character` (riga 157) ora ritorna
+  `tuple[str | None, str]` invece di `str | None` — `(nuovo_id, "")` in
+  successo, `(None, dettaglio_leggibile)` in errore, chiamando
+  `export_character(source_id, raise_errors=True)`/
+  `import_character(data, mode="copy", raise_errors=True)` dentro un
+  proprio try/except che costruisce il messaggio
+  `f"Esportazione del personaggio fallita: {e}"` /
+  `f"Importazione della copia fallita: {e}"`.
+- `create_or_resume_instance()` (riga 109) propaga questo messaggio
+  dettagliato in `InstanceResult.error` invece del generico "Copia del
+  personaggio fallita." di prima.
+
+**Perché**: il fallimento avviene sul dispositivo del GIOCATORE (uno
+smartphone, build compilata) — Davide non ha modo di leggere l'output di
+`logger.error(...)`, che prima era l'UNICO posto dove finiva il vero
+messaggio d'eccezione. Con questo fix, il vero errore Python comparirà
+direttamente nello snackbar sullo schermo del telefono al prossimo
+tentativo — **questo è il primo dato mancante per proseguire la
+diagnosi**, va richiesto esplicitamente a Davide prima di ipotizzare
+altro.
+
+### Cosa manca per chiudere questo bug — checklist per la prossima sessione
+
+1. **Chiedere a Davide di rifare esattamente lo stesso test** (ingresso
+   nuovo dispositivo → master approva → dialogo bloccato → Annulla →
+   riavvio → "entra nel mondo" con un personaggio) sull'ultima build che
+   include il fix diagnostico sopra, e riportare **il testo esatto**
+   dell'errore che compare ora al posto del generico "Copia del
+   personaggio fallita" — quello dice `export`/`import` e la classe/
+   messaggio dell'eccezione Python reale.
+2. **Chiedere anche cosa mostra `status_text` nel dialogo di ingresso
+   PRIMA di premere Annulla** — non ancora chiesto con successo:
+   - se resta su "In attesa dell'approvazione del master…" (colore
+     grigio) per sempre → il problema è che il CLIENT non vede mai
+     `status="approved"` da `poll_join_status()`
+     (`core/world_backend.py`, riga 1787) nonostante l'host l'abbia
+     davvero approvata — bug nel polling/nello stato `_pending` lato
+     host (`network/host_server.py::join_status`, riga 541,
+     `WorldHostServer._pending`) mai indagato a fondo in questo round;
+   - se mostra un testo d'errore rosso (es. "Ingresso riuscito ma lo
+     scaricamento dello stato del mondo è fallito" o "Salvataggio della
+     replica del mondo fallito") → il problema è dentro
+     `_finalize_join()`, punta all'ipotesi 4 sopra (loop `members`/
+     `events` non protetti).
+   Queste sono DUE cause radicalmente diverse — non tentare un fix
+   "difensivo" generico senza prima saperlo, rischia di mascherare di
+   nuovo il sintomo reale come già successo due volte in questo stesso
+   round (vedi causa reale #2 e #3 sopra, trovate solo iterando).
+3. **Se punta all'ipotesi 4**: applicare la stessa protezione
+   try/except già usata per gli altri 6 loop di `_finalize_join`
+   (righe 758-... del file dopo l'ultima modifica) anche ai due loop
+   iniziali `members`/`events` (righe 753-756) — stesso pattern
+   esatto, log con `logger.error("_finalize_join: membro/evento %r
+   scartato: %s", ..., e)`.
+   ⚠️ Attenzione però: gli eventi (`world_events`) sono la fonte di
+   verità del giornale — saltarne uno silenziosamente potrebbe lasciare
+   la replica con un buco nella sequenza (`last_synced_seq` calcolato
+   da `max(e.seq for e in events)` alla riga 736 assumerebbe eventi
+   presenti che in realtà sono stati scartati). Verificare se un evento
+   può davvero fallire la deserializzazione (`protocol.event_from_dict`)
+   prima di applicare la stessa protezione ciecamente qui — potrebbe
+   servire una strategia diversa (es. loggare e continuare ma SENZA
+   includere quell'evento nel calcolo di `latest_seq`, o troncare la
+   sequenza al primo evento valido consecutivo invece di saltare nel
+   mezzo).
+4. **Se punta all'ipotesi del polling** (`join_status`/`_pending`): il
+   posto giusto da rileggere è `network/host_server.py::approve()`
+   (riga 424) e `join_status()` (riga 541) insieme a
+   `RemoteBackend.poll_join_status()` (`core/world_backend.py`, riga
+   1787) — verificare in particolare se `WorldHostServer._pending` (un
+   dict in memoria, mai persistito su DB) potrebbe essere svuotato o
+   sostituito tra l'approvazione e il polling successivo (es. da un
+   riavvio dell'hosting nel frattempo, o da un secondo `approve()`
+   concorrente) — nessuna di queste piste è stata verificata in questo
+   round, solo elencata.
+5. In ogni caso, **ri-eseguire la suite di test completa**
+   (`for f in test_*.py; do ./.venv/bin/python3 "$f"; done` dalla root
+   di `dnd_app/`) dopo qualunque modifica — invariata a 29/30 per tutto
+   questo round (`test_qr_scan.py` unico limite noto, ambientale/pyzbar,
+   non una regressione) — e chiedere SEMPRE conferma su dispositivi
+   reali a Davide prima di considerare il bug chiuso: è precisamente la
+   categoria di bug (dati reali accumulati su mesi di test, mai
+   riproducibile con dati freschi in sandbox) che ha richiesto già 3
+   iterazioni in questo stesso round prima di arrivare alla causa vera.
+
+File coinvolti in questo round, tutti da avere presenti:
+`ui/views/world/world_view.py` (dialogo di ingresso,
+`_open_lan_join_dialog` e le funzioni annidate `_attempt`/`_retry`/
+`_report`/`_poll_pending_join_loop`), `core/world_sync.py`
+(`_finalize_join`, `finish_pending_join`, `start_lan_join`),
+`network/host_server.py` (`handle_join`, `approve`, `join_status`,
+`handle_snapshot`), `core/character_instances.py`
+(`create_or_resume_instance`, `_copy_character`),
+`data/repositories/character_export.py` (`export_character`,
+`import_character`). Commit di questo round: `15fb5d8`, `9b8243e`,
+`9bd2584` — i fix su `character_export.py`/`character_instances.py`
+(diagnostica "raise_errors") erano ancora non committati all'ultimo
+controllo di questa sessione.
+
+---
+
+## Multiplayer, round 5 — CHIUSO: causa radice trovata sui dati reali (FK `linked_npc_id` + connessione SQLite abbandonata che blocca tutto il processo) (2026-08-17, sessione successiva)
+
+> Chiude il bug lasciato APERTO dalla voce qui sopra. **Nessuna delle 4
+> ipotesi elencate là era la causa** — la vera causa non era stata
+> considerata, ed è stata trovata riproducendo `_finalize_join()` sullo
+> **snapshot reale** del mondo di Davide (`~/.dnd_companion/dnd_companion.db`
+> su questo stesso Mac, che ospita "Mondo del drago Gay"), non su dati
+> freschi di sandbox. Metodo che ha funzionato e da riusare per questa
+> categoria di bug: costruire lo snapshot con lo stesso codice dell'host
+> (`WorldHostServer.handle_snapshot()`), poi darlo in pasto al vero
+> `_finalize_join()` con un backend finto su un DB replica vuoto.
+
+### La catena, un solo difetto a monte e tre sintomi
+
+1. **FK violata su ogni nota collegata a un NPC.**
+   `master_campaign_notes.linked_npc_id` ha una FK verso `master_npcs(id)`
+   (`ON DELETE SET NULL`, `data/database.py` riga 1010), ma la Rubrica NPC
+   del master **non viaggia mai** nello snapshot né negli eventi — è
+   materiale privato del master (§7B), `handle_snapshot()` spedisce
+   mondo/membri/giornale/schede/note/incontro/mappe e mai gli NPC. Sulla
+   replica del giocatore quell'id quindi non esiste, e
+   `master_repo.save_replica_note()` falliva con "FOREIGN KEY constraint
+   failed". Sui dati veri di Davide: **9 note su 11** erano collegate a un
+   NPC.
+
+2. **La connessione della scrittura fallita restava aperta, col lock.**
+   `save_replica_note()` chiudeva la connessione come ULTIMA RIGA del
+   blocco `try`, non in un `finally` — quindi al primo errore non veniva
+   mai chiusa. E **non basta il refcount a liberarla**: l'eccezione crea un
+   ciclo di riferimenti (eccezione → traceback → frame → variabile locale
+   `conn`) che solo il garbage collector generazionale può rompere. Fino a
+   quel momento la connessione orfana trattiene la transazione di
+   scrittura fallita, e con essa il lock del file.
+
+3. **Da lì, ogni scrittura del processo falliva con "database is locked".**
+   Le altre 10 note, le 3 mappe pubblicate, e poi
+   `character_export.import_character()` — da cui il "Copia del personaggio
+   fallita." che Davide vedeva **sempre** e non a intermittenza. Il
+   changelog del round precedente aveva scartato l'ipotesi "contesa SQLite"
+   proprio perché il fallimento era sistematico: giusto scartare la
+   *contesa transitoria*, ma la spiegazione era un lock **permanente**
+   trattenuto dallo stesso processo, che è sistematico per costruzione.
+   Questo chiude anche l'ipotesi 1 di quella voce, in un modo che nessuno
+   aveva previsto.
+
+Misura sui dati reali, prima del fix: `_finalize_join()` ritorna
+`success=True` ma salva **1 nota su 11 e 0 mappe su 3** — cioè esattamente
+il "si vede solo 1 nota e 1 mappa" segnalato da Davide nel round 3/4 e
+attribuito allora ad altre cause. I fix dei round 3/4 (isolamento per
+elemento, `15fb5d8`/`9b8243e`) restano corretti e utili, ma mascheravano
+questo: isolando l'eccezione per elemento il loop continuava, e ogni giro
+successivo falliva silenziosamente per il lock invece che per la FK.
+
+**Perché il dialogo del giocatore restava muto** (il sintomo che aveva
+richiesto due round in più): in `_poll_pending_join_loop`
+(`ui/views/world/world_view.py`) il risultato era `await
+asyncio.to_thread(finish_pending_join, ...)` **senza try/except**. Una
+qualsiasi eccezione lì — o in `_report`/`_open_detail` subito dopo un esito
+riuscito — uccide la coroutine in silenzio: `page.run_task()` non ha alcun
+gestore che la mostri. Il dialogo resta fermo su "In attesa
+dell'approvazione del master…" per sempre, senza né successo né errore,
+mentre il mondo risulta comunque registrato al riavvio perché
+`save_replica_world()` aveva già scritto la riga. Il fix `9bd2584`
+(`asyncio.to_thread`) aveva risolto il freeze *letterale* dell'interfaccia
+ma non questo, ed è per questo che il vero errore non è mai arrivato a
+schermo.
+
+### Fix applicati
+
+- **`data/repositories/master_repo.py::save_replica_note()`** — il
+  collegamento all'NPC si conserva solo se quell'NPC esiste davvero in
+  locale (vero sull'host, dove questa funzione non è usata, e in un
+  eventuale futuro in cui gli NPC vengano condivisi), altrimenti degrada a
+  `NULL`: esattamente il valore che la FK stessa prevede quando l'NPC non
+  c'è più, e sulla replica il collegamento non ha comunque alcun uso (non
+  c'è una Rubrica NPC da aprire). `conn.close()` spostato in un `finally`.
+- **`data/database.py` — nuova `_ResilientConnection`** (sottoclasse di
+  `sqlite3.Connection`, usata via `factory=` in `get_connection()`): al
+  primo "database is locked" forza un `gc.collect()` — che chiude le
+  connessioni orfane rompendo quei cicli — e riprova UNA volta. Il
+  ritentativo è sicuro: una statement che non ha ottenuto il lock non ha
+  applicato niente. Aggiunto anche `timeout=_SQLITE_TIMEOUT_S` (5s)
+  esplicito. **Perché una rete di sicurezza globale e non 167 try/finally**:
+  uno scan AST su tutto il progetto ha contato **167 funzioni** che aprono
+  `get_connection()` senza garantire `close()` su tutti i percorsi (il
+  pattern dominante del codebase: `close()` come ultima riga del `try`).
+  Riscriverle tutte è un cambio meccanico enorme e rischioso da fare in
+  coda a un bug-fix; il rimedio vive nell'unico punto da cui passa ogni
+  query, e converte qualunque leak residuo da "processo avvelenato fino al
+  riavvio" a "recupero trasparente". **Voce aperta**: la conversione a
+  `try/finally` di quelle funzioni resta da fare a parte, con calma (vedi
+  "Piano di lavoro attivo" in `CLAUDE.md`).
+- **`core/world_sync.py::_finalize_join()`** — isolati anche gli ultimi due
+  loop rimasti senza protezione, `members` ed `events` (l'ipotesi 4 del
+  round precedente: era una vulnerabilità reale, semplicemente non era
+  *questa* la causa). Per gli eventi si è seguito l'avvertimento già
+  scritto in quella voce invece di applicare ciecamente lo stesso pattern:
+  il giornale è una **sequenza**, e saltarne uno nel mezzo lasciando
+  `last_synced_seq = max(seq)` lascerebbe un buco permanente (il prossimo
+  `sync_replica()` chiederebbe solo gli eventi successivi). Ora si tiene il
+  seq più alto **consecutivamente** salvato: al primo errore la sequenza si
+  tronca lì e il giro di sync successivo riprende da quel punto.
+- **`ui/views/world/world_view.py`** — `try/except` attorno al corpo di
+  `_poll_pending_join_loop` e di `_retry`: qualunque eccezione diventa un
+  messaggio rosso leggibile nel dialogo (`Errore durante l'ingresso:
+  <Tipo>: <messaggio>`) invece di un task morto in silenzio. È la garanzia
+  che questa classe di bug non possa più costare un round di test solo per
+  scoprire *cosa* è fallito.
+- I fix diagnostici `raise_errors` del round precedente
+  (`character_export.py`/`character_instances.py`) sono stati **tenuti**:
+  non servono più a trovare questo bug, ma restano il modo corretto per far
+  arrivare un errore reale sullo schermo del giocatore. ⚠️ Nota: in
+  `import_character()` il ramo `validate_export_data()` ritorna `None`
+  PRIMA del `try`, quindi `raise_errors` non lo copre — un file non valido
+  dà ancora il messaggio generico.
+
+### Verifica
+
+- Nuovo `test_replica_note_fk_lock.py`, **22/22**: la nota con NPC assente
+  si salva col collegamento azzerato; il collegamento a un NPC *presente*
+  si conserva (il fix non azzera a vanvera); una connessione abbandonata
+  non blocca più le scritture successive né la copia del personaggio;
+  `_finalize_join()` su uno snapshot con 9 note collegate e 3 mappe le
+  semina **tutte** e la copia del personaggio subito dopo riesce; il
+  giornale si tronca invece di bucarsi.
+- Riproduzione sui **dati reali** di Davide, prima → dopo: **1 nota / 0
+  mappe / copia fallita** → **11 note / 3 mappe / copia riuscita**.
+- Suite completa: **30/31** (`test_qr_scan.py` unico fallimento, noto e
+  ambientale — libzbar assente nel sandbox, non una regressione). Nel primo
+  giro in batch `test_fase_4.py` ha fallito un controllo ("il totale compare
+  nel pannello") ma passa 296/296 da solo e nel giro successivo: flake di
+  isolamento tra test nello stesso HOME, non una regressione.
+- ⚠️ **Resta la verifica su due dispositivi fisici a carico di Davide**: la
+  causa è stata riprodotta e corretta sui suoi dati veri, ma il giro
+  completo (ingresso nuovo giocatore → approvazione → dialogo che si chiude
+  da solo → personaggio che entra nel mondo → note/mappe condivise
+  visibili) va rifatto dal vivo su una build che includa questi fix.
+
+File toccati: `data/database.py`, `data/repositories/master_repo.py`,
+`core/world_sync.py`, `ui/views/world/world_view.py`, nuovo
+`test_replica_note_fk_lock.py`.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

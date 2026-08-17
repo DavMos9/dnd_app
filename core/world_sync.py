@@ -750,10 +750,46 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
         return LanJoinResult(False, backend=backend,
                               error="Salvataggio della replica del mondo fallito.")
 
+    # Questi due loop erano gli ULTIMI rimasti senza isolamento in questa
+    # funzione (2026-08-17): a differenza di tutti quelli sotto, un'eccezione
+    # qui risaliva fino al chiamante — e nessuno dei due chiamanti la
+    # intercettava (`_poll_pending_join_loop` è una coroutine: l'eccezione
+    # uccide il task in silenzio e il dialogo del giocatore resta fermo su
+    # "In attesa dell'approvazione del master…" per sempre, mentre il mondo
+    # risulta comunque registrato al riavvio perché `save_replica_world()`
+    # sopra ha già scritto). Ora anche loro degradano a "salta questo
+    # elemento".
     for m in snapshot.get("members", []):
-        world_repo.save_replica_member(protocol.member_from_dict(m))
-    for event in events:
-        world_repo.save_replica_event(event)
+        try:
+            world_repo.save_replica_member(protocol.member_from_dict(m))
+        except Exception as e:
+            logger.error("_finalize_join: membro %r scartato: %s", m.get("device_id"), e)
+
+    # Gli eventi, a differenza di tutto il resto, sono una SEQUENZA: sono la
+    # fonte di verità del giornale e `last_synced_seq` dichiara "ho tutto
+    # fino a qui". Saltarne uno nel mezzo e lasciare comunque
+    # `last_synced_seq = max(seq)` (come faceva il calcolo qui sopra)
+    # lascerebbe un buco permanente: il prossimo `sync_replica()` chiederebbe
+    # solo gli eventi successivi e quello scartato non tornerebbe mai più.
+    # Quindi qui si tiene il seq più alto CONSECUTIVAMENTE salvato: al primo
+    # errore la sequenza si tronca lì, e il giro di sincronizzazione
+    # successivo riparte da quel punto e ritenta da sé gli eventi rimanenti.
+    safe_seq = 0
+    truncated = False
+    for event in sorted(events, key=lambda e: e.seq):
+        if truncated:
+            break
+        try:
+            world_repo.save_replica_event(event)
+            safe_seq = event.seq
+        except Exception as e:
+            logger.error(
+                "_finalize_join: evento seq=%s scartato (%s) — giornale troncato qui, "
+                "il prossimo sync riprenderà da questo punto.", event.seq, e,
+            )
+            truncated = True
+    if truncated and safe_seq < latest_seq:
+        world_repo.update_last_synced_seq(world.id, safe_seq)
 
     # Isolamento per elemento (2026-08-16, stesso bug/stessa cura di
     # `_refresh_snapshot_derived_state` più sotto e di `handle_snapshot()`
