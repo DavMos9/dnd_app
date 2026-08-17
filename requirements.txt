@@ -25,3 +25,11 @@ qrcode==8.2
 # progetto (non su PyPI), path-based. ⚠️ NON compilata/testata da questo
 # sandbox — vedi dnd_app/extensions/flet_image_picker/README.md.
 -e ./extensions/flet_image_picker
+
+# Aggiunto il 2026-08-17: stesso principio di flet_image_picker sopra, ma
+# per la selezione di un file GENERICO (.dndchar/.dndworld) su Android,
+# dopo che anche il fallback WebView è stato confermato non funzionante per
+# l'import personaggio/mondo — vedi il commento gemello e più esteso in
+# pyproject.toml. ⚠️ NON compilata/testata da questo sandbox — vedi
+# dnd_app/extensions/flet_file_picker/README.md.
+-e ./extensions/flet_file_picker

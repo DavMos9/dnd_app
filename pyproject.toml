@@ -55,6 +55,24 @@ dependencies = [
     # o fallisce. ⚠️ NON compilata/testata da questo sandbox — nessun
     # toolchain Flutter/Dart disponibile, vedi il README della cartella.
     "flet-image-picker",
+    # Aggiunta il 2026-08-17: stesso identico principio di flet-image-picker
+    # (vedi sopra), applicato all'import personaggio/mondo su mobile
+    # (.dndchar/.dndworld) dopo che Davide ha segnalato che ANCHE il
+    # fallback WebView (ui/mobile_webview_picker.py, usato finora da
+    # ui/views/home_view.py::_on_mobile_import() e
+    # ui/views/world/world_view.py::_on_mobile_import_world()) risulta non
+    # funzionante su Android reale — stessa diagnosi già nota per il caso
+    # foto (webview_flutter non implementa onShowFileChooser). Estensione
+    # nativa su misura, wrapper del plugin Flutter ufficiale `file_picker`
+    # (diverso da `image_picker`: seleziona un file arbitrario, non solo
+    # immagini da galleria). Percorso locale dichiarato in
+    # `[tool.flet.dev_packages]` più sotto, non qui — stesso motivo già
+    # spiegato per flet-image-picker. Usata da ui/native_file_picker.py, con
+    # fallback automatico su ui/mobile_webview_picker.py se questa
+    # estensione non è disponibile o fallisce. ⚠️ NON compilata/testata da
+    # questo sandbox — nessun toolchain Flutter/Dart disponibile, vedi il
+    # README della cartella dell'estensione.
+    "flet-file-picker",
     # Aggiunte il 2026-08-06 (sessione successiva): scanner QR in-app per
     # l'ingresso in un mondo LAN ("inquadri e sei dentro", richiesta di
     # Davide) — vedi ui/views/world/qr_scanner_view.py per l'analisi
@@ -104,6 +122,7 @@ dependencies = [
 # changelog_storico.md, voce 2026-08-06 "CI rotta da un path assoluto").
 [tool.flet.dev_packages]
 flet-image-picker = "extensions/flet_image_picker"
+flet-file-picker = "extensions/flet_file_picker"
 
 [tool.flet]
 # CORRETTO 2026-08-07: le chiavi sotto `app.*` (app.name/app.bundle_id/

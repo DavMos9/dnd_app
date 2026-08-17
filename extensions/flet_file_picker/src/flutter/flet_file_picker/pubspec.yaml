@@ -1,0 +1,30 @@
+name: flet_file_picker
+description: Flet FilePicker control — selettore file generico nativo (Android/iOS), wrapper del plugin ufficiale file_picker.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.2.3 <4.0.0'
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Pacchetto ufficiale più diffuso su pub.dev per selezione file arbitraria
+  # (publisher miguelpruivo). Vincolo "^" per ricevere fix compatibili senza
+  # bloccarsi su questa esatta patch — stessa convenzione di
+  # flet_image_picker/image_picker.
+  file_picker: ^8.1.7
+
+  # Stesso path relativo (e stesso avviso di NON verificato) di
+  # flet_image_picker/pubspec.yaml — va corretto puntando alla vera
+  # posizione del pacchetto Dart "flet" nell'albero generato da
+  # `flet build`, non ricostruibile senza un toolchain Flutter/Flet reale.
+  flet:
+    path: ../../../../../../../packages/flet
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0

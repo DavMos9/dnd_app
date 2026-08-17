@@ -1450,6 +1450,41 @@ spiega cosa Davide deve verificare/eventualmente rigenerare
 (`flet create --template extension`) prima di fidarsi che la build vada
 a buon fine.
 
+**`ui/native_file_picker.py`** (2026-08-17) — stesso identico pattern di
+`native_image_picker.py` sopra, applicato all'import personaggio/mondo su
+mobile dopo che Davide ha segnalato che anche il fallback WebView non
+funziona per quel caso (stessa diagnosi già nota per le foto). Wrapper
+sottile attorno al controllo Flet nativo scritto su misura `FilePicker`
+(`dnd_app/extensions/flet_file_picker/`). `async pick_file_native(page, *,
+allowed_extensions=None) -> Optional[tuple[str, bytes]]` — `(nome_file,
+bytes)`, o `None` se l'utente ha annullato. Solleva `FilePickerUnavailable`
+(stessa distinzione voluta di `ImagePickerUnavailable`) se il pacchetto
+`flet_file_picker` non è installato in questa build o se l'invocazione
+fallisce per qualunque motivo — i chiamanti devono intercettarla e ricadere
+su `pick_file_via_webview()`. Import di `flet_file_picker` ritardato dentro
+la funzione, stesso motivo di `native_image_picker.py`. **Nessuna
+invocazione reale né compilazione del lato Dart è stata possibile da questo
+sandbox** — vedi `dnd_app/extensions/flet_file_picker/README.md`. Usato da
+`home_view.py::_on_mobile_import()` e
+`world_view.py::_on_mobile_import_world()` come primo tentativo, con
+fallback automatico su `pick_file_via_webview()`.
+
+**`dnd_app/extensions/flet_file_picker/`** (2026-08-17) — estensione Flet
+completa (Python + Dart) scritta per questo progetto, stessa struttura di
+`flet_image_picker` sopra. Controllo `FilePicker` (categoria `Service`), un
+solo metodo `pick_file(allowed_extensions=None)`, wrapper del plugin
+Flutter ufficiale `file_picker` (diverso da `image_picker`: seleziona un
+file arbitrario, non solo immagini da galleria — necessario per
+`.dndchar`/`.dndworld`). A differenza di `flet_image_picker`, il lato Dart
+restituisce una `Map` (`{"name": ..., "bytes": ...}`) invece dei soli byte
+grezzi, perché qui serve anche il nome file originale. Consumata dall'app
+principale come dipendenza path-based in
+`pyproject.toml`/`requirements.txt`. Lato Python verificato solo per
+sintassi/importazione; lato Dart scritto seguendo fedelmente i pattern
+reali già usati da `flet_image_picker` ma **mai compilato né eseguito qui**
+— README.md della cartella spiega cosa Davide deve verificare prima di
+fidarsi che la build vada a buon fine.
+
 ---
 
 

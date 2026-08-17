@@ -1,0 +1,22 @@
+[project]
+name = "flet-file-picker"
+version = "0.1.0"
+description = "Selettore file generico nativo (Android/iOS) per D&D Companion — estensione Flet su misura, wrapper del plugin Flutter file_picker."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "flet==0.86.5",
+]
+
+# Stesso schema di flet-image-picker (2026-08-06) — vedi il README di
+# quell'estensione per la verifica originale che questa chiave imbarca
+# davvero `flutter/flet_file_picker/` nella wheel installata.
+[tool.setuptools.package-data]
+"flutter.flet_file_picker" = [
+    "pubspec.yaml",
+    "lib/**",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

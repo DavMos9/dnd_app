@@ -20,6 +20,7 @@ from ui.character_transfer import show_character_import_picker
 from ui.components.background_sync import BackgroundSyncLoop
 from ui.device_identity import resolve_device_id
 from ui.mobile_webview_picker import pick_file_via_webview
+from ui.native_file_picker import pick_file_native, FilePickerUnavailable
 from ui.theme import muted_text, primary_button, ghost_button
 from ui import design as d
 from ui.widgets import show_snack, wrap_dialog_actions
@@ -1706,8 +1707,10 @@ class HomeView(ft.Column):
 
     async def _on_mobile_import(self):
         """
-        Import su Android/iOS tramite WebView locale
-        (`ui/mobile_webview_picker.py`), NON più `ft.FilePicker`.
+        Import su Android/iOS: prova PRIMA il selettore nativo
+        (`ui/native_file_picker.py`, estensione `flet_file_picker`), poi
+        ricade sulla WebView locale (`ui/mobile_webview_picker.py`) solo se
+        il primo non è disponibile o fallisce.
 
         **Perché non FilePicker (2026-08-06)**: questo metodo era stato
         scritto il 2026-07-24 usando correttamente l'API async di
@@ -1722,26 +1725,48 @@ class HomeView(ft.Column):
         `FilePicker` stesso non è utilizzabile su questa build, per
         qualunque suo metodo. Vedi `dnd_app/docs/changelog_storico.md`.
 
-        Il rimpiazzo mostra una WebView locale con un
-        `<input type=file accept=".dndchar,.json,application/json">` —
-        stesso meccanismo già in uso per foto profilo/immagine mappa.
+        **Perché non solo WebView (2026-08-17)**: il bypass WebView
+        (`<input type=file>`) mostrato sotto è a sua volta confermato NON
+        funzionante su Android reale (Davide, stessa diagnosi già nota per
+        il caso foto: `webview_flutter` non implementa
+        `WebChromeClient.onShowFileChooser`, il tap su "Scegli file" non
+        apre nulla). Stessa tecnica già verificata funzionante per le foto
+        (estensione nativa `flet_image_picker`) applicata qui al caso file
+        generico con `flet_file_picker`, non ancora verificata end-to-end
+        su un dispositivo reale — per questo resta il fallback WebView
+        sotto, non rimosso.
         """
         page = self.page
         if page is None:
             return
-        result = await pick_file_via_webview(
-            page, accept=".dndchar,.json,application/json",
-            title="Importa personaggio",
-        )
-        if result is None:
-            return  # utente ha annullato, o errore già loggato nel modulo
-        filename, b64_content = result
         try:
-            raw = base64.b64decode(b64_content)
-        except Exception as exc:
-            logger.error(f"Import mobile: base64 non decodificabile: {exc}")
-            self._show_error("File non valido. Riprova.")
-            return
+            native_result = await pick_file_native(
+                page, allowed_extensions=["dndchar", "json"],
+            )
+        except FilePickerUnavailable as exc:
+            logger.warning(f"FilePicker nativo non disponibile, uso WebView: {exc}")
+            native_result = None
+            native_failed = True
+        else:
+            native_failed = False
+        if native_failed:
+            result = await pick_file_via_webview(
+                page, accept=".dndchar,.json,application/json",
+                title="Importa personaggio",
+            )
+            if result is None:
+                return  # utente ha annullato, o errore già loggato nel modulo
+            filename, b64_content = result
+            try:
+                raw = base64.b64decode(b64_content)
+            except Exception as exc:
+                logger.error(f"Import mobile: base64 non decodificabile: {exc}")
+                self._show_error("File non valido. Riprova.")
+                return
+        else:
+            if native_result is None:
+                return  # utente ha annullato la selezione nativa
+            filename, raw = native_result
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError:

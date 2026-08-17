@@ -38,6 +38,7 @@ from ui.components.background_sync import BackgroundSyncLoop
 from ui import canvas_geometry as geo
 from ui import file_export
 from ui.mobile_webview_picker import pick_file_via_webview
+from ui.native_file_picker import pick_file_native, FilePickerUnavailable
 from ui.views.maps_view import _PEN_COLORS, _data_uri, _pick_desktop, _pick_from_library, _pick_mobile
 from ui.views.world.combat_status import wound_status_label
 from ui.views.world.qr_scanner_view import QrScannerView, qr_scanner_supported
@@ -2832,24 +2833,43 @@ class WorldsView(ft.Column):
                           daemon=True).start()
 
     async def _on_mobile_import_world(self):
-        """Import su Android/iOS tramite WebView locale — stesso
-        meccanismo di `HomeView._on_mobile_import` (`ft.FilePicker.pick_files()`
-        non funziona su questa build, vedi il docstring gemello lì)."""
+        """Import su Android/iOS: prova PRIMA il selettore nativo
+        (`ui/native_file_picker.py`, estensione `flet_file_picker`), poi
+        ricade sulla WebView locale — stesso meccanismo e stesso ordine di
+        `HomeView._on_mobile_import` (vedi il docstring gemello lì per il
+        perché di entrambi i bypass: `ft.FilePicker.pick_files()` e la
+        WebView con `<input type=file>` sono entrambi confermati non
+        funzionanti su questa build Android)."""
         page = self.page
         if page is None:
             return
-        result = await pick_file_via_webview(
-            page, accept=".dndworld,.json,application/json", title="Importa mondo",
-        )
-        if result is None:
-            return
-        filename, b64_content = result
         try:
-            raw = base64.b64decode(b64_content)
-        except Exception as exc:
-            logger.error(f"Import mobile mondo: base64 non decodificabile: {exc}")
-            self._show_error("File non valido. Riprova.")
-            return
+            native_result = await pick_file_native(
+                page, allowed_extensions=["dndworld", "json"],
+            )
+        except FilePickerUnavailable as exc:
+            logger.warning(f"FilePicker nativo non disponibile, uso WebView: {exc}")
+            native_result = None
+            native_failed = True
+        else:
+            native_failed = False
+        if native_failed:
+            result = await pick_file_via_webview(
+                page, accept=".dndworld,.json,application/json", title="Importa mondo",
+            )
+            if result is None:
+                return
+            filename, b64_content = result
+            try:
+                raw = base64.b64decode(b64_content)
+            except Exception as exc:
+                logger.error(f"Import mobile mondo: base64 non decodificabile: {exc}")
+                self._show_error("File non valido. Riprova.")
+                return
+        else:
+            if native_result is None:
+                return  # utente ha annullato la selezione nativa
+            filename, raw = native_result
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError:

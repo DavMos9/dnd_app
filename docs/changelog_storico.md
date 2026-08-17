@@ -10421,6 +10421,59 @@ corretta, con il perché di `conn = None`).
 
 ---
 
+## 2026-08-17 — Import personaggio/mondo su mobile non funziona: stessa diagnosi del caso foto, stessa tecnica del picker nativo
+
+Davide ha segnalato che "Importa personaggio" e "Importa mondo" non funzionano su smartphone (Android), suggerendo di
+provare la stessa tecnica già usata per le foto. Verifica del codice (non ipotesi): entrambi i flussi mobile
+(`HomeView._on_mobile_import()` in `ui/views/home_view.py`, `WorldsView._on_mobile_import_world()` in
+`ui/views/world/world_view.py`) passano ancora da `pick_file_via_webview()` (`ui/mobile_webview_picker.py`, `ft.WebView`
++ `<input type=file>`) — il bypass costruito il 2026-08-06 per il caso foto e poi **confermato non funzionante su
+Android reale quello stesso giorno** (voce precedente in questo file: `webview_flutter` non implementa
+`WebChromeClient.onShowFileChooser`, il tap su "Scegli file" non apre alcun selettore). Il caso foto è stato risolto
+poco dopo con `flet_image_picker`, un'estensione Flet nativa su misura che avvolge il plugin Flutter ufficiale
+`image_picker` — confermata funzionante da Davide su Android reale il 2026-08-06 (sessione successiva). L'import
+personaggio/mondo non era mai stato migrato a quella tecnica perché `image_picker` sa selezionare SOLO immagini da
+galleria, nessuna API per un file arbitrario come `.dndchar`/`.dndworld`.
+
+**Fix applicato, stessa identica tecnica**: nuova estensione Flet nativa su misura, `dnd_app/extensions/
+flet_file_picker/`, che avvolge il plugin Flutter ufficiale `file_picker` (pub.dev, publisher `miguelpruivo`,
+`^8.1.7`) — stessa struttura di cartelle e stesso pattern di codice di `flet_image_picker` (`ft.control("FilePicker")`
++ `ft.Service`, dispatch `_invoke_method`/`addInvokeMethodListener` copiato 1:1). A differenza del caso foto, il
+risultato lato Dart è una `Map` (`{"name": ..., "bytes": ...}`) invece dei soli byte grezzi, perché qui serve anche il
+nome file originale (per i messaggi di errore e per riconoscere l'estensione).
+
+Nuovo `ui/native_file_picker.py::pick_file_native(page, *, allowed_extensions=None)` — stesso wrapper Python di
+`ui/native_image_picker.py::pick_image_native()`, stessa eccezione `FilePickerUnavailable` sollevata se il pacchetto
+non è installato o l'invocazione fallisce per qualunque motivo. Wiring: `_on_mobile_import()` e
+`_on_mobile_import_world()` provano ORA prima `pick_file_native()` (con `allowed_extensions=["dndchar", "json"]` /
+`["dndworld", "json"]`); se solleva `FilePickerUnavailable`, ricadono automaticamente su `pick_file_via_webview()`,
+NON rimosso — resta la rete di sicurezza, stesso schema del caso foto.
+
+`pyproject.toml`/`requirements.txt` aggiornati con la nuova dipendenza path-based `flet-file-picker` (dichiarata in
+`[tool.flet.dev_packages]`, stesso meccanismo di `flet-image-picker` — mai un URI assoluto scritto a mano, causa nota
+di build CI rotte, vedi voce 2026-08-06).
+
+**⚠️ Onestà su cosa NON è verificato**: nessun toolchain Flutter/Dart in questo sandbox (`which flutter dart` non
+trova nulla) — nessuna riga di codice Dart in `flet_file_picker/` è mai stata compilata o eseguita. Il lato Python è
+verificato solo per sintassi/importazione. È ragionevole aspettarsi problemi al primo giro di build reale, come
+successo per `flet_image_picker` (due giri di CI falliti prima di funzionare: un import Dart mancante). Nota anche sul
+plugin sottostante: quando fu scelto `image_picker` per le foto, la diagnosi di quella sessione osservava che
+`file_picker` ha una storia di affidabilità più incerta nell'ecosistema Flutter — resta comunque l'unico pacchetto
+Flutter maturo per selezionare un file arbitrario (nessun pacchetto "immagini" può farlo), e la causa di rottura di
+`ft.FilePicker`/WebView qui è comunque a monte nel bridge Flet, non nel plugin in sé.
+
+**Prossimo passo per Davide**: rilanciare la build (`flet build apk` o CI), correggere eventuali errori di
+compilazione Dart segnalati dal compilatore (come già successo per `flet_image_picker`), poi testare "Importa
+personaggio"/"Importa mondo" su un dispositivo Android reale. Se il percorso nativo fallisce silenziosamente a
+runtime, il fallback WebView resta disponibile ma userà comunque lo stesso meccanismo già confermato rotto — in quel
+caso l'unica strada resta il fix diretto di questa estensione, non un quarto tentativo diverso.
+
+File toccati: nuovo `dnd_app/extensions/flet_file_picker/` (Python + Dart + README), nuovo
+`ui/native_file_picker.py`, `ui/views/home_view.py` (`_on_mobile_import()`), `ui/views/world/world_view.py`
+(`_on_mobile_import_world()`), `pyproject.toml`, `requirements.txt`.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
