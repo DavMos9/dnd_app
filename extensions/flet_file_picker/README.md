@@ -76,6 +76,38 @@ arbitrario (nessun pacchetto "immagini" può farlo), e la causa di rottura
 di `ft.FilePicker`/WebView qui è comunque a monte, nel bridge Flet, non nel
 plugin `file_picker` in sé.
 
+**Aggiornamento 2026-08-17 — primo giro di build CI reale, due bug trovati
+e corretti:**
+
+1. **Version solving failed su tutte e 4 le piattaforme** (run #54, log
+   completo di GitHub Actions): `flet==0.86.5` dichiara internamente
+   `file_picker ^11.0.2` (per il suo `ft.FilePicker` ufficiale — quello
+   confermato non funzionante su Android, non questa estensione), in
+   conflitto col vincolo `^8.1.7` scritto qui alla prima stesura (mai
+   verificato su pub.dev, solo assunto per analogia con `image_picker`).
+   `pub` risolve le dipendenze Flutter dell'INTERO progetto una volta sola,
+   prima di compilare per qualsiasi piattaforma — per questo il conflitto
+   ha fatto fallire Windows/macOS/Linux/Android nello stesso identico
+   modo, non solo Android. **Fix**: `file_picker` allineato a `^11.0.2`,
+   la stessa versione già richiesta da Flet stesso.
+2. **API cambiata tra 8.x e 11.x**: `file_picker` 11.0.0 ha rifattorizzato
+   `FilePicker` in una classe interamente statica, rimuovendo il getter
+   `.platform` — `FilePicker.platform.pickFiles(...)` (sintassi 8.x, quella
+   scritta qui alla prima stesura) non compila più su 11.x, va chiamato
+   `FilePicker.pickFiles(...)` direttamente. Verificato sulla
+   documentazione pub.dev della versione 11.0.2 prima di correggere (non
+   assunto). Il resto della superficie usata (`FileType.custom`/`.any`,
+   `allowedExtensions`, `withData`, `FilePickerResult.files`,
+   `PlatformFile.name`/`.bytes`) risulta invariato tra 8.x e 11.x.
+
+Nessuno dei due bug è stato compilato/verificato qui (stesso limite di
+sempre, nessun toolchain Flutter/Dart in questo sandbox) — corretti per
+lettura del log CI reale e della documentazione ufficiale del pacchetto,
+stessa disciplina già applicata per `flet_image_picker`. Resta da
+verificare col prossimo giro di CI se questi due fix bastano a far
+compilare l'estensione per intero, o se emergerà un terzo problema (come
+successo per `flet_image_picker`, due giri prima di arrivare a Gradle).
+
 ## Wiring lato app
 
 `ui/native_file_picker.py::pick_file_native()` — chiamato PRIMA del

@@ -37,7 +37,13 @@ class FilePickerService extends FletService {
                 ? rawExt.map((e) => e.toString()).toList()
                 : null;
 
-        final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        // FilePicker.pickFiles() è un metodo statico diretto da
+        // file_picker 11.x (il vecchio getter `.platform` è stato rimosso
+        // nel refactor 11.0.0 verso una classe interamente statica — vedi
+        // il commento nel pubspec.yaml gemello: la prima stesura usava
+        // `FilePicker.platform.pickFiles(...)`, sintassi di file_picker
+        // 8.x, che non compila più su 11.x).
+        final FilePickerResult? result = await FilePicker.pickFiles(
           type: allowedExtensions != null ? FileType.custom : FileType.any,
           allowedExtensions: allowedExtensions,
           withData: true,

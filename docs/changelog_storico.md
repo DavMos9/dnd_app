@@ -10472,6 +10472,47 @@ File toccati: nuovo `dnd_app/extensions/flet_file_picker/` (Python + Dart + READ
 `ui/native_file_picker.py`, `ui/views/home_view.py` (`_on_mobile_import()`), `ui/views/world/world_view.py`
 (`_on_mobile_import_world()`), `pyproject.toml`, `requirements.txt`.
 
+### Stesso giorno — primo giro di CI reale (run #54): fallite tutte e 4 le build, causa trovata dal log, non ipotizzata
+
+Davide ha girato la CI subito dopo il commit sopra: **tutte e 4 le build** (Windows/macOS/Linux/Android) fallite allo
+stesso step (`flet build <piattaforma>`), non solo Android — segnale che la causa era a monte, comune a tutte le
+piattaforme, non specifica del mobile. `Install Python dependencies` invece passava ovunque: non un problema di
+packaging Python.
+
+**Causa, dal log CI reale di Davide (non un'altra ipotesi)**:
+```
+Because flet 0.86.5 depends on file_picker ^11.0.2 and every version
+of flet_file_picker from path depends on file_picker ^8.1.7, flet
+0.86.5 is incompatible with flet_file_picker from path.
+So, because dnd_companion depends on both flet_file_picker from path
+and flet 0.86.5, version solving failed.
+```
+`flet==0.86.5` dichiara internamente `file_picker ^11.0.2` — per il proprio `ft.FilePicker` ufficiale (quello
+confermato non funzionante su Android, non questa estensione: Flet lo bundla comunque come dipendenza Flutter). Il
+vincolo `^8.1.7` scritto nel pubspec di `flet_file_picker` alla prima stesura era stato scelto per analogia con
+`image_picker` (verificato su pub.dev a suo tempo), ma il numero di `file_picker` non era mai stato controllato
+davvero — un vincolo assunto, non verificato, esattamente l'errore che la disciplina di questo progetto vuole
+evitare. `pub` risolve le dipendenze Flutter dell'INTERO progetto in un colpo solo, prima di compilare per qualsiasi
+target: un conflitto di versione fa quindi fallire ogni piattaforma allo stesso modo, non solo quella "incriminata".
+
+**Fix, verificato sulla documentazione ufficiale prima di scrivere codice** (stessa disciplina di `flet_image_picker`,
+non un altro tentativo alla cieca): `file_picker` allineato a `^11.0.2`, la stessa versione già richiesta da Flet. Ma
+la sola versione non basta: `file_picker` 11.0.0 ha rifattorizzato `FilePicker` in una classe interamente statica,
+**rimuovendo il getter `.platform`** — `FilePicker.platform.pickFiles(...)` (sintassi 8.x, quella scritta nel primo
+giro) non compila più su 11.x, va chiamato `FilePicker.pickFiles(...)` direttamente. Verificato sulla documentazione
+pub.dev della release 11.0.2 prima di correggere: il resto della superficie usata (`FileType.custom`/`.any`,
+`allowedExtensions`, `withData`, `FilePickerResult.files`, `PlatformFile.name`/`.bytes`) risulta invariato tra 8.x e
+11.x, nessun'altra modifica necessaria.
+
+**Ancora non verificato**: nessuno dei due fix è stato compilato in questo sandbox (stesso limite di sempre, nessun
+toolchain Flutter/Dart). Corretti per lettura del log CI reale e della documentazione ufficiale, non per un'altra
+build alla cieca — ma resta da vedere al prossimo giro di CI se bastano, o se emerge un terzo problema (come successo
+per `flet_image_picker`: due giri prima di arrivare a Gradle, un `debugPrint` non importato al primo).
+
+File toccati: `dnd_app/extensions/flet_file_picker/src/flutter/flet_file_picker/pubspec.yaml` (versione vincolo),
+`.../lib/src/file_picker_service.dart` (`FilePicker.platform.pickFiles` → `FilePicker.pickFiles`), README.md della
+cartella (cronologia aggiornata).
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

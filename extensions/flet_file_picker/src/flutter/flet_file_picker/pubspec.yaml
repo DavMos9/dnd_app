@@ -12,10 +12,15 @@ dependencies:
     sdk: flutter
 
   # Pacchetto ufficiale più diffuso su pub.dev per selezione file arbitraria
-  # (publisher miguelpruivo). Vincolo "^" per ricevere fix compatibili senza
-  # bloccarsi su questa esatta patch — stessa convenzione di
-  # flet_image_picker/image_picker.
-  file_picker: ^8.1.7
+  # (publisher miguelpruivo). CORRETTO 2026-08-17 dopo un fallimento REALE
+  # di CI su tutte e 4 le piattaforme (build-windows/macos/linux/android,
+  # run #54, `flet build` in "version solving failed"): `flet==0.86.5`
+  # dichiara internamente `file_picker ^11.0.2` (per il suo `ft.FilePicker`
+  # ufficiale — quello confermato non funzionante su Android reale, non
+  # questa estensione), incompatibile col vincolo `^8.1.7` scritto qui alla
+  # prima stesura (mai verificato su pub.dev, solo assunto). Allineato alla
+  # stessa versione richiesta da Flet, non a un numero scelto a caso.
+  file_picker: ^11.0.2
 
   # Stesso path relativo (e stesso avviso di NON verificato) di
   # flet_image_picker/pubspec.yaml — va corretto puntando alla vera
