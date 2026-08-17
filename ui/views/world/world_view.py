@@ -11,6 +11,7 @@ nascosta in un menu, convenzione già stabilita nel progetto).
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -3496,13 +3497,37 @@ class WorldsView(ft.Column):
             legato al ciclo di vita di QUESTO dialogo, non un timer
             globale dell'app.
             """
-            import asyncio
-
             while True:
                 await asyncio.sleep(_PENDING_JOIN_POLL_INTERVAL_S)
                 if pending_state["backend"] is None:
                     return
-                result = world_sync.finish_pending_join(
+                # Fix 2026-08-17 (bug pesante segnalato da Davide: dopo
+                # l'approvazione del master, il giocatore restava bloccato
+                # — nemmeno "Annulla"/"Entra"/"Controlla di nuovo"
+                # rispondevano più, fino al riavvio dell'app). Causa:
+                # `world_sync.finish_pending_join()` è una chiamata
+                # SINCRONA (rete + parecchie scritture SQLite in
+                # `_finalize_join()`, una per ogni nota/mappa/personaggio
+                # dello snapshot) chiamata direttamente dentro questa
+                # coroutine — che gira sull'UNICO loop asyncio di Flet.
+                # Una chiamata sincrona lì blocca l'INTERA pagina (bottoni
+                # compresi) per tutta la sua durata, non solo questo
+                # dialogo — normalmente un attimo, ma dopo la protezione
+                # 2026-08-16 (che non abbandona più al primo elemento
+                # rotto ma prova ognuno) su un mondo con tanta storia
+                # accumulata la somma di più scritture, ciascuna
+                # eventualmente in attesa di un lock SQLite già preso da
+                # un altro ciclo di sync in background, poteva sommarsi a
+                # un blocco di parecchi secondi — abbastanza da sembrare
+                # "bloccato per sempre" a chi prova a cliccare nel
+                # frattempo. Fix: `asyncio.to_thread` sposta la chiamata
+                # bloccante su un thread separato, lasciando il loop (e
+                # quindi i bottoni) libero di rispondere nel frattempo —
+                # stesso principio già usato da `BackgroundSyncLoop`
+                # (`ui/components/background_sync.py`) per lo stesso
+                # identico motivo.
+                result = await asyncio.to_thread(
+                    world_sync.finish_pending_join,
                     pending_state["backend"], pending_state["request_id"],
                     pending_state["host_port"],
                 )
@@ -3580,7 +3605,7 @@ class WorldsView(ft.Column):
             )
             _report(result)
 
-        def _retry(e):
+        async def _retry(e):
             if pending_state["backend"] is None:
                 return
             remaining = self._network_cooldown_remaining()
@@ -3594,7 +3619,14 @@ class WorldsView(ft.Column):
             self._mark_network_request()
             self._start_network_cooldown_ticker(enter_btn, "Entra")
             self._start_network_cooldown_ticker(retry_btn, "Controlla di nuovo")
-            result = world_sync.finish_pending_join(
+            # Fix 2026-08-17 — stesso motivo di `_poll_pending_join_loop`
+            # qui sopra: `finish_pending_join()` è sincrona e bloccante,
+            # `async def` + `asyncio.to_thread` (Flet chiama direttamente
+            # gli handler `async def`, vedi `base_control.py`) evita che un
+            # click su "Controlla di nuovo" congeli l'intera pagina per
+            # tutta la sua durata.
+            result = await asyncio.to_thread(
+                world_sync.finish_pending_join,
                 pending_state["backend"], pending_state["request_id"],
                 pending_state["host_port"],
             )
