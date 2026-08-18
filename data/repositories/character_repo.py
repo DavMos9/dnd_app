@@ -672,6 +672,56 @@ def unarchive_world_instance(character_id: str) -> bool:
             conn.close()
 
 
+def set_host_sync_pending(character_id: str, pending: bool) -> bool:
+    """
+    Segna/toglie `host_sync_pending` su un'istanza di mondo (2026-08-18, bug
+    segnalato da Davide: push verso l'host fallito per host offline mai
+    ritentato). Acceso da `ui/views/home_view.py::_push_instance_to_host`
+    quando il comando `character_instance.sync` fallisce; spento lì stesso al
+    successo, o da `core/world_sync.py::push_pending_instances` quando il
+    retry in background va a buon fine.
+    """
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET host_sync_pending=?, updated_at=? WHERE id=?",
+            (1 if pending else 0, datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Errore set_host_sync_pending({character_id}): {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def list_pending_host_sync(world_id: str, owner_device_id: str) -> list[str]:
+    """
+    ID delle istanze di QUESTO dispositivo in `world_id` con un push verso
+    l'host mai confermato (`host_sync_pending=1`) — usata dal loop di sync in
+    `ui/views/world/world_view.py` per ritentare automaticamente quando
+    l'host torna raggiungibile. Vedi `set_host_sync_pending`.
+    """
+    conn = None
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT id FROM characters WHERE world_id=? AND owner_device_id=? "
+            "AND host_sync_pending=1",
+            (world_id, owner_device_id),
+        ).fetchall()
+        return [row["id"] for row in rows]
+    except Exception as e:
+        logger.error(f"Errore list_pending_host_sync({world_id}): {e}")
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def delete(character_id: str) -> bool:
     """
     Elimina un personaggio e tutti i dati collegati (CASCADE).

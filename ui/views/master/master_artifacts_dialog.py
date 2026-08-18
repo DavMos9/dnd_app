@@ -268,25 +268,36 @@ def show_artifacts_dialog(page: ft.Page, world_id: str = "") -> None:
                     border_radius=design.Radius.MD,
                 ))
         else:
-            body.controls.append(ft.Text(
-                data.get("properties_intro", ""), size=11,
-                color=design.T().text_2))
-            body.controls.append(ft.Row(
-                [ft.OutlinedButton(label, icon=ft.Icons.CASINO_OUTLINED,
-                                   on_click=lambda e, k=key, l=label, t=tone: _roll(k, l, t))
-                 for key, label, tone in _TABLES],
-                spacing=6, wrap=True,
-            ))
-            body.controls.append(result_col)
-            body.controls.append(ft.Divider(height=1, color=design.T().border))
-            body.controls.append(ft.Row(
+            # Audit anti-AI-slop (Arcane Ledger): scheletro condiviso
+            # `generator_dialog_shell()` — form "Parametri" (intro + le 4
+            # tabelle come pulsanti) + card "risultato" (level=2, accento
+            # primario, i tiri appena estratti) + azioni Assegna…/Salva
+            # nell'archivio. La card avvolge `result_col` come riferimento
+            # stabile: `_roll()` aggiorna solo il suo contenuto
+            # (`result_col.update()`), mai `_render()`, quindi deve restare
+            # presente anche a lista vuota — invariato, solo il contenitore
+            # attorno cambia.
+            form = ft.Column(
                 [
+                    ft.Text(data.get("properties_intro", ""), size=11,
+                            color=design.T().text_2),
+                    ft.Row(
+                        [ft.OutlinedButton(label, icon=ft.Icons.CASINO_OUTLINED,
+                                           on_click=lambda e, k=key, l=label, t=tone: _roll(k, l, t))
+                         for key, label, tone in _TABLES],
+                        spacing=6, wrap=True,
+                    ),
+                ],
+                spacing=design.Space.MD,
+            )
+            body.controls.append(design.generator_dialog_shell(
+                "Proprietà Casuali", ft.Icons.CASINO_OUTLINED, form, result_col,
+                actions=[
                     ft.OutlinedButton("Salva nell'archivio", icon=ft.Icons.ARCHIVE_OUTLINED,
                                       on_click=_on_save_property_to_archive),
                     ft.OutlinedButton("Assegna…", icon=ft.Icons.SEND_OUTLINED,
                                       on_click=_on_assign_property),
                 ],
-                spacing=8, wrap=True,
             ))
 
         try:

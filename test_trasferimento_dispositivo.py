@@ -739,8 +739,13 @@ def test_ui_si_costruisce() -> None:
 
     def _ha_pulsante_trasferimento(riga) -> bool:
         import flet as ft
-        for c in getattr(riga, "controls", []):
-            if isinstance(c, ft.IconButton) and c.icon == ft.Icons.PHONELINK_SETUP:
+        if isinstance(riga, ft.IconButton) and riga.icon == ft.Icons.PHONELINK_SETUP:
+            return True
+        content = getattr(riga, "content", None)
+        if content is not None and _ha_pulsante_trasferimento(content):
+            return True
+        for c in getattr(riga, "controls", []) or []:
+            if _ha_pulsante_trasferimento(c):
                 return True
         return False
 

@@ -34,7 +34,7 @@ from data.game_data.game_data_loader import (
     magic_item_category_base as _category_base,
     magic_item_rarity_bucket as _rarity_bucket,
 )
-from ui.theme import muted_text, title_text
+from ui.theme import muted_text
 from ui.widgets import responsive_dialog_width, wrap_dialog_actions
 from ui import design
 
@@ -134,16 +134,17 @@ class MagicItemsView(ft.Column):
             on_select=self._on_category_select,
             border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
 
-        header = ft.Container(
-            content=ft.Column(
+        header = design.card(
+            ft.Column(
                 [
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.AUTO_AWESOME, color=design.T().primary_icon, size=20),
-                            ft.Container(width=8),
-                            title_text("Oggetti Magici", size=18),
-                            ft.Container(width=8),
-                            muted_text(f"{len(self._all_items)} voci dalla Guida del Master", size=11),
+                            design.icon_badge(ft.Icons.AUTO_AWESOME, tone="magic"),
+                            ft.Container(width=design.Space.MD),
+                            design.hero_title(
+                                "Oggetti Magici",
+                                f"{len(self._all_items)} voci dalla Guida del Master",
+                            ),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         wrap=True,
@@ -154,7 +155,7 @@ class MagicItemsView(ft.Column):
                 ],
                 spacing=4,
             ),
-            padding=ft.Padding.all(16),
+            hero=True,
         )
         body = ft.Container(
             content=self._list_col,
@@ -209,18 +210,11 @@ class MagicItemsView(ft.Column):
             self._list_col.controls.append(self._item_card(it))
 
     def _empty_state(self) -> ft.Control:
-        return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Icon(ft.Icons.AUTO_AWESOME, size=48, color=design.T().border),
-                    ft.Container(height=10),
-                    muted_text("Nessun oggetto trovato con questi filtri.", size=13,
-                               text_align=ft.TextAlign.CENTER),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.Padding.all(32),
-            alignment=ft.Alignment.CENTER,
+        return design.empty_state(
+            ft.Icons.AUTO_AWESOME,
+            "Nessun oggetto trovato",
+            "Prova a modificare la ricerca o i filtri.",
+            tone="magic",
         )
 
     # ------------------------------------------------------------------
@@ -231,8 +225,8 @@ class MagicItemsView(ft.Column):
         return ft.Container(
             content=ft.Text(text, size=10, color=color, weight=ft.FontWeight.W_600),
             padding=ft.Padding.symmetric(horizontal=8, vertical=3),
-            border=ft.Border.all(1, color),
-            border_radius=10,
+            bgcolor=ft.Colors.with_opacity(0.12, color),
+            border_radius=design.Radius.PILL,
         )
 
     def _item_card(self, item: dict[str, Any]) -> ft.Control:
@@ -255,10 +249,13 @@ class MagicItemsView(ft.Column):
         if requires_att:
             chips.append(self._chip("Sintonia", design.T().warning))
 
-        return ft.Container(
-            content=ft.Row(
+        # Accento sinistro colorato per rarità (stesso token di `_rarity_color`
+        # già usato nel chip) — rinforza la scansione visiva della lista senza
+        # introdurre un nuovo colore.
+        return design.card(
+            ft.Row(
                 [
-                    ft.Icon(_category_icon(category), size=18, color=design.T().primary_icon),
+                    ft.Icon(_category_icon(category), size=18, color=design.T().magic),
                     ft.Container(width=10),
                     ft.Column(
                         [
@@ -278,12 +275,9 @@ class MagicItemsView(ft.Column):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            padding=ft.Padding.all(12),
-            bgcolor=design.T().surface,
-            shadow=design.elevation(1),
-            border_radius=8,
+            accent=_rarity_color(bucket),
+            padding=12,
             on_click=lambda e, it=item: self._open_detail(it),
-            ink=True,
         )
 
     def _open_detail(self, item: dict[str, Any]) -> None:
@@ -331,14 +325,7 @@ class MagicItemsView(ft.Column):
             show_snack(page, f"«{name}» salvato nell'archivio.")
 
         dlg = ft.AlertDialog(
-            title=ft.Row(
-                [
-                    ft.Icon(_category_icon(category), color=design.T().primary_icon, size=18),
-                    ft.Container(width=8),
-                    ft.Text(name, size=15, weight=ft.FontWeight.BOLD, color=design.T().text, expand=True),
-                ],
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
+            title=design.dialog_title(name, _category_icon(category), tone="magic"),
             content=ft.Container(
                 content=ft.Column(
                     [

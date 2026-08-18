@@ -520,11 +520,15 @@ class MapsView(ft.Column):
             pass
 
     def _build_top_toolbar(self) -> ft.Container:
+        # Momento tipografico dominante della schermata (`hero_title()`,
+        # Arcane Ledger) — prima un semplice `ft.Text` 16px, nessun titolo
+        # della sezione risultava davvero "hero" rispetto al resto.
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Text("Mappe", size=16, weight=ft.FontWeight.BOLD,
-                            color=design.T().text, expand=True),
+                    design.icon_badge(ft.Icons.MAP, tone="primary"),
+                    ft.Container(width=design.Space.MD),
+                    ft.Container(content=design.hero_title("Mappe"), expand=True),
                     ft.ElevatedButton(
                         "＋ Nuova Mappa", icon=ft.Icons.MAP,
                         on_click=lambda e: self._open_create_dialog(),
@@ -535,7 +539,7 @@ class MapsView(ft.Column):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.only(left=16, right=16, top=12, bottom=8),
+            padding=ft.Padding.only(left=16, right=16, top=16, bottom=16),
             bgcolor=design.T().surface_alt,
             border=ft.Border.only(bottom=ft.BorderSide(1, design.T().border)),
         )
@@ -590,8 +594,8 @@ class MapsView(ft.Column):
         n = len([s for s in json.loads(gm.annotations or "[]")
                  if s.get("type") == "stroke"])
 
-        return ft.Container(
-            content=ft.Row(
+        return design.card(
+            ft.Row(
                 [
                     thumb,
                     ft.Column(
@@ -610,9 +614,12 @@ class MapsView(ft.Column):
                                                             icon=ft.Icons.GESTURE),
                                         visible=bool(n),
                                     ),
+                                    # Icona PUBLIC rimossa (audit anti-AI-slop): il testo
+                                    # dice già esplicitamente lo stesso concetto — stesso
+                                    # principio già applicato in
+                                    # home_view.py::_section_label.
                                     ft.Container(
-                                        content=design.chip("Condiviso dal Master", "primary",
-                                                            icon=ft.Icons.PUBLIC),
+                                        content=design.chip("Condiviso dal Master", "primary"),
                                         visible=is_shared,
                                     ),
                                 ],
@@ -635,22 +642,18 @@ class MapsView(ft.Column):
                                           icon_color=design.T().text_2),
                             ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_size=18,
                                           on_click=lambda e, m=gm: self._confirm_delete(m),
-                                          icon_color=design.T().primary_icon),
+                                          icon_color=design.T().danger_icon),
                         ]),
                         spacing=0,
                     ),
                 ],
                 spacing=12, vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            bgcolor=design.T().surface, padding=design.Space.MD,
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
-            shadow=design.elevation(1),
-            border_radius=design.Radius.MD,
+            accent=design.T().primary,
+            padding=design.Space.MD,
             on_click=lambda e, m=gm: (
                 self._open_shared_map_readonly(m) if is_shared else self._open_detail(m)
             ),
-            ink=True,
-            animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
         )
 
     # ------------------------------------------------------------------
@@ -694,10 +697,7 @@ class MapsView(ft.Column):
         notes_tf = ft.TextField(
             value=gm.notes or "", multiline=True, min_lines=2, max_lines=6,
             hint_text="Note sulla mappa…",
-            text_style=ft.TextStyle(size=13, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().magic,
-            bgcolor=design.T().surface,
-            border_radius=design.field_style()['border_radius'])
+            **design.field_style())
 
         def save_notes(ev):
             maps_repo.update_map(gm.id, notes=notes_tf.value or "")
@@ -1552,18 +1552,12 @@ class MapsView(ft.Column):
 
         name_tf = ft.TextField(
             label="Nome mappa",
-            text_style=ft.TextStyle(size=13, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().magic,
-            bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-            border_radius=design.field_style()['border_radius'])
+            **design.field_style())
         notes_tf = ft.TextField(
             label="Note (opzionale)", multiline=True, min_lines=2, max_lines=5,
-            text_style=ft.TextStyle(size=13, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().magic,
-            bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-            border_radius=design.field_style()['border_radius'])
+            **design.field_style())
         img_data: list[str] = [""]
         img_label  = ft.Text("Nessuna immagine", size=11, color=design.T().text_3)
         img_preview = ft.Container(
@@ -1572,7 +1566,7 @@ class MapsView(ft.Column):
             shadow=design.elevation(1), border_radius=design.Radius.MD,
             alignment=ft.Alignment.CENTER,
         )
-        error_text = ft.Text("", size=11, color=design.T().primary)
+        error_text = ft.Text("", size=11, color=design.T().danger)
 
         def pick_image(ev: Any):
             if page.web:
@@ -1608,7 +1602,7 @@ class MapsView(ft.Column):
                 error_text.update()
 
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Nuova Mappa"),
+            title=design.dialog_title("Nuova Mappa", ft.Icons.ADD_LOCATION_ALT),
             content=ft.Column(
                 [
                     name_tf, notes_tf, ft.Container(height=4),
@@ -1653,19 +1647,13 @@ class MapsView(ft.Column):
 
         name_tf = ft.TextField(
             label="Nome mappa", value=gm.name or "",
-            text_style=ft.TextStyle(size=13, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().magic,
-            bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-            border_radius=design.field_style()['border_radius'])
+            **design.field_style())
         notes_tf = ft.TextField(
             label="Note", value=gm.notes or "",
             multiline=True, min_lines=2, max_lines=5,
-            text_style=ft.TextStyle(size=13, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().magic,
-            bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_2),
-            border_radius=design.field_style()['border_radius'])
+            **design.field_style())
         img_data: list[str] = [gm.image_data or ""]
         img_label = ft.Text(
             "Immagine corrente" if gm.image_data else "Nessuna immagine",
@@ -1685,7 +1673,7 @@ class MapsView(ft.Column):
                 shadow=design.elevation(1), border_radius=design.Radius.MD,
                 alignment=ft.Alignment.CENTER,
             )
-        error_text = ft.Text("", size=11, color=design.T().primary)
+        error_text = ft.Text("", size=11, color=design.T().danger)
 
         def pick_image(ev: Any):
             if page.web:
@@ -1722,7 +1710,7 @@ class MapsView(ft.Column):
             self._back_to_list()
 
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Modifica Mappa"),
+            title=design.dialog_title("Modifica Mappa", ft.Icons.EDIT_LOCATION_ALT),
             content=ft.Column(
                 [
                     name_tf, notes_tf, ft.Container(height=4),
@@ -1771,7 +1759,7 @@ class MapsView(ft.Column):
             self._back_to_list()
 
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Elimina Mappa"),
+            title=design.dialog_title("Elimina Mappa", ft.Icons.DELETE_FOREVER, tone="danger"),
             content=ft.Text(
                 f'Eliminare "{gm.name}"?\nVerranno rimossi anche tutti i disegni.',
                 size=13, color=design.T().text,
@@ -1780,7 +1768,7 @@ class MapsView(ft.Column):
                 ft.TextButton("Annulla", on_click=lambda ev: page.pop_dialog()),
                 ft.ElevatedButton("Elimina", on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary_fill, color=design.CHROME.text)),
+                                      bgcolor=design.T().danger_fill, color=design.CHROME.text)),
             ]),
         ))
 

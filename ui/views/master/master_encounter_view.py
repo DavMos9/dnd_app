@@ -43,7 +43,7 @@ from ui.components.monster_picker import (
     show_monster_picker, show_stat_block_dialog,
 )
 from ui.components.roll_panel import show_roll
-from ui.theme import title_text, muted_text, primary_button
+from ui.theme import muted_text, primary_button
 from ui import design
 from ui.widgets import ScrollMemoryColumn, wrap_dialog_actions, responsive_dialog_width, show_snack
 
@@ -318,13 +318,23 @@ class MasterEncounterView(ScrollMemoryColumn):
                                 tooltip="Torna alla lista incontri",
                                 on_click=lambda e: self.on_back_to_list(),
                             ),
-                            ft.Column(
-                                [
-                                    title_text(enc.name or "(senza nome)", size=18),
-                                    design.chip(f"Round {enc.round_number}", "primary",
-                                                icon=ft.Icons.REPLAY),
-                                ],
-                                spacing=design.Space.XS,
+                            ft.Container(width=design.Space.XS),
+                            # Momento tipografico dominante della schermata
+                            # (Arcane Ledger, `design.hero_title`) — avvolto in un
+                            # `Container(expand=True)` così il nome dell'incontro,
+                            # se lungo, va a capo invece di traboccare oltre il
+                            # bordo su schermi stretti (il pulsante indietro e il
+                            # chip round restano a larghezza fissa).
+                            ft.Container(
+                                content=ft.Column(
+                                    [
+                                        design.hero_title(enc.name or "(senza nome)"),
+                                        design.chip(f"Round {enc.round_number}", "primary",
+                                                    icon=ft.Icons.REPLAY),
+                                    ],
+                                    spacing=design.Space.XS, tight=True,
+                                ),
+                                expand=True,
                             ),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -411,6 +421,14 @@ class MasterEncounterView(ScrollMemoryColumn):
             "npc": design.T().primary,
             "adhoc": design.T().text_3,
         }.get(source, design.T().text_3)
+        # Stesse chiavi di `icon_color` sopra, come token `Tone` per
+        # `design.icon_badge()` (la "forma-firma" Arcane Ledger: icona in un
+        # cerchietto tinto, invece della semplice `ft.Icon` nuda di prima).
+        icon_tone: design.Tone = {
+            "character": "magic",
+            "npc": "primary",
+            "adhoc": "neutral",
+        }.get(source, "neutral")
 
         hp_ratio = (hp_current / hp_max) if hp_max else 0
         hp_color = design.T().text
@@ -470,11 +488,13 @@ class MasterEncounterView(ScrollMemoryColumn):
                 ft.Row(
                     [
                         ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE, icon_size=16,
-                                      icon_color=design.T().text_3,
+                                      icon_color=design.T().danger_icon,
+                                      tooltip="Applica danno",
                                       on_click=lambda e, mm=m: self._on_hp_delta(mm, -1)),
                         ft.Text(f"PF {hp_current}/{hp_max}", size=12, color=hp_color, weight=ft.FontWeight.W_600),
                         ft.IconButton(ft.Icons.ADD_CIRCLE_OUTLINE, icon_size=16,
-                                      icon_color=design.T().text_3,
+                                      icon_color=design.T().primary_icon,
+                                      tooltip="Applica cura",
                                       on_click=lambda e, mm=m: self._on_hp_delta(mm, 1)),
                     ],
                     spacing=0, tight=True,
@@ -497,7 +517,12 @@ class MasterEncounterView(ScrollMemoryColumn):
             ))
 
         close_btn = ft.IconButton(
-            icon=ft.Icons.CLOSE, icon_color=design.T().text_3, icon_size=18,
+            # Rimuove il combattente dall'incontro — azione distruttiva,
+            # tinta `danger_icon` invece del neutro `text_3` di prima (stesso
+            # bug latente di "primary invece di danger" descritto per gli
+            # altri file del rifacimento: qui non c'era `primary`, ma il
+            # neutro non segnalava comunque che l'azione è irreversibile).
+            icon=ft.Icons.CLOSE, icon_color=design.T().danger_icon, icon_size=18,
             tooltip="Rimuovi dall'incontro",
             on_click=lambda e, mm=m: self._on_remove_member(mm),
         )
@@ -546,7 +571,10 @@ class MasterEncounterView(ScrollMemoryColumn):
                     spacing=2, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 ft.Container(width=design.Space.MD),
-                ft.Icon(icon, color=icon_color, size=20),
+                # Icona tipo combattente nel cerchietto tinto — la
+                # "forma-firma" di Arcane Ledger (`design.icon_badge`),
+                # prima un'icona nuda senza fondo.
+                design.icon_badge(icon, tone=icon_tone, size=28),
                 ft.Container(width=design.Space.SM),
                 ft.Text(name, size=15, weight=ft.FontWeight.BOLD,
                         color=design.T().text, font_family=design.Font.DISPLAY,
@@ -561,9 +589,22 @@ class MasterEncounterView(ScrollMemoryColumn):
             spacing=design.Space.SM, wrap=True,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
+        # Barra PF a segmenti (`design.hp_bar`, già in uso in
+        # `combattimento_tab.py`) invece del solo numero in `stats_row` —
+        # su un pannello con molti combattenti si vede a colpo d'occhio chi
+        # è messo peggio, senza dover leggere ogni singolo "PF x/y". Slim
+        # (`height=6`, contro il default 14 pensato per un solo PG in
+        # primo piano) per restare un indicatore secondario in una riga
+        # densa, non un elemento hero. Nessun PF temporaneo tracciato per
+        # questo modello dati (`temp=0` di default, invariato).
+        hp_bar_row = design.hp_bar(hp_current, hp_max, height=6)
 
         return ft.Container(
-            content=ft.Column([top_row, ft.Container(height=design.Space.SM), bottom_row], spacing=0),
+            content=ft.Column(
+                [top_row, ft.Container(height=6), hp_bar_row,
+                 ft.Container(height=design.Space.SM), bottom_row],
+                spacing=0,
+            ),
             padding=ft.Padding.all(design.Space.MD),
             bgcolor=design.T().surface,
             # Il combattente di turno è l'unico con accento pieno e ombra più
@@ -1229,7 +1270,7 @@ class MasterEncounterView(ScrollMemoryColumn):
         result_col = ft.Column([], spacing=6)
         ghost_row = ft.Row([], spacing=6, wrap=True)
         ghost_tf = ft.TextField(label="Livello PG fantasma", value="1", width=140, dense=True,
-                                 border_radius=design.Radius.SM, keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+                                 keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
 
         def _recompute():
             levels = party_levels + ghost_levels
@@ -1251,7 +1292,13 @@ class MasterEncounterView(ScrollMemoryColumn):
                 ),
                 ft.Container(height=6),
                 ft.Container(
-                    content=ft.Text(diff_label.upper(), size=16, weight=ft.FontWeight.BOLD, color=design.T().on_primary,
+                    # `on_accent`, non `on_primary`: `diff_color` è
+                    # `design.difficulty_color()`, che varia su
+                    # text_3/success/warning/alert/danger — quasi mai
+                    # `primary` — quindi il token semanticamente corretto per
+                    # il testo sopra è quello pensato per riempimenti
+                    # generici, non quello specifico di `primary`.
+                    content=ft.Text(diff_label.upper(), size=16, weight=ft.FontWeight.BOLD, color=design.T().on_accent,
                                      text_align=ft.TextAlign.CENTER),
                     bgcolor=diff_color, border_radius=design.Radius.MD, padding=ft.Padding.symmetric(vertical=8),
                     alignment=ft.Alignment.CENTER,
@@ -1472,7 +1519,7 @@ class MasterEncounterView(ScrollMemoryColumn):
             return
         page = self._page
         init_tf = ft.TextField(label="Iniziativa", value=str(member.initiative), dense=True,
-                                border_radius=design.Radius.SM, autofocus=True, keyboard_type=ft.KeyboardType.NUMBER, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+                                autofocus=True, keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
 
         def _do_save(_e: Any):
             master_repo.update_member_initiative(member.id, _int_or(init_tf.value, member.initiative))
@@ -1574,8 +1621,7 @@ class MasterEncounterView(ScrollMemoryColumn):
         char_dd = ft.Dropdown(
             label="Personaggio",
             options=[ft.DropdownOption(key=c.id, text=f"{c.name} (Lv.{c.level} {c.class_name})") for c in available],
-            value=available[0].id, dense=True, border_radius=design.Radius.SM,
-            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+            value=available[0].id, dense=True, **design.field_style())
         init_tf = ft.TextField(label="Iniziativa", value="10", dense=True, width=120,
                                 keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
 
@@ -1623,8 +1669,7 @@ class MasterEncounterView(ScrollMemoryColumn):
         npc_dd = ft.Dropdown(
             label="NPC",
             options=[ft.DropdownOption(key=n.id, text=n.name or "(senza nome)") for n in npcs],
-            value=npcs[0].id, dense=True, border_radius=design.Radius.SM,
-            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+            value=npcs[0].id, dense=True, **design.field_style())
         init_tf = ft.TextField(label="Iniziativa", value="10", dense=True, width=100,
                                 keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         qty_tf = ft.TextField(label="Quantità", value="1", dense=True, width=90,
@@ -1738,7 +1783,7 @@ class MasterEncounterView(ScrollMemoryColumn):
         if not self._page:
             return
         page = self._page
-        name_tf = ft.TextField(label="Nome *", dense=True, border_radius=design.Radius.SM, autofocus=True, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+        name_tf = ft.TextField(label="Nome *", dense=True, autofocus=True, **design.field_style())
         ac_tf = ft.TextField(label="CA", value="10", dense=True, width=90,
                               keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
         hp_tf = ft.TextField(label="PF", value="10", dense=True, width=90,

@@ -257,6 +257,86 @@ def test_host_rejects_wrong_world() -> None:
           not bad_result.success)
 
 
+def test_push_retries_automatically_when_host_was_offline() -> None:
+    print("\n[6] Bug segnalato da Davide (2026-08-18): host offline al momento "
+         "del push -> il personaggio resta 'nel mondo' solo in locale finché "
+         "l'host non torna raggiungibile, poi il loop di sync lo registra da solo")
+
+    host_world = world_repo.create_world("Mondo Sync PG Offline", "dev-owner", "Il Master")
+    assert host_world is not None
+    host = WorldHostServer(host_world.id, long_poll_timeout=2.0, announce=False)
+    port = host.start()
+    check("l'host si avvia", isinstance(port, int) and port > 0)
+    try:
+        world_repo.join_world_by_code(host_world.join_code, "dev-player", "Il Giocatore")
+        join_backend = RemoteBackend("127.0.0.1", port, "dev-player")
+        outcome = join_backend.join(host_world.join_code, host.pin, "Il Giocatore")
+        check("il giocatore entra ed è già noto", outcome.status == "approved")
+
+        local_char = _make_local_character("Sarovin")
+        result = ci.create_or_resume_instance(host_world.id, local_char.id, "dev-player",
+                                               mode="as_is")
+        assert result.success, result.error
+        character_id = result.character_id
+
+        from data.database import get_connection
+        _conn = get_connection()
+        # Host "offline": nessun server in ascolto su questa porta finta —
+        # stessa causa reale di "il master smette di ospitare" (§7 del bug
+        # report: la porta non risponde più, non solo il token è scaduto).
+        _conn.execute(
+            "UPDATE worlds SET is_local_host=0, last_seen_host=?, session_token=? WHERE id=?",
+            ("127.0.0.1:1", join_backend.token or "", host_world.id),
+        )
+        _conn.commit()
+        _conn.close()
+
+        world_backend.reset_host_cooldowns_for_tests()
+        world_sync.reset_client_cooldowns_for_tests()
+
+        from ui.views.home_view import HomeView
+        home = HomeView.__new__(HomeView)
+        home.device_id = "dev-player"
+        home._show_error = lambda msg: None  # atteso: il push fallisce
+        home._push_instance_to_host(host_world.id, character_id)
+
+        pending = character_repo.list_pending_host_sync(host_world.id, "dev-player")
+        check("l'istanza è marcata in sospeso dopo il fallimento del push",
+              character_id in pending)
+
+        events_before = world_repo.get_events_since(host_world.id, 0)
+        sync_before = [e for e in events_before if e.kind == perm.CMD_CHARACTER_INSTANCE_SYNC]
+        check("l'host non ha ancora ricevuto nulla mentre era irraggiungibile",
+              len(sync_before) == 0)
+
+        # L'host "torna online": ripristina l'indirizzo vero (stessa porta di
+        # prima, server ancora in esecuzione — non serve riavviarlo per
+        # testare il retry, solo che torni raggiungibile).
+        _conn = get_connection()
+        _conn.execute(
+            "UPDATE worlds SET last_seen_host=? WHERE id=?",
+            (f"127.0.0.1:{port}", host_world.id),
+        )
+        _conn.commit()
+        _conn.close()
+
+        world_sync.reset_client_cooldowns_for_tests()
+        pushed = world_sync.push_pending_instances(join_backend, host_world.id, "dev-player")
+        check("push_pending_instances registra l'istanza rimasta in sospeso",
+              pushed == 1)
+
+        pending_after = character_repo.list_pending_host_sync(host_world.id, "dev-player")
+        check("nessuna istanza resta in sospeso dopo il retry riuscito",
+              pending_after == [])
+
+        events_after = world_repo.get_events_since(host_world.id, 0)
+        sync_after = [e for e in events_after if e.kind == perm.CMD_CHARACTER_INSTANCE_SYNC]
+        check("l'host ha ora ricevuto esattamente un evento character_instance.sync",
+              len(sync_after) == 1)
+    finally:
+        host.stop()
+
+
 def test_host_device_does_not_push() -> None:
     print("\n[5] Il dispositivo che OSPITA il mondo non invia mai il comando (non serve)")
     from ui.views.home_view import HomeView
@@ -293,6 +373,7 @@ def main() -> int:
     test_push_registers_instance_on_real_host()
     test_host_rejects_wrong_owner()
     test_host_rejects_wrong_world()
+    test_push_retries_automatically_when_host_was_offline()
     test_host_device_does_not_push()
 
     print("\n" + "=" * 70)

@@ -30,7 +30,7 @@ import flet as ft
 
 from data.models import MasterEncounter
 from data.repositories import master_repo
-from ui.theme import title_text, primary_button
+from ui.theme import primary_button
 from ui.views.master.master_encounter_view import MasterEncounterView
 from ui.widgets import wrap_dialog_actions, responsive_dialog_width
 from ui import design
@@ -96,7 +96,10 @@ class MasterEncounterListView(ft.Column):
 
         self.scroll = ft.ScrollMode.AUTO
 
-        header_children: list[ft.Control] = [title_text("Incontri", size=18)]
+        # Unico momento "hero" di questa tab (Arcane Ledger): il titolo era
+        # prima un `title_text()` di taglia fissa (18px) come qualunque altro
+        # testo — qui è la vera intestazione della schermata "Incontri".
+        header_children: list[ft.Control] = [design.hero_title("Incontri")]
         if not self._show_archived:
             # wrap=True: su schermi stretti (smartphone) i due pulsanti vanno
             # a capo invece di traboccare — stessa convenzione ormai
@@ -216,12 +219,7 @@ class MasterEncounterListView(ft.Column):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(
-                        content=ft.Icon(card_icon, color=design.T().primary_icon, size=22),
-                        width=44, height=44, alignment=ft.Alignment.CENTER,
-                        bgcolor=ft.Colors.with_opacity(0.12, design.T().primary_fill),
-                        border_radius=design.Radius.PILL,
-                    ),
+                    design.icon_badge(card_icon, tone="primary", size=44),
                     ft.Container(width=design.Space.MD),
                     ft.Column(
                         [

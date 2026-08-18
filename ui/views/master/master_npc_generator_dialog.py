@@ -281,7 +281,12 @@ def show_npc_generator_dialog(
 
     _render_result()
 
-    content = ft.Column(
+    # Audit anti-AI-slop (Arcane Ledger): scheletro condiviso `generator_
+    # dialog_shell()` — intestazione + form "Parametri" + card "risultato"
+    # (level=2, accento primario, gli NPC appena generati) + eventuale
+    # feedback di salvataggio. Nessun dato/callback cambia, solo
+    # l'assemblaggio visivo.
+    form = ft.Column(
         [
             ft.Row([race_dd, gender_dd], spacing=10, wrap=True),
             ft.Row([alignment_dd, role_dd], spacing=10, wrap=True),
@@ -291,12 +296,19 @@ def show_npc_generator_dialog(
                 "Genera", icon=ft.Icons.AUTO_AWESOME, on_click=_on_generate,
                 style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
             ),
-            ft.Divider(height=1, color=design.T().border),
-            ft.Container(content=result_col, expand=True),
-            feedback_text,
         ],
-        spacing=10, scroll=ft.ScrollMode.AUTO,
-        width=responsive_dialog_width(page, 460), height=600,
+        spacing=design.Space.MD,
+    )
+
+    shell = design.generator_dialog_shell(
+        "Genera NPC", None, form, result_col,
+        actions=[feedback_text],
+    )
+
+    content = ft.Column(
+        [shell],
+        spacing=0, scroll=ft.ScrollMode.AUTO,
+        width=responsive_dialog_width(page, 460), height=640,
         tight=True,
     )
 
@@ -304,7 +316,6 @@ def show_npc_generator_dialog(
         page.pop_dialog()
 
     dlg = ft.AlertDialog(
-        title=design.dialog_title("Genera NPC"),
         content=content,
         actions=wrap_dialog_actions([ft.TextButton("Chiudi", on_click=_close)]),
     )

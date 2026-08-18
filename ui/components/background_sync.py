@@ -138,7 +138,24 @@ class BackgroundSyncLoop:
                         self._thread_name, e)
 
             if changed or redraw_anyway:
-                page = self._get_page()
+                try:
+                    page = self._get_page()
+                except Exception as e:
+                    # Bug segnalato da Davide (2026-08-18): la sessione può
+                    # terminare (tab chiusa/ricaricata) tra un giro e
+                    # l'altro di questo thread — `self.page` su un Control
+                    # non più agganciato a una pagina viva solleva
+                    # RuntimeError ("Control must be added to the page
+                    # first", stesso meccanismo già documentato in
+                    # regole_flet_api.md per l'accesso PRIMA di page.add(),
+                    # qui innescato DOPO che la sessione è stata smontata).
+                    # `_get_page()` era l'unica delle callback di questo
+                    # loop non protetta come le altre tre sopra — un giro
+                    # saltato qui non perde nulla: il prossimo redraw
+                    # arriverà comunque al prossimo cambiamento di firma.
+                    logger.debug("BackgroundSyncLoop(%s): get_page fallita: %s",
+                                 self._thread_name, e)
+                    page = None
                 if page is not None:
                     page.run_task(self._async_redraw_fn)
 

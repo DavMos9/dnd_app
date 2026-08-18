@@ -192,31 +192,32 @@ def show_forest_encounters_dialog(page: ft.Page, world_id: str = "") -> None:
             )
         )
     else:
-        content_controls.extend(
+        # Audit anti-AI-slop (Arcane Ledger): scheletro condiviso `generator_
+        # dialog_shell()` — intestazione + form "Parametri" + card
+        # "risultato" (level=2, accento primario, la riga appena tirata) +
+        # azione "Aggiungi Incontro". Nessun dato/callback cambia.
+        form = ft.Column(
             [
                 env_dd,
                 ft.ElevatedButton(
                     "Tira 1d12+1d8", icon=ft.Icons.CASINO, on_click=_on_roll,
                     style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
                 ),
-                ft.Divider(height=1, color=design.T().border),
-                ft.Container(
-                    content=result_col, bgcolor=design.T().bg,
-                    border_radius=design.Radius.MD, padding=ft.Padding.all(12),
-                ),
-                ft.Divider(height=1, color=design.T().border),
-                name_tf,
-                ft.OutlinedButton("Aggiungi Incontro", icon=ft.Icons.ADD, on_click=_on_add_encounter),
-            ]
+            ],
+            spacing=design.Space.MD,
         )
+        content_controls.append(design.generator_dialog_shell(
+            "Genera Incontro per Ambiente", ft.Icons.FOREST, form, result_col,
+            actions=[name_tf, ft.OutlinedButton("Aggiungi Incontro", icon=ft.Icons.ADD, on_click=_on_add_encounter)],
+        ))
 
     content = ft.Column(
         content_controls, spacing=10, scroll=ft.ScrollMode.AUTO,
-        width=responsive_dialog_width(page, 420), height=480, tight=True,
+        width=responsive_dialog_width(page, 420), height=560, tight=True,
     )
 
     dlg = ft.AlertDialog(
-        title=design.dialog_title("Genera Incontro per Ambiente"),
+        title=design.dialog_title("Genera Incontro per Ambiente") if empty_state else None,
         content=content,
         actions=wrap_dialog_actions([ft.TextButton("Chiudi", on_click=_close)]),
     )

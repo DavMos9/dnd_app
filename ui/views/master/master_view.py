@@ -48,7 +48,6 @@ from core.world_permissions import ROLE_MASTER, ROLE_OWNER
 from data.models import World
 from data.repositories import settings_repo, world_repo
 from ui.device_identity import resolve_device_id
-from ui.theme import title_text, muted_text
 from ui import design
 
 #: Chiave `app_settings` per l'ultimo mondo masterato — vedi il docstring
@@ -203,7 +202,7 @@ class MasterView(ft.Column):
     def _build(self):
         self.controls.clear()
 
-        title = title_text("Modalità Master", size=20)
+        title = design.title("Modalità Master", size=20)
         # `no_wrap` + `overflow=ELLIPSIS` + `max_lines=1`: senza questi tre,
         # un `ft.Text` dentro un `Container(expand=True)` va semplicemente a
         # capo quando lo spazio disponibile si stringe — su uno smartphone
@@ -227,7 +226,7 @@ class MasterView(ft.Column):
                         tooltip="Torna alla Home",
                         on_click=lambda e: self.on_back_to_home(),
                     ),
-                    ft.Icon(ft.Icons.CASTLE_OUTLINED, color=design.T().primary_icon, size=22),
+                    design.icon_badge(ft.Icons.CASTLE_OUTLINED, tone="primary", size=32),
                     ft.Container(width=8),
                     ft.Container(content=title, expand=True),
                     *self._world_quick_nav_action(),
@@ -755,18 +754,15 @@ class MasterView(ft.Column):
         return ft.Container()
 
     def _placeholder(self, icon, title: str, subtitle: str) -> ft.Control:
+        # Audit anti-AI-slop: riusa la primitiva condivisa `design.empty_state()`
+        # invece della Column scritta a mano che duplicava esattamente lo stesso
+        # pattern icona+titolo+sottotitolo centrati — l'outer Container(expand=
+        # True, alignment=CENTER) resta qui per mantenere lo stesso centraggio
+        # verticale a piena altezza dentro `_content_area` (`empty_state()` da
+        # sola centra solo se il genitore le lascia spazio, non essendo lei
+        # stessa `expand`).
         return ft.Container(
             expand=True,
-            content=ft.Column(
-                [
-                    ft.Icon(icon, size=64, color=design.T().border),
-                    ft.Container(height=16),
-                    title_text(title, size=22),
-                    ft.Container(height=8),
-                    muted_text(subtitle, size=13, text_align=ft.TextAlign.CENTER),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                expand=True,
-            ),
+            alignment=ft.Alignment.CENTER,
+            content=design.empty_state(icon, title, subtitle),
         )

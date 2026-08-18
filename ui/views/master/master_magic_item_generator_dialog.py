@@ -138,7 +138,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
         options=[ft.DropdownOption(key=c.id, text=f"{c.name} (Lv.{c.level})") for c in characters],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-        disabled=not characters,
+        disabled=not characters, width=260,
         border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
     feedback_text = ft.Text("", size=11, color=design.T().magic)
 
@@ -452,13 +452,23 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
 
     _refresh_generator_body()
 
-    content = ft.Column(
+    # Audit anti-AI-slop (Arcane Ledger): scheletro condiviso `generator_
+    # dialog_shell()` — intestazione + form "Parametri" (selettore
+    # Casuale/Personalizzato + campi specifici del modo) + card "risultato"
+    # (level=2, accento primario, l'oggetto appena estratto/creato) + azioni
+    # secondarie (scorciatoia inventario + Assegna…/Salva nell'archivio).
+    # Nessun dato/callback cambia, solo l'assemblaggio visivo.
+    form = ft.Column(
         [
             ft.Container(content=_build_mode_switch(), ref=mode_switch_holder),
             generator_body_col,
-            ft.Divider(height=1, color=design.T().border),
-            ft.Container(content=result_col, expand=True),
-            ft.Divider(height=1, color=design.T().border),
+        ],
+        spacing=design.Space.MD,
+    )
+
+    shell = design.generator_dialog_shell(
+        "Genera Oggetto Magico", None, form, result_col,
+        actions=[
             char_dd,
             ft.ElevatedButton(
                 "Aggiungi all'inventario", icon=ft.Icons.ADD_SHOPPING_CART,
@@ -466,11 +476,14 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
                 style=ft.ButtonStyle(bgcolor=design.T().magic, color=design.T().on_accent),
             ),
             feedback_text,
-            ft.Divider(height=1, color=design.T().border),
             loot_btn_row,
         ],
-        spacing=10, scroll=ft.ScrollMode.AUTO,
-        width=responsive_dialog_width(page, 440), height=560,
+    )
+
+    content = ft.Column(
+        [shell],
+        spacing=0, scroll=ft.ScrollMode.AUTO,
+        width=responsive_dialog_width(page, 440), height=640,
         tight=True,
     )
 
@@ -478,7 +491,6 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
         page.pop_dialog()
 
     dlg = ft.AlertDialog(
-        title=design.dialog_title("Genera Oggetto Magico"),
         content=content,
         actions=wrap_dialog_actions([ft.TextButton("Chiudi", on_click=_close)]),
     )

@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 
 from core import world_permissions as perm
 from data.models import World, WorldChangeRequest, WorldEvent, WorldRejoinRequest
-from data.repositories import character_export, maps_repo, master_repo, world_repo
+from data.repositories import character_export, character_repo, maps_repo, master_repo, world_repo
 from network import protocol
 
 logger = logging.getLogger(__name__)
@@ -582,6 +582,50 @@ def sync_replica(remote_backend, local_world_id: str, refresh_members: bool = Tr
         _refresh_snapshot_derived_state(remote_backend, local_world_id)
 
     return applied
+
+
+def push_pending_instances(remote_backend, local_world_id: str, device_id: str) -> int:
+    """
+    Ritenta il push verso l'host delle istanze di QUESTO dispositivo rimaste
+    con `host_sync_pending=1` (2026-08-18, bug segnalato da Davide: se
+    `HomeView._push_instance_to_host()` falliva perché l'host era offline nel
+    momento della creazione, il personaggio restava "nel mondo" solo in
+    locale finché non si ripeteva l'operazione a mano con l'host online).
+
+    Va chiamata dallo stesso loop periodico che già chiama `sync_replica()`
+    (`ui/views/world/world_view.py`) — qui, non in `sync_replica()` stessa,
+    perché è un comando in USCITA (stato locale → host), non uno stato
+    scaricato dall'host. Rispetta lo stesso cooldown anti-spam di
+    `HomeView._push_instance_to_host()` (`instance_push_cooldown_remaining`/
+    `mark_instance_push`, stesso tracciato condiviso). Ritorna il numero di
+    istanze registrate con successo in questo giro.
+    """
+    if instance_push_cooldown_remaining() > 0:
+        return 0
+    pending_ids = character_repo.list_pending_host_sync(local_world_id, device_id)
+    if not pending_ids:
+        return 0
+    mark_instance_push()
+
+    pushed = 0
+    for character_id in pending_ids:
+        export_data = character_export.export_character(character_id)
+        if export_data is None:
+            logger.error("push_pending_instances: export fallito per %s", character_id)
+            continue
+        result = remote_backend.send_command(
+            local_world_id, device_id, perm.CMD_CHARACTER_INSTANCE_SYNC,
+            {"export": export_data}, target_type="character", target_id=character_id,
+        )
+        if result.success:
+            character_repo.set_host_sync_pending(character_id, False)
+            pushed += 1
+        else:
+            logger.warning(
+                "push_pending_instances: registrazione %s ancora rifiutata: %s",
+                character_id, result.error,
+            )
+    return pushed
 
 
 def _refresh_snapshot_derived_state(remote_backend, local_world_id: str) -> None:

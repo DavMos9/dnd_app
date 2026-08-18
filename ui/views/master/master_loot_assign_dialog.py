@@ -85,6 +85,12 @@ _KIND_LABELS: dict[str, str] = {
     "coins": "Monete",
 }
 
+#: Stesso registro cromatico "arcano" già usato in `master_loot_view.py`
+#: (voci d'archivio/deposito): il chip di una voce magica prende il tono
+#: `magic` (indaco) invece del generico `primary`, per distinguerla a colpo
+#: d'occhio dalle voci mondane anche in questo dialog di assegnazione.
+_MAGIC_KINDS: frozenset[str] = frozenset({"magic_item", "artifact"})
+
 _COIN_ORDER = ("platinum", "gold", "electrum", "silver", "copper")
 _COIN_LABELS = {"copper": "mr", "silver": "ma", "electrum": "me", "gold": "mo", "platinum": "mp"}
 
@@ -287,7 +293,8 @@ def show_loot_assign_dialog(
         header = ft.Row(
             [
                 ft.Checkbox(value=state["included"], on_change=lambda e, i=index: _on_toggle_included(i, e)),
-                design.chip(_KIND_LABELS.get(it["entry_kind"], it["entry_kind"]), "primary"),
+                design.chip(_KIND_LABELS.get(it["entry_kind"], it["entry_kind"]),
+                            "magic" if it["entry_kind"] in _MAGIC_KINDS else "neutral"),
                 ft.Text(f"{it.get('name', '')}" + (f" ×{qty}" if qty > 1 else ""),
                         size=13, weight=ft.FontWeight.BOLD, color=design.T().text, expand=True,
                         no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS),
@@ -330,11 +337,12 @@ def show_loot_assign_dialog(
             body.append(ft.Text(f"Assegnate: {assigned} / {qty}", size=11,
                                  color=design.tone_color(tone), weight=ft.FontWeight.BOLD))
 
-        return ft.Container(
-            content=ft.Column(body, spacing=6),
-            padding=design.Space.MD, bgcolor=design.T().surface,
-            border_radius=design.Radius.MD, border=ft.Border.all(1, design.T().border),
-        )
+        # Audit anti-AI-slop: `design.card()` (barra accento sinistra + ombra
+        # a strati) invece del riquadro bordato manuale — stessa primitiva
+        # già in uso nel resto dell'app per una card di livello standard
+        # (level=1, nessun elemento è "hero" qui: sono N voci configurate in
+        # parallelo, non un risultato singolo da mettere in risalto).
+        return design.card(ft.Column(body, spacing=6))
 
     def _render_items() -> None:
         items_col.controls.clear()

@@ -98,7 +98,13 @@ def show_traps_dialog(page: ft.Page) -> None:
         state["result"]["rolled_damage"] = tg.roll_trap_damage(state["char_level"], state["severity"])
         _render_suggest_result()
 
-    suggest_view = ft.Column(
+    # Audit anti-AI-slop (Arcane Ledger): scheletro condiviso `generator_
+    # dialog_shell()` per la scheda "Suggerisci" — stessa card "risultato"
+    # (level=2, accento primario) di ogni altro generatore, invece del
+    # riquadro costruito a mano. Titolo/icona distinti dall'etichetta della
+    # scheda ("Suggerisci" sopra) solo per differenziare visivamente
+    # l'intestazione dal tab attivo, nessun cambio di dato/callback.
+    suggest_form = ft.Column(
         [
             level_dd,
             severity_group,
@@ -110,15 +116,13 @@ def show_traps_dialog(page: ft.Page) -> None:
                     ),
                     ft.OutlinedButton("Tira Danno", icon=ft.Icons.CASINO, on_click=_on_roll_damage),
                 ],
-                spacing=8,
-            ),
-            ft.Divider(height=1, color=design.T().border),
-            ft.Container(
-                content=suggest_result_col, bgcolor=design.T().bg,
-                border_radius=design.Radius.MD, padding=ft.Padding.all(12),
+                spacing=8, wrap=True,
             ),
         ],
-        spacing=10,
+        spacing=design.Space.MD,
+    )
+    suggest_view = design.generator_dialog_shell(
+        "Valori Suggeriti", ft.Icons.CALCULATE, suggest_form, suggest_result_col, actions=[],
     )
 
     level_dd.on_select = _on_level_change

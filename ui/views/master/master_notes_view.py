@@ -119,8 +119,8 @@ _STATUS_TONES: dict[str, str] = {
 }
 
 
-def _status_color(status: str) -> str:
-    return getattr(design.T(), _STATUS_TONES.get(status, "text_3"))
+def _status_tone(status: str) -> design.Tone:
+    return cast(design.Tone, _STATUS_TONES.get(status, "neutral"))
 
 
 def _cat_meta(key: str) -> dict[str, Any]:
@@ -302,7 +302,7 @@ class MasterNotesView(ft.Column):
                 on_click=lambda e: self._on_mobile_back(),
             )]
             if show_back else
-            [ft.Icon(meta["icon_on"], color=design.T().primary_icon, size=20),
+            [design.icon_badge(meta["icon_on"], tone="primary", size=32),
              ft.Container(width=10)]
         )
         return ft.Container(
@@ -445,14 +445,9 @@ class MasterNotesView(ft.Column):
 
     def _note_list_item(self, note: MasterCampaignNote) -> ft.Container:
         is_sel = note.id == self._sel_note_id
-        sc = _status_color(note.status)
 
-        status_chip = ft.Container(
-            content=ft.Text(note.status or "—", size=9, color=design.T().on_primary,
-                             weight=ft.FontWeight.BOLD),
-            bgcolor=sc, border_radius=8,
-            padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-        ) if note.status else ft.Container(height=0)
+        status_chip = (design.chip(note.status, _status_tone(note.status), filled=True)
+                       if note.status else ft.Container(height=0))
 
         preview = (note.description or "").replace("\n", " ")
         if len(preview) > 60:
@@ -503,28 +498,14 @@ class MasterNotesView(ft.Column):
         return self._build_note_reading_panel(note)
 
     def _build_note_reading_panel(self, note: MasterCampaignNote) -> ft.Column:
-        sc = _status_color(note.status)
-
         status_row: list[ft.Control] = []
         if note.status:
-            status_row.append(
-                ft.Container(
-                    content=ft.Text(note.status, size=11, color=design.T().on_primary, weight=ft.FontWeight.BOLD),
-                    bgcolor=sc, border_radius=12,
-                    padding=ft.Padding.symmetric(horizontal=12, vertical=4),
-                )
-            )
+            status_row.append(design.chip(note.status, _status_tone(note.status), filled=True))
 
         tag_chips: list[ft.Control] = []
         if note.tags:
             for tag in [t.strip() for t in note.tags.split(",") if t.strip()]:
-                tag_chips.append(
-                    ft.Container(
-                        content=ft.Text(f"#{tag}", size=10, color=design.T().text_2),
-                        bgcolor=design.T().border + "80", border_radius=8,
-                        padding=ft.Padding.symmetric(horizontal=8, vertical=3),
-                    )
-                )
+                tag_chips.append(design.chip(f"#{tag}", "neutral"))
 
         ornament = ft.Row(
             [
@@ -558,9 +539,16 @@ class MasterNotesView(ft.Column):
             ))
             page_content_items.append(ft.Container(height=6))
 
+        # Nome della nota = unico momento "hero" di questa schermata: è il
+        # fulcro della pagina di lettura in stile pergamena, stesso ruolo
+        # che avrebbe il titolo di un capitolo in un diario.
+        note_title = design.hero_title(note.name or "Senza nome", is_mobile=self._is_mobile)
+        note_title.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+        cast(ft.Text, note_title.controls[0]).italic = True
+        cast(ft.Text, note_title.controls[0]).text_align = ft.TextAlign.CENTER
+
         page_content_items += [
-            ft.Text(note.name or "Senza nome", size=22, weight=ft.FontWeight.BOLD,
-                    color=design.T().text, text_align=ft.TextAlign.CENTER, italic=True),
+            ft.Row([note_title], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=14),
             ornament,
             ft.Container(height=18),
@@ -833,19 +821,8 @@ class MasterNotesView(ft.Column):
     def _full_empty_state(self, icon: Any, title: str, msg: str) -> ft.Container:
         return ft.Container(
             expand=True, bgcolor=design.T().parchment,
-            content=ft.Column(
-                [
-                    ft.Icon(icon, size=64, color=design.T().border),
-                    ft.Container(height=16),
-                    ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=design.T().text_2,
-                            italic=True, text_align=ft.TextAlign.CENTER),
-                    ft.Container(height=8),
-                    ft.Text(msg, size=13, color=design.T().text_3, text_align=ft.TextAlign.CENTER),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-            ),
             alignment=ft.Alignment.CENTER,
+            content=design.empty_state(icon, title, msg),
         )
 
     # ──────────────────────────────────────────────────────────────────────

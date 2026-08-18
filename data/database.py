@@ -472,6 +472,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # questa colonna senza bisogno di codice dedicato — vedi
     # `docs/changelog_storico.md` per il ragionamento completo.
     _add_column(cur, "characters", "world_instance_archived", "INTEGER DEFAULT 0")
+    # Bug segnalato da Davide (2026-08-18): se l'host è irraggiungibile nel
+    # momento in cui un'istanza viene creata/aggiornata, `_push_instance_to_host()`
+    # in `ui/views/home_view.py` falliva senza lasciare traccia di riprovare —
+    # il personaggio restava "nel mondo" solo in locale finché non si ripeteva
+    # a mano l'operazione con l'host online. 0 = niente in sospeso (default,
+    # comportamento di sempre) | 1 = push verso l'host non ancora confermato,
+    # da ritentare al prossimo giro del loop di sync in `world_view.py` — vedi
+    # `core/world_sync.py::push_pending_instance()`.
+    _add_column(cur, "characters", "host_sync_pending", "INTEGER DEFAULT 0")
     # Modalità Master world-scoped (2026-08-06, fix bug segnalato da Davide:
     # "il player entrato in un mondo appare duplicato" / "in Master escono i
     # personaggi di ogni mondo mescolati" — causa: nessun picker personaggi

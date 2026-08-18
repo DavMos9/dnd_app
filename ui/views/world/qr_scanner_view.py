@@ -137,12 +137,16 @@ class QrScannerView(ft.Column):
 
     def _build(self):
         p = d.T()
+        self._status.text_align = ft.TextAlign.CENTER
+        self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
         self.controls = [
             ft.Container(
                 height=320,
                 bgcolor=ft.Colors.BLACK,
                 border_radius=d.Radius.MD,
                 clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                border=ft.Border.all(1.5, ft.Colors.with_opacity(0.4, p.magic)),
+                shadow=d.layered_shadow(2, p.magic),
                 content=ft.Stack([]),  # popolato in _start() con fc.Camera
             ),
             self._status,

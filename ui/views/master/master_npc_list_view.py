@@ -24,7 +24,7 @@ from ui.components.monster_picker import (
     creature_entry_dict, load_monsters, show_monster_picker,
     build_stat_block_column, monster_display_name,
 )
-from ui.theme import title_text, body_text, muted_text, primary_button
+from ui.theme import body_text, muted_text, primary_button
 from ui.widgets import DropdownAltro, MultiSelectAltro, wrap_dialog_actions, responsive_dialog_width
 from ui import design
 
@@ -85,13 +85,19 @@ class MasterNpcListView(ft.Column):
 
     def _build(self):
         self.controls.clear()
+        # Unico momento "hero" di questa tab (Arcane Ledger): prima un
+        # `title_text()` di taglia fissa (18px) come qualunque altra
+        # etichetta, qui è la vera intestazione della schermata "Rubrica NPC".
+        title_block = design.hero_title("Rubrica NPC")
+        title_block.expand = True
         header = ft.Container(
             content=ft.Column(
                 [
                     ft.Row(
                         [
-                            title_text("Rubrica NPC", size=18),
-                            ft.Container(expand=True),
+                            design.icon_badge(ft.Icons.GROUPS_OUTLINED, tone="primary", size=36),
+                            ft.Container(width=design.Space.MD),
+                            title_block,
                             primary_button("+ Nuovo NPC", on_click=self._on_new_click),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -159,21 +165,17 @@ class MasterNpcListView(ft.Column):
                 subtitle_parts.append(f"{npc.xp} PE")
         subtitle = " · ".join(subtitle_parts)
 
-        return ft.Container(
-            content=ft.Row(
+        # "primary" per gli NPC con statistiche di combattimento (pronti per
+        # un incontro), "magic" per le schede di solo ruolo — stesso
+        # significato semantico già usato dal bordo d'accento prima di
+        # questo passaggio, ora coerente anche sul distintivo icona.
+        tone: design.Tone = "primary" if npc.has_stat_block else "magic"
+        icon = ft.Icons.SHIELD if npc.has_stat_block else ft.Icons.PERSON_OUTLINE
+
+        return design.card(
+            ft.Row(
                 [
-                    ft.Container(
-                        content=ft.Icon(
-                            ft.Icons.SHIELD if npc.has_stat_block else ft.Icons.PERSON_OUTLINE,
-                            color=design.T().primary if npc.has_stat_block else design.T().text_3,
-                            size=22,
-                        ),
-                        width=44, height=44,
-                        alignment=ft.Alignment.CENTER,
-                        bgcolor=ft.Colors.with_opacity(
-                            0.12, design.T().primary_fill if npc.has_stat_block else design.T().text_3),
-                        border_radius=design.Radius.PILL,
-                    ),
+                    design.icon_badge(icon, tone=tone, size=44),
                     ft.Container(width=design.Space.MD),
                     ft.Column(
                         [
@@ -192,15 +194,9 @@ class MasterNpcListView(ft.Column):
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.all(design.Space.MD),
-            bgcolor=design.T().surface,
-            shadow=design.elevation(1),
-            border_radius=design.Radius.MD,
-            border=ft.Border.only(left=ft.BorderSide(
-                3, design.T().primary if npc.has_stat_block else design.T().magic)),
+            accent=design.tone_color(tone),
+            density="dense",
             on_click=lambda e, n=npc: self._open_detail(n),
-            ink=True,
-            animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
         )
 
     @staticmethod

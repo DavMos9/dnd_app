@@ -56,6 +56,11 @@ _KIND_ICONS: dict[str, str] = {
     "art": ft.Icons.PALETTE_OUTLINED,
     "coins": ft.Icons.PAID_OUTLINED,
 }
+#: Voci a tema arcano — accento `magic` (indaco/violetto, secondo registro
+#: compositivo Arcane Ledger) invece di `primary`, così un oggetto magico o
+#: un artefatto si distingue a colpo d'occhio dal bottino mondano nella
+#: stessa lista (audit anti-AI-slop, richiesta esplicita del brief di restyle).
+_MAGIC_KINDS: frozenset[str] = frozenset({"magic_item", "artifact"})
 _COIN_FIELDS: list[tuple[str, str]] = [
     ("platinum", "Platino (mp)"), ("gold", "Oro (mo)"), ("electrum", "Electrum (me)"),
     ("silver", "Argento (ma)"), ("copper", "Rame (mr)"),
@@ -109,15 +114,19 @@ class MasterLootView(ft.Column):
         self._populate_list()
 
     def _build_header(self) -> ft.Container:
+        # Unico momento "hero" di questa tab (Arcane Ledger): prima un
+        # `ft.Text` di 15px come qualunque altra etichetta, qui è la vera
+        # intestazione della schermata "Bottino".
+        title_block = design.hero_title("Bottino")
+        title_block.expand = True
         return ft.Container(
             content=ft.Column(
                 [
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.INVENTORY_2_OUTLINED, color=design.T().primary_icon, size=20),
-                            ft.Container(width=8),
-                            ft.Text("Bottino", size=15, weight=ft.FontWeight.BOLD, color=design.T().text,
-                                    expand=True),
+                            design.icon_badge(ft.Icons.INVENTORY_2_OUTLINED, tone="primary", size=36),
+                            ft.Container(width=design.Space.MD),
+                            title_block,
                             ft.ElevatedButton(
                                 "+ Aggiungi voce", icon=ft.Icons.ADD,
                                 on_click=lambda e: self._open_add_dialog(),
@@ -190,19 +199,21 @@ class MasterLootView(ft.Column):
 
     def _entry_card(self, entry: LootStashEntry) -> ft.Control:
         is_coins = entry.entry_kind == "coins"
+        is_magic = entry.entry_kind in _MAGIC_KINDS
         title = "Monete" if is_coins else entry.name
         subtitle = _coin_summary(entry) if is_coins else (
             (entry.description or "").split("\n")[0][:110]
         )
         qty_bit = f" ×{entry.quantity}" if (not is_coins and entry.quantity != 1) else ""
+        icon_color = design.T().magic if is_magic else design.T().primary
 
-        return ft.Container(
-            content=ft.Column(
+        return design.card(
+            ft.Column(
                 [
                     ft.Row(
                         [
                             ft.Icon(_KIND_ICONS.get(entry.entry_kind, ft.Icons.BACKPACK_OUTLINED),
-                                    size=16, color=design.T().primary),
+                                    size=16, color=icon_color),
                             ft.Container(width=8),
                             # `expand=True` + `wrap=True` sulla stessa Row non è valido in Flet
                             # 0.85.3: `wrap=True` genera un widget Flutter `Wrap`, che non supporta
@@ -213,7 +224,8 @@ class MasterLootView(ft.Column):
                             ft.Text(f"{title}{qty_bit}", size=13, weight=ft.FontWeight.BOLD,
                                     color=design.T().text, expand=True,
                                     no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS),
-                            design.chip(_KIND_LABELS.get(entry.entry_kind, entry.entry_kind), "neutral"),
+                            design.chip(_KIND_LABELS.get(entry.entry_kind, entry.entry_kind),
+                                        "magic" if is_magic else "neutral"),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
@@ -240,8 +252,8 @@ class MasterLootView(ft.Column):
                 ],
                 spacing=4,
             ),
-            padding=design.Space.MD, bgcolor=design.T().surface,
-            border_radius=design.Radius.MD, shadow=design.elevation(1),
+            accent=design.T().magic if is_magic else None,
+            density="dense",
         )
 
     def _refresh(self) -> None:

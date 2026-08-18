@@ -1,19 +1,23 @@
 """
 Design system dell'app — token e primitive riusabili.
 
-Introdotto con la **Fase A del restyle** (revisione 2026-07-26, vedi
-`dnd_app/docs/restyle_design.md`). Prima di questo modulo l'app non aveva un
-sistema visivo utilizzabile: `ui/theme.py` offriva `fantasy_card()` ma era
-chiamata da soli 2 file su 25, mentre le altre view costruivano **166 card a
-mano** con `ft.Border(...)` e 153 `"#ffffff"` hardcoded. Conseguenza pratica:
-cambiare un raggio o un colore significava toccare 25 file.
+**Rifacimento radicale "Arcane Ledger"** (2026-08-20): palette e primitive
+ricostruite da zero, nessun valore precedente riusato per continuità. Identità
+visiva — grimorio illuminato, non dashboard: oro antico/bronzo come accento
+primario (azioni, elementi hero), indaco/violetto (`magic`) come secondo
+registro compositivo per contenuto arcano, rosso vero e isolato per
+`danger` (prima coincideva con `primary` — separato qui perché nessun
+prodotto di riferimento affianca mai i due). Tipografia invariata (Cinzel/
+Inter/JetBrains Mono — nessuna alternativa valutata batte Cinzel per un'app
+fantasy, resta l'asset già auto-ospitato).
 
 Cosa c'è qui:
-  1. **Token**: scale di spaziatura, raggi, elevazioni, durate, tipografia.
+  1. **Token**: scale di spaziatura, raggi, elevazioni, durate, tipografia,
+     breakpoint (allineati a `ft.ResponsiveRow`, vedi `Breakpoint`).
   2. **Palette doppia** (chiaro/scuro) con contrasti WCAG **calcolati**, non
-     scelti a occhio — vedi la tabella in `restyle_design.md`.
-  3. **Primitive**: `surface`, `card`, `section`, `pill`, `chip`, `stat_tile`,
-     `metric_bar`, `empty_state` — sostituiscono le card inline.
+     scelti a occhio (vedi i commenti sui singoli valori sotto).
+  3. **Primitive**: `surface`, `card`, `section`, `hero_title`, `icon_badge`,
+     `pill`, `chip`, `hp_bar`, `empty_state` — sostituiscono le card inline.
 
 Regola per il futuro: **nessun colore o numero magico nelle view**. Se serve un
 valore nuovo, si aggiunge un token qui.
@@ -21,11 +25,9 @@ valore nuovo, si aggiunge un token qui.
 Nota sul tema scuro: i token si leggono tramite `T()` (funzione, non costante),
 così cambiare `set_mode()` e ricostruire la vista applica la nuova palette.
 Questo funziona perché tutte le view del progetto si ricostruiscono già da zero
-ad ogni refresh/navigazione. Le costanti `COLOR_*` di `config/settings.py`
-restano valide e invariate: la migrazione delle view avviene per fasi
-successive, una superficie alla volta.
+ad ogni refresh/navigazione.
 
-Ogni API Flet usata qui è verificata per introspezione su `flet==0.85.3`:
+Ogni API Flet usata qui è verificata per introspezione su `flet==0.86.5`:
 `Container.shadow/gradient/animate/animate_scale/ink_color`, `ft.BoxShadow`
 (`spread_radius, blur_radius, color, offset, blur_style`), `ft.LinearGradient`
 (`colors, stops, begin, end, rotation, tile_mode`).
@@ -103,6 +105,7 @@ FONT_FILES: dict[str, str] = {
 
 class Size:
     """Scala tipografica. Regola: nessun testo sotto 11px."""
+    HERO = 40      # UN momento tipografico dominante per schermata (Arcane Ledger)
     DISPLAY = 32
     TITLE = 22
     SUBTITLE = 16
@@ -110,6 +113,23 @@ class Size:
     BODY_SM = 13
     LABEL = 11
     MONO = 15
+
+
+class Breakpoint:
+    """
+    Soglie di larghezza — allineate ai default reali di `ft.ResponsiveRow`
+    (verificati per introspezione, `flet==0.86.5`: xs=0, sm=576, md=768,
+    lg=992, xl=1200, xxl=1400 — valutati lato client, non `page.width` in
+    Python). Non reinventare soglie parallele: ogni composizione multi-
+    colonna (`asymmetric_row`, `col=` su `ResponsiveRow`) deve usare questi
+    stessi nomi. `ui/app.py::_MOBILE_BP=600` (soglia del drill-down mobile,
+    calcolata centralmente in `_on_page_resize()`) resta concettualmente
+    allineata a `SM`.
+    """
+    SM = 576
+    MD = 768
+    LG = 992
+    XL = 1200
 
 
 # ---------------------------------------------------------------------------
@@ -120,27 +140,34 @@ class Size:
 @dataclass(frozen=True)
 class Palette:
     """
-    Token di colore semantici.
+    Token di colore semantici — palette "Arcane Ledger" (rifacimento radicale
+    2026-08-20, nessun valore ereditato dalla palette precedente).
 
-    I valori sono stati scelti calcolando il rapporto di contrasto WCAG di ogni
-    combinazione testo/superficie, non a occhio. Riferimento completo in
-    `docs/restyle_design.md`; i minimi rilevanti:
-      * `text` ≥ 14:1 su ogni superficie (AAA)
-      * `text_2` ≥ 6.4:1 (AA/AAA)
-      * `text_3` ≥ 4.7:1 (AA anche per testo piccolo)
-      * `on_primary`/`on_primary_fill` ≥ 4.5:1 sul rispettivo accento pieno
+    Ogni valore è verificato per contrasto WCAG calcolato (script dedicato,
+    non a occhio), contro il PEGGIORE dei due fondi su cui il token può
+    comparire — `bg` per il tema chiaro (più scuro di `surface`, quindi più
+    severo per un primo piano scuro), `surface_alt` per il tema scuro (più
+    chiaro di `bg`, quindi più severo per un primo piano chiaro). Minimi:
+      * `text` ≥ 7:1 (AAA) su ogni superficie
+      * `text_2`/`text_3` ≥ 4.5:1
+      * `on_primary`/`on_accent` ≥ 4.5:1 sul rispettivo accento pieno
 
-    Il rosso (`primary`/`danger`, alias tra loro) dal 2026-08-15 è su TRE
-    livelli, non uno solo — usare quello sbagliato o rompe la leggibilità
-    o resta più chiaro del necessario (dettaglio/storia in
-    `docs/changelog_storico.md`, cerca "ottavo giro"):
+    **Oro (`primary`) e rosso (`danger`) sono accenti DISTINTI**, non alias:
+    in ogni palette di riferimento consultata il colore distruttivo non
+    coincide mai col colore primario/brand — averli separati è il cambio
+    strutturale principale di questo rifacimento.
+
+    L'oro in tema chiaro ha la stessa tensione che il rosso aveva nella
+    palette precedente (una tonalità chiara per natura non può essere insieme
+    "oro pieno/saturo" e "leggibile da sola ≥4.5:1 su pergamena chiara"),
+    quindi resta sdoppiato su tre livelli:
       * `primary`/`danger` ≥ 4.5:1 — testo scorrevole, paragrafi, etichette
       * `primary_icon`/`danger_icon` ≥ 3:1 — SOLO icone isolate e testo
-        grande/bold ≥18pt (WCAG 1.4.11/1.4.3 "large text/graphical
-        object"), più scuro del testo normale
+        grande/bold ≥18pt (WCAG 1.4.11/1.4.3 "large text/graphical object")
       * `primary_fill`/`danger_fill` — SOLO riempimenti pieni (bottoni/
-        badge/checkbox), sempre con `on_primary_fill` sopra, nessun vincolo
-        di contrasto proprio perché non compare mai da solo su `surface`/`bg`
+        badge/checkbox), sempre con `on_primary_fill` sopra. In tema scuro
+        oro e rosso sono già abbastanza chiari da non avere questa tensione:
+        `primary`==`primary_fill`==`primary_icon` (idem per danger).
     """
     name: str
     is_dark: bool
@@ -193,6 +220,7 @@ class Palette:
     note_bg: str         # riquadro nota / promemoria (crema)
     info_bg: str         # riquadro informativo (azzurrato)
     success_bg: str      # riquadro "completato / disponibile"
+    magic_bg: str        # riquadro a tema arcano (incantesimi, dadi)
 
     # Pagina di lettura in stile pergamena (DiaryView, MasterNotesView).
     parchment: str
@@ -214,120 +242,69 @@ class Palette:
 
 LIGHT = Palette(
     name="light", is_dark=False,
-    bg="#f4efe6", bg_alt="#efe8dc",
-    surface="#fffdf9", surface_alt="#ece5d8", border="#d9d0bf",
-    text="#1a1c24", text_2="#4a4f63", text_3="#5c6376",
-    primary="#a4161a", on_primary="#ffffff",
-    magic="#2f4b8f", success="#1f6b3a", warning="#a35a00", alert="#b8420a",
-    danger="#a4161a", on_accent="#ffffff",
-    primary_fill="#a4161a", on_primary_fill="#ffffff", danger_fill="#a4161a",
-    primary_icon="#a4161a", danger_icon="#a4161a",
-    note_bg="#fdf6e6", info_bg="#e9eff9", success_bg="#e2efe5",
-    parchment="#fffef6", parchment_alt="#f7f2e8",
-    nav_bg="#1a0d0d", nav_bg_alt="#3a1010", nav_border="#3a2828",
-    nav_text="#f4ece4", nav_muted="#a89490", nav_accent="#d94a4e",
-    shadow="#1a1c24", shadow_opacity=(0.08, 0.12, 0.18),
+    # Pergamena calda, più ricca/satura del semplice richiamo cartaceo di
+    # prima — hue 38-40° (ambra), non un beige neutro.
+    bg="#f0e8db", bg_alt="#eadecd",
+    surface="#f8f6f1", surface_alt="#eee6d8", border="#d8cab6",
+    # Inchiostro caldo (hue 28°), non nero puro — L=0.16, 11.7:1 su `bg`
+    # (ben sopra il minimo AAA 7:1, non spinto oltre come non necessario).
+    text="#37281b", text_2="#645240", text_3="#76614c",
+    # Oro antico/bronzo — L calcolata al minimo che regge 4.5:1 su `bg`
+    # (4.87:1) restando il più "oro" possibile: una tonalità più chiara
+    # scende sotto soglia (vedi scan in fase di progettazione).
+    primary="#815e18", on_primary="#ffffff",
+    magic="#372e9e", success="#217347", warning="#8f4e14", alert="#a7401b",
+    # Rosso vero, isolato da `primary` (vedi nota sulla Palette) — 5.6:1 su `bg`.
+    danger="#ab2a21", on_accent="#ffffff",
+    # `primary_fill` è un oro più saturo/ricco (funziona da bottone pieno con
+    # `on_primary_fill` bianco, 5.55:1) — non lo stesso hex di `primary`
+    # perché un oro abbastanza chiaro da leggersi bianco-su-oro a piena
+    # saturazione scenderebbe sotto la soglia testo-su-pergamena di `primary`.
+    primary_fill="#956c0f", on_primary_fill="#ffffff", danger_fill="#ab2a21",
+    # Icone isolate/testo grande ≥18pt bold: soglia 3:1 (WCAG 1.4.11/1.4.3),
+    # più chiare/vivide del testo normale restando conformi (margine minimo
+    # voluto sopra 3.00, non sotto — stessa logica della vecchia palette).
+    primary_icon="#a77a20", danger_icon="#dd554b",
+    note_bg="#f7f1e3", info_bg="#e5ecf5", success_bg="#e3f2ea", magic_bg="#ebeaf6",
+    parchment="#faf9f4", parchment_alt="#f4efe6",
+    # Chrome di navigazione — cuoio scuro con accento oro, identico nei due
+    # temi per scelta (non è una superficie, è cuoio).
+    nav_bg="#1f160f", nav_bg_alt="#2d1f16", nav_border="#403126",
+    nav_text="#ebe4d6", nav_muted="#a89c8a", nav_accent="#eab63e",
+    shadow="#1f160f", shadow_opacity=(0.08, 0.12, 0.18),
 )
 
 DARK = Palette(
     name="dark", is_dark=True,
-    # 2026-08-15: bug report Davide, secondo giro — lo sfondo aveva ancora
-    # una dominante blu/viola percepibile ("quasi blu invece lo voglio nero
-    # opaco"). `bg`/`bg_alt`/`surface`/`surface_alt`/`border`/`nav_bg`/
-    # `nav_border` erano tutti tinti verso l'azzurro-viola (tonalità ~250°)
-    # fin dalla prima stesura del tema scuro: desaturati qui a tonalità
-    # neutra (~0-2% di saturazione residua, impercettibile) mantenendo la
-    # stessa luminosità di prima — un nero/grigio scuro davvero neutro, non
-    # colorato. `note_bg`/`info_bg`/`success_bg` NON toccati: la loro tinta
-    # (calda/blu/verde) è intenzionale, segnala la categoria del riquadro.
-    bg="#161617", bg_alt="#1d1c1e",
-    # Superficie riavvicinata a `bg` (1.10:1 → 1.02:1, quasi lo stesso salto
-    # di prima) e accenti desaturati/scuriti — bug report Davide, primo giro:
-    # pannelli troppo "accesi" e colori troppo fluo. `border` resta sullo
-    # stesso scarto relativo di prima — è l'unico segnale rimasto per i
-    # bordi delle card, ridurlo lo avrebbe reso invisibile.
-    #
-    # 2026-08-15, quinto giro — bug report Davide con screenshot reale: la
-    # barra header (HomeView) e le card personaggio (entrambe su
-    # `bgcolor=p.surface`, vedi `home_view.py`/`design.card()`) leggevano
-    # ancora "troppo luminose" rispetto al corpo pagina, anche col rapporto
-    # di contrasto surface/bg già sceso a 1.02:1 nel giro precedente: un
-    # rapporto WCAG basso non garantisce che due riquadri PIENI affiancati
-    # sembrino uguali all'occhio (simultaneous contrast) — la formula WCAG
-    # misura leggibilità del testo, non l'uniformità percepita tra due
-    # campiture. Portati a coincidere esattamente con `bg`/`bg_alt` per
-    # eliminare del tutto la dominante di quel giro (blu/viola).
-    #
-    # 2026-08-15, settimo giro — Davide: la fusione totale andava bene ma
-    # voleva un "leggero distacco" tra card/header e fondo pagina, con un
-    # GRIGIO puro (0% saturazione — non una tinta, come lo erano tutti i
-    # tentativi precedenti) invece di nessuna differenza. `surface`/
-    # `surface_alt` ora sono grigio neutro puro, un gradino sopra `bg`/
-    # `bg_alt` (1.08:1/1.11:1 — percettibile ma minimo, niente "glow"):
-    # non derivano più da `bg` per costruzione, sono valori indipendenti
-    # apposta per restare desaturati anche se `bg` cambiasse in futuro.
-    surface="#1e1e1e", surface_alt="#242424", border="#3e3d41",
-    text="#f0ece4", text_2="#c2bcae", text_3="#9c94a8",
-    # 2026-08-15, quarto giro — bug report Davide: il rosso corallo non
-    # piaceva (voleva un bordeaux vino, #8d2132 poi #761c2a — entrambi
-    # ~2:1 di contrasto su `surface`, illeggibili nei 325 usi testo/icona/
-    # bordo su 478 totali di `primary`/`danger` in `ui/`, vedi audit e
-    # scelta "un solo token" nel changelog). Il primo tentativo di
-    # schiarire in spazio HSL (`#d4596c`) è stato giudicato "non
-    # corrisponde a quello visto online" — troppo tenue/rosato. Causa:
-    # la saturazione HSL non è percettivamente uniforme, portare la
-    # lightness da 0.34 (l'hex di Davide) a 0.59 per la leggibilità
-    # smorza la resa visiva anche a saturazione HSL invariata. Ricalcolato
-    # in OKLCH (croma percettivo, non HSL) sulla tonalità dei due hex di
-    # Davide (H≈17° OKLCH) → `#e04f61`.
-    #
-    # 2026-08-15, settimo giro — dopo l'introduzione di `primary_fill` per
-    # il bordeaux vero (sesto giro, sotto), Davide: i pulsanti vanno bene
-    # così, ma anche il testo rosso resta troppo chiaro, va scurito. Stesso
-    # vincolo tecnico di sempre (325 usi testo/icona/bordo, servono ≥4.5:1)
-    # ma stavolta calcolato contro il **peggiore dei due** fondi su cui
-    # questo testo può comparire — `surface` (ora più chiaro di `bg`, vedi
-    # sopra) è il vincolo binante, non `bg` come nei giri precedenti: un
-    # primo calcolo fatto solo contro `bg` (`#d35561`) risultava sotto
-    # soglia su `surface` (4.16:1) e andava scartato. Ricalcolato in OKLCH
-    # contro ENTRAMBI → `#da5b67`, croma 0.16 (contro 0.18 di `#e04f61`) —
-    # percettibilmente più scuro/meno acceso, margine minimo ma sopra
-    # soglia su entrambi (4.50 su surface, 4.89 su bg). Limite tecnico:
-    # non si può scurire oltre restando sia "rosso" (non grigio-mauve) sia
-    # leggibile da solo su entrambi i fondi.
-    primary="#da5b67", on_primary="#241012",
-    magic="#7897db", success="#4ec27f", warning="#bd8c32", alert="#d57d40",
-    danger="#da5b67", on_accent="#161617",
-    # 2026-08-15, sesto giro — Davide, dopo tre schiariture successive di
-    # `primary` (tutte respinte, "non corrisponde a quello visto online"):
-    # nessuna schiaritura di un bordeaux può bastare, perché la richiesta
-    # ("bordeaux vino scuro") e il vincolo di leggibilità testo (≥4.5:1 su
-    # `surface` quasi-nera) sono in conflitto diretto per costruzione — non
-    # esiste una tinta che sia insieme "scura come il vino" e "chiara
-    # abbastanza da leggersi da sola sul nero". Sdoppiato come preannunciato:
-    # `primary_fill` è il bordeaux vero di Davide (ultimo hex indicato,
-    # `#761c2a`), usato SOLO nei ~141 punti di riempimento (bottoni/badge/
-    # checkbox) dove sopra c'è sempre `on_primary_fill` (bianco, 10.7:1 di
-    # contrasto) — mai da solo su `surface`/`bg`. `primary` resta `#e04f61`
-    # per i 325 punti testo/icona/bordo, invariato.
-    primary_fill="#761c2a", on_primary_fill="#ffffff", danger_fill="#761c2a",
-    # 2026-08-15, ottavo giro — Davide: anche icone isolate (bottoni
-    # "Elimina scheda"/"Avvia scheda" in home_view.py, ecc.) e il titolo
-    # "D&D" (48px bold) restano "troppo chiari", li vuole vicini al
-    # bordeaux dei pulsanti. Non possono usare `primary_fill` (1.7:1 su
-    # `surface`, illeggibile da soli) ma non serve nemmeno il 4.5:1 di
-    # `primary`: WCAG 1.4.11/1.4.3 richiedono solo 3:1 per icone isolate e
-    # testo grande/bold — via di mezzo calcolata in OKLCH sullo stesso hue
-    # (H≈17°), croma 0.17, fino al minimo che regge 3:1 su ENTRAMBI i
-    # fondi (3.08 su surface, 3.34 su bg — margine minimo voluto sopra il
-    # pavimento esatto 3.00, non sotto).
-    primary_icon="#bf384b", danger_icon="#bf384b",
-    # I fondi tenui in dark non possono essere "chiari": sono la superficie
-    # alternativa leggermente tinta verso l'accento corrispondente.
-    note_bg="#1d1b14", info_bg="#1d2029", success_bg="#17201b",
-    parchment="#1e1e1e", parchment_alt="#242424",
-    nav_bg="#101010", nav_bg_alt="#2a1418", nav_border="#2c2c2e",
-    nav_text="#f0ece4", nav_muted="#8e8799", nav_accent="#da5b67",
+    # Nero-inchiostro CALDO (hue 28°, non blu-slate neutro da dashboard SaaS
+    # generica) — un grimorio di notte, non un pannello di controllo.
+    # `surface`/`surface_alt` un gradino sopra `bg` (1.14:1), percettibile
+    # ma minimo.
+    bg="#17130f", bg_alt="#1f1914",
+    surface="#261f1a", surface_alt="#2f2720", border="#473d33",
+    # Testo crema calda a 9.3:1/7.4:1 su bg/surface_alt (AAA, con margine ma
+    # deliberatamente NON portato oltre ~9:1: un contrasto testo-quasi-
+    # bianco-su-nero-quasi-puro è causa nota di affaticamento/"halation"
+    # nella lettura prolungata — la stessa lezione della palette precedente,
+    # applicata qui fin dall'inizio invece che corretta in un secondo giro).
+    text="#c6b795", text_2="#a99d89", text_3="#9c9281",
+    # Oro che "brilla" contro il nero — nessuna delle tensioni della
+    # controparte chiara: il fondo è già scuro, quindi lo stesso oro serve
+    # sia da testo/icona sia da riempimento pieno (con testo scuro sopra).
+    primary="#e4b744", on_primary="#1c150f",
+    magic="#9790df", success="#5cbc89", warning="#d49c54", alert="#d8805a",
+    danger="#de7873", on_accent="#1c150f",
+    primary_fill="#e4b744", on_primary_fill="#1c150f", danger_fill="#de7873",
+    primary_icon="#e4b744", danger_icon="#de7873",
+    # Fondi tenui: superficie alternativa leggermente tinta verso l'accento,
+    # mai "chiara" — sarebbe fuori registro su un fondo quasi nero.
+    note_bg="#282215", info_bg="#18202a", success_bg="#15231c", magic_bg="#1c192e",
+    parchment="#261f1a", parchment_alt="#2f2720",
+    # Cuoio ancora più scuro che in tema chiaro (recede ulteriormente di
+    # notte) — valore deliberatamente distinto da `LIGHT.nav_bg`, non solo
+    # concettualmente "scuro in entrambi i temi".
+    nav_bg="#16100b", nav_bg_alt="#221811", nav_border="#362a21",
+    nav_text="#ebe4d6", nav_muted="#a89c8a", nav_accent="#eab63e",
     shadow="#000000", shadow_opacity=(0.45, 0.55, 0.65),
 )
 
@@ -357,6 +334,41 @@ def T() -> Palette:
 def _rgba(hex_color: str, opacity: float) -> str:
     """'#rrggbb' + opacità → stringa colore accettata da Flet."""
     return ft.Colors.with_opacity(opacity, hex_color)
+
+
+def accent_glow(accent: str | None, level: int) -> ft.BoxShadow | None:
+    """
+    Alone colorato attorno a una card "hero" (level≥2), SOLO in tema scuro
+    e SOLO se ha un accento esplicito. `elevation()` da sola non basta: un'ombra
+    nera è quasi invisibile contro uno sfondo già scuro (`DARK.shadow="#000000"`)
+    — qui invece l'oro/l'indaco devono "brillare" come una fonte di luce nel
+    grimorio, non limitarsi a essere leggermente più elevati.
+
+    **Perché un'ombra colorata e non uno sfondo più chiaro**: schiarire
+    `bgcolor` per "livello" rimetterebbe in discussione ogni contrasto
+    testo/icona già calcolato contro `surface`/`surface_alt` invariati.
+    Un'ombra colorata non tocca `bgcolor`: il segnale visivo è aggiuntivo,
+    non sostitutivo. In tema chiaro l'equivalente è il bordo pieno di
+    `card(hero=True)` — un alone dorato su pergamena chiara leggerebbe
+    stonato/posterizzato, la silhouette basta.
+    """
+    p = T()
+    if not p.is_dark or level < 2 or not accent:
+        return None
+    opacity, blur = {2: (0.22, 24), 3: (0.32, 36)}[min(level, 3)]
+    return ft.BoxShadow(blur_radius=blur, spread_radius=0,
+                         offset=ft.Offset(0, 0), color=_rgba(accent, opacity))
+
+
+def layered_shadow(level: int, accent: str | None) -> ft.BoxShadow | list[ft.BoxShadow] | None:
+    """Combina l'ombra standard con l'eventuale alone colorato — `Container.shadow`
+    accetta sia un `BoxShadow` singolo sia una lista (verificato per introspezione,
+    `flet==0.86.5`)."""
+    base = elevation(level)
+    glow = accent_glow(accent, level)
+    if glow is None:
+        return base
+    return [glow, base] if base is not None else [glow]
 
 
 def elevation(level: int = 1) -> ft.BoxShadow | None:
@@ -499,44 +511,101 @@ def label(text: str, color: str | None = None) -> ft.Text:
                    style=ft.TextStyle(letter_spacing=1))
 
 
+def hero_title(text: str, subtitle_text: str = "", *, color: str | None = None,
+               is_mobile: bool = False) -> ft.Control:
+    """
+    Momento tipografico dominante — UN solo uso per schermata (nome
+    personaggio, nome mondo, titolo app). `Size.HERO` (40px) è la taglia più
+    grande della scala: prima la scala si fermava a `DISPLAY` (32px) e nessun
+    titolo risultava davvero "hero" rispetto al resto.
+
+    `is_mobile` riduce la taglia a `Size.DISPLAY` sotto la soglia mobile —
+    va calcolato centralmente (`ui/app.py::_on_page_resize()`) e passato in
+    giù, mai un controllo diretto su `page.width` qui (vedi gotcha
+    `docs/regole_flet_api.md`: `page.width` è spesso `None` prima del mount).
+    """
+    p = T()
+    kids: list[ft.Control] = [
+        ft.Text(text, size=Size.DISPLAY if is_mobile else Size.HERO,
+                weight=ft.FontWeight.BOLD, color=color or p.text,
+                font_family=Font.DISPLAY),
+    ]
+    if subtitle_text:
+        kids.append(muted(subtitle_text, size=Size.BODY_SM))
+    return ft.Column(kids, spacing=Space.XS, tight=True)
+
+
 # ---------------------------------------------------------------------------
 # Primitive
 # ---------------------------------------------------------------------------
 
 
-def surface(content: ft.Control, *, level: int = 1, padding: int = Space.LG,
-            radius: int = Radius.MD, alt: bool = False,
-            expand: bool | None = None) -> ft.Container:
-    """Superficie elevata generica — sostituisce i `Container(bgcolor=..., border=...)`."""
+def _resolve_hero(level: int | None, padding: int | None, radius: int | None,
+                   *, hero: bool, density: Literal["relaxed", "dense"]) -> tuple[int, int, int]:
+    """Risolve level/padding/radius con i default `hero`/`density` — un
+    valore esplicito del chiamante vince sempre sul default derivato."""
+    lvl = level if level is not None else (2 if hero else 1)
+    pad = padding if padding is not None else (
+        Space.XL if hero else (Space.MD if density == "dense" else Space.LG))
+    rad = radius if radius is not None else (Radius.LG if hero else Radius.MD)
+    return lvl, pad, rad
+
+
+def surface(content: ft.Control, *, level: int | None = None, padding: int | None = None,
+            radius: int | None = None, alt: bool = False,
+            expand: bool | None = None, accent: str | None = None,
+            hero: bool = False, density: Literal["relaxed", "dense"] = "relaxed") -> ft.Container:
+    """Superficie elevata generica — sostituisce i `Container(bgcolor=..., border=...)`.
+    `accent` (opzionale) serve solo per l'alone colorato di `accent_glow()` a
+    `level>=2` in tema scuro — `bgcolor` resta sempre `surface`/`surface_alt`
+    invariati, vedi `accent_glow()` per il perché. `hero=True` è una
+    scorciatoia per `level=2, radius=Radius.LG, padding=Space.XL` (l'elemento
+    più consultato della schermata — MAX uno per schermata, vedi `card()`).
+    `density="dense"` riduce il padding di default (`Space.MD`) per le tab
+    dati-intensive; ignorato se `padding`/`hero` sono espliciti."""
     p = T()
+    lvl, pad, rad = _resolve_hero(level, padding, radius, hero=hero, density=density)
     return ft.Container(
         content=content,
         bgcolor=p.surface_alt if alt else p.surface,
-        padding=padding,
-        border_radius=radius,
-        shadow=elevation(level),
+        padding=pad,
+        border_radius=rad,
+        shadow=layered_shadow(lvl, accent),
         expand=expand,
     )
 
 
-def card(content: ft.Control, *, accent: str | None = None, level: int = 1,
-         padding: int = Space.LG, on_click: Callable[[Any], None] | None = None,
-         tooltip: str | None = None, expand: bool | None = None) -> ft.Container:
+def card(content: ft.Control, *, accent: str | None = None, level: int | None = None,
+         padding: int | None = None, on_click: Callable[[Any], None] | None = None,
+         tooltip: str | None = None, expand: bool | None = None,
+         hero: bool = False, density: Literal["relaxed", "dense"] = "relaxed") -> ft.Container:
     """
     Card standard. L'accento è una **barra sottile a sinistra**, non un filetto
     in cima: è il singolo cambiamento che sposta più percezione di modernità
     rispetto al vecchio `fantasy_card()`.
 
+    `hero=True` (MAX una per schermata — l'elemento più consultato, es. HP in
+    `combattimento_tab.py`) alza radius/livello/padding e sostituisce la
+    barra sinistra con un **bordo pieno** nell'accento: la silhouette da sola
+    comunica "questo è diverso" prima ancora di ombra o colore.
+
     Se `on_click` è passato, la card diventa interattiva (ink + animazione).
     """
     p = T()
+    lvl, pad, rad = _resolve_hero(level, padding, None, hero=hero, density=density)
+    if hero and accent:
+        border = ft.Border.all(1.5, ft.Colors.with_opacity(0.55, accent))
+    elif accent:
+        border = ft.Border.only(left=ft.BorderSide(3, accent))
+    else:
+        border = None
     c = ft.Container(
         content=content,
         bgcolor=p.surface,
-        padding=padding,
-        border_radius=Radius.MD,
-        shadow=elevation(level),
-        border=(ft.Border.only(left=ft.BorderSide(3, accent)) if accent else None),
+        padding=pad,
+        border_radius=rad,
+        shadow=layered_shadow(lvl, accent),
+        border=border,
         on_click=on_click,
         tooltip=tooltip,
         ink=bool(on_click),
@@ -547,13 +616,18 @@ def card(content: ft.Control, *, accent: str | None = None, level: int = 1,
     return c
 
 
-def section(title_text: str, content: ft.Control, *,
-            accent: str | None = None, trailing: ft.Control | None = None,
-            level: int = 1) -> ft.Container:
-    """Sezione con intestazione — sostituisce `section_header()` + Column manuale."""
+def header_row(title_text: str, accent: str | None = None, *,
+               hero: bool = False, trailing: ft.Control | None = None) -> ft.Row:
+    """
+    Barretta d'accento + etichetta maiuscola spaziata — l'intestazione
+    condivisa da `section()` e da `ui/theme.py::section_header()` (68+ call
+    site legacy). Un solo posto per cambiare lo stile di TUTTE le
+    intestazioni di sezione dell'app, migrate o no a `design.py`.
+    """
     p = T()
+    bar_w, bar_h = (4, 18) if hero else (3, 14)
     head: list[ft.Control] = [
-        ft.Container(width=3, height=14, bgcolor=accent or p.primary_fill,
+        ft.Container(width=bar_w, height=bar_h, bgcolor=accent or p.primary_fill,
                      border_radius=Radius.SM),
         ft.Container(width=Space.SM),
         ft.Text(title_text.upper(), size=Size.LABEL, weight=ft.FontWeight.BOLD,
@@ -563,16 +637,61 @@ def section(title_text: str, content: ft.Control, *,
     if trailing is not None:
         head.append(ft.Container(expand=True))
         head.append(trailing)
+    return ft.Row(head, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+
+def section(title_text: str, content: ft.Control, *,
+            accent: str | None = None, trailing: ft.Control | None = None,
+            level: int | None = None, hero: bool = False,
+            density: Literal["relaxed", "dense"] = "relaxed") -> ft.Container:
+    """Sezione con intestazione — sostituisce `section_header()` + Column manuale.
+    `hero`/`density`: vedi `surface()`/`card()`."""
     return surface(
         ft.Column(
             [
-                ft.Row(head, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                header_row(title_text, accent, hero=hero, trailing=trailing),
                 ft.Container(height=Space.MD),
                 content,
             ],
             spacing=0, tight=True,
         ),
         level=level,
+        accent=accent,
+        hero=hero,
+        density=density,
+    )
+
+
+def asymmetric_row(major: ft.Control, minor: ft.Control, *,
+                    ratio: tuple[int, int] = (7, 5),
+                    breakpoint: Literal["sm", "md", "lg"] = "md",
+                    spacing: int = Space.MD) -> ft.ResponsiveRow:
+    """
+    Riga a due colonne di peso diverso (audit anti-AI-slop, 2026-08-18) —
+    rompe la colonna singola meccanica nei punti dove un contenuto è
+    chiaramente primario e l'altro secondario (es. HP grande a sinistra +
+    statistiche compresse a destra in `combattimento_tab.py`).
+
+    Usa `ft.ResponsiveRow`/`col=` (valutato lato client), MAI `expand=` su
+    una `ft.Row` semplice: dentro un `ft.ListView` (le tab della scheda
+    personaggio ereditano da `ScrollMemoryListView`, sottoclasse di
+    `ft.ListView`), `expand=True` su un Column figlio di una Row causa un
+    crash silenzioso di Flutter (vedi `docs/regole_flet_api.md`, voce
+    "EXPAND=True su Column dentro Row dentro ListView"). `ResponsiveRow` usa
+    un meccanismo di layout diverso e non è soggetto allo stesso problema —
+    già collaudato in questo stesso contesto (tab-in-ListView) da
+    `esplorazione_tab.py::_section_skills()`. Sotto la soglia `breakpoint`
+    le due colonne tornano impilate a piena larghezza (mobile-safe di
+    default, nessuna plumbing `is_mobile` necessaria).
+    """
+    total = 12
+    a, b = ratio
+    return ft.ResponsiveRow(
+        [
+            ft.Container(content=major, col={"xs": total, breakpoint: a}),
+            ft.Container(content=minor, col={"xs": total, breakpoint: b}),
+        ],
+        columns=total, spacing=spacing, run_spacing=spacing,
     )
 
 
@@ -846,6 +965,24 @@ def dot_button(filled: bool, *, tone: Tone = "magic", size: int = 18,
     )
 
 
+def icon_badge(icon: ft.IconData, *, tone: Tone = "primary", size: int = 36) -> ft.Container:
+    """
+    Icona in un cerchietto tinto — la "forma-firma" ricorrente del rifacimento
+    Arcane Ledger. Nata in `dialog_title()` (unico punto d'uso finora, 101
+    varianti prima di questa primitiva) ed estratta qui perché `section()`,
+    `empty_state()` e le righe di lista la riusano allo stesso modo:
+    trasforma un'icona Material generica in un linguaggio visivo coerente
+    senza introdurre una nuova libreria di icone.
+    """
+    col = tone_color(tone)
+    return ft.Container(
+        content=ft.Icon(icon, size=round(size * 0.5), color=col),
+        width=size, height=size, alignment=ft.Alignment.CENTER,
+        bgcolor=ft.Colors.with_opacity(0.12, col),
+        border_radius=Radius.PILL,
+    )
+
+
 def dialog_title(text: str, icon: ft.IconData | None = None,
                  tone: Tone = "primary") -> ft.Control:
     """
@@ -854,20 +991,82 @@ def dialog_title(text: str, icon: ft.IconData | None = None,
     dimensione, peso e colore scelti caso per caso (101 varianti).
     """
     p = T()
-    col = tone_color(tone)
     kids: list[ft.Control] = []
     if icon is not None:
-        kids.append(ft.Container(
-            content=ft.Icon(icon, size=18, color=col),
-            width=36, height=36, alignment=ft.Alignment.CENTER,
-            bgcolor=ft.Colors.with_opacity(0.12, col),
-            border_radius=Radius.PILL,
-        ))
+        kids.append(icon_badge(icon, tone=tone))
         kids.append(ft.Container(width=Space.MD))
     kids.append(ft.Text(text, size=Size.SUBTITLE, weight=ft.FontWeight.BOLD,
                         color=p.text, font_family=Font.DISPLAY,
                         expand=True, no_wrap=False))
     return ft.Row(kids, tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+
+def generator_dialog_shell(
+    title: str,
+    icon: ft.IconData | None,
+    form: ft.Control,
+    result: ft.Control | None,
+    actions: list[ft.Control],
+    *,
+    tone: Tone = "primary",
+) -> ft.Control:
+    """
+    Scheletro condiviso dei dialog "generatore" della Sezione Master (Genera
+    Tesoro, Genera NPC, Generatore Trappole, Genera Incontro [Casuale/per
+    Ambiente], Genera Oggetto Magico, Artefatti, Malattie e Veleni…): prima
+    ognuno ricostruiva a mano la stessa sequenza intestazione → form
+    parametri → `ft.Divider` → `card(result_col, accent=T().primary,
+    level=2, padding=Space.XL)` → eventuale riga di azioni secondarie
+    (Assegna…/Salva nell'archivio/Aggiungi all'inventario) — qui è UN solo
+    punto per cambiare la "sensazione di rivelazione" del risultato in tutti
+    i generatori insieme (audit anti-AI-slop, rifacimento Arcane Ledger).
+
+    `form` è avvolto in `section("Parametri", form, density="dense")`
+    (stessa intestazione a barretta+etichetta di ogni altra sezione
+    dell'app, non più un blocco di controlli nudo).
+
+    `result=None` finché il chiamante preferisce non mostrare ancora la card
+    "risultato" (es. un dialog a schede dove la scheda generatore non è
+    quella attiva). La maggior parte dei generatori esistenti passa invece
+    SEMPRE un control con dentro un placeholder testuale iniziale ("Premi
+    «Genera»…", mai `None`) proprio per evitare che la card "salti dentro"
+    al primo tiro — comportamento preservato passando qui lo stesso
+    control, che i generatori continuano ad aggiornare in place
+    (`.update()`) esattamente come già fanno.
+
+    `actions` sono le azioni RIGA secondarie sotto il risultato (Assegna…/
+    Salva nell'archivio/Aggiungi all'inventario) — NON i pulsanti di
+    `AlertDialog.actions` (Chiudi/Annulla), che restano invariati a carico
+    del chiamante. Vengono avvolte con lo stesso schema di
+    `ui/widgets.py::wrap_dialog_actions()` (import differito qui sotto per
+    evitare un'importazione circolare: `ui/widgets.py` importa già
+    `ui.design` a livello di modulo, quindi `design.py` non può importare
+    `ui.widgets` allo stesso livello) — una fila di 2-3 pulsanti va a capo
+    su un dialog stretto invece di uscire dal bordo.
+
+    Non imposta `width`/`height`/`scroll`: restano a carico del chiamante,
+    che avvolge il control restituito in un `ft.Column(scroll=ft.ScrollMode.
+    AUTO, width=responsive_dialog_width(page, N), height=H, tight=True)` —
+    questa funzione non riceve `page`, quindi non può calcolare la
+    larghezza responsive da sola (vedi `ui/widgets.py::
+    responsive_dialog_width()`).
+    """
+    p = T()
+    accent = tone_color(tone)
+    kids: list[ft.Control] = [
+        dialog_title(title, icon, tone),
+        ft.Container(height=Space.SM),
+        section("Parametri", form, density="dense"),
+    ]
+    if result is not None:
+        kids.append(ft.Divider(height=1, color=p.border))
+        kids.append(card(result, accent=accent, level=2, padding=Space.XL))
+    if actions:
+        from ui.widgets import wrap_dialog_actions  # import differito, vedi docstring
+
+        kids.append(ft.Divider(height=1, color=p.border))
+        kids.extend(wrap_dialog_actions(actions))
+    return ft.Column(kids, spacing=Space.MD, tight=True)
 
 
 def field_style() -> dict[str, Any]:
@@ -890,11 +1089,11 @@ def field_style() -> dict[str, Any]:
 
 
 def empty_state(icon: ft.IconData, title_text: str, hint: str = "",
-                action: ft.Control | None = None) -> ft.Container:
+                action: ft.Control | None = None, *, tone: Tone = "neutral") -> ft.Container:
     """Stato vuoto uniforme — l'app ne aveva ~12 scritti a mano tutti diversi."""
     p = T()
     kids: list[ft.Control] = [
-        ft.Icon(icon, size=48, color=p.text_3),
+        icon_badge(icon, tone=tone, size=64),
         ft.Container(height=Space.MD),
         ft.Text(title_text, size=Size.SUBTITLE, weight=ft.FontWeight.W_600,
                 color=p.text_2, font_family=Font.BODY,

@@ -108,8 +108,15 @@ class EsplorazioneTab(ScrollMemoryListView):
 
         # IMPORTANTE: modifica in-place — NON riassegnare self.controls
         self.controls.clear()
-        self.controls.append(self._section_percezione(c, pb))
-        self.controls.append(self._section_indagare_passiva(c, pb))
+        # Audit anti-AI-slop (2026-08-18): Percezione Passiva è l'unico
+        # elemento "hero" del tab (il valore più consultato dal DM per le
+        # verifiche passive, unico dei due con override manuale) — affiancata
+        # a Indagare Passivo invece di impilata, stesso principio già usato
+        # per HP+statistiche in combattimento_tab.py.
+        self.controls.append(design.asymmetric_row(
+            self._section_percezione(c, pb), self._section_indagare_passiva(c, pb),
+            ratio=(7, 5),
+        ))
         self.controls.append(section_header("Sensi e Velocità"))
         self.controls.append(self._section_sensi(c))
         self.controls.append(self._section_lingue_header())
@@ -164,40 +171,44 @@ class EsplorazioneTab(ScrollMemoryListView):
             )
         )
 
-        return ft.Container(
-            content=ft.Row(
-                [
-                    ft.Column(
-                        [
-                            ft.Row(
-                                [
-                                    label_text("Percezione Passiva", 9),
-                                    ft.Icon(ft.Icons.EDIT, size=11, color=design.T().text_3),
-                                ],
-                                spacing=4,
-                                alignment=ft.MainAxisAlignment.CENTER,
-                            ),
-                            ft.Text(
-                                str(passive),
-                                size=42,
-                                weight=ft.FontWeight.BOLD,
-                                color=design.T().magic if override > 0 else color,
-                                font_family=design.Font.MONO,
-                            ),
-                            muted_text(detail, size=11, text_align=ft.TextAlign.CENTER),
-                        ],
-                        spacing=2,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.CENTER,
-            ),
-            bgcolor=design.T().surface,
-            padding=ft.Padding.symmetric(horizontal=16, vertical=20),
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
-            shadow=design.elevation(1),
-            border_radius=design.Radius.MD,
-            ink=True,
+        content = ft.Row(
+            [
+                ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                label_text("Percezione Passiva", 9),
+                                ft.Icon(ft.Icons.EDIT, size=11, color=design.T().text_3),
+                            ],
+                            spacing=4,
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                        ft.Text(
+                            str(passive),
+                            size=design.Size.HERO,
+                            weight=ft.FontWeight.BOLD,
+                            color=design.T().magic if override > 0 else color,
+                            font_family=design.Font.MONO,
+                        ),
+                        muted_text(detail, size=11, text_align=ft.TextAlign.CENTER),
+                    ],
+                    spacing=2,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+        )
+        # Card "hero" (`design.card(hero=True)`, Arcane Ledger) — l'unico
+        # momento dominante del tab: la Percezione Passiva è il valore più
+        # consultato dal DM per le verifiche passive, stesso ruolo degli HP
+        # in combattimento_tab.py. Sostituisce la replica manuale di
+        # bordo/ombra/padding con la primitiva condivisa (numero allineato
+        # a `Size.HERO`, resta in `Font.MONO` — cifra tabellare, non un
+        # titolo — a differenza di `hero_title()` che userebbe `Font.DISPLAY`).
+        return design.card(
+            content,
+            accent=design.T().primary,
+            hero=True,
             on_click=lambda e: self._on_edit_passive_perception(calculated),
             tooltip="Modifica Percezione Passiva",
         )
@@ -317,7 +328,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             bgcolor=design.T().surface,
-            padding=ft.Padding.symmetric(horizontal=16, vertical=12),
+            padding=ft.Padding.symmetric(horizontal=design.Space.MD, vertical=design.Space.MD),
             border=ft.Border(
                 top=ft.BorderSide(2, design.T().border),
                 left=ft.BorderSide(1, design.T().border),
@@ -435,25 +446,11 @@ class EsplorazioneTab(ScrollMemoryListView):
     # ------------------------------------------------------------------
 
     def _section_lingue_header(self) -> ft.Container:
-        return ft.Container(
-            content=ft.Row(
-                [
-                    ft.Container(width=3, height=14, bgcolor=design.T().primary_fill, border_radius=1),
-                    ft.Container(width=8),
-                    ft.Text(
-                        "LINGUE",
-                        size=10,
-                        color=design.T().text_2,
-                        weight=ft.FontWeight.BOLD,
-                        style=ft.TextStyle(letter_spacing=2),
-                    ),
-                    ft.Container(width=8),
-                    ft.Container(expand=True, height=1, bgcolor=design.T().border),
-                ],
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            margin=ft.Margin.only(bottom=0, top=4),
-        )
+        # Audit anti-AI-slop (2026-08-18): era una reimplementazione a mano
+        # identica a `section_header()` (già importata in questo file e già
+        # usata più sotto per "Tiri Salvezza"/"Abilità") — stesso header,
+        # zero differenza visiva, una sola fonte di verità in più.
+        return section_header("Lingue")
 
     def _section_lingue(self) -> ft.Container:
         lingue = [p for p in self._profs if p.proficiency_type == "language"]
@@ -461,20 +458,17 @@ class EsplorazioneTab(ScrollMemoryListView):
         if not lingue:
             rows: list[ft.Control] = [muted_text("Nessuna lingua registrata — usa + Aggiungi", 12)]
         else:
+            # Audit anti-AI-slop (2026-08-18): icona LANGUAGE rimossa — era
+            # identica e ripetuta su ogni riga dentro una sezione già
+            # titolata "Lingue", zero informazione aggiuntiva (a differenza
+            # di ★/● in Strumenti qui sotto, che comunica competenza/maestria).
             rows = []
             for p in sorted(lingue, key=lambda x: x.name):
                 rows.append(
-                    ft.Row(
-                        [
-                            ft.Icon(ft.Icons.LANGUAGE, size=14, color=design.T().text_3),
-                            ft.Text(
-                                p.name,
-                                size=13,
-                                color=design.T().text,
-                                expand=True,
-                            ),
-                        ],
-                        spacing=6,
+                    ft.Text(
+                        p.name,
+                        size=13,
+                        color=design.T().text,
                     )
                 )
 
@@ -486,25 +480,8 @@ class EsplorazioneTab(ScrollMemoryListView):
     # ------------------------------------------------------------------
 
     def _section_strumenti_header(self) -> ft.Container:
-        return ft.Container(
-            content=ft.Row(
-                [
-                    ft.Container(width=3, height=14, bgcolor=design.T().primary_fill, border_radius=1),
-                    ft.Container(width=8),
-                    ft.Text(
-                        "STRUMENTI",
-                        size=10,
-                        color=design.T().text_2,
-                        weight=ft.FontWeight.BOLD,
-                        style=ft.TextStyle(letter_spacing=2),
-                    ),
-                    ft.Container(width=8),
-                    ft.Container(expand=True, height=1, bgcolor=design.T().border),
-                ],
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            margin=ft.Margin.only(bottom=0, top=4),
-        )
+        # Audit anti-AI-slop (2026-08-18): stesso motivo di _section_lingue_header.
+        return section_header("Strumenti")
 
     def _section_strumenti(self) -> ft.Container:
         strumenti = [p for p in self._profs if p.proficiency_type == "tool"]
@@ -603,7 +580,7 @@ class EsplorazioneTab(ScrollMemoryListView):
                         padding=ft.Padding.all(2),
                     ),
                     ft.IconButton(
-                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().primary_icon,
+                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().danger_icon,
                         tooltip="Elimina",
                         on_click=lambda e, a=ab: self._on_delete_custom_ability(a),
                         padding=ft.Padding.all(2),
@@ -691,7 +668,9 @@ class EsplorazioneTab(ScrollMemoryListView):
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
                     "Elimina", on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
+                    # `danger_fill`, non `primary_fill`: azione distruttiva
+                    # (rosso isolato, Arcane Ledger — vedi ui/design.py).
+                    style=ft.ButtonStyle(bgcolor=design.T().danger_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )

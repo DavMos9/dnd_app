@@ -349,9 +349,17 @@ class CombattimentoTab(ScrollMemoryListView):
     def _build(self):
         c = self.character
         controls: list[ft.Control] = [
-            self._section_hp(c),
-            section_header("Statistiche di Combattimento"),
-            self._section_stats(c),
+            # Audit anti-AI-slop (2026-08-18): HP è l'unico elemento "hero"
+            # del tab (numero grande, colore dinamico, bottoni Danno/Cura) —
+            # affiancarlo alle statistiche di combattimento invece di
+            # impilarle rompe la colonna singola meccanica del resto del tab
+            # e rispecchia quanto sono effettivamente consultati insieme in
+            # combattimento. `section_header("Statistiche di Combattimento")`
+            # rimosso: l'accoppiamento visivo con l'HP rende il titolo
+            # ridondante, il contenuto (CA/velocità/iniziativa/ispirazione)
+            # resta autoesplicativo dalle etichette dei singoli riquadri.
+            design.asymmetric_row(self._section_hp(c), self._section_stats(c),
+                                   ratio=(7, 5)),
             section_header("Indebolimento"),
             self._section_exhaustion(c),
             section_header("Condizioni"),
@@ -542,13 +550,23 @@ class CombattimentoTab(ScrollMemoryListView):
             self._build_death_saves(c),
         ]
 
-        return ft.Container(
-            content=ft.Column(rows, spacing=4),
-            bgcolor=design.T().surface,
-            padding=16,
-            border=ft.Border.only(left=ft.BorderSide(3, hp_color)),
-            shadow=design.elevation(1),
-            border_radius=design.Radius.MD,
+        # Audit anti-AI-slop (2026-08-18): unico elemento "hero" del tab (vedi
+        # commento in _build) — `card(hero=True, ...)` invece di un
+        # `ft.Container` a mano: stesso ruolo di "elemento più consultato
+        # della schermata" già codificato in `design.card()` (level 2,
+        # Space.XL, bordo pieno nell'accento) invece di reinventarlo qui a
+        # valori sciolti. Il colore resta quello dinamico dello stato di
+        # salute (success/warning/danger), non un accento fisso: è più
+        # informativo di un rosso statico. `layered_shadow()` (chiamato
+        # internamente da `card()`) aggiunge un alone colorato attorno alla
+        # card SOLO in tema scuro (feedback di Davide, 2026-08-18: "per la
+        # modalità scura non ho notato molto i cambiamenti" — un'ombra nera
+        # non si vede quasi contro un fondo già scuro, vedi il docstring di
+        # `accent_glow()` per il perché non si schiarisce invece `bgcolor`).
+        return design.card(
+            ft.Column(rows, spacing=4),
+            accent=hp_color,
+            hero=True,
         )
 
     def _build_death_saves(self, c: Character) -> ft.Column:
@@ -869,8 +887,11 @@ class CombattimentoTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Icon(ft.Icons.CENTER_FOCUS_STRONG, size=18, color=p.magic),
-                    ft.Container(width=design.Space.SM),
+                    # Icona CENTER_FOCUS_STRONG rimossa (audit anti-AI-slop,
+                    # 2026-08-18): puramente decorativa — il nome
+                    # dell'incantesimo sotto è già titolato dalla sezione
+                    # "Concentrazione" (section_header sopra questa card),
+                    # l'icona non aggiungeva alcuna informazione in più.
                     ft.Container(
                         content=ft.Column(
                             [
@@ -1039,13 +1060,12 @@ class CombattimentoTab(ScrollMemoryListView):
         if not self._page:
             return
         page = self._page
+        field_style = design.field_style()
+        field_style["focused_border_color"] = design.T().danger
         field = ft.TextField(
             label="Quantità danno", keyboard_type=ft.KeyboardType.NUMBER,
             autofocus=True, text_align=ft.TextAlign.CENTER,
-            text_style=ft.TextStyle(size=16, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().danger,
-            bgcolor=design.T().surface,
-            border_radius=design.field_style()['border_radius'])
+            **field_style)
         # PHB p.197 "Danni a 0 punti ferita": un colpo critico subito a 0 PF
         # equivale a DUE tiri salvezza contro morte falliti invece di uno.
         crit_cb = ft.Checkbox(
@@ -1110,13 +1130,12 @@ class CombattimentoTab(ScrollMemoryListView):
         if not self._page:
             return
         page = self._page
+        field_style = design.field_style()
+        field_style["focused_border_color"] = design.T().success
         field = ft.TextField(
             label="Quantità cura", keyboard_type=ft.KeyboardType.NUMBER,
             autofocus=True, text_align=ft.TextAlign.CENTER,
-            text_style=ft.TextStyle(size=16, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().success,
-            bgcolor=design.T().surface,
-            border_radius=design.field_style()['border_radius'])
+            **field_style)
 
         def apply(ev):
             if page is None:
@@ -1168,10 +1187,7 @@ class CombattimentoTab(ScrollMemoryListView):
             label="HP Temporanei", value=str(c.hp_temp or 0),
             keyboard_type=ft.KeyboardType.NUMBER, autofocus=True,
             text_align=ft.TextAlign.CENTER,
-            text_style=ft.TextStyle(size=16, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().magic,
-            bgcolor=design.T().surface,
-            border_radius=design.field_style()['border_radius'])
+            **design.field_style())
 
         def apply(ev: Any) -> None:
             if page is None:
@@ -1219,10 +1235,7 @@ class CombattimentoTab(ScrollMemoryListView):
             return ft.TextField(
                 label=label, value=str(value),
                 keyboard_type=ft.KeyboardType.NUMBER,
-                text_style=ft.TextStyle(size=13, color=design.T().text),
-                border_color=design.T().border, focused_border_color=design.T().magic,
-                bgcolor=design.T().surface,
-                border_radius=design.field_style()['border_radius'])
+                **design.field_style())
 
         f_max  = _num_field("HP Max", c.hp_max)
         f_curr = _num_field("HP Attuali", c.hp_current)
@@ -1360,8 +1373,13 @@ class CombattimentoTab(ScrollMemoryListView):
             tooltip="Clicca per aggiungere/rimuovere bonus CA temporaneo",
         )
 
-        return ft.Container(
-            content=ft.Column(
+        # Audit anti-AI-slop (2026-08-18): `card(density="dense")` invece del
+        # `ft.Container` a mano — stessa resa (bordo/ombra/raggio livello 1,
+        # padding Space.MD=12 già usato qui) ma passando dal token condiviso,
+        # coerente col trattamento "dense" delle altre sezioni dati-intensive
+        # di questa tab (statistiche/tiri salvezza/abilità).
+        return design.card(
+            ft.Column(
                 [
                     ft.Row(
                         [
@@ -1394,11 +1412,8 @@ class CombattimentoTab(ScrollMemoryListView):
                 ],
                 spacing=6,
             ),
-            bgcolor=design.T().surface,
-            padding=12,
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
-            shadow=design.elevation(1),
-            border_radius=design.Radius.MD,
+            accent=design.T().primary,
+            density="dense",
         )
 
     def _toggle_inspiration(self, e):
@@ -1416,14 +1431,10 @@ class CombattimentoTab(ScrollMemoryListView):
         c = self.character
         f_ac    = ft.TextField(label="Classe Armatura (CA)", value=str(c.ac),
                                keyboard_type=ft.KeyboardType.NUMBER,
-                               text_style=ft.TextStyle(size=13, color=design.T().text),
-                               border_color=design.T().border, focused_border_color=design.T().magic,
-                               bgcolor=design.T().surface, border_radius=design.field_style()['border_radius'])
+                               **design.field_style())
         f_speed = ft.TextField(label="Velocità (m)", value=str(c.speed),
                                keyboard_type=ft.KeyboardType.NUMBER,
-                               text_style=ft.TextStyle(size=13, color=design.T().text),
-                               border_color=design.T().border, focused_border_color=design.T().magic,
-                               bgcolor=design.T().surface, border_radius=design.field_style()['border_radius'])
+                               **design.field_style())
 
         def save(ev):
             if page is None:
@@ -1464,17 +1475,15 @@ class CombattimentoTab(ScrollMemoryListView):
         c = self.character
         cur_bonus = c.ca_bonus
 
+        f_bonus_style = design.field_style()
+        f_bonus_style["text_style"] = ft.TextStyle(
+            size=16, color=design.T().text, font_family=design.Font.MONO)
         f_bonus = ft.TextField(
             label="Bonus CA temporaneo (positivo o negativo)",
             value=str(cur_bonus),
             keyboard_type=ft.KeyboardType.NUMBER,
-            text_style=ft.TextStyle(size=16, color=design.T().text,
-                                    font_family=design.Font.MONO),
-            border_color=design.T().border,
-            focused_border_color=design.T().magic,
-            bgcolor=design.T().surface,
             autofocus=True,
-            border_radius=design.field_style()['border_radius'])
+            **f_bonus_style)
 
         info_text = ft.Text(
             f"CA base (armatura): {c.ac}   |   CA totale con bonus: {c.ac + cur_bonus}",
@@ -1918,8 +1927,11 @@ class CombattimentoTab(ScrollMemoryListView):
             [_skill_row(n, k) for n, k in skill_items[half:]], spacing=3
         )
 
-        return ft.Container(
-            content=ft.Column([
+        # Audit anti-AI-slop (2026-08-18): `card(density="dense")` — griglia
+        # dati-intensa (6 tiri salvezza + 18 abilità), stesso trattamento
+        # "dense" delle statistiche di combattimento qui sopra.
+        return design.card(
+            ft.Column([
                 saves_col,
                 ft.Divider(color=design.T().border),
                 ft.Text("ABILITÀ", size=9, color=design.T().text_3,
@@ -1928,11 +1940,8 @@ class CombattimentoTab(ScrollMemoryListView):
                 ft.Text("✦ competente  ★ maestria", size=10, color=design.T().text_3,
                         italic=True),
             ], spacing=8),
-            bgcolor=design.T().surface,
-            padding=14,
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
-            shadow=design.elevation(1),
-            border_radius=design.Radius.MD,
+            accent=design.T().primary,
+            density="dense",
         )
 
     # ------------------------------------------------------------------
@@ -2508,11 +2517,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 label=f"{_SLOT_NAMES[lv - 1]} livello",
                 value=str(s.total if s else 0),
                 keyboard_type=ft.KeyboardType.NUMBER,
-                text_style=ft.TextStyle(size=13, color=design.T().text),
-                border_color=design.T().border,
-                focused_border_color=design.T().magic,
-                bgcolor=design.T().surface,
-                border_radius=design.field_style()['border_radius'])
+                **design.field_style())
 
         # Layout 3×3
         grid = ft.Row(
@@ -2627,8 +2632,7 @@ class CombattimentoTab(ScrollMemoryListView):
             width=190,
             dense=True,
             text_size=12,
-            border_radius=design.Radius.SM,
-            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+            **design.field_style())
 
         available_slots = [s for s in self._slots if s.total > 0 and s.used < s.total]
         convert_dd = ft.Dropdown(
@@ -2645,8 +2649,7 @@ class CombattimentoTab(ScrollMemoryListView):
             width=190,
             dense=True,
             text_size=12,
-            border_radius=design.Radius.SM,
-            border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
+            **design.field_style())
 
         def on_create(e: Any) -> None:
             if not create_dd.value:
@@ -3285,7 +3288,11 @@ class CombattimentoTab(ScrollMemoryListView):
                         padding=ft.Padding.all(2),
                     ),
                     ft.IconButton(
-                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().primary_icon,
+                        # Audit anti-AI-slop (2026-08-18): `danger_icon`, non
+                        # `primary_icon` — azione distruttiva (elimina), la
+                        # palette separa ora i due registri (vedi Palette in
+                        # design.py).
+                        ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().danger_icon,
                         tooltip="Elimina",
                         on_click=lambda e, a=ab: self._on_delete_custom_ability(a),
                         padding=ft.Padding.all(2),
@@ -3372,8 +3379,10 @@ class CombattimentoTab(ScrollMemoryListView):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
+                    # Audit anti-AI-slop (2026-08-18): `danger_fill`, non
+                    # `primary_fill` — conferma di un'eliminazione.
                     "Elimina", on_click=_confirm,
-                    style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
+                    style=ft.ButtonStyle(bgcolor=design.T().danger_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )
@@ -3642,21 +3651,17 @@ class CombattimentoTab(ScrollMemoryListView):
         remaining = c.hit_dice_remaining if c.hit_dice_remaining is not None else total
         con_mod   = get_modifier(c.con_score)
 
+        hit_dice_style = design.field_style()
+        hit_dice_style["focused_border_color"] = design.T().warning
         f_dice = ft.TextField(
             label=f"Dadi da spendere (max {remaining})", value="1",
             keyboard_type=ft.KeyboardType.NUMBER,
-            text_style=ft.TextStyle(size=13, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().warning,
-            bgcolor=design.T().surface,
-            border_radius=design.field_style()['border_radius'])
+            **hit_dice_style)
         f_roll = ft.TextField(
             label="Totale dadi tirati (escluso CON)",
             hint_text=f"es. {die // 2} per un dado",
             keyboard_type=ft.KeyboardType.NUMBER,
-            text_style=ft.TextStyle(size=13, color=design.T().text),
-            border_color=design.T().border, focused_border_color=design.T().warning,
-            bgcolor=design.T().surface,
-            border_radius=design.field_style()['border_radius'])
+            **hit_dice_style)
 
         def apply(ev):
             if page is None:
@@ -4052,8 +4057,11 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.Text(f" / {forma.hp_max} PF", size=14, color=design.T().text_3,
                             font_family=design.Font.MONO),
                     ft.Container(expand=True),
+                    # Audit anti-AI-slop (2026-08-18): `danger_icon`, non
+                    # `primary_icon` — applica danno è l'azione distruttiva
+                    # gemella di "Cura" qui sotto (che resta `success`).
                     ft.IconButton(ft.Icons.REMOVE, on_click=_on_apply_damage,
-                                  icon_color=design.T().primary_icon,
+                                  icon_color=design.T().danger_icon,
                                   tooltip="Applica danno"),
                     ft.IconButton(ft.Icons.ADD, on_click=_on_apply_heal,
                                   icon_color=design.T().success,
@@ -4102,8 +4110,10 @@ class CombattimentoTab(ScrollMemoryListView):
                 title=design.dialog_title("Rimuovi forma?"),
                 content=ft.Text(f"Rimuovere {forma.name.title()} dal bestiary?"),
                 actions=cast(list[ft.Control], wrap_dialog_actions([
+                    # Audit anti-AI-slop (2026-08-18): `danger`, non
+                    # `primary` — conferma di rimozione permanente.
                     ft.TextButton("Rimuovi", on_click=confirm,
-                                  style=ft.ButtonStyle(color=design.T().primary)),
+                                  style=ft.ButtonStyle(color=design.T().danger)),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
                 ])),
             )
@@ -4330,8 +4340,11 @@ class CombattimentoTab(ScrollMemoryListView):
                     ),
                     ft.Text(f" — GS {evoc.cr}" if evoc.cr else "", size=11, color=design.T().text_3),
                     ft.Container(expand=True),
+                    # Audit anti-AI-slop (2026-08-18): `danger_icon`, non
+                    # `primary_icon` — vedi la stessa correzione per le forme
+                    # selvatiche qui sopra.
                     ft.IconButton(ft.Icons.REMOVE, on_click=apply_damage,
-                                  icon_color=design.T().primary_icon, icon_size=18,
+                                  icon_color=design.T().danger_icon, icon_size=18,
                                   tooltip="Applica danno"),
                     ft.IconButton(ft.Icons.ADD, on_click=apply_heal,
                                   icon_color=design.T().success, icon_size=18,
@@ -4381,8 +4394,10 @@ class CombattimentoTab(ScrollMemoryListView):
                 title=design.dialog_title("Rimuovi evocazione?"),
                 content=ft.Text(f"Rimuovere {evoc.name.title()} dal bestiary?"),
                 actions=cast(list[ft.Control], wrap_dialog_actions([
+                    # Audit anti-AI-slop (2026-08-18): `danger`, non
+                    # `primary` — conferma di rimozione permanente.
                     ft.TextButton("Rimuovi", on_click=confirm,
-                                  style=ft.ButtonStyle(color=design.T().primary)),
+                                  style=ft.ButtonStyle(color=design.T().danger)),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
                 ])),
             )

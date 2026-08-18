@@ -429,24 +429,29 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
         content = ft.Column(
             [
-                ft.Text("Chi è il tuo personaggio?", size=22,
-                        weight=ft.FontWeight.BOLD, color=design.T().text),
-                ft.Container(height=4),
-                muted_text("Inserisci i dati base. HP, CA e velocità verranno derivati automaticamente.", size=13),
-                ft.Container(height=20),
-                fantasy_card(ft.Column([
-                    section_header("Nome e Giocatore"),
+                ft.Row(
+                    [
+                        design.icon_badge(ft.Icons.PERSON, tone="primary", size=44),
+                        ft.Container(width=design.Space.MD),
+                        design.hero_title(
+                            "Chi è il tuo personaggio?",
+                            "Inserisci i dati base. HP, CA e velocità verranno derivati automaticamente.",
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Container(height=design.Space.XL),
+                design.section("Nome e Giocatore", ft.Column([
                     name_tf,
                     player_tf,
-                ], spacing=12), padding=16),
-                ft.Container(height=16),
-                fantasy_card(ft.Column([
-                    section_header("Classe, Razza e Background"),
+                ], spacing=design.Space.MD), density="dense"),
+                ft.Container(height=design.Space.MD),
+                design.section("Classe, Razza e Background", ft.Column([
                     class_dd,
                     race_dd,
                     bg_dd,
                     align_dd,
-                ], spacing=12), padding=16),
+                ], spacing=design.Space.MD), density="dense"),
                 ft.Container(height=8),
                 error_text,
                 ft.Container(height=16),
@@ -478,7 +483,15 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
         stat_dropdowns: dict[str, ft.Dropdown] = {}
 
-        def _make_stat_row(key: str, label: str) -> ft.Row:
+        def _make_stat_cell(key: str, label: str) -> ft.Container:
+            # Cella "instrument panel" (Arcane Ledger) — sostituisce la riga
+            # etichetta+dropdown+badge con una cella incassata (stesso
+            # linguaggio visivo del mini stat bar di sheet_view.py:
+            # `surface_alt` + cifre in font mono + chip modificatore),
+            # disposta in griglia responsive invece che impilata. La
+            # struttura [label, dd, badge] a 3 figli diretti resta invariata
+            # (indici 0/1/2) — `_on_stat_change` naviga `dd_ctrl.parent.
+            # controls[2]` per aggiornare il badge, invariato qui sotto.
             val     = self._review_stats.get(key, 10)
             mod_str = get_modifier_str(val)
             mod     = get_modifier(val)
@@ -489,19 +502,29 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 on_select=lambda e, k=key: _on_stat_change(k, int(e.control.value or 10)),
                 bgcolor=design.T().surface, color=design.T().text,
                 border_color=design.T().border, focused_border_color=design.T().magic,
-                width=110,
+                width=120,
                 border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
             stat_dropdowns[key] = dd
             badge = ft.Container(
                 content=ft.Text(mod_str, size=13, weight=ft.FontWeight.BOLD,
-                                color=design.T().magic if mod >= 0 else design.T().danger),
-                width=40,
+                                color=design.T().magic if mod >= 0 else design.T().danger,
+                                font_family=design.Font.MONO,
+                                text_align=ft.TextAlign.CENTER),
+                padding=ft.Padding.symmetric(horizontal=design.Space.MD, vertical=3),
+                bgcolor=design.T().surface,
+                border_radius=design.Radius.PILL,
                 alignment=ft.Alignment.CENTER,
             )
-            return ft.Row(
-                [ft.Text(label, size=13, color=design.T().text, expand=True), dd, badge],
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=8,
+            return ft.Container(
+                content=ft.Column(
+                    [design.label(label), dd, badge],
+                    spacing=design.Space.SM,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    tight=True,
+                ),
+                padding=design.Space.SM,
+                bgcolor=design.T().surface_alt,
+                border_radius=design.Radius.MD,
             )
 
         def _on_stat_change(key: str, new_val: int) -> None:
@@ -529,9 +552,12 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             sign    = "+" if con_mod >= 0 else ""
             return f"HP al Lv.1: d{hd}{sign}{con_mod} = {hp}  (cambia COS. per aggiornare)"
 
-        stat_rows = ft.Column(
-            [_make_stat_row(k, lbl) for k, lbl in zip(ABILITY_KEYS, ABILITY_SCORES)],
-            spacing=8,
+        # Griglia di 6 celle (2/3/6 colonne a xs/sm/lg) invece della colonna
+        # impilata — vedi nota "instrument panel" in `_make_stat_cell`.
+        stat_grid = ft.ResponsiveRow(
+            [ft.Container(content=_make_stat_cell(k, lbl), col={"xs": 6, "sm": 4, "lg": 2})
+             for k, lbl in zip(ABILITY_KEYS, ABILITY_SCORES)],
+            columns=12, spacing=design.Space.SM, run_spacing=design.Space.SM,
         )
         hp_note = ft.Text(_hp_note(), size=11, color=design.T().text_3, italic=True)
 
@@ -620,32 +646,32 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         subrace_card: list[ft.Control] = []
         if has_subrace_choice:
             subrace_card = [
-                fantasy_card(ft.Column([
-                    section_header("Sottorazza"),
-                    subrace_picker_col,
-                ], spacing=8), padding=20),
-                ft.Container(height=20),
+                design.section("Sottorazza", subrace_picker_col, density="dense"),
+                ft.Container(height=design.Space.MD),
             ]
 
         content = ft.Column(
             [
-                ft.Text("Assegna i punteggi", size=22,
-                        weight=ft.FontWeight.BOLD, color=design.T().text),
-                ft.Container(height=4),
-                muted_text(
-                    f"Standard Array [{', '.join(str(v) for v in sorted(STANDARD_ARRAY, reverse=True))}] "
-                    f"pre-assegnato in base alla classe {self._review_class}. Puoi spostare i valori liberamente.",
-                    size=13,
+                ft.Row(
+                    [
+                        design.icon_badge(ft.Icons.EQUALIZER, tone="primary", size=44),
+                        ft.Container(width=design.Space.MD),
+                        design.hero_title(
+                            "Assegna i punteggi",
+                            f"Standard Array [{', '.join(str(v) for v in sorted(STANDARD_ARRAY, reverse=True))}] "
+                            f"pre-assegnato in base alla classe {self._review_class}. Puoi spostare i valori liberamente.",
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                ft.Container(height=20),
+                ft.Container(height=design.Space.XL),
                 *subrace_card,
-                fantasy_card(ft.Column([
-                    section_header("Caratteristiche"),
-                    stat_rows,
+                design.section("Caratteristiche", ft.Column([
+                    stat_grid,
                     ft.Container(height=6),
                     hp_note,
                     bonus_col,
-                ], spacing=8), padding=20),
+                ], spacing=8), density="dense"),
                 ft.Container(height=20),
                 ft.Row(
                     [
@@ -2180,13 +2206,10 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             size=13, color=design.T().text_3, italic=True,
         )
 
-        extra_card = ft.Container(
-            content=extra_card_content,
-            bgcolor=design.T().surface,
-            border=ft.Border.only(top=ft.BorderSide(3, design.T().primary)),
-            border_radius=ft.BorderRadius.all(8),
-            padding=20,
-        )
+        # Card unica della fase — migrata da Container fatto a mano a
+        # `design.card(hero=True)` (elemento più consultato dello schermo,
+        # MAX uno per fase — Arcane Ledger).
+        extra_card = design.card(extra_card_content, accent=design.T().primary, hero=True)
 
         def _update_extra_card() -> None:
             has_rc = (
@@ -2305,11 +2328,18 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
         content = ft.Column(
             [
-                ft.Text("Scelte di classe e razza", size=22,
-                        weight=ft.FontWeight.BOLD, color=design.T().text),
-                ft.Container(height=4),
-                muted_text(f"Seleziona le opzioni disponibili per {self._review_class} / {self._review_race}.", size=13),
-                ft.Container(height=20),
+                ft.Row(
+                    [
+                        design.icon_badge(ft.Icons.CHECKLIST, tone="primary", size=44),
+                        ft.Container(width=design.Space.MD),
+                        design.hero_title(
+                            "Scelte di classe e razza",
+                            f"Seleziona le opzioni disponibili per {self._review_class} / {self._review_race}.",
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Container(height=design.Space.XL),
                 extra_card,
                 ft.Container(height=12),
                 scelte_error_text,
@@ -2369,11 +2399,18 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         self._update_progress()
 
         rows: list[ft.Control] = [
-            ft.Text("Equipaggiamento iniziale", size=22,
-                    weight=ft.FontWeight.BOLD, color=design.T().text),
-            ft.Container(height=4),
-            muted_text("Seleziona l'equipaggiamento di partenza della tua classe.", size=13),
-            ft.Container(height=20),
+            ft.Row(
+                [
+                    design.icon_badge(ft.Icons.BACKPACK, tone="primary", size=44),
+                    ft.Container(width=design.Space.MD),
+                    design.hero_title(
+                        "Equipaggiamento iniziale",
+                        "Seleziona l'equipaggiamento di partenza della tua classe.",
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            ft.Container(height=design.Space.XL),
         ]
 
         if self._equip_fixed:
@@ -2404,7 +2441,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                 width=220, text_size=13,
                                 on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
                                 **design.field_style()),
-                        ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                        ], spacing=8, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                 elif item.get("item_type") == "tool_choice":
                     cat = item.get("category", "strumenti_musicali")
                     tools = _loader.get_tool_categories().get(cat, [])
@@ -2430,7 +2467,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                 width=220, text_size=13,
                                 on_select=lambda e, it=item: it.update({"chosen_tool": e.control.value or ""}),
                                 **design.field_style()),
-                        ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                        ], spacing=8, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                 else:
                     qty   = item.get("quantity", 1)
                     label = item["name"] + (f" ×{qty}" if qty > 1 else "")
@@ -2453,10 +2490,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         ], spacing=2))
                     else:
                         fixed_checks.append(fixed_row)
-            rows.append(fantasy_card(ft.Column([
-                section_header("Oggetti garantiti"),
-                ft.Column(fixed_checks, spacing=6),
-            ], spacing=12), padding=20))
+            rows.append(design.section(
+                "Oggetti garantiti", ft.Column(fixed_checks, spacing=6), density="dense",
+            ))
             rows.append(ft.Container(height=16))
 
         # CardPicker invece di RadioGroup (2026-07-17, richiesta Davide:
@@ -2514,7 +2550,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                     width=220, text_size=13,
                                     on_select=lambda e, it=item: it.update({"chosen_weapon": e.control.value or ""}),
                                     **design.field_style()),
-                            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                            ], spacing=8, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                     elif item.get("item_type") == "tool_choice":
                         cat = item.get("category", "strumenti_musicali")
                         tools = _loader.get_tool_categories().get(cat, [])
@@ -2540,7 +2576,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                                     width=220, text_size=13,
                                     on_select=lambda e, it=item: it.update({"chosen_tool": e.control.value or ""}),
                                     **design.field_style()),
-                            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                            ], spacing=8, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER))
                 return pickers
 
             def _make_picker_select(c: dict, col: ft.Column) -> Any:
@@ -2565,13 +2601,14 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             weapon_pickers_col.controls.extend(_build_weapon_pickers(choice))
 
             card_children: list[ft.Control] = [
-                section_header(f"Scelta {ci + 1}"),
                 picker.control,
                 ft.Container(height=8),
                 weapon_pickers_col,
             ]
 
-            rows.append(fantasy_card(ft.Column(card_children, spacing=8), padding=20))
+            rows.append(design.section(
+                f"Scelta {ci + 1}", ft.Column(card_children, spacing=8), density="dense",
+            ))
             rows.append(ft.Container(height=16))
 
         bg_data = _loader.get_background(self._review_bg)
@@ -2582,12 +2619,11 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     f"• {it['name']}" if isinstance(it, dict) else f"• {it}"
                     for it in bg_equip
                 )
-                rows.append(fantasy_card(ft.Column([
-                    section_header("Equipaggiamento background"),
+                rows.append(design.section("Equipaggiamento background", ft.Column([
                     muted_text("Aggiunto automaticamente all'inventario.", size=11),
                     ft.Container(height=4),
                     ft.Text(bg_text, size=13, color=design.T().text),
-                ], spacing=8), padding=20))
+                ], spacing=8), density="dense"))
                 rows.append(ft.Container(height=16))
 
         # --- Sezione Monete iniziali (alternativa all'equipaggiamento di classe) ---
@@ -2645,8 +2681,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     on_select=_on_gold_select,
                 )
 
-                rows.append(fantasy_card(ft.Column([
-                    section_header("Monete iniziali"),
+                rows.append(design.section("Monete iniziali", ft.Column([
                     muted_text(
                         "In alternativa all'equipaggiamento, puoi iniziare con "
                         "dell'oro e acquistare ciò che vuoi.",
@@ -2655,7 +2690,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     ft.Container(height=4),
                     gold_picker.control,
                     gold_field,
-                ], spacing=8), padding=20))
+                ], spacing=8), density="dense"))
                 rows.append(ft.Container(height=16))
 
         rows.append(ft.Row(
@@ -3514,15 +3549,22 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
         content = ft.Column(
             [
-                ft.Text("Riepilogo e salvataggio", size=22,
-                        weight=ft.FontWeight.BOLD, color=design.T().text),
-                ft.Container(height=4),
-                muted_text("Controlla i valori derivati e crea il personaggio.", size=13),
-                ft.Container(height=20),
-                fantasy_card(ft.Column([
+                ft.Row(
+                    [
+                        design.icon_badge(ft.Icons.FACT_CHECK, tone="primary", size=44),
+                        ft.Container(width=design.Space.MD),
+                        design.hero_title(
+                            "Riepilogo e salvataggio",
+                            "Controlla i valori derivati e crea il personaggio.",
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Container(height=design.Space.XXL),
+                design.card(ft.Column([
                     section_header("Riepilogo"),
                     summary,
-                ], spacing=12), padding=20),
+                ], spacing=12), accent=design.T().primary, level=2, padding=design.Space.XL),
                 ft.Container(height=8),
                 error_text,
                 ft.Container(height=16),

@@ -12,7 +12,7 @@ import logging
 from typing import Any
 
 import flet as ft
-from ui.theme import title_text, label_text, section_header
+from ui.theme import label_text, section_header
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -101,9 +101,24 @@ class DiceView(ft.Column):
                 padding=ft.Padding.all(24),
                 content=ft.Column(
                     [
-                        # Titolo
+                        # Titolo di pagina (`hero_title()`, Arcane Ledger) —
+                        # l'icona/badge indaco introduce il registro "magic"
+                        # tenuto poi per i tasti dado e la card del risultato
+                        # (quest'ultima resta l'unico elemento "hero" del
+                        # sistema card/section della schermata, vedi sotto).
                         ft.Container(
-                            content=title_text("Lancia i Dadi", size=22),
+                            content=ft.Row(
+                                [
+                                    design.icon_badge(ft.Icons.CASINO, tone="magic"),
+                                    ft.Container(width=design.Space.MD),
+                                    design.hero_title(
+                                        "Lancia i Dadi",
+                                        "d4 – d100  ·  vantaggio e svantaggio su d20",
+                                    ),
+                                ],
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                wrap=True,
+                            ),
                             padding=ft.Padding.only(bottom=16),
                         ),
 
@@ -152,13 +167,24 @@ class DiceView(ft.Column):
                         ),
                         ft.Container(height=28),
 
-                        # Risultato
+                        # Risultato — unico elemento "hero" della schermata (audit
+                        # anti-AI-slop): `card(hero=True)` (bordo pieno, radius/
+                        # padding/livello maggiorati) con accento `magic`, così il
+                        # numero grande "brilla" come un incantesimo appena
+                        # lanciato invece di galleggiare sullo sfondo. Il colore
+                        # del NUMERO resta indipendente (verde/rosso/neutro in
+                        # base all'esito, vedi `_roll()`): il tema arcano è
+                        # sull'alone della card, mai sulla leggibilità della cifra.
                         ft.Row(
                             [
-                                ft.Column(
-                                    [self._result_text, self._detail_text],
-                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                    spacing=4,
+                                design.card(
+                                    ft.Column(
+                                        [self._result_text, self._detail_text],
+                                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                        spacing=4,
+                                    ),
+                                    accent=design.T().magic,
+                                    hero=True,
                                 ),
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
@@ -246,7 +272,7 @@ class DiceView(ft.Column):
             detail = f"{adv_str}{mod_str}"
             label = f"1d20 [{_ADV_LABELS[self._adv_mode][:4]}]{mod_str}"
             result_color = (design.T().success if chosen == 20
-                            else design.T().primary if chosen == 1
+                            else design.T().danger if chosen == 1
                             else design.T().text)
         else:
             rolls = [random.randint(1, d) for _ in range(self._count)]
@@ -260,7 +286,7 @@ class DiceView(ft.Column):
             # Critico/fallimento critico solo su d20 singolo
             if d == 20 and self._count == 1:
                 result_color = (design.T().success if rolls[0] == 20
-                                else design.T().primary if rolls[0] == 1
+                                else design.T().danger if rolls[0] == 1
                                 else design.T().text)
             else:
                 result_color = design.T().text
@@ -289,20 +315,19 @@ class DiceView(ft.Column):
         for entry in self._history:
             self._history_col.controls.append(
                 ft.Container(
-                    content=ft.Row(
-                        [
-                            ft.Text(entry["label"], size=13,
-                                    color=design.T().text_2, expand=True),
-                            ft.Text(str(entry["total"]), size=16,
-                                    weight=ft.FontWeight.BOLD, color=design.T().text),
-                            ft.Text(f"  {entry['detail']}", size=11,
-                                    color=design.T().text_3),
-                        ],
+                    content=design.card(
+                        ft.Row(
+                            [
+                                ft.Text(entry["label"], size=13,
+                                        color=design.T().text_2, expand=True),
+                                ft.Text(str(entry["total"]), size=16,
+                                        weight=ft.FontWeight.BOLD, color=design.T().text),
+                                ft.Text(f"  {entry['detail']}", size=11,
+                                        color=design.T().text_3),
+                            ],
+                        ),
+                        padding=ft.Padding.symmetric(horizontal=12, vertical=7),
                     ),
-                    padding=ft.Padding.symmetric(horizontal=12, vertical=7),
-                    bgcolor=design.T().surface,
-                    shadow=design.elevation(1),
-                    border_radius=ft.BorderRadius.all(4),
                     margin=ft.Margin.only(bottom=4),
                 )
             )
@@ -344,12 +369,16 @@ class DiceView(ft.Column):
         Tasti dado (Fase E.4): quello attivo è pieno e in rilievo, gli altri
         piatti sulla superficie alternativa — prima si distinguevano solo per un
         bordo da 1px. Cifre in font monospaziato, così i "d4 d6 d8…" si allineano.
+
+        Colore `magic` (indaco), non `primary` (oro): questa è la schermata
+        dei dadi stessi — il registro compositivo "Arcane Ledger" pensato per
+        contenuto arcano — mentre l'oro resta riservato all'azione "LANCIA".
         """
         p = design.T()
         active = (d == self._selected_die)
         return ft.ButtonStyle(
-            bgcolor=p.primary_fill if active else p.surface_alt,
-            color=p.on_primary_fill if active else p.text_2,
+            bgcolor=p.magic if active else p.surface_alt,
+            color=p.on_accent if active else p.text_2,
             elevation=3 if active else 0,
             shadow_color=p.shadow,
             side=ft.BorderSide(0 if active else 1, p.border),
@@ -361,12 +390,13 @@ class DiceView(ft.Column):
         )
 
     def _adv_style(self, mode: str) -> ft.ButtonStyle:
-        """Vantaggio/Svantaggio come segmenti: l'attivo ha un fondo tinto."""
+        """Vantaggio/Svantaggio come segmenti: l'attivo ha un fondo tinto
+        (registro `magic`, coerente con i tasti dado sopra)."""
         p = design.T()
         active = (mode == self._adv_mode)
         return ft.ButtonStyle(
-            color=p.primary if active else p.text_3,
-            bgcolor=(ft.Colors.with_opacity(0.12, p.primary_fill) if active
+            color=p.magic if active else p.text_3,
+            bgcolor=(ft.Colors.with_opacity(0.12, p.magic) if active
                      else ft.Colors.TRANSPARENT),
             shape=ft.RoundedRectangleBorder(radius=design.Radius.PILL),
             padding=ft.Padding.symmetric(horizontal=design.Space.LG,

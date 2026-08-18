@@ -377,7 +377,12 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
     _render_result()
     _rebuild_ghost_row()
 
-    content = ft.Column(
+    # Audit anti-AI-slop (Arcane Ledger): scheletro condiviso `generator_
+    # dialog_shell()` — intestazione + form "Parametri" + card "risultato"
+    # (level=2, accento primario, il gruppo di mostri appena generato) +
+    # azione "Crea Nuovo Incontro...". Nessun dato/callback cambia, solo
+    # l'assemblaggio visivo.
+    form = ft.Column(
         [
             mode_group,
             theme_dd,
@@ -387,11 +392,13 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
                 "Genera", icon=ft.Icons.CASINO, on_click=_on_generate,
                 style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
             ),
-            ft.Divider(height=1, color=design.T().border),
-            ft.Container(
-                content=result_col, bgcolor=design.T().bg, border_radius=design.Radius.MD, padding=ft.Padding.all(12),
-            ),
-            ft.Divider(height=1, color=design.T().border),
+        ],
+        spacing=design.Space.MD,
+    )
+
+    shell = design.generator_dialog_shell(
+        "Genera Incontro Casuale", None, form, result_col,
+        actions=[
             name_tf,
             ft.ElevatedButton(
                 "Crea Nuovo Incontro con questi Mostri", icon=ft.Icons.ADD, on_click=_on_create,
@@ -399,13 +406,16 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
             ),
             feedback_text,
         ],
-        spacing=10, scroll=ft.ScrollMode.AUTO,
-        width=responsive_dialog_width(page, 460), height=620,
+    )
+
+    content = ft.Column(
+        [shell],
+        spacing=0, scroll=ft.ScrollMode.AUTO,
+        width=responsive_dialog_width(page, 460), height=680,
         tight=True,
     )
 
     dlg = ft.AlertDialog(
-        title=design.dialog_title("Genera Incontro Casuale"),
         content=content,
         actions=wrap_dialog_actions([
             ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),

@@ -21,7 +21,7 @@ from ui.components.background_sync import BackgroundSyncLoop
 from ui.device_identity import resolve_device_id
 from ui.mobile_webview_picker import pick_file_via_webview
 from ui.native_file_picker import pick_file_native, FilePickerUnavailable
-from ui.theme import muted_text, primary_button, ghost_button
+from ui.theme import primary_button, ghost_button
 from ui import design as d
 from ui.widgets import show_snack, wrap_dialog_actions
 
@@ -307,21 +307,15 @@ class HomeView(ft.Column):
 
     def _build(self):
         p = d.T()
-        # Logo: il testo "D&D" con un sottotitolo, non un'immagine (il PNG in
-        # assets/icons non è mai stato usato e il testo scala meglio).
-        logo_widget = ft.Column(
-            [
-                ft.Text("D&D", size=48, weight=ft.FontWeight.BOLD,
-                        color=p.primary_icon, font_family=d.Font.DISPLAY),
-                ft.Text("COMPANION", size=d.Size.LABEL, weight=ft.FontWeight.BOLD,
-                        color=p.text_3, font_family=d.Font.BODY,
-                        style=ft.TextStyle(letter_spacing=4)),
-            ],
-            spacing=0, tight=True,
-        )
+        # Logo: il wordmark dell'app, UNICO momento "hero" di questa schermata
+        # (Arcane Ledger — vedi design.hero_title). Prima era un ft.Text
+        # scelto a mano (48px, sopra la stessa scala DISPLAY=32 usata
+        # ovunque nell'app): ora usa il token HERO=40 dedicato, con l'oro
+        # `primary_icon` a marcare il brand.
+        logo_widget = d.hero_title("D&D", "COMPANION", color=p.primary_icon)
 
-        header = ft.Container(
-            content=ft.Column(
+        header = d.surface(
+            ft.Column(
                 [
                     ft.Row([logo_widget], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     ft.Container(height=d.Space.MD),
@@ -346,10 +340,16 @@ class HomeView(ft.Column):
                 spacing=d.Space.SM,
                 tight=True,
             ),
-            padding=ft.Padding.symmetric(horizontal=d.Space.XL, vertical=d.Space.XL),
-            # Header su superficie elevata invece del vecchio bordo 1px
-            bgcolor=p.surface,
-            shadow=d.elevation(2),
+            # Header = l'unico elemento "hero" della schermata (MAX uno per
+            # schermata, vedi design.py): livello/padding di `surface()`
+            # bumpati di conseguenza. `radius=0` esplicito perché è una barra
+            # a piena larghezza a filo schermo, non una card — angoli
+            # arrotondati qui sarebbero fuori registro. `accent=p.primary`
+            # accende l'alone dorato attorno all'header in tema scuro
+            # (`accent_glow()`, no-op in tema chiaro/level<2).
+            hero=True,
+            radius=0,
+            accent=p.primary,
         )
 
         body = ft.Container(
@@ -520,8 +520,17 @@ class HomeView(ft.Column):
                             continue
                         conn_state = (None if world.is_local_host
                                       else self._world_connection_states.get(world_id, "connected"))
+                        # Bug report Davide (2026-08-20): dopo un trasferimento di
+                        # dispositivo (§11.9), il personaggio resta qui elencato
+                        # (corretto: i dati restano intatti) ma appariva solo
+                        # "disconnesso", indistinguibile da un normale mondo
+                        # irraggiungibile — stessa targhetta già mostrata nel
+                        # dettaglio della Sezione Mondi (`world_view.py::_world_card`),
+                        # letta dallo stesso flag locale (nessun nuovo stato).
+                        transferred = world_sync.is_world_transferred_away(world_id)
                         self._char_list_column.controls.append(
-                            self._section_label(world.name, connection_state=conn_state)
+                            self._section_label(world.name, connection_state=conn_state,
+                                                 transferred=transferred)
                         )
                         for char in by_world[world_id]:
                             self._char_list_column.controls.append(
@@ -563,7 +572,8 @@ class HomeView(ft.Column):
             return True
 
     @staticmethod
-    def _section_label(text: str, connection_state: str | None = None) -> ft.Control:
+    def _section_label(text: str, connection_state: str | None = None,
+                        transferred: bool = False) -> ft.Control:
         """Intestazione di sezione leggera per il raggruppamento per mondo —
         non `design.section()` (pensato per pannelli a sé, troppo pesante
         ripetuto più volte in una lista che scorre).
@@ -571,16 +581,26 @@ class HomeView(ft.Column):
         `connection_state` (2026-08-16, richiesta di Davide — vedi
         `design.connection_led`): passato solo per un gruppo-mondo REMOTO
         (non per "Non in un mondo"/"Rimossi dai mondi"), mostra il LED
-        verde/rosso aggiornato ad ogni giro di `_start_world_sync`."""
+        verde/rosso aggiornato ad ogni giro di `_start_world_sync`.
+
+        `transferred` (2026-08-20): stessa targhetta di `world_view.py::_world_card`
+        per un mondo il cui personaggio è stato spostato su un altro
+        dispositivo (§11.9) — distingue "disconnesso perché trasferito
+        altrove" da "disconnesso perché irraggiungibile in questo momento"."""
         p = d.T()
+        # Icona PUBLIC rimossa (audit anti-AI-slop, 2026-08-18): era mostrata
+        # SEMPRE, anche per "Non in un mondo"/"Rimossi dai mondi" (semantica
+        # sbagliata: quei due gruppi non sono un mondo) — e per un vero nome
+        # di mondo era comunque ridondante col testo stesso.
         row_children: list[ft.Control] = [
-            ft.Icon(ft.Icons.PUBLIC, size=13, color=p.magic),
             ft.Text(text.upper(), size=d.Size.LABEL, weight=ft.FontWeight.BOLD,
                     color=p.text_2, font_family=d.Font.BODY,
                     style=ft.TextStyle(letter_spacing=1.5)),
         ]
         if connection_state is not None:
             row_children.append(d.connection_led(connection_state))
+        if transferred:
+            row_children.append(d.chip("trasferito", "danger"))
         return ft.Container(
             content=ft.Row(
                 row_children,
@@ -827,12 +847,15 @@ class HomeView(ft.Column):
         Se il push fallisce (host momentaneamente irraggiungibile), il
         personaggio resta comunque creato in locale — non blocchiamo mai
         un'azione già riuscita per un problema di rete — ma lo segnaliamo
-        con un avviso non bloccante: a differenza degli altri comandi,
-        questo non viene ritentato automaticamente dal thread di
-        sincronizzazione in background di `WorldsView` (che sincronizza
-        eventi in arrivo, non comandi falliti in uscita), quindi l'utente
-        deve saperlo per poter riprovare (riaprendo questo stesso dialogo,
-        che sovrascrive senza creare un duplicato: stesso `character_id`).
+        con un avviso non bloccante e marchiamo l'istanza con
+        `host_sync_pending=1` (2026-08-18, bug segnalato da Davide: prima
+        questo non veniva ritentato automaticamente, l'istanza restava "nel
+        mondo" solo in locale finché non si ripeteva l'operazione a mano
+        con l'host online). Il loop di sync in background di `WorldsView`
+        (`core/world_sync.py::push_pending_instances`) ora ritenta da solo
+        quando l'host torna raggiungibile; l'utente può comunque forzare un
+        tentativo immediato riaprendo questo stesso dialogo, che sovrascrive
+        senza creare un duplicato: stesso `character_id`.
         """
         if self.device_id is None:
             logger.warning(
@@ -854,10 +877,10 @@ class HomeView(ft.Column):
         # creazione già avvenuta.
         remaining = world_sync.instance_push_cooldown_remaining()
         if remaining > 0:
+            character_repo.set_host_sync_pending(character_id, True)
             self._show_error(
                 f"Personaggio creato. La registrazione sull'host partirà tra "
-                f"{int(remaining) + 1} secondi (troppe richieste di rete ravvicinate) "
-                f"— riapri \"Aggiungi a un mondo\" tra poco se non compare subito."
+                f"{int(remaining) + 1} secondi (troppe richieste di rete ravvicinate)."
             )
             return
         world_sync.mark_instance_push()
@@ -871,10 +894,11 @@ class HomeView(ft.Column):
                 "backend non risolvibile (host irraggiungibile o sessione scaduta).",
                 character_id, world_id,
             )
+            character_repo.set_host_sync_pending(character_id, True)
             self._show_error(
                 "Personaggio creato, ma non è stato possibile registrarlo subito "
-                "sull'host — il master potrebbe non vederlo finché non riprovi "
-                "(riapri \"Aggiungi a un mondo\" su questo personaggio)."
+                "sull'host — verrà registrato automaticamente non appena l'host "
+                "torna raggiungibile."
             )
             return
 
@@ -892,10 +916,14 @@ class HomeView(ft.Column):
                 "Registrazione istanza %s sull'host del mondo %s rifiutata: %s",
                 character_id, world_id, result.error,
             )
+            character_repo.set_host_sync_pending(character_id, True)
             self._show_error(
                 f"Personaggio creato, ma la registrazione sull'host è fallita: "
-                f"{result.error or 'errore sconosciuto'}"
+                f"{result.error or 'errore sconosciuto'} — verrà ritentata "
+                f"automaticamente quando l'host torna raggiungibile."
             )
+        else:
+            character_repo.set_host_sync_pending(character_id, False)
 
     def _open_refresh_dialog(self, instance: Character):
         p = d.T()
@@ -1114,7 +1142,7 @@ class HomeView(ft.Column):
             title=d.dialog_title("Nuovo Personaggio"),
             content=ft.Column(
                 [
-                    muted_text(
+                    d.muted(
                         "Come vuoi creare il tuo personaggio?",
                         size=14,
                     ),
@@ -1312,7 +1340,7 @@ class HomeView(ft.Column):
                         color=d.T().text, size=13,
                     ),
                     ft.Container(height=8),
-                    muted_text(
+                    d.muted(
                         "Il file esportato conterrà comunque il collegamento a questo "
                         "mondo, ma la normale importazione su un altro dispositivo lo "
                         "azzera sempre: il personaggio importato diventerà una copia "
@@ -1950,7 +1978,7 @@ class HomeView(ft.Column):
                         color=d.T().text, size=13,
                     ),
                     ft.Container(height=8),
-                    muted_text(
+                    d.muted(
                         "Importandolo qui diventerà un personaggio locale indipendente: "
                         "il collegamento al mondo, ai progressi condivisi e al "
                         "dispositivo di origine andrà perso e non è recuperabile da "
@@ -2014,7 +2042,7 @@ class HomeView(ft.Column):
                         color=d.T().text, size=13,
                     ),
                     ft.Container(height=12),
-                    muted_text("Cosa vuoi fare?", size=12),
+                    d.muted("Cosa vuoi fare?", size=12),
                 ],
                 tight=True, spacing=0,
             ),

@@ -9,7 +9,6 @@ Sezione di riferimento — non legata ad un personaggio specifico.
 import flet as ft
 import logging
 from typing import Any
-from ui.theme import muted_text
 from data.game_data.game_data_loader import GameDataLoader
 from ui import design
 
@@ -34,27 +33,18 @@ class FeatsView(ft.ListView):
 
         self.controls.clear()
 
-        # Header
-        self.controls.append(ft.Container(
-            content=ft.Row([
-                ft.Icon(ft.Icons.MILITARY_TECH, color=design.T().warning, size=22),
-                ft.Container(width=10),
-                ft.Column([
-                    ft.Text("Compendio Talenti", size=18,
-                            weight=ft.FontWeight.BOLD,
-                            color=design.T().text,
-                            font_family=design.Font.DISPLAY),
-                    muted_text(
-                        f"{len(all_feats)} talenti PHB 5e  ·  "
-                        "Tocca una card per leggere la descrizione completa",
-                        size=11,
-                    ),
-                ], spacing=2),
-            ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            bgcolor=design.T().surface,
-            shadow=design.elevation(1),
-            border_radius=design.Radius.MD,
-            padding=ft.Padding.all(design.Space.LG),
+        # Header — unico momento "hero" della schermata (audit Arcane Ledger).
+        self.controls.append(design.card(
+            ft.Row([
+                design.icon_badge(ft.Icons.MILITARY_TECH, tone="warning"),
+                ft.Container(width=design.Space.MD),
+                design.hero_title(
+                    "Compendio Talenti",
+                    f"{len(all_feats)} talenti PHB 5e  ·  "
+                    "Tocca una card per leggere la descrizione completa",
+                ),
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER, wrap=True),
+            hero=True,
         ))
 
         if not all_feats:
@@ -100,12 +90,7 @@ class FeatsView(ft.ListView):
             if not page:
                 return
             page.show_dialog(ft.AlertDialog(
-                title=ft.Row([
-                    ft.Icon(ft.Icons.MILITARY_TECH, color=design.T().warning, size=16),
-                    ft.Container(width=6),
-                    ft.Text(_name, size=14, weight=ft.FontWeight.BOLD,
-                            color=design.T().text, expand=True),
-                ]),
+                title=design.dialog_title(_name, ft.Icons.MILITARY_TECH, tone="warning"),
                 content=ft.Column([
                     ft.Container(
                         content=ft.Row([
@@ -138,10 +123,9 @@ class FeatsView(ft.ListView):
                 ],
             ))
 
-        return ft.Container(
-            content=ft.Column([
+        return design.card(
+            ft.Column([
                 ft.Row([
-                    ft.Icon(ft.Icons.MILITARY_TECH, size=15, color=design.T().warning),
                     ft.Text(name, size=13, weight=ft.FontWeight.BOLD,
                             color=design.T().text, expand=True),
                     ft.Icon(ft.Icons.CHEVRON_RIGHT, size=16, color=design.T().text_3),
@@ -162,12 +146,7 @@ class FeatsView(ft.ListView):
                 ], spacing=10),
                 ft.Text(preview, size=11, color=design.T().text_2),
             ], spacing=4),
-            bgcolor=design.T().surface,
-            shadow=design.elevation(1),
-            border_radius=design.Radius.MD,
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().warning)),
-            padding=ft.Padding.all(design.Space.MD),
+            accent=design.T().warning,
+            padding=design.Space.MD,
             on_click=_show_detail,
-            ink=True,
-            animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
         )

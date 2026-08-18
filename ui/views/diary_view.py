@@ -920,14 +920,13 @@ class DiaryView(ft.Column):
         # Status badge
         status_row: list[ft.Control] = []
         if is_shared:
+            # Icona PUBLIC rimossa (audit anti-AI-slop): il testo "Condivisa
+            # dal Master" dice già esplicitamente lo stesso concetto — stesso
+            # principio già applicato in home_view.py::_section_label.
             status_row.append(
                 ft.Container(
-                    content=ft.Row(
-                        [ft.Icon(ft.Icons.PUBLIC, size=12, color=design.T().on_primary),
-                         ft.Text("Condivisa dal Master", size=11, color=design.T().on_primary,
-                                 weight=ft.FontWeight.BOLD)],
-                        spacing=4, tight=True,
-                    ),
+                    content=ft.Text("Condivisa dal Master", size=11, color=design.T().on_primary,
+                                     weight=ft.FontWeight.BOLD),
                     bgcolor=design.T().primary, border_radius=12,
                     padding=ft.Padding.symmetric(horizontal=12, vertical=4),
                 )
@@ -1256,7 +1255,7 @@ class DiaryView(ft.Column):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Elimina voce"),
+            title=design.dialog_title("Elimina voce", ft.Icons.DELETE_FOREVER, tone="danger"),
             content=ft.Text(
                 f"Eliminare «{entry.title or 'Senza titolo'}»?\nL'azione non è reversibile.",
                 size=13, color=design.T().text,
@@ -1321,7 +1320,7 @@ class DiaryView(ft.Column):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Elimina voce"),
+            title=design.dialog_title("Elimina voce", ft.Icons.DELETE_FOREVER, tone="danger"),
             content=ft.Text(
                 f"Eliminare «{note.name or 'Senza nome'}»?\nL'azione non è reversibile.",
                 size=13, color=design.T().text,

@@ -524,10 +524,11 @@ class WorldsView(ft.Column):
         my_role = my_member.role if my_member else ""
         is_owner = my_role == perm.ROLE_OWNER
 
-        title_row: list[ft.Control] = [
-            ft.Text(world.name, size=d.Size.TITLE, weight=ft.FontWeight.BOLD,
-                    color=p.text, font_family=d.Font.DISPLAY),
-        ]
+        # Momento tipografico dominante della schermata (Arcane Ledger,
+        # `Size.HERO`): il nome del mondo è l'unico elemento "hero" del
+        # dettaglio, MAX uno per schermata — vedi il docstring di
+        # `design.hero_title()`.
+        title_row: list[ft.Control] = [d.hero_title(world.name)]
         if not world.is_local_host:
             title_row.append(d.connection_led(self._detail_connection_state))
         sections: list[ft.Control] = [
@@ -726,7 +727,8 @@ class WorldsView(ft.Column):
     def _members_section(self, world: World, my_role: str) -> ft.Control:
         members = world_repo.get_members(world.id)
         rows = [self._member_row(world, m, my_role) for m in members]
-        return d.section("Membri", ft.Column(rows, spacing=d.Space.SM, tight=True))
+        return d.section("Membri", ft.Column(rows, spacing=d.Space.SM, tight=True),
+                          density="dense")
 
     def _member_row(self, world: World, member: WorldMember, my_role: str) -> ft.Control:
         p = d.T()
@@ -773,16 +775,24 @@ class WorldsView(ft.Column):
                 on_click=lambda e, m=member: self._open_transfer_code_dialog(world, m),
             ))
 
-        return ft.Row(
+        # Riga a due colonne di peso diverso (`asymmetric_row`), non una
+        # singola `Row` con tutto in fila: fino a 3 pulsanti azione + chip
+        # accanto al nome affollava la riga su schermi stretti — qui il
+        # blocco identità (icona+nome) e quello azioni (chip+pulsanti)
+        # tornano impilati sotto i 768px invece di comprimersi/traboccare.
+        info = ft.Row(
             [
-                ft.Icon(ft.Icons.PERSON, color=p.text_3, size=18),
+                d.icon_badge(ft.Icons.PERSON, tone="neutral", size=28),
                 ft.Text(member.display_name + (" (tu)" if is_me else ""),
                         color=p.text, expand=True),
-                d.chip(member.role, role_tone),
-                *actions,
             ],
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
+        trailing = ft.Row(
+            [d.chip(member.role, role_tone), *actions],
+            spacing=d.Space.XS, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        return d.asymmetric_row(info, trailing)
 
     def _member_command(self, world: World, kind: str, member: WorldMember):
         result = self._send_command(world, kind, {"device_id": member.device_id})
@@ -985,6 +995,14 @@ class WorldsView(ft.Column):
                 spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ))
 
+        # Audit anti-AI-slop (2026-08-18): unico elemento "hero" del
+        # dettaglio mondo (`hero=True`, bordo pieno invece della barretta
+        # sinistra normale) — quando un combattimento è visibile è di fatto
+        # il dato più urgente della schermata per qualunque membro, non
+        # solo una sezione informativa come le altre. Il nome del mondo in
+        # cima usa `hero_title()`, un momento tipografico diverso: le due
+        # cose convivono perché sono registri visivi distinti (testo vs.
+        # silhouette della card), non due "hero" nello stesso senso.
         return d.section(
             "Combattimento in corso",
             ft.Column(
@@ -995,6 +1013,8 @@ class WorldsView(ft.Column):
                 ],
                 spacing=0, tight=True,
             ),
+            accent=p.primary,
+            hero=True,
         )
 
     def _shared_notes_section(self, world: World) -> ft.Control | None:
@@ -1223,7 +1243,7 @@ class WorldsView(ft.Column):
             for c, gm in candidates:
                 rows.append(ft.Row(
                     [
-                        ft.Icon(ft.Icons.MAP_OUTLINED, size=18, color=p.text_3),
+                        d.icon_badge(ft.Icons.MAP_OUTLINED, tone="neutral", size=28),
                         ft.Column(
                             [
                                 ft.Text(gm.name or "Mappa senza nome", color=p.text,
@@ -1706,6 +1726,7 @@ class WorldsView(ft.Column):
         return d.section(
             "Registro",
             ft.Column(rows, spacing=d.Space.XS, tight=True),
+            density="dense",
         )
 
     def _event_row(self, event: WorldEvent) -> ft.Control:
@@ -1752,6 +1773,7 @@ class WorldsView(ft.Column):
         return d.section(
             "Interviene a distanza",
             ft.Column(rows, spacing=d.Space.SM, tight=True),
+            density="dense",
         )
 
     def _remote_character_row(self, world: World, character: Character) -> ft.Control:
@@ -2633,27 +2655,36 @@ class WorldsView(ft.Column):
         ip = local_ip_hint()
         pending = host.list_pending()
 
-        rows: list[ft.Control] = [
-            ft.Row(
-                [
-                    ft.Icon(ft.Icons.WIFI_TETHERING, color=p.magic, size=18),
-                    ft.Text(f"In ascolto su {ip}:{host.port}", color=p.text,
-                            font_family=d.Font.MONO, size=d.Size.BODY_SM),
-                ],
-                spacing=d.Space.XS,
-            ),
-            ft.Row(
-                [
-                    d.muted("PIN di ingresso"),
-                    ft.Text(host.pin, size=22, weight=ft.FontWeight.BOLD, color=p.magic,
-                            font_family=d.Font.MONO, style=ft.TextStyle(letter_spacing=4)),
-                ],
-                spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-        ]
+        # Coppia maggiore/minore (`asymmetric_row`, non due blocchi impilati
+        # a prescindere): indirizzo+PIN sono il dato testuale da leggere,
+        # il QR è la scorciatoia visiva — affiancarli su schermi larghi ha
+        # senso, sotto i 768px tornano impilati da soli (stesso principio
+        # già in uso per HP-block+statistiche).
+        connection_info = ft.Column(
+            [
+                ft.Row(
+                    [
+                        ft.Icon(ft.Icons.WIFI_TETHERING, color=p.magic, size=18),
+                        ft.Text(f"In ascolto su {ip}:{host.port}", color=p.text,
+                                font_family=d.Font.MONO, size=d.Size.BODY_SM),
+                    ],
+                    spacing=d.Space.XS,
+                ),
+                ft.Row(
+                    [
+                        d.muted("PIN di ingresso"),
+                        ft.Text(host.pin, size=22, weight=ft.FontWeight.BOLD, color=p.magic,
+                                font_family=d.Font.MONO, style=ft.TextStyle(letter_spacing=4)),
+                    ],
+                    spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            ],
+            spacing=d.Space.SM, tight=True,
+        )
 
-        rows.append(ft.Container(height=d.Space.SM))
-        rows.append(self._hosting_qr_image(world, host, ip))
+        rows: list[ft.Control] = [
+            d.asymmetric_row(connection_info, self._hosting_qr_image(world, host, ip)),
+        ]
 
         if pending:
             rows.append(ft.Container(height=d.Space.SM))
@@ -2742,8 +2773,8 @@ class WorldsView(ft.Column):
 
         return ft.Row(
             [
-                ft.Icon(ft.Icons.PHONELINK_SETUP if is_transfer else ft.Icons.PERSON_ADD,
-                        size=16, color=p.magic if is_transfer else p.text_3),
+                d.icon_badge(ft.Icons.PHONELINK_SETUP if is_transfer else ft.Icons.PERSON_ADD,
+                             tone="magic" if is_transfer else "neutral", size=28),
                 ft.Column(
                     [
                         ft.Text(testo, color=p.text, size=d.Size.BODY_SM),
@@ -3257,11 +3288,19 @@ class WorldsView(ft.Column):
 
     def _danger_zone_section(self, world: World) -> ft.Control:
         p = d.T()
+        # Audit anti-AI-slop (2026-08-18): level=0 (nessuna ombra) invece del
+        # default 1 — distingue questa sezione dalle altre ~11 nel dettaglio
+        # mondo per ASSENZA di elevazione (segnale sobrio, coerente con
+        # "manuale non poster") invece che per un colore diverso, dato che
+        # `primary`/`danger` sono di proposito lo stesso accento (vedi
+        # Palette in ui/design.py) — il colore da solo non basterebbe a
+        # distinguerla da un'eventuale altra sezione con accento primario.
         return d.section(
             "Zona pericolosa",
             d.pill(ft.Icons.DELETE_FOREVER, "Elimina mondo", color=p.danger,
                    on_click=lambda e: self._confirm_delete(world)),
             accent=p.danger_fill,
+            level=0,
         )
 
     def _confirm_delete(self, world: World):
@@ -3354,6 +3393,13 @@ class WorldsView(ft.Column):
                 if isinstance(backend, RemoteBackend):
                     self._detail_connection_state = backend.connection_state()
                 world_sync.sync_replica(backend, world_id)
+                # Bug segnalato da Davide (2026-08-18): ritenta qui, non solo
+                # a comando dell'utente, il push di eventuali istanze create
+                # mentre l'host era offline (`host_sync_pending=1` — vedi
+                # `HomeView._push_instance_to_host`). Stesso backend appena
+                # verificato raggiungibile da `sync_replica()` sopra.
+                if self.device_id:
+                    world_sync.push_pending_instances(backend, world_id, self.device_id)
             else:
                 self._detail_connection_state = "disconnected"
 
@@ -3595,6 +3641,17 @@ class WorldsView(ft.Column):
         pin_field = ft.TextField(label="PIN a 6 cifre", dense=True,
                                   max_length=6, **d.field_style())
         display_field = ft.TextField(label="Il tuo nome", dense=True, **d.field_style())
+        # Bug report Davide (2026-08-20): in modalità trasferimento il campo
+        # veniva comunque mostrato, pur essendo facoltativo (vedi il commento
+        # su `display_name`/`transfer_mode["on"]` in `_attempt()` più sotto)
+        # — l'host conserva SEMPRE il nome del membro originale a prescindere
+        # da cosa arriva qui. Mostrarlo suggeriva all'utente di dover scegliere
+        # un nome nuovo, quando in realtà non cambia nulla: nascosto in
+        # modalità trasferimento, sostituito da questa spiegazione.
+        display_hint = d.muted(
+            "Il tuo nome nel mondo resta quello di sempre — non serve reinserirlo."
+        )
+        display_hint.visible = False
         status_text = ft.Text("", color=p.danger, size=12)
 
         # Modalità "cambio dispositivo" (2026-08-17, §11.9): il codice di
@@ -3641,7 +3698,7 @@ class WorldsView(ft.Column):
             note = "" if world.accepting else " (non accetta ingressi ora)"
             return ft.Row(
                 [
-                    ft.Icon(ft.Icons.WIFI_TETHERING, size=16, color=p.magic),
+                    d.icon_badge(ft.Icons.WIFI_TETHERING, tone="magic", size=28),
                     ft.Text(f"{world.name} — {world.host}:{world.port}{note}",
                             color=p.text, size=d.Size.BODY_SM, expand=True),
                     ft.TextButton("Usa", on_click=lambda e, w=world: _pick_discovered(w)),
@@ -3952,6 +4009,8 @@ class WorldsView(ft.Column):
             transfer_field.visible = on
             transfer_hint.visible = on
             pin_field.visible = not on
+            display_field.visible = not on
+            display_hint.visible = on
             transfer_toggle.text = (
                 "Torna all'ingresso normale (con PIN)" if on
                 else "Ho già un personaggio in questo mondo (cambio dispositivo)"
@@ -4049,7 +4108,7 @@ class WorldsView(ft.Column):
                     ft.Divider(height=1),
                     host_field, port_field, code_field,
                     pin_field, transfer_field, transfer_hint, transfer_toggle,
-                    display_field,
+                    display_field, display_hint,
                     status_text, retry_btn,
                 ],
                 tight=True, spacing=d.Space.SM, scroll=ft.ScrollMode.AUTO,

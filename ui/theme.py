@@ -216,32 +216,18 @@ def fantasy_card(content: ft.Control, padding: int = 16) -> ft.Container:
 def section_header(text: str, accent: str | None = None) -> ft.Container:
     """
     Intestazione di sezione: barretta d'accento + etichetta maiuscola spaziata +
-    filo di separazione. Riscritta sui token nella Fase E.3 — è chiamata da 68
-    punti nelle view, quindi cambiarla qui restyla tutte le sezioni dell'app.
+    filo di separazione. Delega a `design.header_row()` (Arcane Ledger,
+    2026-08-20) così i 68+ call site ancora su questa API legacy ricevono
+    ogni futuro cambio di stile delle intestazioni senza bisogno di migrare.
     """
     p = d.T()
-    return ft.Container(
-        content=ft.Row(
-            [
-                ft.Container(width=3, height=16, bgcolor=accent or p.primary_fill,
-                             border_radius=d.Radius.SM),
-                ft.Container(width=d.Space.SM),
-                ft.Text(
-                    text.upper(),
-                    size=d.Size.LABEL,
-                    color=p.text_2,
-                    weight=ft.FontWeight.BOLD,
-                    font_family=d.Font.BODY,
-                    style=ft.TextStyle(letter_spacing=1.5),
-                ),
-                ft.Container(width=d.Space.MD),
-                ft.Container(expand=True, height=1,
-                             bgcolor=ft.Colors.with_opacity(0.6, p.border)),
-            ],
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        ),
-        margin=ft.Margin.only(bottom=d.Space.MD, top=d.Space.XS),
-    )
+    row = d.header_row(text, accent)
+    row.controls += [
+        ft.Container(width=d.Space.MD),
+        ft.Container(expand=True, height=1,
+                     bgcolor=ft.Colors.with_opacity(0.6, p.border)),
+    ]
+    return ft.Container(content=row, margin=ft.Margin.only(bottom=d.Space.MD, top=d.Space.XS))
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +248,7 @@ def primary_button(text: str, on_click=None, icon: ft.IconData | None = None) ->
             shadow_color=p.shadow,
             shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
             padding=ft.Padding.symmetric(horizontal=d.Space.LG, vertical=d.Space.MD),
-            text_style=ft.TextStyle(size=13, weight=ft.FontWeight.BOLD,
+            text_style=ft.TextStyle(size=d.Size.BODY_SM, weight=ft.FontWeight.BOLD,
                                     font_family=d.Font.BODY),
         ),
     )
@@ -279,7 +265,7 @@ def ghost_button(text: str, on_click=None) -> ft.OutlinedButton:
             side=ft.BorderSide(1, p.border),
             shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
             padding=ft.Padding.symmetric(horizontal=d.Space.LG, vertical=d.Space.MD),
-            text_style=ft.TextStyle(size=13, weight=ft.FontWeight.W_600,
+            text_style=ft.TextStyle(size=d.Size.BODY_SM, weight=ft.FontWeight.W_600,
                                     font_family=d.Font.BODY),
         ),
     )

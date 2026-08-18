@@ -381,6 +381,178 @@ lo scroll.
 > **La Fase D è ora la sola cosa che separa l'app dal tema scuro**: nelle view non
 > resta nessun colore statico, serve solo l'interruttore + persistenza.
 
+---
+
+## FASE F — Audit anti-AI-slop (pilot + rollout completo, 2026-08-18/19)
+
+> ⏳ **Codice implementato su TUTTE le 37 view dell'app, in attesa di
+> verifica visiva di Davide** (nessun test visivo automatico esiste per
+> questo progetto — vedi "Rischi e punti di attenzione" più sotto — quindi
+> questa fase non si considera chiusa finché non confermata su un avvio
+> reale, in entrambi i temi. Verificato invece con certezza: `python3
+> test_fase_d.py` — 104 costruzioni di view nei due temi, 101/101 controlli
+> — e `python3 -m compileall ui/ core/ data/` puliti dopo OGNI blocco di
+> lavoro, quindi zero rischio di crash strutturale; resta da confermare solo
+> il giudizio ESTETICO).
+
+Motivazione: nonostante il sistema di token della Fase E fosse solido, il
+modo in cui viene usato nelle view produceva un risultato "meccanico" —
+`card()`/`section()` riusate identiche per contenuti di importanza molto
+diversa, nessun elemento focale per schermata, layout sempre a colonna
+singola, icone decorative ridondanti. Pilot su 4 view (`home_view.py`,
+`character_sheet/sheet_view.py`, `character_sheet/combattimento_tab.py`,
+`world/world_view.py`), scelte perché coprono i 4 contesti strutturali
+diversi dell'app (lista, scheda dati densa, combattimento con stato
+dinamico, gestione entità con danger zone).
+
+**Scoperta chiave**: `d.card()`/`d.section()` accettavano già `accent` e
+`level` (elevazione 0-3) — non servivano nuove primitive "hero"/"critical",
+solo un uso più intenzionale dei parametri esistenti (quasi ovunque
+lasciati al default). Uniche due aggiunte di codice:
+
+- **`design.asymmetric_row(major, minor, ratio=(7,5))`** — riga a due
+  colonne di peso diverso via `ft.ResponsiveRow`/`col=`, MAI `expand=` su
+  una `ft.Row` semplice (crash silenzioso Flutter dentro un `ft.ListView` —
+  le tab della scheda personaggio ne sono sottoclassi, vedi
+  `regole_flet_api.md`). Nato con un solo call site (`combattimento_tab.py`:
+  HP affiancato alle statistiche di combattimento), poi riusato anche in
+  `esplorazione_tab.py` (Percezione Passiva + Indagare Passivo) durante il
+  rollout — incapsula una regola di sicurezza Flet non ovvia che vale la
+  pena riusare invece di ricopiare a mano, non solo un caso singolo.
+- Nessuna primitiva `stat_cell`/`hero_card`/`critical_section` a sé:
+  valutate durante l'implementazione e scartate — i "riquadri statistica"
+  di `combattimento_tab.py` (CA/velocità/iniziativa/ispirazione) sono già
+  bespoke (bordi/icone diversi caso per caso), forzarli in un'astrazione
+  comune con la stat bar di `sheet_view.py` (6 celle davvero identiche)
+  avrebbe prodotto un'astrazione che calza male a entrambi i casi.
+
+**Convenzioni d'uso** (nessun nuovo colore — `primary`/`danger` sono di
+proposito lo stesso accento, vedi Palette in `ui/design.py`, quindi la
+distinzione hero/critical passa per l'elevazione, non per il colore):
+- **Hero (max 1 per schermata)**: `level=2` (invece del default 1),
+  padding maggiorato. Esempio: `_section_hp` in `combattimento_tab.py`
+  (bordo 3→4px, padding `Space.LG`→`Space.XL`, `elevation(1)`→`(2)`) e
+  `_live_combat_section` in `world_view.py` (`accent=p.primary, level=2`,
+  solo quando un combattimento è visibile).
+- **Zona critica/pericolosa**: `level=0` (nessuna ombra — l'assenza è il
+  segnale, non uno sfondo rosso pieno). Esempio: `_danger_zone_section` in
+  `world_view.py`.
+- **Emphasis locale, non tramite `card()`/`section()`**: la cella del
+  punteggio più alto nella mini stat bar di `sheet_view.py` usa
+  `bgcolor=p.surface` (invece di `p.surface_alt`) + `border=Border.all(1,
+  p.primary_icon)` — un pattern troppo specifico per meritare una
+  primitiva condivisa.
+- **Icone decorative rimosse** dove il testo adiacente diceva già lo
+  stesso concetto: `PUBLIC` accanto ai nomi dei gruppi-mondo in
+  `home_view.py::_section_label` (era mostrata anche per "Non in un
+  mondo"/"Rimossi dai mondi", semanticamente sbagliata lì);
+  `CENTER_FOCUS_STRONG` accanto al nome incantesimo in
+  `_section_concentration` (`combattimento_tab.py`, la sezione è già
+  titolata "Concentrazione").
+
+**Smoke test pilot** (2026-08-18): avvio in modalità web
+(`FLET_WEB=true python main.py`), nessuna eccezione Python al boot,
+migrazione DB ok, Home renderizzata correttamente con i personaggi reali
+di Davide (screenshot preso una volta, poi il server è stato fermato per
+non restare a interagire con la sessione browser reale dell'utente senza
+autorizzazione esplicita).
+
+### Fix contrasto/eye-strain tema scuro (2026-08-19)
+
+Feedback di Davide dopo aver visto il pilot: "i colori in versione scura
+non mi convincono mi affaticano gli occhi". Due interventi separati, in
+ordine:
+
+1. **Primo tentativo, scartato dopo verifica numerica**: schiarire
+   `bgcolor` delle card "hero" per livello (tecnica Material "elevation
+   overlay"). Calcolato PRIMA di applicarlo che avrebbe fatto scendere
+   `primary_icon` (`#bf384b`) sotto soglia 3:1 contro un `surface`
+   schiarito anche di poco (già 3.08:1 contro `surface` invariato, margine
+   quasi zero), e avrebbe riavvicinato `surface`/`bg` dopo che Davide aveva
+   passato SETTE giri di feedback (2026-08-15) a distanziarli il minimo
+   indispensabile per evitare un "glow" diffuso. Scartato, mai committato
+   sui file di vista.
+2. **Fix effettivo**: `DARK.text` (`#f0ece4`→`#dbd1bd`), `DARK.text_2`
+   (`#c2bcae`→`#b9b2a2`), `DARK.nav_text` (idem `text`) ridotti in
+   luminosità HSL (tonalità/saturazione invariate) — erano a 15.35:1/
+   9.56:1 contro `bg`, ben oltre il minimo AAA (7:1) e persino oltre la
+   soglia ≥14:1 auto-imposta da questo file per `text`: un contrasto testo
+   quasi-bianco/fondo quasi-nero così alto è causa nota di affaticamento
+   ("halation") nella lettura prolungata. Ora 11.94:1/8.57:1 contro `bg` —
+   ancora ben oltre AAA, meno "acceso". `bg`/`surface`/`text_3` NON
+   toccati (voluti così da Davide, o margine già stretto). Nuova primitiva
+   **`design.accent_glow(accent, level)`** + **`design.layered_shadow(level,
+   accent)`**: un alone colorato (non nero) attorno alle card "hero" SOLO in
+   tema scuro — un'ombra nera normale è quasi invisibile contro uno sfondo
+   già scuro, un'ombra colorata a bassa opacità si vede senza toccare
+   `bgcolor` (quindi senza rimettere in discussione nessun contrasto
+   testo/icona già calcolato). `card()`/`section()` la usano automaticamente
+   quando `level>=2` e un `accent` è passato — nessuna chiamata da
+   aggiornare nei file di vista già scritti.
+
+### Rollout completo alle 37 view (2026-08-19, stessa notte)
+
+Con mandato esplicito di Davide ("non porti limiti... procedi senza
+fermarti... effettua tutti i cambiamenti anche quelli programmati"), la
+stessa convenzione del pilot è stata estesa a TUTTE le view rimanenti,
+delegando a 6 sotto-agenti paralleli (ciascuno con lo stesso brief:
+API disponibile, convenzione hero/critical, regole icone/spaziatura,
+vincolo assoluto "mai la logica, solo l'estetica", compilazione +
+`test_fase_d.py` dopo ogni file):
+
+- Tab rimanenti della scheda personaggio (`profilo_tab.py`,
+  `inventario_tab.py`, `esplorazione_tab.py`, `diario_tab.py`).
+- Creazione personaggio (`wizard_view.py`, `manual_form.py` — hero sulla
+  card "Riepilogo" finale in entrambi; `creation_shared.py` invariato,
+  solo logica).
+- View di primo livello (`spells_view.py`, `maps_view.py`, `diary_view.py`,
+  `magic_items_view.py`, `dice_view.py`, `feats_view.py`).
+- 9 dialog generatori della Sezione Master (artefatti, incontri, oggetti
+  magici, NPC, incontri nella foresta, pericoli ambientali, trappole,
+  tesori, assegnazione bottino) — hero quasi ovunque sul riquadro del
+  risultato appena generato/tirato.
+- 7 view di gestione/liste della Sezione Master — la maggior parte **già
+  ben progettata** da iterazioni precedenti guidate da feedback reale di
+  Davide (elevazione/accento già differenziati intenzionalmente): solo
+  `master_view.py` modificato (placeholder "in costruzione" consolidato
+  sulla primitiva `empty_state()`), gli altri 6 lasciati invariati per
+  scelta esplicita, non per omissione.
+- `world/qr_scanner_view.py` (mirino QR: alone "magic" sul viewfinder,
+  testo centrato) — `world/combat_status.py` è pura logica, nessuna UI,
+  invariato.
+
+**Deliberatamente NON toccati** (rischio/beneficio giudicato sfavorevole,
+non dimenticanza):
+- I tre flussi dialog di `profilo_tab.py` per level-up/multiclasse/
+  level-down (~2500 righe): logica di progressione PHB e costruzione UI
+  troppo interlacciate per un lavoro di rifinitura estetica sicuro in
+  autonomia notturna — vanno rivalutati a parte, con calma, se Davide lo
+  richiede esplicitamente.
+- L'editor di disegno mappe vero e proprio in `maps_view.py` (canvas,
+  toolbar, gomma) — solo la chrome attorno (lista mappe, pannelli) è stata
+  toccata.
+- I 6 riquadri "risultato" pre-esistenti nei dialog generatori che restano
+  visivamente vuoti (solo ombra/bordo) prima del primo tiro: comportamento
+  già presente prima di stanotte (il contenuto si popola solo dopo il
+  click "genera"), non introdotto ora — aggiungere un messaggio
+  placeholder avrebbe richiesto toccare la logica di rendering condizionale
+  di 9 file, fuori dal perimetro "solo estetica".
+
+**Verifica finale** (2026-08-19): `python3 -m compileall ui/ core/ data/`
+pulito; `test_fase_d.py` 101/101 (104 costruzioni di view, due temi);
+l'intera suite di progetto (35 file `test_*.py`) eseguita — 33/35 verdi,
+i 2 falliti (`test_qr_scan.py`, `test_versione_app.py`) sono ambientali
+(pacchetti Android/iOS non installabili in questo sandbox, tag di release
+git) e già noti come tali dal changelog precedente a stanotte, non causati
+da queste modifiche. `git diff --stat`: 35 file, +718/-240 righe totali
+(inclusi i due fix indipendenti della stessa notte — vedi
+`changelog_storico.md` — non solo FASE F).
+
+**Non ancora verificato**: il giudizio estetico vero e proprio, su
+dispositivo reale, in entrambi i temi — Davide lo farà al risveglio.
+
+---
+
 Ordine proposto (dal più visibile al meno):
 1. **Home** — è la prima impressione. Card personaggio con ritratto grande,
    ombre, chip di classe/livello.
@@ -408,3 +580,122 @@ Ordine proposto (dal più visibile al meno):
 5. **Ordine**: la pulizia del codice duplicato (67% tra `wizard_view` e
    `manual_form`) va **prima** della Fase E, altrimenti si restyla due volte lo
    stesso codice.
+
+---
+
+## FASE G — "Arcane Ledger": rifacimento radicale della palette (2026-08-20)
+
+Richiesta esplicita di Davide: ripartire da zero sull'estetica, ignorando gli
+otto giri di calibrazione della vecchia palette bordeaux/pergamena (FASE
+B-F), con un solo requisito nuovo — l'app deve restare davvero utilizzabile
+sia su schermo desktop sia su smartphone. Vincolo tecnico invariato: nessuna
+modifica alla logica di business, solo estetica/composizione.
+
+### Direzione
+
+Tre accenti distinti invece di uno (prima `primary`==`danger` per scelta
+esplicita — qui separati, perché in ogni palette di riferimento consultata
+via skill `ui-ux-pro-max` il colore distruttivo non coincide mai col
+primario):
+- **Oro antico/bronzo** (`primary`/`primary_fill`/`primary_icon`) — accento
+  di marca, azioni primarie, elementi hero.
+- **Indaco/violetto** (`magic`) — secondo registro compositivo per contenuto
+  arcano (era solo un tag semantico prima, ora guida `spells_view.py` e
+  `dice_view.py` in modo assertivo).
+- **Rosso vero e isolato** (`danger`/`danger_fill`/`danger_icon`) — solo
+  distruttivo, mai più alias del primario.
+
+Chiaro: pergamena calda più ricca (`bg="#f0e8db"`). Scuro: inchiostro
+nero-caldo (`bg="#17130f"`, hue 28° — non il blu-slate da dashboard SaaS
+generica), testo `text="#c6b795"` calibrato a ~7.4-9.3:1 (AAA con margine,
+deliberatamente NON spinto oltre ~9:1 per evitare l'affaticamento/halation
+già diagnosticato in FASE F sulla vecchia palette scura). Ogni valore
+ricalcolato da zero con la stessa disciplina di misurazione del contrasto
+WCAG di sempre (script dedicato, non a occhio) — dettagli e soglie nei
+commenti di `ui/design.py::LIGHT`/`DARK`.
+
+Tipografia invariata (Cinzel/Inter/JetBrains Mono — nessuna alternativa nel
+dataset della skill batte Cinzel per un'app fantasy). Nuova taglia
+`Size.HERO=40` sopra `DISPLAY`, per avere un vero momento tipografico
+dominante per schermata (prima la scala si fermava a 32px e nessun titolo
+risultava davvero "hero").
+
+### Nuove primitive in `ui/design.py`
+
+- `hero_title(text, subtitle="", is_mobile=False)` — un solo uso per
+  schermata.
+- `icon_badge(icon, tone, size)` — badge icona circolare tinto, estratto da
+  `dialog_title()` (era l'unico punto d'uso) e riusato ovunque un'icona fa
+  lavoro di etichetta.
+- `card()`/`section()`/`surface()` — nuovi parametri `hero: bool` (radius/
+  livello/padding maggiori, bordo pieno nell'accento invece della sola
+  barra sinistra) e `density: "relaxed"|"dense"` (per le tab dati-intensive).
+- `Breakpoint` — soglie allineate ai default reali di `ft.ResponsiveRow`
+  (576/768/992/1200), non una scala parallela inventata.
+- `generator_dialog_shell()` — shell condivisa per il pattern "form → genera
+  → risultato → assegna" dei dialoghi generatori Master, applicata a 8 dei
+  9 dialoghi con questa forma (il nono, `master_loot_assign_dialog.py`, ha
+  una forma diversa — allocazione/revisione, non generazione — lasciato
+  fuori).
+- `header_row()` — intestazione di sezione estratta da `section()` e
+  condivisa con `ui/theme.py::section_header()`, così i call site ancora
+  legacy (`wizard_view.py`/`manual_form.py`, 60+ punti) ricevono lo stile
+  nuovo senza bisogno di migrare.
+
+### Rollout — tutte le 35 view, in 5 fasi di rischio crescente
+
+Stessa strategia di delega a più agenti in parallelo già rodata in FASE F,
+estesa a copertura totale (non solo pilota):
+1. Fondamenta (`design.py`/`theme.py`) — nessuna view toccata, verificata
+   isolatamente prima di procedere.
+2. Rischio basso: `world_view.py`, i 15 dialoghi generatori Master,
+   `home_view.py`, `feats_view.py`, `magic_items_view.py`, `dice_view.py`.
+3. Rischio medio: `sheet_view.py`, `diario_tab.py`, 5 view Master
+   (`master_view.py`, `master_notes_view.py`, `master_encounter_list_view.py`,
+   `master_loot_view.py`, `master_npc_list_view.py`), `maps_view.py` (solo
+   chrome — il sistema `Chrome`/canvas del disegno mappe resta intoccato,
+   volutamente scuro in entrambi i temi).
+4. Rischio più alto: `wizard_view.py`, `manual_form.py`, `combattimento_tab.py`
+   (prima passaggio meccanico `**design.field_style()` sui ~30 `TextField`
+   scritti a mano, poi layout/hero), `inventario_tab.py`, `esplorazione_tab.py`,
+   `spells_view.py`, `master_encounter_view.py`.
+5. Massima cautela: `profilo_tab.py` (5110 righe — i flussi dialog di
+   level-up/multiclasse/level-down toccati SOLO per kwargs di stile, mai
+   struttura/stato, esattamente l'area esclusa in FASE F) e
+   `master_loot_assign_dialog.py` (logica di assegnazione reale).
+
+**Effetto collaterale positivo, trovato più volte in modo indipendente**:
+separare `primary` da `danger` ha reso visibili diversi punti dove un'azione
+distruttiva (elimina, rimuovi, applica danno) usava ancora `primary_fill`/
+`primary_icon` — invisibile prima perché i due colori coincidevano, un vero
+bug semantico corretto in `home_view.py`, `diario_tab.py`, `sheet_view.py`,
+`inventario_tab.py`, `combattimento_tab.py` (5 punti), `maps_view.py`,
+`profilo_tab.py`, `dice_view.py`, `spells_view.py`.
+
+**Regressione reale trovata e corretta**: `test_trasferimento_dispositivo.py`
+verificava la visibilità del pulsante "codice di trasferimento dispositivo"
+cercando l'`IconButton` solo un livello sotto `riga.controls` — la
+ristrutturazione di `_member_row()` in `world_view.py` (da `ft.Row` piatta a
+`design.asymmetric_row`, per il collasso responsive) ha spostato il
+pulsante più in profondità nell'albero dei controlli senza cambiare NULLA
+della logica di permessi/visibilità. Il test cercava nel posto sbagliato, non
+la funzione aveva un bug: corretto l'helper di ricerca del test per essere
+ricorsivo invece di limitarlo a un solo livello — unica modifica a un file
+`test_*.py` in tutta questa fase.
+
+**Verifica finale** (2026-08-20): `python3 -m compileall ui/ core/ data/`
+pulito; `test_fase_d.py` 101/101; l'intera suite di progetto (35 file
+`test_*.py`) eseguita — 34/35 verdi dopo il fix del test sopra, i 2 fallimenti
+residui (`test_qr_scan.py`, `test_versione_app.py`) sono gli stessi
+ambientali pre-esistenti già documentati in FASE F (pacchetti Android/iOS
+non installabili in questo sandbox, controllo tag di release git), non
+causati da queste modifiche.
+
+**Deliberatamente non toccato** (stesso perimetro di FASE F, confermato
+ancora valido): il canvas di disegno di `maps_view.py`, la struttura interna
+dei flussi level-up/multiclasse/level-down di `profilo_tab.py` oltre ai
+kwargs di stile, la logica di allocazione di `master_loot_assign_dialog.py`.
+
+**Non ancora verificato**: il giudizio estetico vero e proprio su dispositivo
+reale, in entrambi i temi e a più larghezze (375/768/1024/1440px) — verifica
+umana, non automatizzabile con l'infrastruttura di test esistente.

@@ -216,11 +216,20 @@ class SheetView(ft.Column):
         giocatore legge più spesso è anche l'elemento con più peso visivo.
         """
         p = design.T()
+        # Audit anti-AI-slop (2026-08-18): prima le 6 celle erano
+        # identiche — nessuna gerarchia, nonostante il punteggio più alto
+        # sia in pratica quello che il giocatore consulta/tira più spesso
+        # (caratteristica principale della classe). Il primo punteggio più
+        # alto in ordine FOR→CAR "vince" in caso di parità — scelta
+        # deterministica, non serve altro criterio per un solo accento
+        # visivo in più su 6 celle.
+        top_key = max(ABILITY_KEYS, key=lambda k: getattr(self.character, f"{k}_score"))
         boxes = []
         for abbr, key in zip(ABILITY_ABBR, ABILITY_KEYS):
             score = getattr(self.character, f"{key}_score")
             mod = get_modifier(score)
             mod_str = f"+{mod}" if mod >= 0 else str(mod)
+            is_top = key == top_key
             boxes.append(
                 ft.Container(
                     content=ft.Column(
@@ -282,7 +291,24 @@ class SheetView(ft.Column):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     padding=ft.Padding.symmetric(vertical=design.Space.SM, horizontal=6),
+                    # Cella del punteggio più alto leggermente sollevata
+                    # rispetto alle altre 5 (bordo colorato + alone in
+                    # scuro) invece che identica — vedi commento sopra.
+                    # `bgcolor` resta SEMPRE `surface_alt` per tutte le 6
+                    # celle: `surface` è più chiaro di `surface_alt` in
+                    # tema chiaro ma più SCURO in tema scuro (verificato per
+                    # luminanza relativa — DARK.surface=0.013,
+                    # DARK.surface_alt=0.018), quindi uno swap `surface`/
+                    # `surface_alt` per "sollevare" la cella avrebbe fatto
+                    # l'opposto in scuro (cella evidenziata più scura, non
+                    # più chiara). Bordo + `accent_glow()` non hanno questo
+                    # problema: leggibili in entrambi i temi allo stesso
+                    # modo. `primary_icon` perché è un bordo isolato su una
+                    # superficie piccola, non testo scorrevole (soglia
+                    # WCAG 3:1, non 4.5:1 — vedi Palette in ui/design.py).
                     bgcolor=p.surface_alt,
+                    border=ft.Border.all(1, p.primary_icon) if is_top else None,
+                    shadow=design.accent_glow(p.primary_icon, 2) if is_top else None,
                     border_radius=design.Radius.MD,
                     expand=True,
                     on_click=lambda e: self._open_ability_score_dialog(),
@@ -316,29 +342,14 @@ class SheetView(ft.Column):
         # nascosto"): prima l'unico indizio che fosse cliccabile era il
         # tooltip (visibile solo passandoci sopra) più il "✎" mostrato SOLO
         # quando già in override — un personaggio senza override non aveva
-        # alcun indizio visivo.
-        pb_label = ft.Row(
-            [
-                ft.Text(
-                    f"+{pb} comp.",
-                    size=11,
-                    color=design.T().magic if is_override else design.T().text_2,
-                    weight=ft.FontWeight.BOLD if is_override else ft.FontWeight.NORMAL,
-                ),
-                ft.Icon(
-                    ft.Icons.EDIT, size=10,
-                    color=design.T().magic if is_override else design.T().text_3,
-                ),
-            ],
-            spacing=3, tight=True,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        )
-        pb_btn = ft.Container(
-            content=pb_label,
+        # alcun indizio visivo. Ora è una `design.pill()` (Arcane Ledger):
+        # stesso linguaggio visivo delle pillole "Lv./classe/razza" sotto,
+        # invece di un Text+Icon nudo senza contorno.
+        pb_btn = design.pill(
+            ft.Icons.EDIT,
+            f"+{pb} comp.",
+            color=design.T().magic if is_override else design.T().text_2,
             on_click=lambda e: self._open_prof_bonus_dialog(),
-            ink=True,
-            border_radius=design.Radius.SM,
-            padding=ft.Padding.symmetric(horizontal=4, vertical=2),
             tooltip="Clicca per modificare il bonus competenza",
         )
 
@@ -566,7 +577,7 @@ class SheetView(ft.Column):
                 expand=True,
                 border_radius=design.field_style()['border_radius'])
 
-        error_text = ft.Text("", size=11, color=design.T().primary)
+        error_text = ft.Text("", size=11, color=design.T().danger)
 
         def on_save(ev):
             if page is None:
@@ -595,7 +606,7 @@ class SheetView(ft.Column):
             self._refresh_all()
 
         dlg = ft.AlertDialog(
-            title=design.dialog_title("Modifica Caratteristiche"),
+            title=design.dialog_title("Modifica Caratteristiche", ft.Icons.TUNE),
             content=ft.Column(
                 [
                     ft.Text(
@@ -647,7 +658,7 @@ class SheetView(ft.Column):
             label_style=ft.TextStyle(color=design.T().text_2),
             width=280,
             border_radius=design.field_style()['border_radius'])
-        error_text = ft.Text("", size=11, color=design.T().primary)
+        error_text = ft.Text("", size=11, color=design.T().danger)
 
         def on_save(ev):
             if page is None:
@@ -683,7 +694,7 @@ class SheetView(ft.Column):
             self._refresh_all()
 
         dlg = ft.AlertDialog(
-            title=design.dialog_title("Bonus Competenza"),
+            title=design.dialog_title("Bonus Competenza", ft.Icons.WORKSPACE_PREMIUM),
             content=ft.Column(
                 [
                     ft.Text(

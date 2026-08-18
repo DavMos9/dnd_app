@@ -668,15 +668,12 @@ class SpellsView(ScrollMemoryListView):
 
         page.show_dialog(ft.AlertDialog(
             title=ft.Row([
-                ft.Container(
-                    content=ft.Text(
-                        f"Lv{level}" if level > 0 else "0",
-                        size=10, color=design.T().on_accent, weight=ft.FontWeight.BOLD,
-                    ),
-                    bgcolor=design.T().magic if level == 0 else design.T().primary_fill,
-                    padding=ft.Padding.symmetric(horizontal=6, vertical=3),
-                    border_radius=design.Radius.SM,
-                ),
+                # Chip di livello via primitiva condivisa (`design.chip()`) —
+                # distinzione trucchetto/incantesimo di livello preservata
+                # (tone="magic" per i trucchetti, "primary" per i restanti,
+                # esattamente come prima con gli hex diretti).
+                design.chip(f"Lv{level}" if level > 0 else "0",
+                            tone="magic" if level == 0 else "primary", filled=True),
                 ft.Container(width=8),
                 ft.Text(name, size=14, weight=ft.FontWeight.BOLD,
                         color=design.T().text, expand=True),
@@ -750,6 +747,29 @@ class SpellsView(ScrollMemoryListView):
         c = self.character
         controls: list[ft.Control] = []
 
+        # Momento tipografico "hero" della schermata (Arcane Ledger, audit
+        # anti-AI-slop 2026-08-18) — stessa struttura di dice_view.py
+        # (l'altro forte candidato al registro indaco/magic): icona in
+        # cerchietto tonalità "magic" + `hero_title()`. SpellsView è una
+        # sezione di primo livello nella sidebar (vedi ui/app.py, come
+        # DiceView), senza alcun titolo di pagina preesistente altrove —
+        # nessuna duplicazione da rimuovere.
+        controls.append(ft.Container(
+            content=ft.Row(
+                [
+                    design.icon_badge(ft.Icons.AUTO_AWESOME, tone="magic"),
+                    ft.Container(width=design.Space.MD),
+                    design.hero_title(
+                        "Incantesimi",
+                        c.class_name or "",
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                wrap=True,
+            ),
+            padding=ft.Padding.only(bottom=16),
+        ))
+
         # Incantesimi Razziali (Drow/Tiefling — task #15, 2026-07-16) —
         # sezione SEMPRE visibile quando la razza/sottorazza li concede,
         # indipendentemente da spellcasting_ability: sono incantesimi
@@ -769,6 +789,15 @@ class SpellsView(ScrollMemoryListView):
         # (self._caster_rows); per una sola classe (compresi Mistificatore
         # Arcano/Cavaliere Mistico, che vivono fuori da _caster_rows)
         # resta l'header globale di sempre, invariato.
+        # Calcolato qui (prima serviva solo più sotto) per poter affiancare
+        # l'header CD/bonus attacco agli slot rimasti nel percorso a classe
+        # singola — vedi commento su `paired_slots` poco sotto. Pura
+        # anticipazione di un calcolo puro (list comprehension su
+        # `self._slots`, nessun effetto collaterale): l'insieme risultante è
+        # identico a quello usato più sotto prima di questo cambiamento.
+        active_slots = [s for s in self._slots if s.total > 0]
+        paired_slots = False
+
         if len(self._caster_rows) > 1:
             controls.append(section_header("Magia"))
             for cc, _spells in self._caster_rows:
@@ -776,8 +805,27 @@ class SpellsView(ScrollMemoryListView):
                 _sp_ability = _cls_data.get("spellcasting_ability", "") or ""
                 if _sp_ability:
                     controls.append(self._section_magic_header_mc(cc.class_name, _sp_ability))
+            # In multiclasse gli slot sono un unico pool condiviso fra le
+            # classi (self._slots non è per-classe) — non appartengono a UNA
+            # sola classe/header, quindi restano nella loro sezione dedicata
+            # più sotto invece di affiancarsi a uno degli header per classe.
         elif c.spellcasting_ability:
-            controls += [section_header("Magia"), self._section_magic_header(c)]
+            controls.append(section_header("Magia"))
+            if active_slots:
+                # Audit anti-AI-slop (2026-08-18): CD/bonus attacco e slot
+                # rimasti sono la coppia di dati più consultata insieme
+                # durante il gioco vero e proprio — stesso principio di
+                # HP+statistiche in combattimento_tab.py
+                # (`design.asymmetric_row`). Solo nel percorso a classe
+                # singola (vedi sopra per il perché non in multiclasse).
+                controls.append(design.asymmetric_row(
+                    self._section_magic_header(c),
+                    self._section_slots_summary(active_slots),
+                    ratio=(7, 5),
+                ))
+                paired_slots = True
+            else:
+                controls.append(self._section_magic_header(c))
 
         # Incantesimi Bonus (2026-07-16, richiesta Davide: "Permettere a
         # tutte le classi di aggiungere un incantesimo... il player può
@@ -801,8 +849,7 @@ class SpellsView(ScrollMemoryListView):
                     self._section_bonus_spell_list(bonus_by_level[lv]),
                 ]
 
-        active_slots = [s for s in self._slots if s.total > 0]
-        if active_slots:
+        if active_slots and not paired_slots:
             controls += [
                 section_header("Slot Incantesimo"),
                 self._section_slots_summary(active_slots),
@@ -825,19 +872,10 @@ class SpellsView(ScrollMemoryListView):
         # incantesimo" sarebbe contraddetto dalla sezione appena mostrata
         # sopra.
         if not self._class_spells and not c.spellcasting_ability and not bonus_spells:
-            controls.append(ft.Container(
-                content=ft.Column([
-                    ft.Icon(ft.Icons.AUTO_AWESOME, size=48, color=design.T().border),
-                    ft.Container(height=8),
-                    ft.Text(
-                        f"Nessun incantesimo di classe per {c.class_name} — "
-                        f"puoi comunque aggiungere un Incantesimo Bonus qui sopra.",
-                        size=14, color=design.T().text_3,
-                        text_align=ft.TextAlign.CENTER,
-                    ),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                   alignment=ft.MainAxisAlignment.CENTER),
-                padding=40,
+            controls.append(design.empty_state(
+                ft.Icons.AUTO_AWESOME,
+                f"Nessun incantesimo di classe per {c.class_name}",
+                "Puoi comunque aggiungere un Incantesimo Bonus qui sopra.",
             ))
         elif self._class_spells:
             # Gli incantesimi "sempre pronti" da Dominio/Giuramento/Circolo
@@ -899,14 +937,16 @@ class SpellsView(ScrollMemoryListView):
                                 self._section_known_class_spell_list(by_level_known[lv]),
                             ]
                     else:
-                        controls.append(ft.Container(
-                            content=ft.Text(
-                                "Nessun incantesimo ancora conosciuto — si "
-                                "impara alla creazione del personaggio o "
-                                "salendo di livello.",
-                                size=12, color=design.T().text_3, italic=True,
-                            ),
-                            padding=16,
+                        # Stato vuoto uniforme (`design.empty_state()`),
+                        # continuando la stessa migrazione già avviata più
+                        # sopra per "Nessun incantesimo di classe" — stesso
+                        # tono neutro (nessun accento: non c'è nulla da
+                        # segnalare, coerente con l'altro stato vuoto di
+                        # questa vista).
+                        controls.append(design.empty_state(
+                            ft.Icons.AUTO_AWESOME,
+                            "Nessun incantesimo ancora conosciuto",
+                            "Si impara alla creazione del personaggio o salendo di livello.",
                         ))
                 else:
                     max_prep_level = _max_preparable_spell_level(self._slots)
@@ -1043,14 +1083,12 @@ class SpellsView(ScrollMemoryListView):
                         self._section_known_class_spell_list(by_level_known[lv]),
                     ]
             else:
-                controls.append(ft.Container(
-                    content=ft.Text(
-                        "Nessun incantesimo ancora conosciuto — si "
-                        "impara alla creazione del personaggio o "
-                        "salendo di livello.",
-                        size=12, color=design.T().text_3, italic=True,
-                    ),
-                    padding=16,
+                # Stessa migrazione a `design.empty_state()` della variante
+                # a classe singola sopra in `_build()`.
+                controls.append(design.empty_state(
+                    ft.Icons.AUTO_AWESOME,
+                    "Nessun incantesimo ancora conosciuto",
+                    "Si impara alla creazione del personaggio o salendo di livello.",
                 ))
         else:
             max_prep_level = _max_preparable_spell_level(self._slots)
@@ -1391,12 +1429,17 @@ class SpellsView(ScrollMemoryListView):
             size=design.Size.LABEL, color=p.text_3, italic=True,
             font_family=design.Font.BODY,
         ))
+        # Audit anti-AI-slop: unico elemento "hero" della vista Incantesimi —
+        # gli slot rimasti sono il dato più consultato durante il gioco vero e
+        # proprio, stesso ruolo degli HP in combattimento_tab.py. Elevazione
+        # maggiorata (level=2) + padding=XL invece del default, MAI un colore
+        # diverso (accent=magic resta lo stesso delle altre sezioni qui sopra).
         return ft.Container(
             content=ft.Column(rows, spacing=8),
             bgcolor=design.T().surface,
-            padding=14,
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
-            shadow=design.elevation(1),
+            padding=design.Space.XL,
+            border=ft.Border.only(left=ft.BorderSide(4, design.T().magic)),
+            shadow=design.layered_shadow(2, design.T().magic),
             border_radius=design.Radius.MD,
         )
 
@@ -1479,7 +1522,11 @@ class SpellsView(ScrollMemoryListView):
             content=ft.Column(rows, spacing=0),
             bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            # Bordo "magic" (non "primary"): il catalogo di classe è
+            # contenuto arcano "core" della schermata — il toggle "◉"
+            # dentro ogni riga resta invece "primary" (stato "preparato",
+            # distinzione di stato invariata, audit anti-AI-slop 2026-08-18).
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
             shadow=design.elevation(1),
             border_radius=design.Radius.MD,
         )
@@ -1577,7 +1624,11 @@ class SpellsView(ScrollMemoryListView):
             content=ft.Column(rows, spacing=0),
             bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            # Bordo "magic" (non "primary"): il catalogo di classe è
+            # contenuto arcano "core" della schermata — il toggle "◉"
+            # dentro ogni riga resta invece "primary" (stato "preparato",
+            # distinzione di stato invariata, audit anti-AI-slop 2026-08-18).
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
             shadow=design.elevation(1),
             border_radius=design.Radius.MD,
         )
@@ -1648,7 +1699,11 @@ class SpellsView(ScrollMemoryListView):
 
             rows.append(ft.Container(
                 content=ft.Row([
-                    ft.Text("●", size=18, color=design.T().primary),
+                    # Bullet/bordo "magic" (non "primary"): stessa lista
+                    # incantesimi conosciuti "core" delle classi know, non
+                    # una distinzione di stato per riga (audit anti-AI-slop,
+                    # registro arcano di questa schermata).
+                    ft.Text("●", size=18, color=design.T().magic),
                     ft.Container(width=6),
                     ft.Container(
                         content=ft.Row([
@@ -1677,7 +1732,7 @@ class SpellsView(ScrollMemoryListView):
             content=ft.Column(rows, spacing=0),
             bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
             shadow=design.elevation(1),
             border_radius=design.Radius.MD,
         )
@@ -1691,14 +1746,13 @@ class SpellsView(ScrollMemoryListView):
         rows: list[ft.Control] = []
         sorted_spells = sorted(spells, key=lambda s: s.name)
         for i, ks in enumerate(sorted_spells):
+            # Badge via `design.chip()` (tono "warning" invariato — segnala
+            # una lista PRESA IN PRESTITO da un'altra classe/meccanismo,
+            # distinzione volutamente diversa dal registro "magic" del resto
+            # della schermata), avvolto per mantenere il tooltip che
+            # `chip()` non espone.
             origin_badge = ft.Container(
-                content=ft.Text(
-                    (ks.class_list or "?")[:4], size=9,
-                    color=design.T().on_primary, weight=ft.FontWeight.BOLD,
-                ),
-                bgcolor=design.T().warning,
-                padding=ft.Padding.symmetric(horizontal=5, vertical=2),
-                border_radius=design.Radius.SM,
+                content=design.chip((ks.class_list or "?")[:4], tone="warning", filled=True),
                 tooltip=f"Da: {ks.class_list or '—'}",
             )
 
@@ -1933,14 +1987,10 @@ class SpellsView(ScrollMemoryListView):
         rows: list[ft.Control] = []
         sorted_spells = sorted(spells, key=lambda s: s.name)
         for i, ks in enumerate(sorted_spells):
+            # Badge via `design.chip()` (tono "magic", invariato), avvolto
+            # per mantenere il tooltip che `chip()` non espone.
             origin_badge = ft.Container(
-                content=ft.Text(
-                    (ks.class_list or "?")[:4], size=9,
-                    color=design.T().on_accent, weight=ft.FontWeight.BOLD,
-                ),
-                bgcolor=design.T().magic,
-                padding=ft.Padding.symmetric(horizontal=5, vertical=2),
-                border_radius=design.Radius.SM,
+                content=design.chip((ks.class_list or "?")[:4], tone="magic", filled=True),
                 tooltip=f"Da: {ks.class_list or '—'}",
             )
 
@@ -2032,7 +2082,12 @@ class SpellsView(ScrollMemoryListView):
                     ),
                     ft.IconButton(
                         ft.Icons.DELETE_OUTLINE, icon_size=18,
-                        icon_color=design.T().primary_icon,
+                        # Azione distruttiva vera (rimozione definitiva
+                        # dell'incantesimo bonus, `character_repo.
+                        # remove_known_spell`) — token isolato `danger_icon`,
+                        # non più `primary_icon` (Arcane Ledger separa i due
+                        # registri, audit anti-AI-slop 2026-08-18).
+                        icon_color=design.T().danger_icon,
                         tooltip="Rimuovi incantesimo bonus",
                         on_click=_remove,
                     ),
@@ -2093,24 +2148,19 @@ class SpellsView(ScrollMemoryListView):
             note = entry.get("note", "")
 
             if entry.get("uses") == "at_will":
-                usage_chip = ft.Container(
-                    content=ft.Text("A volontà", size=10, color=design.T().on_accent,
-                                     weight=ft.FontWeight.BOLD),
-                    bgcolor=design.T().magic,
-                    padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-                    border_radius=design.Radius.SM,
-                )
+                # Via `design.chip()` — tono "magic", stesso risultato visivo
+                # di prima (bgcolor magic + testo on_accent).
+                usage_chip = design.chip("A volontà", tone="magic", filled=True)
             else:
                 res = resources_by_name.get(entry.get("resource_name", ""))
                 available = res is None or res.current_value > 0
+                # tone="neutral" → tone_color() restituisce `text_3`, stesso
+                # grigio usato prima per lo stato "esaurito".
                 usage_chip = ft.Container(
-                    content=ft.Text(
+                    content=design.chip(
                         "Disponibile" if available else "Usato (riposo lungo)",
-                        size=10, color=design.T().on_accent, weight=ft.FontWeight.BOLD,
+                        tone="magic" if available else "neutral", filled=True,
                     ),
-                    bgcolor=(design.T().magic if available else design.T().text_3),
-                    padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-                    border_radius=design.Radius.SM,
                     tooltip="Contatore gestito nella tab Combattimento",
                 )
 
@@ -2196,7 +2246,10 @@ class SpellsView(ScrollMemoryListView):
         return ft.Container(
             content=ft.Column([
                 ft.Row([
-                    ft.Icon(ft.Icons.AUTO_AWESOME, size=16, color=design.T().primary_icon),
+                    # Icona/bordo "magic" (non "primary"): incantesimi
+                    # innati restano contenuto arcano, stesso registro delle
+                    # altre sezioni di questa schermata (audit anti-AI-slop).
+                    ft.Icon(ft.Icons.AUTO_AWESOME, size=16, color=design.T().magic),
                     ft.Text(
                         f"Da tratto di razza — CD {dc} (8 + comp. {pb:+d} + CAR {cha_mod:+d}), "
                         f"sempre attivi indipendentemente dalla classe.",
@@ -2208,7 +2261,7 @@ class SpellsView(ScrollMemoryListView):
             ], spacing=6),
             bgcolor=design.T().surface,
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
+            border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
             shadow=design.elevation(1),
             border_radius=design.Radius.MD,
         )

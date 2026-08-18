@@ -229,7 +229,11 @@ def show_health_hazards_dialog(page: ft.Page, world_id: str = "") -> None:
 
     madness_dd.on_select = _on_madness_change
 
-    madness_view = ft.Column(
+    # Audit anti-AI-slop (Arcane Ledger): scheletro condiviso `generator_
+    # dialog_shell()` per la scheda "Follia" — form "Parametri" (info +
+    # scelta tabella + Tira) + card "risultato" (level=2, accento primario,
+    # il tiro appena estratto), invece del riquadro costruito a mano.
+    madness_form = ft.Column(
         [
             ft.Row(
                 [
@@ -242,18 +246,16 @@ def show_health_hazards_dialog(page: ft.Page, world_id: str = "") -> None:
                 ],
                 spacing=6, wrap=True,
             ),
-            ft.Divider(height=1, color=design.T().border),
             madness_dd,
             ft.ElevatedButton(
                 "Tira 1d100", icon=ft.Icons.CASINO, on_click=_on_madness_roll,
                 style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
             ),
-            ft.Container(
-                content=madness_result_col, bgcolor=design.T().bg,
-                border_radius=design.Radius.MD, padding=ft.Padding.all(12),
-            ),
         ],
-        spacing=10,
+        spacing=design.Space.MD,
+    )
+    madness_view = design.generator_dialog_shell(
+        "Follia", ft.Icons.PSYCHOLOGY_OUTLINED, madness_form, madness_result_col, actions=[],
     )
 
     # -- Tab switching ------------------------------------------------------

@@ -174,8 +174,10 @@ class InventarioTab(ScrollMemoryListView):
         except Exception as exc:
             logger.error("InventarioTab._build() fallito: %s", exc, exc_info=True)
             self.controls.clear()
+            # `danger`, non `primary`: messaggio d'errore, non un accento
+            # brand (Arcane Ledger separa i due accenti, vedi ui/design.py).
             self.controls.append(ft.Text(f"Errore caricamento inventario: {exc}",
-                                         color=design.T().primary, size=13))
+                                         color=design.T().danger, size=13))
 
     def did_mount(self) -> None:
         self._page = cast(ft.Page, self.page)
@@ -332,7 +334,11 @@ class InventarioTab(ScrollMemoryListView):
         total_weight = sum(item.weight * item.quantity for item in self._items)
         pct = min(1.0, total_weight / max_carry) if max_carry > 0 else 0.0
         if pct >= 1.0:
-            bar_color, status = design.T().primary_fill, "Sovraccarico"
+            # `danger`, non `primary_fill`: il sovraccarico è un avviso
+            # negativo (penalità meccanica), non un accento brand — stesso
+            # bug latente dell'audit Arcane Ledger su "delete"/"warning"
+            # (vedi ui/design.py, nota su Palette.danger).
+            bar_color, status = design.T().danger, "Sovraccarico"
         elif pct >= 0.666:
             bar_color, status = design.T().warning, "Carico pesante"
         else:
@@ -353,24 +359,35 @@ class InventarioTab(ScrollMemoryListView):
 
         return ft.Container(
             content=ft.Column([
+                # Size.HERO: unico momento tipografico dominante del tab (vedi
+                # ui/design.py::Size — "carry-weight/currency summary" è
+                # l'esempio esplicito citato lì per questo uso). Row allineata
+                # in fondo (END) così l'etichetta di capacità/icona si
+                # appoggiano alla base del numero grande, non al suo apice.
                 ft.Row([
-                    ft.Text(f"{total_weight:.1f} kg", size=22,
+                    ft.Text(f"{total_weight:.1f} kg", size=design.Size.HERO,
                             weight=ft.FontWeight.BOLD,
                             color=design.T().text, font_family=design.Font.MONO),
                     ft.Text(capacity_label, size=12,
                             color=design.T().magic if override_carry > 0 else design.T().text_3,
                             font_family=design.Font.BODY),
                     ft.Icon(ft.Icons.EDIT, size=12, color=design.T().text_3),
-                ], spacing=8),
+                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.END),
                 ft.Container(height=6),
                 bar,
                 ft.Container(height=4),
                 muted_text(status, 11),
             ], spacing=0),
             bgcolor=design.T().surface,
-            padding=ft.Padding.symmetric(horizontal=12, vertical=12),
-            border=ft.Border.only(left=ft.BorderSide(3, design.T().primary)),
-            shadow=design.elevation(1),
+            # Audit anti-AI-slop (2026-08-18): unico elemento "hero" del tab —
+            # il Peso è l'unico dato del tab con conseguenza meccanica diretta
+            # (sovraccarico penalizza), calcolato dinamicamente con stato a 3
+            # livelli (normale/pesante/sovraccarico) e barra di progresso,
+            # stesso ruolo che gli HP hanno in combattimento_tab.py. Bordo
+            # 3→4px, padding Space.LG(ish)→Space.XL, elevation(1)→layered_shadow(2).
+            padding=design.Space.XL,
+            border=ft.Border.only(left=ft.BorderSide(4, bar_color)),
+            shadow=design.layered_shadow(2, bar_color),
             border_radius=design.Radius.MD,
             on_click=lambda e: self._on_edit_carry_capacity(calculated_carry),
             ink=True,
@@ -556,7 +573,9 @@ class InventarioTab(ScrollMemoryListView):
             ),
             ft.IconButton(
                 icon=ft.Icons.DELETE,
-                icon_color=design.T().primary_icon, icon_size=16,
+                # `danger_icon`, non `primary_icon`: azione distruttiva
+                # (Arcane Ledger separa i due accenti, vedi ui/design.py).
+                icon_color=design.T().danger_icon, icon_size=16,
                 tooltip="Elimina",
                 on_click=lambda e, ww=w: self._on_delete_weapon(ww),
                 padding=ft.Padding.all(2),
@@ -711,7 +730,9 @@ class InventarioTab(ScrollMemoryListView):
             ),
             ft.IconButton(
                 icon=ft.Icons.DELETE,
-                icon_color=design.T().primary_icon, icon_size=16,
+                # `danger_icon`, non `primary_icon` — vedi commento gemello
+                # in _weapon_card.
+                icon_color=design.T().danger_icon, icon_size=16,
                 tooltip="Elimina",
                 on_click=lambda e, ii=item: self._on_delete_item(ii),
                 padding=ft.Padding.all(2),
@@ -890,7 +911,9 @@ class InventarioTab(ScrollMemoryListView):
             ),
             ft.IconButton(
                 icon=ft.Icons.DELETE,
-                icon_color=design.T().primary_icon, icon_size=14, tooltip="Elimina",
+                # `danger_icon`, non `primary_icon` — vedi commento gemello
+                # in _weapon_card.
+                icon_color=design.T().danger_icon, icon_size=14, tooltip="Elimina",
                 on_click=lambda e, it=item: self._on_delete_item(it),
                 padding=ft.Padding.all(2),
             ),
@@ -1275,7 +1298,10 @@ class InventarioTab(ScrollMemoryListView):
             r = ft.Row(
                 cast(list[ft.Control], [row_dice, row_type, row_note,
                      ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE,
-                                   icon_color=design.T().primary_icon, icon_size=16,
+                                   # `danger_icon`: rimuove una riga, stessa
+                                   # famiglia visiva delle altre azioni
+                                   # distruttive del tab.
+                                   icon_color=design.T().danger_icon, icon_size=16,
                                    on_click=remove_this, tooltip="Rimuovi",
                                    padding=ft.Padding.all(0))]),
                 spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1439,15 +1465,20 @@ class InventarioTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Elimina arma"),
+            # icona + tone="danger" (Arcane Ledger, stesso pattern di
+            # diario_tab.py::_on_delete_entry): azione distruttiva, non un
+            # dialog generico in accento brand.
+            title=design.dialog_title("Elimina arma", ft.Icons.DELETE_OUTLINE, tone="danger"),
             content=ft.Text(f"Eliminare «{weapon.name}»?", size=13,
                             color=design.T().text),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
-                ft.ElevatedButton("Elimina", on_click=do_delete,
+                ft.ElevatedButton("Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
+                                      # `danger_fill`, non `primary_fill`: azione
+                                      # distruttiva (vedi ui/design.py).
+                                      bgcolor=design.T().danger_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -1630,11 +1661,12 @@ class InventarioTab(ScrollMemoryListView):
         attuned = [it for it in self._items if it.is_attuned]
         used = len(attuned)
         p = design.T()
+        # Audit anti-AI-slop (2026-08-18): icona HANDSHAKE rimossa — il testo
+        # adiacente dice già "Sintonia" esplicitamente (e la sezione è già
+        # titolata "Sintonia" dall'header sopra).
         rows: list[ft.Control] = [
             ft.Row(
                 [
-                    ft.Icon(ft.Icons.HANDSHAKE, size=16, color=p.warning),
-                    ft.Container(width=design.Space.SM),
                     ft.Text(f"Sintonia: {used} / {MAX_ATTUNED_ITEMS}", size=14,
                             weight=ft.FontWeight.BOLD, color=p.text,
                             font_family=design.Font.BODY),
@@ -2014,15 +2046,18 @@ class InventarioTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Elimina oggetto"),
+            # icona + tone="danger" — vedi commento gemello in _on_delete_weapon.
+            title=design.dialog_title("Elimina oggetto", ft.Icons.DELETE_OUTLINE, tone="danger"),
             content=ft.Text(f"Eliminare «{item.name}»?", size=13,
                             color=design.T().text),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla",
                               on_click=lambda ev: page.pop_dialog() if page else None),
-                ft.ElevatedButton("Elimina", on_click=do_delete,
+                ft.ElevatedButton("Elimina", icon=ft.Icons.DELETE_OUTLINE, on_click=do_delete,
                                   style=ft.ButtonStyle(
-                                      bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
+                                      # `danger_fill`, non `primary_fill`: azione
+                                      # distruttiva (vedi ui/design.py).
+                                      bgcolor=design.T().danger_fill, color=design.T().on_primary_fill)),
             ]),
         ))
 
@@ -2122,9 +2157,10 @@ class InventarioTab(ScrollMemoryListView):
         except Exception as exc:
             logger.error("InventarioTab._build() fallito in _refresh: %s", exc, exc_info=True)
             self.controls.clear()
+            # `danger`, non `primary` — vedi commento gemello in __init__.
             self.controls.append(
                 ft.Text(f"Errore aggiornamento inventario: {exc}",
-                        color=design.T().primary, size=13)
+                        color=design.T().danger, size=13)
             )
         try:
             if self._page:

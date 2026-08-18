@@ -48,33 +48,58 @@ class DiarioTab(ScrollMemoryListView):
     # ------------------------------------------------------------------
 
     def _build(self):
-        header_row: list[ft.Control] = [
-            ft.Text(
-                "Diario di Avventura",
-                size=16,
-                weight=ft.FontWeight.BOLD,
-                color=design.T().text,
-                expand=True,
+        # Intestazione — momento tipografico dominante del tab (Arcane
+        # Ledger, `hero_title()`): prima un semplice `ft.Text` in linea col
+        # bottone, ora l'unica card "hero" della schermata (MAX una per
+        # tab), stesso schema di `feats_view.py`/`magic_items_view.py` —
+        # badge indaco/oro + titolo in `Font.DISPLAY` + sottotitolo con il
+        # conteggio voci, pulsante "Nuova Voce" su una riga propria per non
+        # combinare `wrap=True` e `expand=True` sulla stessa Row (vedi
+        # `docs/regole_flet_api.md`).
+        n = len(self._entries)
+        subtitle = (
+            f"{n} vo{'ce' if n == 1 else 'ci'} registrate"
+            if n else "Le cronache delle tue avventure, sessione dopo sessione"
+        )
+        header = design.card(
+            ft.Column(
+                [
+                    ft.Row(
+                        [
+                            design.icon_badge(ft.Icons.MENU_BOOK_OUTLINED, tone="primary"),
+                            ft.Container(width=design.Space.MD),
+                            design.hero_title("Diario di Avventura", subtitle),
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        wrap=True,
+                    ),
+                    ft.Container(height=design.Space.MD),
+                    ft.Row(
+                        [
+                            ft.ElevatedButton(
+                                "Nuova Voce",
+                                icon=ft.Icons.ADD,
+                                on_click=lambda e: self._on_new_entry(),
+                                style=ft.ButtonStyle(
+                                    bgcolor=design.T().primary_fill,
+                                    color=design.T().on_primary_fill,
+                                ),
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.END,
+                    ),
+                ],
+                spacing=0,
             ),
-            ft.ElevatedButton(
-                "Nuova Voce",
-                icon=ft.Icons.ADD,
-                on_click=lambda e: self._on_new_entry(),
-                style=ft.ButtonStyle(
-                    bgcolor=design.T().primary_fill,
-                    color=design.T().on_primary_fill,
-                ),
-            ),
-        ]
+            hero=True,
+        )
 
         # IMPORTANTE: modificare self.controls IN-PLACE (mai self.controls = [...]).
         # In Flet 0.85.3 la riassegnazione diretta rimpiazza la ControlsList interna
         # che Flutter usa per il rendering → schermata bianca (vedi CLAUDE.md).
         self.controls.clear()
-        self.controls.append(ft.Container(
-            content=ft.Row(header_row, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            padding=ft.Padding.only(bottom=4),
-        ))
+        self.controls.append(header)
+        self.controls.append(ft.Container(height=design.Space.XS))
 
         if not self._entries:
             self.controls.append(self._empty_state())
@@ -87,24 +112,16 @@ class DiarioTab(ScrollMemoryListView):
     # ------------------------------------------------------------------
 
     def _empty_state(self) -> ft.Container:
-        return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Icon(ft.Icons.MENU_BOOK_OUTLINED, size=56, color=design.T().border),
-                    ft.Container(height=12),
-                    ft.Text("Nessuna voce nel diario", size=16,
-                            weight=ft.FontWeight.BOLD, color=design.T().text_2),
-                    ft.Container(height=6),
-                    muted_text("Premi «Nuova Voce» per iniziare a scrivere\nle tue avventure.", 13),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=0,
-            ),
-            expand=True,
-            padding=ft.Padding.symmetric(horizontal=24, vertical=48),
-            alignment=ft.Alignment.CENTER,
+        # Primitiva condivisa `design.empty_state()` (Arcane Ledger) al
+        # posto della Column scritta a mano — stesso badge cerchiato tinto
+        # usato per ogni altro stato vuoto dell'app.
+        ctrl = design.empty_state(
+            ft.Icons.MENU_BOOK_OUTLINED,
+            "Nessuna voce nel diario",
+            "Premi «Nuova Voce» per iniziare a scrivere le tue avventure.",
         )
+        ctrl.expand = True  # centra verticalmente nell'area visibile, come prima
+        return ctrl
 
     # ------------------------------------------------------------------
     # Card voce
@@ -119,8 +136,12 @@ class DiarioTab(ScrollMemoryListView):
 
         date_label = entry.session_date or entry.created_at[:10] if entry.created_at else ""
 
-        return ft.Container(
-            content=ft.Column(
+        # Audit anti-AI-slop (2026-08-18): card standard invece del Container
+        # bordato a mano (barra accento sinistra + ombra a livello, come le
+        # altre viste già rifinite, invece del riquadro con bordo pieno su
+        # 4 lati).
+        return design.card(
+            ft.Column(
                 [
                     ft.Row(
                         [
@@ -151,7 +172,10 @@ class DiarioTab(ScrollMemoryListView):
                                     ft.IconButton(
                                         icon=ft.Icons.DELETE_OUTLINE,
                                         icon_size=16,
-                                        icon_color=design.T().primary_icon,
+                                        # `danger_icon`, non `primary_icon`: azione
+                                        # distruttiva (vedi nota sul bottone
+                                        # "Elimina" del dialog di conferma sotto).
+                                        icon_color=design.T().danger_icon,
                                         tooltip="Elimina",
                                         on_click=lambda e, en=entry: self._on_delete_entry(en),
                                         padding=ft.Padding.all(4),
@@ -179,15 +203,8 @@ class DiarioTab(ScrollMemoryListView):
                 ],
                 spacing=0,
             ),
-            bgcolor=design.T().surface,
-            padding=ft.Padding.symmetric(horizontal=14, vertical=12),
-            border=ft.Border(
-                left=ft.BorderSide(3, design.T().primary),
-                top=ft.BorderSide(1, design.T().border),
-                right=ft.BorderSide(1, design.T().border),
-                bottom=ft.BorderSide(1, design.T().border),
-            ),
-            border_radius=design.Radius.MD,
+            accent=design.T().primary,
+            padding=design.Space.MD,
         )
 
     # ------------------------------------------------------------------
@@ -264,7 +281,10 @@ class DiarioTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Nuova Voce" if is_new else "Modifica Voce"),
+            title=design.dialog_title(
+                "Nuova Voce" if is_new else "Modifica Voce",
+                ft.Icons.EDIT_NOTE if is_new else ft.Icons.EDIT_OUTLINED,
+            ),
             content=ft.Column(
                 [f_title, f_date, f_content],
                 spacing=10,
@@ -304,7 +324,7 @@ class DiarioTab(ScrollMemoryListView):
             self._refresh()
 
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Elimina voce"),
+            title=design.dialog_title("Elimina voce", ft.Icons.DELETE_OUTLINE, tone="danger"),
             content=ft.Text(
                 f"Eliminare «{entry.title or 'Senza titolo'}»?\nL'operazione non è reversibile.",
                 size=13, color=design.T().text,
@@ -319,7 +339,9 @@ class DiarioTab(ScrollMemoryListView):
                     icon=ft.Icons.DELETE_OUTLINE,
                     on_click=do_delete,
                     style=ft.ButtonStyle(
-                        bgcolor=design.T().primary_fill,
+                        # `danger_fill`, non `primary_fill`: azione distruttiva
+                        # (Arcane Ledger separa i due accenti, vedi `ui/design.py`).
+                        bgcolor=design.T().danger_fill,
                         color=design.T().on_primary_fill,
                     ),
                 ),

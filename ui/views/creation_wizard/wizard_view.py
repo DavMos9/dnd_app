@@ -297,45 +297,35 @@ class WizardView(CreationSharedMixin, ft.Column):
         selected: set[str] = set()
 
         # ------ Header domanda ------
-        phase_label = ft.Container(
-            content=ft.Text(
-                q["phase"].upper(),
-                size=10,
-                weight=ft.FontWeight.BOLD,
-                color=design.T().magic,
-                style=ft.TextStyle(letter_spacing=2),
-            ),
-            padding=ft.Padding.symmetric(horizontal=10, vertical=4),
-            border=ft.Border.all(1, design.T().magic),
-            border_radius=design.Radius.SM,
-        )
+        phase_label = design.chip(q["phase"].upper(), tone="magic")
 
-        counter = muted_text(
+        counter = design.muted(
             f"{self._current_q_index + 1} / {len(WIZARD_QUESTIONS)}",
             size=12,
         )
 
-        question_text = ft.Text(
-            q["text"],
-            size=22,
-            weight=ft.FontWeight.BOLD,
-            color=design.T().text,
-            text_align=ft.TextAlign.CENTER,
-        )
-
-        subtitle_row = []
-        if q.get("subtitle"):
-            subtitle_row = [muted_text(q["subtitle"], size=13)]
+        # Un solo momento tipografico "hero" per schermata (Arcane Ledger):
+        # la domanda corrente è il contenuto dominante di questo step.
+        question_hero = design.hero_title(q["text"], q.get("subtitle", ""))
+        question_hero.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+        for _kid in question_hero.controls:
+            if isinstance(_kid, ft.Text):
+                _kid.text_align = ft.TextAlign.CENTER
 
         # ------ Opzioni ------
         option_controls: list[ft.Control] = []
         option_refs: dict[str, ft.Container] = {}
+        option_icon_refs: dict[str, ft.Container] = {}
 
         def make_option_card(opt: dict) -> ft.Container:
-            card = ft.Container(
-                content=ft.Row(
+            icon_slot = design.icon_badge(
+                _ICON_MAP.get(opt["icon"], ft.Icons.HELP_OUTLINE), tone="neutral", size=44,
+            )
+            option_icon_refs[opt["id"]] = icon_slot
+            card = design.card(
+                ft.Row(
                     [
-                        _icon(opt["icon"], design.T().text_3, 28),
+                        icon_slot,
                         ft.Container(width=16),
                         ft.Column(
                             [
@@ -357,13 +347,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                padding=ft.Padding.symmetric(horizontal=20, vertical=14),
-                bgcolor=design.T().surface,
-                shadow=design.elevation(1),
-                border_radius=8,
                 on_click=lambda e, o=opt: _toggle_option(o["id"]),
-                ink=True,
-                animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
             )
             option_refs[opt["id"]] = card
             return card
@@ -382,34 +366,30 @@ class WizardView(CreationSharedMixin, ft.Column):
 
         def _refresh_option_styles():
             for oid, card in option_refs.items():
-                if oid in selected:
-                    card.bgcolor = design.T().info_bg
-                    card.border = ft.Border.all(2, design.T().magic)
-                    # Aggiorna colore icona
-                    row = cast(ft.Row, card.content)
-                    row.controls[0] = _icon(
-                        next(o["icon"] for o in q["options"] if o["id"] == oid),
-                        design.T().magic, 28,
-                    )
-                else:
-                    card.bgcolor = design.T().surface
-                    card.border = ft.Border.all(1, design.T().border)
-                    row = cast(ft.Row, card.content)
-                    row.controls[0] = _icon(
-                        next(o["icon"] for o in q["options"] if o["id"] == oid),
-                        design.T().text_3, 28,
-                    )
+                is_sel = oid in selected
+                card.bgcolor = design.T().info_bg if is_sel else design.T().surface
+                card.border = ft.Border.all(2 if is_sel else 1,
+                                            design.T().magic if is_sel else design.T().border)
+                # Aggiorna la tinta del badge icona
+                icon_slot = option_icon_refs[oid]
+                icon_data = next(o["icon"] for o in q["options"] if o["id"] == oid)
+                fresh_badge = design.icon_badge(
+                    _ICON_MAP.get(icon_data, ft.Icons.HELP_OUTLINE),
+                    tone="magic" if is_sel else "neutral", size=44,
+                )
+                icon_slot.content = fresh_badge.content
+                icon_slot.bgcolor = fresh_badge.bgcolor
                 card.update()
 
-        # Bottone Avanti
+        # Bottone Avanti — CTA primaria (oro/bronzo Arcane Ledger)
         next_btn = ft.ElevatedButton(
             "Avanti",
             icon=ft.Icons.ARROW_FORWARD,
             disabled=True,
             on_click=lambda e: _on_next(),
             style=ft.ButtonStyle(
-                bgcolor=design.T().magic,
-                color=design.T().bg,
+                bgcolor=design.T().primary_fill,
+                color=design.T().on_primary_fill,
             ),
         )
 
@@ -428,12 +408,14 @@ class WizardView(CreationSharedMixin, ft.Column):
         for opt in q["options"]:
             option_controls.append(make_option_card(opt))
 
-        # Layout opzioni: griglia 2 colonne su schermo largo
-        # Usiamo semplicemente una Column scrollabile
-        options_col = ft.Column(
-            option_controls,
-            spacing=10,
-            scroll=ft.ScrollMode.AUTO,
+        # Griglia opzioni responsive: 2 colonne da schermo "md" in su, una
+        # sola colonna impilata sotto (`ResponsiveRow`/`col=`, mai `expand=`
+        # su una Row semplice — vedi `design.asymmetric_row()` per il
+        # perché). Prima era una Column mono-colonna "temporanea" (il
+        # commento originale già chiedeva la griglia a 2 colonne).
+        options_col = ft.ResponsiveRow(
+            [ft.Container(content=c, col={"xs": 12, "md": 6}) for c in option_controls],
+            columns=12, spacing=10, run_spacing=10,
         )
 
         content = ft.Column(
@@ -443,8 +425,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 ),
                 ft.Container(height=16),
-                question_text,
-                *subtitle_row,
+                question_hero,
                 ft.Container(height=20),
                 options_col,
                 ft.Container(height=20),
@@ -491,11 +472,9 @@ class WizardView(CreationSharedMixin, ft.Column):
             for cls, card in card_refs.items():
                 is_sel = cls == sel
                 card.bgcolor = design.T().info_bg if is_sel else design.T().surface
-                card.border = ft.Border(
-                    top=ft.BorderSide(2, design.T().primary if is_sel else design.T().border),
-                    left=ft.BorderSide(1, design.T().primary if is_sel else design.T().border),
-                    right=ft.BorderSide(1, design.T().border),
-                    bottom=ft.BorderSide(1, design.T().border),
+                card.border = (
+                    ft.Border.all(1.5, ft.Colors.with_opacity(0.55, design.T().primary))
+                    if is_sel else ft.Border.all(1, design.T().border)
                 )
                 try:
                     card.update()
@@ -546,36 +525,39 @@ class WizardView(CreationSharedMixin, ft.Column):
                 {"int": "Intelligenza", "wis": "Saggezza", "cha": "Carisma"}.get(spell_ab, "—")
                 if spell_ab else "—"
             )
-            card = ft.Container(
-                content=ft.Column(
-                    controls=cast(list[ft.Control], [
+            header_row: list[ft.Control] = [
+                design.icon_badge(ft.Icons.AUTO_AWESOME if is_top else ft.Icons.SHIELD,
+                                   tone="primary" if is_top else "neutral", size=36),
+                ft.Container(width=12),
+                ft.Column(
+                    [
                         ft.Row(cast(list[ft.Control], badges), alignment=ft.MainAxisAlignment.START),
-                        ft.Container(height=8),
                         ft.Text(cls, size=18 if is_top else 15, weight=ft.FontWeight.BOLD,
-                                color=design.T().magic if is_top else design.T().text),
-                        ft.Container(height=4),
-                        muted_text(CLASS_DESCRIPTIONS.get(cls, ""), size=12),
+                                color=design.T().primary if is_top else design.T().text),
+                    ],
+                    spacing=4, expand=True,
+                ),
+            ]
+            card = design.card(
+                ft.Column(
+                    controls=cast(list[ft.Control], [
+                        ft.Row(header_row, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        ft.Container(height=8),
+                        design.muted(CLASS_DESCRIPTIONS.get(cls, ""), size=12),
                         ft.Container(height=8),
                         ft.Row([
-                            ft.Column([label_text("Dado Vita", 9), body_text(f"d{hit_die}", 14)], spacing=2),
+                            ft.Column([design.label("Dado Vita"), design.body(f"d{hit_die}", 14)], spacing=2),
                             ft.Container(width=24),
-                            ft.Column([label_text("Incantesimi", 9), body_text(spell_label, 14)], spacing=2),
+                            ft.Column([design.label("Incantesimi"), design.body(spell_label, 14)], spacing=2),
                         ], spacing=0),
                     ]),
                     spacing=0,
                 ),
-                padding=14,
-                bgcolor=design.T().info_bg if is_top else design.T().surface,
-                border=ft.Border(
-                    top=ft.BorderSide(2, design.T().primary if is_top else design.T().border),
-                    left=ft.BorderSide(1, design.T().primary if is_top else design.T().border),
-                    right=ft.BorderSide(1, design.T().border),
-                    bottom=ft.BorderSide(1, design.T().border),
-                ),
-                border_radius=design.Radius.MD,
+                accent=design.T().primary if is_top else None,
+                hero=is_top,
                 on_click=lambda e, c=cls: _select_class(c),
-                ink=True,
             )
+            card.bgcolor = design.T().info_bg if is_top else design.T().surface
             card_refs[cls] = card
             return card
 
@@ -584,32 +566,37 @@ class WizardView(CreationSharedMixin, ft.Column):
             spacing=8,
         )
 
-        # Suggerimenti dinamici
-        summary_row = ft.Row(
+        # Riepilogo delle scelte finora — pannello "minor" accanto alla
+        # scelta di classe (asymmetric_row, Arcane Ledger): a differenza del
+        # vecchio ft.Row a 3 colonne + VerticalDivider (pensato per schermo
+        # largo), qui è impilato verticalmente perché vive in una colonna
+        # più stretta (ratio 7/5) che può scendere sotto la soglia mobile.
+        def _summary_item(label: str, value: ft.Control, hint: str) -> ft.Column:
+            return ft.Column([design.label(label), value, design.muted(hint, size=11)], spacing=4)
+
+        summary_col = ft.Column(
             [
-                ft.Column([
-                    label_text("RAZZA SUGGERITA", 10),
-                    ft.Text(
-                        rec_race_by_class[top3[0][0]], size=15,
-                        weight=ft.FontWeight.W_600, color=design.T().text,
-                        ref=race_label_ref,
-                    ),
-                    muted_text("Sinergia ottimale con la classe", 11),
-                ], spacing=4, expand=True),
-                ft.VerticalDivider(width=1, color=design.T().border),
-                ft.Column([
-                    label_text("BACKGROUND SUGGERITO", 10),
-                    body_text(rec_bg, 15, weight=ft.FontWeight.W_600),
-                    muted_text(", ".join((_loader.get_background(rec_bg) or {}).get("skill_proficiencies", [])), 11),
-                ], spacing=4, expand=True),
-                ft.VerticalDivider(width=1, color=design.T().border),
-                ft.Column([
-                    label_text("ALLINEAMENTO", 10),
-                    body_text(rec_align, 15, weight=ft.FontWeight.W_600),
-                    muted_text("Dalle tue risposte", 11),
-                ], spacing=4, expand=True),
+                _summary_item(
+                    "Razza suggerita",
+                    ft.Text(rec_race_by_class[top3[0][0]], size=15,
+                            weight=ft.FontWeight.W_600, color=design.T().text,
+                            ref=race_label_ref),
+                    "Sinergia ottimale con la classe",
+                ),
+                ft.Divider(height=1, color=design.T().border),
+                _summary_item(
+                    "Background suggerito",
+                    design.body(rec_bg, 15, weight=ft.FontWeight.W_600),
+                    ", ".join((_loader.get_background(rec_bg) or {}).get("skill_proficiencies", [])),
+                ),
+                ft.Divider(height=1, color=design.T().border),
+                _summary_item(
+                    "Allineamento",
+                    design.body(rec_align, 15, weight=ft.FontWeight.W_600),
+                    "Dalle tue risposte",
+                ),
             ],
-            spacing=16,
+            spacing=12,
         )
 
         def _on_continue(e):
@@ -617,17 +604,20 @@ class WizardView(CreationSharedMixin, ft.Column):
             race = rec_race_by_class.get(cls, "Umano")
             self._goto_review(cls, race, rec_bg, rec_align)
 
+        heading = design.hero_title(
+            "Il tuo personaggio ideale",
+            "Clicca su una classe per selezionarla, poi personalizza.",
+        )
+
         content = ft.Column(
             [
-                ft.Text("Il tuo personaggio ideale", size=22, weight=ft.FontWeight.BOLD,
-                        color=design.T().text, text_align=ft.TextAlign.CENTER),
-                ft.Container(height=4),
-                muted_text("Clicca su una classe per selezionarla, poi personalizza.",
-                           size=13, text_align=ft.TextAlign.CENTER),
-                ft.Container(height=16),
-                class_cards,
-                ft.Container(height=14),
-                fantasy_card(summary_row, padding=16),
+                heading,
+                ft.Container(height=20),
+                design.asymmetric_row(
+                    class_cards,
+                    design.section("Riepilogo scelte", summary_col, accent=design.T().magic),
+                    ratio=(7, 5),
+                ),
                 ft.Container(height=20),
                 ft.Row(
                     [
@@ -2548,14 +2538,8 @@ class WizardView(CreationSharedMixin, ft.Column):
             lang_tool_col,
         ], spacing=12)
 
-        extra_card = ft.Container(
-            content=extra_card_content,
-            visible=False,
-            bgcolor=design.T().surface,
-            border=ft.Border.only(top=ft.BorderSide(3, design.T().primary)),
-            border_radius=ft.BorderRadius.all(8),
-            padding=20,
-        )
+        extra_card = design.card(extra_card_content, accent=design.T().primary, padding=20)
+        extra_card.visible = False
 
         def _update_extra_card():
             has_rc = (
@@ -2580,22 +2564,20 @@ class WizardView(CreationSharedMixin, ft.Column):
         _update_extra_card()
 
         content_sections: list[ft.Control] = [
-            ft.Text("Personalizza il tuo personaggio", size=22,
-                    weight=ft.FontWeight.BOLD, color=design.T().text),
-            ft.Container(height=4),
-            muted_text("Puoi modificare i suggerimenti del wizard.", size=13),
+            design.hero_title(
+                "Personalizza il tuo personaggio",
+                "Puoi modificare i suggerimenti del wizard.",
+            ),
             ft.Container(height=20),
-            fantasy_card(ft.Column([
-                section_header("Identità"),
+            design.section("Identità", ft.Column([
                 class_dd,
                 race_dd,
                 bg_dd,
                 align_dd,
-            ], spacing=12), padding=16),
+            ], spacing=12), density="dense"),
             ft.Container(height=16),
-            fantasy_card(ft.Column([
-                section_header("Caratteristiche — Standard Array"),
-                muted_text(
+            design.section("Caratteristiche — Standard Array", ft.Column([
+                design.muted(
                     "Assegna i valori [15, 14, 13, 12, 10, 8] alle caratteristiche. "
                     "I valori ripetuti sono permessi nel wizard (potrai aggiustare nel form).",
                     size=11,
@@ -2604,7 +2586,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                 stat_rows,
                 ft.Container(height=6),
                 hp_note_text,
-            ], spacing=8), padding=20),
+            ], spacing=8), accent=design.T().primary, hero=True),
         ]
 
         # extra_card gestisce autonomamente la propria visibilità via _update_extra_card()
@@ -2763,10 +2745,10 @@ class WizardView(CreationSharedMixin, ft.Column):
         self._phase = "equipment"
 
         rows: list[ft.Control] = [
-            ft.Text("Equipaggiamento iniziale", size=22,
-                    weight=ft.FontWeight.BOLD, color=design.T().text),
-            ft.Container(height=4),
-            muted_text("Seleziona l'equipaggiamento di partenza della tua classe.", size=13),
+            design.hero_title(
+                "Equipaggiamento iniziale",
+                "Seleziona l'equipaggiamento di partenza della tua classe.",
+            ),
             ft.Container(height=20),
         ]
 
@@ -2782,7 +2764,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     if count > 1:
                         # "Due armi semplici da mischia" → N dropdown
                         chosen = item.setdefault("chosen_weapons", [weapons[0]] * count if weapons else [])
-                        fixed_checks.append(label_text(f"Scegli {count} armi ({cat.replace('_', ' ')}):", size=12))
+                        fixed_checks.append(design.label(f"Scegli {count} armi ({cat.replace('_', ' ')}):"))
                         for wi in range(count):
                             def _on_wsel(e: Any, it=item, idx=wi) -> None:
                                 it["chosen_weapons"][idx] = e.control.value or ""
@@ -2796,7 +2778,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     else:
                         chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
                         fixed_checks.append(ft.Row([
-                            label_text(f"Arma ({cat.replace('_', ' ')}):", size=12),
+                            design.label(f"Arma ({cat.replace('_', ' ')}):"),
                             ft.Dropdown(
                                 value=chosen_w,
                                 options=[ft.DropdownOption(key=w, text=w) for w in weapons],
@@ -2812,7 +2794,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     count = item.get("count", 1)
                     if count > 1:
                         chosen = item.setdefault("chosen_tools", [tools[0]] * count if tools else [])
-                        fixed_checks.append(label_text(f"Scegli {count} strumenti:", size=12))
+                        fixed_checks.append(design.label(f"Scegli {count} strumenti:"))
                         for ti in range(count):
                             def _on_tsel(e: Any, it=item, idx=ti) -> None:
                                 it["chosen_tools"][idx] = e.control.value or ""
@@ -2826,7 +2808,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     else:
                         chosen_t = item.setdefault("chosen_tool", tools[0] if tools else "")
                         fixed_checks.append(ft.Row([
-                            label_text("Strumento:", size=12),
+                            design.label("Strumento:"),
                             ft.Dropdown(
                                 value=chosen_t,
                                 options=[ft.DropdownOption(key=t, text=t) for t in tools],
@@ -2861,10 +2843,9 @@ class WizardView(CreationSharedMixin, ft.Column):
                         ], spacing=2))
                     else:
                         fixed_checks.append(cb)
-            rows.append(fantasy_card(ft.Column([
-                section_header("Oggetti garantiti"),
-                ft.Column(fixed_checks, spacing=6),
-            ], spacing=12), padding=20))
+            rows.append(design.section(
+                "Oggetti garantiti", ft.Column(fixed_checks, spacing=6), accent=design.T().primary,
+            ))
             rows.append(ft.Container(height=16))
 
         # --- Scelte A/B ---
@@ -2903,7 +2884,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         count = item.get("count", 1)
                         if count > 1:
                             chosen_ws = item.setdefault("chosen_weapons", [weapons[0]] * count if weapons else [])
-                            pickers.append(label_text(f"Scegli {count} armi ({cat.replace('_', ' ')}):", size=12))
+                            pickers.append(design.label(f"Scegli {count} armi ({cat.replace('_', ' ')}):"))
                             for wi in range(count):
                                 def _on_wc(e: Any, it=item, idx=wi) -> None:
                                     it["chosen_weapons"][idx] = e.control.value or ""
@@ -2915,7 +2896,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         else:
                             chosen_w = item.setdefault("chosen_weapon", weapons[0] if weapons else "")
                             pickers.append(ft.Row([
-                                label_text(f"Arma ({cat.replace('_', ' ')}):", size=12),
+                                design.label(f"Arma ({cat.replace('_', ' ')}):"),
                                 ft.Dropdown(
                                     value=chosen_w,
                                     options=[ft.DropdownOption(key=w, text=w) for w in weapons],
@@ -2929,7 +2910,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         count = item.get("count", 1)
                         if count > 1:
                             chosen_ts = item.setdefault("chosen_tools", [tools[0]] * count if tools else [])
-                            pickers.append(label_text(f"Scegli {count} strumenti:", size=12))
+                            pickers.append(design.label(f"Scegli {count} strumenti:"))
                             for ti in range(count):
                                 def _on_tc(e: Any, it=item, idx=ti) -> None:
                                     it["chosen_tools"][idx] = e.control.value or ""
@@ -2941,7 +2922,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                         else:
                             chosen_t = item.setdefault("chosen_tool", tools[0] if tools else "")
                             pickers.append(ft.Row([
-                                label_text("Strumento:", size=12),
+                                design.label("Strumento:"),
                                 ft.Dropdown(
                                     value=chosen_t,
                                     options=[ft.DropdownOption(key=t, text=t) for t in tools],
@@ -2973,13 +2954,14 @@ class WizardView(CreationSharedMixin, ft.Column):
             weapon_pickers_col.controls.extend(_build_weapon_pickers(choice))
 
             card_children: list[ft.Control] = [
-                section_header(f"Scelta {ci + 1}"),
                 picker.control,
                 ft.Container(height=8),
                 weapon_pickers_col,
             ]
 
-            rows.append(fantasy_card(ft.Column(card_children, spacing=8), padding=20))
+            rows.append(design.section(
+                f"Scelta {ci + 1}", ft.Column(card_children, spacing=8), accent=design.T().primary,
+            ))
             rows.append(ft.Container(height=16))
 
         # --- Equipaggiamento background (testo) ---
@@ -2991,12 +2973,11 @@ class WizardView(CreationSharedMixin, ft.Column):
                     f"• {it['name']}" if isinstance(it, dict) else f"• {it}"
                     for it in bg_equip
                 )
-                rows.append(fantasy_card(ft.Column([
-                    section_header("Equipaggiamento background"),
-                    muted_text("Aggiunto automaticamente all'inventario.", size=11),
+                rows.append(design.section("Equipaggiamento background", ft.Column([
+                    design.muted("Aggiunto automaticamente all'inventario.", size=11),
                     ft.Container(height=4),
                     ft.Text(bg_items_text, size=13, color=design.T().text),
-                ], spacing=8), padding=20))
+                ], spacing=8), accent=design.T().primary))
                 rows.append(ft.Container(height=16))
 
         # --- Sezione Monete iniziali (alternativa all'equipaggiamento di classe) ---
@@ -3054,9 +3035,8 @@ class WizardView(CreationSharedMixin, ft.Column):
                     on_select=_on_gold_select,
                 )
 
-                rows.append(fantasy_card(ft.Column([
-                    section_header("Monete iniziali"),
-                    muted_text(
+                rows.append(design.section("Monete iniziali", ft.Column([
+                    design.muted(
                         "In alternativa all'equipaggiamento, puoi iniziare con "
                         "dell'oro e acquistare ciò che vuoi.",
                         size=11,
@@ -3064,7 +3044,7 @@ class WizardView(CreationSharedMixin, ft.Column):
                     ft.Container(height=4),
                     gold_picker.control,
                     gold_field,
-                ], spacing=8), padding=20))
+                ], spacing=8), accent=design.T().primary))
                 rows.append(ft.Container(height=16))
 
         rows.append(ft.Row(
@@ -3128,9 +3108,9 @@ class WizardView(CreationSharedMixin, ft.Column):
             return ft.Container(
                 content=ft.Column(
                     [
-                        label_text(label, size=9),
+                        design.label(label),
                         ft.Text(str(val), size=14, weight=ft.FontWeight.BOLD,
-                                color=design.T().magic),
+                                color=design.T().primary),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=2,
@@ -3147,30 +3127,30 @@ class WizardView(CreationSharedMixin, ft.Column):
                     [
                         ft.Column(
                             [
-                                label_text("Classe", size=11),
-                                body_text(self._review_class, size=16,
-                                          weight=ft.FontWeight.BOLD),
+                                design.label("Classe"),
+                                design.body(self._review_class, size=16,
+                                            weight=ft.FontWeight.BOLD),
                             ],
                             spacing=2,
                         ),
                         ft.Column(
                             [
-                                label_text("Razza", size=11),
-                                body_text(self._review_race, size=16),
+                                design.label("Razza"),
+                                design.body(self._review_race, size=16),
                             ],
                             spacing=2,
                         ),
                         ft.Column(
                             [
-                                label_text("Background", size=11),
-                                body_text(self._review_bg, size=16),
+                                design.label("Background"),
+                                design.body(self._review_bg, size=16),
                             ],
                             spacing=2,
                         ),
                         ft.Column(
                             [
-                                label_text("Allineamento", size=11),
-                                body_text(self._review_align, size=16),
+                                design.label("Allineamento"),
+                                design.body(self._review_align, size=16),
                             ],
                             spacing=2,
                         ),
@@ -3970,26 +3950,26 @@ class WizardView(CreationSharedMixin, ft.Column):
                 except RuntimeError:
                     pass
 
+        # Ultimo step: il form nome (contenuto primario di questo step) e il
+        # riepilogo del personaggio (sintesi di TUTTE le scelte fatte finora
+        # nel wizard) affiancati con `asymmetric_row` — il riepilogo prende
+        # `hero=True` (unico per schermata) perché è l'elemento più
+        # consultato prima di premere "Crea personaggio".
         content = ft.Column(
             [
-                ft.Text(
+                design.hero_title(
                     "Dai un nome al tuo eroe",
-                    size=22,
-                    weight=ft.FontWeight.BOLD,
-                    color=design.T().text,
+                    "Quasi fatto! Assegna un nome e salva il tuo personaggio.",
                 ),
-                ft.Container(height=4),
-                muted_text("Quasi fatto! Assegna un nome e salva il tuo personaggio.", size=13),
                 ft.Container(height=20),
-                fantasy_card(ft.Column([
-                    name_field,
-                    player_field,
-                ], spacing=12), padding=20),
-                ft.Container(height=16),
-                fantasy_card(ft.Column([
-                    section_header("Riepilogo"),
-                    summary,
-                ], spacing=12), padding=20),
+                design.asymmetric_row(
+                    design.section("Identità del personaggio", ft.Column([
+                        name_field,
+                        player_field,
+                    ], spacing=12), density="dense"),
+                    design.section("Riepilogo", summary, accent=design.T().primary, hero=True),
+                    ratio=(5, 7),
+                ),
                 ft.Container(height=8),
                 error_text,
                 ft.Container(height=16),

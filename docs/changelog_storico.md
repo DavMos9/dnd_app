@@ -10634,6 +10634,88 @@ File toccati: `data/repositories/world_export.py` (`_WORLD_FLAT_TABLES`, `_write
 
 ---
 
+## Aggiunta personaggio al mondo con l'host offline: mai ritentata, il giocatore restava "nel mondo" solo in locale (2026-08-18)
+
+Bug segnalato da Davide dopo il test dal vivo del tracker di combattimento condiviso (confermato OK, resta solo da velocizzare la sincronizzazione in futuro — non un bug) e dell'export/import `.dndworld` (**confermato funzionante dal vivo**, chiude definitivamente il fix del 2026-08-17 sull'ordine FK `master_npcs`/`master_campaign_notes`): "quando il master ferma l'hosting un giocatore può provare ad aggiungere un personaggio al mondo, esce un messaggio che dice che non è stato possibile... quando torna online l'hosting il personaggio sull'app del giocatore risulta nel mondo, ma da parte del master il personaggio non è presente". Workaround trovato da Davide: eliminare l'istanza sul device del giocatore e riaggiungerla con l'host online.
+
+**Causa**: `ui/views/home_view.py::HomeView._push_instance_to_host()` scrive SEMPRE prima l'istanza sul DB locale del giocatore (comportamento corretto, invariato — vedi il fix del 2026-08-07 nello stesso metodo), poi prova a notificare l'host col comando `character_instance.sync`. Il docstring del metodo dichiarava già esplicitamente, dal 2026-08-07: *"questo non viene ritentato automaticamente dal thread di sincronizzazione in background"* — un limite noto ma mai colmato. Se l'host è irraggiungibile (master che smette di ospitare), il push fallisce e basta: l'istanza resta agganciata al mondo solo lato giocatore, l'host non riceve mai l'evento, finché non si ripete l'operazione a mano con l'host di nuovo online.
+
+**Fix minimo, comando già idempotente lato host (nessun redesign)**:
+- Nuova colonna `characters.host_sync_pending` (`data/database.py`, 0 = niente in sospeso di default).
+- `character_repo.set_host_sync_pending()`/`list_pending_host_sync()` (nuove funzioni, stesso pattern try/finally di tutto il resto del file — verificato da `test_connessioni_db.py`).
+- `_push_instance_to_host()` accende il flag sui tre percorsi di fallimento (backend non risolvibile, comando rifiutato dall'host, bloccato dal cooldown anti-spam) e lo spegne al successo.
+- Nuova `core/world_sync.py::push_pending_instances()`: ritenta il push per tutte le istanze in sospeso di questo dispositivo in un mondo, stesso cooldown condiviso di `_push_instance_to_host` per non spammare. Agganciata al loop di polling già esistente in `ui/views/world/world_view.py::_start_detail_sync` (stesso punto che già chiama `world_sync.sync_replica()` ad ogni giro) — appena l'host torna raggiungibile, il prossimo giro del loop (~2s) registra da solo l'istanza rimasta indietro, senza bisogno che il giocatore riapra manualmente "Aggiungi a un mondo".
+
+**Verificato con un nuovo test mirato** (`test_character_instance_sync.py`, funzione 6): riproduce esattamente lo scenario di Davide con un `WorldHostServer` reale — push tentato mentre l'host risulta irraggiungibile (`worlds.last_seen_host` puntato a una porta senza nessuno in ascolto) → verificato che l'istanza sia marcata `host_sync_pending` e che l'host non abbia ricevuto nulla nel giornale eventi; poi l'host torna raggiungibile (stessa porta, server mai fermato — la parte che conta è la raggiungibilità, non il riavvio del processo) → `push_pending_instances()` la registra da sola, il flag si spegne, l'host riceve esattamente un evento `character_instance.sync`. Suite completa 20/20 (14 esistenti + 6 nuovi controlli), nessuna regressione su `test_world_view_remote_routing.py` (16/16), `test_ingresso_lan_sincronizzazione.py` (31/31), `test_cooldown_azioni_remote.py` (43/43), `test_connessioni_db.py` (8/8).
+
+File toccati: `data/database.py`, `data/repositories/character_repo.py`, `core/world_sync.py`, `ui/views/home_view.py`, `ui/views/world/world_view.py`, `test_character_instance_sync.py`.
+
+**Resta da confermare dal vivo da Davide** (stesso limite di sempre: due DB separati non simulabili in modo affidabile in questo sandbox) — riprodurre lo scenario originale su due dispositivi fisici e verificare che il personaggio compaia da solo lato master entro pochi secondi dal ritorno online dell'host, senza il workaround manuale.
+
+---
+
+## Thread di sincronizzazione in background: crash silenzioso se la sessione termina a metà giro (2026-08-18)
+
+Bug segnalato da Davide con un traceback reale (`Exception in thread home-world-sync`) durante il test del pilot FASE F: `RuntimeError: HomeView(142) Control must be added to the page first`, seguito da `Session was garbage collected`. Non legato al lavoro di design in corso (verificato con `git diff --stat`: `ui/components/background_sync.py` non era tra i file toccati quella sera).
+
+**Causa**: `BackgroundSyncLoop._loop()` (usata da 7 view: Home, scheda, Mondi, Modalità Master Incontri, Diario, Mappe, Incantesimi) protegge tre delle sue quattro callback con try/except, ma non `self._get_page()` — se la sessione Flet termina (tab chiusa/ricaricata) tra un giro e l'altro del thread daemon, accedere a `.page` su un `Control` non più agganciato a una pagina viva solleva `RuntimeError`, non intercettato.
+
+**Fix**: avvolto anche `_get_page()` nello stesso pattern try/except delle altre tre callback — un giro saltato non perde nulla, il prossimo redraw arriva comunque al prossimo cambiamento reale di stato. File toccato: `ui/components/background_sync.py`.
+
+---
+
+## Audit anti-AI-slop — rollout completo alle 37 view + fix contrasto tema scuro (2026-08-18/19)
+
+Continuazione della sessione FASE F (vedi `restyle_design.md` per il dettaglio tecnico completo, qui solo il riassunto narrativo). Dopo il pilot su 4 view, Davide ha confermato il miglioramento in tema chiaro ma segnalato che il tema scuro "non mi convincono mi affaticano gli occhi", poi ha dato mandato esplicito per il resto della notte: "non porti limiti... affidati alla skill ui-ux-pro-max... procedi senza fermarti, senza chiedere approvazioni... effettua tutti i cambiamenti anche quelli programmati."
+
+**Fix eye-strain tema scuro**: un primo tentativo (schiarire lo sfondo delle card "hero" per livello, tecnica Material "elevation overlay") è stato calcolato e SCARTATO prima di scrivere codice sulle view — avrebbe fatto scendere `primary_icon` sotto la soglia WCAG 3:1 (margine già quasi zero contro `surface` invariato) e riavvicinato `surface`/`bg` dopo che Davide aveva passato sette giri di feedback il 2026-08-15 a distanziarli apposta per eliminare un "glow". Fix effettivo, verificato numericamente prima e dopo: `DARK.text`/`text_2`/`nav_text` ridotti in luminosità HSL (tonalità invariata) da 15.35:1/9.56:1 a 11.94:1/8.57:1 contro `bg` — ancora ben oltre il minimo AAA (7:1), ma senza il contrasto "estremo" causa nota di affaticamento nella lettura prolungata. Nuove primitive `design.accent_glow()`/`design.layered_shadow()`: un alone colorato (non nero) attorno alle card hero, solo in tema scuro — un'ombra nera è quasi invisibile contro uno sfondo già scuro, un'ombra colorata si vede senza toccare `bgcolor` (zero rischio sui contrasti testo/icona già calcolati).
+
+**Rollout**: la stessa convenzione hero/critical del pilot (elevazione via `level`/`accent` già esistenti su `card()`/`section()`, non nuovi colori — `primary`/`danger` sono di proposito lo stesso accento) estesa a tutte le 33 view rimanenti, delegando a 6 sotto-agenti paralleli con lo stesso identico brief (API, convenzione, regole icone/spaziatura, vincolo assoluto "mai la logica, solo l'estetica"). Buon esito complessivo: diversi agenti hanno correttamente scelto di NON forzare un hero dove non c'era un candidato genuino (form del wizard di creazione, molte view di gestione della Sezione Master già ben progettate da iterazioni precedenti), invece di applicare la convenzione meccanicamente ovunque — esattamente il comportamento voluto.
+
+**Deliberatamente esclusi** (rischio/beneficio sfavorevole, non dimenticanza): i tre flussi dialog di `profilo_tab.py` per level-up/multiclasse/level-down (~2500 righe, logica PHB e UI troppo interlacciate per una rifinitura estetica sicura in autonomia notturna); il canvas di disegno vero e proprio in `maps_view.py` (solo la chrome attorno toccata).
+
+**Verifica**: `python3 -m compileall ui/ core/ data/` pulito dopo ogni blocco di lavoro; `test_fase_d.py` (104 costruzioni di view nei due temi) a 101/101 sia dopo ogni batch sia alla fine con tutte le modifiche combinate; l'intera suite di 35 file `test_*.py` eseguita — 33/35 verdi, i 2 falliti (`test_qr_scan.py`, `test_versione_app.py`) sono ambientali (pacchetti Android/iOS assenti nel sandbox, tag di release git) e già noti come tali da prima di questa sessione. `git diff --stat` finale: 35 file, +718/-240 righe. **Nessun commit fatto** (scelta esplicita di Davide: "nessun commit, decido io domattina") — tutto resta come working tree modificato.
+
+**Resta da fare**: il giudizio estetico vero e proprio spetta a Davide al risveglio, su dispositivo reale, in entrambi i temi — nessun test visivo automatico esiste per questo progetto, non è mai stato possibile sostituirlo. Dettaglio file-per-file completo in `restyle_design.md`, sezione "FASE F".
+
+File toccati: `ui/design.py` (fix contrasto + `accent_glow`/`layered_shadow`), tutte le 33 view rimanenti sotto `ui/views/` (elenco completo in `restyle_design.md`), `docs/restyle_design.md`, `CLAUDE.md`.
+
+---
+
+## FASE G — "Arcane Ledger": palette rifatta da zero + rollout responsive (2026-08-20)
+
+Richiesta di Davide, distinta dalla FASE F: non un'estensione della vecchia palette bordeaux/pergamena, ma una ripartenza totale — "ignora gli otto giri della palette precedente... stiamo facendo un cambio radicale... puoi cambiare tutto, gradienti colori tutto". Un solo requisito nuovo, esplicito: l'app deve adattarsi bene sia a schermi grandi (PC) sia piccoli (smartphone). Stesso vincolo di sempre: nessuna modifica alla logica, solo estetica.
+
+**Palette nuova**: `primary` (oro antico/bronzo, accento di marca) e `danger` (rosso vero) separati per la prima volta — prima erano lo stesso hex per scelta esplicita. `magic` (indaco/violetto) elevato da tag semantico a secondo registro compositivo vero e proprio, guida `spells_view.py`/`dice_view.py`. Chiaro: pergamena più ricca. Scuro: nero-inchiostro caldo (non blu-slate da dashboard), testo calibrato a ~7-9:1 (AAA con margine, non oltre — stessa lezione anti-affaticamento della FASE F applicata da subito invece che corretta in un secondo giro). Ogni hex ricalcolato con la stessa disciplina di misurazione WCAG di sempre, zero valori riusati dalla palette precedente. Query alla skill `ui-ux-pro-max` (dataset generico, nessuna voce "fantasy RPG" letterale) usate come materiale ispirazionale — l'unico pattern preso a prestito senza modifiche: in ogni palette di riferimento consultata il colore distruttivo non coincide mai col primario, da cui la separazione oro/rosso.
+
+**Nuove primitive**: `Size.HERO`/`hero_title()` (un momento tipografico dominante per schermata, prima assente), `icon_badge()` (badge icona tinto generalizzato da `dialog_title()`), `hero=`/`density=` su `card()`/`section()`/`surface()`, `Breakpoint` (allineato ai default reali di `ft.ResponsiveRow`), `generator_dialog_shell()` (shell condivisa per 8 dei 9 dialoghi generatori Master).
+
+**Rollout su tutte le 35 view** (non un pilota, copertura totale fin dall'inizio), delegato a agenti paralleli in 5 fasi di rischio crescente, con lo stesso identico vincolo "solo estetica" ribadito in ogni brief. `profilo_tab.py` (i flussi level-up/multiclasse/level-down, esclusi in FASE F) affrontato questa volta ma con perimetro ristretto a soli kwargs di stile, mai struttura/stato — verificato anche con `test_multiclasse.py` (72/72) oltre a `test_fase_d.py`.
+
+**Interruzione a metà Fase 4** (limite di sessione degli agenti, non un errore): tutti e 6 gli agenti della fase più corposa (i due file del wizard, `combattimento_tab.py`, la coppia inventario/esplorazione, `spells_view.py`, il tracker di combattimento Master) sono stati interrotti a metà lavoro dallo stesso limite nello stesso momento. Verificato subito dopo: tutto compilava e passava comunque (`test_fase_d.py` 101/101) — gli agenti salvano incrementalmente, l'interruzione non ha lasciato file a metà scritti. Ripresi con agenti "di completamento" che leggevano prima il diff già presente per non duplicare/confliggere col lavoro fatto, poi finivano quanto mancava.
+
+**Effetto collaterale positivo, trovato indipendentemente da più agenti**: separare `primary` da `danger` ha reso visibile una decina di punti sparsi in 9 file diversi dove un'azione distruttiva (elimina, rimuovi, applica danno) usava ancora il token oro invece di quello rosso — invisibile prima perché i due colori coincidevano, un vero bug semantico latente, corretto ovunque trovato.
+
+**Regressione reale trovata e corretta** (unica modifica a un test in tutta la sessione): `test_trasferimento_dispositivo.py` cercava il pulsante "codice di trasferimento" un solo livello sotto `.controls` — la ristrutturazione responsive di `_member_row()` in `world_view.py` (da `Row` piatta a `asymmetric_row`, per il collasso sotto i 768px) lo ha spostato più in profondità nell'albero senza toccare la logica di permessi/visibilità che il test doveva verificare. Corretto l'helper di ricerca del test per essere ricorsivo.
+
+**Verifica finale**: `compileall` pulito; `test_fase_d.py` 101/101; suite completa (35 file `test_*.py`) 34/35 verdi dopo il fix sopra — i 2 residui (`test_qr_scan.py`, `test_versione_app.py`) sono gli stessi ambientali pre-esistenti da prima di questa sessione. Nessun commit fatto. Dettaglio tecnico completo (palette, primitive, rollout per fase, file critici) in `restyle_design.md`, sezione "FASE G".
+
+File toccati: `ui/design.py` (palette + primitive nuove), `ui/theme.py` (delega a `header_row()`, taglie bottoni derivate), tutte le 35 view sotto `ui/views/`, `test_trasferimento_dispositivo.py` (fix helper di ricerca), `docs/restyle_design.md`, `CLAUDE.md`.
+
+---
+
+## Trasferimento dispositivo — due rifiniture da test dal vivo (2026-08-20)
+
+Davide ha confermato che il trasferimento dispositivo (§11.9) funziona bene nella pratica, con due osservazioni dal test reale.
+
+**1. Il campo "Il tuo nome" nel dialogo di ingresso non aveva senso in modalità trasferimento.** Verificato leggendo il codice: era già vero che l'host conserva sempre il nome del membro originale a prescindere da cosa arriva nel campo (`world_transfer_repo.rebind_device` non scrive mai `display_name`, `_handle_transfer_join` lo usa solo come "chi sta bussando" nella card di approvazione del master, mai per il nome persistito) — il campo era mostrato comunque, suggerendo all'utente di dover scegliere un nome nuovo per qualcosa che in realtà resta sempre lo stesso. Fix: `display_field` ora si nasconde in modalità trasferimento esattamente come già faceva `pin_field` (stesso `_set_transfer_mode()` in `ui/views/world/world_view.py::_open_lan_join_dialog`), sostituito da una riga di spiegazione ("Il tuo nome nel mondo resta quello di sempre — non serve reinserirlo"). Nessuna modifica al protocollo: il QR/codice di trasferimento non porta comunque il nome del vecchio membro, quindi non c'era modo di precompilarlo — la soluzione corretta era non chiederlo, non indovinarlo.
+
+**2. Sul dispositivo vecchio, il personaggio restava "nel mondo ma disconnesso" senza distinguersi da un semplice mondo irraggiungibile.** Comportamento voluto di mantenere il personaggio in lista (i dati restano intatti, giusto non farlo sparire) — mancava solo l'indicazione visiva. Trovata una targhetta "trasferito" già esistente per questo esatto caso nel dettaglio della Sezione Mondi (`world_view.py::_world_card`, letta da `world_sync.is_world_transferred_away()` — un flag locale già scritto quando questo dispositivo applica il proprio evento di trasferimento, nessun nuovo stato necessario), ma assente nella Home, dove Davide stava effettivamente guardando. Aggiunta la stessa targhetta (`design.chip("trasferito", "danger")`) all'intestazione di gruppo-mondo in `home_view.py::_section_label()`, leggendo lo stesso flag.
+
+Verificato: `test_fase_d.py` 101/101, `test_trasferimento_dispositivo.py` 146/146, `test_world_view_remote_routing.py` 16/16, `test_home_sync_rimozione_mondo.py` 14/14, `compileall` pulito. File toccati: `ui/views/world/world_view.py`, `ui/views/home_view.py`.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

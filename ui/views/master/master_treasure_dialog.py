@@ -80,7 +80,7 @@ def show_treasure_generator_dialog(page: ft.Page, world_id: str = "") -> None:
         options=[ft.DropdownOption(key=c.id, text=f"{c.name} (Lv.{c.level})") for c in characters],
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
-        disabled=not characters,
+        disabled=not characters, width=260,
         border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
     add_btn_ref: list[ft.ElevatedButton] = []
     feedback_text = ft.Text("", size=11, color=design.T().magic)
@@ -301,7 +301,14 @@ def show_treasure_generator_dialog(page: ft.Page, world_id: str = "") -> None:
 
     _render_result()
 
-    content = ft.Column(
+    # Audit anti-AI-slop (Arcane Ledger): scheletro condiviso di tutti i
+    # generatori della Sezione Master — intestazione + form "Parametri" +
+    # card "risultato" (level=2, accento primario, la sensazione di
+    # rivelazione del tesoro appena tirato) + riga di azioni secondarie
+    # (destinatario/scorciatoia inventario + Assegna…/Salva nell'archivio),
+    # tutte a capo su un dialog stretto invece di uscire dal bordo. Nessun
+    # dato/callback cambia: solo come i pezzi sono assemblati.
+    form = ft.Column(
         [
             mode_group,
             cr_dd,
@@ -313,23 +320,21 @@ def show_treasure_generator_dialog(page: ft.Page, world_id: str = "") -> None:
                     ),
                     ft.OutlinedButton("+ Cimelio", icon=ft.Icons.AUTO_AWESOME, on_click=_on_trinket),
                 ],
-                spacing=8,
+                spacing=8, wrap=True,
             ),
-            ft.Divider(height=1, color=design.T().border),
-            ft.Container(
-                content=result_col,
-                bgcolor=design.T().bg, border_radius=design.Radius.MD,
-                padding=ft.Padding.all(12),
-            ),
-            ft.Divider(height=1, color=design.T().border),
-            char_dd,
-            add_btn,
-            feedback_text,
-            ft.Divider(height=1, color=design.T().border),
-            loot_btn_row,
         ],
-        spacing=10, scroll=ft.ScrollMode.AUTO,
-        width=responsive_dialog_width(page, 420), height=520,
+        spacing=design.Space.MD,
+    )
+
+    shell = design.generator_dialog_shell(
+        "Genera Tesoro", None, form, result_col,
+        actions=[char_dd, add_btn, feedback_text, loot_btn_row],
+    )
+
+    content = ft.Column(
+        [shell],
+        spacing=0, scroll=ft.ScrollMode.AUTO,
+        width=responsive_dialog_width(page, 420), height=560,
         tight=True,
     )
 
@@ -337,7 +342,6 @@ def show_treasure_generator_dialog(page: ft.Page, world_id: str = "") -> None:
         page.pop_dialog()
 
     dlg = ft.AlertDialog(
-        title=design.dialog_title("Genera Tesoro"),
         content=content,
         actions=cast(list[ft.Control], [
             ft.TextButton("Chiudi", on_click=_close),
