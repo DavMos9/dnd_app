@@ -24,7 +24,7 @@ un'azione dell'utente non forza un giro sul thread giusto.
 
 import logging
 import threading
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable, Optional, Union
 
 import flet as ft
 
@@ -34,6 +34,12 @@ logger = logging.getLogger(__name__)
 #: reattivo per un tavolo di gioco, senza martellare rete/DB più volte al
 #: secondo.
 DEFAULT_INTERVAL_S = 2.0
+
+#: `interval_s` può essere un numero fisso o una funzione richiamata ad ogni
+#: giro — utile ai chiamanti che vogliono un ritmo più stretto solo in
+#: certe condizioni (es. un combattimento condiviso in corso), senza dover
+#: fermare/riavviare il loop per cambiarlo.
+IntervalArg = Union[float, Callable[[], float]]
 
 
 class BackgroundSyncLoop:
@@ -65,7 +71,7 @@ class BackgroundSyncLoop:
         async_redraw_fn: Callable[[], Awaitable[None]],
         apply_fn: Optional[Callable[[], None]] = None,
         should_redraw_anyway_fn: Optional[Callable[[], bool]] = None,
-        interval_s: float = DEFAULT_INTERVAL_S,
+        interval_s: IntervalArg = DEFAULT_INTERVAL_S,
         thread_name: str = "background-sync",
     ):
         self._get_page = get_page
@@ -73,7 +79,7 @@ class BackgroundSyncLoop:
         self._async_redraw_fn = async_redraw_fn
         self._apply_fn = apply_fn
         self._should_redraw_anyway_fn = should_redraw_anyway_fn
-        self._interval_s = interval_s
+        self._interval_arg = interval_s
         self._thread_name = thread_name
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -97,6 +103,16 @@ class BackgroundSyncLoop:
         self._stop_event.set()
         self._thread = None
         self._last_signature = None
+
+    def _current_interval(self) -> float:
+        if callable(self._interval_arg):
+            try:
+                return self._interval_arg()
+            except Exception as e:
+                logger.debug("BackgroundSyncLoop(%s): errore calcolo interval_s, uso il default: %s",
+                             self._thread_name, e)
+                return DEFAULT_INTERVAL_S
+        return self._interval_arg
 
     def _safe_signature(self) -> Optional[str]:
         try:
@@ -150,5 +166,5 @@ class BackgroundSyncLoop:
                 if page is not None:
                     page.run_task(self._async_redraw_fn)
 
-            if stop_event.wait(self._interval_s):
+            if stop_event.wait(self._current_interval()):
                 return

@@ -289,6 +289,106 @@ def test_incontro_arriva_a_chi_entra_dopo() -> None:
         host.stop()
 
 
+# ---------------------------------------------------------------------------
+# [7] Sync più veloce mentre un combattimento è visibile (ottimizzazione
+#     di velocità richiesta da Davide dopo la conferma dal vivo del 2026-08-18)
+# ---------------------------------------------------------------------------
+
+def test_background_sync_loop_interval_dinamico() -> None:
+    print("\n[7a] BackgroundSyncLoop — interval_s accetta un numero fisso o una funzione")
+    from ui.components.background_sync import BackgroundSyncLoop, DEFAULT_INTERVAL_S
+
+    fixed = BackgroundSyncLoop(
+        get_page=lambda: None, signature_fn=lambda: "x",
+        async_redraw_fn=lambda: None,  # type: ignore[arg-type]
+    )
+    check("interval_s di default resta un numero fisso",
+          fixed._current_interval() == DEFAULT_INTERVAL_S)
+
+    calls: list[int] = []
+
+    def _dynamic() -> float:
+        calls.append(1)
+        return 0.75 if len(calls) > 1 else 2.0
+
+    dyn = BackgroundSyncLoop(
+        get_page=lambda: None, signature_fn=lambda: "x",
+        async_redraw_fn=lambda: None,  # type: ignore[arg-type]
+        interval_s=_dynamic,
+    )
+    check("una funzione passata come interval_s viene richiamata ad ogni giro",
+          dyn._current_interval() == 2.0 and dyn._current_interval() == 0.75)
+
+    def _boom() -> float:
+        raise RuntimeError("errore transitorio")
+
+    safe = BackgroundSyncLoop(
+        get_page=lambda: None, signature_fn=lambda: "x",
+        async_redraw_fn=lambda: None,  # type: ignore[arg-type]
+        interval_s=_boom,
+    )
+    check("un errore nel calcolo dell'intervallo non solleva: ricade sul default",
+          safe._current_interval() == DEFAULT_INTERVAL_S)
+
+
+def test_detail_sync_piu_veloce_con_combattimento_visibile() -> None:
+    print("\n[7b] WorldsView._start_detail_sync — intervallo più stretto SOLO mentre "
+          "un incontro è visibile ai giocatori")
+    from ui.views.world.world_view import (
+        WorldsView, _DETAIL_SYNC_INTERVAL_S, _DETAIL_SYNC_INTERVAL_COMBAT_S,
+    )
+
+    world, encounter_id, _pc_id = _make_world_with_encounter()
+
+    wv = WorldsView(on_back_to_home=lambda: None)
+    wv.device_id = "dev-master"
+    try:
+        wv._start_detail_sync(world.id)
+        loop = wv._detail_sync_loop_obj
+        check("_start_detail_sync crea un ciclo di sync", loop is not None)
+        interval_fn = loop._interval_arg
+        check("l'intervallo è una funzione (dinamico), non un numero fisso",
+              callable(interval_fn))
+
+        check("senza un incontro visibile, l'intervallo resta quello normale (2.0s)",
+              interval_fn() == _DETAIL_SYNC_INTERVAL_S)
+
+        master_repo.set_encounter_visibility(encounter_id, True)
+        check("con un incontro visibile, l'intervallo scende (0.75s)",
+              interval_fn() == _DETAIL_SYNC_INTERVAL_COMBAT_S)
+
+        master_repo.set_encounter_visibility(encounter_id, False)
+        check("nascondendo di nuovo l'incontro, l'intervallo torna normale",
+              interval_fn() == _DETAIL_SYNC_INTERVAL_S)
+    finally:
+        wv._stop_detail_sync()
+        check("_stop_detail_sync ferma il ciclo", wv._detail_sync_loop_obj is None)
+
+
+def test_encounter_view_usa_intervallo_stretto() -> None:
+    print("\n[7c] MasterEncounterView — usa sempre l'intervallo stretto (è già per "
+          "definizione il caso d'uso più \"live\": esiste solo mentre un incontro è aperto)")
+    from ui.views.master.master_encounter_view import (
+        MasterEncounterView, _ENCOUNTER_SYNC_INTERVAL_S,
+    )
+    from ui.views.world.world_view import _DETAIL_SYNC_INTERVAL_S
+
+    world, encounter_id, pc_id = _make_world_with_encounter()
+    mev = MasterEncounterView(
+        encounter_id=encounter_id, on_back_to_list=lambda: None,
+        world_id=world.id, device_id="dev-owner",
+    )
+    try:
+        mev._start_sync()
+        loop = mev._sync_loop_obj
+        check("_start_sync crea un ciclo di sync", loop is not None)
+        check("l'intervallo è più stretto del default usato altrove nel progetto",
+              loop._interval_arg == _ENCOUNTER_SYNC_INTERVAL_S
+              and _ENCOUNTER_SYNC_INTERVAL_S < _DETAIL_SYNC_INTERVAL_S)
+    finally:
+        mev._stop_sync()
+
+
 def main() -> int:
     print("=" * 62)
     print("PASSO 7C — Tracker di combattimento condiviso (§6.5)")
@@ -301,6 +401,9 @@ def main() -> int:
     test_replica_riceve_stato_incontro()
     test_wound_status_label()
     test_incontro_arriva_a_chi_entra_dopo()
+    test_background_sync_loop_interval_dinamico()
+    test_detail_sync_piu_veloce_con_combattimento_visibile()
+    test_encounter_view_usa_intervallo_stretto()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

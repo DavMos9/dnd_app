@@ -85,6 +85,14 @@ _CHANGE_REQUEST_NUMERIC_FIELDS: frozenset[str] = frozenset({
 #: di rete più basso e beneficia di più reattività.
 _DETAIL_SYNC_INTERVAL_S = 2.0
 
+#: Intervallo più stretto usato SOLO mentre un combattimento condiviso è
+#: visibile (`_live_combat_section`) — è la sezione più "live" della
+#: schermata (PF/turno che cambiano più volte al minuto durante un
+#: incontro), a differenza di membri/richieste/mappe che cambiano di rado.
+#: Fuori da un combattimento resta `_DETAIL_SYNC_INTERVAL_S`, per non
+#: martellare rete/DB anche quando non serve.
+_DETAIL_SYNC_INTERVAL_COMBAT_S = 0.75
+
 #: Intervallo del polling automatico di `finish_pending_join()` mentre il
 #: dialogo "Unisciti in LAN" è in stato "in attesa dell'approvazione":
 #: `core.world_sync.finish_pending_join()` è per design puramente
@@ -3720,13 +3728,18 @@ class WorldsView(ft.Column):
         async def _redraw() -> None:
             await self._async_redraw_detail(world_id)
 
+        def _interval() -> float:
+            if master_repo.get_visible_encounter_for_world(world_id) is not None:
+                return _DETAIL_SYNC_INTERVAL_COMBAT_S
+            return _DETAIL_SYNC_INTERVAL_S
+
         loop = BackgroundSyncLoop(
             get_page=lambda: self.page,
             signature_fn=_signature,
             async_redraw_fn=_redraw,
             apply_fn=_apply,
             should_redraw_anyway_fn=_should_redraw_anyway,
-            interval_s=_DETAIL_SYNC_INTERVAL_S,
+            interval_s=_interval,
             thread_name=f"world-sync-{world_id[:8]}",
         )
         self._detail_sync_loop_obj = loop

@@ -49,6 +49,14 @@ from ui.widgets import ScrollMemoryColumn, wrap_dialog_actions, responsive_dialo
 
 logger = logging.getLogger(__name__)
 
+#: Intervallo del ciclo di sync in background di questa view — più stretto
+#: del default (`background_sync.DEFAULT_INTERVAL_S=2.0`) perché questa
+#: classe esiste SOLO mentre il Master ha un incontro aperto a schermo
+#: intero (istanziata da `MasterEncounterListView`): è già per definizione
+#: il caso d'uso più "live" del progetto, niente da guadagnare restando
+#: al ritmo delle altre viste.
+_ENCOUNTER_SYNC_INTERVAL_S = 0.75
+
 #: Abbreviazione italiana stampata nello stat block (es. "Cos", "Sag") → chiave
 #: interna usata da `core.character_stats` — case-insensitive al confronto.
 _ABBR_TO_ABILITY_KEY: dict[str, str] = {
@@ -234,6 +242,7 @@ class MasterEncounterView(ScrollMemoryColumn):
             async_redraw_fn=self._async_sync_redraw,
             apply_fn=self._sync_apply,
             should_redraw_anyway_fn=self._sync_should_redraw_anyway,
+            interval_s=_ENCOUNTER_SYNC_INTERVAL_S,
             thread_name=f"encounter-sync-{self.encounter_id[:8]}",
         )
         self._sync_loop_obj = loop

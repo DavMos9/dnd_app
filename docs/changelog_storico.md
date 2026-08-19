@@ -10838,7 +10838,68 @@ in PDF (ricognizione già fatta in `docs/pdf_sheet_reference/`, mai scritta una 
 (deposito lato giocatore, sbloccato dal Multiplayer ora completo ma mai ripreso), UI per rimuovere una classe da
 un personaggio multiclasse (il layer dati `remove_character_class()` in `character_repo.py` esiste già, mai
 agganciato a un pulsante), velocità di sincronizzazione del tracker di combattimento condiviso (già segnalata
-come miglioria non bloccante il 2026-08-18).
+come miglioria non bloccante il 2026-08-18) — **quest'ultima ripresa e implementata nella stessa giornata, vedi
+sezione dedicata subito sotto**.
+
+---
+
+## Velocità di sincronizzazione del tracker di combattimento condiviso (2026-08-19)
+
+Ripresa subito dopo la revisione generale sopra, su richiesta esplicita di Davide ("ottimizziamo la velocità del
+sync"). Non un bug — il tracker funzionava correttamente (confermato dal vivo il 2026-08-18) — solo una miglioria
+di reattività già segnalata come "da valutare, non bloccante".
+
+**Architettura attuale (invariata nel principio, solo nel ritmo)**: tutta la sincronizzazione Multiplayer è
+short-polling HTTP, non push — nessun WebSocket/SSE nel progetto. Ogni vista che deve riflettere lo stato di un
+mondo condiviso ha un proprio `ui/components/background_sync.py::BackgroundSyncLoop` (thread dedicato che
+scarica gli eventi nuovi, calcola una firma economica dello stato e ridisegna solo se cambia). Prima di questo
+intervento, **ogni loop del progetto girava allo stesso intervallo fisso, 2.0s** (`DEFAULT_INTERVAL_S`) —
+nessuna vista, nemmeno il tracker di combattimento, aveva un ritmo dedicato più stretto. Un vero long-polling è
+già implementato lato host (`network/host_server.py::handle_events`, `LONG_POLL_TIMEOUT_S=25.0`,
+`LONG_POLL_INTERVAL_S=0.2`: la richiesta HTTP resta aperta finché non c'è un evento nuovo o scade il timeout) ma
+il client non lo sfrutta mai — `core/world_backend.py::RemoteBackend.fetch_events` chiama sempre `GET
+/events?wait=0`, esplicitamente senza attesa lunga.
+
+**Tre opzioni valutate**: (1) intervallo più stretto solo durante un combattimento attivo — cambiamento minimo,
+riusa l'infrastruttura esistente, rischio basso; (2) vero long-polling lato client (`wait>0`) — risolverebbe la
+latenza alla radice usando codice server già scritto, ma `BackgroundSyncLoop` gira su un `threading.Thread`
+sincrono condiviso da 7 view diverse (Home, scheda, Mondi, Incontri Master, Diario, Mappe, Incantesimi):
+bloccare quel thread per secondi in attesa richiederebbe isolare il long-poll su un thread separato e
+disaccoppiare i countdown visivi (`should_redraw_anyway_fn`) dal ciclo di rete — troppo rischioso da innestare
+in un componente condiviso senza una sessione dedicata solo a quello; (3) redraw immediato in-process per le
+azioni del master quando ospita in locale (il caso più comune) — risolve solo metà del problema, i giocatori
+remoti restano il caso critico. **Scelta: opzione 1**, la più sicura e già sufficiente a un miglioramento
+misurabile, senza toccare l'infrastruttura di rete condivisa da tutto il Multiplayer.
+
+**Fix**: `BackgroundSyncLoop.__init__` accetta ora `interval_s` sia come numero fisso sia come funzione
+richiamata ad ogni giro (`IntervalArg = float | Callable[[], float]`, nuovo tipo esportato dal modulo) — un
+eventuale errore nel calcolo ricade sul default invece di far cadere il loop, stesso principio "best effort, mai
+bloccante" già usato per le altre callback della classe.
+
+- **Lato giocatore** (`ui/views/world/world_view.py::_start_detail_sync`, l'intero schermo "dettaglio mondo",
+  non solo il combattimento): nuova costante `_DETAIL_SYNC_INTERVAL_COMBAT_S = 0.75` accanto alla
+  `_DETAIL_SYNC_INTERVAL_S = 2.0` esistente. Una funzione `_interval()` interroga
+  `master_repo.get_visible_encounter_for_world(world_id)` (la stessa query già usata da `_live_combat_section`
+  per decidere se disegnare la sezione) ad ogni giro: se c'è un incontro visibile scende a 0.75s, altrimenti
+  resta a 2.0s — niente più carico di rete/DB su membri/mappe/richieste quando non c'è combattimento in corso.
+- **Lato master** (`ui/views/master/master_encounter_view.py::_start_sync`): nuova costante
+  `_ENCOUNTER_SYNC_INTERVAL_S = 0.75`, passata SENZA condizione — `MasterEncounterView` esiste solo mentre il
+  Master ha un incontro aperto a schermo intero (istanziata da `MasterEncounterListView`), è quindi già per
+  definizione il caso d'uso più "live" del progetto: nessuna logica di visibilità necessaria qui.
+
+Risultato: la latenza peggiore end-to-end per un evento che deve attraversare host→giornale→client scende da
+un intervallo fisso di 2.0s (fino a ~4s nel caso peggiore per un giocatore remoto) a 0.75s su entrambi i lati
+durante un combattimento — resta comunque short-polling, non il quasi-istantaneo di un vero long-poll
+(opzione 2, non scelta), ma un miglioramento di ~2.7x senza toccare l'infrastruttura di rete condivisa.
+
+Nessuna costante di timing era testata prima (verificato con grep su `test_*.py`), quindi il cambiamento non
+rompeva nessun test esistente — ma non c'era nemmeno copertura sul comportamento NUOVO (intervallo dinamico,
+condizione di attivazione). Nuovi test in `test_combat_tracker_condiviso.py`, sezione [7] (11 controlli nuovi,
+36→47 nel file): `[7a]` `BackgroundSyncLoop._current_interval()` risolve correttamente sia un numero fisso sia
+una funzione, e ricade sul default se la funzione solleva; `[7b]` l'intervallo di `WorldsView` sale a 0.75s
+quando l'incontro diventa visibile e torna a 2.0s quando viene nascosto di nuovo; `[7c]` `MasterEncounterView`
+usa sempre il valore stretto. Verificato: `compileall` pulito, suite intera 33/35 file al 100% (stessi 2 residui
+ambientali pre-esistenti, non causati da questo lavoro). **Nessun commit fatto.**
 
 ---
 
