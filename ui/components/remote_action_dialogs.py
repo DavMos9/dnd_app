@@ -3,16 +3,14 @@ Dialog condivisi per tre delle azioni "da combattimento" di §7 del design
 doc del Multiplayer (Danno/Cura/Condizione) inviabili a un PG istanza di un
 mondo — stesso identico contenuto sia da "Interviene a distanza"
 (`ui/views/world/world_view.py`) sia dal tracker di combattimento
-(`ui/views/master/master_encounter_view.py`, dal 2026-08-07).
+(`ui/views/master/master_encounter_view.py`).
 
-Pulizia 2026-08-07: prima delle due copie quasi identiche (una per view,
-la seconda introdotta nella stessa sessione che ha poi fatto la pulizia),
-qui un solo posto — un dialog non sa nulla di comandi di rete, permessi o
-cooldown: valida solo l'input e chiama `on_confirm(payload)` col payload
-già pronto per `WorldBackend.send_command()`. Chi chiama decide COSA fare
-con quel payload (quale personaggio, quale mondo, quale pipeline di
-invio) — stessa separazione già in uso in tutto il progetto tra
-"costruzione della UI" e "logica applicativa".
+Un dialog non sa nulla di comandi di rete, permessi o cooldown: valida solo
+l'input e chiama `on_confirm(payload)` col payload già pronto per
+`WorldBackend.send_command()`. Chi chiama decide COSA fare con quel payload
+(quale personaggio, quale mondo, quale pipeline di invio) — stessa
+separazione già in uso in tutto il progetto tra "costruzione della UI" e
+"logica applicativa".
 """
 
 from __future__ import annotations

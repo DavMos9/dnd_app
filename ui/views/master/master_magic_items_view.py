@@ -1,16 +1,15 @@
 """
 Re-export della vista condivisa del compendio Oggetti Magici.
 
-La vista viveva qui fino al 2026-07-30, poi è stata estratta in
-`ui/views/magic_items_view.py` per essere usata anche dal giocatore (Fase 4,
-feature 3). Questo modulo resta come alias, così la Sezione Master continua a
+La vista è definita in `ui/views/magic_items_view.py`, condivisa anche dal
+giocatore. Questo modulo resta come alias, così la Sezione Master continua a
 importarla dal proprio package senza duplicare una riga di codice.
 
-Ri-esporta anche gli helper privati di formattazione: erano importati da
-`master_magic_item_generator_dialog.py`, e limitarsi alla sola classe aveva
-rotto quel dialog con un `ImportError` visibile solo a runtime (bug reale
-trovato da Davide il 2026-07-30). Sono qui per non rompere altri chiamanti;
-il posto canonico da cui importarli resta `ui.views.magic_items_view`.
+Ri-esporta anche gli helper privati di formattazione: sono importati da
+`master_magic_item_generator_dialog.py`, e limitarsi alla sola classe
+romperebbe quel dialog con un `ImportError` visibile solo a runtime. Sono
+qui per non rompere altri chiamanti; il posto canonico da cui importarli
+resta `ui.views.magic_items_view`.
 """
 
 from ui.views.magic_items_view import (  # noqa: F401

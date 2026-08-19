@@ -10,10 +10,9 @@ modalità web (deploy Docker) tutti i browser che aprono lo stesso URL
 condividono lo stesso processo e lo stesso DB: con `app_settings` ogni
 browser risulterebbe "lo stesso dispositivo", rendendo impossibile
 distinguere master e giocatori diversi collegati alla stessa istanza web.
-Decisione presa con Davide il 2026-08-05.
 
 **`ft.SharedPreferences` è CONFERMATO rotto in web mode — non tentarlo mai.**
-Verificato da Davide il 2026-08-06 su un vero deploy web: `Unknown control:
+Errore riscontrato su un vero deploy web: `Unknown control:
 SharedPreferences`. Stesso identico bug già documentato per `ft.FilePicker`
 in `dnd_app/docs/regole_flet_api.md` (controlli `Service` non riconosciuti
 dal client Flutter in web mode dalla 0.80.1 in poi, bug upstream

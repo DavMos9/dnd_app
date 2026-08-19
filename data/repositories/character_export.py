@@ -1,19 +1,15 @@
 """
 Export/Import di un personaggio in un file singolo (JSON), per portarlo su
-un altro dispositivo o dopo una reinstallazione — vedi CLAUDE.md TODO
-"Import/Export personaggio" (richiesta di Davide, 2026-07-16) e il
-changelog datato 2026-07-24 per il progetto completo di questa feature.
+un altro dispositivo o dopo una reinstallazione.
 
 Principio architetturale: introspezione dello schema via `PRAGMA
 table_info` invece di liste di colonne scritte a mano. Il progetto ha già
 avuto più volte lo stesso bug (un campo aggiunto al dataclass/DB ma
-dimenticato in una lista INSERT/UPDATE scritta a mano altrove — vedi
-CLAUDE.md, sezione "Categoria B" e i vari fix "colonna assente
-dall'INSERT/UPDATE generico"). Leggendo le colonne REALI della tabella a
-runtime, sia in export sia in import, questa classe di bug è strutturalmente
-impossibile per questo modulo: ogni colonna esistente viene sempre inclusa,
-senza bisogno di aggiornare questo file ad ogni nuova colonna aggiunta al
-resto del progetto.
+dimenticato in una lista INSERT/UPDATE scritta a mano altrove). Leggendo le
+colonne REALI della tabella a runtime, sia in export sia in import, questa
+classe di bug è strutturalmente impossibile per questo modulo: ogni colonna
+esistente viene sempre inclusa, senza bisogno di aggiornare questo file ad
+ogni nuova colonna aggiunta al resto del progetto.
 
 Questo ha anche un effetto collaterale positivo esplicitamente voluto:
 l'export è "a prova di versione" in entrambe le direzioni.
@@ -74,12 +70,11 @@ CHILD_TABLES: tuple[str, ...] = (
     "creature_entries",
     "campaign_notes",
     "custom_abilities",
-    # 2026-08-16: mancava — le condizioni imposte dal master a distanza
-    # (§7, `core/world_backend.py::_apply_condition_to_character`) venivano
-    # scritte solo sull'host e non arrivavano mai sulla replica del
-    # giocatore, perché `_resync_character_from_host()` rimaterializza il
-    # personaggio SOLO dalle tabelle qui elencate (bug segnalato da Davide
-    # nel primo giro di test su Wi-Fi reale).
+    # Deve restare in questa lista: le condizioni imposte dal master a
+    # distanza (§7, `core/world_backend.py::_apply_condition_to_character`)
+    # arrivano alla replica del giocatore solo perché
+    # `_resync_character_from_host()` rimaterializza il personaggio
+    # SOLO dalle tabelle elencate qui.
     "character_conditions",
 )
 
@@ -106,14 +101,14 @@ def export_character(character_id: str, *, raise_errors: bool = False) -> dict[s
 
     Ritorna None se il personaggio non esiste o in caso di errore (loggato).
 
-    `raise_errors` (2026-08-17): di default `False` per non cambiare il
-    contratto con i (molti) chiamanti esistenti, che si aspettano solo
-    `None` in caso di errore e leggono il dettaglio dal log. Un chiamante
-    che deve mostrare il dettaglio direttamente all'utente — es.
-    `core/character_instances.py::_copy_character`, dove l'unico modo per
-    Davide di vedere l'eccezione reale è lo schermo del telefono del
-    giocatore, senza alcun accesso alla console — può passare `True` per
-    farsi rilanciare l'eccezione originale invece che un `None` muto.
+    `raise_errors`: di default `False` per non cambiare il contratto con i
+    (molti) chiamanti esistenti, che si aspettano solo `None` in caso di
+    errore e leggono il dettaglio dal log. Un chiamante che deve mostrare il
+    dettaglio direttamente all'utente — es.
+    `core/character_instances.py::_copy_character`, dove l'unico modo di
+    vedere l'eccezione reale è lo schermo del telefono, senza alcun accesso
+    alla console — può passare `True` per farsi rilanciare l'eccezione
+    originale invece che un `None` muto.
     """
     try:
         conn = get_connection()
@@ -295,16 +290,16 @@ def _write_character_and_children(
     già risolta altrove in questo modulo con l'introspezione dello schema:
     due copie della stessa logica destinate a divergere).
 
-    `skip_tables` (2026-08-19): tabelle di `CHILD_TABLES` da NON toccare —
-    né cancellare né reinserire — anche quando `delete_existing=True` fa
-    scattare il DELETE CASCADE su `characters`. Nata per `game_maps`: le
-    mappe personali (`ui/views/maps_view.py`, mai condivise con l'host, per
-    design) sono comunque elencate in `CHILD_TABLES` per l'export/import
-    `.dndchar` completo — ma un resync di replica innescato da un evento
-    che NON riguarda le mappe (danno HP, PE, ecc.) porta uno snapshot
-    dell'host che di `game_maps` non contiene mai nulla (l'host non le ha
-    mai viste), quindi il DELETE CASCADE le cancellava silenziosamente ad
-    ogni resync — bug segnalato da Davide. Chi chiama con `delete_existing=
+    `skip_tables`: tabelle di `CHILD_TABLES` da NON toccare — né cancellare
+    né reinserire — anche quando `delete_existing=True` fa scattare il
+    DELETE CASCADE su `characters`. Nata per `game_maps`: le mappe personali
+    (`ui/views/maps_view.py`, mai condivise con l'host, per design) sono
+    comunque elencate in `CHILD_TABLES` per l'export/import `.dndchar`
+    completo — ma un resync di replica innescato da un evento che NON
+    riguarda le mappe (danno HP, PE, ecc.) porta uno snapshot dell'host che
+    di `game_maps` non contiene mai nulla (l'host non le ha mai viste),
+    quindi il DELETE CASCADE le cancellerebbe silenziosamente ad ogni
+    resync se non fossero protette qui. Chi chiama con `delete_existing=
     True` e vuole preservare una tabella la aggiunge qui; il DELETE CASCADE
     di riga `characters` sopra la toccherebbe comunque, quindi le righe di
     quella tabella vanno lette PRIMA della cancellazione e reinserite dopo
@@ -357,7 +352,7 @@ def import_replica_character(
     (`dnd_app/docs/multiplayer_design.md` §6: "sul dispositivo del
     giocatore sono repliche, aggiornate dagli eventi").
 
-    `skip_tables` (2026-08-19): inoltrato a `_write_character_and_children`
+    `skip_tables`: inoltrato a `_write_character_and_children`
     — vedi il suo docstring. I chiamanti di QUESTA funzione decidono se
     passarlo: `core/world_sync.py::_resync_character_from_host()` e
     `_finalize_join()` lo passano (`{"game_maps"}`, mappe personali mai
@@ -599,9 +594,9 @@ def import_character(data: dict[str, Any], mode: str, target_id: str | None = No
                     "owner_device_id": "",
                     "is_replica": 0,
                     "world_seq": 0,
-                    # world_instance_archived (2026-08-07): stessa logica delle
-                    # 5 colonne sopra — ha senso solo per un'istanza di mondo,
-                    # un personaggio importato come locale non lo è mai.
+                    # world_instance_archived: stessa logica delle 5 colonne
+                    # sopra — ha senso solo per un'istanza di mondo, un
+                    # personaggio importato come locale non lo è mai.
                     "world_instance_archived": 0,
                 },
             )

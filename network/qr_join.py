@@ -1,7 +1,6 @@
 """
-QR d'ingresso per l'hosting LAN — generazione lato host (richiesta di Davide,
-2026-08-06) e scansione lato giocatore (2026-08-06, sessione successiva:
-`ui/views/world/qr_scanner_view.py`, passo 5 di
+QR d'ingresso per l'hosting LAN — generazione lato host e scansione lato
+giocatore (`ui/views/world/qr_scanner_view.py`, passo 5 di
 `dnd_app/docs/multiplayer_design.md` §9, "Scoperta e comodità").
 
 Il contenuto del QR è testo semplice leggibile, NON un URI/deep link:
@@ -111,7 +110,7 @@ def parse_join_text(text: str) -> dict | None:
     }
 
 
-#: Prima riga del QR di TRASFERIMENTO (2026-08-17, §11.9) — magic diversa da
+#: Prima riga del QR di TRASFERIMENTO (§11.9) — magic diversa da
 #: quella dell'ingresso, e coppia di funzioni separata.
 #:
 #: Perché non aggiungere una riga `Trasferimento:` a `build_join_text()`, che

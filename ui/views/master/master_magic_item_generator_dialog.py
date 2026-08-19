@@ -1,8 +1,5 @@
 """
-Dialog "Genera Oggetto Magico" — Sezione Master, uno dei 3 nuovi strumenti
-richiesti da Davide oltre ai 10 già completati (vedi CLAUDE.md, TODO
-"Sezione Master (11) — Generatore Incontri Casuali" per il changelog del
-primo dei tre e lo stesso requisito trasversale di varietà).
+Dialog "Genera Oggetto Magico" — Sezione Master.
 
 A differenza del Generatore Tesori (`master_treasure_dialog.py`, che tira da
 tabelle d100 e produce solo nomi senza descrizione), questo generatore pesca
@@ -20,10 +17,9 @@ pattern UI di `master_treasure_dialog.py`: funzione top-level
 Accessibile da `MasterView` (pillola "Oggetto Magico" nella barra strumenti
 sempre visibile, stesso stile delle altre 4 pillole già presenti).
 
-**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 2/6)**: oltre
-alla scorciatoia "Aggiungi all'inventario" (invariata), "Assegna…"/"Salva
-nell'archivio" sugli oggetti generati — stesso wiring di
-`master_treasure_dialog.py`.
+**Bottino** (`dnd_app/docs/loot_design.md` §6): oltre alla scorciatoia
+"Aggiungi all'inventario" (invariata), "Assegna…"/"Salva nell'archivio"
+sugli oggetti generati — stesso wiring di `master_treasure_dialog.py`.
 """
 
 from __future__ import annotations
@@ -52,14 +48,13 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
     tutta la logica di stato vive nella closure, stesso pattern già in uso
     per gli altri dialog generatore della Sezione Master.
 
-    `world_id` (2026-08-06): il mondo correntemente selezionato in
-    `MasterView` — "" per la modalità locale, vedi
+    `world_id`: il mondo correntemente selezionato in `MasterView` — "" per
+    la modalità locale, vedi
     `character_repo.get_master_visible_characters()`.
 
-    `device_id` (2026-08-19): identità di questo dispositivo — instrada
+    `device_id`: identità di questo dispositivo — instrada
     "Aggiungi all'inventario" e "Assegna…" via rete quando `world_id` è
-    valorizzato (bug segnalato da Davide: prima veniva scritto solo sulla
-    replica locale, invece che sul personaggio del mondo selezionato)."""
+    valorizzato, invece di scrivere solo sulla replica locale."""
 
     all_items = _loader.get_magic_items()
     category_options = mig.get_category_options(all_items)
@@ -96,9 +91,9 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
     pool_hint = ft.Text("", size=11, color=design.T().text_3)
     result_col = ft.Column(spacing=8)
 
-    # -- Modalità "Personalizzato" (2026-08-15, richiesta Davide: il Master
-    # deve poter creare un oggetto magico proprio, non solo pescarlo dal
-    # Compendio) — stesso vocabolario a tendina del generatore casuale
+    # -- Modalità "Personalizzato": il Master può creare un oggetto magico
+    # proprio, non solo pescarlo dal Compendio — stesso vocabolario a
+    # tendina del generatore casuale
     # (nessun duplicato: `category_options`/`_RARITY_ORDER` sono le stesse
     # liste), ma "Categoria" ammette anche un valore libero via `DropdownAltro`
     # (un oggetto inventato dal Master può non rientrare nelle 9 categorie

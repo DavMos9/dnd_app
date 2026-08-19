@@ -39,16 +39,11 @@ Flusso atteso:
     → il tipo di step (`StepType`) determina da solo se serve un widget di
       scelta o solo un'etichetta informativa
 
-Fonte dati (2026-07-10): i nomi e le descrizioni delle feature vengono letti
-SEMPRE da data/game_data/classes/*.json tramite GameDataLoader — mai da una
-tabella Python scritta a mano. In precedenza esisteva qui `_CLASS_FEATURES`,
-una tabella hardcoded di tutte le 12 classi × 20 livelli, rimasta ferma alle
-versioni pre-audit dei nomi feature (es. Guerriero lv1 "Secondo Respiro"
-invece di "Recupera Energie" già corretto in guerriero.json, Mago lv20
-"Firma degli Incantesimi" invece di "Incantesimi Personali") — un bug reale,
-non solo un problema architetturale: ogni level-up mostrava nomi superati
-al giocatore. Rimossa interamente, vedi CLAUDE.md "Note Importanti" per il
-changelog completo.
+I nomi e le descrizioni delle feature vengono letti SEMPRE da
+data/game_data/classes/*.json tramite GameDataLoader — mai da una tabella
+Python scritta a mano, per evitare che i nomi mostrati al giocatore restino
+disallineati dalle correzioni fatte nei JSON di classe (es. un nome di
+feature corretto nel JSON ma non in una copia hardcoded qui).
 
 Alcune meccaniche di gioco ricorrono a più livelli ma il JSON registra la
 feature una sola volta (il "perché" è nella description in prosa, non in
@@ -57,9 +52,9 @@ Suppliche Occulte (Warlock, totale cumulativo a 2/5/7/9/12/15/17), Segreti
 Magici (Bardo, a 10/14/18), Maestria/Expertise (Ladro 1/6, Bardo 3/10). Per
 questi casi il NOME resta letto dal JSON (mai duplicato come stringa), ma il
 livello di innesco e il conteggio sono piccole tabelle numeriche lette dai
-rispettivi JSON di classe via GameDataLoader (vedi sotto per il changelog
-del 2026-07-10) — stessa categoria di ASI_LEVELS: progressioni PHB
-universali e stabili, non testo/nomi soggetti a correzione.
+rispettivi JSON di classe via GameDataLoader (vedi sotto) — stessa
+categoria di ASI_LEVELS: progressioni PHB universali e stabili, non
+testo/nomi soggetti a correzione.
 
 Scelta di scope deliberata: i promemoria puramente informativi che nel
 vecchio _CLASS_FEATURES mostravano un numero crescente senza una vera scelta
@@ -71,23 +66,20 @@ fonte verificata, piuttosto che reintrodurre dati non controllati. Le feature
 con scelta reale del giocatore (ASI, sottoclasse, incantesimi, ecc.) restano
 tutte gestite.
 
-Bug corretti durante l'audit Phase 3 del 2026-07-10 (task "Audit level-up:
-Barbaro" — trovati verificando la robustezza generale della funzione prima
-di passare classe per classe):
-  1. "Segreti Magici" era rilevato con un set fisso di livelli {10,14,18}
-     validi solo per la progressione BASE del Bardo — la sottoclasse
-     Collegio della Conoscenza concede la stessa identica meccanica
-     ("Segreti Magici Aggiuntivi", 2 incantesimi da qualsiasi classe) al
-     livello 6, che spariva silenziosamente dal dialog di level-up (né
-     SPELL_LEARN né FEATURE_AUTO). Ora rilevato scansionando dinamicamente
-     qualunque feature (base o sottoclasse) il cui nome contenga "segreti
-     magici" al livello corrente.
+Il rilevamento gestisce due casi non ovvi:
+  1. "Segreti Magici" non usa un set fisso di livelli {10,14,18} (validi
+     solo per la progressione BASE del Bardo): la sottoclasse Collegio
+     della Conoscenza concede la stessa identica meccanica ("Segreti
+     Magici Aggiuntivi", 2 incantesimi da qualsiasi classe) al livello 6.
+     Viene quindi rilevato scansionando dinamicamente qualunque feature
+     (base o sottoclasse) il cui nome contenga "segreti magici" al livello
+     corrente.
   2. Il filtro che esclude "Maestria"/"Perizia" dai FEATURE_AUTO generici
-     (per non duplicare lo step EXPERTISE di Ladro/Bardo) era incondizionato
-     per nome, quindi faceva sparire anche "Maestria negli Incantesimi" del
-     Mago (lv18 — 2 incantesimi lanciabili gratuitamente, nulla a che vedere
-     con l'Expertise). Ora il filtro è ristretto alla classe/livello dove
-     EXPERTISE viene davvero emesso.
+     (per non duplicare lo step EXPERTISE di Ladro/Bardo) è ristretto alla
+     classe/livello dove EXPERTISE viene davvero emesso, altrimenti
+     farebbe sparire anche "Maestria negli Incantesimi" del Mago (lv18 —
+     2 incantesimi lanciabili gratuitamente, nulla a che vedere con
+     l'Expertise).
 """
 
 from __future__ import annotations
@@ -126,8 +118,7 @@ class StepType(Enum):
     # Warlock, Arcanum Mistico (lv.11/13/15/17): scelta di un incantesimo di
     # livello ESATTO (6°/7°/8°/9°) dalla lista del warlock, lanciabile senza
     # slot 1/riposo lungo. A differenza di SPELL_LEARN (livello massimo, non
-    # esatto) qui il vincolo è "esattamente questo livello" — vedi CLAUDE.md
-    # 2026-07-16, fix "picker Arcanum Mistico".
+    # esatto) qui il vincolo è "esattamente questo livello".
     ARCANUM_SPELL        = auto()
     # Monaco, Via dei Quattro Elementi (lv.6/11/17): scelta di 1 disciplina
     # elementale aggiuntiva dal pool sbloccato a quel livello (monaco.json →
@@ -135,7 +126,7 @@ class StepType(Enum):
     # scelta INIZIALE (Sintonia Elementale automatica + 1 a scelta, Lv.3) è
     # gestita direttamente in profilo_tab.py insieme al dropdown
     # SUBCLASS_CHOICE, stesso motivo/pattern di fighting_style/totem_animal/
-    # land_terrain/Mistificatore Arcano — vedi CLAUDE.md 2026-07-16.
+    # land_terrain/Mistificatore Arcano.
     MONK_DISCIPLINE      = auto()
 
 
@@ -153,19 +144,16 @@ class LevelStep:
 # (il nome/descrizione si legge comunque da lì — vedi _find_feature_name()),
 # ma che si ripetono a più livelli con conteggi diversi.
 #
-# Le tabelle numeriche (_METAMAGIC_COUNT_BY_LEVEL, _INVOCATIONS_TOTAL_BY_LEVEL,
-# _SEGRETI_MAGICI_LEVELS, _EXPERTISE_LEVELS, _SPELL_LEARN_DELTA) sono state
-# spostate nei rispettivi JSON di classe il 2026-07-10 (stregone.json →
-# "metamagic_count_by_level"/"spell_learn_delta", warlock.json →
-# "invocations_total_by_level"/"spell_learn_delta", bardo.json →
-# "segreti_magici_levels"/"expertise_levels"/"spell_learn_delta", ladro.json →
-# "expertise_levels", ranger.json → "spell_learn_delta") — stesso principio
-# già applicato a RACE_DATA/CLASS_FEATURES/ASI_LEVELS: erano tabelle PHB già
-# verificate ma scritte a mano solo in Python. Lette ora tramite
+# Le tabelle numeriche (conteggio metamagia, totale invocazioni, livelli
+# segreti magici/expertise, delta incantesimi imparati) vivono nei
+# rispettivi JSON di classe (stregone.json → "metamagic_count_by_level"/
+# "spell_learn_delta", warlock.json → "invocations_total_by_level"/
+# "spell_learn_delta", bardo.json → "segreti_magici_levels"/
+# "expertise_levels"/"spell_learn_delta", ladro.json → "expertise_levels",
+# ranger.json → "spell_learn_delta") — lette tramite
 # game_data.get_metamagic_count_by_level()/get_invocations_total_by_level()/
-# get_segreti_magici_levels()/get_expertise_levels()/get_spell_learn_delta().
-# Nessun valore cambiato in questa migrazione (verificato con test di
-# regressione end-to-end su tutte le 12 classi × 20 livelli).
+# get_segreti_magici_levels()/get_expertise_levels()/get_spell_learn_delta(),
+# mai scritte a mano qui.
 # ---------------------------------------------------------------------------
 
 
@@ -173,15 +161,17 @@ class LevelStep:
 # classi che hanno un conteggio fisso di trucchetti (campo
 # "cantrips_known_at_1" nel JSON di classe: bardo/chierico/druido/mago/
 # stregone/warlock — non le sottoclassi "Mago aggiuntivo" di Cavaliere
-# Mistico/Mistificatore Arcano, gestite separatamente e non ancora wired,
-# vedi CLAUDE.md TODO dedicato). Verificato leggendo visivamente (pdftoppm,
-# non pdftotext) la colonna "Trucchetti Conosciuti" delle 6 tabelle di
-# classe PHB IT (Bardo p.53, Chierico p.57, Druido p.65, Mago p.82, Stregone
-# p.108, Warlock p.114) il 2026-07-11: tutte e 6 crescono di esattamente +1
-# al 4° livello e di nuovo +1 al 10° livello, nessuna eccezione — stessa
-# categoria di ASI_LEVELS_DEFAULT: progressione PHB universale e stabile,
-# non testo/nomi soggetti a correzione, quindi vive come costante Python
-# invece che duplicata identica in 6 file JSON.
+# Mistico/Mistificatore Arcano, la cui crescita di trucchetti/incantesimi
+# è gestita a parte da `_BORROWED_CASTER_SUBCLASS`/BORROWED_CANTRIP più
+# sotto, lette per livello esatto da `spell_progression` invece che da
+# questa lista fissa). Verificato leggendo visivamente (pdftoppm, non
+# pdftotext) la colonna "Trucchetti Conosciuti" delle 6 tabelle di classe
+# PHB IT (Bardo p.53, Chierico p.57, Druido p.65, Mago p.82, Stregone
+# p.108, Warlock p.114): tutte e 6 crescono di esattamente +1 al 4° livello
+# e di nuovo +1 al 10° livello, nessuna eccezione — stessa categoria di
+# ASI_LEVELS_DEFAULT: progressione PHB universale e stabile, non testo/nomi
+# soggetti a correzione, quindi vive come costante Python invece che
+# duplicata identica in 6 file JSON.
 _CANTRIP_GROWTH_LEVELS: tuple[int, ...] = (4, 10)
 
 # Classi con un conteggio fisso di trucchetti conosciuti (vedi sopra) — letto
@@ -192,10 +182,7 @@ _CANTRIP_CLASSES: tuple[str, ...] = (
 
 # Le uniche 2 sottoclassi PHB che concedono casting "preso in prestito dal
 # Mago" a una classe altrimenti non incantatrice (Ladro/Guerriero, entrambe
-# spellcasting_ability=null a livello di classe base). Vedi CLAUDE.md
-# 2026-07-15 per il fix completo — bug report di Davide: "Il mistificatore
-# arcano non riesce a visualizzare gli incantesimi, tantomeno glieli fa
-# scegliere".
+# spellcasting_ability=null a livello di classe base).
 _BORROWED_CASTER_SUBCLASS: dict[str, str] = {
     "Ladro": "Mistificatore Arcano",
     "Guerriero": "Cavaliere Mistico",
@@ -264,7 +251,7 @@ def get_level_up_steps(
     Ordine: HP → Feature automatiche/scelte → ASI → Bonus competenza.
     I nomi delle feature sono sempre letti da data/game_data/classes/*.json
     (GameDataLoader), mai da una tabella Python scritta a mano — vedi
-    docstring del modulo per il changelog del 2026-07-10.
+    docstring del modulo.
 
     `subclass`: nome della sottoclasse già scelta dal personaggio (se nota
     a questo livello) — usato per includere anche le feature di sottoclasse
@@ -305,10 +292,6 @@ def get_level_up_steps(
 
     # 1b2. CANTRIP_LEARN — nuovo trucchetto ai lv.4/10 per le 6 classi con un
     # conteggio fisso di trucchetti conosciuti (vedi _CANTRIP_GROWTH_LEVELS).
-    # Bug segnalato da Davide 2026-07-11: "il bardo e altri incantatori
-    # imparano anche altri trucchetti a determinati livelli, non solo
-    # incantesimi, non mi sembra gestita questa cosa" — confermato: prima di
-    # questo fix nessuno step veniva mai generato per questa crescita.
     if class_name in _CANTRIP_CLASSES and new_level in _CANTRIP_GROWTH_LEVELS:
         if (cls_data_for_cantrips := game_data.get_class(class_name)) and \
                 cls_data_for_cantrips.get("cantrips_known_at_1", 0) > 0:
@@ -320,20 +303,18 @@ def get_level_up_steps(
 
     # 1c. SPELL_SWAP — scelta OPZIONALE, disponibile a OGNI level-up per le 4
     # classi "know" (Bardo/Ranger/Stregone/Warlock), non solo ai livelli in
-    # cui si impara un nuovo incantesimo. Testo PHB identico (confermato da
-    # Davide incollando il testo delle rispettive feature "Incantesimi"/
-    # "Magia del Patto" per tutte e 4): "quando [la classe] acquisisce un
-    # livello, può scegliere un incantesimo [della classe] che conosce e
-    # sostituirlo con un altro incantesimo della lista [della classe]; anche
-    # il nuovo incantesimo deve essere di un livello di cui [la classe]
-    # possiede degli slot incantesimo". Soglia minima per classe: Bardo/
-    # Stregone/Warlock hanno già incantesimi conosciuti dalla creazione
-    # (Lv.1), quindi la prima occasione di scambio è al level-up verso il
-    # Lv.2; il Ranger impara i suoi primi incantesimi solo al level-up verso
-    # il Lv.2 (via SPELL_LEARN, delta 2), quindi la prima occasione di
-    # scambio è al level-up verso il Lv.3 — prima non avrebbe nulla da
-    # scambiare. Implementato il 2026-07-11 su richiesta esplicita di
-    # Davide, vedi CLAUDE.md.
+    # cui si impara un nuovo incantesimo. Testo PHB identico nelle rispettive
+    # feature "Incantesimi"/"Magia del Patto" per tutte e 4: "quando [la
+    # classe] acquisisce un livello, può scegliere un incantesimo [della
+    # classe] che conosce e sostituirlo con un altro incantesimo della lista
+    # [della classe]; anche il nuovo incantesimo deve essere di un livello di
+    # cui [la classe] possiede degli slot incantesimo". Soglia minima per
+    # classe: Bardo/Stregone/Warlock hanno già incantesimi conosciuti dalla
+    # creazione (Lv.1), quindi la prima occasione di scambio è al level-up
+    # verso il Lv.2; il Ranger impara i suoi primi incantesimi solo al
+    # level-up verso il Lv.2 (via SPELL_LEARN, delta 2), quindi la prima
+    # occasione di scambio è al level-up verso il Lv.3 — prima non avrebbe
+    # nulla da scambiare.
     _SWAP_MIN_LEVEL: dict[str, int] = {
         "Bardo": 2, "Stregone": 2, "Warlock": 2, "Ranger": 3,
     }
@@ -355,9 +336,6 @@ def get_level_up_steps(
     # totem_animal/land_terrain in questo file — quindi l'apprendimento
     # iniziale è gestito direttamente in profilo_tab.py insieme al dropdown
     # SUBCLASS_CHOICE (con reattività live sul valore scelto), non qui.
-    # Aggiunto 2026-07-15 — fix "Il mistificatore arcano non riesce a
-    # visualizzare gli incantesimi" (bug report di Davide), esteso anche al
-    # Cavaliere Mistico su sua conferma esplicita.
     if (
         class_name in _BORROWED_CASTER_SUBCLASS
         and subclass == _BORROWED_CASTER_SUBCLASS[class_name]
@@ -462,11 +440,9 @@ def get_level_up_steps(
     # ("Segreti Magici Aggiuntivi", 2 incantesimi da qualsiasi classe) come
     # una feature JSON a sé stante al lv6 — rilevata invece dinamicamente,
     # cercando qualunque feature di sottoclasse con "segreti magici" nel nome
-    # al livello corrente. Bug reale corretto il 2026-07-10: prima esisteva
-    # solo il set fisso {10,14,18}, quindi la versione di sottoclasse
-    # spariva silenziosamente dal dialog di level-up (il filtro di esclusione
-    # più sotto la toglieva comunque dai FEATURE_AUTO, ma nessun altro step
-    # la sostituiva) — vedi CLAUDE.md "Note Importanti".
+    # al livello corrente (un set fisso di livelli {10,14,18} coprirebbe solo
+    # la progressione base del Bardo, facendo sparire silenziosamente la
+    # versione di sottoclasse dal dialog di level-up).
     if class_name == "Bardo":
         if new_level in game_data.get_segreti_magici_levels():
             name = _find_feature_name("segreti magici", base_features, subclass_features, "Segreti Magici")
@@ -532,9 +508,8 @@ def get_level_up_steps(
         # avere una feature con lo stesso termine ma un effetto completamente
         # diverso — es. Mago lv18 "Maestria negli Incantesimi" (2 incantesimi
         # lanciabili gratis, non scelta di abilità) — che deve comunque essere
-        # mostrata come FEATURE_AUTO. Bug reale corretto il 2026-07-10: prima
-        # il filtro era incondizionato e faceva sparire "Maestria negli
-        # Incantesimi" dal level-up del Mago — vedi CLAUDE.md "Note Importanti".
+        # mostrata come FEATURE_AUTO: un filtro incondizionato per nome
+        # farebbe sparire anche quella dal level-up del Mago.
         if new_level in game_data.get_expertise_levels(class_name) and (
             "maestria" in feat_lower or "perizia" in feat_lower
         ):
@@ -565,11 +540,10 @@ def get_level_up_steps(
     # tabella dati pura `wild_shape_forms` (livello/GS max/limitazione), la
     # stessa fonte già usata altrove per queste soglie. Ma il manuale la
     # elenca esplicitamente come "Privilegio" guadagnato ai lv4/8 (lv2 è già
-    # coperto dallo step "Forma Selvatica" stesso). Bug reale corretto il
-    # 2026-07-10 (task "Audit level-up: Druido"): senza questo step, il
-    # level-up di un Druido a questi livelli mostrava SOLO l'ASI, senza alcun
-    # accenno all'aumento del GS massimo delle forme bestiali disponibili —
-    # confermato contro la tabella di classe a pag.65.
+    # coperto dallo step "Forma Selvatica" stesso). Senza questo step, il
+    # level-up di un Druido a questi livelli mostrerebbe SOLO l'ASI, senza
+    # alcun accenno all'aumento del GS massimo delle forme bestiali
+    # disponibili — confermato contro la tabella di classe a pag.65.
     if class_name == "Druido":
         for form in cls_data.get("wild_shape_forms", []):
             if form.get("level") == new_level and new_level > 2:
@@ -585,14 +559,11 @@ def get_level_up_steps(
     # aggiuntiva a scelta ai lv6/11/17, oltre a quella scelta al lv3 con
     # "Discepolo degli Elementi" (PHB p.93, confermato testualmente: "Apprende
     # una disciplina elementale aggiuntiva a sua scelta al 6°, 11° e 17°
-    # livello"). Bug reale trovato durante l'audit Phase 3 (2026-07-10): le
-    # altre due tradizioni monastiche (Mano Aperta, Ombra) hanno feature
-    # nominate a questi stessi 3 livelli, ma questa no — la sua progressione
-    # vive solo nell'array `disciplines` (campo `level` per disciplina), mai
-    # controllato da `get_level_up_steps()`, quindi il level-up di un monaco
-    # Quattro Elementi a lv6/11/17 non mostrava assolutamente nulla.
-    # ✅ Picker interattivo implementato il 2026-07-16 (era rimasto solo un
-    # promemoria informativo dal 2026-07-10) — vedi CLAUDE.md.
+    # livello"). Le altre due tradizioni monastiche (Mano Aperta, Ombra) hanno
+    # feature nominate a questi stessi 3 livelli, ma questa no — la sua
+    # progressione vive solo nell'array `disciplines` (campo `level` per
+    # disciplina), mai in una feature JSON a sé, quindi va gestita qui con
+    # un picker dedicato invece che dalla scansione generica di 2c.
     if class_name == "Monaco" and subclass == "Via dei Quattro Elementi" and new_level in (6, 11, 17):
         steps.append(LevelStep(
             step_type=StepType.MONK_DISCIPLINE,
@@ -608,10 +579,8 @@ def get_level_up_steps(
     # separate (uno spell diverso per ciascun livello di slot). La feature
     # JSON "Arcanum Mistico" è registrata una sola volta al lv11 (stessa
     # convenzione di ASI_LEVELS/Segreti Magici: la prosa descrive già i 3
-    # incrementi successivi). ✅ Picker interattivo implementato il
-    # 2026-07-16 (era rimasto solo un promemoria informativo dal 2026-07-10,
-    # e prima ancora il lv11 non mostrava nulla) — vedi CLAUDE.md. Include
-    # ora anche il lv11 (6° livello), non solo 13/15/17.
+    # incrementi successivi). Il picker copre tutti e 4 i livelli, incluso
+    # il lv11 (6° livello), non solo 13/15/17.
     if class_name == "Warlock" and new_level in _ARCANUM_SPELL_LEVEL_BY_CLASS_LEVEL:
         spell_lv = _ARCANUM_SPELL_LEVEL_BY_CLASS_LEVEL[new_level]
         steps.append(LevelStep(

@@ -15,7 +15,7 @@ Regole Flet 0.85.3:
   - ft.Image(src=data_uri), NON src_base64
   - page.show_dialog / page.pop_dialog
   - Selezione immagine: WebView locale su mobile (ui/mobile_webview_picker.py,
-    ft.FilePicker abbandonato dal 2026-08-06, confermato inutilizzabile su
+    ft.FilePicker abbandonato, confermato inutilizzabile su
     Android reale), subprocess nativo su desktop
   - expand=True su Column dentro Row dentro ListView → crash silenzioso → NON usare
   - ft.Paint / ft.PaintingStyle / ft.StrokeCap in flet principale, NON in flet.canvas
@@ -49,11 +49,10 @@ from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
-#: Stesso intervallo già validato altrove (`sheet_view.py::_SHEET_SYNC_INTERVAL_S`)
-#: — bug segnalato da Davide (2026-08-16): "sincronizzazione mappa
-#: condivisa non coerente, aggiornamento manuale per vederla". Questa vista
-#: (sezione di primo livello, non un tab di `SheetView`) scaricava le
-#: mappe condivise solo una volta al mount, mai in un ciclo periodico.
+#: Stesso intervallo già validato altrove (`sheet_view.py::_SHEET_SYNC_INTERVAL_S`).
+#: Questa vista (sezione di primo livello, non un tab di `SheetView`) ha
+#: bisogno di un proprio ciclo periodico per scaricare le mappe condivise,
+#: altrimenti lo farebbe solo una volta al mount.
 _MAPS_SYNC_INTERVAL_S = 2.0
 
 
@@ -149,8 +148,8 @@ def _split_stroke_by_circle(pts: list, cx: float, cy: float,
 
 
 # ── Palette ────────────────────────────────────────────────────────────────
-# ⚠️ Questi NON sono token di tema e non vanno migrati a `ui/design.py`
-# (Fase B.2 del restyle, 2026-07-30): sono i colori del PENNARELLO scelti dal
+# ⚠️ Questi NON sono token di tema e non vanno migrati a `ui/design.py`:
+# sono i colori del PENNARELLO scelti dal
 # giocatore e vengono **persistiti** dentro `game_maps.annotations` come valore
 # di ogni tratto. Cambiarli o renderli dipendenti dal tema romperebbe le
 # annotazioni già salvate (un tratto rosso diventerebbe di un altro colore, o
@@ -190,8 +189,7 @@ class MapsView(ft.Column):
     _MODE_DEFS = [
         ("pen",    ft.Icons.EDIT,            "Penna"),
         ("eraser", ft.Icons.AUTO_FIX_NORMAL, "Gomma"),
-        # "Sposta" (2026-08-19, zoom/pan — bug segnalato da Davide: "è
-        # impossibile zoommare la mappa"): un trascinamento a un dito in
+        # "Sposta" (zoom/pan): un trascinamento a un dito in
         # questa modalità sposta la vista invece di disegnare/cancellare —
         # vedi `_on_pan_start/_on_pan_update/_on_pan_end` (branch dedicato)
         # e `_select_mode` (toggle di `InteractiveViewer.pan_enabled`).
@@ -203,11 +201,9 @@ class MapsView(ft.Column):
         self.character = character
         self._page: ft.Page | None = None
         self._maps: list[GameMap] = []
-        # `ScrollMemoryListView` (2026-08-16, bug segnalato da Davide:
-        # "flash a schermo e uno scattino che riporta la vista in cima"
-        # durante la sincronizzazione) — `_refresh_shared_maps()` ricostruisce
+        # `ScrollMemoryListView`: `_refresh_shared_maps()` ricostruisce
         # questa lista ad ogni giro del ciclo di sync in background, un
-        # `ft.ListView` semplice perdeva lo scroll ogni volta.
+        # `ft.ListView` semplice perderebbe lo scroll ogni volta.
         self._list_view = ScrollMemoryListView(expand=True, spacing=10, padding=16)
 
         # ── Stato disegno ──────────────────────────────────────────────
@@ -229,7 +225,7 @@ class MapsView(ft.Column):
         self._detail_draw_stack: ft.Stack | None = None
         self._fs_draw_stack: ft.Stack | None = None
         #: `ft.InteractiveViewer` che avvolge ciascuno dei due stack sopra
-        #: (2026-08-19, zoom/pan) — riferimenti tenuti per poterne
+        #: (zoom/pan) — riferimenti tenuti per poterne
         #: mutare `pan_enabled` da `_select_mode()` quando si passa alla
         #: modalità "Sposta", stesso principio dei riferimenti canvas/stack.
         self._detail_interactive_viewer: ft.InteractiveViewer | None = None
@@ -237,10 +233,9 @@ class MapsView(ft.Column):
         self._current_gm: GameMap | None = None
 
         # Dimensione CORRENTE (pixel) del riquadro di disegno inline e a
-        # schermo intero — due box DISTINTI, letti da `on_size_change`
-        # (2026-08-12, fix del bug "le annotazioni non si allineano se la
-        # mappa non è a schermo intero": segnalato da Davide sulle mappe
-        # condivise, confermato presente anche qui). I tratti si salvano
+        # schermo intero — due box DISTINTI, letti da `on_size_change`:
+        # senza, le annotazioni non si allineano quando la mappa non è a
+        # schermo intero. I tratti si salvano
         # come frazione [0,1] del riquadro con cui si è disegnato
         # (`ui/canvas_geometry.py`) e si riconvertono in pixel assoluti
         # rispetto al riquadro CORRENTE ad ogni ridisegno — così lo stesso
@@ -248,8 +243,8 @@ class MapsView(ft.Column):
         # intero, qualunque sia la dimensione di ciascuno.
         self._detail_box_size: list[float] = [0.0, 0.0]
         self._fs_box_size: list[float] = [0.0, 0.0]
-        #: Dimensione NATIVA dell'immagine della mappa aperta (2026-08-16,
-        #: fix disallineamento — vedi `geo.contain_rect()`): con
+        #: Dimensione NATIVA dell'immagine della mappa aperta
+        #: (vedi `geo.contain_rect()`): con
         #: `fit=ft.BoxFit.CONTAIN` l'immagine occupa solo una PARTE del box
         #: se l'aspect ratio non coincide, le coordinate normalizzate vanno
         #: prese rispetto a quella parte, non all'intero riquadro. Popolata
@@ -269,9 +264,7 @@ class MapsView(ft.Column):
         self._fs_ersub_refs:   list[ft.Container] = []
         self._fs_toolbar_body: ft.Container | None = None
 
-        # Mappe condivise dal Master (2026-08-16, richiesta di Davide:
-        # "voglio che... le mappe condivise vengano visualizzate... nella
-        # sezione mappa già presente nella scheda giocatore") — SOLO se
+        # Mappe condivise dal Master, mostrate qui SOLO se
         # `character.world_id` è valorizzato. Sola lettura qui (disegnare
         # resta compito del Master dalla Sezione Mondi): niente
         # GestureDetector nel viewer, solo immagine + annotazioni già
@@ -285,13 +278,10 @@ class MapsView(ft.Column):
         self._sync_loop: BackgroundSyncLoop | None = None
         self._connection_state: str = "connected"
 
-        # NOTA (2026-08-06): non c'è più un self._file_picker qui.
-        # ft.FilePicker è stato abbandonato per la selezione mobile —
-        # confermato non funzionante su build Android reali (log adb
-        # logcat: TimeoutException, nessuna Activity nativa mai avviata,
-        # vedi _pick_mobile() sotto e dnd_app/docs/changelog_storico.md,
-        # sezione FILE PICKER). Su Android/iOS la selezione ora passa da
-        # ui/mobile_webview_picker.py.
+        # Nessun self._file_picker qui: ft.FilePicker non è utilizzabile su
+        # Android reale (nessuna Activity nativa viene mai avviata). Su
+        # Android/iOS la selezione passa da ui/mobile_webview_picker.py
+        # (vedi _pick_mobile() sotto).
 
         self._build()
 
@@ -300,16 +290,6 @@ class MapsView(ft.Column):
         page = self.page
         if page is not None:
             page.run_task(self._init_world_sync)
-
-        # Storico (fino al 2026-08-06): questo blocco registrava
-        # ft.FilePicker in page.overlay, con vari tentativi di timing
-        # (subito al mount, solo su mobile, poi anche quello scartato dopo
-        # un test su Android reale — vedi git blame per il dettaglio).
-        # Rimosso perché non più rilevante: FilePicker non è più usato
-        # affatto in questo file, sostituito da una WebView locale (vedi
-        # _pick_mobile()) dopo la diagnosi definitiva del 2026-08-06 (log
-        # adb logcat: nessuna Activity nativa Android viene mai avviata,
-        # bug non risolvibile lato applicazione).
 
     def will_unmount(self) -> None:
         self._stop_world_sync()
@@ -325,7 +305,7 @@ class MapsView(ft.Column):
         self._start_world_sync()
 
     def _start_world_sync(self) -> None:
-        """Ciclo periodico (2026-08-16, vedi `_MAPS_SYNC_INTERVAL_S`) —
+        """Ciclo periodico (vedi `_MAPS_SYNC_INTERVAL_S`) —
         stesso pattern di `sheet_view.py::SheetView`/`spells_view.py::SpellsView`:
         finché la sezione Mappe resta aperta, scarica gli eventi nuovi
         dall'host (mappe condivise pubblicate/aggiornate dal master) e
@@ -394,10 +374,9 @@ class MapsView(ft.Column):
     # ------------------------------------------------------------------
 
     def _build(self):
-        # Mappe proprie + mappe condivise dal master (2026-08-16, richiesta
-        # di Davide: niente più un riquadro "condiviso" separato — vanno
-        # nella stessa lista già esistente, con un chip che le distingue,
-        # vedi `_map_card`). `self._shared_maps` è tenuta aggiornata dal
+        # Mappe proprie + mappe condivise dal master, nella stessa lista
+        # (con un chip che le distingue, vedi `_map_card`).
+        # `self._shared_maps` è tenuta aggiornata dal
         # ciclo di sync in background (`_refresh_shared_maps`).
         self._maps = maps_repo.get_maps(self.character.id) + self._shared_maps
         self.controls.clear()
@@ -406,14 +385,13 @@ class MapsView(ft.Column):
 
     def _open_shared_map_readonly(self, gm: GameMap) -> None:
         """
-        Viewer di sola lettura per una mappa condivisa dal master
-        (2026-08-16) — stesso principio di
-        `WorldsView._open_shared_map(can_manage=False)`, ma auto-contenuto
-        qui (questa vista non ha accesso a quella classe): niente
-        `GestureDetector`/toolbar di disegno, solo immagine + annotazioni
-        già presenti, riallineate con `geo.contain_rect()` esattamente come
-        lato Sezione Mondi (stesso fix 2026-08-16 del disallineamento
-        cross-device).
+        Viewer di sola lettura per una mappa condivisa dal master — stesso
+        principio di `WorldsView._open_shared_map(can_manage=False)`, ma
+        auto-contenuto qui (questa vista non ha accesso a quella classe):
+        niente `GestureDetector`/toolbar di disegno, solo immagine +
+        annotazioni già presenti, riallineate con `geo.contain_rect()`
+        esattamente come lato Sezione Mondi, per evitare disallineamenti
+        cross-device.
         """
         page = self.page
         if page is None:
@@ -583,8 +561,8 @@ class MapsView(ft.Column):
 
     def _map_card(self, gm: GameMap) -> ft.Container:
         # Mappa condivisa dal master, non posseduta da questo personaggio
-        # (2026-08-16, fusione nella lista esistente — vedi `_build`):
-        # niente Modifica/Elimina (scrivere resta compito del master), solo
+        # (vedi `_build`): niente Modifica/Elimina (scrivere resta compito
+        # del master), solo
         # apertura in sola lettura, con un chip a distinguerla.
         is_shared = gm.character_id != self.character.id
         if gm.image_data:
@@ -788,7 +766,7 @@ class MapsView(ft.Column):
     def _build_draw_stack(self, gm: GameMap, canvas: cv.Canvas,
                           is_fs: bool) -> ft.InteractiveViewer:
         """Costruisce lo Stack (immagine + canvas + gesture) avvolto in un
-        `ft.InteractiveViewer` per zoom/pan (2026-08-19). `pan_enabled`
+        `ft.InteractiveViewer` per zoom/pan. `pan_enabled`
         parte sempre `False`: un trascinamento a un dito deve disegnare
         finché l'utente non passa esplicitamente alla modalità "Sposta"
         (`_select_mode`) — `scale_enabled` resta invece sempre `True`, un
@@ -901,7 +879,7 @@ class MapsView(ft.Column):
         NON usa BlendMode.CLEAR (non funziona su CustomPaint senza saveLayer).
 
         I tratti salvati in `self._strokes` sono frazioni [0,1] del
-        riquadro con cui furono disegnati (2026-08-12) — si riconvertono
+        riquadro con cui furono disegnati — si riconvertono
         in pixel assoluti rispetto al riquadro CORRENTE di `canvas`
         (`_box_size_for`) ad ogni chiamata, cosicché lo stesso tratto
         resti allineato sia nel pannello inline sia a schermo intero. Il
@@ -988,7 +966,7 @@ class MapsView(ft.Column):
     # ------------------------------------------------------------------
 
     def _on_pan_start(self, e: ft.DragStartEvent, canvas: cv.Canvas):
-        # Modalità "Sposta" (2026-08-19, zoom/pan): il gesture detector del
+        # Modalità "Sposta" (zoom/pan): il gesture detector del
         # disegno resta agganciato ma inerte — `InteractiveViewer.pan_enabled`
         # (attivato solo in questa modalità, vedi `_select_mode`) reclama il
         # trascinamento a un dito per spostare la vista invece.
@@ -1174,7 +1152,7 @@ class MapsView(ft.Column):
 
     def _has_legacy_strokes(self) -> bool:
         """Vero se `self._strokes` contiene almeno un tratto in formato
-        legacy (pre-2026-08-12, pixel assoluti) — vedi il docstring di
+        legacy (pixel assoluti anziché normalizzati) — vedi il docstring di
         `ui.canvas_geometry`. Controlla la lista già in memoria, non
         `gm.annotations` da disco: resta corretto anche a runtime dopo un
         disegno/una cancellazione, senza dover rileggere il DB."""
@@ -1338,9 +1316,8 @@ class MapsView(ft.Column):
                                 margin=ft.Margin.only(left=design.Space.SM,
                                                       right=design.Space.SM))
 
-        # `wrap=True` invece di `scroll=ft.ScrollMode.AUTO` (2026-08-19, bug
-        # segnalato da Davide: su smartphone "bisogna scorrere per vedere i
-        # restanti colori e i pulsanti") — vedi `docs/regole_flet_api.md`,
+        # `wrap=True` invece di `scroll=ft.ScrollMode.AUTO` — vedi
+        # `docs/regole_flet_api.md`,
         # sezione "TAB BAR / BARRE DI PILLOLE...": per una barra di
         # navigazione a striscia fissa lo scroll è la scelta corretta, ma
         # per un controllo come questa toolbar (dove il contenuto DEVE
@@ -1522,7 +1499,7 @@ class MapsView(ft.Column):
         self._draw_mode = key
         self._eraser_cursor_pos = None
 
-        # Zoom/pan (2026-08-19): `self._draw_mode` è condiviso tra pannello
+        # Zoom/pan: `self._draw_mode` è condiviso tra pannello
         # inline e schermo intero, quindi entrambi gli `InteractiveViewer`
         # (quello/i effettivamente montati in questo momento) vanno
         # aggiornati insieme — non solo quello del pannello che ha appena
@@ -1715,7 +1692,7 @@ class MapsView(ft.Column):
             if page.web:
                 _pick_from_library(self._page, img_data, img_label, img_preview)
             elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
-                # _pick_mobile è async (fix 2026-08-06, vedi il suo
+                # _pick_mobile è async (vedi il suo
                 # docstring): va schedulata, non chiamata direttamente da
                 # un on_click sincrono.
                 page.run_task(_pick_mobile, self._page, img_data, img_label, img_preview)
@@ -1822,7 +1799,7 @@ class MapsView(ft.Column):
             if page.web:
                 _pick_from_library(self._page, img_data, img_label, img_preview)
             elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
-                # _pick_mobile è async (fix 2026-08-06, vedi il suo
+                # _pick_mobile è async (vedi il suo
                 # docstring): va schedulata, non chiamata direttamente da
                 # un on_click sincrono.
                 page.run_task(_pick_mobile, self._page, img_data, img_label, img_preview)
@@ -1922,7 +1899,7 @@ def _normalize_image_bytes_to_base64(raw: bytes) -> str:
     """
     Normalizza bytes immagine in JPEG via PIL e li codifica in base64.
 
-    Estratto da _load_image_base64() il 2026-08-06 per essere condiviso
+    Separata da _load_image_base64() per essere condivisa
     anche dal flusso WebView (_pick_mobile()), che riceve i bytes
     dell'immagine direttamente (FileReader lato browser) invece di un
     percorso file locale da aprire.
@@ -1932,11 +1909,11 @@ def _normalize_image_bytes_to_base64(raw: bytes) -> str:
         from PIL import ImageOps  # type: ignore[import-untyped]
         import io
         with PILImage.open(io.BytesIO(raw)) as im:
-            # Applica la rotazione EXIF prima di ri-salvare — stesso bug e
-            # stesso fix di profilo_tab.py::_save_photo_bytes() (2026-08-06):
-            # senza questo, immagini scattate in verticale da smartphone
-            # vengono salvate ruotate perché il tag "Orientation" va perso
-            # al salvataggio se non applicato esplicitamente prima.
+            # Applica la rotazione EXIF prima di ri-salvare — stesso fix di
+            # profilo_tab.py::_save_photo_bytes(): senza questo, immagini
+            # scattate in verticale da smartphone vengono salvate ruotate,
+            # perché il tag "Orientation" va perso al salvataggio se non
+            # applicato esplicitamente prima.
             im = ImageOps.exif_transpose(im)
             if im.mode not in ("RGB", "L"):
                 im = im.convert("RGB")
@@ -1977,16 +1954,16 @@ def _pick_from_library(page: ft.Page | None, img_data: list[str],
                        label: ft.Text, preview: ft.Container):
     """
     Ramo web (page.web == True): mostra il picker sulla libreria immagini
-    caricata a mano da Davide via SSH (vedi ui/image_library.py) invece di
-    ft.FilePicker — che in modalità web è strutturalmente rotto e non
+    caricata manualmente (vedi ui/image_library.py) invece di
+    `ft.FilePicker` — che in modalità web è strutturalmente rotto e non
     risolvibile lato applicazione (bug upstream confermato, flet-dev/flet
-    #6040/#6250/#6251 — vedi CLAUDE.md 2026-07-12 per il changelog dei tre
-    tentativi precedenti). Selezionare un'immagine richiama la stessa
-    identica logica già usata per il path locale su mobile nativo
-    (_load_image_base64() + _update_preview()).
+    #6040/#6250/#6251 — vedi `dnd_app/docs/changelog_storico.md` per il
+    dettaglio). Selezionare un'immagine richiama la stessa identica logica
+    già usata per il path locale su mobile nativo (_load_image_base64() +
+    _update_preview()).
 
-    Parametro `page` diretto (non più un `MapsView`, 2026-08-12): riusata
-    anche da `ui/views/world/world_view.py` per il caricamento di una mappa
+    Parametro `page` diretto (non un `MapsView`): riusata anche da
+    `ui/views/world/world_view.py` per il caricamento di una mappa
     condivisa nuova, che non ha un `MapsView` a disposizione — l'unica cosa
     che questa funzione usava della view era `view._page`.
     """
@@ -2008,29 +1985,16 @@ async def _pick_mobile(page: ft.Page | None, img_data: list[str],
     Apre il selettore immagine su Android/iOS. Chiamata SOLO dal ramo
     mobile nativo di pick_image() nei due dialog crea/modifica mappa — il
     ramo web non arriva mai qui, vedi _pick_from_library(). Parametro
-    `page` diretto (non più un `MapsView`, 2026-08-12) — vedi il docstring
-    gemello su `_pick_from_library` per il perché.
+    `page` diretto (non un `MapsView`) — vedi il docstring gemello su
+    `_pick_from_library` per il perché.
 
-    **Storico** (perché non `ft.FilePicker`, 2026-08-06, log `adb logcat`
-    reale): un primo log aveva rivelato un vero bug Python (`await`
-    mancante su `pick_files()`, corretto — stesso identico difetto di
-    `profilo_tab.py::_pick_photo_mobile()`), ma un secondo log preso DOPO
-    quel fix ha mostrato che il problema è più a fondo:
-    `TimeoutException: Timeout waiting for invoke method listener` —
-    nessuna Activity nativa Android viene mai avviata. `ft.FilePicker` non
-    è utilizzabile su questa build. Vedi `dnd_app/docs/changelog_storico.md`.
-
-    **Tentativo 1 (WebView + `<input type=file>`), anch'esso confermato
-    morto**: `webview_flutter` su Android non implementa di default
-    `WebChromeClient.onShowFileChooser` — nessun selettore nativo si apre
-    mai. Vedi `regole_flet_api.md`.
-
-    **Percorso attuale (2026-08-06)**: estensione Flet nativa scritta su
-    misura (`ui/native_image_picker.py` ->
-    `dnd_app/extensions/flet_image_picker/`). ⚠️ NON verificata end-to-end
-    da questo sandbox — per questo il fallback WebView resta qui sotto,
-    attivato automaticamente se l'estensione solleva
-    `ImagePickerUnavailable`, non rimosso. Stesso identico pattern di
+    Prova prima l'estensione Flet nativa scritta su misura
+    (`ui/native_image_picker.py` -> `dnd_app/extensions/flet_image_picker/`;
+    ⚠️ non verificata end-to-end, nessun toolchain Flutter/Dart disponibile
+    per compilarla qui — vedi il docstring del modulo). Se solleva
+    `ImagePickerUnavailable`, ricade sul fallback WebView (vedi
+    `ui/mobile_webview_picker.py` per il perché non `ft.FilePicker` e per
+    come funziona questo fallback). Stesso identico pattern di
     `profilo_tab.py::_pick_photo_mobile()`, mantenuto qui in un file
     diverso perché `_pick_mobile()` è una funzione modulo-level (non un
     metodo di `MapsView`), condivisa dai due dialog crea/modifica mappa.

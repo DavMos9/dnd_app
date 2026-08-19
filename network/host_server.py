@@ -25,10 +25,10 @@ autenticazione vero:
 Il server si accende solo quando il master apre l'hosting esplicitamente
 (§9.4: "nessuna porta aperta di default") e si spegne SOLO con "Ferma
 hosting" o alla vera chiusura del processo (thread `daemon=True`) — MAI
-navigando via dalla Sezione Mondi verso un'altra schermata dell'app: era
-così in una sessione precedente, causa di un bug reale (il master perdeva
-l'hosting aprendo la Modalità Master), corretto il 2026-08-07 con
-`HostServerSlot`, vedi il suo docstring.
+navigando via dalla Sezione Mondi verso un'altra schermata dell'app: legarne
+il ciclo di vita a quello di una view farebbe perdere l'hosting al master
+al primo cambio di schermata. Garantito da `HostServerSlot`, vedi il suo
+docstring.
 """
 
 from __future__ import annotations
@@ -100,7 +100,7 @@ class PendingJoinRequest:
     token: str = ""
     role: str = ""
     created_at: str = field(default_factory=_now)
-    #: Id del codice di trasferimento riscattato (2026-08-17, §11.9). Vuoto per
+    #: Id del codice di trasferimento riscattato (§11.9). Vuoto per
     #: un ingresso normale. Quando è valorizzato, `approve()` NON crea un nuovo
     #: membro: riassegna quello esistente a questo dispositivo. Il master deve
     #: vedere la differenza — non è un giocatore nuovo che entra, è uno scambio
@@ -256,29 +256,16 @@ class HostServerSlot:
     creata ad ogni navigazione nella Sezione Mondi
     (`DnDApp._show_worlds_view`).
 
-    Fix 2026-08-07 — bug reale segnalato da Davide dopo un vero test su
-    Wi-Fi: il master approva l'ingresso di un giocatore, poi apre la
-    Modalità Master per aggiungerlo a un incontro (o semplicemente
-    cambia tema, o apre un'altra scheda) — l'hosting si fermava DA SOLO
-    in quel momento, disconnettendo silenziosamente il giocatore appena
-    entrato, che infatti non riusciva più a registrare il proprio
-    personaggio sull'host (nessun errore lato master: l'host era già
-    morto prima ancora che il giocatore ci provasse).
-
-    Causa: prima di questo fix, `WorldHostServer` viveva come un
-    attributo di ISTANZA su `WorldsView`, fermato esplicitamente in
-    `will_unmount()` — scelta deliberata di una sessione precedente
-    ("uscire dalla sezione Mondi senza fermarlo esplicitamente non deve
-    lasciare una porta aperta", vedi il changelog storico). Il problema è
-    che `ui/app.py::_navigate()` azzera e ricostruisce l'intera pagina ad
-    OGNI navigazione di primo livello (Home, Modalità Master, Mondi,
-    cambio tema incluso, non solo un vero "esco dalla Sezione Mondi") —
-    il ciclo di vita standard di Flet fa scattare `will_unmount()` sulla
-    `WorldsView` precedente ad ogni singola di queste navigazioni, non
-    solo quando l'utente lascia davvero la sezione Mondi per restarci
-    fuori. Un master che semplicemente controlla un'altra schermata
-    dell'app, mentre un tavolo di gioco è in corso, non deve MAI
-    disconnettere tutti i giocatori collegati.
+    `WorldHostServer` non può vivere come attributo di ISTANZA su
+    `WorldsView`, fermato in `will_unmount()`: `ui/app.py::_navigate()`
+    azzera e ricostruisce l'intera pagina ad OGNI navigazione di primo
+    livello (Home, Modalità Master, Mondi, cambio tema incluso, non solo un
+    vero "esco dalla Sezione Mondi") — il ciclo di vita standard di Flet fa
+    scattare `will_unmount()` sulla `WorldsView` precedente ad ogni singola
+    di queste navigazioni, non solo quando l'utente lascia davvero la
+    sezione Mondi per restarci fuori. Un master che semplicemente controlla
+    un'altra schermata dell'app, mentre un tavolo di gioco è in corso, non
+    deve MAI disconnettere tutti i giocatori collegati.
 
     Questo contenitore rompe quell'accoppiamento: l'hosting vive quanto
     la sessione dell'app (non quanto la singola `WorldsView` che l'ha
@@ -298,8 +285,7 @@ class WorldHostServer:
     Ciclo di vita e stato dell'hosting di UN mondo su questo dispositivo.
     Un'istanza per mondo ospitato — la UI ne crea una quando il master
     preme "Ospita in LAN" e la ferma quando preme "Ferma hosting", non
-    più legata al ciclo di vita di una singola view (fix 2026-08-07, vedi
-    `HostServerSlot`).
+    più legata al ciclo di vita di una singola view (vedi `HostServerSlot`).
     """
 
     def __init__(self, world_id: str, backend: LocalBackend | None = None,
@@ -330,7 +316,7 @@ class WorldHostServer:
         self._lock = threading.Lock()
         self._tokens: dict[str, str] = {}          # token -> device_id
         self._pending: dict[str, PendingJoinRequest] = {}
-        #: Anti-spam su `/join` (fix 2026-08-07, completamento della difesa
+        #: Anti-spam su `/join` (completamento della difesa
         #: in profondità lasciata in sospeso quando `LocalBackend.
         #: send_command()` ha ricevuto lo stesso trattamento per `/command`:
         #: senza questo, nulla impediva di martellare `/join` per tentare
@@ -447,7 +433,7 @@ class WorldHostServer:
         if world is None:
             return False
 
-        # Due esiti diversi per la stessa approvazione (2026-08-17, §11.9): un
+        # Due esiti diversi per la stessa approvazione (§11.9): un
         # ingresso normale crea un membro nuovo, un trasferimento riassegna
         # quello esistente a un altro dispositivo.
         if req.transfer_id:
@@ -551,10 +537,10 @@ class WorldHostServer:
         """
         Annulla una richiesta di ingresso — a differenza di `reject()`
         sopra (il master rifiuta la richiesta di un ALTRO), qui è il
-        richiedente stesso ad annullare la propria (2026-08-19, bug
-        segnalato da Davide: "il giocatore... deve poter annullarla e solo
-        poi può inviare una nuova richiesta"). Verifica che `device_id`
-        corrisponda al proprietario della richiesta — nessun token esiste
+        richiedente stesso ad annullare la propria, così può inviarne
+        subito una nuova invece di restare bloccato dietro quella in
+        sospeso. Verifica che `device_id` corrisponda al proprietario della
+        richiesta — nessun token esiste
         ancora a questo punto del flusso (il dispositivo non è membro),
         quindi questo confronto è l'unica autenticazione disponibile, come
         già per l'intero `handle_join()`.
@@ -579,7 +565,7 @@ class WorldHostServer:
             "name": world.name if world else "",
             "protocol_version": protocol.PROTOCOL_VERSION,
             "accepting": self.accepting,
-            # Capacità opzionali dell'host (2026-08-17, §11.9). Meccanismo
+            # Capacità opzionali dell'host (§11.9). Meccanismo
             # deliberatamente scelto INVECE di alzare `PROTOCOL_VERSION` a 2:
             # `_check_protocol_version` è un'uguaglianza stretta e rifiuta
             # l'ingresso con "Aggiorna l'app su entrambi i dispositivi", quindi
@@ -634,7 +620,7 @@ class WorldHostServer:
         if world.join_code.upper() != join_code:
             return 403, {"error": "Codice del mondo errato."}
 
-        # Terzo percorso d'ingresso (2026-08-17, §11.9): un dispositivo NUOVO
+        # Terzo percorso d'ingresso (§11.9): un dispositivo NUOVO
         # che presenta un codice di trasferimento per subentrare a un membro
         # esistente, portandosi via le sue istanze di personaggio. Va valutato
         # PRIMA del ramo "dispositivo già noto": per definizione questo
@@ -653,16 +639,15 @@ class WorldHostServer:
         if member is not None:
             # Dispositivo già noto ("registrato" — §9.4: "I dispositivi già
             # noti rientrano senza chiedere"): rientra con il solo
-            # join_code, NESSUN controllo PIN (2026-08-16, bug segnalato da
-            # Davide — "implementare registrazione": un riavvio
-            # dell'hosting da parte del master rigenera un PIN nuovo e
-            # svuota tutti i token in memoria, `WorldHostServer.stop()`,
-            # ma NON tocca `world_members`, persistito su DB — quindi
-            # l'appartenenza già approvata resta valida indipendentemente
-            # dal PIN corrente. Un dispositivo MAI approvato prima deve
-            # ancora passare dal PIN, vedi ramo sotto — solo l'accesso di
-            # un dispositivo già vetted non richiede più che il master
-            # condivida un PIN fresco ad ogni riavvio).
+            # join_code, NESSUN controllo PIN — un riavvio dell'hosting da
+            # parte del master rigenera un PIN nuovo e svuota tutti i token
+            # in memoria, `WorldHostServer.stop()`, ma NON tocca
+            # `world_members`, persistito su DB — quindi l'appartenenza già
+            # approvata resta valida indipendentemente dal PIN corrente. Un
+            # dispositivo MAI approvato prima deve ancora passare dal PIN,
+            # vedi ramo sotto — solo l'accesso di un dispositivo già vetted
+            # non richiede più che il master condivida un PIN fresco ad
+            # ogni riavvio.
             token = self._issue_token(device_id)
             world_repo.set_member_connected(self.world_id, device_id, True)
             return 200, {"status": "approved", "token": token, "role": member.role}
@@ -691,12 +676,10 @@ class WorldHostServer:
         if not self.pin or pin != self.pin:
             return 403, {"error": "PIN errato."}
 
-        # Deduplica (2026-08-19, bug segnalato da Davide: "il giocatore può
-        # anche spammare richieste con nomi diversi"): un dispositivo con
-        # già una richiesta in sospeso la riusa invece di accodarne una
-        # nuova ad ogni ritentativo — l'unico limite prima d'ora era il
-        # cooldown di 10s su `_check_join_rate_limit`, che rallenta lo
-        # spam ma non lo impedisce (bastava aspettare tra un tentativo e
+        # Deduplica: un dispositivo con già una richiesta in sospeso la
+        # riusa invece di accodarne una nuova ad ogni ritentativo — il
+        # cooldown di 10s su `_check_join_rate_limit` da solo rallenta lo
+        # spam ma non lo impedisce (basta aspettare tra un tentativo e
         # l'altro). `display_name` dell'ultimo tentativo aggiorna quello
         # già in coda (l'utente può aver corretto un refuso nel nome prima
         # di ritentare), il resto della riga (id, timestamp) resta quello
@@ -716,7 +699,7 @@ class WorldHostServer:
         return 200, {"status": "pending", "request_id": req.id}
 
     def handle_join_cancel(self, body: dict) -> tuple[int, dict]:
-        """`POST /join/cancel` (2026-08-19) — controparte di `handle_join`
+        """`POST /join/cancel` — controparte di `handle_join`
         per l'annullamento lato richiedente, vedi `cancel_own_request()`."""
         request_id = str(body.get("request_id", "")).strip()
         device_id = str(body.get("device_id", "")).strip()
@@ -847,7 +830,7 @@ class WorldHostServer:
             "success": result.success,
             "error": result.error,
             "event": protocol.event_to_dict(result.event) if result.event else None,
-            # Dati destinati SOLO al mittente (2026-08-17, §11.9): il codice di
+            # Dati destinati SOLO al mittente (§11.9): il codice di
             # trasferimento non può viaggiare in `event.payload`, che finisce nel
             # giornale trasmesso a tutte le repliche.
             "data": result.data,
@@ -881,9 +864,7 @@ class WorldHostServer:
         # 200 eventi più recenti (limite di default di get_events_since,
         # pensato per il polling incrementale) — altrimenti un mondo con
         # più di 200 eventi nella sua storia produce uno snapshot troncato
-        # per chi entra ora (bug trovato in fase di progettazione del
-        # passo 9, mai in produzione perché nessun mondo di test l'ha
-        # ancora superato).
+        # per chi entra ora.
         events = world_repo.get_events_since(self.world_id, 0, limit=None)
         own_characters = [
             c for c in character_repo.get_master_visible_characters(self.world_id)
@@ -900,7 +881,7 @@ class WorldHostServer:
             for r in world_repo.get_pending_change_requests(self.world_id)
             if r.character_id in own_ids
         ]
-        # Richieste di rientro (2026-08-12) inviate DA questo device — a
+        # Richieste di rientro inviate DA questo device — a
         # differenza dei filtri sopra (che passano da `own_ids`, calcolato
         # su personaggi ATTIVI: `get_master_visible_characters` esclude
         # sempre quelli archiviati) qui basta confrontare `requested_by`,
@@ -914,22 +895,18 @@ class WorldHostServer:
             if r.requested_by == device_id
         ]
 
-        # Isolamento per sezione (2026-08-16, bug segnalato da Davide:
-        # nella replica di un giocatore, note/mappe condivise restavano
-        # bloccate su un sottoinsieme minuscolo — sia in Diario/Mappe SIA in
-        # Sezione Mondo, due viste indipendenti che condividono solo
-        # QUESTA chiamata). Prima di questo fix, un'eccezione in QUALUNQUE
-        # sezione sotto (es. un incontro con dati residui da una sessione di
-        # test precedente, un NPC collegato ormai cancellato) faceva
-        # fallire l'INTERA risposta con 500 — e da quando `sync_replica()`
+        # Isolamento per sezione: un'eccezione in QUALUNQUE sezione sotto
+        # (es. un incontro con dati residui da una sessione di test
+        # precedente, un NPC collegato ormai cancellato) farebbe fallire
+        # l'INTERA risposta con 500 — e poiché `sync_replica()`
         # (core/world_sync.py) richiama questo endpoint ad OGNI ciclo,
-        # anche quando non ci sono eventi nuovi (fix dello stesso giorno),
-        # un solo dato residuo rotto blocca per sempre ogni sincronizzazione
-        # successiva su TUTTE le sezioni, non solo quella incidentata —
-        # il dispositivo resta congelato allo stato dell'ultimo snapshot
-        # riuscito (tipicamente quello del primo ingresso). Ogni sezione
-        # qui sotto degrada quindi a "vuota" invece di far fallire tutto,
-        # con un log per poterla poi correggere.
+        # anche quando non ci sono eventi nuovi, un solo dato residuo rotto
+        # bloccherebbe per sempre ogni sincronizzazione successiva su TUTTE
+        # le sezioni, non solo quella incidentata — il dispositivo
+        # resterebbe congelato allo stato dell'ultimo snapshot riuscito
+        # (tipicamente quello del primo ingresso). Ogni sezione qui sotto
+        # degrada quindi a "vuota" invece di far fallire tutto, con un log
+        # per poterla poi correggere.
 
         # Note condivise visibili a questo device (§7B, chiude lo stesso gap
         # delle istanze sopra: senza questo, un giocatore che entra DOPO che
@@ -975,7 +952,7 @@ class WorldHostServer:
             logger.error("handle_snapshot: errore costruendo le mappe condivise: %s", e)
             shared_maps = []
 
-        # Deposito comune del gruppo (2026-08-19) — solo `stash_kind="party"`,
+        # Deposito comune del gruppo — solo `stash_kind="party"`,
         # stesso gap delle sezioni sopra: senza questo, un giocatore/master
         # non-host che entra dopo che una voce è stata depositata non la
         # vedrebbe mai finché non arriva un evento successivo. L'archivio
@@ -1046,7 +1023,7 @@ class WorldHostServer:
         Permesso a chiunque sia membro del mondo della mappa (non solo il
         proprietario, a differenza di `handle_get_character`): una mappa
         condivisa è per definizione visibile a tutto il tavolo, non a un
-        singolo giocatore. ECCEZIONE (2026-08-12): una mappa nascosta ai
+        singolo giocatore. ECCEZIONE: una mappa nascosta ai
         giocatori (`visible_to_players=False`, distinto da `is_shared` —
         vedi `CMD_MAP_VISIBILITY`) nega l'immagine a chi non è master/owner,
         stesso principio fail-closed di `handle_get_character` — un
@@ -1081,7 +1058,7 @@ class WorldHostServer:
 
     def handle_map_annotations(self, token: str, map_id: str) -> tuple[int, dict]:
         """
-        `GET /map/<id>/annotations` (2026-08-19) — backfill lazy delle
+        `GET /map/<id>/annotations` — backfill lazy delle
         annotazioni di una mappa condivisa, stesso principio di
         `handle_map_image` sopra ma per i tratti di disegno invece
         dell'immagine: entrambi restano fuori da `handle_snapshot`
@@ -1092,13 +1069,13 @@ class WorldHostServer:
         risposta JSON (niente byte grezzi), quindi passa dal normale
         dispatcher JSON invece che da quello dedicato di `handle_map_image`.
 
-        Bug che questo risolve (segnalato da Davide): "le scritte del
-        master sulla mappa precedenti all'entrata del giocatore nel mondo
-        non sono visibili" — lo stub creato al join
+        Colma un gap del join: lo stub creato al join
         (`maps_repo.replica_create_map_stub`) inizializza sempre
         `annotations='[]'` e non viene mai aggiornato retroattivamente;
         solo i tratti disegnati DOPO l'ingresso arrivano via eventi
-        `CMD_MAP_DRAW`. Stessa regola di visibilità di `handle_map_image`:
+        `CMD_MAP_DRAW` — senza questa rotta, i tratti disegnati dal master
+        prima che il giocatore entrasse nel mondo resterebbero invisibili.
+        Stessa regola di visibilità di `handle_map_image`:
         chiunque sia membro del mondo, tranne un giocatore contro una
         mappa nascosta (`visible_to_players=False`).
         """

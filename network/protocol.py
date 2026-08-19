@@ -24,7 +24,7 @@ from data.models import World, WorldChangeRequest, WorldEvent, WorldMember, Worl
 PROTOCOL_VERSION = 1
 
 #: Capacità OPZIONALI dell'host, esposte da `GET /world` e verificate dal client
-#: prima di usarle (2026-08-17, §11.9).
+#: prima di usarle (§11.9).
 #:
 #: Esiste per NON dover incrementare `PROTOCOL_VERSION` a ogni aggiunta
 #: retrocompatibile. Il numero di versione sopra è controllato con
@@ -65,8 +65,8 @@ DISCOVERY_MAGIC = "dnd_companion_world_v1"
 
 #: §9.2/§12.3 — durata dell'attesa lunga di GET /events. Stima di partenza,
 #: non un valore misurato su una rete reale: se un router chiude le
-#: connessioni ferme prima, Davide lo scoprirà nel passo 4 e va abbassato
-#: qui, in un solo punto (nessuna riprogettazione).
+#: connessioni ferme prima va abbassato qui, in un solo punto (nessuna
+#: riprogettazione).
 LONG_POLL_TIMEOUT_S = 25.0
 
 #: Intervallo di ripolling interno del server durante l'attesa lunga: non è
@@ -182,7 +182,7 @@ def change_request_from_dict(d: dict) -> WorldChangeRequest:
 
 
 def rejoin_request_to_dict(request: WorldRejoinRequest) -> dict:
-    """"Richiesta di rientro" (2026-08-12) — trasmette la richiesta del
+    """"Richiesta di rientro" — trasmette la richiesta del
     proprietario di far rientrare un'istanza archiviata al mondo via
     `GET /snapshot`, stesso principio di `change_request_to_dict` sopra ma
     verso opposto (qui il master è il destinatario, non il proprietario)."""

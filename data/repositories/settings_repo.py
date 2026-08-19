@@ -1,7 +1,7 @@
 """
 Preferenze dell'installazione — tabella chiave/valore `app_settings`.
 
-Introdotto con la **Fase D del restyle** (2026-07-30, vedi
+Introdotto con la **Fase D del restyle** (vedi
 `dnd_app/docs/restyle_design.md` § FASE D): serviva un posto dove ricordare la
 preferenza di tema tra un avvio e l'altro.
 
@@ -13,8 +13,8 @@ l'aspetto dell'app. Per lo stesso motivo `app_settings` **non** compare tra le
 `CHILD_TABLES` di `character_export.py`.
 
 **Perché chiave/valore e non una colonna per preferenza**: aggiungerne una in
-futuro (densità dell'interfaccia, dimensione del testo — entrambe valutate con
-Davide il 2026-07-30 e rimandate) non richiede una migrazione di schema.
+futuro (densità dell'interfaccia, dimensione del testo — entrambe valutate e
+rimandate) non richiede una migrazione di schema.
 
 Robustezza: nessuna funzione qui solleva mai un'eccezione verso la UI. Un DB
 irraggiungibile o un valore corrotto/scritto a mano produce un `logger` e il

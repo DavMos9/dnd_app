@@ -24,12 +24,11 @@ class DiarioTab(ScrollMemoryListView):
     Tab diario: voci di sessione con creazione, lettura, modifica, eliminazione.
     Eredita da ft.ListView per scroll corretto in Flet 0.85.3.
 
-    NOTA (2026-08-16): le note condivise dal Master NON vivono qui — per
-    esplicita richiesta di Davide vivono nella sezione "Diario" della barra
-    laterale (`ui/views/diary_view.py::DiaryView`, insieme a Incantesimi/
-    Mappe/Talenti), non in questo tab interno alla scheda. Un tentativo
-    precedente le aveva aggiunte qui per errore (le due viste si chiamano
-    entrambe "Diario" ma sono sezioni diverse) — rimosso.
+    NOTA: le note condivise dal Master NON vivono qui — vivono nella sezione
+    "Diario" della barra laterale (`ui/views/diary_view.py::DiaryView`,
+    insieme a Incantesimi/Mappe/Talenti), non in questo tab interno alla
+    scheda. Le due viste si chiamano entrambe "Diario" ma sono sezioni
+    diverse: non aggiungere qui le note del Master per errore.
     """
 
     def __init__(self, character: Character, on_refresh: Callable[[], None] | None = None):
@@ -154,10 +153,8 @@ class DiarioTab(ScrollMemoryListView):
 
         date_label = entry.session_date or entry.created_at[:10] if entry.created_at else ""
 
-        # Audit anti-AI-slop (2026-08-18): card standard invece del Container
-        # bordato a mano (barra accento sinistra + ombra a livello, come le
-        # altre viste già rifinite, invece del riquadro con bordo pieno su
-        # 4 lati).
+        # Card standard (barra accento sinistra + ombra a livello, come le
+        # altre viste) invece di un Container bordato a mano su 4 lati.
         return design.card(
             ft.Column(
                 [
@@ -388,7 +385,7 @@ class DiarioTab(ScrollMemoryListView):
             pass
         # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
         # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
-        # singola azione (bug B10, revisione 2026-07-26).
+        # singola azione.
         self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

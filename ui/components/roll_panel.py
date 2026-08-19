@@ -1,10 +1,10 @@
 """
 Pannello dei tiri di dado — componente condiviso da tutta la scheda.
 
-Fase 4, feature 1 (vedi `docs/feature_design_2026_07_26.md`). Rende tirabile
-qualunque valore già mostrato sulla scheda: abilità, tiri salvezza, prove di
-caratteristica, attacchi e danni delle armi, iniziativa, TS contro morte, dadi
-vita, attacco con incantesimo.
+Vedi `docs/feature_design_2026_07_26.md`. Rende tirabile qualunque valore
+già mostrato sulla scheda: abilità, tiri salvezza, prove di caratteristica,
+attacchi e danni delle armi, iniziativa, TS contro morte, dadi vita,
+attacco con incantesimo.
 
 **Perché un pannello e non un dialog**: al tavolo serve vedere l'ultimo tiro
 mentre si continua a leggere la scheda. Un `AlertDialog` è modale e va chiuso
@@ -14,8 +14,8 @@ prima di poter fare altro. Il pannello vive invece in `page.overlay` come
 resto della scheda resta cliccabile, e sopravvive alla ricostruzione delle view
 perché è agganciato alla pagina, non all'albero della vista.
 
-**Storico solo in sessione** (scelta di Davide, 2026-07-30): nessuna tabella,
-nessun DB che cresce a ogni tiro. Gli ultimi tiri restano finché l'app è aperta.
+**Storico solo in sessione**: nessuna tabella, nessun DB che cresce a ogni
+tiro. Gli ultimi tiri restano finché l'app è aperta.
 
 Vantaggio e svantaggio non si scelgono *prima* del tiro: si tira normale (il
 caso di gran lunga più frequente, un click) e il pannello offre "Ritira con
@@ -111,7 +111,7 @@ class RollPanel:
         badge: ft.Control | None = None
         # Con un 1 o un 20 naturale il modificatore non viene sommato: il tiro
         # è già deciso, e mostrare "1 +7 = 8" sarebbe fuorviante. Si mostra il
-        # dado naturale e lo si etichetta (richiesta di Davide, 2026-07-30).
+        # dado naturale e lo si etichetta.
         shown_total = result.total
         if result.is_crit:
             total_color = p.success

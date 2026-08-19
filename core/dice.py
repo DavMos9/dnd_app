@@ -68,13 +68,6 @@ class RollResult:
     is_crit: bool
     is_crit_fail: bool
 
-    @property
-    def all_rolls(self) -> list[int]:
-        out: list[int] = []
-        for g in self.groups:
-            out.extend(g.rolls)
-        return out
-
     def detail(self) -> str:
         """
         Riga di dettaglio leggibile: `"(14, 7 scartato) +3"`.

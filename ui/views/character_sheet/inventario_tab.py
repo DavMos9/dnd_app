@@ -64,7 +64,7 @@ _WEAPON_PROPERTIES = [
 # "armor" ha una sezione dedicata ("Armature", vedi _section_armature) e
 # non compare più nella lista generica "Oggetti" per evitare di mostrare
 # le armature due volte. "weapon" ("Armi (riserva)") non è più selezionabile
-# nel dialog Nuovo/Modifica Oggetto (2026-07-11, vedi CLAUDE.md "Armi
+# nel dialog Nuovo/Modifica Oggetto (vedi CLAUDE.md "Armi
 # riserva") — ogni arma va sempre creata nella sezione Armi dedicata
 # (tabella weapons), unica fonte di verità che partecipa al limite di 2
 # mani; resta comunque nella lista qui sotto come rete di sicurezza, così un
@@ -73,7 +73,7 @@ _WEAPON_PROPERTIES = [
 # sparire silenziosamente dalla UI.
 _OGGETTI_CATEGORIES = ["misc", "weapon", "tool", "magic"]
 
-# --- Autofill Arma da catalogo (2026-07-16, richiesta Davide) -------------
+# --- Autofill Arma da catalogo -------------------------------------------
 # equipment/weapons.json usa nomi/formati diversi dalla UI di questo dialog
 # (nomi tipo-danno minuscoli plurali italiani, proprietà con valori
 # incorporati tra parentesi es. "Versatile (1d10)"/"Munizioni (gittata
@@ -186,8 +186,8 @@ class InventarioTab(ScrollMemoryListView):
         """
         Migrazione automatica, una tantum per personaggio: converte in righe
         vere della tabella `weapons` gli eventuali `InventoryItem` con
-        `category=="weapon"` ("Armi (riserva)") creati prima del 2026-07-11
-        (fallback diagnostico di `_save_weapon_by_name()` in
+        `category=="weapon"` ("Armi (riserva)") creati prima dell'introduzione
+        della sezione Armi dedicata (fallback diagnostico di `_save_weapon_by_name()` in
         wizard_view.py/manual_form.py quando un'arma iniziale non veniva
         trovata nel catalogo — vedi CLAUDE.md "Armi riserva"). Quella
         categoria viveva in una tabella diversa dalle armi vere, quindi non
@@ -287,9 +287,9 @@ class InventarioTab(ScrollMemoryListView):
         # Colori dei metalli: vivono in `ui/design.py → CURRENCY_COLORS` perché
         # non sono colori di UI (il rame è rame anche in tema scuro).
         colors = design.CURRENCY_COLORS
-        # Etichette leggibili per il tooltip (2026-07-24, fix affordance "nulla di
-        # nascosto" — questi cerchi erano cliccabili con solo `ink=True`, nessun
-        # indizio testuale che spiegasse cosa avrebbe fatto il click)
+        # Etichette leggibili per il tooltip: questi cerchi sono cliccabili
+        # (`ink=True`) ma senza testo non ci sarebbe nessun indizio di cosa
+        # faccia il click.
         names = {
             "MR": "Monete di Rame", "MA": "Monete d'Argento", "ME": "Monete di Electrum",
             "MO": "Monete d'Oro", "MP": "Monete di Platino",
@@ -379,12 +379,11 @@ class InventarioTab(ScrollMemoryListView):
                 muted_text(status, 11),
             ], spacing=0),
             bgcolor=design.T().surface,
-            # Audit anti-AI-slop (2026-08-18): unico elemento "hero" del tab —
-            # il Peso è l'unico dato del tab con conseguenza meccanica diretta
-            # (sovraccarico penalizza), calcolato dinamicamente con stato a 3
-            # livelli (normale/pesante/sovraccarico) e barra di progresso,
-            # stesso ruolo che gli HP hanno in combattimento_tab.py. Bordo
-            # 3→4px, padding Space.LG(ish)→Space.XL, elevation(1)→layered_shadow(2).
+            # Unico elemento "hero" del tab: il Peso è l'unico dato con
+            # conseguenza meccanica diretta (sovraccarico penalizza),
+            # calcolato dinamicamente con stato a 3 livelli
+            # (normale/pesante/sovraccarico) e barra di progresso — stesso
+            # ruolo che gli HP hanno in combattimento_tab.py.
             padding=design.Space.XL,
             border=ft.Border.only(left=ft.BorderSide(4, bar_color)),
             shadow=design.layered_shadow(2, bar_color),
@@ -604,9 +603,8 @@ class InventarioTab(ScrollMemoryListView):
                 f"{w.damage_dice or '?'} (1 mano) / {w.versatile_damage_dice} (2 mani)",
                 11,
             ))
-        # 2026-07-17, bug report Davide (punto 2, esteso per coerenza anche
-        # qui — prima solo la card Combattimento mostrava il testo, qui
-        # c'era solo il badge "magica" senza descrizione).
+        # Mostra il testo per coerenza con la card Combattimento: qui
+        # altrimenti resterebbe solo il badge "magica" senza descrizione.
         if w.is_magical and w.magic_description and w.magic_description.strip():
             content_rows.append(ft.Row([
                 ft.Icon(ft.Icons.AUTO_AWESOME, size=11, color=design.T().warning),
@@ -617,10 +615,9 @@ class InventarioTab(ScrollMemoryListView):
         if _ref_line is not None:
             content_rows.append(_ref_line)
 
-        # Il bordo sinistro colorato sostituisce la sidebar Container (evita STRETCH)
-        # 2026-07-17: Container(expand=True) invece di Column(expand=True) —
-        # stesso fix/motivazione di _armor_card più sotto (bug overflow
-        # orizzontale web, punto 7 del bug report Davide).
+        # Il bordo sinistro colorato sostituisce la sidebar Container (evita STRETCH).
+        # Container(expand=True) invece di Column(expand=True): stessa
+        # motivazione di _armor_card più sotto (evita overflow orizzontale web).
         return ft.Container(
             content=ft.Row([
                 ft.Container(content=ft.Column(content_rows, spacing=4), expand=True),
@@ -748,9 +745,8 @@ class InventarioTab(ScrollMemoryListView):
             ], spacing=6),
             ft.Row(badge_items, spacing=6, wrap=True),
         ]
-        # 2026-07-17, bug report Davide (punto 2): il badge "effetti" era
-        # solo un'icona a stella, il testo vero non compariva mai in
-        # nessuna vista — mostrato ora per intero.
+        # Il testo degli effetti va mostrato per intero, non solo come
+        # icona a stella: altrimenti non compare in nessuna vista.
         if item.effects and item.effects.strip():
             content_rows.append(ft.Row([
                 ft.Icon(ft.Icons.AUTO_AWESOME, size=11, color=design.T().warning),
@@ -763,16 +759,15 @@ class InventarioTab(ScrollMemoryListView):
         if _ref_line is not None:
             content_rows.append(_ref_line)
 
-        # 2026-07-17, bug report Davide (punto 7): un ft.Column senza
-        # vincoli di larghezza dentro un Row non va mai a capo — con un
-        # testo lungo (es. descrizione magica) il Row si allarga oltre i
-        # margini della finestra invece di avvolgere il testo, forzando un
-        # ridimensionamento manuale in web. Fix: la Column che contiene il
-        # testo viene avvolta in un ft.Container(expand=True) — MAI
-        # Column(expand=True) direttamente, che in questo progetto ha già
-        # causato un crash silenzioso di rendering in contesti ListView
-        # (vedi CLAUDE.md, "EXPAND=True su Column dentro Row..."). Il
-        # Container(expand=True) è invece il workaround già stabilito per
+        # Un ft.Column senza vincoli di larghezza dentro un Row non va mai a
+        # capo — con un testo lungo (es. descrizione magica) il Row si
+        # allarga oltre i margini della finestra invece di avvolgere il
+        # testo. La Column che contiene il testo va quindi avvolta in un
+        # ft.Container(expand=True) — MAI Column(expand=True) direttamente,
+        # che in questo progetto ha già causato un crash silenzioso di
+        # rendering in contesti ListView (vedi CLAUDE.md, "EXPAND=True su
+        # Column dentro Row..."). Il Container(expand=True) è invece il
+        # workaround già stabilito per
         # ottenere lo stesso risultato (colonna che riempie lo spazio
         # residuo del Row, testo che va a capo) senza quel rischio.
         return ft.Container(
@@ -1090,10 +1085,10 @@ class InventarioTab(ScrollMemoryListView):
                         "0" if is_new else str(weapon.damage_bonus),
                         ft.KeyboardType.NUMBER)
 
-        # Categoria PHB dell'arma (2026-07-17) — usata per determinare la
-        # competenza confrontandola con le competenze arma del personaggio
+        # Categoria PHB dell'arma, usata per determinare la competenza
+        # confrontandola con le competenze arma del personaggio
         # (proficiency_type="weapon"). Richiesta anche per armi homebrew:
-        # "l'arma anche creata a mano è comunque di un certo tipo" (Davide).
+        # anche un'arma creata a mano è comunque di un certo tipo.
         category_dd = ft.Dropdown(
             label="Categoria (per calcolo competenza)",
             value=(weapon.weapon_category or None) if not is_new else None,
@@ -1190,10 +1185,10 @@ class InventarioTab(ScrollMemoryListView):
         if versatile_cb is not None:
             versatile_cb.on_change = _on_versatile_toggle
 
-        # Autofill dal catalogo PHB (equipment/weapons.json) — 2026-07-16,
-        # richiesta Davide: scegliendo il tipo dalla tendina, la scheda si
-        # autoriempie con dado danno/tipo/proprietà/gittata di quell'arma;
-        # i campi restano comunque liberamente modificabili dopo.
+        # Autofill dal catalogo PHB (equipment/weapons.json): scegliendo il
+        # tipo dalla tendina, la scheda si autoriempie con dado
+        # danno/tipo/proprietà/gittata di quell'arma; i campi restano
+        # comunque liberamente modificabili dopo.
         catalog_dd = ft.Dropdown(
             label="Tipo (autoriempi da catalogo PHB)",
             value=None,
@@ -1494,8 +1489,7 @@ class InventarioTab(ScrollMemoryListView):
         update_weapon (anche quando non cambiano): altrimenti, dato che
         update_weapon li accetta con default vuoti/False, un semplice
         equip/disequip azzererebbe silenziosamente l'impugnatura/il dado a
-        due mani già impostati su un'arma Versatile (bug trovato il
-        2026-07-11 mentre si implementava il grip Versatile — vedi CLAUDE.md).
+        due mani già impostati su un'arma Versatile (vedi CLAUDE.md).
         """
         return character_repo.update_weapon(
             weapon.id, weapon.name,
@@ -1661,9 +1655,8 @@ class InventarioTab(ScrollMemoryListView):
         attuned = [it for it in self._items if it.is_attuned]
         used = len(attuned)
         p = design.T()
-        # Audit anti-AI-slop (2026-08-18): icona HANDSHAKE rimossa — il testo
-        # adiacente dice già "Sintonia" esplicitamente (e la sezione è già
-        # titolata "Sintonia" dall'header sopra).
+        # Nessuna icona: il testo adiacente dice già "Sintonia" esplicitamente
+        # (e la sezione è già titolata "Sintonia" dall'header sopra).
         rows: list[ft.Control] = [
             ft.Row(
                 [
@@ -1852,7 +1845,7 @@ class InventarioTab(ScrollMemoryListView):
         # "weapon" ("Armi (riserva)") deliberatamente assente dalle scelte
         # normali: le armi si creano sempre nella sezione Armi dedicata
         # (tabella weapons), non più come categoria di oggetto generico —
-        # vedi CLAUDE.md 2026-07-11 "Armi riserva". Riaggiunta come opzione
+        # vedi CLAUDE.md "Armi riserva". Riaggiunta come opzione
         # SOLO se si sta modificando un item che ha già questa categoria
         # (es. una migrazione automatica fallita, vedi
         # _migrate_legacy_weapon_items): il Dropdown di Flet richiede che
@@ -1900,10 +1893,10 @@ class InventarioTab(ScrollMemoryListView):
             focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
             border_radius=design.field_style()['border_radius'])
-        # Autofill dal catalogo PHB (equipment/armor.json) — 2026-07-16,
-        # richiesta Davide: scegliendo il "Tipo" dalla tendina, la scheda si
-        # autoriempie con CA/tipo/peso di quell'armatura; i campi restano
-        # comunque liberamente modificabili dopo (nessun campo bloccato).
+        # Autofill dal catalogo PHB (equipment/armor.json): scegliendo il
+        # "Tipo" dalla tendina, la scheda si autoriempie con CA/tipo/peso di
+        # quell'armatura; i campi restano comunque liberamente modificabili
+        # dopo (nessun campo bloccato).
         catalog_dd = ft.Dropdown(
             label="Tipo (autoriempi da catalogo PHB)",
             value=None,
@@ -2076,11 +2069,10 @@ class InventarioTab(ScrollMemoryListView):
         """
         Riga di sola consultazione con costo/peso PHB per un'arma o
         un'armatura, risolta dal catalogo `equipment/weapons.json`/
-        `equipment/armor.json` (task #22, 2026-07-16 — wiring read-only,
-        nessuna modifica allo schema DB o al calcolo del peso trasportato
-        già esistente, ambito confermato con Davide). Ritorna None se il
-        nome non risolve nel catalogo (es. armi/armature homebrew inserite
-        a mano, o "Abito comune" — non è un errore, è previsto).
+        `equipment/armor.json` (wiring read-only: nessuna modifica allo
+        schema DB o al calcolo del peso trasportato già esistente). Ritorna
+        None se il nome non risolve nel catalogo (es. armi/armature homebrew
+        inserite a mano, o "Abito comune" — non è un errore, è previsto).
 
         `kind`: "weapon" o "armor".
         """
@@ -2171,7 +2163,7 @@ class InventarioTab(ScrollMemoryListView):
             pass
         # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
         # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
-        # singola azione (bug B10, revisione 2026-07-26).
+        # singola azione.
         self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

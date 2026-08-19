@@ -9,9 +9,8 @@ p.82-83 — sezioni "Soglie di PE per Livello del Personaggio", "Moltiplicatori
 degli Incontri" e "Dimensioni del Gruppo". Tutti i valori sono stati letti
 visivamente dalle pagine renderizzate del PDF (`pdftoppm`, non `pdftotext`/
 OCR — il dump testuale automatico di queste due tabelle presenta corruzione
-OCR su diverse cifre, es. "l.100" al posto di "1.100", "so" al posto di "50")
-il 2026-07-24. Nessun dato indovinato, tradotto da un'altra edizione/lingua o
-preso dal web.
+OCR su diverse cifre, es. "l.100" al posto di "1.100", "so" al posto di "50").
+Nessun dato indovinato, tradotto da un'altra edizione/lingua o preso dal web.
 
 La tabella "Punti Esperienza per Grado di Sfida" (PE-per-GS, Cap.9 del DMG)
 NON serve trascriverla qui: `data/game_data/monsters.json` (444 mostri, già
@@ -25,8 +24,8 @@ from __future__ import annotations
 
 # ---------------------------------------------------------------------------
 # Soglie di PE per Livello del Personaggio — DMG IT p.82, tabella completa,
-# verificata visivamente (pdftoppm) il 2026-07-24. Nessun livello oltre il
-# 20° esiste nel manuale.
+# verificata visivamente (pdftoppm). Nessun livello oltre il 20° esiste nel
+# manuale.
 # ---------------------------------------------------------------------------
 PE_THRESHOLDS_BY_LEVEL: dict[int, dict[str, int]] = {
     1:  {"facile": 25,   "medio": 50,   "difficile": 75,   "letale": 100},

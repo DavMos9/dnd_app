@@ -1,10 +1,10 @@
 """
 Picker "libreria file personaggio" — usato in modalità web (browser, deploy
 Docker) per l'IMPORT di un personaggio esportato in precedenza, esattamente
-con lo stesso principio già stabilito e validato da ui/image_library.py
-(2026-07-12): ft.FilePicker è strutturalmente non utilizzabile in web mode
-(bug upstream Flet confermato, vedi CLAUDE.md), quindi al posto di un vero
-upload dal client, Davide copia il file .dndchar sul server via SSH
+con lo stesso principio già stabilito e validato da ui/image_library.py:
+ft.FilePicker è strutturalmente non utilizzabile in web mode (bug upstream
+Flet confermato, vedi CLAUDE.md), quindi al posto di un vero upload dal
+client, il file .dndchar viene copiato sul server via SSH
 (scp/rsync) in una cartella dedicata — vedi
 data/database.py → get_character_exports_path() — e questo modulo mostra un
 picker con l'elenco dei file lì presenti, con un'anteprima di nome/classe/

@@ -139,8 +139,8 @@ class MasterNotesView(ft.Column):
     `DiaryView` ma senza Cronaca e senza `character_id` (indipendente da ogni
     personaggio).
 
-    **`world_id` (2026-08-06)** — il mondo correntemente selezionato in
-    `MasterView`, "" per la modalità locale. Determina:
+    **`world_id`** — il mondo correntemente selezionato in `MasterView`,
+    "" per la modalità locale. Determina:
 
     1. quali note sono visibili qui (`get_master_campaign_notes(world_id=...)`
        — una nota nasce legata al mondo attivo al momento della creazione e
@@ -149,25 +149,23 @@ class MasterNotesView(ft.Column):
        selezionato ha senso scegliere chi tra i giocatori può vedere una
        nota (vedi `multiplayer_design.md` §7).
 
-    **Nota onesta**: questo passo registra correttamente l'intenzione del
-    Master (`visibility`/`visible_to_device_ids`, persistite nel DB), ma NON
-    ancora la consegna effettiva ai dispositivi dei giocatori — serve un
-    nuovo tipo di evento nel giornale del mondo più una schermata lato
-    giocatore che oggi non esiste. Vedi CLAUDE.md.
+    La consegna ai dispositivi dei giocatori è effettiva: `visibility`/
+    `visible_to_device_ids` (persistite nel DB) sono lette da
+    `master_repo.get_notes_visible_to()` e mostrate nel Diario del
+    personaggio (`DiaryView._merge_shared_notes()`), in coda alla categoria
+    corrispondente.
 
-    **`is_mobile` (2026-08-06, bug report Davide su smartphone reale —
-    screenshot)**: il layout a due pannelli fissi ("SEZIONI" a 200px +
-    pannello di lettura con 56px di padding orizzontale per lato) presumeva
+    **`is_mobile`**: il layout a due pannelli fissi ("SEZIONI" a 200px +
+    pannello di lettura con 56px di padding orizzontale per lato) presume
     implicitamente una finestra larga almeno ~500-600px. Su uno smartphone
-    stretto (~360-380px) il pannello di lettura restava con appena 40-50px
-    utili — non "un po' stretto", davvero insufficiente a mostrare testo,
-    da cui "le note vengono tagliate ed escono fuori dallo schermo" (parole
-    di Davide). Fix: sotto il breakpoint mobile (`_MOBILE_BP = 600`,
-    riusato da `MasterView._compact_tabs`, non un valore nuovo — stesso
-    principio già seguito per la tab bar) i due pannelli non stanno più
-    fianco a fianco ma si alternano a schermo intero (categorie+lista, poi
-    il dettaglio di una nota, con un pulsante "← indietro" per tornare) —
-    stesso pattern di drill-down già in uso per `MasterEncounterListView` ↔
+    stretto (~360-380px) il pannello di lettura resterebbe con appena
+    40-50px utili — davvero insufficiente a mostrare testo. Sotto il
+    breakpoint mobile (`_MOBILE_BP = 600`, riusato da
+    `MasterView._compact_tabs`, non un valore nuovo — stesso principio già
+    seguito per la tab bar) i due pannelli non stanno più fianco a fianco
+    ma si alternano a schermo intero (categorie+lista, poi il dettaglio di
+    una nota, con un pulsante "← indietro" per tornare) — stesso pattern di
+    drill-down già in uso per `MasterEncounterListView` ↔
     `MasterEncounterView`. Il padding generoso del pannello "pergamena"
     (56px orizzontali) resta invariato su schermi larghi, dove è
     un'intenzione estetica valida, e si riduce solo sotto il breakpoint."""
@@ -369,15 +367,13 @@ class MasterNotesView(ft.Column):
         )
 
         return ft.Container(
-            # Un'unica regione scrollabile per tutto il pannello (fix
-            # 2026-07-30, bug report di Davide: con la finestra ridotta le
-            # categorie in fondo — Fazioni, Eventi… — restavano fuori schermo
-            # e non c'era modo di raggiungerle). Prima la lista era una
-            # `ListView(expand=True)` dentro una Column NON scrollabile: le
-            # voci sopra la occupavano tutta l'altezza e il resto veniva
-            # semplicemente tagliato. Ora scorre l'intero pannello, e la lista
-            # e' una Column normale — niente scroll annidato, stessa regola
-            # gia' stabilita per il CardPicker.
+            # Un'unica regione scrollabile per tutto il pannello: se solo la
+            # lista scorresse (`ListView(expand=True)` dentro una Column NON
+            # scrollabile) le voci sopra occuperebbero tutta l'altezza e le
+            # categorie in fondo — Fazioni, Eventi… — resterebbero fuori
+            # schermo senza modo di raggiungerle. Qui scorre l'intero
+            # pannello, e la lista è una Column normale — niente scroll
+            # annidato, stessa regola già stabilita per il CardPicker.
             # Su mobile lo scroll di questo pannello è responsabilità della
             # `MasterNotesView` esterna (un solo pannello alla volta, header
             # incluso, scorrono insieme) — niente scroll annidato. Su
@@ -394,7 +390,7 @@ class MasterNotesView(ft.Column):
             # pannello di dettaglio (desktop/tablet, vedi _build()) — su
             # mobile questo pannello è l'unico visibile e deve prendersi
             # tutta la larghezza dello schermo, non restare bloccato a
-            # 200px (bug report Davide, vedi docstring della classe).
+            # 200px (vedi docstring della classe).
             width=(None if self._is_mobile else 200),
             # Non più `expand=self._is_mobile`: su mobile questo pannello è
             # un figlio naturale della `MasterNotesView` scrollabile (vedi
@@ -522,10 +518,8 @@ class MasterNotesView(ft.Column):
             page_content_items.append(ft.Row(status_row, alignment=ft.MainAxisAlignment.CENTER))
             page_content_items.append(ft.Container(height=10))
 
-        # Indicatore di visibilità (2026-08-06) — solo se legata a un mondo:
-        # senza, ogni nota è per definizione "solo locale", ridondante da
-        # ripetere. Promemoria onesto: registra l'intenzione del Master, la
-        # consegna ai giocatori non è ancora implementata (vedi CLAUDE.md).
+        # Indicatore di visibilità — solo se legata a un mondo: senza, ogni
+        # nota è per definizione "solo locale", ridondante da ripetere.
         if self._world_id and note.visibility != "private":
             vis_label = ("Visibile a tutti i giocatori" if note.visibility == "all"
                          else "Visibile a giocatori selezionati")
@@ -620,7 +614,7 @@ class MasterNotesView(ft.Column):
                     # riquadro categorie (desktop/tablet) — su mobile, dove
                     # questo pannello prende tutto lo schermo, lasciava
                     # appena 40-50px utili al testo su un telefono stretto:
-                    # ridotto (bug report Davide, vedi docstring classe).
+                    # ridotto (vedi docstring classe).
                     padding=ft.Padding.symmetric(
                         horizontal=(16 if self._is_mobile else 56),
                         vertical=(20 if self._is_mobile else 32)),
@@ -631,7 +625,7 @@ class MasterNotesView(ft.Column):
         )
 
     # ──────────────────────────────────────────────────────────────────────
-    # Visibilità (2026-08-06) — solo con un mondo selezionato
+    # Visibilità — solo con un mondo selezionato
     # ──────────────────────────────────────────────────────────────────────
 
     def _build_visibility_section(self, current_visibility: str, current_ids_json: str) -> ft.Control:
@@ -682,18 +676,13 @@ class MasterNotesView(ft.Column):
             value=current_visibility or "private",
             options=[ft.DropdownOption(key=k, text=label) for k, label in _VISIBILITY_OPTIONS],
             border_color=design.T().border, focused_border_color=design.T().primary,
-            # Causa reale trovata 2026-08-16 (il fix "difensivo" via solo
-            # `menu_style`, tentato prima, non bastava: confermato ancora
-            # rotto da Davide su build reale): NON `bgcolor="transparent"`.
-            # `menu_style.bgcolor` (sotto) governa ombra/forma/bordo del
-            # popup, ma in questa versione di Flet il riempimento del menu
-            # a tendina segue il `bgcolor` del CAMPO stesso — un campo
-            # trasparente produce un popup trasparente che lascia
-            # intravedere il contenuto sottostante (da qui "sfondo nero":
-            # l'overlay di elevazione Material di default dietro). Ogni
-            # altro Dropdown dell'app con `**design.field_style()` (bgcolor
-            # opaco) non ha mai mostrato questo sintomo — correlazione
-            # confermata su tutti e tre i Dropdown di questo file.
+            # NON `bgcolor="transparent"`. `menu_style.bgcolor` (sotto)
+            # governa ombra/forma/bordo del popup, ma in questa versione di
+            # Flet il riempimento del menu a tendina segue il `bgcolor` del
+            # CAMPO stesso — un campo trasparente produce un popup
+            # trasparente che lascia intravedere il contenuto sottostante
+            # (l'overlay di elevazione Material di default dietro, che
+            # appare come "sfondo nero").
             bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_3, size=11),
             border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'],
             menu_style=ft.MenuStyle(
@@ -745,11 +734,8 @@ class MasterNotesView(ft.Column):
             value=note.status or (opts[0] if opts else ""),
             options=[ft.DropdownOption(key=s, text=s) for s in opts],
             border_color=design.T().border, focused_border_color=design.T().primary,
-            # 2026-08-16: NON "transparent" — vedi il commento su
-            # `_nf_visibility` qui sopra, causa reale del menu a tendina
-            # semitrasparente/nero (correlazione confermata: ogni Dropdown
-            # rotto in questo file aveva `bgcolor="transparent"`, quelli con
-            # `**design.field_style()` — bgcolor opaco — mai segnalati rotti).
+            # NON "transparent" — vedi il commento su `_nf_visibility` qui
+            # sopra, causa del menu a tendina semitrasparente/nero.
             bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_3, size=11),
             border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])
         self._nf_tags = ft.TextField(
@@ -1094,12 +1080,12 @@ class MasterNotesView(ft.Column):
     def set_mobile(self, is_mobile: bool) -> None:
         """
         Aggiornamento "in place" quando la finestra viene ridimensionata
-        MENTRE questa vista è già a video (2026-08-06, chiamato da
+        MENTRE questa vista è già a video, chiamato da
         `MasterView.set_mobile()` — vedi il suo docstring per il contesto
-        completo del bug: prima d'ora il layout a due colonne fisse restava
-        quello scelto all'apertura, quindi ridimensionare la finestra dal
-        vivo non aveva alcun effetto e il testo del pannello di dettaglio
-        poteva restare tagliato).
+        completo: senza, il layout a due colonne fisse resterebbe quello
+        scelto all'apertura, quindi ridimensionare la finestra dal vivo non
+        avrebbe alcun effetto e il testo del pannello di dettaglio potrebbe
+        restare tagliato.
 
         Passa dal layout a due colonne al drill-down (o viceversa) SENZA
         perdere la categoria/nota correntemente selezionata (`_active_cat`/

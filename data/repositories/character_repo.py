@@ -142,12 +142,10 @@ def get_all_instances_of_world(world_id: str) -> list[Character]:
     """
     TUTTE le istanze di `world_id`, comprese quelle archiviate — a
     differenza di `get_master_visible_characters()` sotto, che filtra
-    `world_instance_archived=0` per la Sezione Master (2026-08-12,
-    "Esportazione del mondo" §6.3/§9D: un backup/trasferimento di campagna
-    deve portare con sé anche le istanze rimosse, non solo quelle attive —
-    altrimenti un'espulsione o una rimozione singola diventerebbe
-    silenziosamente definitiva al primo export/import, contraddicendo la
-    scelta esplicita di non cancellarle mai).
+    `world_instance_archived=0` per la Sezione Master: un backup/trasferimento
+    di campagna deve portare con sé anche le istanze rimosse, non solo quelle
+    attive, altrimenti un'espulsione o una rimozione singola diventerebbe
+    silenziosamente definitiva al primo export/import.
     """
     conn = None
     try:
@@ -168,10 +166,7 @@ def get_all_instances_of_world(world_id: str) -> list[Character]:
 def get_master_visible_characters(world_id: str = "") -> list[Character]:
     """
     Personaggi rilevanti per il contesto correntemente selezionato nella
-    Modalità Master (2026-08-06) — fix di due bug segnalati da Davide con
-    un'unica causa: i picker personaggi della Sezione Master (Tesoro,
-    Oggetto Magico, Bottino, partecipanti a un Incontro) chiamavano
-    `get_all()`, che non ha mai filtrato per mondo.
+    Modalità Master.
 
     A differenza di `get_all()` (usato da `HomeView`, che mostra insieme
     personaggi locali E istanze, partizionati in sezioni distinte), qui i due
@@ -180,22 +175,19 @@ def get_master_visible_characters(world_id: str = "") -> list[Character]:
 
     - `world_id == ""` ("Nessun mondo" / modalità locale, default): solo i
       personaggi locali (`characters.world_id == ''`). Le istanze di
-      QUALSIASI mondo restano escluse — risolve "in Master escono i
-      personaggi di ogni mondo mescolati".
+      QUALSIASI mondo restano escluse.
     - `world_id` valorizzato: solo le istanze DI QUEL mondo
       (`characters.world_id == world_id`). L'originale locale da cui
-      un'istanza è nata non compare mai accanto alla sua istanza — risolve
-      "il player entrato in un mondo appare duplicato".
+      un'istanza è nata non compare mai accanto alla sua istanza.
     """
     conn = None
     try:
         conn = get_connection()
         if world_id:
-            # world_instance_archived (2026-08-07, §7): un'istanza il cui
-            # proprietario è stato espulso dal mondo resta nel DB (non
-            # distruttivo, riattivabile — vedi `archive_world_instances()`)
-            # ma sparisce dalla Sezione Master, che è esattamente il
-            # problema segnalato da Davide ("resta collegato per sempre").
+            # world_instance_archived: un'istanza il cui proprietario è stato
+            # espulso dal mondo resta nel DB (non distruttivo, riattivabile —
+            # vedi `archive_world_instances()`) ma sparisce dalla Sezione
+            # Master.
             rows = conn.execute(
                 "SELECT * FROM characters WHERE world_id = ? AND world_instance_archived = 0 "
                 "ORDER BY updated_at DESC",
@@ -356,18 +348,9 @@ def create(character: Character) -> bool:
             "frenzy_active": int(character.frenzy_active),
             "concentrating_spell": character.concentrating_spell or "",
             "concentrating_since": character.concentrating_since or "",
-            # Mondi condivisi (2026-08-06 — bug reale trovato mentre si
-            # verificava il fix della Modalità Master world-scoped: queste 5
-            # colonne esistono su `Character` e sono già scritte da
-            # `update()`, ma `create()` non le aveva MAI incluse nell'INSERT,
-            # quindi passare un `Character` con `world_id` già valorizzato a
-            # `create()` lo perdeva silenziosamente — invisibile finché
-            # nessun chiamante lo faceva: l'unico punto di scrittura reale,
-            # `core/character_instances.py._link_to_world()`, aggira il
-            # problema con un UPDATE separato subito dopo il create(). Corretto
-            # qui alla radice per coerenza con `update()` e per non lasciare
-            # la trappola per il prossimo chiamante che si aspetti — a
-            # ragione — che `create()` persista l'intero oggetto passato.
+            # Colonne mondi condivisi: create() deve persistere l'intero
+            # Character passato, incluso `world_id` ed eventuali altri campi
+            # già valorizzati — non solo update() li scrive.
             "world_id": _s(character.world_id),
             "origin_character_id": _s(character.origin_character_id),
             "owner_device_id": _s(character.owner_device_id),
@@ -391,11 +374,11 @@ def create(character: Character) -> bool:
                 (character.id, level)
             )
 
-        # Multiclasse (2026-08-12): riga primaria in character_classes, fonte
-        # derivata da characters.class_name/subclass/level — mai il contrario.
-        # Senza questo insert un personaggio appena creato in QUESTA sessione
-        # (non backfillato da _migrate, che gira solo su characters già
-        # esistenti al momento di init_db()) risulterebbe senza classi.
+        # Riga primaria in character_classes, fonte derivata da
+        # characters.class_name/subclass/level — mai il contrario. Senza
+        # questo insert un personaggio appena creato in QUESTA sessione (non
+        # backfillato da _migrate, che gira solo su characters già esistenti
+        # al momento di init_db()) risulterebbe senza classi.
         import uuid as _uuid_mc
         conn.execute(
             """INSERT INTO character_classes
@@ -567,9 +550,8 @@ def update(character: Character) -> bool:
 
 def archive_world_instances(world_id: str, owner_device_id: str) -> int:
     """
-    Archivia (2026-08-07, §7 — vedi `_add_column` in `data/database.py` per
-    il ragionamento completo) tutte le istanze di `world_id` possedute da
-    `owner_device_id` — chiamata da `core.world_backend._handle_member_kick`
+    Archivia tutte le istanze di `world_id` possedute da `owner_device_id` —
+    chiamata da `core.world_backend._handle_member_kick`
     subito dopo l'espulsione del membro, sull'HOST (autoritativo): NON
     tocca personaggi locali (`world_id == ''` non può mai comparire nel
     filtro) né istanze di altri proprietari.
@@ -580,11 +562,9 @@ def archive_world_instances(world_id: str, owner_device_id: str) -> int:
     ancora mai stato creato in quel mondo).
 
     Riattivabile SOLO tramite una richiesta di rientro approvata dal master
-    (2026-08-12, `unarchive_world_instance()` sotto — chiamata unicamente da
-    `core/world_backend.py::_handle_character_rejoin_respond`) — MAI in
-    automatico al resync: un commento precedente di questa funzione
-    affermava il contrario, ma nessun punto del codice lo ha mai
-    implementato davvero (verificato con grep sull'intero repo).
+    (`unarchive_world_instance()` sotto — chiamata unicamente da
+    `core/world_backend.py::_handle_character_rejoin_respond`) — mai in
+    automatico al resync.
     """
     conn = None
     try:
@@ -606,17 +586,16 @@ def archive_world_instances(world_id: str, owner_device_id: str) -> int:
 
 def archive_world_instance(world_id: str, character_id: str) -> bool:
     """
-    Archivia UNA singola istanza di personaggio in un mondo (2026-08-12,
-    `CMD_CHARACTER_INSTANCE_REMOVE`) — a differenza di
+    Archivia UNA singola istanza di personaggio in un mondo
+    (`CMD_CHARACTER_INSTANCE_REMOVE`) — a differenza di
     `archive_world_instances` sopra (tutte le istanze di un dispositivo,
     chiamata dopo l'espulsione del membro), questa la usa il master per
     rimuovere UN personaggio dal mondo mentre il suo giocatore resta
     membro (es. morte permanente, doppione). Stessa non-distruttività
-    già decisa con Davide per l'espulsione: mai `character_repo.delete()`,
-    la riga resta nel DB — riattivabile SOLO tramite una richiesta di
-    rientro approvata dal master (2026-08-12, vedi `unarchive_world_instance()`
-    sotto), esattamente come un'istanza archiviata da un kick, mai in
-    automatico.
+    dell'espulsione: mai `character_repo.delete()`, la riga resta nel DB —
+    riattivabile SOLO tramite una richiesta di rientro approvata dal master
+    (vedi `unarchive_world_instance()` sotto), esattamente come un'istanza
+    archiviata da un kick, mai in automatico.
 
     Ritorna False se il personaggio non esiste o non appartiene a questo
     mondo (fail-closed, stesso principio dell'handler che la chiama).
@@ -643,8 +622,8 @@ def archive_world_instance(world_id: str, character_id: str) -> bool:
 
 def unarchive_world_instance(character_id: str) -> bool:
     """
-    Toglie l'archiviazione di UN'istanza (2026-08-12, "Richiesta di
-    rientro") — controparte di `archive_world_instance()` sopra. Unico
+    Toglie l'archiviazione di UN'istanza — controparte di
+    `archive_world_instance()` sopra. Unico
     punto del codice che scrive `world_instance_archived=0`: chiamato
     SOLO da `core/world_backend.py::_handle_character_rejoin_respond`
     quando il master accetta con `mode="frozen"` (per `mode=
@@ -674,9 +653,9 @@ def unarchive_world_instance(character_id: str) -> bool:
 
 def set_host_sync_pending(character_id: str, pending: bool) -> bool:
     """
-    Segna/toglie `host_sync_pending` su un'istanza di mondo (2026-08-18, bug
-    segnalato da Davide: push verso l'host fallito per host offline mai
-    ritentato). Acceso da `ui/views/home_view.py::_push_instance_to_host`
+    Segna/toglie `host_sync_pending` su un'istanza di mondo — usato per
+    ritentare un push verso l'host fallito (es. host offline). Acceso da
+    `ui/views/home_view.py::_push_instance_to_host`
     quando il comando `character_instance.sync` fallisce; spento lì stesso al
     successo, o da `core/world_sync.py::push_pending_instances` quando il
     retry in background va a buon fine.
@@ -780,11 +759,9 @@ def _save_single_proficiency(
 
 # Token bare per le competenze bonus di sottoclasse ("bonus_proficiencies"
 # in classes/*.json), stessa convenzione già usata da "armor_proficiencies"/
-# "weapon_proficiencies" a livello di classe (normalizzazione del
-# 2026-07-10: "#armature_pesanti" -> "pesanti", ecc.). Aggiunte qui il
-# 2026-07-16 insieme alla normalizzazione degli stessi tag rimasti rotti
-# in chierico.json/bardo.json (vedi CLAUDE.md, TODO "bonus_proficiencies
-# nelle sottoclassi di chierico.json/bardo.json").
+# "weapon_proficiencies" a livello di classe (i tag legacy con prefisso "#",
+# es. "#armature_pesanti", sono normalizzati in "pesanti" ecc. prima di
+# arrivare qui).
 _ARMOR_PROFICIENCY_TOKENS = {"leggere", "medie", "pesanti", "scudi"}
 _WEAPON_PROFICIENCY_TOKENS = {"semplice", "semplice_mischia", "guerra", "guerra_mischia"}
 
@@ -846,8 +823,7 @@ def _classify_bonus_proficiency_type(entry_name: str) -> str:
     # categoria — usato da armor_proficiencies/weapon_proficiencies a
     # livello di CLASSE BASE (es. mago.json: Pugnale/Dardo/Fionda/Bastone
     # Ferrato/Balestra Leggera), mai da bonus_proficiencies di sottoclasse
-    # finora. Verificato che tutti i nomi usati in questo campo nei 12 file
-    # classe risolvono esattamente in equipment/weapons.json (2026-07-16).
+    # finora.
     if game_data.get_weapon(entry_name):
         return "weapon"
     return "tool"
@@ -855,10 +831,10 @@ def _classify_bonus_proficiency_type(entry_name: str) -> str:
 
 def apply_subclass_bonus_proficiencies(character_id: str, resolved_entries: list[str]) -> None:
     """
-    Salva le competenze bonus di una sottoclasse (`bonus_proficiencies`,
-    normalizzato in chierico.json/bardo.json il 2026-07-16 — generico per
-    qualunque sottoclasse futura con lo stesso campo, es. ladro.json ->
-    Assassino). `resolved_entries` è la lista FINALE di nomi già risolti:
+    Salva le competenze bonus di una sottoclasse (`bonus_proficiencies`) —
+    generico per qualunque sottoclasse futura con lo stesso campo, es.
+    ladro.json -> Assassino. `resolved_entries` è la lista FINALE di nomi
+    già risolti:
     sia le voci fisse (token armatura/arma bare o nomi letterali) sia le
     scelte del giocatore per le entry "choice" (risolte dalla UI PRIMA di
     questa chiamata, tramite resolve_bonus_proficiency_choice_options()).
@@ -902,31 +878,25 @@ def apply_subclass_bonus_proficiencies(character_id: str, resolved_entries: list
 def apply_class_base_proficiencies(character_id: str, class_name: str) -> None:
     """
     Applica le competenze di armatura/arma della CLASSE BASE
-    (`armor_proficiencies`/`weapon_proficiencies` in classes/*.json) —
-    gap segnalato in CLAUDE.md ("Competenze armatura/armi base-classe mai
-    applicate"): questi due campi esistono in tutti e 12 i file classe fin
-    dalla prima trascrizione JSON, ma nessun codice li aveva mai letti né
-    salvati come `character_proficiencies` — non vanno confusi con
-    `bonus_proficiencies` di SOTTOCLASSE (già applicato da
-    apply_subclass_bonus_proficiencies(), es. armatura pesante dal Dominio
-    della Vita del Chierico), che è un campo diverso a un livello diverso
-    del JSON.
+    (`armor_proficiencies`/`weapon_proficiencies` in classes/*.json) — non
+    vanno confuse con `bonus_proficiencies` di SOTTOCLASSE (già applicato
+    da apply_subclass_bonus_proficiencies(), es. armatura pesante dal
+    Dominio della Vita del Chierico), che è un campo diverso a un livello
+    diverso del JSON.
 
     Riusa la stessa infrastruttura già scritta per le sottoclassi
     (classify_bonus_proficiency_entries per separare eventuali entry
     "choice" da quelle fisse, apply_subclass_bonus_proficiencies per il
-    salvataggio deduplicato) invece di reimplementare la stessa logica —
-    verificato che nei 12 file classe attuali armor_proficiencies/
-    weapon_proficiencies sono SEMPRE liste piatte di stringhe (nessuna
-    entry "choice" a questo livello, a differenza di tool_proficiencies
-    che la usa già ed è gestito a parte da _class_tool_choices() nella UI
-    di creazione) — se in futuro un file classe ne introducesse una,
-    viene ignorata con un warning invece di far fallire la creazione del
-    personaggio su un dato imprevisto.
+    salvataggio deduplicato) invece di reimplementare la stessa logica.
+    Assume che armor_proficiencies/weapon_proficiencies siano sempre liste
+    piatte di stringhe (a differenza di tool_proficiencies, che usa entry
+    "choice" ed è gestito a parte da _class_tool_choices() nella UI di
+    creazione): se un file classe ne introducesse una, viene ignorata con
+    un warning invece di far fallire la creazione del personaggio.
 
     Idempotente (via apply_subclass_bonus_proficiencies): sicura da
     richiamare anche come self-healing ad ogni apertura di scheda, per
-    backfillare i personaggi creati prima di questo fix (2026-07-16).
+    backfillare i personaggi creati prima di questa funzione.
     """
     cls_data = game_data.get_class(class_name or "")
     if not cls_data:
@@ -1098,7 +1068,7 @@ def undo_level(character_id: str, level_removed: int) -> bool:
     ('feat', 'asi_record'), quindi:
     - per ogni riga con bonus_data: applica l'inverso su characters
     - rimuove le competenze concesse dal talento (bonus_data["granted_proficiencies"],
-      es. Abile/Corazze Leggere/Maestro d'Armi — 2026-07-16)
+      es. Abile/Corazze Leggere/Maestro d'Armi)
     - elimina le righe
 
     Il bonus PF permanente per-livello di eventuali talenti con
@@ -1195,8 +1165,8 @@ def remove_feat_with_bonuses(character_id: str, feat_name: str) -> bool:
         "initiative" → characters.initiative_bonus
         "speed"      → characters.speed
 
-    Oltre alla ricevuta ability/other/granted_proficiencies (2026-07-16,
-    stesso schema già in uso per i talenti scelti all'ASI), rimuove anche il
+    Oltre alla ricevuta ability/other/granted_proficiencies (stesso schema
+    già in uso per i talenti scelti all'ASI), rimuove anche il
     bonus PF permanente per-livello di talenti con hp_bonus_per_level (es.
     Robusto: 2×livello) — a differenza di undo_level() (dove questo delta è
     calcolato dal chiamante in profilo_tab.py, perché lì serve confrontare
@@ -1538,17 +1508,6 @@ def get_primary_character_class(character_id: str) -> CharacterClass | None:
     return None
 
 
-def character_has_class(character_id: str, class_name: str) -> bool:
-    """True se il personaggio ha almeno un livello nella classe indicata (case-insensitive)."""
-    target = (class_name or "").strip().lower()
-    if not target:
-        return False
-    return any(
-        cc.class_name.strip().lower() == target
-        for cc in get_character_classes(character_id)
-    )
-
-
 def get_class_display_string(character_id: str, fallback_class_name: str = "") -> str:
     """
     Stringa composita per la UI, es. "Guerriero 3 / Ladro 2" — calcolata
@@ -1622,10 +1581,9 @@ def set_character_class_subclass(character_classes_id: str, subclass: str) -> bo
     """
     Aggiorna la sottoclasse di UNA riga character_classes — controparte di
     `set_character_class_level()` per il selettore "quale classe sale?" del
-    level-up (2026-08-12): una classe SECONDARIA che sceglie la sottoclasse
-    in questo level-up la salva qui, mai su `characters.subclass` (che resta
-    sempre quella della classe primaria, vedi `CharacterClass` in
-    data/models.py).
+    level-up: una classe SECONDARIA che sceglie la sottoclasse in questo
+    level-up la salva qui, mai su `characters.subclass` (che resta sempre
+    quella della classe primaria, vedi `CharacterClass` in data/models.py).
     """
     conn = None
     try:
@@ -1797,15 +1755,9 @@ def apply_multiclass_proficiency_choices(
 
 
 # ---------------------------------------------------------------------------
-# Tabella PHB slot incantesimo per livello di personaggio
-#
-# Spostata in data/game_data/spell_slot_progressions.json il 2026-07-10 —
-# stesso principio già applicato a RACE_DATA/CLASSES/tags.json: i numeri
-# erano già stati verificati contro il manuale in sessioni di audit
-# precedenti, ma vivevano solo come dizionari Python invece che come dato
-# JSON. GameDataLoader.get_caster_type()/get_spell_slot_table() sono
-# l'unica fonte ora — nessun valore è cambiato in questa migrazione
-# (confrontato con uno script di diff automatico prima della rimozione).
+# Tabella PHB slot incantesimo per livello di personaggio: vive in
+# data/game_data/spell_slot_progressions.json.
+# GameDataLoader.get_caster_type()/get_spell_slot_table() sono l'unica fonte.
 # ---------------------------------------------------------------------------
 
 
@@ -2026,7 +1978,7 @@ def sync_bonus_domain_spells(character: "Character") -> None:
     del chierico/paladino/druido e sono SEMPRE preparati, non contano nel
     numero di incantesimi che il personaggio può preparare.
 
-    Dati letti (nessun nuovo audit manuale, stessi JSON già verificati):
+    Dati letti:
       - chierico.json / paladino.json → subclasses[i].bonus_spells,
         dict {"livello_soglia": [nomi]} (es. Paladino Giuramento degli
         Antichi: {"3": ["Colpo Intrappolante", "Parlare con gli Animali"],
@@ -2351,10 +2303,9 @@ def upsert_known_spell(
     True se questo pick è "libero da vincolo di scuola" (vedi KnownSpell in
     data/models.py). Ignorato/sempre False per tutte le altre classi.
 
-    is_bonus/always_prepared: usano `None` come sentinel "non specificato"
-    (2026-07-16, task incantesimi bonus/sempre pronti) — a differenza degli
-    altri parametri con default `False`/`""`, qui serve distinguere "il
-    chiamante non sa/non vuole toccare questo flag" da "il chiamante vuole
+    is_bonus/always_prepared: usano `None` come sentinel "non specificato" —
+    a differenza degli altri parametri con default `False`/`""`, qui serve
+    distinguere "il chiamante non sa/non vuole toccare questo flag" da "il chiamante vuole
     esplicitamente False". Motivo: molti punti del codice (toggle
     preparazione normale, SPELL_LEARN, Segreti Magici, ecc.) chiamano questa
     funzione su un incantesimo che potrebbe già esistere come bonus o
@@ -2486,8 +2437,7 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
 
     weapon_category/proficiency_override/finesse_ability/
     attack_total_override/attack_override_value: calcolo automatico del
-    tiro per colpire (2026-07-17) — vedi core/weapon_calculator.py e
-    CLAUDE.md.
+    tiro per colpire — vedi core/weapon_calculator.py e CLAUDE.md.
     """
     import uuid as _uuid
     conn = None
@@ -2945,7 +2895,7 @@ def delete_campaign_note(note_id: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Abilità Speciali custom (2026-07-16)
+# Abilità Speciali custom
 # ---------------------------------------------------------------------------
 
 def get_custom_abilities(character_id: str, category: str | None = None) -> list:
@@ -3114,9 +3064,8 @@ def update_max_prepared_override(character_id: str, value: int) -> bool:
 def update_passive_perception_override(character_id: str, value: int) -> bool:
     """
     Salva l'override manuale della Percezione Passiva (0 = usa la formula PHB
-    10 + mod SAG + eventuale bonus competenza/maestria). Aggiunto 2026-07-16
-    su richiesta di Davide ("rendiamo modificabili... percezione passiva"),
-    stesso pattern di update_max_prepared_override/proficiency_bonus_override.
+    10 + mod SAG + eventuale bonus competenza/maestria) — stesso pattern di
+    update_max_prepared_override/proficiency_bonus_override.
     """
     conn = None
     try:
@@ -3138,9 +3087,8 @@ def update_passive_perception_override(character_id: str, value: int) -> bool:
 def update_carry_capacity_override(character_id: str, value: float) -> bool:
     """
     Salva l'override manuale della capacità di trasporto massima in kg
-    (0 = usa la formula standard FOR × 7,5 kg). Aggiunto 2026-07-16 su
-    richiesta di Davide ("rendiamo modificabili... il peso in Inventario")
-    — permette di riflettere talenti/tratti che alterano il carico
+    (0 = usa la formula standard FOR × 7,5 kg) — permette di riflettere
+    talenti/tratti che alterano il carico
     (es. "Corporatura Possente" raddoppia il carico) senza toccare la
     formula base né inventare un talento non ancora nei dati PHB.
     """
@@ -3247,8 +3195,7 @@ def update_speed(character_id: str, speed: float) -> bool:
     Aggiorna solo la velocità base a piedi del personaggio (senza toccare la
     CA, a differenza del dialog combinato "Modifica CA/Velocità" già
     esistente in combattimento_tab.py) — usata dal punto di modifica rapida
-    aggiunto in Esplorazione (2026-07-16, richiesta Davide: "rendiamo
-    modificabili... velocità").
+    in Esplorazione.
     """
     conn = None
     try:
@@ -3289,9 +3236,9 @@ def update_session_notes(character_id: str, notes: str) -> bool:
 def calculate_and_update_ca(character_id: str) -> int:
     """
     Ricalcola la CA del personaggio in base all'armatura e agli scudi equipaggiati,
-    e alle capacità di classe che modificano la formula di base (Categoria B
-    dell'audit 2026-07-09 — bonus condizionati all'equipaggiamento attuale, quindi
-    ricalcolati da zero ad ogni chiamata anziché salvati come "ricevuta" fissa).
+    e alle capacità di classe che modificano la formula di base (bonus
+    condizionati all'equipaggiamento attuale, quindi ricalcolati da zero ad
+    ogni chiamata anziché salvati come "ricevuta" fissa).
 
     Logica PHB, senza armatura equipaggiata:
       - Monaco (Difesa Senza Armatura, e nessuno scudo) → 10 + mod DES + mod SAG
@@ -3310,17 +3257,14 @@ def calculate_and_update_ca(character_id: str) -> int:
 
     Aggiorna il campo `ac` nel DB e restituisce il nuovo valore.
 
-    NOTA (2026-07-11): questa funzione presuppone che al massimo UN'armatura
-    corporea e UN solo scudo risultino equipaggiati alla volta — invariante
-    ora garantita a monte da `core/equipment_manager.py → resolve_armor_equip()`,
-    applicata da `inventario_tab.py` ad ogni equip di armatura/scudo (esclude
-    automaticamente l'altra armatura/scudo già indossato). Prima di questo
-    fix, equipaggiarne una seconda senza disequipaggiare la prima lasciava
-    `equipped_armor[0]` legato per sempre al primo item creato: la CA
-    sembrava "non aggiornarsi più" nonostante l'equipaggiamento cambiasse.
-    Questa funzione resta comunque difensiva (prende sempre e solo il primo
-    risultato) nel caso l'invariante venga violata da un percorso di codice
-    futuro che non passi da resolve_armor_equip().
+    NOTA: questa funzione presuppone che al massimo UN'armatura corporea e
+    UN solo scudo risultino equipaggiati alla volta — invariante garantita a
+    monte da `core/equipment_manager.py → resolve_armor_equip()`, applicata
+    da `inventario_tab.py` ad ogni equip di armatura/scudo (esclude
+    automaticamente l'altra armatura/scudo già indossato). Questa funzione
+    resta comunque difensiva (prende sempre e solo il primo risultato) nel
+    caso l'invariante venga violata da un percorso di codice futuro che non
+    passi da resolve_armor_equip().
     """
     from config.settings import get_modifier
     conn = None
@@ -3390,20 +3334,19 @@ def get_effective_speed(character: Character) -> float:
     eventuali override manuali del giocatore e del bonus fisso del
     Talento Mobile, applicato come ricevuta diretta su `speed`) il bonus
     dinamico concesso da alcune capacità di classe condizionate
-    all'equipaggiamento attualmente indossato (Categoria B dell'audit
-    2026-07-09, parte Velocità).
+    all'equipaggiamento attualmente indossato.
 
-    Decisione architetturale (confermata da Davide 2026-07-09): a differenza
-    della CA, `speed` ha già due meccanismi consolidati (override manuale in
-    Combattimento, bonus Talento Mobile) che scriverebbero un valore assoluto
-    in conflitto con un ricalcolo automatico persistito. Questa funzione
+    Decisione architetturale: a differenza della CA, `speed` ha già due
+    meccanismi consolidati (override manuale in Combattimento, bonus Talento
+    Mobile) che scriverebbero un valore assoluto in conflitto con un
+    ricalcolo automatico persistito. Questa funzione
     quindi NON scrive mai sul DB: il bonus di classe viene ricalcolato al
     volo ad ogni chiamata e va sommato dal chiamante solo dove serve
     mostrare/usare la velocità effettiva. `character.speed` in DB resta
     sempre il valore "base" (razza + override manuale + Talento Mobile),
     intatto e mai sovrascritto da questa funzione.
 
-    Casi gestiti (PHB, testo confermato nei file classe già auditati ✅):
+    Casi gestiti (PHB):
       - Monaco, "Movimento Senza Armatura" (dal 2° livello): +3 m, se non
         indossa armatura né scudo. Il bonus non è cumulativo: sale a +4,5 m
         al 6°, +6 m al 10°, +7,5 m al 14°, +9 m al 18° (sostituisce, non si
@@ -3511,9 +3454,8 @@ def update_class_resource(resource_id: str, current_value: int) -> bool:
 
 def update_class_resource_bonus(resource_id: str, max_value_bonus: int) -> bool:
     """
-    Imposta il bonus permanente additivo al massimo di una risorsa di classe
-    (2026-07-16, richiesta Davide: "rendiamo modificabili... Risorse di
-    classe"). Non tocca max_value/current_value direttamente: il chiamante
+    Imposta il bonus permanente additivo al massimo di una risorsa di classe.
+    Non tocca max_value/current_value direttamente: il chiamante
     deve far seguire un `init_class_resources()` per ricalcolare max_value
     = default PHB + bonus (stesso pattern già usato per sincronizzare le
     risorse dopo un level-up), altrimenti il bonus resterebbe salvato ma
@@ -3573,7 +3515,7 @@ def init_class_resources(
         current_value = min(current_value, nuovo_max).
       - Risorse nel DB ma non più nei defaults → eliminate.
 
-    Multiclasse (2026-08-12): le risorse di classe non si fondono MAI tra
+    Multiclasse: le risorse di classe non si fondono MAI tra
     classi diverse (Rage del Barbaro e Ki del Monaco restano due pool
     distinti anche sullo stesso personaggio) — ma la strategia di rimozione
     sopra è un "replace totale" per nome, quindi chiamarla una volta per
@@ -3646,9 +3588,9 @@ def init_class_resources(
                     # additivo non si applica (non esiste "infinito+N").
                     new_max = -1
                 else:
-                    # Bonus permanente additivo (2026-07-16, talenti/oggetti
-                    # magici che concedono usi extra a una risorsa) — deve
-                    # sopravvivere a questo stesso ri-sync, che altrimenti
+                    # Bonus permanente additivo (talenti/oggetti magici che
+                    # concedono usi extra a una risorsa) — deve sopravvivere
+                    # a questo stesso ri-sync, che altrimenti
                     # sovrascriverebbe max_value col solo valore PHB.
                     new_max = base_max + (ex.max_value_bonus or 0)
                 if new_max < 0:
@@ -3980,7 +3922,7 @@ def update_turn_state(character_id: str, action: bool, bonus: bool,
 
 
 # ---------------------------------------------------------------------------
-# Concentrazione (Fase 4, feature 2a — PHB p.203-204)
+# Concentrazione (PHB p.203-204)
 # ---------------------------------------------------------------------------
 
 
@@ -4021,15 +3963,13 @@ def add_xp(character_id: str, delta: int) -> int | None:
     """
     Somma punti esperienza a un personaggio e ritorna il nuovo totale.
 
-    Nata come l'assegnazione PE lato master (Fase 4, feature 4b, autorizzata
-    esplicitamente da Davide il 2026-07-30), sempre preceduta da un dialog di
-    conferma che mostra chi riceve quanto. Dal passo 6 del Multiplayer
-    (2026-08-06) è anche la funzione applicata da
-    `core/world_backend._handle_xp_grant` quando il bersaglio è un'istanza di
-    un mondo condiviso: non più l'unica scrittura del master su un personaggio
-    giocante (vedi gli altri handler in quel modulo per danno/cura/
-    condizioni/risorse/abilità/incantesimi bonus/diario), ma resta l'unico
-    punto che tocca `characters.xp` — nessuna logica duplicata altrove.
+    Usata sia per l'assegnazione PE diretta lato master (sempre preceduta da
+    un dialog di conferma che mostra chi riceve quanto) sia da
+    `core/world_backend._handle_xp_grant` quando il bersaglio è un'istanza
+    di un mondo condiviso (vedi gli altri handler in quel modulo per
+    danno/cura/condizioni/risorse/abilità/incantesimi bonus/diario) — resta
+    l'unico punto che tocca `characters.xp`, nessuna logica duplicata
+    altrove.
 
     Il livello NON viene toccato: sale il giocatore dalla propria scheda, dove
     sceglie HP/ASI/incantesimi. L'app mostra solo il badge "Sali di Livello"
@@ -4083,7 +4023,7 @@ def set_item_attunement(item_id: str, attuned: bool) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Condizioni (Fase 4, feature 2b — Appendice A del PHB)
+# Condizioni (Appendice A del PHB)
 # ---------------------------------------------------------------------------
 
 
@@ -4184,8 +4124,8 @@ def condition_effects(character_id: str) -> dict[str, Any]:
     """
     Unione degli effetti meccanici delle condizioni attive.
 
-    Usata SOLO per i promemoria contestuali in sola lettura (scelta di Davide,
-    2026-07-30): l'app segnala "svantaggio" accanto ai tiri, non lo applica.
+    Usata SOLO per i promemoria contestuali in sola lettura: l'app segnala
+    "svantaggio" accanto ai tiri, non lo applica.
     """
     from data.game_data.game_data_loader import game_data as _gd
 

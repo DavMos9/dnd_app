@@ -1,8 +1,8 @@
 """
 Picker "libreria file mondo" — usato in modalità web per l'IMPORT di un
-mondo esportato in precedenza (`.dndworld`, passo 9D) — stesso identico
-principio di `ui/character_transfer.py` (2026-07-24): `ft.FilePicker` è
-strutturalmente non utilizzabile in web mode, quindi Davide copia il file
+mondo esportato in precedenza (`.dndworld`) — stesso identico
+principio di `ui/character_transfer.py`: `ft.FilePicker` è
+strutturalmente non utilizzabile in web mode, quindi il file viene copiato
 sul server via SSH/scp nella stessa cartella condivisa già usata per
 `.dndchar` (`data/database.py::get_character_exports_path()` — nessuna
 cartella nuova, riusa quella esistente) e questo modulo mostra un picker

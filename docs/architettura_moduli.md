@@ -1162,10 +1162,9 @@ armature **pesanti**. Rimossi: `data/game_data/tags.json`, i metodi `expand_tags
 `weapons.json`), e `"#armature_leggere"`/`"#armature_medie"`/`"#armature_pesanti"`/`"#scudi"`/`"#armature_tutte"`
 in `armor_proficiencies` con `"leggere"`/`"medie"`/`"pesanti"`/`"scudi"` (`#armature_tutte` espanso a
 `["leggere","medie","pesanti"]`); corrette anche 8 voci con nome arma specifico ma case sbagliato (es. "Spada
-corta"→"Spada Corta", "Balestra a mano"→"Balestra a Mano") in monaco/ladro/bardo/mago/stregone. **Non toccato**
-(fuori scope, stesso identico problema ma in un campo diverso): `bonus_proficiencies` delle sottoclassi in
-`chierico.json`/`bardo.json` ha ancora gli stessi tag `#...` mai letti da nessun codice — già segnalato in questo
-file come dato non collegato, da sistemare insieme quando affronteremo quel "blocco unico". Verificato:
+corta"→"Spada Corta", "Balestra a mano"→"Balestra a Mano") in monaco/ladro/bardo/mago/stregone. **Nota (verificato in una revisione successiva)**: `bonus_proficiencies` delle sottoclassi in
+`chierico.json`/`bardo.json`, segnalato qui come fuori scope con gli stessi tag `#...` mai letti da nessun
+codice, non li contiene più — risolto in una sessione successiva non documentata qui. Verificato:
 `py_compile` su tutto l'albero; tutti i 12 file classe restano JSON validi;
 `get_weapon_names()`/`get_tool_categories()` testati end-to-end con gli stessi identici risultati di prima del
 refactor.

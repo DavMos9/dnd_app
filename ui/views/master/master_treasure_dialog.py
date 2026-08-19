@@ -8,16 +8,15 @@ esistente — riuso diretto di `character_repo.create_inventory_item()`/
 `get_currencies()`/`update_currencies()`, nessuna nuova funzione di
 scrittura personaggio (per istruzione esplicita del design doc).
 
-Include anche il pulsante "+ Cimelio" (Oggetti Insoliti, PHB p.160-161) —
-deciso con Davide il 2026-07-24: dentro questo dialog, non una voce di
-navigazione a sé (un tiro 1d100 senza parametri non giustifica una
-schermata dedicata).
+Include anche il pulsante "+ Cimelio" (Oggetti Insoliti, PHB p.160-161)
+dentro questo dialog, non una voce di navigazione a sé (un tiro 1d100
+senza parametri non giustifica una schermata dedicata).
 
 Accessibile da `MasterView` (bottone in header, "Genera Tesoro").
 
-**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 1/6)**: oltre
-alla scorciatoia "Aggiungi all'inventario" (un solo destinatario, invariata),
-due pulsanti "Assegna…"/"Salva nell'archivio" che aprono
+**Bottino** (`dnd_app/docs/loot_design.md` §6): oltre alla scorciatoia
+"Aggiungi all'inventario" (un solo destinatario, invariata), due pulsanti
+"Assegna…"/"Salva nell'archivio" che aprono
 `master_loot_assign_dialog.show_loot_assign_dialog()`/chiamano
 `save_items_to_stash()` sull'intero risultato del tiro (monete, gemme/oggetti
 d'arte, oggetti magici, cimelio) — così un tesoro tirato ma non ancora
@@ -47,13 +46,12 @@ def show_treasure_generator_dialog(page: ft.Page, world_id: str = "", device_id:
     logica di stato vive nella closure, tipico pattern già in uso nel
     progetto per i dialog Flet complessi (vedi profilo_tab.py/wizard_view.py).
 
-    `world_id` (2026-08-06): il mondo correntemente selezionato in
-    `MasterView` — "" per la modalità locale. Determina quali personaggi
-    compaiono come destinatari, vedi
-    `character_repo.get_master_visible_characters()`.
+    `world_id`: il mondo correntemente selezionato in `MasterView` — "" per
+    la modalità locale. Determina quali personaggi compaiono come
+    destinatari, vedi `character_repo.get_master_visible_characters()`.
 
-    `device_id` (2026-08-19): inoltrato a `show_loot_assign_dialog()` per
-    instradare l'assegnazione via rete quando `world_id` è valorizzato."""
+    `device_id`: inoltrato a `show_loot_assign_dialog()` per instradare
+    l'assegnazione via rete quando `world_id` è valorizzato."""
 
     mode_state: dict[str, str] = {"mode": "individual", "cr_band": "0-4"}
     result_state: dict[str, Any] = {}

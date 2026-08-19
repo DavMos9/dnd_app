@@ -44,8 +44,8 @@ logger = logging.getLogger(__name__)
 class _LevelingClassView:
     """
     Vista "quale classe sta salendo di livello", usata SOLO dentro
-    `_on_level_up_click` (2026-08-12, selettore classe per multiclasse):
-    espone `class_name`/`subclass` della classe BERSAGLIO di questo
+    `_on_level_up_click` per il selettore di classe in un level-up di
+    multiclasse: espone `class_name`/`subclass` della classe BERSAGLIO di questo
     level-up, e delega ogni altro attributo (id, punteggi, PF correnti,
     ecc. — sempre di PERSONAGGIO, mai di una singola classe) al Character
     reale sottostante, incluse le scritture (es. `c.hp_max += ...`
@@ -91,11 +91,11 @@ def _save_multiclass_known_spell(spell_name: str, class_name: str, character: Ch
     mai toccata in questa sessione per non introdurre rischio sul level-up
     esistente, vedi docs/multiclasse_design.md §8.3).
 
-    Riceve `character` (non solo `character_id`, 2026-08-19) e inoltra la
-    scrittura verso l'host se è un'istanza di mondo — vedi
-    `core.world_sync.push_character_self_command`, stesso principio del
-    fix di `CMD_HP_SELF_UPDATE`: prima questa scrittura restava solo sulla
-    replica locale e veniva persa al prossimo resync completo.
+    Riceve `character` (non solo `character_id`) e inoltra la scrittura
+    verso l'host se è un'istanza di mondo — vedi
+    `core.world_sync.push_character_self_command`: senza questo inoltro la
+    scrittura resta solo sulla replica locale e viene persa al prossimo
+    resync completo.
     """
     spell = next(
         (s for s in _loader.get_spells(class_name) if s.get("name") == spell_name), None
@@ -175,11 +175,10 @@ class ProfiloTab(ScrollMemoryListView):
         self._level_up_btn: ft.Control | None = None
         self._level_down_btn: ft.Control | None = None
 
-        # NOTA (2026-08-06): non c'è più un self._file_picker qui. ft.FilePicker
-        # è stato abbandonato per la selezione mobile — confermato non
-        # funzionante su build Android reali (vedi _pick_photo_mobile() e
-        # dnd_app/docs/changelog_storico.md, sezione FILE PICKER). Su
-        # Android/iOS la selezione ora passa da ui/mobile_webview_picker.py.
+        # Niente self._file_picker: ft.FilePicker non è utilizzabile (vedi
+        # did_mount più sotto). Su Android/iOS la selezione foto passa da
+        # ui/native_image_picker.py, con fallback su
+        # ui/mobile_webview_picker.py.
 
         self._build()
 
@@ -226,80 +225,14 @@ class ProfiloTab(ScrollMemoryListView):
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
 
-        # Registra il FilePicker SUBITO al mount, non al click — MA SOLO su
-        # mobile (Android/iOS). Storia del fix, in quattro tempi, tutti
-        # confermati con Davide:
-        # 1) Teoria iniziale (poi confermata insufficiente): puro problema
-        #    di timing/handshake lato client (bug "noto" upstream
-        #    flet-dev/flet#6250/#6251) — fix tentato: registrare prima.
-        # 2) Davide ha segnalato che l'errore compariva "all'istante senza
-        #    nemmeno cliccare sull'immagine" — sintomo incompatibile con una
-        #    race di timing. Nuova ipotesi: serviva il vero upload
-        #    client→server (page.get_upload_url() + FilePicker.upload()),
-        #    implementato di conseguenza.
-        # 3) Ricerca diretta sulla issue tracker upstream di Flet (confermata
-        #    con Davide) ha rivelato che il problema NON è affatto risolvibile
-        #    lato applicazione in modalità WEB: flet-dev/flet#6040/#6250/#6251
-        #    documentano che, a partire da Flet ^0.80.1 (versione attuale del
-        #    progetto: 0.85.3), i controlli "Service" come FilePicker in
-        #    modalità web (server-side rendering, es. Docker) sono
-        #    strutturalmente rotti — il solo AGGIUNGERE FilePicker a
-        #    page.overlay, indipendentemente da QUANDO lo si fa, produce
-        #    "Unknown control" o TimeoutException. Fix applicato allora:
-        #    `not self._page.web` — registra ovunque TRANNE che sul web.
-        # 4) (2026-07-16) Davide ha segnalato lo STESSO identico banner rosso
-        #    "Unknown control: FilePicker" avviando l'app nativa da terminale
-        #    (desktop macOS, non web) — la condizione `not self._page.web`
-        #    del punto 3 è insufficiente: include anche il desktop, che
-        #    secondo la primissima regola scritta in cima a questo stesso
-        #    CLAUDE.md ("ft.FilePicker su DESKTOP Flet 0.85.3 → 'Unknown
-        #    control: FilePicker' — NON usare") non supporta il controllo
-        #    ESATTAMENTE come il web, per lo stesso motivo pratico (il solo
-        #    registrarlo in page.overlay basta a far comparire il banner,
-        #    prima ancora di qualunque click) — semplicemente non era mai
-        #    stato notato prima perché nessuno aveva ancora testato un lancio
-        #    nativo da terminale dopo l'introduzione di questo did_mount().
-        #    Il resto del codice (_pick_photo() sotto, `_pick_photo_desktop()`)
-        #    già instrada correttamente il desktop su un subprocess nativo
-        #    (osascript/PowerShell/zenity) e non ha MAI avuto bisogno di
-        #    FilePicker — solo did_mount() lo registrava comunque, senza
-        #    motivo, introducendo il bug. Fix definitivo: restringere la
-        #    registrazione ai soli platform Android/iOS (stessa condizione
-        #    già usata da _pick_photo() per instradare la UI), mai su
-        #    desktop o web.
-        # 5) (2026-08-06) Davide ha segnalato lo STESSO identico banner rosso
-        #    "Unknown control: FilePicker" — stavolta su Android reale,
-        #    apparso già alla semplice apertura della Home (non di questa
-        #    tab: ma home_view.py aveva lo stesso identico blocco "registra
-        #    al mount su Android/iOS", copiato da qui). L'assunzione del
-        #    punto 4 ("su Android/iOS funziona") non era mai stata
-        #    verificata su un vero dispositivo — il codice era corretto
-        #    nella sintassi (letta dal sorgente Flet installato), mai
-        #    testato end-to-end. Coerente col punto 3 (registrazione
-        #    anticipata = stesso errore del click, solo mostrato prima): tolta
-        #    la registrazione eager anche qui. Resta SOLO il fallback lazy in
-        #    `_pick_photo_mobile()` sotto (registra al primo tocco reale del
-        #    pulsante foto, se non già presente) — se anche quello fallisce
-        #    con lo stesso errore, il problema è più profondo (FilePicker
-        #    non utilizzabile affatto su questa build Android) e va
-        #    affrontato a parte con un redesign, non con un altro
-        #    aggiustamento di timing.
-        # 6) (2026-08-06, stessa giornata) Confermato con un log adb logcat
-        #    reale: il punto 5 aveva ragione fino in fondo. Dopo aver
-        #    corretto un vero bug Python indipendente (un `await` mancante
-        #    su `pick_files()`, vedi vecchia versione di `_pick_photo_mobile()`
-        #    più sotto nello storico git), un secondo log ha mostrato che la
-        #    chiamata arriva al bridge Dart ma va in `TimeoutException:
-        #    Timeout waiting for invoke method listener` — nessuna Activity
-        #    nativa Android viene mai avviata (verificato sul log completo,
-        #    non filtrato). `ft.FilePicker` non è utilizzabile su questa
-        #    build, senza appello. **Non si usa più affatto qui**: la
-        #    registrazione lazy di cui sopra è stata rimossa insieme a
-        #    `self._file_picker` — `_pick_photo_mobile()` ora usa
-        #    `ui/mobile_webview_picker.py` (WebView locale + `<input
-        #    type=file>`, meccanismo del tutto diverso, non condivide questo
-        #    bug). Punti 1-5 lasciati intatti per lo storico della diagnosi,
-        #    come da convenzione di questo progetto.
+        # Nessun ft.FilePicker viene registrato qui: è un bug noto upstream
+        # (flet-dev/flet#6040/#6250/#6251) — su web/desktop la sola presenza
+        # del controllo in page.overlay produce "Unknown control: FilePicker",
+        # e su Android reale finisce comunque in TimeoutException perché non
+        # viene mai avviata alcuna Activity nativa. La selezione foto su
+        # mobile passa da ui/native_image_picker.py (estensione nativa), con
+        # fallback su ui/mobile_webview_picker.py — nessuno dei due condivide
+        # questo problema.
 
     # ------------------------------------------------------------------
     # Header foto + XP + Level Up
@@ -340,24 +273,9 @@ class ProfiloTab(ScrollMemoryListView):
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=design.field_style()['border_radius'])
 
-        # Pulsanti Livello Su/Giù — dimensionati tre volte lo stesso giorno
-        # su feedback diretto di Davide (2026-07-16):
-        # 1) Prima erano due IconButton da 22px (sole frecce monocolore,
-        #    senza testo), infilati nella riga "Lv.N/Comp.+N" — facili da
-        #    perdere. Fix tentato: pulsanti pieni con etichetta lunga
-        #    ("▲ Sali a Lv.9"), riga dedicata, colore pieno — troppo
-        #    ingombranti ("i tasti level up e down li volevo più visibili
-        #    ma così è troppo").
-        # 2) Via di mezzo (icone circolari 30px, nessun testo): tornato
-        #    troppo minimale — task successivo "testo + dimensione media"
-        #    chiede esplicitamente sia un'etichetta testuale sia una taglia
-        #    intermedia, non solo un'icona colorata.
-        # 3) Versione attuale: due ElevatedButton/OutlinedButton compatti con
-        #    icona + etichetta breve fissa ("Su"/"Giù", non il numero di
-        #    livello dinamico che aveva reso ingombrante il tentativo #1),
-        #    altezza 30px, font 12px — via di mezzo reale tra le due
-        #    estremità già provate. Tooltip mantiene il dettaglio testuale
-        #    completo ("Sali a Lv.9") per chi passa sopra col mouse.
+        # Pulsanti Livello Su/Giù: icona + etichetta breve fissa ("Su"/"Giù",
+        # non il numero di livello dinamico, che li rende troppo ingombranti),
+        # altezza 30px. Tooltip riporta il dettaglio completo ("Sali a Lv.9").
         self._level_up_btn = ft.ElevatedButton(
             content=ft.Row([
                 ft.Icon(ft.Icons.ARROW_UPWARD, size=14, color=design.T().on_primary),
@@ -386,15 +304,14 @@ class ProfiloTab(ScrollMemoryListView):
             ),
             height=30,
         )
-        # Multiclasse (2026-08-12): terzo pulsante, stesso stile compatto di
-        # Level down (azione meno frequente/più impegnativa di Level up, mai
-        # PIÙ prominente di quello) — apre il dialog "Aggiungi una classe"
-        # (nuova classe a livello 1, competenze ridotte PHB IT p.164, MAI il
-        # dialog di level-up esistente che sale sempre e solo la classe
-        # primaria). Limite: max 2 classi totali (PHB IT p.163, "Multiclasse"
-        # — il manuale non prevede più di due classi per personaggio), oltre
-        # al tetto di livello 20 totale già condiviso con Level up (fix
-        # 2026-08-12, bug report Davide: l'app permetteva 3+ classi).
+        # Terzo pulsante, stesso stile compatto di Level down (azione meno
+        # frequente/più impegnativa di Level up, mai PIÙ prominente di quello)
+        # — apre il dialog "Aggiungi una classe" (nuova classe a livello 1,
+        # competenze ridotte PHB IT p.164, MAI il dialog di level-up esistente
+        # che sale sempre e solo la classe primaria). Limite: max 2 classi
+        # totali (PHB IT p.163, "Multiclasse" — il manuale non prevede più di
+        # due classi per personaggio), oltre al tetto di livello 20 totale
+        # già condiviso con Level up.
         _n_owned_classes = len(character_repo.get_character_classes(c.id))
         self._add_class_btn = ft.OutlinedButton(
             content=ft.Row([
@@ -415,28 +332,16 @@ class ProfiloTab(ScrollMemoryListView):
             height=30,
         )
 
-        # NOTA (2026-08-06, bug report Davide su smartphone reale — screenshot):
-        # i pulsanti Level up/Level down erano incolonnati DENTRO la Column
-        # accanto all'avatar, cioè figli di una Column che è a sua volta figlia
-        # della Row esterna [avatar, spacer, Column]. Una Row Flutter dà ai
-        # figli non-Expanded una larghezza massima ILLIMITATA lungo l'asse
-        # principale (non essendoci alcun `expand=True` sulla Column, vietato
-        # qui perché Column con expand=True dentro Row dentro ListView fa
-        # sparire i widget successivi in silenzio, vedi regole_flet_api.md) —
-        # quindi anche la Row interna con `wrap=True` riceveva una larghezza
-        # illimitata dalla Column che la conteneva, e un `Wrap` con vincolo di
-        # larghezza infinito non va mai a capo (nulla "eccede" un limite
-        # infinito): il risultato è una riga più larga del vero schermo fisico,
-        # tagliata dalla viewport reale. Fix strutturale, non solo `wrap=True`
-        # (già presente e già insufficiente da solo): i due pulsanti escono
-        # dalla Column-accanto-all'avatar e diventano una riga propria, figlia
-        # diretta della Column ESTERNA che è a sua volta l'unico contenuto del
-        # Container della card — quella Column eredita davvero la larghezza
-        # limitata del Container (che a sua volta la eredita, vincolata, dalla
-        # sua posizione di elemento della ListView) e la propaga ai figli, per
-        # cui la Row dei pulsanti riceve finalmente un vincolo di larghezza
-        # reale e `wrap=True` (lasciato come rete di sicurezza) può davvero
-        # scattare se necessario.
+        # I pulsanti Level up/Level down/Multiclasse devono essere una riga
+        # propria, figlia diretta della Column ESTERNA (non annidati in una
+        # Column dentro la Row [avatar, spacer, Column]): una Row Flutter dà
+        # ai figli non-Expanded una larghezza massima ILLIMITATA lungo l'asse
+        # principale, quindi una Row con `wrap=True` innestata lì dentro
+        # riceve a sua volta una larghezza illimitata e non va mai a capo
+        # (nulla "eccede" un limite infinito) — il risultato è una riga più
+        # larga dello schermo reale, tagliata dalla viewport. Da qui in giù,
+        # figli diretti della Column esterna, ricevono un vincolo di
+        # larghezza reale dal Container della card e `wrap=True` funziona.
         return ft.Container(
             content=ft.Column(
                 [
@@ -446,14 +351,13 @@ class ProfiloTab(ScrollMemoryListView):
                             ft.Container(width=14),
                             ft.Column(
                                 [
-                                    # Audit anti-AI-slop (2026-08-18): il nome del
-                                    # personaggio è il momento tipografico dominante
-                                    # del tab — `hero_title()` (Arcane Ledger), UN
-                                    # solo uso qui, testo semplice non interattivo
+                                    # Il nome del personaggio è il momento tipografico
+                                    # dominante del tab — `hero_title()` (Arcane Ledger),
+                                    # UN solo uso qui, testo semplice non interattivo
                                     # (il click per cambiare foto resta solo
-                                    # sull'avatar, invariato). Riga Lv./Comp. tenuta
-                                    # fuori dal `subtitle_text` di `hero_title()`
-                                    # per preservare l'accento oro su "Lv.N".
+                                    # sull'avatar). Riga Lv./Comp. tenuta fuori dal
+                                    # `subtitle_text` di `hero_title()` per preservare
+                                    # l'accento oro su "Lv.N".
                                     design.hero_title(c.name or "—"),
                                     ft.Row(
                                         [
@@ -479,12 +383,11 @@ class ProfiloTab(ScrollMemoryListView):
                     ),
                     ft.Container(height=6),
                     ft.Text(
-                        # Multiclasse (2026-08-12): get_class_display_string()
-                        # ritorna "NomeClasse Livello" a classe singola (stessa
-                        # forma di sempre) o "Guerriero 3 / Ladro 2" — mai una
-                        # stringa salvata, sempre ricalcolata da
+                        # get_class_display_string() ritorna "NomeClasse Livello" a
+                        # classe singola o "Guerriero 3 / Ladro 2" in multiclasse —
+                        # mai una stringa salvata, sempre ricalcolata da
                         # character_classes. La sottoclasse resta quella della
-                        # classe primaria (c.subclass, invariato).
+                        # classe primaria (c.subclass).
                         character_repo.get_class_display_string(c.id, c.class_name or "")
                         + (f" ({c.subclass})" if c.subclass else "")
                         + f"  •  {c.race or '—'}",
@@ -507,13 +410,12 @@ class ProfiloTab(ScrollMemoryListView):
                 spacing=3,
             ),
             bgcolor=design.T().surface,
-            # Audit anti-AI-slop (2026-08-18): unico elemento "hero" del tab —
-            # è la card d'identità del personaggio (foto, nome, livello,
-            # level up/down/multiclasse, XP), il primo contenuto della tab e
-            # il più consultato in assoluto. Prima era un semplice
-            # elevation(1) senza accento: bordo sinistro 4px + padding
-            # maggiorato + layered_shadow(2), stesso schema hero già usato
-            # per HP in combattimento_tab.py e Peso in inventario_tab.py.
+            # Unico elemento "hero" del tab: è la card d'identità del
+            # personaggio (foto, nome, livello, level up/down/multiclasse,
+            # XP), il primo contenuto della tab e il più consultato — bordo
+            # sinistro 4px + padding maggiorato + layered_shadow(2), stesso
+            # schema hero usato per HP in combattimento_tab.py e Peso in
+            # inventario_tab.py.
             padding=design.Space.XL,
             border=ft.Border.only(left=ft.BorderSide(4, design.T().primary)),
             shadow=design.layered_shadow(2, design.T().primary),
@@ -531,10 +433,9 @@ class ProfiloTab(ScrollMemoryListView):
             on_click=lambda e, s=section_key: self._open_edit_dialog(s),
             style=ft.ButtonStyle(color=design.T().text_3),
         )
-        # Audit anti-AI-slop (2026-08-18): `design.card()` al posto del
-        # Container manuale — stessa identica resa (bgcolor/padding/bordo
-        # sinistro/ombra/radius invariati, vedi design.card()), primitiva
-        # condivisa invece di una copia inline.
+        # `design.card()` al posto del Container manuale: stessa resa
+        # (bgcolor/padding/bordo sinistro/ombra/radius), primitiva condivisa
+        # invece di una copia inline.
         return design.card(
             ft.Column(
                 controls + [
@@ -593,10 +494,9 @@ class ProfiloTab(ScrollMemoryListView):
                 border_radius=design.Radius.SM,
                 on_click=cycle,
                 ink=True,
-                # Tooltip per-riga (2026-07-24, fix affordance "nulla di
-                # nascosto"): la legenda in cima al dialog spiega già il
-                # ciclo, ma qui rende esplicita anche la singola riga senza
-                # dover ricordare la legenda mentre si scorre l'elenco.
+                # La legenda in cima al dialog spiega già il ciclo, ma il
+                # tooltip per-riga lo rende esplicito anche qui, senza dover
+                # ricordare la legenda mentre si scorre l'elenco.
                 tooltip="Clicca per ciclare: ○ nessuna → ● competente → ★ maestria",
             )
 
@@ -684,9 +584,8 @@ class ProfiloTab(ScrollMemoryListView):
         )
 
     def _text_block(self, text: str) -> ft.Container:
-        # Audit anti-AI-slop (2026-08-18): `design.surface()` al posto del
-        # Container manuale — stessa resa (bgcolor alt/padding/radius SM/
-        # ombra invariati).
+        # `design.surface()` al posto del Container manuale: stessa resa
+        # (bgcolor alt/padding/radius SM/ombra).
         return design.surface(
             ft.Text(text or "—", size=13,
                     color=design.T().text if text else design.T().text_3),
@@ -845,10 +744,9 @@ class ProfiloTab(ScrollMemoryListView):
             abbr = ABILITY_ABBR[ABILITY_KEYS.index(ability_key)]
             skill_rows.append(_dot_row(skill_name, mod_str, is_prof, is_expert, f"({abbr})"))
 
-        # Due colonne per le abilità — `expand=True` su ENTRAMBE (fix
-        # 2026-08-16, bug report Davide: "la colonna destra delle abilità
-        # esce fuori dallo schermo"): senza, ogni `ft.Column` si dimensiona
-        # sulla larghezza naturale del proprio contenuto invece di dividersi
+        # Due colonne per le abilità — `expand=True` su ENTRAMBE: senza,
+        # ogni `ft.Column` si dimensiona sulla larghezza naturale del
+        # proprio contenuto invece di dividersi
         # lo spazio disponibile nella Row che le contiene — su schermi
         # stretti la somma delle due larghezze naturali eccede lo schermo,
         # e Flet non fa mai wrap automatico di una Row. Con `expand=True` su
@@ -866,10 +764,9 @@ class ProfiloTab(ScrollMemoryListView):
             style=ft.ButtonStyle(color=design.T().text_3),
         )
 
-        # Audit anti-AI-slop (2026-08-18): `design.surface()`/`design.card()`
-        # al posto dei Container manuali — stessa resa, `density="dense"`
-        # sulla card esterna (era già la sezione più dati-densa del tab:
-        # 6 tiri salvezza + 18 abilità).
+        # `design.surface()`/`design.card()` al posto dei Container manuali:
+        # stessa resa, `density="dense"` sulla card esterna (sezione più
+        # dati-densa del tab: 6 tiri salvezza + 18 abilità).
         return design.card(
             ft.Column(
                 [
@@ -905,12 +802,9 @@ class ProfiloTab(ScrollMemoryListView):
     # Competenze Armatura e Armi — sola lettura (armor_proficiencies/
     # weapon_proficiencies di classe, applicate automaticamente da
     # character_repo.apply_class_base_proficiencies() alla creazione/apertura
-    # tab). Spostata qui da EsplorazioneTab il 2026-07-16 (richiesta Davide:
-    # "le competenze non le dobbiamo lasciare in esplorazione ma andrebbero
-    # messe in profilo") — stessa sezione, stesso dato, solo superficie
-    # diversa. Il "+" non c'è di proposito: sono derivate dalla classe, non
-    # scelte del giocatore come Lingue/Strumenti (quelle restano in
-    # Esplorazione) — rimovibili comunque per eventuali house rule.
+    # tab). Il "+" non c'è di proposito: sono derivate dalla classe, non
+    # scelte del giocatore come Lingue/Strumenti — rimovibili comunque per
+    # eventuali house rule.
     # ------------------------------------------------------------------
 
     _ARMOR_TOKEN_LABELS: dict[str, str] = {
@@ -972,8 +866,8 @@ class ProfiloTab(ScrollMemoryListView):
                     )
                 )
 
-        # Audit anti-AI-slop (2026-08-18): `design.card()`, `density="dense"`
-        # (elenco competenze, dati-denso) — stessa resa del Container manuale.
+        # `design.card()`, `density="dense"` (elenco competenze, dati-denso):
+        # stessa resa del Container manuale.
         return design.card(
             ft.Column(rows, spacing=6),
             accent=design.T().primary,
@@ -981,11 +875,9 @@ class ProfiloTab(ScrollMemoryListView):
         )
 
     # ------------------------------------------------------------------
-    # Altre Competenze — Lingue, Strumenti, Veicoli, Giochi (2026-07-17,
-    # bug report Davide punti 5+6). Spostata qui da EsplorazioneTab
-    # (risposta di Davide alla domanda "dove vivono le competenze": "Tutto
-    # in Profilo") — stesso dato (proficiency_type "language"/"tool"),
-    # Esplorazione ora le mostra solo in sola lettura.
+    # Altre Competenze — Lingue, Strumenti, Veicoli, Giochi. Stesso dato
+    # (proficiency_type "language"/"tool") mostrato in sola lettura in
+    # Esplorazione.
     # ------------------------------------------------------------------
 
     def _section_altre_competenze(self) -> ft.Container:
@@ -1031,8 +923,8 @@ class ProfiloTab(ScrollMemoryListView):
                     )
                 )
 
-        # Audit anti-AI-slop (2026-08-18): `design.card()`, `density="dense"`
-        # (elenco competenze, dati-denso) — stessa resa del Container manuale.
+        # `design.card()`, `density="dense"` (elenco competenze, dati-denso):
+        # stessa resa del Container manuale.
         return design.card(
             ft.Column(rows, spacing=6),
             accent=design.T().primary,
@@ -1108,9 +1000,9 @@ class ProfiloTab(ScrollMemoryListView):
             bgcolor=design.T().surface,
             border_radius=design.field_style()['border_radius'])
         expert_cb = ft.Checkbox(label="Maestria (raddoppia il bonus competenza)", value=False)
-        # Audit anti-AI-slop (2026-08-18): `danger`, non `primary` — testo di
-        # errore di validazione, non un'etichetta/accento del brand (vedi
-        # Palette in design.py: i due registri sono ora separati).
+        # `danger`, non `primary`: testo di errore di validazione, non
+        # un'etichetta/accento del brand (i due registri sono separati in
+        # design.py).
         error_text = ft.Text("", size=11, color=design.T().danger)
 
         def _rebuild_catalog() -> None:
@@ -1219,9 +1111,7 @@ class ProfiloTab(ScrollMemoryListView):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
-                    # Audit anti-AI-slop (2026-08-18): `danger_fill`, non
-                    # `primary_fill` — conferma di un'eliminazione (stesso
-                    # fix già applicato in combattimento_tab.py).
+                    # `danger_fill`, non `primary_fill`: conferma di un'eliminazione.
                     "Rimuovi",
                     on_click=_confirm,
                     style=ft.ButtonStyle(bgcolor=design.T().danger_fill, color=design.T().on_primary_fill),
@@ -1326,7 +1216,7 @@ class ProfiloTab(ScrollMemoryListView):
                 feat_data = _loader.get_feat(prof.name)
                 desc   = feat_data.get("description", "") if feat_data else ""
                 prereq = feat_data.get("prerequisite", "") if feat_data else ""
-                # Audit anti-AI-slop (2026-08-18): `design.card()`, stessa resa.
+                # `design.card()`, stessa resa.
                 rows.append(design.card(
                     ft.Column([
                         ft.Row([
@@ -1380,9 +1270,7 @@ class ProfiloTab(ScrollMemoryListView):
             detail = f"Tipo di danno associato: {dmg_type}" if dmg_type else ""
             class_choices.append(("Antenato Draconico", c.dragon_ancestry, detail))
 
-        # --- Modifica Scelte di Classe (2026-07-16, richiesta Davide:
-        # "rendiamo modificabili anche i campi che non si possono
-        # modificare attualmente, come le scelte di classe in profilo") ---
+        # --- Modifica Scelte di Classe ---
         # Permette di CAMBIARE una scelta già fatta (non di anticiparne una
         # non ancora guadagnata: il dropdown compare solo per i campi già
         # valorizzati, esattamente come class_choices sopra) — stesse
@@ -1537,10 +1425,9 @@ class ProfiloTab(ScrollMemoryListView):
                 ))
 
         # --- Discipline Elementali (solo se Monaco, Via dei Quattro Elementi) ---
-        # Aggiunto 2026-07-16 insieme al picker Lv.3/6/11/17 in
-        # _on_level_up_click — prima non c'era alcuna sezione per vedere le
-        # discipline conosciute, stesso principio del Dono del Patto/
-        # Metamagia già mostrati qui.
+        # Stesso principio del Dono del Patto/Metamagia già mostrati qui:
+        # rende visibili le scelte fatte nel picker Lv.3/6/11/17 di
+        # _on_level_up_click.
         if (c.class_name or "").lower() == "monaco" and (c.subclass or "") == "Via dei Quattro Elementi":
             disciplines_known = [p for p in all_profs if p.proficiency_type == "monk_discipline"]
             _mk_all_data = _loader.get_subclass_data("Monaco", "Via dei Quattro Elementi") or {}
@@ -1587,10 +1474,9 @@ class ProfiloTab(ScrollMemoryListView):
 
         # --- Invocazioni Occulte + Patto (solo se Warlock) ---
         if (c.class_name or "").lower() == "warlock":
-            # Patto — stessa richiesta di editabilità delle Scelte di
-            # Classe sopra (2026-07-16), qui a parte perché il Dono del
-            # Patto vive nella propria sezione dedicata invece che in
-            # class_choices (Warlock Lv3+).
+            # Patto — stessa editabilità delle Scelte di Classe sopra, qui a
+            # parte perché il Dono del Patto vive nella propria sezione
+            # dedicata invece che in class_choices (Warlock Lv3+).
             def _open_pact_boon_edit(ev: Any) -> None:
                 page = self._page
                 if page is None or not c.pact_boon:
@@ -1714,13 +1600,10 @@ class ProfiloTab(ScrollMemoryListView):
 
     def _show_level_up_class_picker(self, owned_classes: list) -> None:
         """
-        Multiclasse (2026-08-12, bug report Davide: "quando multiclasso e
-        clicco su level up deve farmi scegliere quale classe aumentare") —
-        piccolo dialog anteposto al level-up esistente quando il
-        personaggio ha più di una classe (approccio già proposto in
-        docs/multiclasse_design.md §8.4): una card per classe posseduta,
-        click → richiama `_on_level_up_click` parametrizzato sulla classe
-        scelta invece che sempre sulla primaria.
+        Piccolo dialog anteposto al level-up esistente quando il personaggio
+        ha più di una classe (docs/multiclasse_design.md §8.4): una card per
+        classe posseduta, click → richiama `_on_level_up_click`
+        parametrizzato sulla classe scelta invece che sempre sulla primaria.
         """
         page = self._page
         if page is None:
@@ -1765,8 +1648,7 @@ class ProfiloTab(ScrollMemoryListView):
 
     def _on_level_up_click(self, e, target_class_name: str | None = None):
         c = self.character
-        # Multiclasse (2026-08-12, esteso 2026-08-12 con selettore classe):
-        # questo dialog sale la classe indicata da `target_class_name` — se
+        # Questo dialog sale la classe indicata da `target_class_name` — se
         # il personaggio ha più di una classe e non è ancora stato scelto un
         # bersaglio, mostra prima un piccolo dialog "quale classe sale?"
         # (_show_level_up_class_picker) e si ri-chiama da lì parametrizzato
@@ -1871,8 +1753,7 @@ class ProfiloTab(ScrollMemoryListView):
                                width=280, visible=False, **design.field_style())
         # Talento all'ASI: CardPicker (lista a schede) invece di Dropdown+ⓘ —
         # un solo click seleziona il talento e ne mostra subito la
-        # descrizione completa (redesign 2026-07-16, feedback Davide: il
-        # pattern "seleziona poi premi ⓘ" era macchinoso).
+        # descrizione completa, senza il passaggio extra "seleziona poi premi ⓘ".
         feat_dd = CardPicker(
             options=feat_card_options(_loader, feat_names),
             value=None,
@@ -1897,8 +1778,8 @@ class ProfiloTab(ScrollMemoryListView):
 
         # --- Competenze concesse dal talento scelto (proficiency_grants) ---
         # Talenti come Abile/Corazze Leggere/Maestro d'Armi/Linguista concedono
-        # competenze fisse o a scelta (feats.json -> proficiency_grants,
-        # gap fix 2026-07-16). feat_prof_col ospita N dropdown ricostruiti ad
+        # competenze fisse o a scelta (feats.json -> proficiency_grants).
+        # feat_prof_col ospita N dropdown ricostruiti ad
         # ogni cambio di talento, con esclusione reciproca tra loro e delle
         # competenze già possedute — stesso pattern già usato altrove nel
         # progetto per trucchetti Lv.1/strumenti di classe.
@@ -2104,7 +1985,7 @@ class ProfiloTab(ScrollMemoryListView):
         # [(picker, origin_unrestricted), ...] — 2 vincolati per scuola +
         # 1 libero (libero da vincolo per lo scambio futuro solo se il 3°
         # livello è tra gli unrestricted_origin_levels della sottoclasse,
-        # vedi CLAUDE.md 2026-07-15 — asimmetria reale Ladro/Guerriero)
+        # vedi CLAUDE.md — asimmetria reale Ladro/Guerriero)
         borrowed_initial_spell_refs: list[tuple[CardPicker, bool]] = []
         # Container la cui visibilità segue il valore del dropdown sottoclasse
         borrowed_initial_container_ref: list[ft.Container] = []
@@ -2114,7 +1995,7 @@ class ProfiloTab(ScrollMemoryListView):
         # Elementale automatica + 1 disciplina a scelta) — stesso motivo/
         # pattern del blocco Mistificatore Arcano/Cavaliere Mistico sopra,
         # gestita con reattività live sul dropdown sottoclasse (vedi blocco
-        # SUBCLASS_CHOICE più sotto). Aggiunto 2026-07-16.
+        # SUBCLASS_CHOICE più sotto).
         monk_initial_discipline_refs: list[CardPicker] = []
 
         # Crescita dal 4° livello in poi (BORROWED_CANTRIP/BORROWED_SPELL_LEARN):
@@ -2219,8 +2100,7 @@ class ProfiloTab(ScrollMemoryListView):
                     # GIA' persistito, quindi appaiono solo al level-up
                     # successivo), qui serve reattività live sul valore del
                     # dropdown perché la scelta va fatta nello STESSO
-                    # level-up in cui si sceglie la sottoclasse. Aggiunto
-                    # 2026-07-15, fix Mistificatore Arcano/Cavaliere Mistico.
+                    # level-up in cui si sceglie la sottoclasse.
                     _borrowed_name = _loader.get_borrowed_caster_subclass_name(lc.class_name or "")
                     if _borrowed_name:
                         borrowed_subclass_name_ref.append(_borrowed_name)
@@ -2348,7 +2228,7 @@ class ProfiloTab(ScrollMemoryListView):
                     # name("Monaco") == ""), quindi _sc_dd.on_select non è
                     # ancora stato impostato da nessun altro blocco a questo
                     # punto — assegnazione diretta, nessuna composizione
-                    # necessaria. Aggiunto 2026-07-16.
+                    # necessaria.
                     # ------------------------------------------------------
                     _MK3_SUBCLASS = "Via dei Quattro Elementi"
                     if lc.class_name == "Monaco" and _MK3_SUBCLASS in subclasses:
@@ -2721,9 +2601,8 @@ class ProfiloTab(ScrollMemoryListView):
 
                                 def _show_spell_info(ev, spell=sp) -> None:
                                     # ⓘ — mostra la descrizione completa dell'incantesimo
-                                    # PRIMA che il giocatore lo scelga (2026-07-16,
-                                    # richiesta Davide). Icona separata dal resto della
-                                    # riga: il tap non attiva anche _toggle.
+                                    # PRIMA che il giocatore lo scelga. Icona separata dal
+                                    # resto della riga: il tap non attiva anche _toggle.
                                     if not _pg:
                                         return
                                     _pg.show_dialog(ft.AlertDialog(
@@ -2954,8 +2833,8 @@ class ProfiloTab(ScrollMemoryListView):
                     _known_set: set[str] = {
                         ks.name for ks in character_repo.get_known_spells(c.id)
                     }
-                    # Lista Incantesimi Ampliata (Warlock, task #25, 2026-07-16)
-                    # — aggiunge al pool i nomi patrono-specifici (es. Il
+                    # Lista Incantesimi Ampliata (Warlock) — aggiunge al pool
+                    # i nomi patrono-specifici (es. Il
                     # Signore Fatato → Luminescenza/Sonno/...), MAI incantesimi
                     # gratuiti: il giocatore deve comunque scegliere di
                     # "spenderci" uno slot conosciuto, esattamente come per un
@@ -3060,8 +2939,8 @@ class ProfiloTab(ScrollMemoryListView):
                 # esclude eventuali incantesimi noti tramite Segreti Magici
                 # del Bardo — "da qualsiasi classe", non "da bardo").
                 max_lv = step.data.get("max_level", 9)
-                # Lista Incantesimi Ampliata (Warlock, task #25, 2026-07-16) —
-                # un incantesimo appreso in precedenza da questa lista (via
+                # Lista Incantesimi Ampliata (Warlock) — un incantesimo
+                # appreso in precedenza da questa lista (via
                 # SPELL_LEARN, vedi sopra) deve poter essere sostituito qui
                 # come un qualunque altro incantesimo "da warlock" — PHB:
                 # "questi incantesimi sono considerati incantesimi da warlock
@@ -3400,7 +3279,6 @@ class ProfiloTab(ScrollMemoryListView):
         # "totem" in sc_lower/"terra" in sc_lower non è mai vera nello stesso
         # level-up in cui si sceglie la sottoclasse, e al level-up
         # successivo new_level non coincide più con la soglia richiesta.
-        # Bug latente segnalato in CLAUDE.md (2026-07-15), fix 2026-07-16.
         # ------------------------------------------------------------------
         live_subclass_dd = subclass_dd_ref[0] if subclass_dd_ref else None
 
@@ -3476,11 +3354,11 @@ class ProfiloTab(ScrollMemoryListView):
                     _compose_on_select(live_subclass_dd, _on_sc_select_terrain)
 
         # ------------------------------------------------------------------
-        # Competenze bonus di sottoclasse (task #20, 2026-07-16) — es. Bardo
-        # Collegio della Conoscenza (3 abilità a scelta)/Collegio del Valore
-        # (armatura media+scudi+armi da guerra fisse), Ladro Assassino (2
-        # strumenti fissi). Stesso dato/stessa logica di wizard_view.py/
-        # manual_form.py (bonus_proficiencies in classes/*.json — vedi
+        # Competenze bonus di sottoclasse — es. Bardo Collegio della
+        # Conoscenza (3 abilità a scelta)/Collegio del Valore (armatura
+        # media+scudi+armi da guerra fisse), Ladro Assassino (2 strumenti
+        # fissi). Stesso dato/stessa logica di wizard_view.py/manual_form.py
+        # (bonus_proficiencies in classes/*.json — vedi
         # character_repo.classify_bonus_proficiency_entries()/
         # apply_subclass_bonus_proficiencies()), applicata qui al level-up
         # per le sottoclassi con subclass_choice_level != 1 (Chierico è
@@ -3614,14 +3492,14 @@ class ProfiloTab(ScrollMemoryListView):
             origin_unrestricted: solo per Mistificatore Arcano/Cavaliere
             Mistico (class_name="Mago" in quel caso) — True se questo pick è
             "libero da vincolo di scuola" (8°/14°/20° livello, +3° per il
-            Cavaliere Mistico — vedi CLAUDE.md 2026-07-15). Ignorato/sempre
+            Cavaliere Mistico — vedi CLAUDE.md). Ignorato/sempre
             False per tutte le altre chiamate esistenti.
             """
             all_spells = _loader.get_spells(class_name)
             spell = next((s for s in all_spells if s.get("name") == spell_name), None)
             if spell is None:
-                # Lista Incantesimi Ampliata (Warlock, task #25, 2026-07-16) —
-                # un nome scelto dal pool "ampliato" (es. Il Signore Fatato →
+                # Lista Incantesimi Ampliata (Warlock) — un nome scelto dal
+                # pool "ampliato" (es. Il Signore Fatato →
                 # Luminescenza) non è nella lista base della classe, va
                 # risolto qui. No-op per qualunque altra classe/sottoclasse.
                 spell = next(
@@ -3824,8 +3702,8 @@ class ProfiloTab(ScrollMemoryListView):
                     if not _dd.value:
                         _errors.append("Scegli la disciplina elementale aggiuntiva (Lv.3)")
 
-            # Competenze bonus di sottoclasse (task #20, 2026-07-16) —
-            # validate contro la sottoclasse FINALE scelta, non contro il
+            # Competenze bonus di sottoclasse — validate contro la
+            # sottoclasse FINALE scelta, non contro il
             # numero di dropdown attualmente costruiti (già tenuti in sync
             # da _rebuild_scb_container ad ogni cambio del dropdown, ma un
             # doppio controllo qui evita falsi negativi se in futuro il
@@ -3892,11 +3770,10 @@ class ProfiloTab(ScrollMemoryListView):
             # Draconica dello Stregone: +1 PF/livello) — delta tra il totale
             # al nuovo livello e quello al livello precedente ENTRAMBI nella
             # classe che sta salendo (get_permanent_class_hp_bonus vuole un
-            # livello di CLASSE, non il totale — bug fix 2026-08-12: prima
-            # usava `c.level`/totale, coincidente col livello di classe solo
-            # per un personaggio a classe singola; per un multiclasse già
-            # esistente che sale la primaria, o per una secondaria, il
-            # totale include anche i livelli dell'altra classe).
+            # livello di CLASSE, non il totale: per un multiclasse che sale
+            # la primaria, o per una secondaria, `c.level`/totale include
+            # anche i livelli dell'altra classe, e coincide col livello di
+            # classe solo a classe singola).
             hp_class_bonus = (
                 get_permanent_class_hp_bonus(lc.class_name, lc.subclass, new_level)
                 - get_permanent_class_hp_bonus(lc.class_name, lc.subclass, primary_class_level)
@@ -4008,8 +3885,8 @@ class ProfiloTab(ScrollMemoryListView):
             if subclass_dd_ref and subclass_dd_ref[0].value:
                 lc.subclass = subclass_dd_ref[0].value
 
-            # Competenze bonus di sottoclasse (task #20, 2026-07-16) — es.
-            # Bardo Collegio della Conoscenza/Valore, Ladro Assassino. Va
+            # Competenze bonus di sottoclasse — es. Bardo Collegio della
+            # Conoscenza/Valore, Ladro Assassino. Va
             # applicata alla sottoclasse FINALE appena scritta su lc.subclass
             # (non a subclass_bonus_choice_values "as-is" se il giocatore ha
             # cambiato sottoclasse più volte senza che l'ultimo rebuild sia
@@ -4160,7 +4037,7 @@ class ProfiloTab(ScrollMemoryListView):
             # Mistificatore Arcano/Cavaliere Mistico — sostituzione opzionale.
             # Il flag origin_unrestricted del vecchio incantesimo si propaga
             # sul nuovo (la "postazione" resta libera da vincolo anche in
-            # futuro se lo era già — vedi CLAUDE.md 2026-07-15).
+            # futuro se lo era già — vedi CLAUDE.md).
             for _bsw_cb, _bsw_rm, _bsw_add, _ in borrowed_spell_swap_refs:
                 if _bsw_cb.value and _bsw_rm.value and _bsw_add.value:
                     _old_name_bsw = _bsw_rm.value
@@ -4264,21 +4141,21 @@ class ProfiloTab(ScrollMemoryListView):
 
     def _on_add_multiclass_click(self, e):
         """
-        Multiclasse (2026-08-12): dialog "Aggiungi una classe" — prende il
-        1° livello di una classe NUOVA (mai una già posseduta): nessun
-        equipaggiamento di partenza, competenze RIDOTTE (PHB IT p.164, mai
-        quelle complete di creazione). Backend già pronto e testato
-        (character_repo.add_character_class/apply_multiclass_proficiencies/
-        apply_multiclass_proficiency_choices/check_multiclass_prerequisites/
-        sync_multiclass_spell_slots — vedi test_multiclasse.py).
+        Dialog "Aggiungi una classe" — prende il 1° livello di una classe
+        NUOVA (mai una già posseduta): nessun equipaggiamento di partenza,
+        competenze RIDOTTE (PHB IT p.164, mai quelle complete di creazione).
+        Backend: character_repo.add_character_class/
+        apply_multiclass_proficiencies/apply_multiclass_proficiency_choices/
+        check_multiclass_prerequisites/sync_multiclass_spell_slots — vedi
+        test_multiclasse.py.
 
         Deliberatamente SEPARATO dal dialog di level-up esistente
         (_on_level_up_click, ~2400 righe): resta il modo per il 1° livello
         di una classe NUOVA. Salire una classe SECONDARIA oltre il suo 1°
-        livello passa invece dal pulsante "Level up" esistente, che ora
-        mostra un piccolo selettore "quale classe sale?" quando il
-        personaggio ha più di una classe (_show_level_up_class_picker,
-        2026-08-12 — vedi docs/multiclasse_design.md §8.4).
+        livello passa invece dal pulsante "Level up" esistente, che mostra
+        un piccolo selettore "quale classe sale?" quando il personaggio ha
+        più di una classe (_show_level_up_class_picker — vedi
+        docs/multiclasse_design.md §8.4).
 
         Limite noto: il Mago non ha una voce "spells known al 1°
         livello" (usa un libro degli incantesimi, meccanica diversa da
@@ -4454,10 +4331,10 @@ class ProfiloTab(ScrollMemoryListView):
             # tra loro, incantesimi tra loro): ogni CardPicker viene creato
             # con la STESSA lista di opzioni, quindi senza questo passaggio
             # nulla impedisce di scegliere lo stesso incantesimo più volte
-            # (es. "Amicizia" in tutti e 3 gli slot di trucchetto — bug
-            # report Davide, 2026-08-12). Stesso principio già in uso per
-            # feat_prof_dds sopra: ricostruire le opzioni di ogni picker del
-            # gruppo togliendo le scelte già fatte dagli altri.
+            # (es. "Amicizia" in tutti e 3 gli slot di trucchetto). Stesso
+            # principio già in uso per feat_prof_dds sopra: ricostruire le
+            # opzioni di ogni picker del gruppo togliendo le scelte già
+            # fatte dagli altri.
             def _make_exclusive_group(pickers: list[CardPicker], base_options: list[dict]) -> None:
                 def _refresh(ev=None):
                     chosen = {p.value for p in pickers if p.value}
@@ -4739,10 +4616,8 @@ class ProfiloTab(ScrollMemoryListView):
         # Mappa attr → TextField o Dropdown (entrambi hanno .value)
         fields: dict[str, ft.TextField | ft.Dropdown] = {}
 
-        # Audit anti-AI-slop (2026-08-18): `**design.field_style()` al posto
-        # della duplicazione inline — stesso identico contenuto (border/
-        # focus/bgcolor/radius già `magic`/`border`/`surface`/SM qui, come
-        # nel token condiviso), zero cambi strutturali.
+        # `**design.field_style()` al posto della duplicazione inline:
+        # stesso contenuto (border/focus/bgcolor/radius), token condiviso.
         def f(label: str, value: str, multiline: bool = False, min_lines: int = 1) -> ft.TextField:
             return ft.TextField(
                 label=label,
@@ -4851,15 +4726,15 @@ class ProfiloTab(ScrollMemoryListView):
     def _pick_photo(self):
         """
         Entry point: sceglie la strategia giusta per la piattaforma.
-        - Mobile (Android/iOS, build nativa): ft.FilePicker, path locale
-          letto direttamente (client e server sono lo stesso dispositivo)
-        - Web (browser, deploy Docker): NIENTE ft.FilePicker (bug upstream
-          Flet confermato, non risolvibile lato applicazione — vedi
-          CLAUDE.md 2026-07-12). Al suo posto, un picker sulla libreria
-          immagini caricata a mano da Davide via SSH (vedi
-          ui/image_library.py, data/database.py -> get_image_library_path())
+        - Mobile (Android/iOS): estensione nativa (ui/native_image_picker.py,
+          pick_image_native()), con fallback su ui/mobile_webview_picker.py
+          se il plugin nativo non è disponibile. Mai ft.FilePicker (bug
+          upstream Flet, vedi did_mount()).
+        - Web (browser, deploy Docker): niente ft.FilePicker — picker sulla
+          libreria immagini caricata manualmente (vedi ui/image_library.py,
+          data/database.py -> get_image_library_path()).
         - Desktop (macOS/Windows/Linux, app locale): dialogo nativo del SO
-          via subprocess (ft.FilePicker e' broken su Flet 0.85.3 desktop)
+          via subprocess (ft.FilePicker è broken su Flet 0.85.3 desktop).
         """
         if self._page is None:
             return
@@ -4936,35 +4811,13 @@ class ProfiloTab(ScrollMemoryListView):
         """
         Apre il selettore immagine su Android/iOS.
 
-        **Storico** (perché non `ft.FilePicker`, 2026-08-06, log `adb
-        logcat` reale): un primo log aveva rivelato un vero bug Python
-        (`await` mancante su `pick_files()`, corretto — stesso bug in
-        `maps_view.py::_pick_mobile()`), ma un secondo log, preso DOPO
-        quel fix, ha mostrato che il problema è più a fondo:
-        `pick_files()` arriva correttamente al bridge Dart ma va in
-        `TimeoutException: Timeout waiting for invoke method listener` —
-        **nessuna Activity nativa Android viene mai avviata** (verificato
-        sul log completo, non filtrato). `ft.FilePicker` non è
-        utilizzabile su questa build, senza appello. Dettaglio completo in
-        `dnd_app/docs/changelog_storico.md`.
-
-        **Tentativo 1 (WebView + `<input type=file>`), anch'esso
-        confermato morto**: `webview_flutter` su Android non implementa di
-        default `WebChromeClient.onShowFileChooser`, quindi il tap su
-        "Scegli file" non apriva alcun selettore nativo — verificato sia
-        via documentazione/issue tracker di `webview_flutter` sia per
-        introspezione diretta su `flet_webview` installato (nessun hook
-        esposto). Vedi `regole_flet_api.md`.
-
-        **Percorso attuale (2026-08-06)**: estensione Flet nativa scritta
-        su misura (`ui/native_image_picker.py` ->
-        `dnd_app/extensions/flet_image_picker/`), che avvolge il plugin
-        Flutter ufficiale `image_picker`. ⚠️ NON verificata end-to-end da
-        questo sandbox (nessun toolchain Flutter/Dart disponibile per
-        compilarla) — per questo il fallback WebView resta qui SOTTO,
-        attivato automaticamente se l'estensione solleva
-        `ImagePickerUnavailable` (pacchetto non presente in questa build,
-        o qualunque errore all'invocazione), non rimosso.
+        Usa l'estensione Flet nativa scritta su misura
+        (`ui/native_image_picker.py` -> `dnd_app/extensions/flet_image_picker/`),
+        che avvolge il plugin Flutter ufficiale `image_picker`. Se solleva
+        `ImagePickerUnavailable` (pacchetto non presente in questa build, o
+        qualunque errore all'invocazione), ricade sul fallback in
+        `ui/mobile_webview_picker.py` (WebView locale + `<input type=file>`).
+        Mai `ft.FilePicker` (vedi did_mount()).
         """
         page = self._page
         if page is None:
@@ -5049,9 +4902,9 @@ class ProfiloTab(ScrollMemoryListView):
 
     def _load_photo(self, path: str):
         """
-        Legge il file immagine da un percorso locale (desktop, o mobile con
-        path reale come nel vecchio ft.FilePicker) e delega a
-        _save_photo_bytes() la normalizzazione e il salvataggio.
+        Legge il file immagine da un percorso locale (desktop, o libreria
+        immagini su web) e delega a _save_photo_bytes() la normalizzazione
+        e il salvataggio.
         """
         try:
             with open(path, "rb") as f:
@@ -5067,22 +4920,17 @@ class ProfiloTab(ScrollMemoryListView):
         nel DB. La conversione JPEG garantisce un formato uniforme
         compatibile con il data URI usato da ft.Image(src=...).
 
-        Estratto da _load_photo() il 2026-08-06 per essere condiviso anche
-        dal flusso WebView (_pick_photo_mobile()), che riceve i bytes
-        dell'immagine direttamente (via FileReader lato browser, nessun
-        percorso file locale) invece di un path da aprire.
+        Estratto da _load_photo() per essere condiviso anche dal flusso
+        mobile (_pick_photo_mobile()), che riceve i bytes dell'immagine
+        direttamente (dal plugin nativo o via FileReader nel fallback
+        WebView) invece di un path da aprire.
         """
         try:
             import io
             from PIL import Image as PILImage  # type: ignore[import-untyped]
             from PIL import ImageOps  # type: ignore[import-untyped]
             with PILImage.open(io.BytesIO(raw)) as img:
-                # Applica la rotazione EXIF (fotocamere/smartphone salvano i
-                # pixel nell'orientamento del sensore + un tag "Orientation";
-                # Image.open() lo ignora, va applicato esplicitamente prima
-                # di ri-salvare, altrimenti la rotazione corretta si perde
-                # per sempre insieme al tag stesso — bug segnalato da Davide
-                # il 2026-08-06 (foto da galleria Android ruotata 90° a sx).
+                # Corregge la rotazione EXIF delle foto da galleria Android.
                 img = ImageOps.exif_transpose(img)
                 img = img.convert("RGB")          # rimuovi alpha per JPEG
                 buf = io.BytesIO()
@@ -5120,7 +4968,7 @@ class ProfiloTab(ScrollMemoryListView):
             pass
         # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
         # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
-        # singola azione (bug B10, revisione 2026-07-26).
+        # singola azione.
         self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

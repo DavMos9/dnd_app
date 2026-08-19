@@ -3,18 +3,17 @@ Geometria condivisa per le mappe disegnabili (`ui/views/maps_view.py`,
 mappe locali, e `ui/views/world/world_view.py`, mappe condivise) — nessuna
 dipendenza da Flet, solo aritmetica.
 
-Bug corretto qui (2026-08-12, segnalato da Davide): i tratti venivano
-salvati in pixel ASSOLUTI, cioè relativi alla dimensione che il riquadro di
-disegno (`ft.GestureDetector`/`cv.Canvas`) aveva esattamente nell'istante
-in cui l'utente disegnava. Flet non ridimensiona il contenuto di un canvas
-in base al riquadro che lo contiene: se lo stesso tratto viene poi
-visualizzato in un riquadro di dimensioni diverse (mappa locale: pannello
-inline nella scheda vs. schermo intero — due `Stack` separati di
-`MapsView`; mappa condivisa: la finestra del master che disegna può avere
-una risoluzione diversa da quella del giocatore che guarda, anche se
-entrambe sono "a schermo intero" sul rispettivo dispositivo), i punti
-restano ancorati alle vecchie coordinate assolute — sembra che la mappa
-"si sia rimpicciolita".
+I tratti NON vengono salvati in pixel ASSOLUTI, cioè relativi alla
+dimensione che il riquadro di disegno (`ft.GestureDetector`/`cv.Canvas`)
+ha esattamente nell'istante in cui l'utente disegna. Flet non ridimensiona
+il contenuto di un canvas in base al riquadro che lo contiene: se lo
+stesso tratto venisse poi visualizzato in un riquadro di dimensioni
+diverse (mappa locale: pannello inline nella scheda vs. schermo intero —
+due `Stack` separati di `MapsView`; mappa condivisa: la finestra del
+master che disegna può avere una risoluzione diversa da quella del
+giocatore che guarda, anche se entrambe sono "a schermo intero" sul
+rispettivo dispositivo), i punti in pixel assoluti resterebbero ancorati
+alle vecchie coordinate — la mappa sembrerebbe essersi rimpicciolita.
 
 Soluzione: i punti si salvano come FRAZIONE (0.0-1.0) della dimensione del
 riquadro nell'istante del disegno (`normalize_points`), e si riconvertono
@@ -24,14 +23,14 @@ l'unico modo in questa versione di Flet (0.86.5, niente
 `Container.on_resize`/`ContainerResizeEvent`) di conoscere la dimensione
 effettiva dopo il layout di un controllo qualunque.
 
-**Compatibilità con le annotazioni già esistenti** (disegnate prima di
-questo fix, in pixel assoluti): nessuna migrazione — non è ricostruibile
-la dimensione del riquadro con cui furono salvate. `looks_normalized()`
-distingue i due formati per euristica: un tratto in frazioni ha SEMPRE
-tutti i punti in [0, 1], un tratto in pixel assoluti quasi certamente no
-(un riquadro di disegno largo meno di 1px non esiste). I tratti vecchi
-restano quindi renderizzati "as-is" (stesso comportamento di prima, non
-peggiore), quelli nuovi si allineano correttamente in qualunque riquadro.
+**Compatibilità con le annotazioni disegnate in pixel assoluti prima di
+questo formato**: nessuna migrazione — non è ricostruibile la dimensione
+del riquadro con cui furono salvate. `looks_normalized()` distingue i due
+formati per euristica: un tratto in frazioni ha SEMPRE tutti i punti in
+[0, 1], un tratto in pixel assoluti quasi certamente no (un riquadro di
+disegno largo meno di 1px non esiste). I tratti vecchi restano quindi
+renderizzati "as-is" (stesso comportamento di prima, non peggiore), quelli
+nuovi si allineano correttamente in qualunque riquadro.
 """
 
 from __future__ import annotations
@@ -43,9 +42,9 @@ def has_legacy_strokes(annotations_json: str) -> bool:
     """
     Vero se `annotations_json` (il campo `game_maps.annotations`, una lista
     JSON di tratti — vedi `data/repositories/maps_repo.py::apply_stroke_batch`)
-    contiene almeno un tratto NON normalizzato (pixel assoluti pre-fix
-    2026-08-12 — vedi il docstring del modulo). Usata dalla UI (2026-08-19)
-    per mostrare un avviso una tantum: questi tratti restano renderizzati
+    contiene almeno un tratto NON normalizzato (pixel assoluti — vedi il
+    docstring del modulo). Usata dalla UI per mostrare un avviso una
+    tantum: questi tratti restano renderizzati
     "as-is" (`denormalize_points` non li tocca) e possono quindi apparire
     disallineati su un dispositivo con un riquadro di disegno diverso da
     quello con cui furono disegnati — nessuna migrazione automatica è
@@ -78,20 +77,18 @@ def contain_rect(box_w: float, box_h: float, img_w: float, img_h: float) -> tupl
     proprio aspect ratio ed è centrata, con bande vuote (letterboxing) sui
     lati la cui proporzione eccede quella del box.
 
-    Bug corretto qui (2026-08-16, segnalato da Davide dopo il primo giro di
-    test su Wi-Fi reale — "il disegno del master su PC non corrisponde sulla
-    mappa vista dal giocatore su smartphone"): `normalize_points`/
-    `denormalize_points` convertivano le coordinate rispetto all'INTERO
-    riquadro di disegno, non rispetto al rettangolo che l'immagine occupa
-    davvero dopo `BoxFit.CONTAIN`. Un desktop (tipicamente landscape largo)
-    e uno smartphone (tipicamente portrait stretto) producono letterboxing
-    di entità/posizione diversa per la STESSA immagine — solo il centro
-    esatto restava coincidente tra i due, ogni punto più lontano dal centro
-    finiva disallineato, nei casi peggiori nella banda vuota, fuori
-    dall'immagine vera sullo schermo del giocatore. Il fix del 2026-08-12
-    (frazioni [0,1] invece di pixel assoluti) risolveva la differenza di
-    dimensione ASSOLUTA del box tra dispositivi, ma non la differenza di
-    RAPPORTO D'ASPETTO combinata con CONTAIN — un caso distinto.
+    Le coordinate normalizzate vanno convertite rispetto a QUESTO
+    rettangolo (l'immagine dopo `CONTAIN`), non rispetto all'intero
+    riquadro di disegno: un desktop (tipicamente landscape largo) e uno
+    smartphone (tipicamente portrait stretto) producono letterboxing di
+    entità/posizione diversa per la STESSA immagine — solo il centro esatto
+    resta coincidente tra i due, ogni punto più lontano dal centro
+    finirebbe disallineato, nei casi peggiori nella banda vuota, fuori
+    dall'immagine vera. Le frazioni [0,1] da sole risolvono solo la
+    differenza di dimensione ASSOLUTA del box tra dispositivi: la
+    differenza di RAPPORTO D'ASPETTO combinata con CONTAIN è un caso
+    distinto, gestito passando questo rettangolo (via `offset_x`/
+    `offset_y`) a `normalize_points`/`denormalize_points`.
 
     Fallback: se una qualunque dimensione non è nota/nulla (`on_size_change`
     non ancora arrivato, immagine non ancora caricata), ritorna l'intero box
@@ -129,7 +126,7 @@ def normalize_points(points: list, box_w: float, box_h: float,
     (`offset_x`, `offset_y`) — per una mappa condivisa questo è il
     rettangolo effettivo dell'immagine dopo `BoxFit.CONTAIN`
     (`contain_rect()`), non l'intero riquadro di disegno: vedi il docstring
-    di `contain_rect()` per il bug che questo risolve. Con `offset_x=
+    di `contain_rect()` per il dettaglio. Con `offset_x=
     offset_y=0.0` (default, compatibile con l'uso precedente) si comporta
     come prima. Ritorna i punti invariati se la dimensione non è ancora
     nota (`on_size_change` non è ancora arrivato, caso raro: il primo

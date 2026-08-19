@@ -2,22 +2,17 @@
 Compendio "Oggetti Magici" — 264 voci del Capitolo 7 "Tesori" (sezione
 "Oggetti Magici A-Z") della Guida del Dungeon Master.
 
-Estratta da `master_magic_items_view.py` il 2026-07-30 (Fase 4, feature 3) per
-poter essere riusata; `master_magic_items_view` la re-esporta, quindi resta un
-solo componente.
+Estratta da `master_magic_items_view.py` per poter essere riusata;
+`master_magic_items_view` la re-esporta, quindi resta un solo componente.
 
-**Sola consultazione lato giocatore, solo lato Master per la scrittura.** Una
-voce "Oggetti" era stata aggiunta anche alla sidebar del giocatore, con un
-pulsante "Aggiungi alla mia scheda": entrambi sono stati rimossi lo stesso
-giorno su decisione di Davide — è di fatto un manuale del DM, e gli oggetti
-che un personaggio possiede hanno già il testo ufficiale integrale nel
-proprio Inventario.
+**Sola consultazione lato giocatore, solo lato Master per la scrittura** — è
+di fatto un manuale del DM, e gli oggetti che un personaggio possiede hanno
+già il testo ufficiale integrale nel proprio Inventario.
 
-**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 3/6)**: il
-dialog di dettaglio (`_open_detail`) ha ora "Assegna…"/"Salva nell'archivio",
-così una delle 264 voci può arrivare sulla scheda di un giocatore per nome
-esatto (prima l'unica via era il Generatore Oggetti Magici, che pesca a
-caso — resta comunque disponibile, invariato).
+**Bottino** (vedi `dnd_app/docs/loot_design.md` §6): il dialog di dettaglio
+(`_open_detail`) ha "Assegna…"/"Salva nell'archivio", così una delle 264 voci
+può arrivare sulla scheda di un giocatore per nome esatto, in alternativa al
+Generatore Oggetti Magici (che pesca a caso e resta comunque disponibile).
 
 Esclusi da questo compendio (vedi nota `_source_note` in magic_items.json):
 "Oggetti Magici Senzienti" (solo regole generali, nessuna scheda) e
@@ -298,11 +293,11 @@ class MagicItemsView(ft.Column):
         if requires_att:
             att_text = "Richiede sintonia" + (f" ({att_restriction})" if att_restriction else "")
 
-        # -- Bottino: "Assegna…"/"Salva nell'archivio" (2026-07-31,
-        # `dnd_app/docs/loot_design.md` §6, punto 3/6) — prima non c'era
-        # alcun modo di far arrivare una delle 264 voci del compendio sulla
-        # scheda di un giocatore se non passando dal Generatore Oggetti
-        # Magici (che pesca a caso, non per nome).
+        # -- Bottino: "Assegna…"/"Salva nell'archivio" (vedi
+        # `dnd_app/docs/loot_design.md` §6) — permette di far arrivare una
+        # delle 264 voci del compendio sulla scheda di un giocatore per nome
+        # esatto, in alternativa al Generatore Oggetti Magici (che pesca a
+        # caso, non per nome).
         def _build_loot_item() -> dict[str, Any]:
             from ui.views.master.master_loot_assign_dialog import simple_item
             note_bits = list(info_bits)

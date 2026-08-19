@@ -142,19 +142,18 @@ class Character:
     created_at: str = ""
     updated_at: str = ""
 
-    # Mondi condivisi (2026-08-05, Multiplayer passo 2/3 — vedi
-    # dnd_app/docs/multiplayer_design.md §8). '' / 0 su tutte e cinque =
-    # personaggio locale: un personaggio creato da wizard/form manuale non
-    # valorizza mai questi campi da solo, li imposta solo
-    # core/character_instances.py quando nasce un'istanza di mondo.
+    # Mondi condivisi (vedi dnd_app/docs/multiplayer_design.md §8). '' / 0
+    # su tutte e cinque = personaggio locale: un personaggio creato da
+    # wizard/form manuale non valorizza mai questi campi da solo, li imposta
+    # solo core/character_instances.py quando nasce un'istanza di mondo.
     world_id: str = ""              # '' = personaggio locale
     origin_character_id: str = ""   # da quale personaggio locale nasce questa istanza
     owner_device_id: str = ""       # device_id di chi possiede questo personaggio/istanza
-    is_replica: bool = False        # True = l'autorità sui dati è altrove (rete, passo 4)
+    is_replica: bool = False        # True = l'autorità sui dati è altrove (rete)
     world_seq: int = 0              # ultimo evento del mondo applicato a questa scheda
-    #: Espulsione dal mondo (2026-08-07): True = il proprietario è stato
-    #: espulso, l'istanza è archiviata (esclusa dalla Sezione Master) invece
-    #: di restare agganciata al mondo per sempre. Solo su un'istanza HOST
+    #: Espulsione dal mondo: True = il proprietario è stato espulso,
+    #: l'istanza è archiviata (esclusa dalla Sezione Master) invece di
+    #: restare agganciata al mondo per sempre. Solo su un'istanza HOST
     #: (autoritativa), mai su un personaggio locale. Vedi `_add_column` in
     #: data/database.py per il ragionamento completo, incluso su come si
     #: riattiva.
@@ -224,13 +223,13 @@ class Weapon:
     # core/equipment_manager.py.
     grip_two_handed: bool = False
 
-    # --- Calcolo automatico tiro per colpire (2026-07-17) ---------------
+    # --- Calcolo automatico tiro per colpire -----------------------------
     # Categoria PHB dell'arma, usata per determinare la competenza per
     # confronto con character_proficiencies (proficiency_type="weapon"):
     # "semplice" | "guerra" | "" (sconosciuta — trattata come non competente
     # salvo proficiency_override). Sempre richiesta in creazione (autoriempita
     # dal catalogo se l'arma vi corrisponde, altrimenti scelta a mano — anche
-    # un'arma homebrew "è comunque di un certo tipo", istruzione di Davide).
+    # un'arma homebrew "è comunque di un certo tipo").
     weapon_category: str = ""
     # Competenza garantita da QUESTA specifica arma indipendentemente dalle
     # competenze generali del personaggio (es. arma magica che concede
@@ -396,7 +395,7 @@ class CampaignNote:
 
 
 # ---------------------------------------------------------------------------
-# Abilità Speciali custom (2026-07-16)
+# Abilità Speciali custom
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -533,7 +532,7 @@ class GameMap:
     # valorizzato.
     world_id: str = ""
     is_shared: bool = False
-    # Visibilità ai giocatori (2026-08-12) — distinta da `is_shared`: una
+    # Visibilità ai giocatori — distinta da `is_shared`: una
     # mappa condivisa resta nella sezione del master anche quando
     # `visible_to_players=False`, solo i giocatori smettono di vederla e
     # di poterne scaricare l'immagine (§6.4, CMD_MAP_VISIBILITY). Conta
@@ -544,7 +543,7 @@ class GameMap:
 
 
 # ---------------------------------------------------------------------------
-# Sezione Master — NPC/mostri, incontri, membri d'incontro (2026-07-24)
+# Sezione Master — NPC/mostri, incontri, membri d'incontro
 #
 # Deliberatamente indipendenti da `Character`/`CreatureEntry`: vedi
 # dnd_app/docs/master_section_design.md per il ragionamento completo
@@ -571,20 +570,20 @@ class MasterNpc:
     tags: str = ""                    # CSV libero per filtro/ricerca nella rubrica
     has_stat_block: bool = False
 
-    # Sezione Master world-scoped (2026-08-12) — "" = NPC locale/di nessun
-    # mondo (comportamento di sempre), altrimenti l'id del mondo in cui è
-    # stato creato. Stesso principio già in uso per Character/
+    # Sezione Master world-scoped — "" = NPC locale/di nessun mondo
+    # (comportamento di sempre), altrimenti l'id del mondo in cui è stato
+    # creato. Stesso principio già in uso per Character/
     # MasterCampaignNote/LootStashEntry: filtro per UGUAGLIANZA esatta, mai
     # "mostra tutti" — un mondo è un container, non un filtro opzionale.
     world_id: str = ""
 
-    # Razza PHB (2026-08-12, bug report Davide: "tipo creatura e taglia
-    # devono corrispondere a quelle già create automaticamente") — una
-    # delle 9 di `core.npc_generator.RACE_OPTIONS`, o testo libero se scelta
-    # "Altro" nel form. "" per un NPC senza razza nota (es. un mostro puro
-    # dal Bestiario). A differenza di `world_id`, MODIFICABILE dopo la
-    # creazione (`update_npc()`) — un Master che scopre "in realtà è un
-    # cambiaforma" deve poter correggerla e vederla persistere.
+    # Razza PHB — una delle 9 di `core.npc_generator.RACE_OPTIONS`, o testo
+    # libero se scelta "Altro" nel form; serve a far corrispondere tipo
+    # creatura e taglia a quelle create automaticamente. "" per un NPC
+    # senza razza nota (es. un mostro puro dal Bestiario). A differenza di
+    # `world_id`, MODIFICABILE dopo la creazione (`update_npc()`) — un
+    # Master che scopre "in realtà è un cambiaforma" deve poter correggerla
+    # e vederla persistere.
     race: str = ""
 
     # Campi stat block, stessa forma di CreatureEntry — tutti opzionali
@@ -696,7 +695,7 @@ class MasterCampaignNote:
     created_at: str = ""
     updated_at: str = ""
 
-    # Modalità Master world-scoped (2026-08-06). '' = nota locale/di nessun
+    # Modalità Master world-scoped. '' = nota locale/di nessun
     # mondo. `visibility` conta solo se `world_id` è valorizzato:
     # "private" (solo il Master) | "all" (tutti i membri del mondo) |
     # "selected" (solo i device_id elencati in `visible_to_device_ids`,
@@ -734,12 +733,10 @@ class LootStashEntry:
 
     `world_id`: "" per una voce locale/di nessun mondo, altrimenti l'id del
     mondo correntemente selezionato al momento della creazione — si applica
-    a ENTRAMBI gli `stash_kind` (2026-08-12: prima l'archivio del Master
-    restava sempre a "" per scelta di design, cambiato su bug report di
-    Davide — un mondo è un container per tutta la Sezione Master, non solo
-    per il deposito comune; resta comunque un asse indipendente dalla
-    privacy di `stash_kind="master"`, mai sincronizzato/visibile ai
-    giocatori indipendentemente da `world_id`).
+    a ENTRAMBI gli `stash_kind`: un mondo è un container per tutta la
+    Sezione Master, non solo per il deposito comune. Resta comunque un asse
+    indipendente dalla privacy di `stash_kind="master"`, mai
+    sincronizzato/visibile ai giocatori indipendentemente da `world_id`.
 
     `entry_kind`: "item" (oggetto generico/mondano) | "magic_item" (dal
     Compendio A-Z o dal Generatore) | "artifact" | "poison" | "gem" |
@@ -763,13 +760,13 @@ class LootStashEntry:
     electrum: int = 0
     gold: int = 0
     platinum: int = 0
-    added_by_device_id: str = ""  # placeholder per il Multiplayer, vuoto oggi
+    added_by_device_id: str = ""  # device_id di chi ha aggiunto la voce (core/world_backend.py), vuoto in locale
     created_at: str = ""
     updated_at: str = ""
 
 
 # ---------------------------------------------------------------------------
-# Mondi condivisi / LAN party (2026-08-05)
+# Mondi condivisi / LAN party
 #
 # Vedi dnd_app/docs/multiplayer_design.md per il progetto completo. Queste
 # quattro dataclass rispecchiano le tabelle omonime create in
@@ -793,10 +790,10 @@ class World:
     last_seen_host: str = ""        # "192.168.1.7:8765" — per la riconnessione (passo 4)
     session_token: str = ""         # token RemoteBackend (join()), solo lato replica — per
                                      # ricostruire la connessione senza richiedere codice+PIN
-                                     # ad ogni apertura della sezione Mondi (fix 2026-08-07)
+                                     # ad ogni apertura della sezione Mondi
     last_synced_seq: int = 0        # ultimo world_events.seq applicato (solo lato replica)
     last_export_seq: int = 0        # world_events.seq al momento dell'ultimo export .dndworld
-                                     # riuscito (2026-08-12, passo 9E — promemoria di backup)
+                                     # riuscito (passo 9E — promemoria di backup)
     created_at: str = ""
     updated_at: str = ""
 
@@ -807,14 +804,14 @@ class WorldMember:
     Un dispositivo dentro un mondo, con un ruolo (§4 del design doc).
 
     role: "owner" (uno solo, chi ospita) | "master" (co-master promossi
-    dall'owner) | "player". Nessun ruolo spettatore — scelta di Davide.
+    dall'owner) | "player". Nessun ruolo spettatore.
     """
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     world_id: str = ""
     device_id: str = ""
     display_name: str = ""
     role: str = "player"
-    is_connected: bool = False   # significativo solo dal passo 4 (rete) in poi
+    is_connected: bool = False   # aggiornato dal livello di rete (network/host_server.py)
     last_seen_at: str = ""
     created_at: str = ""
     updated_at: str = ""
@@ -897,7 +894,7 @@ class WorldDeviceTransfer:
     """
     Codice monouso che autorizza un ALTRO dispositivo a subentrare
     nell'appartenenza di un membro, portandosi via le sue istanze di
-    personaggio (2026-08-17, §11.9 del design doc).
+    personaggio (§11.9 del design doc).
 
     Vive SOLO sul dispositivo che ospita il mondo: è stato dell'host come il PIN
     e i token, non viaggia nell'export `.dndworld` e non viene replicato ai

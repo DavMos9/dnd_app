@@ -12,32 +12,23 @@ tab bar interna a 5 sezioni. Le viste reali (`MasterNpcListView`,
 placeholder "in costruzione" per ciascuna tab, senza bloccare la
 navigazione.
 
-**Selettore mondo (2026-08-06)** — fix di due bug segnalati da Davide
-("il player entrato in un mondo appare duplicato nei picker" / "in Master
-escono i personaggi di ogni mondo mescolati"): prima di questa modifica la
-Modalità Master non aveva ALCUN concetto di mondo, e i picker personaggi
-(Tesoro, Oggetto Magico, Bottino, partecipanti a un Incontro) leggevano
-sempre `character_repo.get_all()` — ogni personaggio mai creato, locali e
-istanze di ogni mondo mescolati. Ora il Master sceglie esplicitamente quale
-mondo sta gestendo (o "Nessun mondo", il comportamento locale di sempre) da
-un menu SEMPRE visibile nell'header — mai un menu nascosto dietro un'icona
-aggiuntiva, stessa convenzione già stabilita per la barra "Generatori
-Rapidi".
+**Selettore mondo** — la Modalità Master richiede una scelta esplicita di
+quale mondo si sta gestendo (o "Nessun mondo", il comportamento locale di
+sempre): senza, i picker personaggi (Tesoro, Oggetto Magico, Bottino,
+partecipanti a un Incontro) leggerebbero sempre `character_repo.get_all()`
+— ogni personaggio mai creato, locali e istanze di ogni mondo mescolati.
+La scelta avviene da un menu SEMPRE visibile nell'header — mai un menu
+nascosto dietro un'icona aggiuntiva, stessa convenzione già stabilita per
+la barra "Generatori Rapidi".
 
-**Persistenza della scelta (rivista 2026-08-16)** — fino al 2026-08-12 la
-scelta viveva SOLO per la sessione (decisione di Davide, 2026-08-06: "per
-non rischiare di restare per errore sul mondo sbagliato"), azzerata ogni
-volta che si riapriva la Modalità Master. Richiesta esplicita di Davide dopo
-il primo giro di test su Wi-Fi reale: riaprire l'app in Modalità Master deve
-restare sull'ULTIMO mondo masterato, non su "Nessun mondo" — decisione
-invertita consapevolmente. La scelta è ora salvata in `app_settings`
+**Persistenza della scelta** — la scelta è salvata in `app_settings`
 (`data/repositories/settings_repo.py`, chiave `LAST_MASTER_WORLD_KEY`) ad
 ogni cambio dal menu (`_on_world_change`), e riletta in `_init_identity()`
 SOLO quando questa view viene aperta senza un `active_world_id` esplicito
 (cioè non durante un rebuild per cambio tema/tab, che passa già lo stato
-corrente — vedi `ui/app.py._show_master_view`) — stessa validazione di
-sempre: se il mondo salvato non è più tra quelli masterabili da questo
-dispositivo, si torna a "Nessun mondo".
+corrente — vedi `ui/app.py._show_master_view`): se il mondo salvato non è
+più tra quelli masterabili da questo dispositivo, si torna a "Nessun
+mondo".
 """
 
 from typing import Any, cast
@@ -51,7 +42,7 @@ from ui.device_identity import resolve_device_id
 from ui import design
 
 #: Chiave `app_settings` per l'ultimo mondo masterato — vedi il docstring
-#: del modulo, "Persistenza della scelta (rivista 2026-08-16)".
+#: del modulo, "Persistenza della scelta".
 LAST_MASTER_WORLD_KEY = "last_master_world_id"
 
 
@@ -80,39 +71,35 @@ class MasterView(ft.Column):
                  active_world_id: str | None = None, is_mobile: bool = False,
                  on_open_world=None):
         """
-        `on_open_world` (2026-08-16, navigazione rapida): callback
+        `on_open_world` (navigazione rapida): callback
         `(world_id) -> None` verso `DnDApp._show_worlds_view`, propagato dal
         pulsante accanto al selettore mondo — mostrato solo se un mondo è
         selezionato. `None` (default) nasconde il pulsante.
 
-        `on_toggle_theme` (Fase D del restyle, 2026-07-30): se assente la
-        pillola del tema non compare — stesso comportamento "nascosto se
-        assente" già usato per `on_open_master` in `HomeView`, così una
-        costruzione legacy senza questo argomento resta valida.
+        `on_toggle_theme`: se assente la pillola del tema non compare —
+        stesso comportamento "nascosto se assente" già usato per
+        `on_open_master` in `HomeView`, così una costruzione legacy senza
+        questo argomento resta valida.
 
         `active_tab` permette a `DnDApp` di riaprire la Sezione Master sulla
         stessa tab dopo un cambio di tema, che ricostruisce la vista da zero.
 
-        `active_world_id` (2026-08-06, rivisto 2026-08-16): stesso principio
-        di `active_tab` — MA `None` (non passato) ha un significato diverso
-        da `""`: `None` significa "nessuna richiesta esplicita", e fa
-        rileggere l'ultimo mondo masterato da `app_settings` in
-        `_init_identity()`; `""` (o qualunque world_id) è una richiesta
-        esplicita del chiamante (rebuild per cambio tema, o un futuro arco
-        di navigazione diretto verso questo mondo) e non consulta mai le
-        preferenze salvate — vedi il docstring del modulo.
+        `active_world_id`: stesso principio di `active_tab` — MA `None`
+        (non passato) ha un significato diverso da `""`: `None` significa
+        "nessuna richiesta esplicita", e fa rileggere l'ultimo mondo
+        masterato da `app_settings` in `_init_identity()`; `""` (o
+        qualunque world_id) è una richiesta esplicita del chiamante
+        (rebuild per cambio tema, o un futuro arco di navigazione diretto
+        verso questo mondo) e non consulta mai le preferenze salvate —
+        vedi il docstring del modulo.
 
-        `is_mobile` (2026-08-06): decide lo stile della tab bar (icona+testo
+        `is_mobile`: valore iniziale dello stile della tab bar (icona+testo
         o solo icona) — vedi il docstring di `_build_tab_bar()`. Passato da
         `DnDApp` con lo stesso breakpoint (`_MOBILE_BP = 600`, `ui/app.py`)
-        già usato per sidebar/bottom-nav. Diversamente da `active_tab`, NON
-        si aggiorna da solo se la finestra viene ridimensionata mentre la
-        Sezione Master è aperta (`MasterView` non vive dentro il layout con
-        sidebar/content_area che risponde a `page.on_resize` — sostituisce
-        l'intera pagina via `_navigate()`): resta fissato al valore letto
-        all'apertura o all'ultimo rebuild (es. cambio tema). Limite noto,
-        accettabile: nessuna sessione finora ha segnalato di ridimensionare
-        la finestra a metà mentre è in Modalità Master.
+        già usato per sidebar/bottom-nav. Se la finestra viene
+        ridimensionata mentre la Sezione Master è già aperta, `set_mobile()`
+        aggiorna la tab bar e la vista corrente in place — vedi il suo
+        docstring.
         """
         super().__init__(expand=True, spacing=0)
         self.on_back_to_home = on_back_to_home
@@ -147,14 +134,11 @@ class MasterView(ft.Column):
         #: — chiuderebbe da solo l'incontro appena aperto dal Master.
         self._tools_panel_container: ft.Control | None = None
         self._tab_bar_container: ft.Control | None = None
-        #: Pannello a comparsa (2026-08-07, restyle su richiesta di Davide —
-        #: vedi `_build_tools_panel()`): selettore mondo + Generatori Rapidi
-        #: raggruppati sotto un'unica intestazione sempre visibile, aperta o
-        #: chiusa a scelta. Sostituisce il precedente "nascondi Generatori
-        #: Rapidi SOLO nella tab Incontri" (Davide, sessione successiva: li
-        #: voleva di nuovo visibili ovunque, ma la parte superiore doveva
-        #: restare compatta) — collassato di default su OGNI tab, incluso
-        #: Incontri, mai più un'eccezione per una singola tab.
+        #: Pannello a comparsa (vedi `_build_tools_panel()`): selettore
+        #: mondo + Generatori Rapidi raggruppati sotto un'unica
+        #: intestazione sempre visibile, aperta o chiusa a scelta —
+        #: collassato di default su OGNI tab, incluso Incontri, senza
+        #: eccezioni per singola tab.
         self._tools_panel_expanded: bool = False
         self._build()
 
@@ -176,8 +160,8 @@ class MasterView(ft.Column):
         )
         # Nessuna richiesta esplicita del chiamante (vedi
         # `_world_id_from_settings` in `__init__`): rilegge l'ultimo mondo
-        # masterato salvato in `app_settings` — 2026-08-16, richiesta di
-        # Davide di non tornare più a "Nessun mondo" ad ogni apertura.
+        # masterato salvato in `app_settings`, invece di tornare a "Nessun
+        # mondo" ad ogni apertura.
         if self._world_id_from_settings:
             self._active_world_id = settings_repo.get_setting(
                 LAST_MASTER_WORLD_KEY, _NO_WORLD_KEY)
@@ -208,11 +192,9 @@ class MasterView(ft.Column):
         # capo quando lo spazio disponibile si stringe — su uno smartphone
         # stretto lo spazio può ridursi al punto che ogni parola (persino
         # ogni lettera) finisce sulla propria riga, producendo un titolo
-        # verticale illeggibile (bug reale segnalato da Davide con
-        # screenshot, 2026-08-06 — il commento precedente qui affermava
-        # erroneamente che `expand=True` da solo bastasse a troncare il
-        # titolo: falso, `design.title()`/`ft.Text` non ha mai impostato
-        # queste tre proprietà di default).
+        # verticale illeggibile. `expand=True` da solo non basta a troncare
+        # il titolo: `design.title()`/`ft.Text` non imposta queste tre
+        # proprietà di default.
         title.no_wrap = True
         title.overflow = ft.TextOverflow.ELLIPSIS
         title.max_lines = 1
@@ -244,10 +226,10 @@ class MasterView(ft.Column):
 
         self.controls.append(header)
         # Pannello strumenti (selettore mondo + Generatori Rapidi) su una
-        # riga a sé, SOTTO l'header (2026-08-06, fix di una regressione
-        # precedente: infilarlo nella Row dell'header ne contendeva lo
-        # spazio col titolo). Uniforme su OGNI tab, incluso Incontri — vedi
-        # il docstring di `_tools_panel_expanded` nel costruttore.
+        # riga a sé, SOTTO l'header: infilarlo nella Row dell'header ne
+        # contenderebbe lo spazio col titolo. Uniforme su OGNI tab, incluso
+        # Incontri — vedi il docstring di `_tools_panel_expanded` nel
+        # costruttore.
         self._tools_panel_container = self._build_tools_panel()
         self._tab_bar_container = self._build_tab_bar()
         self.controls.append(self._tools_panel_container)
@@ -260,20 +242,19 @@ class MasterView(ft.Column):
         una vista figlia (oggi: `MasterEncounterListView`, quando un incontro
         è aperto) passa a schermo intero.
 
-        **Perché esiste** (bug report di Davide, 2026-08-06, screenshot da
-        smartphone): `MasterEncounterView` è documentata come "tracker di
-        combattimento a schermo intero", ma prima di questo fix veniva
-        comunque renderizzata SOTTO l'header di `MasterView`, il selettore
-        mondo, la barra Generatori Rapidi e la tab bar — tutta chrome
-        persistente e sempre visibile per costruzione. Su desktop restava
-        leggibile per lo spazio abbondante; su uno smartphone quella chrome
-        da sola occupa gran parte dell'altezza disponibile, lasciando alla
-        lista combattenti "un piccolo rettangolo" con scroll (parole di
-        Davide) invece dello schermo intero promesso dal modulo. Non è un
-        problema specifico del solo mobile: è un'incoerenza reale tra
-        l'intento dichiarato del componente e come viene effettivamente
-        composto in `MasterView` — corretto per ogni dimensione di finestra,
-        non dietro un controllo `is_mobile`.
+        **Perché esiste**: `MasterEncounterView` è documentata come
+        "tracker di combattimento a schermo intero", ma senza questo
+        nascondimento verrebbe comunque renderizzata SOTTO l'header di
+        `MasterView`, il selettore mondo, la barra Generatori Rapidi e la
+        tab bar — tutta chrome persistente e sempre visibile per
+        costruzione. Su desktop resta leggibile per lo spazio abbondante;
+        su uno smartphone quella chrome da sola occupa gran parte
+        dell'altezza disponibile, lasciando alla lista combattenti un
+        piccolo rettangolo con scroll invece dello schermo intero promesso
+        dal modulo. Non è un problema specifico del solo mobile: è
+        un'incoerenza reale tra l'intento dichiarato del componente e come
+        viene effettivamente composto in `MasterView` — corretta per ogni
+        dimensione di finestra, non dietro un controllo `is_mobile`.
 
         Nascondere questi tre controlli quando si è "dentro" un incontro non
         viola la convenzione "nessuna azione nascosta" di questo progetto:
@@ -302,15 +283,11 @@ class MasterView(ft.Column):
         """
         Aggiorna la modalità mobile "in place", senza ricostruire l'intera
         vista, quando la finestra viene ridimensionata MENTRE la Modalità
-        Master è già aperta (2026-08-06, bug report Davide: "se cambio
-        dimensione [la scheda Note di Campagna] taglia il testo" — prima di
-        questo metodo `_compact_tabs` restava fissato al valore letto
-        all'apertura o all'ultimo cambio tema, perché `MasterView`
-        sostituisce l'intera pagina via `_navigate()` e non viveva dentro
-        il layout con `content_area` che risponde a `page.on_resize` (vedi
-        il vecchio docstring del costruttore, ora superato — il limite
-        "nessuna sessione ha segnalato di ridimensionare a metà" non è più
-        vero). Chiamato da `DnDApp._on_page_resize()`.
+        Master è già aperta: senza questo metodo `_compact_tabs` resterebbe
+        fissato al valore letto all'apertura o all'ultimo cambio tema,
+        perché `MasterView` sostituisce l'intera pagina via `_navigate()` e
+        non vive dentro il layout con `content_area` che risponde a
+        `page.on_resize`. Chiamato da `DnDApp._on_page_resize()`.
 
         La tab bar (che ora usa `wrap=True`, non più `scroll`) in realtà
         NON ha bisogno di questo metodo per il solo effetto "le pillole
@@ -332,8 +309,7 @@ class MasterView(ft.Column):
         oggi solo `MasterNotesView`). Le viste che non lo supportano ancora
         (es. `MasterEncounterListView`) restano come sono state costruite
         l'ultima volta — nessun crash, solo nessun aggiornamento dal vivo
-        per quella tab specifica: un limite onesto, non peggiore del
-        comportamento di prima di questo fix.
+        per quella tab specifica: un limite onesto.
         """
         if is_mobile == self._compact_tabs:
             return
@@ -400,12 +376,11 @@ class MasterView(ft.Column):
         return [theme_toggle_pill(self.theme_preference, self.on_toggle_theme)]
 
     def _world_quick_nav_action(self) -> list[ft.Control]:
-        """Pulsante "Vai alla Sezione Mondo" nell'header, accanto al tema
-        (2026-08-16, richiesta esplicita di Davide: "in una posizione
-        comoda e sempre disponibile", spostato qui dal pannello "STRUMENTI
-        MASTER" — quello richiede di essere aperto, questo è sempre
-        visibile qualunque tab/pannello sia attivo). Lista vuota se non è
-        selezionato un mondo o il callback non è stato passato."""
+        """Pulsante "Vai alla Sezione Mondo" nell'header, accanto al tema —
+        sempre visibile qualunque tab/pannello sia attivo, a differenza del
+        pannello "STRUMENTI MASTER" che richiede di essere aperto. Lista
+        vuota se non è selezionato un mondo o il callback non è stato
+        passato."""
         if self.on_open_world is None or self._active_world_id == _NO_WORLD_KEY:
             return []
         return [ft.IconButton(
@@ -416,28 +391,20 @@ class MasterView(ft.Column):
 
     def _build_tools_panel(self) -> ft.Control:
         """
-        Pannello a comparsa (2026-08-07, restyle su richiesta di Davide):
-        selettore mondo + Generatori Rapidi raggruppati sotto un'unica
-        intestazione sempre visibile e cliccabile — MAI un menu nascosto
-        (convenzione del progetto): l'intestazione stessa mostra sempre il
-        mondo correntemente selezionato, così l'informazione più importante
-        resta leggibile anche a pannello chiuso, e un solo tap la apre.
-
-        Sostituisce due controlli distinti (`_world_selector_row()` +
-        `_build_tools_row()`, prima quest'ultima nascosta SOLO nella tab
-        Incontri): Davide ha chiesto di reintrodurre i Generatori Rapidi
-        ovunque, ma di rendere comunque la parte superiore più compatta — un
-        pannello collassabile uniforme su ogni tab risolve entrambe le cose
-        insieme, senza più eccezioni per tab specifiche.
+        Pannello a comparsa: selettore mondo + Generatori Rapidi
+        raggruppati sotto un'unica intestazione sempre visibile e
+        cliccabile — MAI un menu nascosto (convenzione del progetto):
+        l'intestazione stessa mostra sempre il mondo correntemente
+        selezionato, così l'informazione più importante resta leggibile
+        anche a pannello chiuso, e un solo tap la apre. Uniforme su ogni
+        tab, senza eccezioni.
 
         Collassato di default (`self._tools_panel_expanded`, un attributo di
         istanza che sopravvive a `_build()`, azzerato solo alla ricreazione
         di `MasterView` come qualunque altro stato di questa vista).
 
-        Usa `design.collapsible_section()` (2026-08-15, generalizzazione
-        della primitiva su richiesta di Davide) invece della logica
-        bespoke di prima — stesso comportamento, un solo posto dove
-        mantenere il pattern "intestazione cliccabile + chevron".
+        Usa `design.collapsible_section()` — un solo posto dove mantenere
+        il pattern "intestazione cliccabile + chevron".
         """
         p = design.T()
 
@@ -461,10 +428,10 @@ class MasterView(ft.Column):
                 on_select=self._on_world_change,
             )
 
-            # "GENERATORI RAPIDI" (2026-08-03, segnalazione di Davide: senza
-            # un titolo sopra le pillole si confondevano con la tab bar
-            # sottostante). `wrap=True` sulla Row: su schermi stretti le
-            # pillole vanno a capo invece di traboccare.
+            # "GENERATORI RAPIDI": titolo sopra le pillole, altrimenti si
+            # confonderebbero con la tab bar sottostante. `wrap=True` sulla
+            # Row: su schermi stretti le pillole vanno a capo invece di
+            # traboccare.
             pills = [
                 self._tool_pill(ft.Icons.DIAMOND_OUTLINED, "Tesoro", self._open_treasure_dialog),
                 self._tool_pill(ft.Icons.AUTO_AWESOME, "Oggetto Magico", self._open_magic_item_generator_dialog),
@@ -515,84 +482,24 @@ class MasterView(ft.Column):
     def _build_tab_bar(self) -> ft.Container:
         """Controllo segmentato: stesso linguaggio della tab bar della scheda.
 
-        STORIA:
-        1) Primo fix (2026-08-06) — `wrap=True` sulla Row esterna + pillole
-           NON `expand`, per il bug segnalato da Davide con screenshot (5
-           pillole — "Rubrica NPC", "Note di Campagna", "Oggetti Magici"
-           comprese — con `expand=True` forzavano una sola riga su
-           smartphone stretto, l'ellissi tagliava il testo a una sola
-           lettera, illeggibile). Risolveva il crash/troncamento ma
-           produceva lo stesso identico difetto visivo poi trovato nella
-           tab bar gemella della scheda personaggio: le pillole in eccesso
-           finivano su una riga in più a piena larghezza, allungando
-           verticalmente la barra ("si prende tutto lo schermo").
-        2) Secondo fix, stesso giorno — `wrap=True` sostituito con `scroll=
-           ft.ScrollMode.AUTO` sulla Row, dentro un Container con
-           `bgcolor=surface_alt` (la "pista" beige dietro le pillole).
-           Risolveva l'altezza, ma un nuovo screenshot di Davide ha
-           mostrato quella pista allungarsi ben oltre le pillole vere,
-           quasi fino al bordo della finestra ("quel alone allungato").
-           Causa: un `SingleChildScrollView` orizzontale (quello che Flet
-           genera per `scroll=...`) non si restringe MAI al contenuto
-           lungo l'asse di scroll — prende sempre la larghezza massima
-           concessa dal genitore, comportamento noto di Flutter, non un
-           errore di configurazione. Il `Container` che gli dava lo sfondo
-           beige, senza una larghezza propria, ereditava quella stessa
-           larghezza "gonfiata" e la disegnava visibilmente anche dove non
-           c'era nessuna pillola.
-        3) Terzo fix, stesso giorno: tolto lo sfondo/bordo dall'involucro
-           esterno — resta una Row scorrevole "nuda", nessun contenitore
-           colorato che possa allargarsi in modo visibile. Ogni pillola
-           porta il proprio sfondo quando attiva (`bgcolor=p.surface`,
-           invariato: contrasta già bene con lo sfondo della pagina, non
-           serviva cambiarlo qui — diverso da `SheetView`, il cui header è
-           già `p.surface` e ha richiesto `p.surface_alt` per non sparire).
-           Stesso principio di "Generatori Rapidi" (`design.pill()`): ogni
-           pillola ha il proprio bordo/sfondo, MAI un contenitore che le
-           racchiude tutte.
-        4) FIX DEFINITIVO, sempre lo stesso giorno: lo scroll di per
-           sé restava sbagliato — Davide ha fatto notare che, restringendo
-           la finestra, le pillole "vengono tagliate o scompaiono", in
-           contrasto con la preferenza già nota di questo progetto per
-           un'interfaccia sempre visibile, mai azioni nascoste dietro uno
-           scroll non scoperto. Sotto il breakpoint mobile dell'app
-           (`self._compact_tabs`, passato da `DnDApp` con lo stesso
-           `_MOBILE_BP = 600` di `ui/app.py`), ogni pillola mostra SOLO
-           l'icona (tooltip con l'etichetta completa) — 5 pillole
-           icona-sola stanno comodamente su una riga anche a 360-375px.
-           Sopra il breakpoint, icona + etichetta come prima.
-        5) FIX 2026-08-06 (sessione successiva) — `scroll=ft.ScrollMode.AUTO`
-           sostituito da `wrap=True`: a schermo intero desktop la lista di 5
-           etichette italiane di questa vista ("Rubrica NPC", "Incontri",
-           "Note di Campagna", "Oggetti Magici", "Bottino") è più lunga di
-           quella gemella della scheda personaggio, e lo scroll nascondeva
-           silenziosamente le ultime pillole già a finestre desktop di
-           larghezza moderata (non solo su smartphone) — bug reale
-           segnalato da Davide con screenshot ("vengono tagliate le tab"),
-           esattamente la stessa violazione di "nessuna azione nascosta"
-           già corretta al punto 4 per il caso mobile, qui riemersa in un
-           caso che quel fix non copriva. `wrap=True` non nasconde mai
-           nulla: se le pillole non entrano su una riga, quelle in eccesso
-           vanno sulla riga sotto — e lo fa in modo nativamente reattivo al
-           ridimensionamento della finestra (è Flutter stesso a
-           ricalcolare dove andare a capo ad ogni resize, nessun codice
-           Python coinvolto), risolvendo anche il ridimensionamento dal
-           vivo senza bisogno di ricostruire la vista. Il contenitore che
-           avvolge questa Row è un figlio diretto della Column esterna
-           (`self`, `MasterView(ft.Column, expand=True)`), quindi riceve
-           già una larghezza vincolata dalla pagina — verificato
-           empiricamente dal comportamento del vecchio bug "alone
-           allungato" del punto 2 (uno `SingleChildScrollView` che si
-           allarga fino al bordo della finestra lo fa SOLO se il genitore
-           gli offre un vincolo di larghezza finito, non infinito): non è
-           il caso strutturale già corretto in `profilo_tab.py` lo stesso
-           giorno (`wrap=True` annidato dentro una Row non-expand, che dà
-           larghezza illimitata). La modalità icona-sola sotto i 600px
-           resta invariata (evita che 5 pillole con etichetta si
-           impilino su altrettante righe su un telefono stretto): il wrap
-           qui entra in gioco solo per la modalità con etichetta, sopra il
-           breakpoint, quando la finestra desktop è comunque troppo stretta
-           per contenerle tutte su una riga.
+        Sotto il breakpoint mobile dell'app (`self._compact_tabs`, passato
+        da `DnDApp` con lo stesso `_MOBILE_BP = 600` di `ui/app.py`), ogni
+        pillola mostra SOLO l'icona (tooltip con l'etichetta completa) —
+        evita che le 5 pillole con etichetta si impilino su altrettante
+        righe su un telefono stretto. Sopra il breakpoint, icona +
+        etichetta, in una Row con `wrap=True`: se le pillole non entrano su
+        una riga, quelle in eccesso vanno sulla riga sotto, in modo
+        nativamente reattivo al ridimensionamento della finestra (Flutter
+        ricalcola il wrap ad ogni resize, nessun codice Python coinvolto)
+        — mai uno scroll che nasconde silenziosamente le ultime pillole,
+        coerente con la convenzione del progetto di non nascondere mai
+        azioni dietro un controllo aggiuntivo. Il contenitore che avvolge
+        questa Row è un figlio diretto della Column esterna (`self`,
+        `MasterView(ft.Column, expand=True)`), quindi riceve una larghezza
+        vincolata dalla pagina — necessario perché `wrap=True` va a capo
+        correttamente solo con un vincolo di larghezza finito, non
+        infinito. Ogni pillola porta il proprio bordo/sfondo quando
+        attiva, MAI un contenitore che le racchiude tutte.
         """
         p = design.T()
         items: list[ft.Control] = []

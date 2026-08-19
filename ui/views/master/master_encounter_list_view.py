@@ -10,11 +10,10 @@ Questa vista è self-contained: gestisce da sola lo stato "lista" vs
 `master_view.py`, che la istanzia senza argomenti — stesso principio già
 in uso per il cambio tab dentro `MasterView`).
 
-**Switch Attivi/Archiviati (2026-08-03, segnalazione di Davide)**: prima
-l'archivio degli incontri ("Termina Incontro") non era consultabile da
-nessuna parte dell'interfaccia — l'unico modo per vederlo era interrogare il
-DB a mano. Stesso pattern del pill-switch già in uso in `MasterLootView`
-(Archivio/Deposito): un solo elenco alla volta, filtrato client-side su
+**Switch Attivi/Archiviati**: l'archivio degli incontri ("Termina
+Incontro") è consultabile dall'interfaccia, stesso pattern del
+pill-switch già in uso in `MasterLootView` (Archivio/Deposito): un solo
+elenco alla volta, filtrato client-side su
 `MasterEncounter.is_archived` (nessuna nuova funzione di repository, dato che
 `master_repo.get_encounters(include_archived=True)` già restituisce tutto).
 In "Archiviati" la creazione è nascosta (non ha senso creare un incontro
@@ -46,15 +45,15 @@ class MasterEncounterListView(ft.Column):
                  on_focus_change: Optional[Callable[[bool], None]] = None):
         super().__init__(expand=True, spacing=0)
         self._page: ft.Page | None = None
-        #: Mondo correntemente selezionato in `MasterView` (2026-08-06) — ""
-        #: per la modalità locale. Inoltrato al generatore di incontri e a
+        #: Mondo correntemente selezionato in `MasterView` — "" per la
+        #: modalità locale. Inoltrato al generatore di incontri e a
         #: `MasterEncounterView` (picker "Personaggio Giocante").
         self._world_id = world_id
-        #: Identità di questo dispositivo (2026-08-06, passo 6) — inoltrata a
+        #: Identità di questo dispositivo — inoltrata a
         #: `MasterEncounterView` per firmare i comandi remoti ("Assegna PE"
         #: su un'istanza di mondo).
         self._device_id = device_id
-        #: Notifica a `MasterView` (2026-08-06) quando questa vista passa
+        #: Notifica a `MasterView` quando questa vista passa
         #: alla modalità "incontro aperto" (True) o torna alla lista (False)
         #: — permette a `MasterView` di nascondere la propria chrome
         #: (selettore mondo/Generatori Rapidi/tab bar) mentre il tracker di

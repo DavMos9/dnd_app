@@ -10773,6 +10773,75 @@ non simulato) — **resta da confermare dal vivo**. File toccati: `core/world_sy
 
 ---
 
+## Revisione generale del codice — testo di sviluppo in UI, codice morto, commenti storici (2026-08-19)
+
+Richiesta di Davide dopo aver notato che la view "Mondi" mostrava all'utente finale un sottotitolo con gergo da
+sviluppatore e ormai falso: *"Campagne condivise — passo 2, senza rete: funziona oggi solo tra sessioni che
+condividono lo stesso database (web mode multi-scheda)."* — riferimento a un "passo 2" di un piano interno
+completato da tempo (tutti i 9 passi del Multiplayer sono chiusi). Ambito della revisione: eliminare testo di
+sviluppo trapelato in UI, codice morto, commenti storici in tutto il codebase (~77.000 righe), ottimizzare lo
+spazio dove possibile, proporre (senza implementare) nuove funzionalità.
+
+**Testo UI corretto** (3 occorrenze reali, distinte dai commenti di codice — verificate una per una che fossero
+davvero visibili all'utente, non solo simili nel testo):
+- `ui/views/world/world_view.py` — il sottotitolo sopra, riscritto in termini utente.
+- `ui/views/character_sheet/sheet_view.py::_placeholder_tab()` — "In sviluppo..." (ramo irraggiungibile con le 5
+  tab reali attuali, mantenuto come guardia difensiva ma con testo neutro "Sezione non disponibile.").
+- `ui/views/character_sheet/combattimento_tab.py` — "Aggiungi armi dalla scheda Inventario (prossimamente)."
+  era falso: la funzione esiste già in Inventario. Rimosso "(prossimamente)".
+- Trovata durante la pulizia commenti (non nel giro iniziale): `ui/views/master/master_encounter_view.py`, un
+  dialogo di conferma assegnazione PE conteneva "(fix 2026-08-07)" nel testo mostrato al Master. Rimosso
+  mantenendo la sostanza informativa ("mai una scrittura diretta") — `test_fase_4.py` verifica proprio questa
+  frase, quindi un primo tentativo di editing troppo aggressivo ha causato una regressione temporanea, corretta
+  subito ripristinando la clausola sostanziale e tagliando solo il riferimento alla data/fix.
+
+**Codice morto rimosso** (confidenza alta, zero riferimenti in tutto il repo inclusi i 35 file `test_*.py`):
+`core/dice.py::RollResult.all_rolls` (property mai usata), `ui/design.py::Breakpoint` (classe di soglie
+responsive mai adottata — `ui/app.py` usa una propria `_MOBILE_BP=600` locale indipendente),
+`data/repositories/character_repo.py::character_has_class()` (zero chiamanti — la duplicazione ipotizzata in
+`profilo_tab.py:4296` si è rivelata un pattern diverso, uso di un `set` per filtrare classi disponibili, non
+un'esistenza singola: rimossa senza forzare un consolidamento artificiale), import inutilizzati in
+`ui/views/creation_wizard/wizard_view.py` (`body_text`/`label_text`/`fantasy_card`), `manual_form.py`
+(`fantasy_card`), `ui/app.py` (`wrap_dialog_actions`), `core/update_downloader.py` (`field`),
+`data/repositories/world_export.py` (`CHILD_TABLES`, mai referenziato per nome nel modulo). Un vero bug latente
+trovato con `pyflakes`: `ui/views/world/world_view.py` usava l'annotazione `Any` in due firme di funzione senza
+mai importarla da `typing` — innocuo oggi solo grazie a `from __future__ import annotations`, corretto
+aggiungendo l'import.
+
+**Pulizia sistemica dei commenti "diario di sviluppo"** — pattern trovato in tutto `core/`, `data/`, `network/`,
+`ui/`: quasi ogni commento "perché" nel codice era scritto come mini-voce di changelog (data + "bug segnalato da
+Davide" + a volte l'intera cronologia dei tentativi falliti) invece di spiegare solo il vincolo tecnico attuale
+— informazione già duplicata verbatim in questo stesso file. Politica applicata uniformemente: rimuovere i
+blocchi di puro racconto storico (es. `profilo_tab.py` aveva 77 righe in 6 punti numerati sulla diagnosi del bug
+FilePicker, `maps_view.py` un blocco esplicitamente etichettato "Storico" che descriveva codice non più
+esistente), accorciare quelli con un vincolo tecnico reale sotto la cornice narrativa (la stragrande
+maggioranza), correggere quelli ormai falsi rispetto al codice attuale. Trovati e corretti 2 commenti
+attivamente scorretti: `data/repositories/world_repo.py` diceva che `create_change_request()` non fosse "ancora
+usata" mentre è attivamente chiamata da `core/world_backend.py`; due docstring in `profilo_tab.py` sul picker
+foto mobile descrivevano ancora `ft.FilePicker`/un WebView "confermato morto" mentre il codice usa da tempo
+l'estensione nativa con fallback WebView. Lavoro svolto in ondate di sotto-agenti paralleli su gruppi di file
+indipendenti (85 file toccati in totale), con verifica di compilazione e suite di test completa dopo ogni
+ondata.
+
+**Spazio**: rimossi dal repository 20 file `.dndchar` di test (`assets/exports/TestWarlock_Lv20_*`,
+`personaggio_*`) committati per errore durante sessioni di test manuali — la cartella viene ricreata a runtime
+da `data/database.py::get_character_exports_path()`, nessun impatto funzionale. `build/` (1.1 GB locale) già
+ignorato da git, segnalato a Davide come pulizia locale facoltativa, non un problema di repository.
+
+**Verificato**: `compileall` pulito su tutto l'albero, suite intera `test_*.py` 33/35 file al 100% (i 2 residui
+sono gli stessi ambientali pre-esistenti già documentati altrove in questo file — `test_qr_scan.py` supporto
+piattaforma, `test_versione_app.py` versionCode contro i tag già rilasciati — non causati da questa sessione).
+**Nessun commit fatto** (in attesa di revisione di Davide).
+
+Proposte scritte per Davide (nessuna implementata in questa sessione, per sua scelta): export scheda personaggio
+in PDF (ricognizione già fatta in `docs/pdf_sheet_reference/`, mai scritta una riga), Sistema Bottino passo 6
+(deposito lato giocatore, sbloccato dal Multiplayer ora completo ma mai ripreso), UI per rimuovere una classe da
+un personaggio multiclasse (il layer dati `remove_character_class()` in `character_repo.py` esiste già, mai
+agganciato a un pulsante), velocità di sincronizzazione del tracker di combattimento condiviso (già segnalata
+come miglioria non bloccante il 2026-08-18).
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

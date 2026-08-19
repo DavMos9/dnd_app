@@ -22,9 +22,7 @@ esiste solo dal passo 4 (rete LAN, ormai implementato) ed è scritto
 altrove, da `data/repositories/character_export.py::import_replica_character()`,
 quando un ALTRO dispositivo scarica questa stessa istanza dall'host — mai
 qui: questo modulo non sa nulla di rete (vedi sopra, "mai Flet" vale anche
-per `core/world_backend.py`/`network/*`) — pulizia 2026-08-07, il commento
-diceva ancora "nessuna rete in questo passo... avrà senso solo dal passo 4",
-vero solo prima che quel passo esistesse.
+per `core/world_backend.py`/`network/*`).
 """
 
 from __future__ import annotations
@@ -54,16 +52,12 @@ class InstanceResult:
     resumed: bool = False
     #: True se l'istanza trovata era stata RIMOSSA dal mondo (`member.kick`
     #: o `CMD_CHARACTER_INSTANCE_REMOVE`, `characters.world_instance_archived`)
-    #: — 2026-08-12, "Richiesta di rientro". A differenza di `resumed`, qui
+    #: — flusso "Richiesta di rientro". A differenza di `resumed`, qui
     #: `success` è SEMPRE `False`: niente viene ripreso in silenzio, il
     #: chiamante deve indirizzare l'utente al flusso di richiesta di
     #: rientro (`character_id` resta comunque valorizzato con l'id
     #: dell'istanza archiviata, per aprire subito quel flusso senza un'altra
-    #: ricerca). Prima di questo campo `find_existing_instance()` non
-    #: distingueva un'istanza attiva da una archiviata: un giocatore che
-    #: ripeteva "Aggiungi a un mondo" sullo stesso personaggio locale
-    #: otteneva `resumed=True` senza che l'istanza tornasse mai visibile al
-    #: master — il "personaggio fantasma" segnalato da Davide.
+    #: ricerca).
     archived: bool = False
     error: str = ""
 
@@ -163,14 +157,11 @@ def _copy_character(source_id: str) -> tuple[str | None, str]:
     stessa ragione per cui quel modulo esiste.
 
     Ritorna `(nuovo_id, "")` in caso di successo, `(None, dettaglio)` in
-    caso di errore — `dettaglio` è il testo REALE dell'eccezione
-    (2026-08-17, bug segnalato da Davide: "copia del personaggio non
-    riuscita" sempre, senza altro dettaglio). Prima, `export_character()`/
-    `import_character()` inghiottivano l'eccezione e la loggavano soltanto
-    — inutile per un fallimento che avviene sul dispositivo del
-    GIOCATORE, dove nessuno può leggere quel log. Con `raise_errors=True`
-    la rilanciano invece di restituire `None` in silenzio, così il
-    messaggio arriva fino allo snackbar sullo schermo del telefono."""
+    caso di errore — `dettaglio` è il testo REALE dell'eccezione, non un
+    messaggio generico: il fallimento avviene sul dispositivo del
+    GIOCATORE, dove nessuno può leggere i log, quindi `export_character()`/
+    `import_character()` sono chiamate con `raise_errors=True` per far
+    arrivare il messaggio fino allo snackbar sullo schermo del telefono."""
     try:
         data = character_export.export_character(source_id, raise_errors=True)
     except Exception as e:
@@ -209,9 +200,9 @@ def _link_to_world(character_id: str, world_id: str, origin_character_id: str,
 
 
 # ---------------------------------------------------------------------------
-# «Ricomincia dal 1° livello» — §6, reset completo confermato da Davide
-# (2026-08-05): non solo la lista letterale del design doc (livello, PE,
-# inventario, diario, condizioni), ma anche l'inversione di ASI/talenti/
+# «Ricomincia dal 1° livello» — §6, reset completo: non solo la lista
+# letterale del design doc (livello, PE, inventario, diario, condizioni),
+# ma anche l'inversione di ASI/talenti/
 # competenze bonus presi dopo il 1° livello, riusando `character_repo.
 # undo_level()` — la stessa funzione già testata dietro "Scendi di livello"
 # in ProfiloTab, chiamata una volta per ciascun livello da rimuovere invece
@@ -302,8 +293,7 @@ def _reset_to_level_one(character_id: str) -> bool:
         character_repo.delete_diary_entry(entry.id)
 
     # 9. Inventario/armi/monete azzerati e riassegnati con l'equipaggiamento
-    #    iniziale di classe (assegnazione automatica, non interattiva —
-    #    confermato da Davide 2026-08-05).
+    #    iniziale di classe (assegnazione automatica, non interattiva).
     _reset_inventory(character_id, character.class_name)
     _assign_default_starting_equipment(character_id, character.class_name)
 

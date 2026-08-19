@@ -5,8 +5,7 @@ Flusso in 5 fasi:
     1. Identità     — nome, classe, razza, background, allineamento
     2. Punteggi     — sottorazza/Discendenza Draconica + Standard Array pre-assegnato per
                       classe, modificabile (la sottorazza è scelta qui, non in fase 3,
-                      perché influenza i bonus di caratteristica mostrati in anteprima —
-                      vedi nota 2026-07-10 in CLAUDE.md)
+                      perché influenza i bonus di caratteristica mostrati in anteprima)
     3. Scelte       — sottoclasse lv1, abilità, lingue/strumenti, extra razziali
     4. Equipaggiamento — oggetti fissi + scelte A/B
     5. Conferma     — riepilogo valori derivati + salvataggio
@@ -32,7 +31,7 @@ from data.game_data.game_data_loader import GameDataLoader
 from data.repositories import character_repo
 from ui.views.creation_wizard.creation_shared import CreationSharedMixin
 from ui.theme import (
-    body_text, fantasy_card, ghost_button, label_text, muted_text,
+    body_text, ghost_button, label_text, muted_text,
     primary_button, section_header, title_text,
 )
 from ui.widgets import (
@@ -50,13 +49,12 @@ _stat_engine = WizardEngine()
 # scelgono ogni giorno dal pool completo) per cui, a differenza di
 # Bardo/Stregone/Warlock (known) e del Mago (libro degli incantesimi,
 # gestito a parte), aggiungiamo comunque una scelta di incantesimi
-# preparati iniziale alla creazione (task #99, 2026-07-11). Il Ranger NON è
-# incluso: nonostante SpellsView._PREP_HALF lo tratti (erroneamente, vedi
-# TODO in CLAUDE.md) come "mezzo preparatore", ranger.json conferma
-# testualmente che il ranger "conosce" un numero fisso di incantesimi
-# (stessa meccanica di Bardo/Stregone/Warlock) — i suoi incantesimi
-# iniziali arrivano dal 2° livello via lo step SPELL_LEARN del level-up,
-# già esistente.
+# preparati iniziale alla creazione. Il Ranger NON è incluso: nonostante
+# SpellsView._PREP_HALF lo tratti (erroneamente) come "mezzo preparatore",
+# ranger.json conferma testualmente che il ranger "conosce" un numero
+# fisso di incantesimi (stessa meccanica di Bardo/Stregone/Warlock) — i
+# suoi incantesimi iniziali arrivano dal 2° livello via lo step
+# SPELL_LEARN del level-up, già esistente.
 # _PREPARED_CASTER_CLASSES vive ora in creation_shared.py insieme ai metodi
 # che la usano (_compute_prepared_spell_count).
 
@@ -97,7 +95,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         self._review_race:     str       = _first_race
         self._review_subrace:  str       = ""
         self._review_subclass: str       = ""
-        # Competenze bonus di sottoclasse a scelta (task #20, 2026-07-16) —
+        # Competenze bonus di sottoclasse a scelta —
         # es. Chierico Dominio della Natura/Conoscenza; vedi
         # bonus_proficiencies in classes/*.json e
         # character_repo.classify_bonus_proficiency_entries(). Solo Chierico
@@ -112,9 +110,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         self._review_tools:    list[str] = []
         # Strumenti a scelta concessi dalla CLASSE (non dal background) —
         # es. Bardo: 3 strumenti musicali a scelta; Monaco: 1 strumento
-        # artigiano/musicale a scelta. Vedi _class_tool_choices() e nota
-        # 2026-07-15 in CLAUDE.md (bug report Davide: "uno strumento a
-        # scelta per il bardo non permette di scegliere lo strumento").
+        # artigiano/musicale a scelta. Vedi _class_tool_choices().
         self._review_class_tools: list[str] = []
         self._review_dragon_ancestry: str       = ""
         self._review_fighting_style:  str       = ""
@@ -122,8 +118,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         self._review_mezzelf_skills:  list[str] = []
         self._review_elf_cantrip:     str       = ""
         # Lingua/e a scelta libera concesse dalla RAZZA (non dal background) —
-        # generalizzato dal vecchio campo singolo "_review_umano_language"
-        # (2026-07-16, task Mezzelfo): legge la entry {"type":"choice",...}
+        # generalizzato dal vecchio campo singolo "_review_umano_language":
+        # legge la entry {"type":"choice",...}
         # in get_resolved_race(...)["languages"] per QUALSIASI razza, invece
         # di uno special-case hardcoded sul nome "Umano". Una voce per ogni
         # slot di scelta (oggi sempre 1, sia per Umano sia per Mezzelfo —
@@ -131,7 +127,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         # 3ª lingua libera del Mezzelfo è nella entry "languages" al pari
         # di quella dell'Umano).
         self._review_race_languages:  list[str] = []
-        # Umano Standard vs Variante (task #17, 2026-07-16) — regola
+        # Umano Standard vs Variante — regola
         # opzionale PHB IT (umano.json → "variant_human_optional_rule"):
         # sostituisce interamente il tratto "+1 a tutte le caratteristiche"
         # con +1 a due caratteristiche a scelta + un'abilità a scelta + un
@@ -144,24 +140,24 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         self._review_umano_variant_feat_bonus_stat: str = ""  # per feat choose_one
         # Competenze a scelta concesse dal talento (proficiency_grants in
         # feats.json, es. Abile/Maestro d'Armi/Linguista) se il talento scelto
-        # come Variante Umana ne ha (gap fix 2026-07-16, stesso schema
-        # dell'ASI level-up in profilo_tab.py).
+        # come Variante Umana ne ha (stesso schema dell'ASI level-up in
+        # profilo_tab.py).
         self._review_umano_variant_feat_prof_values: list[str] = []
         self._review_expertise:       list[str] = []
-        # Trucchetti/incantesimi conosciuti scelti alla creazione (task #74) —
+        # Trucchetti/incantesimi conosciuti scelti alla creazione —
         # numero fisso per classe da GameDataLoader.get_cantrips_known_at_1()/
         # get_spells_known_at_1(); vuoto per classi che preparano dal pool
         # completo (Chierico/Druido/Paladino) o senza trucchetti (Paladino/Ranger).
         self._review_cantrips:        list[str] = []
         self._review_spells_lv1:      list[str] = []
-        # Incantesimi preparati iniziali per Chierico/Druido/Paladino (task
-        # #99, 2026-07-11) — questi non hanno una lista "conosciuta" fissa
+        # Incantesimi preparati iniziali per Chierico/Druido/Paladino —
+        # questi non hanno una lista "conosciuta" fissa
         # (preparano ogni giorno dal pool completo), ma senza questa scelta
         # nascevano a 0 incantesimi preparati e il giocatore doveva aprire la
         # tab Incantesimi prima di poter giocare.
         self._review_prepared_spells: list[str] = []
-        # Libro degli Incantesimi del Mago: 6 incantesimi di 1° livello
-        # (task #100, 2026-07-11) — mago.json → "spellbook_starting_spells".
+        # Libro degli Incantesimi del Mago: 6 incantesimi di 1° livello —
+        # mago.json → "spellbook_starting_spells".
         self._review_spellbook_spells: list[str] = []
 
         # ---- State fase 4 ----
@@ -265,14 +261,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         (equipment/tools.json via get_tool_categories()), ma letta da
         cls_data invece che da bg_data.
 
-        Bug report Davide (2026-07-15): "uno strumento a scelta per il
-        bardo non permette di scegliere lo strumento nella creazione
-        manuale" — causa radice confermata più ampia: NESSUNA competenza
-        di classe in tool_proficiencies veniva mai letta alla creazione
-        (né le scelte come questa, né le fisse come "Arnesi da Scasso"
-        del Ladro o "Borsa da Erborista" del Druido — vedi il salvataggio
-        in _on_save, che ora legge cls_data.get("tool_proficiencies", [])
-        per entrambi i casi).
+        Le competenze di classe fisse (non a scelta) in tool_proficiencies —
+        es. "Arnesi da Scasso" del Ladro, "Borsa da Erborista" del Druido —
+        vengono lette a parte in _on_save via cls_data.get("tool_proficiencies", []).
 
         A differenza delle scelte di background (sempre count=1 nei 13
         file esistenti), le classi possono chiedere più strumenti dalla
@@ -705,14 +696,13 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
         self._phase = "choices"
         self._update_progress()
 
-        # NOTA: la scelta di Sottorazza / Discendenza Draconica è stata
-        # spostata nella fase "Punteggi" (_render_stats) il 2026-07-10 —
-        # richiesta di Davide: la sottorazza influenza i bonus di
-        # caratteristica, quindi va scelta PRIMA o insieme all'assegnazione
-        # dei punteggi, non dopo, altrimenti l'anteprima bonus/HP mostrata
-        # in quella fase non riflette ancora la sottorazza reale. A questo
-        # punto della UI `self._review_subrace` è già stata impostata (o è
-        # "" se la razza non ha sottorazze) — qui viene solo letta, mai
+        # NOTA: la scelta di Sottorazza / Discendenza Draconica avviene nella
+        # fase "Punteggi" (_render_stats), non qui — la sottorazza influenza i
+        # bonus di caratteristica, quindi va scelta prima o insieme
+        # all'assegnazione dei punteggi, altrimenti l'anteprima bonus/HP
+        # mostrata in quella fase non rifletterebbe la sottorazza reale. A
+        # questo punto della UI `self._review_subrace` è già stata impostata
+        # (o è "" se la razza non ha sottorazze) — qui viene solo letta, mai
         # scelta di nuovo.
 
         # ---- Sottoclasse lv1 ----
@@ -742,9 +732,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     _rebuild_dragon_col(),
                     _rebuild_subclass_bonus_col(),
                     # Cambiare patrono (Warlock) cambia il pool di incantesimi
-                    # di 1° livello disponibili (Lista Incantesimi Ampliata,
-                    # task #25, 2026-07-16) — no-op per qualunque altra
-                    # classe/sottoclasse.
+                    # di 1° livello disponibili (Lista Incantesimi Ampliata) —
+                    # no-op per qualunque altra classe/sottoclasse.
                     _rebuild_spells_init_col(),
                     _update_extra_card(),
                 ],
@@ -759,8 +748,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             except RuntimeError:
                 pass
 
-        # ------ Competenze bonus di sottoclasse (task #20, 2026-07-16) ------
-        # Stesso identico pattern di wizard_view.py — vedi CLAUDE.md. Chierico
+        # ------ Competenze bonus di sottoclasse ------
+        # Stesso identico pattern di wizard_view.py. Chierico
         # è l'unica classe lv1-subclass con bonus_proficiencies. Voci fisse
         # sono un promemoria informativo (applicate automaticamente al
         # salvataggio); voci "choice" mostrano N dropdown a mutua esclusione.
@@ -952,9 +941,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 self._review_mezzelf_flex = [k for k in self._review_mezzelf_flex if k in all_stat_keys]
                 # Le due caratteristiche devono essere diverse (PHB: "+1 a
                 # due caratteristiche a scelta") — se uno stato precedente ha
-                # lasciato un duplicato (bug corretto il 2026-07-11: i due
-                # dropdown non si escludevano a vicenda), scarta il secondo
-                # valore e lascialo rigenerare dal while sotto.
+                # lasciato un duplicato, scarta il secondo valore e lascialo
+                # rigenerare dal while sotto.
                 if len(self._review_mezzelf_flex) == 2 and self._review_mezzelf_flex[0] == self._review_mezzelf_flex[1]:
                     self._review_mezzelf_flex = self._review_mezzelf_flex[:1]
                 while len(self._review_mezzelf_flex) < 2:
@@ -973,11 +961,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 def _refresh_mezzelf_flex_options() -> None:
                     # Ogni dropdown esclude dalle proprie opzioni il valore
                     # attualmente selezionato nell'ALTRO dropdown — le due
-                    # caratteristiche non possono mai coincidere (Davide,
-                    # 2026-07-11: "il mezzelfo nella selezione delle
-                    # caratteristiche +1 due caratteristiche permette la
-                    # scelta della stessa caratteristica, quando questo non
-                    # dovrebbe accadere").
+                    # caratteristiche non possono mai coincidere.
                     for i, dd in enumerate(flex_dd_refs):
                         other_idx = 1 - i
                         other_val = (
@@ -1097,8 +1081,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     # classe, non solo Mago — due liste di classi diverse
                     # possono condividere lo stesso nome di trucchetto (es.
                     # "Luce"). Va quindi sempre ricostruita, non solo quando
-                    # la classe è Mago (bug corretto il 2026-07-11, vedi
-                    # CLAUDE.md).
+                    # la classe è Mago.
                     _rebuild_spells_init_col()
                     _update_extra_card()
 
@@ -1114,18 +1097,16 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             elif race != "Elfo":
                 self._review_elf_cantrip = ""
 
-            # Umano: Standard vs Variante (regola opzionale PHB IT, task
-            # #17, 2026-07-16) — umano.json → "variant_human_optional_rule",
-            # dato già presente ma mai selezionabile in UI. Se scelta,
+            # Umano: Standard vs Variante (regola opzionale PHB IT) —
+            # umano.json → "variant_human_optional_rule". Se scelta,
             # sostituisce interamente il tratto standard "+1 a tutte le
             # caratteristiche" con: +1 a due caratteristiche a scelta, una
             # competenza in un'abilità a scelta, un talento a scelta (riusa
             # lo stesso pool feats.json/picker già usato per l'ASI del
             # level-up). Scelta fatta qui (fase Scelte), stesso punto del
-            # flex Mezzelfo — coerente con quel precedente: la preview
-            # bonus/HP mostrata nella fase Punteggi resta quella STANDARD
-            # anche se poi qui si sceglie Variante (stessa limitazione già
-            # accettata per il Mezzelfo, mai segnalata come problema).
+            # flex Mezzelfo — la preview bonus/HP mostrata nella fase
+            # Punteggi resta quella STANDARD anche se poi qui si sceglie
+            # Variante (stessa limitazione accettata per il Mezzelfo).
             if race == "Umano":
                 has_content = True
                 _umano_raw = _loader.get_race("Umano") or {}
@@ -1250,21 +1231,14 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         self._review_umano_variant_feat = feat_names_u[0] if feat_names_u else ""
 
                     def _on_uv_feat_bonus_select(e: Any) -> None:
-                        # Bug corretto il 2026-07-16: questo dropdown non
-                        # aveva MAI un on_select. Flet sincronizza comunque
-                        # .value sul controllo lato server ad ogni selezione
-                        # (messaggio UpdateControlProps separato dall'evento
-                        # on_select), ma il salvataggio a fine wizard legge
-                        # self._review_umano_variant_feat_bonus_stat — una
-                        # COPIA Python popolata una sola volta col default
-                        # (prima opzione disponibile) dentro
-                        # _refresh_uv_feat_bonus_dd() e mai più aggiornata.
-                        # Risultato pratico: scegliere una stat diversa dal
-                        # default per un talento choose_one preso come
-                        # talento Variante Umana veniva ignorato in
-                        # silenzio al salvataggio, sempre applicato alla
-                        # prima stat della lista. Fix: on_select tiene la
-                        # copia sincronizzata con la selezione reale.
+                        # Flet sincronizza .value sul controllo lato server ad
+                        # ogni selezione (UpdateControlProps, separato
+                        # dall'evento on_select), ma il salvataggio a fine
+                        # wizard legge self._review_umano_variant_feat_bonus_stat
+                        # — una copia Python popolata una sola volta col
+                        # default (prima opzione disponibile) dentro
+                        # _refresh_uv_feat_bonus_dd(). on_select tiene quindi
+                        # la copia sincronizzata con la selezione reale.
                         self._review_umano_variant_feat_bonus_stat = e.control.value or ""
 
                     uv_feat_bonus_dd = ft.Dropdown(
@@ -1440,7 +1414,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
             # Lingua/e aggiuntive a scelta libera concesse dalla razza
             # (Umano: 1; Mezzelfo: 1, "terza lingua" oltre a Comune+Elfico —
-            # generalizzato dal vecchio special-case "Umano", 2026-07-16)
+            # generalizzato dal vecchio special-case "Umano")
             race_lang_count = self._race_language_choice_count()
             if race_lang_count > 0:
                 has_content = True
@@ -1662,10 +1636,10 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             except RuntimeError:
                 pass
 
-        # ---- Trucchetti e incantesimi conosciuti al Lv.1 (task #74) ----
+        # ---- Trucchetti e incantesimi conosciuti al Lv.1 ----
         # Numero fisso per classe da GameDataLoader (dato trascritto/derivato
-        # dal testo delle feature "Incantesimi"/"Trucchetti" nei JSON classe,
-        # vedi CLAUDE.md 2026-07-10). Trucchetti: tutte le classi incantatrici
+        # dal testo delle feature "Incantesimi"/"Trucchetti" nei JSON classe).
+        # Trucchetti: tutte le classi incantatrici
         # con cantrips_known_at_1 > 0. Incantesimi conosciuti di 1° livello:
         # solo le classi "know" (Bardo/Stregone/Warlock) — i "preparatori"
         # (Chierico/Druido/Paladino) scelgono ogni giorno dal pool completo,
@@ -1703,7 +1677,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 return
 
             cantrip_names = sorted(s["name"] for s in _loader.get_spells_by_level(self._review_class, 0))
-            # Lista Incantesimi Ampliata (Warlock, task #25, 2026-07-16) — i
+            # Lista Incantesimi Ampliata (Warlock) — i
             # nomi patrono-specifici di 1° livello (es. Il Signore Fatato →
             # Luminescenza/Sonno) vanno aggiunti al pool tra cui scegliere i
             # 2 incantesimi conosciuti iniziali, MAI concessi gratis: il
@@ -1731,9 +1705,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             # liste di classi diverse possono condividere lo stesso nome di
             # trucchetto (es. "Luce"), e sceglierlo sia come tratto
             # razziale sia come trucchetto di classe farebbe "sprecare" una
-            # scelta su un trucchetto già posseduto (Davide, 2026-07-11:
-            # "la selezione mi permette di selezionare... quello conosciuto
-            # tramite bonus razziale, ma devono essere trucchetti diversi").
+            # scelta su un trucchetto già posseduto.
             elf_reserved = {self._review_elf_cantrip} if self._review_elf_cantrip else set()
             cantrip_pool = [c for c in cantrip_names if c not in elf_reserved]
 
@@ -1751,8 +1723,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         self._review_spells_lv1.append(s)
                         break
 
-            # Incantesimi preparati iniziali (Chierico/Druido/Paladino,
-            # task #99) — stesso pool di primo livello di `spell_names`,
+            # Incantesimi preparati iniziali (Chierico/Druido/Paladino) —
+            # stesso pool di primo livello di `spell_names`,
             # nessuna esclusione incrociata necessaria: una classe non è mai
             # contemporaneamente "know" (n_spells>0) e "preparatrice"
             # (n_prepared>0), quindi le due liste non competono mai per lo
@@ -1766,7 +1738,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         self._review_prepared_spells.append(s)
                         break
 
-            # Libro degli Incantesimi del Mago (task #100) — stesso pool
+            # Libro degli Incantesimi del Mago — stesso pool
             # `spell_names`; nessuna esclusione incrociata necessaria per lo
             # stesso motivo di `_review_prepared_spells` sopra.
             self._review_spellbook_spells = [
@@ -1780,9 +1752,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
             # I dropdown trucchetti (e, separatamente, i dropdown incantesimi
             # di 1° livello) non devono mai permettere di scegliere lo stesso
-            # nome due volte — bug segnalato da Davide il 2026-07-11
-            # ("la selezione mi permette di selezionare sempre lo stesso
-            # trucchetto"). Fix: le `options` di ogni dropdown escludono
+            # nome due volte: le `options` di ogni dropdown escludono
             # dinamicamente i valori già scelti negli ALTRI dropdown dello
             # stesso gruppo (mai il proprio valore corrente), ricalcolate a
             # ogni selezione — esclusione preventiva, non validazione a
@@ -2000,8 +1970,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 has_content = True
                 # Esclude le lingue già conosciute di base — fisse di razza
                 # (get_resolved_race) e l'eventuale lingua extra già scelta
-                # dal tratto Umano — vedi stessa nota in wizard_view.py
-                # (Davide, 2026-07-11).
+                # dal tratto Umano — vedi stessa nota in wizard_view.py.
                 already_known: set[str] = set()
                 if self._review_race:
                     resolved_race = _loader.get_resolved_race(self._review_race, self._review_subrace)
@@ -2083,7 +2052,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     expand=True,
                     border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style']))
 
-            # Strumenti a scelta di CLASSE (Bardo/Monaco, 2026-07-15) — a
+            # Strumenti a scelta di CLASSE (Bardo/Monaco) — a
             # differenza degli strumenti di background (sempre un solo
             # dropdown per scelta), qui una singola entry può richiedere
             # N strumenti dalla stessa categoria (Bardo: 3 musicali), quindi
@@ -2234,8 +2203,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
 
         _update_extra_card()
 
-        # ---- Validazione obbligatoria prima di avanzare (task: "non deve
-        # poter avanzare senza completare tutte le selezioni") ----
+        # ---- Validazione obbligatoria prima di avanzare ----
+        # Non deve essere possibile avanzare senza completare tutte le
+        # selezioni.
         # Copre tutte le scelte checkbox di questa fase che NON hanno un
         # valore di default pre-compilato (a differenza di dropdown/radio,
         # che sono sempre auto-popolati con la prima opzione — vedi
@@ -2281,7 +2251,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     if len(_uv_fp_filled) != _uv_fp_total or len(set(_uv_fp_filled)) != len(_uv_fp_filled):
                         return "Variante Umana: completa la scelta delle competenze concesse dal talento (nessun duplicato ammesso)."
 
-            # Competenze bonus di sottoclasse (task #20, 2026-07-16)
+            # Competenze bonus di sottoclasse
             _sc_bonus_entries = _loader.get_subclass_bonus_proficiencies(self._review_class, self._review_subclass)
             _sc_fixed, _sc_choices = character_repo.classify_bonus_proficiency_entries(_sc_bonus_entries)
             _sc_total_slots = sum(int(c.get("count", 0)) for c in _sc_choices)
@@ -2495,22 +2465,18 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
             ))
             rows.append(ft.Container(height=16))
 
-        # CardPicker invece di RadioGroup (2026-07-17, richiesta Davide:
-        # "rendere come la scelta degli incantesimi... quando scelgo voglio
-        # vedere cosa mi dà la dotazione scelta") — un click seleziona
-        # l'opzione E mostra subito il contenuto espanso di ogni eventuale
-        # Dotazione inclusa, senza bisogno di un secondo gesto.
+        # CardPicker invece di RadioGroup — un click seleziona l'opzione E
+        # mostra subito il contenuto espanso di ogni eventuale Dotazione
+        # inclusa, senza bisogno di un secondo gesto.
         #
-        # IMPORTANTE (fix 2026-07-17, feedback Davide: "strano effetto... mi
-        # porta in cima alla scheda"): il vecchio `_make_radio_change`
-        # richiamava sempre `self._render_equipment()` — ricostruiva l'INTERA
-        # fase (tutte le card, monete iniziali, ecc.) tramite `_set_content`,
-        # che resetta lo scroll in cima. La reveal della card stessa è già
-        # locale (CardPicker si aggiorna da sé, vedi ui/widgets.py), quindi
-        # qui rebuilda SOLO i Dropdown arma della scelta toccata (l'unica
-        # cosa che dipende davvero da `chosen_idx`), stesso pattern
-        # `.controls.clear()+extend()+update()` già in uso in questo file
-        # (vedi `_rebuild_subrace_picker`/`_rebuild_lang_tool_col` ecc.).
+        # IMPORTANTE: ricostruire l'INTERA fase (tutte le card, monete
+        # iniziali, ecc.) tramite `_set_content` resetta lo scroll in cima.
+        # La reveal della card stessa è già locale (CardPicker si aggiorna
+        # da sé, vedi ui/widgets.py), quindi qui rebuilda SOLO i Dropdown
+        # arma della scelta toccata (l'unica cosa che dipende davvero da
+        # `chosen_idx`), stesso pattern `.controls.clear()+extend()+update()`
+        # già in uso in questo file (vedi
+        # `_rebuild_subrace_picker`/`_rebuild_lang_tool_col` ecc.).
         for ci, choice in enumerate(self._equip_choices):
             opts = choice["options"]
             if not opts:
@@ -2651,13 +2617,11 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     bgcolor=design.T().surface,
                     border_radius=design.field_style()['border_radius'])
 
-                # CardPicker invece di RadioGroup (2026-07-17, feedback Davide:
-                # "la selezione dell'oro è brutta da vedere perché è rimasta
-                # del vecchio stile") — stessa card cliccabile già usata per
-                # incantesimi/dotazioni, per coerenza visiva. `on_select` NON
-                # richiama `self._render_equipment()` (stesso motivo del fix
-                # sopra sulle Scelte A/B): mostra/nasconde solo `gold_field`
-                # in-place, nessun jump-to-top.
+                # CardPicker invece di RadioGroup — stessa card cliccabile già
+                # usata per incantesimi/dotazioni, per coerenza visiva.
+                # `on_select` NON richiama `self._render_equipment()` (stesso
+                # motivo di sopra sulle Scelte A/B): mostra/nasconde solo
+                # `gold_field` in-place, nessun jump-to-top.
                 def _on_gold_select(ev: Any) -> None:
                     self._gold_mode = (getattr(ev.control, "value", "") == "gold")
                     gold_field.visible = self._gold_mode
@@ -2828,7 +2792,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     pass
                 return
 
-            # Validazione Variante Umana (task #17, 2026-07-16)
+            # Validazione Variante Umana
             if self._review_race == "Umano" and self._review_umano_variant:
                 _stats_u = [s for s in self._review_umano_variant_stats if s]
                 _err_u = ""
@@ -2861,9 +2825,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         pass
                     return
 
-            # Validazione competenze bonus di sottoclasse (task #20, 2026-07-16,
-            # difesa in profondità — stesso controllo già fatto dal pulsante
-            # "Continua" tramite _scelte_validation_error())
+            # Validazione competenze bonus di sottoclasse — difesa in
+            # profondità (stesso controllo già fatto dal pulsante "Continua"
+            # tramite _scelte_validation_error())
             _sc_bonus_entries_chk = _loader.get_subclass_bonus_proficiencies(self._review_class, self._review_subclass)
             _sc_fixed_chk, _sc_choices_chk = character_repo.classify_bonus_proficiency_entries(_sc_bonus_entries_chk)
             _sc_total_slots_chk = sum(int(c.get("count", 0)) for c in _sc_choices_chk)
@@ -2878,7 +2842,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         pass
                     return
 
-            # Validazione Trucchetti/Incantesimi iniziali (task #74, esteso task #99/#100)
+            # Validazione Trucchetti/Incantesimi iniziali
             n_cantrips_needed  = _loader.get_cantrips_known_at_1(self._review_class)
             n_spells_needed    = _loader.get_spells_known_at_1(self._review_class)
             n_prepared_needed  = self._compute_prepared_spell_count()
@@ -2951,7 +2915,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         if attr:
                             setattr(char, attr, min(20, getattr(char, attr) + 1))
 
-                # Umano Variante (task #17, 2026-07-16): sostituisce il
+                # Umano Variante: sostituisce il
                 # tratto standard "+1 a tutte le caratteristiche" (già
                 # applicato da build_character() tramite
                 # get_resolved_race("Umano")["ability_bonuses"]) con +1 a
@@ -2972,11 +2936,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         if attr_u:
                             setattr(char, attr_u, min(20, getattr(char, attr_u) + 1))
                     # Ricalcola HP se CON è cambiata rispetto a quella usata
-                    # da build_character() — gap NON presente in questo
-                    # nuovo percorso (a differenza del flex Mezzelfo sopra,
-                    # che condivide lo stesso limite ma non è stato toccato
-                    # qui: fuori scope per questa task, segnalato in
-                    # CLAUDE.md).
+                    # da build_character() — il flex Mezzelfo sopra condivide
+                    # lo stesso limite (CON alterata dopo il calcolo HP) ma
+                    # non ricalcola (vedi CLAUDE.md).
                     _hit_die_u = (_loader.get_class(self._review_class) or {}).get("hit_die", 8)
                     char.hp_max = max(1, _hit_die_u + get_modifier(char.con_score))
                     char.hp_current = char.hp_max
@@ -3004,8 +2966,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     if skill:
                         character_repo._save_single_proficiency(char.id, "skill", skill)
 
-                # Umano Variante: abilità a scelta + talento a scelta
-                # (task #17, 2026-07-16). Il talento viene salvato con lo
+                # Umano Variante: abilità a scelta + talento a scelta.
+                # Il talento viene salvato con lo
                 # stesso schema "ricevuta" (bonus_data/level_obtained) già
                 # usato per i talenti scelti all'ASI del level-up, così
                 # compare nella sezione Talenti di ProfiloTab e può essere
@@ -3100,7 +3062,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         higher_levels="", class_list="Mago",
                     )
 
-                # Trucchetti e incantesimi conosciuti al Lv.1 (task #74)
+                # Trucchetti e incantesimi conosciuti al Lv.1
                 def _save_known_spell_by_name(
                     spell_name: str, class_name: str, is_prepared: bool = True
                 ) -> None:
@@ -3110,8 +3072,8 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         None,
                     )
                     if spell is None:
-                        # Lista Incantesimi Ampliata (Warlock, task #25,
-                        # 2026-07-16) — un nome scelto dal pool "ampliato"
+                        # Lista Incantesimi Ampliata (Warlock) — un nome
+                        # scelto dal pool "ampliato"
                         # (es. Il Signore Fatato → Luminescenza) non è nella
                         # lista base della classe, va risolto qui.
                         spell = next(
@@ -3151,7 +3113,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 for pname in prepared_chosen:
                     _save_known_spell_by_name(pname, self._review_class)
 
-                # Libro degli Incantesimi del Mago (task #100) — tutti e 6
+                # Libro degli Incantesimi del Mago — tutti e 6
                 # persistiti come "conosciuti" (nel libro), ma solo i primi
                 # `_compute_mago_max_prepared()` marcati is_prepared=True
                 # per non violare il limite già applicato dalla tab
@@ -3164,10 +3126,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                             bname, self._review_class, is_prepared=idx < max_prep_mago
                         )
 
-                # Lingue fisse concesse dalla razza (es. Comune + Elfico per l'Elfo)
-                # — prima di questo fix venivano lette da get_resolved_race() solo
-                # per la UI (Esplorazione/Profilo), mai salvate come proficiency
-                # reale alla creazione del personaggio.
+                # Lingue fisse concesse dalla razza (es. Comune + Elfico per
+                # l'Elfo) — salvate come proficiency reale, non solo lette
+                # per la UI (Esplorazione/Profilo).
                 lang_seen: set[str] = set()
                 resolved_race = _loader.get_resolved_race(self._review_race, self._review_subrace)
                 for entry in resolved_race.get("languages", []):
@@ -3176,7 +3137,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         lang_seen.add(entry)
 
                 # Lingua/e aggiuntive a scelta libera concesse dalla razza
-                # (Umano, Mezzelfo — generalizzato 2026-07-16)
+                # (Umano, Mezzelfo)
                 for race_lang in self._review_race_languages:
                     if race_lang and race_lang not in lang_seen:
                         character_repo._save_single_proficiency(char.id, "language", race_lang)
@@ -3189,13 +3150,10 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         lang_seen.add(lang)
 
                 # Strumenti: scelti (background + classe) + fissi (background
-                # + classe). Fino al 2026-07-15 nessuna competenza in
-                # tool_proficiencies letta da cls_data veniva mai salvata —
-                # né le scelte (Bardo: 3 strumenti musicali, Monaco: 1
-                # artigiano/musicale) né le fisse (Ladro "Arnesi da Scasso",
-                # Druido "Borsa da Erborista") — bug report Davide: "uno
-                # strumento a scelta per il bardo non permette di scegliere
-                # lo strumento nella creazione manuale". Vedi CLAUDE.md.
+                # + classe), inclusa la parte letta da cls_data —
+                # sia le scelte (Bardo: 3 strumenti musicali, Monaco: 1
+                # artigiano/musicale) sia le fisse (Ladro "Arnesi da Scasso",
+                # Druido "Borsa da Erborista").
                 tool_seen: set[str] = set()
                 for tool in self._review_tools:
                     if tool and tool not in tool_seen:
@@ -3217,11 +3175,10 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                             character_repo._save_single_proficiency(char.id, "tool", entry)
                             tool_seen.add(entry)
 
-                # Competenze bonus di sottoclasse (task #20, 2026-07-16) — es.
-                # Chierico Dominio della Vita/Natura/Tempesta/Guerra (armature/armi
-                # fisse + scelta abilità per Natura/Conoscenza), letto da
-                # bonus_proficiencies in classes/*.json (normalizzato lo stesso
-                # giorno, vedi CLAUDE.md). Solo le classi con subclass_choice_level
+                # Competenze bonus di sottoclasse — es. Chierico Dominio della
+                # Vita/Natura/Tempesta/Guerra (armature/armi fisse + scelta
+                # abilità per Natura/Conoscenza), letto da bonus_proficiencies
+                # in classes/*.json. Solo le classi con subclass_choice_level
                 # == 1 possono valorizzare char.subclass a questo punto della
                 # creazione (oggi solo Chierico/Stregone/Warlock).
                 _sc_bonus_entries_save = _loader.get_subclass_bonus_proficiencies(char.class_name, char.subclass)
@@ -3230,14 +3187,13 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 character_repo.apply_subclass_bonus_proficiencies(char.id, _sc_resolved_save)
 
                 # Competenze base di classe (armor_proficiencies/weapon_proficiencies
-                # di classes/*.json — livello classe, non sottoclasse). Gap segnalato
-                # in CLAUDE.md, mai applicate finora da nessun percorso di creazione.
+                # di classes/*.json — livello classe, non sottoclasse).
                 character_repo.apply_class_base_proficiencies(char.id, char.class_name)
 
                 def _save_weapon_by_name(character_id: str, wname: str) -> None:
                     """
                     Crea l'arma nella tabella weapons (mai in inventario — unica
-                    fonte di verità per le armi, vedi CLAUDE.md 2026-07-11 "Armi
+                    fonte di verità per le armi, vedi CLAUDE.md "Armi
                     riserva"), leggendo dado danno/tipo danno/proprietà da
                     equipment/weapons.json. Se il nome non viene trovato (es.
                     refuso di trascrizione), crea comunque la riga in weapons ma
@@ -3247,28 +3203,9 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     (riserva)" ormai rimossa dalla UI — logga comunque un
                     warning diagnosticabile.
 
-                    Creata sempre `is_equipped=False` (2026-07-11, bug report
-                    Davide: "alla creazione risultano tutte le armi
-                    equipaggiate, dovrebbe essere solo una, due al massimo
-                    se si hanno per esempio 2 pugnali"). Un precedente
-                    tentativo (stesso giorno, sessione precedente) auto-
-                    equipaggiava ogni arma e poi risolveva i conflitti con
-                    `resolve_weapon_equip()` in una passata di finalizzazione
-                    a fine creazione — ma quella passata chiama la funzione
-                    una volta per OGNI arma ancora marcata equipaggiata dopo
-                    le iterazioni precedenti, e ogni chiamata può ri-
-                    confermare armi già "tenute" nell'iterazione precedente E
-                    aggiungerne altre finché restano mani libere cumulate tra
-                    chiamate diverse — con 3+ armi di partenza (es. Ladro:
-                    2 pugnali fissi + arma principale a scelta + arco) il
-                    risultato è imprevedibile e non banale da verificare
-                    (confermato con un caso di test dedicato: Pugnale+Stocco
-                    finivano entrambi equipaggiati, non solo l'arma
-                    principale). Scelta esplicitamente autorizzata da Davide
-                    come alternativa più semplice e robusta: nessuna arma
-                    parte equipaggiata, il giocatore la equipaggia dalla tab
-                    Inventario col pulsante dedicato (già corretto e testato
-                    per il singolo click, vedi `inventario_tab.py`).
+                    Creata sempre `is_equipped=False`: nessuna arma parte
+                    equipaggiata, il giocatore la equipaggia dalla tab
+                    Inventario col pulsante dedicato (vedi `inventario_tab.py`).
                     """
                     wdata = _loader.get_weapon(wname)
                     if wdata:
@@ -3307,9 +3244,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                     sulla CA anche se equipaggiato: il personaggio resta
                     sulla formula "senza armatura" (10+DEX, o le formule
                     speciali di Monaco/Barbaro/Stregone+Discendenza
-                    Draconica). Comportamento richiesto esplicitamente da
-                    Davide il 2026-07-11: "abito comune... è un'armatura che
-                    non aumenta la classe armatura" — vedi CLAUDE.md.
+                    Draconica). Comportamento intenzionale — vedi CLAUDE.md.
                     """
                     adata = _loader.get_armor_item(aname)
                     if adata:
@@ -3335,9 +3270,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 # risolvere in _save_item() — vedi commento lì. Condiviso tra
                 # tutte le chiamate di _save_item per lo stesso personaggio,
                 # incrementato ogni volta che un placeholder "(a scelta)"
-                # viene incontrato nell'equipaggiamento (task #105, Davide
-                # 2026-07-11: "strumento musicale a scelta... scritto come
-                # frase invece di permettere la scelta").
+                # viene incontrato nell'equipaggiamento.
                 _choice_equip_idx = 0
 
                 def _save_item(character_id: str, item: dict) -> None:
@@ -3406,7 +3339,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                         # dato già corretto nei JSON (rinominato "Pugnale"),
                         # ma il loop resta comunque la protezione strutturale
                         # corretta per qualunque item_type="weapon" con
-                        # quantity>1 (Davide, 2026-07-11).
+                        # quantity>1.
                         for _ in range(max(1, item.get("quantity", 1))):
                             _save_weapon_by_name(character_id, item["name"])
                     elif itype == "armor":
@@ -3436,7 +3369,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                             # insieme di oggetti (PHB p.151) — espansa nei
                             # singoli oggetti che contiene invece di creare
                             # un unico InventoryItem con il nome letterale
-                            # della dotazione (Davide, 2026-07-11).
+                            # della dotazione.
                             for sub in pack_items:
                                 character_repo.create_inventory_item(
                                     character_id=character_id,
@@ -3496,8 +3429,7 @@ class ManualCreationForm(CreationSharedMixin, ft.Column):
                 # nel normale caso (1 armatura + max 1 scudo per classe) non
                 # cambia nulla, ma protegge da un futuro package JSON
                 # malformato con 2 armature corporee/2 scudi fissi entrambi
-                # equipaggiati (Davide, 2026-07-11: "puoi indossare al
-                # massimo una armatura per volta e uno scudo").
+                # equipaggiati (al massimo un'armatura e uno scudo alla volta).
                 armor_rows = [
                     i for i in character_repo.get_inventory(char.id)
                     if i.category == "armor"

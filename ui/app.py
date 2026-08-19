@@ -5,7 +5,7 @@ Gestisce la navigazione principale tra le sezioni e lo stato globale.
 Flusso:
     Avvio → Home (selezione personaggi)
         ├─► Seleziona personaggio → MainLayout (navbar + sezioni)
-        ├─► Crea wizard          → [TODO] WizardView → MainLayout
+        ├─► Crea wizard          → WizardView → MainLayout
         └─► Crea manuale         → ManualCreationForm → MainLayout
 """
 
@@ -18,7 +18,7 @@ from data.repositories import settings_repo
 from network.host_server import HostServerSlot
 from ui import design
 from ui.theme import get_theme, get_dark_theme, title_text, muted_text
-from ui.widgets import wrap_dialog_actions, theme_toggle_look, theme_toggle_tooltip
+from ui.widgets import theme_toggle_look, theme_toggle_tooltip
 
 logger = logging.getLogger(__name__)
 
@@ -69,13 +69,12 @@ class DnDApp:
         self._master_view: Any = None
         self._worlds_view: Any = None
         #: Contenitore condiviso dell'hosting LAN eventualmente attivo —
-        #: creato UNA VOLTA per l'intera sessione dell'app (fix
-        #: 2026-08-07, bug reale su Wi-Fi: prima l'hosting viveva
+        #: creato UNA VOLTA per l'intera sessione dell'app: se vivesse
         #: sull'istanza di `WorldsView`, che `_navigate()` ricrea ad ogni
-        #: cambio di schermata, e si fermava da solo ad ogni navigazione
-        #: — vedi il docstring di `HostServerSlot` in
-        #: `network/host_server.py` per il dettaglio completo). Passato a
-        #: ogni `WorldsView` creata in `_show_worlds_view()`.
+        #: cambio di schermata, si fermerebbe da solo ad ogni navigazione —
+        #: vedi il docstring di `HostServerSlot` in `network/host_server.py`
+        #: per il dettaglio completo. Passato a ogni `WorldsView` creata in
+        #: `_show_worlds_view()`.
         self._host_server_slot = HostServerSlot()
         # Vista di primo livello corrente in grado di aggiornarsi "in place"
         # su un resize dal vivo tramite un proprio `set_mobile(bool)` (oggi:
@@ -83,10 +82,7 @@ class DnDApp:
         # principale, che non ne hanno bisogno o si gestiscono da soli.
         # `_on_main_layout` distingue il caso speciale del layout principale
         # (sidebar/bottom-nav), l'unico che richiede un rebuild completo
-        # invece di un aggiornamento in place. Introdotti 2026-08-06 per il
-        # bug segnalato da Davide: ridimensionare la finestra MENTRE la
-        # Modalità Master era già aperta non aveva alcun effetto (tab bar,
-        # layout Note di Campagna) — vedi `_on_page_resize()`.
+        # invece di un aggiornamento in place — vedi `_on_page_resize()`.
         self._active_top_view: Any = None
         self._on_main_layout: bool = False
 
@@ -105,22 +101,13 @@ class DnDApp:
     def _navigate(self, control: ft.Control) -> None:
         """
         Punto unico di navigazione di primo livello: azzera la pagina e monta
-        `control` (Fix layout 2026-08-05, segnalato da Davide su Android:
-        barra caratteristiche/header sovrapposti alla tacca e alla barra di
-        stato).
+        `control` avvolto in `ft.SafeArea`, così header e barre superiori non
+        finiscono mai sotto la tacca o la barra di stato su un telefono con
+        notch. Centralizzare qui evita di doverlo ricordare ad ogni nuova
+        vista di primo livello.
 
-        Prima ognuna delle 6 viste di primo livello (Home, Master, Mondi,
-        form manuale, wizard, layout principale) ripeteva lo stesso terzetto
-        `page.controls.clear() / page.add(X) / page.update()` — nessun punto
-        avvolgeva mai in `ft.SafeArea`, quindi ogni header/barra superiore
-        finiva sotto l'area di sistema su un telefono con tacca/notch.
-        Centralizzare qui vuol dire risolverlo UNA VOLTA per tutte le viste
-        presenti e future, invece di doverlo ricordare ad ogni nuova vista.
-
-        `ft.SafeArea` esiste davvero in Flet 0.85.3/0.86.5 (verificato per
-        introspezione, non assunto) ed è un no-op su desktop/web dove
-        `MediaQuery` non riporta intrusioni di sistema — nessun rischio di
-        aggiungere padding indesiderato lì.
+        `ft.SafeArea` è un no-op su desktop/web, dove `MediaQuery` non
+        riporta intrusioni di sistema — nessun rischio di padding indesiderato.
         """
         self.page.controls.clear()
         self.page.add(ft.SafeArea(content=control, expand=True))
@@ -132,16 +119,14 @@ class DnDApp:
 
     def _setup_page(self):
         self.page.title = APP_NAME
-        # Font custom self-hosted (Fase B.1 del restyle, 2026-07-30).
-        # Va impostato PRIMA del tema: `get_theme()` referenzia già le famiglie
-        # `d.Font.*`, che senza questa registrazione non esisterebbero e
-        # ricadrebbero silenziosamente sul font di sistema.
-        # I file vivono in `assets/fonts/` e sono raggiungibili perché la Fase A
-        # ha collegato `assets_dir` su tutte le piattaforme (vedi main.py).
+        # Font custom self-hosted. Va impostato PRIMA del tema: `get_theme()`
+        # referenzia già le famiglie `d.Font.*`, che senza questa
+        # registrazione non esisterebbero e ricadrebbero silenziosamente sul
+        # font di sistema. I file vivono in `assets/fonts/`, raggiungibili
+        # perché `assets_dir` è collegato su tutte le piattaforme (vedi main.py).
         self.page.fonts = dict(design.FONT_FILES)
-        # Entrambi i temi sono registrati fin da subito (Fase A del restyle);
-        # la Fase D (2026-07-30) ha aggiunto la scelta dell'utente e la sua
-        # persistenza.
+        # Entrambi i temi sono registrati fin da subito; la scelta
+        # dell'utente e la sua persistenza sono gestite sotto.
         self.page.theme = get_theme()
         self.page.dark_theme = get_dark_theme()
         self.page.padding = 0
@@ -151,18 +136,17 @@ class DnDApp:
         # Con la preferenza "Sistema" il tema segue il SO anche mentre l'app è
         # aperta (es. la pianificazione automatica di macOS al tramonto).
         self.page.on_platform_brightness_change = self._on_system_brightness_change
-        # Assegnato UNA SOLA VOLTA qui, non più dentro `_show_main_layout()`
-        # (2026-08-06): `page.on_resize` deve restare attivo per TUTTA la
-        # sessione, non solo mentre si guarda la scheda personaggio, perché
-        # ora propaga il resize anche a `MasterView`/`WorldsView` tramite
-        # `_active_top_view` — vedi `_on_page_resize()`. `page.on_resize` è
-        # comunque di proprietà esclusiva di questo unico punto (nessun'altra
-        # vista deve mai assegnarlo, romperebbe questo meccanismo in modo
-        # silenzioso — vedi `regole_flet_api.md`).
+        # `page.on_resize` è assegnato UNA SOLA VOLTA qui e resta attivo per
+        # TUTTA la sessione, non solo mentre si guarda la scheda personaggio,
+        # perché propaga il resize anche a `MasterView`/`WorldsView` tramite
+        # `_active_top_view` — vedi `_on_page_resize()`. È di proprietà
+        # esclusiva di questo unico punto: nessun'altra vista deve mai
+        # assegnarlo, romperebbe questo meccanismo in modo silenzioso — vedi
+        # `regole_flet_api.md`.
         self.page.on_resize = self._on_page_resize
 
     # ------------------------------------------------------------------
-    # Tema (Fase D del restyle, 2026-07-30)
+    # Tema
     # ------------------------------------------------------------------
 
     def _resolve_theme_mode(self) -> str:
@@ -298,11 +282,11 @@ class DnDApp:
     def _show_master_view(self, active_tab: str | None = None, active_world_id: str | None = None):
         """Mostra la Modalità Master — indipendente da ogni personaggio giocante.
 
-        `active_world_id=None` (2026-08-16): nessuna richiesta esplicita —
-        `MasterView` rilegge da sola l'ultimo mondo masterato salvato (vedi
-        il docstring del modulo). Non coercizzare più a `""` qui: `""` è una
-        richiesta esplicita di "Nessun mondo" (usata dal rebuild per cambio
-        tema sotto), diversa da "nessuna richiesta".
+        `active_world_id=None`: nessuna richiesta esplicita — `MasterView`
+        rilegge da sola l'ultimo mondo masterato salvato (vedi il docstring
+        del modulo). `""` è invece una richiesta esplicita di "Nessun mondo"
+        (usata dal rebuild per cambio tema sotto), semanticamente diversa da
+        "nessuna richiesta".
         """
         from ui.views.master.master_view import MasterView
         self._stop_home_polling()
@@ -332,9 +316,8 @@ class DnDApp:
         """Mostra la Sezione Mondi (Multiplayer, passo 2) — indipendente da
         ogni personaggio, stesso trattamento di `_show_master_view`.
 
-        `world_id` (2026-08-16, navigazione rapida): se passato, apre
-        direttamente il dettaglio di quel mondo — vedi
-        `WorldsView.__init__` (`initial_world_id`).
+        `world_id`: se passato, apre direttamente il dettaglio di quel mondo
+        — vedi `WorldsView.__init__` (`initial_world_id`).
         """
         from ui.views.world.world_view import WorldsView
         self._stop_home_polling()
@@ -427,9 +410,8 @@ class DnDApp:
                 vertical_alignment=ft.CrossAxisAlignment.STRETCH,
             )
 
-        # `page.on_resize` NON viene più assegnato qui (2026-08-06): è
-        # assegnato una sola volta in `_setup_page()`, così resta attivo
-        # anche fuori dal layout principale — vedi il commento lì e
+        # `page.on_resize` è assegnato una sola volta in `_setup_page()`, così
+        # resta attivo anche fuori dal layout principale — vedi
         # `_on_page_resize()` sotto.
         self._active_top_view = None
         self._on_main_layout = True
@@ -439,11 +421,7 @@ class DnDApp:
         """
         Reagisce al ridimensionamento della finestra, per QUALUNQUE vista
         di primo livello attualmente a video — non solo il layout
-        principale (2026-08-06, bug segnalato da Davide: ridimensionare la
-        finestra mentre la Modalità Master era già aperta non aveva alcun
-        effetto, perché prima di questo fix `page.on_resize` veniva
-        assegnato solo dentro `_show_main_layout()` e quindi non era
-        nemmeno attivo se si entrava in Master direttamente dalla Home).
+        principale.
 
         Due rami distinti:
         - Layout principale (scheda personaggio): richiede un rebuild
@@ -645,8 +623,7 @@ class DnDApp:
         # ~47px di larghezza, appena sotto i 48dp minimi consigliati per la
         # larghezza del tap-target — ma l'altezza della barra è 64px, quindi
         # l'area effettiva resta ben oltre 48×48. La voce è qui e non solo in
-        # Home perché "raggiungibile da tutte le schermate" è un requisito
-        # esplicito della Fase D.
+        # Home perché deve essere "raggiungibile da tutte le schermate".
         items.append(self._nav_theme_item(label_size=9))
 
         return ft.Container(
@@ -724,8 +701,7 @@ class DnDApp:
 
     def _check_update_completion(self):
         """
-        Mostra "Aggiornamento completato" al primo avvio dopo un aggiornamento
-        (2026-08-17).
+        Mostra "Aggiornamento completato" al primo avvio dopo un aggiornamento.
 
         Non può essere mostrato dal processo che ha avviato l'aggiornamento: su
         Android quel processo viene ucciso dall'installer di sistema, e su
@@ -804,7 +780,7 @@ class DnDApp:
     def _show_update_dialog(self, info):
         """
         Instrada verso il dialogo giusto — questa classe decide QUALE, il come
-        vive in `ui/update_dialogs.py` (2026-08-17).
+        vive in `ui/update_dialogs.py`.
 
         Due casi, non uno:
 

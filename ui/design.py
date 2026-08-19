@@ -1,19 +1,15 @@
 """
 Design system dell'app — token e primitive riusabili.
 
-**Rifacimento radicale "Arcane Ledger"** (2026-08-20): palette e primitive
-ricostruite da zero, nessun valore precedente riusato per continuità. Identità
-visiva — grimorio illuminato, non dashboard: oro antico/bronzo come accento
-primario (azioni, elementi hero), indaco/violetto (`magic`) come secondo
-registro compositivo per contenuto arcano, rosso vero e isolato per
-`danger` (prima coincideva con `primary` — separato qui perché nessun
-prodotto di riferimento affianca mai i due). Tipografia invariata (Cinzel/
-Inter/JetBrains Mono — nessuna alternativa valutata batte Cinzel per un'app
-fantasy, resta l'asset già auto-ospitato).
+Palette **"Arcane Ledger"**: identità visiva da grimorio illuminato, non da
+dashboard — oro antico/bronzo come accento primario (azioni, elementi hero),
+indaco/violetto (`magic`) come secondo registro compositivo per contenuto
+arcano, rosso vero e isolato per `danger` (mai lo stesso colore di
+`primary`: nessun prodotto di riferimento consultato affianca i due).
+Tipografia: Cinzel/Inter/JetBrains Mono, self-hosted.
 
 Cosa c'è qui:
-  1. **Token**: scale di spaziatura, raggi, elevazioni, durate, tipografia,
-     breakpoint (allineati a `ft.ResponsiveRow`, vedi `Breakpoint`).
+  1. **Token**: scale di spaziatura, raggi, elevazioni, durate, tipografia.
   2. **Palette doppia** (chiaro/scuro) con contrasti WCAG **calcolati**, non
      scelti a occhio (vedi i commenti sui singoli valori sotto).
   3. **Primitive**: `surface`, `card`, `section`, `hero_title`, `icon_badge`,
@@ -76,7 +72,7 @@ CURVE = ft.AnimationCurve.EASE_OUT
 
 class Font:
     """
-    Famiglie tipografiche (Fase B.1 del restyle, 2026-07-30).
+    Famiglie tipografiche.
 
     I tre font sono self-hosted in `assets/fonts/` — nessuna richiesta di rete,
     coerente col vincolo offline-first del progetto. I nomi qui sono le chiavi
@@ -94,8 +90,7 @@ class Font:
 
 # Percorsi relativi ad `assets_dir` (= `dnd_app/assets/`, vedi
 # `data/database.py → get_assets_path()` e `main.py`). Senza `assets_dir`
-# impostata questi file non sarebbero raggiungibili: è il motivo per cui la
-# Fase A ha dovuto collegarla prima di poter installare i font.
+# impostata questi file non sarebbero raggiungibili.
 FONT_FILES: dict[str, str] = {
     Font.DISPLAY: "fonts/Cinzel-Variable.ttf",
     Font.BODY: "fonts/Inter-Variable.ttf",
@@ -115,23 +110,6 @@ class Size:
     MONO = 15
 
 
-class Breakpoint:
-    """
-    Soglie di larghezza — allineate ai default reali di `ft.ResponsiveRow`
-    (verificati per introspezione, `flet==0.86.5`: xs=0, sm=576, md=768,
-    lg=992, xl=1200, xxl=1400 — valutati lato client, non `page.width` in
-    Python). Non reinventare soglie parallele: ogni composizione multi-
-    colonna (`asymmetric_row`, `col=` su `ResponsiveRow`) deve usare questi
-    stessi nomi. `ui/app.py::_MOBILE_BP=600` (soglia del drill-down mobile,
-    calcolata centralmente in `_on_page_resize()`) resta concettualmente
-    allineata a `SM`.
-    """
-    SM = 576
-    MD = 768
-    LG = 992
-    XL = 1200
-
-
 # ---------------------------------------------------------------------------
 # Palette
 # ---------------------------------------------------------------------------
@@ -140,8 +118,7 @@ class Breakpoint:
 @dataclass(frozen=True)
 class Palette:
     """
-    Token di colore semantici — palette "Arcane Ledger" (rifacimento radicale
-    2026-08-20, nessun valore ereditato dalla palette precedente).
+    Token di colore semantici — palette "Arcane Ledger".
 
     Ogni valore è verificato per contrasto WCAG calcolato (script dedicato,
     non a occhio), contro il PEGGIORE dei due fondi su cui il token può
@@ -154,13 +131,12 @@ class Palette:
 
     **Oro (`primary`) e rosso (`danger`) sono accenti DISTINTI**, non alias:
     in ogni palette di riferimento consultata il colore distruttivo non
-    coincide mai col colore primario/brand — averli separati è il cambio
-    strutturale principale di questo rifacimento.
+    coincide mai col colore primario/brand.
 
-    L'oro in tema chiaro ha la stessa tensione che il rosso aveva nella
-    palette precedente (una tonalità chiara per natura non può essere insieme
-    "oro pieno/saturo" e "leggibile da sola ≥4.5:1 su pergamena chiara"),
-    quindi resta sdoppiato su tre livelli:
+    L'oro in tema chiaro non può essere insieme "oro pieno/saturo" e
+    "leggibile da solo ≥4.5:1 su pergamena chiara" (una tonalità chiara per
+    natura non regge entrambi i vincoli), quindi resta sdoppiato su tre
+    livelli:
       * `primary`/`danger` ≥ 4.5:1 — testo scorrevole, paragrafi, etichette
       * `primary_icon`/`danger_icon` ≥ 3:1 — SOLO icone isolate e testo
         grande/bold ≥18pt (WCAG 1.4.11/1.4.3 "large text/graphical object")
@@ -191,19 +167,20 @@ class Palette:
     danger: str
     on_accent: str       # testo su success/warning/magic pieni
 
-    # 2026-08-15 — SOLO per riempimenti pieni (bottoni/badge/checkbox), MAI
-    # per testo/icona/bordo scritti direttamente su `surface`/`bg`: `primary`
-    # deve restare leggibile da solo (usato così in 325 punti di `ui/`, audit
-    # 2026-08-15), quindi in dark mode non può essere scuro quanto un vero
-    # bordeaux. `primary_fill` invece ha sempre `on_primary_fill` sopra, può
-    # essere scuro quanto serve. In light mode sono alias di `primary`/
-    # `on_primary` — il rosso chiaro non ha questo problema.
+    # SOLO per riempimenti pieni (bottoni/badge/checkbox), MAI per
+    # testo/icona/bordo scritti direttamente su `surface`/`bg`: `primary` è
+    # usato anche come colore di testo diretto in tutto `ui/`, quindi deve
+    # restare leggibile da solo — in dark mode non può quindi essere scuro
+    # quanto un vero bordeaux. `primary_fill` invece ha sempre
+    # `on_primary_fill` sopra, può essere scuro quanto serve. In light mode
+    # sono alias di `primary`/`on_primary` — il rosso chiaro non ha questo
+    # problema.
     primary_fill: str
     on_primary_fill: str
     danger_fill: str     # come `primary_fill`, per i call site che riempiono con `danger`
 
-    # 2026-08-15, ottavo giro — via di mezzo tra `primary` (testo scorrevole,
-    # serve 4.5:1) e `primary_fill` (mai da solo, nessun vincolo): icone
+    # Via di mezzo tra `primary` (testo scorrevole, serve 4.5:1) e
+    # `primary_fill` (mai da solo, nessun vincolo): icone
     # isolate (IconButton "Elimina"/"Avvia scheda", ecc.) e testo grande/
     # bold (titolo "D&D", ≥18pt bold) ricadono nella soglia WCAG "large
     # text / graphical object" — 3:1, non 4.5:1 (1.4.11/1.4.3) — quindi
@@ -214,9 +191,8 @@ class Palette:
     primary_icon: str
     danger_icon: str
 
-    # Fondi tenui per i riquadri informativi (Fase B.2): prima erano 6 hex
-    # diversi sparsi nelle view (#fef9ec, #e8eef8, #eef4ff, #dce8f8, #d4edda…),
-    # tutti bianchissimi in tema scuro.
+    # Fondi tenui per i riquadri informativi — token unici, mai hex sparsi
+    # nelle view: in tema scuro un fondo tenue chiaro sarebbe fuori registro.
     note_bg: str         # riquadro nota / promemoria (crema)
     info_bg: str         # riquadro informativo (azzurrato)
     success_bg: str      # riquadro "completato / disponibile"
@@ -263,7 +239,7 @@ LIGHT = Palette(
     primary_fill="#956c0f", on_primary_fill="#ffffff", danger_fill="#ab2a21",
     # Icone isolate/testo grande ≥18pt bold: soglia 3:1 (WCAG 1.4.11/1.4.3),
     # più chiare/vivide del testo normale restando conformi (margine minimo
-    # voluto sopra 3.00, non sotto — stessa logica della vecchia palette).
+    # voluto sopra 3.00, non sotto).
     primary_icon="#a77a20", danger_icon="#dd554b",
     note_bg="#f7f1e3", info_bg="#e5ecf5", success_bg="#e3f2ea", magic_bg="#ebeaf6",
     parchment="#faf9f4", parchment_alt="#f4efe6",
@@ -285,8 +261,7 @@ DARK = Palette(
     # Testo crema calda a 9.3:1/7.4:1 su bg/surface_alt (AAA, con margine ma
     # deliberatamente NON portato oltre ~9:1: un contrasto testo-quasi-
     # bianco-su-nero-quasi-puro è causa nota di affaticamento/"halation"
-    # nella lettura prolungata — la stessa lezione della palette precedente,
-    # applicata qui fin dall'inizio invece che corretta in un secondo giro).
+    # nella lettura prolungata).
     text="#c6b795", text_2="#a99d89", text_3="#9c9281",
     # Oro che "brilla" contro il nero — nessuna delle tensioni della
     # controparte chiara: il fondo è già scuro, quindi lo stesso oro serve
@@ -667,10 +642,10 @@ def asymmetric_row(major: ft.Control, minor: ft.Control, *,
                     breakpoint: Literal["sm", "md", "lg"] = "md",
                     spacing: int = Space.MD) -> ft.ResponsiveRow:
     """
-    Riga a due colonne di peso diverso (audit anti-AI-slop, 2026-08-18) —
-    rompe la colonna singola meccanica nei punti dove un contenuto è
-    chiaramente primario e l'altro secondario (es. HP grande a sinistra +
-    statistiche compresse a destra in `combattimento_tab.py`).
+    Riga a due colonne di peso diverso — rompe la colonna singola meccanica
+    nei punti dove un contenuto è chiaramente primario e l'altro secondario
+    (es. HP grande a sinistra + statistiche compresse a destra in
+    `combattimento_tab.py`).
 
     Usa `ft.ResponsiveRow`/`col=` (valutato lato client), MAI `expand=` su
     una `ft.Row` semplice: dentro un `ft.ListView` (le tab della scheda
@@ -851,13 +826,12 @@ _CONNECTION_OK_STATES = {"connected"}
 
 def connection_led(state: str, *, tooltip: str | None = None) -> ft.Container:
     """
-    Pallino di stato connessione (richiesta di Davide, 2026-08-16: "il
-    player sa sempre se è sincronizzato o se l'hosting si è interrotto",
-    senza dover aprire la Sezione Mondi) — verde/rosso, riusato identico in
-    Home (`home_view.py`, un LED per gruppo-mondo remoto), sulla scheda
-    personaggio (`sheet_view.py`, header, solo lato giocatore/replica) e nel
-    dettaglio Sezione Mondi (`world_view.py`, accanto al pulsante
-    "Riconnettiti").
+    Pallino di stato connessione — verde/rosso, così il player sa sempre se
+    è sincronizzato o se l'hosting si è interrotto, senza dover aprire la
+    Sezione Mondi. Riusato identico in Home (`home_view.py`, un LED per
+    gruppo-mondo remoto), sulla scheda personaggio (`sheet_view.py`, header,
+    solo lato giocatore/replica) e nel dettaglio Sezione Mondi
+    (`world_view.py`, accanto al pulsante "Riconnettiti").
     """
     p = T()
     online = state in _CONNECTION_OK_STATES
@@ -878,12 +852,11 @@ def hp_tone(current: float, maximum: float) -> Tone:
 
 def hp_bar(current: int, maximum: int, temp: int = 0, *, height: int = 14) -> ft.Container:
     """
-    Barra dei punti ferita a segmenti (Fase E.4 del restyle).
+    Barra dei punti ferita a segmenti.
 
-    Prima era una `ProgressBar` piatta che ignorava del tutto i PF temporanei.
-    Qui i segmenti sono Container con peso `expand`, quindi le proporzioni sono
-    esatte e i PF temporanei hanno una loro fascia in colore `magic` — si vede a
-    colpo d'occhio quanta parte della barra è "presa in prestito".
+    I segmenti sono Container con peso `expand`, così le proporzioni sono
+    esatte e i PF temporanei hanno una loro fascia in colore `magic` — si
+    vede a colpo d'occhio quanta parte della barra è "presa in prestito".
     """
     p = T()
     cur = max(0, current)
@@ -911,11 +884,10 @@ def hp_bar(current: int, maximum: int, temp: int = 0, *, height: int = 14) -> ft
 def slot_dots(total: int, used: int, *, tone: Tone = "magic", size: int = 16,
               max_shown: int = 12) -> ft.Row:
     """
-    Pallini degli slot incantesimo / risorse di classe (Fase E.4).
+    Pallini degli slot incantesimo / risorse di classe.
 
-    Pieno = disponibile, anello vuoto = speso. Prima erano cerchi con bordo 1px
-    e riempimento pieno/grigio: l'anello rende la differenza leggibile anche a
-    colpo d'occhio e in tema scuro.
+    Pieno = disponibile, anello vuoto = speso — leggibile a colpo d'occhio
+    anche in tema scuro.
     """
     p = T()
     col = tone_color(tone)

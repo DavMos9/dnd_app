@@ -2,17 +2,14 @@
 Selezione file su Android/iOS tramite WebView locale — bypassa
 `ft.FilePicker`, confermato non funzionante su build Android reali.
 
-**Perché esiste (2026-08-06)**: tre sessioni di debug su `ft.FilePicker`
-mobile (vedi `dnd_app/docs/changelog_storico.md` e `regole_flet_api.md`,
-sezione FILE PICKER) hanno portato a una diagnosi precisa con un log
-`adb logcat` reale: dopo aver corretto un vero bug Python (un `await`
-mancante), la chiamata a `pick_files()` arriva correttamente al bridge
-Dart ma va in `TimeoutException: Timeout waiting for invoke method
-listener` — **nessuna Activity nativa Android viene mai avviata** (nessun
-picker di sistema, nessun dialogo di permesso: verificato leggendo il log
-completo, non solo quello filtrato). Il controllo `FilePicker` di Flet non
-è utilizzabile su questa build, punto — non è un problema risolvibile
-cambiando il nostro codice attorno a `ft.FilePicker`.
+**Perché esiste**: su Android, la chiamata a `ft.FilePicker.pick_files()`
+arriva correttamente al bridge Dart ma va in `TimeoutException: Timeout
+waiting for invoke method listener` — **nessuna Activity nativa Android
+viene mai avviata** (nessun picker di sistema, nessun dialogo di permesso).
+Il controllo `FilePicker` di Flet non è utilizzabile su questa build, punto
+— non è un problema risolvibile cambiando il nostro codice attorno a
+`ft.FilePicker` (vedi `dnd_app/docs/regole_flet_api.md`, sezione FILE
+PICKER).
 
 **Come funziona questo modulo, invece**: usa `ft.WebView` (estensione
 ufficiale `flet-webview`, mantenuta allo stesso ritmo di release del
@@ -145,8 +142,7 @@ async def pick_file_via_webview(
         file, `None` se ha annullato o in caso di errore. `contenuto_base64`
         è già ripulito del prefisso `data:<mime>;base64,` del data URI.
     """
-    # Import RITARDATO qui dentro, apposta (2026-08-06, bug reale trovato
-    # da Davide su un lancio DESKTOP): `flet_webview` è un pacchetto che
+    # Import RITARDATO qui dentro, apposta: `flet_webview` è un pacchetto che
     # serve SOLO su Android/iOS (l'unica strada che chiama questa
     # funzione, vedi profilo_tab.py/maps_view.py/home_view.py — tutti
     # instradano desktop/web verso tutt'altro codice). Un `from
@@ -197,8 +193,8 @@ async def pick_file_via_webview(
     )
     # data: URI invece di WebView.load_html(): quest'ultimo è un metodo
     # async che richiede il controllo già montato sulla pagina (stesso
-    # vincolo di ft.FilePicker.pick_files(), verificato in questa stessa
-    # indagine — vedi BaseControl.page). Passare l'HTML già pronto in `url`
+    # vincolo di ft.FilePicker.pick_files() — vedi BaseControl.page).
+    # Passare l'HTML già pronto in `url`
     # evita del tutto la sequenza "monta, poi invoca", niente race di
     # timing da gestire.
     b64_html = base64.b64encode(html.encode("utf-8")).decode("ascii")

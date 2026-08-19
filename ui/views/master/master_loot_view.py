@@ -6,14 +6,10 @@ Vista "Bottino" — quarta tab di `MasterView` (passo 3 di
 (`stash_kind="party"`) — entrambi scoped al mondo correntemente
 selezionato in `MasterView` (`_effective_world_id()` qui sotto;
 `world_id=""` se il Master lavora in locale, comportamento di sempre per
-chi non usa il Multiplayer). Fino al 2026-08-12 l'archivio del Master era
-volutamente sempre `world_id=""` (privato del dispositivo, mai scoped) —
-cambiato per il bug report di Davide ("in Master... oggetti bottino...
-tutto deve essere dipendente dal mondo... selezionare un mondo è come se
-entrassi in un container con le sue cose"): "privato" (mai sincronizzato
-via mondo, la parte davvero importante del design originale) e "scoped al
-mondo selezionato" non sono in contraddizione — restano due assi
-indipendenti, ed è la seconda che mancava.
+chi non usa il Multiplayer). "Privato" (mai sincronizzato via mondo, per
+l'Archivio del Master) e "scoped al mondo selezionato" non sono in
+contraddizione — restano due assi indipendenti: l'archivio resta sempre
+privato del dispositivo, ma è comunque filtrato per il mondo corrente.
 
 Operazioni per voce: **assegna** (apre `master_loot_assign_dialog`),
 **sposta** tra i due contenitori, **modifica**, **elimina** — più
@@ -86,15 +82,14 @@ class MasterLootView(ft.Column):
     def __init__(self, world_id: str = "", device_id: str = "") -> None:
         super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
         self._page: ft.Page | None = None
-        #: Mondo correntemente selezionato in `MasterView` (2026-08-06,
-        #: esteso all'Archivio del Master il 2026-08-12) — "" per la
+        #: Mondo correntemente selezionato in `MasterView` — "" per la
         #: modalità locale. Si applica a ENTRAMBI i contenitori
         #: (`stash_kind="master"`/`"party"`): un mondo è un container, non
         #: solo per il deposito comune — la privacy dell'archivio del
         #: Master (mai sincronizzato/visibile ai giocatori) resta un asse
         #: indipendente da questo, invariata.
         self._world_id = world_id
-        #: Identità di questo dispositivo (2026-08-19) — instrada le
+        #: Identità di questo dispositivo — instrada le
         #: scritture sul deposito del gruppo (`stash_kind="party"`) via
         #: rete quando `_world_id` è valorizzato, vedi
         #: `_resolve_stash_backend()`. L'archivio del Master
@@ -110,8 +105,8 @@ class MasterLootView(ft.Column):
 
     def _effective_world_id(self) -> str:
         """Il `world_id` da usare per l'elenco/le nuove voci correnti —
-        stesso mondo selezionato per entrambi i contenitori (2026-08-12,
-        vedi il commento nel costruttore)."""
+        stesso mondo selezionato per entrambi i contenitori, vedi il
+        commento nel costruttore."""
         return self._world_id
 
     def _resolve_stash_backend(self):
@@ -307,14 +302,13 @@ class MasterLootView(ft.Column):
 
     def _on_move(self, entry: LootStashEntry) -> None:
         new_kind = "party" if self._active_kind == "master" else "master"
-        # 2026-08-19: con un mondo selezionato lo spostamento passa dalla
-        # rete (`CMD_LOOT_STASH_MOVE`) — l'handler host non distingue
-        # l'origine (`entry.stash_kind` d'origine), quindi funziona in
-        # entrambe le direzioni master<->party, vedi il suo docstring in
+        # Con un mondo selezionato lo spostamento passa dalla rete
+        # (`CMD_LOOT_STASH_MOVE`) — l'handler host non distingue l'origine
+        # (`entry.stash_kind` d'origine), quindi funziona in entrambe le
+        # direzioni master<->party, vedi il suo docstring in
         # `core/world_backend.py`. Fallback locale se l'host non è
-        # raggiungibile o non c'è un mondo selezionato (comportamento di
-        # sempre, world_id esplicito — 2026-08-12: senza, move_entry lo
-        # azzererebbe al default "").
+        # raggiungibile o non c'è un mondo selezionato — world_id passato
+        # esplicito: senza, `move_entry` lo azzererebbe al default "".
         backend = self._resolve_stash_backend()
         if self._world_id and backend is not None:
             result = backend.send_command(

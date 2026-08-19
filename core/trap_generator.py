@@ -9,8 +9,8 @@ risolvono/tirano i valori suggeriti a partire dai dati di
 Fonte: "Guida del Dungeon Master" IT (DMG), Capitolo 5 "Ambienti delle
 Avventure", sezione "Trappole", p.120-124. Tutte le tabelle sono state
 lette visivamente dalle pagine renderizzate del PDF (`pdftoppm`, mai
-`pdftotext`/OCR per il contenuto) il 2026-07-24. Vedi
-`traps.json → _source_note` per il changelog completo della trascrizione.
+`pdftotext`/OCR per il contenuto). Vedi `traps.json → _source_note` per il
+changelog completo della trascrizione.
 
 Due funzionalità, esattamente come da design ("Generatore Trappole", punto
 8 della Sezione Master):

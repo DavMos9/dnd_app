@@ -10,8 +10,8 @@ npc/adhoc), Calcolatore Difficoltà Incontro. Vedi
 Per un PG che è **istanza di un mondo**, i PF restano di sola lettura (il
 +/- diretto scrive solo sulla riga dell'incontro, mai su `characters` —
 sbagliato per un PG, che va sempre letto/scritto dalla tabella
-`characters`), ma dal 2026-08-07 (scelta di Davide) compaiono accanto al
-nome tre azioni — Danno/Cura/Condizione — che passano dalla stessa
+`characters`), ma compaiono comunque accanto al nome tre azioni —
+Danno/Cura/Condizione — che passano dalla stessa
 pipeline comando → validazione → evento di "Interviene a distanza"
 (`ui/views/world/world_view.py`), per non dover cambiare schermata durante
 un combattimento. Un PG **locale** (nessun mondo) resta invece sempre e
@@ -131,26 +131,24 @@ def _initiative_options() -> tuple[ft.Checkbox, ft.Checkbox, ft.Control]:
 
 
 class MasterEncounterView(ScrollMemoryColumn):
-    """`ScrollMemoryColumn` (2026-08-16, bug segnalato da Davide: "flash a
-    schermo e uno scattino che riporta la vista in cima" durante la
-    sincronizzazione) — `refresh()` ricostruisce `_list_col` ad ogni giro
-    del ciclo di sync (2s) e del ticker di countdown (1s, mentre un
-    cooldown è attivo), un `ft.Column` semplice perdeva lo scroll ogni
-    volta anche senza alcuna azione del master."""
+    """`ScrollMemoryColumn` invece di `ft.Column`: `refresh()` ricostruisce
+    `_list_col` ad ogni giro del ciclo di sync (2s) e del ticker di
+    countdown (1s, mentre un cooldown è attivo), e un `ft.Column` semplice
+    perderebbe lo scroll ogni volta anche senza alcuna azione del master."""
 
     def __init__(self, encounter_id: str, on_back_to_list, world_id: str = "",
                  device_id: str = ""):
         super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
         self.encounter_id = encounter_id
         self.on_back_to_list = on_back_to_list
-        #: Mondo correntemente selezionato in `MasterView` (2026-08-06) — ""
-        #: per la modalità locale. Determina quali PG compaiono nel picker
+        #: Mondo correntemente selezionato in `MasterView` — "" per la
+        #: modalità locale. Determina quali PG compaiono nel picker
         #: "Personaggio Giocante" (_open_add_character_dialog).
         self._world_id = world_id
-        #: Identità di questo dispositivo (2026-08-06, passo 6) — necessaria
-        #: per firmare i comandi remoti (`core.world_backend.send_command`)
-        #: quando "Assegna PE" tocca un'istanza di un mondo: senza device_id
-        #: non si può risolvere il ruolo del mittente in `world_members`.
+        #: Identità di questo dispositivo — necessaria per firmare i comandi
+        #: remoti (`core.world_backend.send_command`) quando "Assegna PE"
+        #: tocca un'istanza di un mondo: senza device_id non si può
+        #: risolvere il ruolo del mittente in `world_members`.
         #: Vuota in modalità locale (`world_id == ""`), dove non serve.
         self._device_id = device_id
         self._page: ft.Page | None = None
@@ -165,7 +163,7 @@ class MasterEncounterView(ScrollMemoryColumn):
         self._remote_backends: dict = {}
         self._sync_loop_obj: BackgroundSyncLoop | None = None
         #: Guardia contro ticker di countdown sovrapposti — vedi
-        #: `_start_pg_cooldown_ticker` (2026-08-16).
+        #: `_start_pg_cooldown_ticker`.
         self._pg_cooldown_ticker_running: bool = False
         self._build()
         self.refresh()
@@ -216,12 +214,9 @@ class MasterEncounterView(ScrollMemoryColumn):
         self.restore_scroll()
 
     # ------------------------------------------------------------------
-    # Sincronizzazione automatica in background (fix 2026-08-07, bug
-    # segnalato da Davide: "in Incontri i PF non si aggiornano da soli, il
-    # master deve prima andare in Sezione Mondi e tornare per vedere il
-    # cambiamento") — stessa infrastruttura di `WorldsView._start_detail_
-    # sync` (`ui.components.background_sync.BackgroundSyncLoop`, estratto
-    # in questa stessa sessione apposta per essere condiviso), qui con una
+    # Sincronizzazione automatica in background — stessa infrastruttura di
+    # `WorldsView._start_detail_sync`
+    # (`ui.components.background_sync.BackgroundSyncLoop`), qui con una
     # firma di dominio diversa: non un solo mondo ma i personaggi
     # dell'incontro corrente, che possono essere istanze di mondi diversi.
     # `get_encounter_members_resolved()` legge già PF/CA/nome LIVE da
@@ -339,11 +334,11 @@ class MasterEncounterView(ScrollMemoryColumn):
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    # Azioni sempre visibili come pillole con etichetta, non più
-                    # nascoste dietro un'icona MORE_VERT (2026-07-24, redesign su
-                    # richiesta di Davide, stesso pattern di master_view.py).
-                    # `wrap=True`: su schermi stretti (smartphone) vanno a capo
-                    # invece di traboccare fuori dalla finestra.
+                    # Azioni sempre visibili come pillole con etichetta, non
+                    # nascoste dietro un'icona MORE_VERT (stesso pattern di
+                    # master_view.py). `wrap=True`: su schermi stretti
+                    # (smartphone) vanno a capo invece di traboccare fuori
+                    # dalla finestra.
                     ft.Row(
                         [
                             self._action_pill(
@@ -443,8 +438,8 @@ class MasterEncounterView(ScrollMemoryColumn):
         ]
         if source == "character":
             stats_row.append(design.chip(f"PF {hp_current}/{hp_max} · giocatore", "magic"))
-            # Danno/Cura/Condizione (fix 2026-08-07, scelta di Davide) SOLO
-            # per un PG che è istanza di un mondo: per un PG locale non c'è
+            # Danno/Cura/Condizione SOLO per un PG che è istanza di un
+            # mondo: per un PG locale non c'è
             # alcun mondo/registro a cui scrivere, resta di sola lettura
             # come prima — i PF di un PG locale restano sempre gestiti dal
             # giocatore sulla propria scheda, invariato.
@@ -527,28 +522,16 @@ class MasterEncounterView(ScrollMemoryColumn):
             on_click=lambda e, mm=m: self._on_remove_member(mm),
         )
 
-        # NOTA (2026-08-06, bug report Davide su smartphone reale —
-        # screenshot: "il nome non si legge, le icone si sovrappongono"):
-        # la card era UNA sola Row con badge iniziativa + icona tipo + nome
-        # (in una Column expand=True) + fino a 3 IconButton azione (Vedi
-        # scheda/Tira dadi/Rimuovi, nessuno dei quali si restringe mai sotto
-        # la propria area di tocco minima ~40px) tutti sulla stessa riga.
-        # Su schermi larghi il totale delle parti a larghezza fissa
-        # (badge+icona+2-3 pulsanti ≈ 190-240px) lasciava comunque spazio a
-        # nome/chip; su uno smartphone stretto quel margine si azzera o va
-        # negativo, e Flet/Flutter non "restringe" ulteriormente un
-        # IconButton oltre la sua area minima — il risultato è un vero
-        # overflow della Row (non solo testo troncato), che in release si
-        # traduce in elementi disegnati oltre il bordo reale, sovrapposti.
-        # Fix STRUTTURALE (non un ennesimo `wrap=True` sulla singola Row,
-        # già presente altrove e insufficiente qui): due righe invece di
-        # una. Riga 1 = SOLO badge + icona + nome (tre elementi, margine
-        # ampio anche su schermi stretti, nome sempre leggibile con
-        # ellissi). Riga 2 = chip statistiche + pulsanti azione + Rimuovi,
-        # in un'unica Row con `wrap=True` che ora può davvero andare a capo
-        # (nessun'altra Row/Column senza vincoli di larghezza in mezzo,
-        # stesso principio già verificato per il fix dell'header di
-        # ProfiloTab lo stesso giorno).
+        # Card divisa in due righe invece di una sola: un IconButton non si
+        # restringe mai sotto la sua area di tocco minima (~40px), quindi su
+        # schermi stretti una singola Row con badge+icona+nome+fino a 3
+        # pulsanti azione va in overflow reale (elementi sovrapposti, non
+        # solo testo troncato) invece di andare semplicemente a capo. Riga 1
+        # = SOLO badge + icona + nome (margine ampio anche su schermi
+        # stretti, nome sempre leggibile con ellissi). Riga 2 = chip
+        # statistiche + pulsanti azione + Rimuovi, in un'unica Row con
+        # `wrap=True` che qui può davvero andare a capo (nessun'altra
+        # Row/Column senza vincoli di larghezza in mezzo).
         top_row = ft.Row(
             [
                 ft.Column(
@@ -618,9 +601,7 @@ class MasterEncounterView(ScrollMemoryColumn):
         )
 
     # ------------------------------------------------------------------
-    # Scheda / dadi del mostro (2026-08-03, richiesta di Davide: dentro
-    # l'incontro non si poteva consultare lo stat block di un npc/mostro né
-    # tirare i suoi dadi, a differenza della scheda del personaggio).
+    # Scheda / dadi del mostro
     # ------------------------------------------------------------------
 
     def _resolve_monster_stat_block(self, resolved: dict) -> dict | None:
@@ -1049,7 +1030,7 @@ class MasterEncounterView(ScrollMemoryColumn):
         Assegna i PE dell'incontro ai personaggi giocanti presenti.
 
         **È l'unica scrittura del master su una scheda giocante in tutto il
-        progetto** (autorizzata da Davide il 2026-07-30), e per questo:
+        progetto**, e per questo:
           * ogni mostro ha una casella, pre-spuntata se è a 0 PF o è stato
             rimosso dall'incontro — un nemico in fuga o aggirato lo decide il
             master, non un'euristica;
@@ -1224,9 +1205,8 @@ class MasterEncounterView(ScrollMemoryColumn):
                         ft.Text(
                             "Il livello resta sempre una scelta del giocatore. Per un "
                             "PG istanza di un mondo, danno/cura/condizioni restano "
-                            "comunque disponibili qui accanto al suo nome (fix "
-                            "2026-08-07) — passano dalla stessa pipeline comando → "
-                            "evento, mai una scrittura diretta.",
+                            "comunque disponibili qui accanto al suo nome — mai una "
+                            "scrittura diretta.",
                             size=11, color=design.T().text_3, italic=True),
                     ],
                     spacing=6, tight=True, scroll=ft.ScrollMode.AUTO,
@@ -1384,11 +1364,10 @@ class MasterEncounterView(ScrollMemoryColumn):
         self.refresh()
 
     # ------------------------------------------------------------------
-    # Azioni master su un PG istanza di mondo, direttamente dall'incontro
-    # (fix 2026-08-07, scelta di Davide dopo un confronto sui pro/contro:
+    # Azioni master su un PG istanza di mondo, direttamente dall'incontro:
     # solo Danno/Cura/Condizione, non l'intero pannello "Interviene a
     # distanza" — abilità/incantesimo bonus/diario/proponi modifica restano
-    # solo nella Sezione Mondi, azioni fuori-combattimento). Stessa pipeline
+    # solo nella Sezione Mondi, azioni fuori-combattimento. Stessa pipeline
     # comando -> validazione -> evento di `ui/views/world/world_view.py::
     # _send_remote_command`, stesso limite anti-spam per personaggio
     # (`core.world_sync`, stato di MODULO: condiviso automaticamente tra le
@@ -1408,14 +1387,12 @@ class MasterEncounterView(ScrollMemoryColumn):
         mondo (il caso normale). Un co-master collegato come CLIENT
         all'host di un altro dispositivo scriverebbe sulla propria replica
         invece che sull'host reale: stesso limite già presente in «Assegna
-        PE», fuori scope per questa richiesta (Davide ha chiesto Danno/
-        Cura/Condizione dall'incontro, non un refactor del routing
-        comandi di questa view).
+        PE».
 
-        `world_id`: fix 2026-08-07, vedi il docstring di
-        `_open_pg_damage_dialog` — è il world_id proprio del personaggio
-        bersaglio, MAI `self._world_id` (il mondo selezionato nel
-        dropdown di Modalità Master, che può differire).
+        `world_id`: vedi il docstring di `_open_pg_damage_dialog` — è il
+        world_id proprio del personaggio bersaglio, MAI `self._world_id`
+        (il mondo selezionato nel dropdown di Modalità Master, che può
+        differire).
         """
         page = self._page
         from core import world_sync
@@ -1441,12 +1418,12 @@ class MasterEncounterView(ScrollMemoryColumn):
             show_snack(page, result.error, tone="danger")
 
     def _start_pg_cooldown_ticker(self) -> None:
-        """Countdown affidabile delle pillole Danno/Cura/Condizione
-        (2026-08-16 — stesso bug/fix di `WorldsView.
-        _start_master_cooldown_ticker`: il poll condiviso di `_start_sync`
-        può perdere il tick esatto in cui un cooldown scade). `async`
-        dedicato via `page.run_task()`, 1s, si ferma da solo non appena
-        nessun PG dell'incontro è più in cooldown."""
+        """Countdown affidabile delle pillole Danno/Cura/Condizione — stesso
+        principio di `WorldsView._start_master_cooldown_ticker`: il poll
+        condiviso di `_start_sync` può perdere il tick esatto in cui un
+        cooldown scade. `async` dedicato via `page.run_task()`, 1s, si
+        ferma da solo non appena nessun PG dell'incontro è più in
+        cooldown."""
         page = self._page
         if page is None or not hasattr(page, "run_task") or self._pg_cooldown_ticker_running:
             return
@@ -1467,19 +1444,18 @@ class MasterEncounterView(ScrollMemoryColumn):
 
     def _open_pg_damage_dialog(self, character_id: str, character_name: str,
                                 world_id: str) -> None:
-        """Pulizia 2026-08-07: il dialog vive in
-        `ui.components.remote_action_dialogs` (condiviso con
-        `WorldsView._open_damage_dialog`, che invia la stessa identica
-        azione da "Interviene a distanza") — qui resta solo l'invio.
+        """Il dialog vive in `ui.components.remote_action_dialogs`
+        (condiviso con `WorldsView._open_damage_dialog`, che invia la
+        stessa identica azione da "Interviene a distanza") — qui resta
+        solo l'invio.
 
-        `world_id` (fix 2026-08-07, bug segnalato da Davide: "mittente non
-        è membro di questo mondo" anche col giocatore presente) è il
-        world_id PROPRIO di questo personaggio, non quello selezionato nel
-        menu a tendina di Modalità Master (`self._world_id`) — possono
-        differire (es. il PG appartiene a un mondo diverso da quello
-        attualmente selezionato, o il dropdown è su "Locale"). Stesso
-        principio già corretto in `_confirm_award_xp` più sopra
-        (`p.world_id`, non `self._world_id`)."""
+        `world_id` è il world_id PROPRIO di questo personaggio, non quello
+        selezionato nel menu a tendina di Modalità Master
+        (`self._world_id`) — possono differire (es. il PG appartiene a un
+        mondo diverso da quello attualmente selezionato, o il dropdown è
+        su "Locale"). Stesso principio già applicato in
+        `_confirm_award_xp` più sopra (`p.world_id`, non
+        `self._world_id`)."""
         page = self._page
         if page is None:
             return

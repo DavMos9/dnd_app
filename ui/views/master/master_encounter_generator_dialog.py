@@ -79,10 +79,9 @@ def show_encounter_generator_dialog(page: ft.Page, on_created: Callable[[str], N
     mostri generati già aggiunti come membri) — il chiamante decide se
     aprirlo subito o solo aggiornare la lista.
 
-    `world_id` (2026-08-06): il mondo correntemente selezionato in
-    `MasterView` — "" per la modalità locale. Determina quali PG reali
-    compaiono nella modalità "Per Gruppo", vedi
-    `character_repo.get_master_visible_characters()`."""
+    `world_id`: il mondo correntemente selezionato in `MasterView` — "" per
+    la modalità locale. Determina quali PG reali compaiono nella modalità
+    "Per Gruppo", vedi `character_repo.get_master_visible_characters()`."""
 
     monsters = load_monsters()
     theme_options = eg.get_theme_options(monsters)

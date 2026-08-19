@@ -5,15 +5,15 @@ Repository per i Mondi condivisi / LAN party — passo 2 di
 Copre le quattro tabelle introdotte in data/database.py: `worlds`,
 `world_members`, `world_events`, `world_change_requests`. Nessuna logica di
 permessi qui (vive in `core/world_permissions.py`, che non tocca Flet né il
-DB) e nessuna scrittura diretta sullo stato di un personaggio: quella
-passerà da `core/world_backend.py` una volta che esistono le istanze
-(passo 3). Questo modulo è deliberatamente "dumb": CRUD + giornale, stesso
-principio già seguito da `loot_repo.py`/`character_repo.py` ("Repository:
-mai logica UI, mai trasformazioni di business").
+DB) e nessuna scrittura diretta sullo stato di un personaggio: quella passa
+da `core/world_backend.py`, che opera sulle istanze via `character_repo.py`.
+Questo modulo è deliberatamente "dumb": CRUD + giornale, stesso principio
+già seguito da `loot_repo.py`/`character_repo.py` ("Repository: mai logica
+UI, mai trasformazioni di business").
 
 Il giornale (`world_events`) è sia la sincronizzazione sia il registro degli
-interventi richiesto da Davide (§5 del design doc): un'unica scrittura serve
-entrambi gli scopi, non due meccanismi paralleli.
+interventi (§5 del design doc): un'unica scrittura serve entrambi gli
+scopi, non due meccanismi paralleli.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 #: caratteri facilmente confondibili quando qualcuno lo detta o lo digita a
 #: mano da uno schermo di un altro dispositivo.
 #:
-#: Pubblico dal 2026-08-17: lo riusa anche `world_transfer_repo.
+#: Pubblico perché lo riusa anche `world_transfer_repo.
 #: generate_transfer_code()` (§11.9), che ha bisogno dello stesso alfabeto con
 #: una lunghezza diversa. Importato invece di ricopiato — due copie
 #: divergerebbero appena una delle due venisse ritoccata.
@@ -252,7 +252,7 @@ def get_worlds_for_device(device_id: str, roles: tuple[str, ...] | None = None) 
     """Tutti i mondi in cui questo dispositivo è owner o membro, i più
     recenti per ultimo aggiornamento per primi.
 
-    `roles` (2026-08-06, Modalità Master world-scoped): se passato, limita ai
+    `roles`: se passato, limita ai
     mondi in cui il ruolo di questo dispositivo è tra quelli elencati — es.
     `(ROLE_OWNER, ROLE_MASTER)` per popolare il selettore "mondo da
     masterare" in `MasterView` (un semplice `player` non deve poter
@@ -329,8 +329,8 @@ def regenerate_join_code(world_id: str) -> str | None:
 
 def mark_world_exported(world_id: str, seq: int) -> bool:
     """Registra `world_events.seq` al momento di un export `.dndworld`
-    riuscito (2026-08-12, passo 9E — promemoria di backup periodico,
-    `ui/views/world/world_view.py::_backup_section`). Chiamata SOLO dopo
+    riuscito — alimenta il promemoria di backup periodico in
+    `ui/views/world/world_view.py::_backup_section`. Chiamata SOLO dopo
     che il file è stato scritto con successo su disco/scaricato — un
     export fallito non deve mai spegnere il promemoria."""
     conn = None
@@ -467,7 +467,8 @@ def join_world_by_code(join_code: str, device_id: str, display_name: str) -> tup
     """
     Ingresso in un mondo tramite codice (§9.3 — nessuna rete qui, funziona
     solo se questo dispositivo condivide già il DB con l'host: web mode
-    multi-sessione oggi, LAN dal passo 4).
+    multi-sessione, oppure LAN via `network/host_server.py`, che chiama
+    questa stessa funzione lato host).
 
     Se questo `device_id` è già membro del mondo, non crea una seconda riga:
     ritorna il membro esistente (comportamento "riprendi" coerente con §6
@@ -566,8 +567,8 @@ def remove_member(world_id: str, device_id: str) -> bool:
 
 
 def set_member_connected(world_id: str, device_id: str, connected: bool) -> bool:
-    """Aggiorna solo lo stato di connessione — significativo dal passo 4
-    (rete) in poi; innocuo chiamarlo ora."""
+    """Aggiorna solo lo stato di connessione — usato dal livello di rete
+    (`network/host_server.py`) per riflettere chi è online in un mondo LAN."""
     conn = None
     try:
         conn = get_connection()
@@ -651,8 +652,8 @@ def get_events_since(world_id: str, since_seq: int = 0, limit: int | None = 200)
     Eventi di un mondo con `seq > since_seq`, in ordine crescente — è la
     query di sincronizzazione incrementale (§5: "un client chiede 'cosa è
     successo dopo il #481'"). `limit` protegge da un giornale enorme dopo
-    una lunga assenza; il chiamante (dal passo 4 in poi) decide se questo
-    numero implica "troppo indietro, serve uno snapshot" (§11.2).
+    una lunga assenza; il chiamante (`network/host_server.py`) decide se
+    questo numero implica "troppo indietro, serve uno snapshot" (§11.2).
 
     `limit=None` rimuove il limite — usato da `handle_snapshot()` (passo 9),
     che deve portare l'INTERO giornale a un nuovo arrivato: con un limite
@@ -876,7 +877,7 @@ def update_last_seen_host(world_id: str, host_port: str) -> bool:
 
 def clear_session_token(world_id: str) -> bool:
     """
-    Azzera `worlds.session_token` su una replica (2026-08-17, §11.9).
+    Azzera `worlds.session_token` su una replica (§11.9).
 
     Serve quando questo dispositivo scopre di essere stato SOSTITUITO da un
     altro (trasferimento del personaggio): senza azzerare il token,
@@ -904,8 +905,8 @@ def clear_session_token(world_id: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Richieste di modifica (§7.1) — schema pronto, non ancora usate: servono
-# istanze di personaggio (passo 3) prima di avere senso operativo.
+# Richieste di modifica (§7.1) — proposte dal master (CMD_CHANGE_REQUEST_PROPOSE
+# in core/world_backend.py) e approvate/rifiutate dal giocatore.
 # ---------------------------------------------------------------------------
 
 def create_change_request(world_id: str, character_id: str, requested_by: str,

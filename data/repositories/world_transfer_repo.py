@@ -1,6 +1,6 @@
 """
 Trasferimento del personaggio su un ALTRO dispositivo — codice monouso e
-transazione di riassegnazione (2026-08-17).
+transazione di riassegnazione.
 
 Design completo in `dnd_app/docs/multiplayer_design.md` §11.9. In breve:
 l'identità di un giocatore è il `device_id` (UUID per installazione,

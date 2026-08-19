@@ -43,20 +43,18 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Anti-spam lato HOST — difesa in profondità (fix 2026-08-07, Davide: "sì,
-# anche sull'host" dopo la revisione del primo fix, che era solo lato
-# client). Il client si limita da solo per UX (`core.world_sync`), ma un
-# client modificato o con un bug potrebbe ignorare quel limite — qui lo
-# STESSO limite viene applicato di nuovo, stavolta sui dati che l'host
-# controlla davvero: mai fidarsi del client, stesso principio già seguito
-# per i permessi in questo file (§5, "impossibile aggirarli da un client
-# modificato").
+# Anti-spam lato HOST — difesa in profondità. Il client si limita da solo
+# per UX (`core.world_sync`), ma un client modificato o con un bug potrebbe
+# ignorare quel limite — qui lo STESSO limite viene applicato di nuovo,
+# stavolta sui dati che l'host controlla davvero: mai fidarsi del client,
+# stesso principio già seguito per i permessi in questo file (§5,
+# "impossibile aggirarli da un client modificato").
 #
 # Stato a livello di MODULO, non su `LocalBackend`: quella classe viene
 # istanziata spesso ad hoc in giro per il progetto (es. `WorldsView.
 # __init__`, `HomeView._push_instance_to_host`, `WorldHostServer.__init__`
-# di default) — uno stato sull'istanza si perderebbe esattamente come è
-# successo lato client prima del fix di stato-a-livello-di-modulo.
+# di default) — uno stato sull'istanza si perderebbe silenziosamente ogni
+# volta che una di queste ricrea `LocalBackend`.
 #
 # `master_action_last_at` è chiavato per (actor_device_id, character_id):
 # stessa granularità per-personaggio del timer lato client (un'area su 4
@@ -71,11 +69,11 @@ logger = logging.getLogger(__name__)
 class _HostCooldownState:
     master_action_last_at: dict[tuple[str, str], float] = field(default_factory=dict)
     instance_sync_last_at: dict[str, float] = field(default_factory=dict)
-    #: hp.self_update (fix 2026-08-07) — chiavato (actor_device_id,
+    #: hp.self_update — chiavato (actor_device_id,
     #: target_id) come master_action_last_at: stessa granularità per
     #: personaggio, non un solo timer per l'intero dispositivo.
     hp_self_update_last_at: dict[tuple[str, str], float] = field(default_factory=dict)
-    #: condition.self_apply/self_remove (2026-08-07, estensione graduale) —
+    #: condition.self_apply/self_remove, estensione graduale —
     #: stessa chiave/granularità di hp_self_update_last_at, tracciato a
     #: parte perché usa CONDITION_SELF_UPDATE_COOLDOWN_S, non
     #: HP_SELF_UPDATE_COOLDOWN_S (valori oggi identici, ma concettualmente
@@ -134,7 +132,7 @@ class CommandResult:
     error: str = ""
     event: WorldEvent | None = None
     #: Dati di risposta destinati SOLO a chi ha inviato il comando
-    #: (2026-08-17, §11.9). Nasce dal codice di trasferimento: `event.payload`
+    #: (§11.9). Nasce dal codice di trasferimento: `event.payload`
     #: finisce nel giornale, e il giornale viene trasmesso a OGNI replica via
     #: `GET /events` — un segreto per un singolo membro non può passare da lì.
     #: Attraversa la rete in `WorldHostServer.handle_command` → il campo `data`
@@ -248,7 +246,7 @@ class LocalBackend(WorldBackend):
 
     def _check_rate_limit(self, actor_device_id: str, kind: str, target_id: str) -> str | None:
         """
-        Difesa in profondità (fix 2026-08-07) — stesso limite già applicato
+        Difesa in profondità — stesso limite già applicato
         lato client, riapplicato qui su dati che l'host controlla davvero.
         Ritorna un messaggio d'errore (in italiano, pronto per
         `CommandResult.error`) se il comando va rifiutato, `None` se può
@@ -338,9 +336,7 @@ class LocalBackend(WorldBackend):
 # (rinomina, rigenera codice, promuovi/retrocedi/espelli, trasferisci
 # proprietà, elimina). Gli handler delle azioni master di §7 sulle istanze
 # di personaggio (PE, danno, cura, condizioni, ...) vivono più sotto in
-# questo stesso file, aggiunti dal passo 6 — pulizia 2026-08-07: questo
-# commento diceva ancora "non esistono ancora istanze di personaggio su cui
-# applicare le azioni di §7", vero solo prima dei passi 3/6, ormai falso.
+# questo stesso file, aggiunti dal passo 6.
 # ---------------------------------------------------------------------------
 
 @register_handler(perm.CMD_WORLD_RENAME)
@@ -430,10 +426,8 @@ def _handle_member_kick(ctx: HandlerContext) -> CommandResult:
     if not world_repo.remove_member(ctx.world_id, device_id):
         return CommandResult(False, "Espulsione fallita.")
     # Archivia (non elimina) le istanze possedute dal membro appena
-    # espulso (2026-08-07, bug segnalato da Davide: "posso espellere il
-    # proprietario ma non il personaggio, che resta collegato per sempre"
-    # — vedi `character_repo.archive_world_instances()` per il
-    # ragionamento completo, incluso su come si riattiva). `remove_member`
+    # espulso — vedi `character_repo.archive_world_instances()` per il
+    # ragionamento completo, incluso su come si riattiva. `remove_member`
     # da solo toccava SOLO `world_members`, mai `characters`: senza questo
     # passo un'istanza restava per sempre visibile nella Sezione Master di
     # un mondo il cui proprietario non ne è più membro.
@@ -454,8 +448,7 @@ def _handle_member_kick(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_MEMBER_LEAVE)
 def _handle_member_leave(ctx: HandlerContext) -> CommandResult:
     """
-    Uscita volontaria dal mondo (2026-08-19, bug segnalato da Davide: "il
-    giocatore non ha la possibilità di lasciare... il mondo") — controparte
+    Uscita volontaria dal mondo — controparte
     di `_handle_member_kick` sopra, stessa logica di rimozione/archiviazione,
     ma auto-diretta: nessun `device_id` nel payload, l'attore rimuove SOLO
     se stesso (`ctx.actor_device_id`), mai un altro membro — quello resta
@@ -487,10 +480,8 @@ def _handle_member_leave(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_CHARACTER_INSTANCE_REMOVE)
 def _handle_character_instance_remove(ctx: HandlerContext) -> CommandResult:
     """
-    Rimuove UN personaggio dal mondo (2026-08-12, richiesta esplicita di
-    Davide: "posso eliminare solo la persona [il membro] dal mondo ma non
-    il suo personaggio") — a differenza di `CMD_MEMBER_KICK`, che espelle
-    l'intero dispositivo e archivia TUTTE le sue istanze, qui il master
+    Rimuove UN personaggio dal mondo — a differenza di `CMD_MEMBER_KICK`,
+    che espelle l'intero dispositivo e archivia TUTTE le sue istanze, qui il master
     sceglie UN personaggio mentre il suo giocatore resta membro (morte
     permanente, doppione, personaggio mai più usato). Stessa archiviazione
     non distruttiva del kick — vedi `character_repo.archive_world_instance`.
@@ -518,10 +509,8 @@ def _handle_character_rejoin_request(ctx: HandlerContext) -> CommandResult:
     """
     Il proprietario di un'istanza ARCHIVIATA (espulsione o
     `CMD_CHARACTER_INSTANCE_REMOVE`) chiede al master di farla rientrare nel
-    mondo (2026-08-12, "Richiesta di rientro" — mai una riattivazione
-    automatica: prima di questo handler nessun punto del codice riportava
-    mai `world_instance_archived` a 0, nonostante alcuni testi/commenti lo
-    dessero per scontato).
+    mondo — mai una riattivazione automatica: nessun altro punto del codice
+    riporta `world_instance_archived` a 0.
 
     `mode`:
       - `"frozen"` (default): l'accettazione riprenderà l'istanza esattamente
@@ -592,7 +581,7 @@ def _handle_character_rejoin_request(ctx: HandlerContext) -> CommandResult:
 
 
 # ---------------------------------------------------------------------------
-# Trasferimento del personaggio su un altro dispositivo (2026-08-17, §11.9)
+# Trasferimento del personaggio su un altro dispositivo (§11.9)
 # ---------------------------------------------------------------------------
 #
 # Solo l'EMISSIONE e la REVOCA del codice passano da qui. Il riscatto no: vive
@@ -607,7 +596,7 @@ def _can_issue_transfer_for(ctx: HandlerContext, member) -> str | None:
     Verifica di proprietà per i due comandi sul codice di trasferimento.
     Restituisce un messaggio d'errore, oppure `None` se l'azione è consentita.
 
-    Due strade legittime, entrambe volute (vedi la decisione presa con Davide):
+    Due strade legittime, entrambe volute:
     il GIOCATORE emette un codice per sé stesso (sta per cambiare telefono e ha
     ancora quello vecchio in mano), il MASTER lo emette per un giocatore il cui
     dispositivo è perso, rotto o venduto. Senza la seconda, il caso "telefono
@@ -720,7 +709,7 @@ def _handle_device_transfer_revoke(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_CHARACTER_REJOIN_RESPOND)
 def _handle_character_rejoin_respond(ctx: HandlerContext) -> CommandResult:
     """
-    Il master accetta o rifiuta una richiesta di rientro (2026-08-12) —
+    Il master accetta o rifiuta una richiesta di rientro —
     unico punto del codice che toglie davvero l'archiviazione di
     un'istanza, in un modo o nell'altro a seconda di `request.mode`.
     """
@@ -862,8 +851,8 @@ def _handle_world_delete(ctx: HandlerContext) -> CommandResult:
 #      usate dalla scheda locale (nessuna logica duplicata: dove esisteva
 #      già un algoritmo non banale — il danno/la cura — è stato spostato in
 #      `core/damage_rules.py` ed è riusato qui, non riscritto);
-#   3. scrive un evento con un `summary` leggibile — è il registro
-#      richiesto da Davide, non una tabella a parte (§5).
+#   3. scrive un evento con un `summary` leggibile — è il registro del
+#      mondo (§5), non una tabella a parte.
 #
 # Fuori scope in questo passo (resta nella matrice dei permessi ma senza
 # handler, esattamente come CMD_MAP_PUBLISH/CMD_MAP_DRAW lo erano prima del
@@ -872,12 +861,9 @@ def _handle_world_delete(ctx: HandlerContext) -> CommandResult:
 # scrittura sul personaggio — richiede un meccanismo di notifica lato
 # giocatore non ancora progettato, valutato a parte).
 #
-# CMD_LOOT_ASSIGN (2026-08-19, non più fuori scope — bug segnalato da
-# Davide: "il generatore oggetti si sincronizza molto in ritardo" e
-# "l'oggetto magico viene assegnato ai personaggi in locale invece che a
-# quelli del mondo selezionato") ha il suo handler più sotto, subito dopo
-# `_handle_xp_grant`: passa da `_resolve_world_character()` come gli altri
-# comandi di questo blocco.
+# CMD_LOOT_ASSIGN non è più fuori scope: ha il suo handler più sotto,
+# subito dopo `_handle_xp_grant`, e passa da `_resolve_world_character()`
+# come gli altri comandi di questo blocco.
 #
 # CMD_NOTE_SHARE (passo 7B, §6.2), CMD_ENCOUNTER_MANAGE/
 # CMD_COMBAT_TOGGLE_VISIBILITY (passo 7C, §6.5) e CMD_MAP_PUBLISH/
@@ -941,17 +927,13 @@ def _handle_xp_grant(ctx: HandlerContext) -> CommandResult:
 def _handle_loot_assign(ctx: HandlerContext) -> CommandResult:
     """
     Assegna un lotto di oggetti/monete a uno o più personaggi di questo
-    mondo (2026-08-19). Ogni riga del payload risolve il proprio
-    `target_character_id` in modo indipendente e fail-closed via
+    mondo. Ogni riga del payload risolve il proprio `target_character_id`
+    in modo indipendente e fail-closed via
     `_resolve_world_character(ctx.world_id, ...)` — questo è precisamente
     ciò che impedisce a un master non-host su un ALTRO mondo di scrivere
-    per errore in un personaggio che non gli compete (bug segnalato da
-    Davide: "assegna oggetto magico... lo assegna ai personaggi in
-    locale... dovrebbe assegnarli a quelli del mondo selezionato" —
-    succedeva perché prima di questo handler la scrittura restava sempre e
-    solo locale al dispositivo che eseguiva l'azione, mai instradata verso
-    l'host). Righe con un id che non risolve a un personaggio DI QUESTO
-    mondo vengono saltate (non abortiscono l'intero batch): il Master vede
+    per errore in un personaggio che non gli compete. Righe con un id che
+    non risolve a un personaggio DI QUESTO mondo vengono saltate (non
+    abortiscono l'intero batch): il Master vede
     comunque applicato tutto ciò che era valido, coerente con la UI che
     ricalcola le ripartizioni prima di inviare (validazione già fatta lato
     client, questo è un controllo di sicurezza in profondità).
@@ -1052,8 +1034,8 @@ def _handle_loot_assign(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_HP_DAMAGE)
 def _handle_hp_damage(ctx: HandlerContext) -> CommandResult:
     """Applica danno — stessa regola PHB della scheda locale
-    (`core/damage_rules.apply_damage`, estratta il 2026-08-06 apposta per
-    essere riusata qui senza duplicare l'algoritmo)."""
+    (`core/damage_rules.apply_damage`, riusata qui senza duplicare
+    l'algoritmo)."""
     character = _resolve_world_character(ctx.world_id, ctx.target_id)
     if character is None:
         return CommandResult(False, "Personaggio non trovato in questo mondo.")
@@ -1128,10 +1110,9 @@ def _handle_hp_heal(ctx: HandlerContext) -> CommandResult:
 def _handle_hp_self_update(ctx: HandlerContext) -> CommandResult:
     """
     Il giocatore stesso invia lo stato aggiornato dei propri PF/TS contro
-    morte dopo averli già modificati sulla propria scheda (fix 2026-08-07,
-    Multiplayer §7/step 7 — scelta di Davide: sincronizzazione automatica,
-    non più solo manuale come «Aggiorna il mio foglio» §6.1, che resta per
-    il resync completo, non per i soli PF).
+    morte dopo averli già modificati sulla propria scheda — sincronizzazione
+    automatica (§7), non più solo manuale come «Aggiorna il mio foglio»
+    §6.1, che resta per il resync completo, non per i soli PF.
 
     Come `_handle_change_request_respond`: il ruolo da solo non basta,
     serve anche `perm.is_character_owner()` — altrimenti un giocatore
@@ -1194,11 +1175,8 @@ def _handle_hp_self_update(ctx: HandlerContext) -> CommandResult:
 def _handle_notes_self_update(ctx: HandlerContext) -> CommandResult:
     """
     Il giocatore stesso invia il testo aggiornato delle proprie "Appunti di
-    sessione" (2026-08-19, estensione di `CMD_HP_SELF_UPDATE` — stesso
-    principio: valore assoluto, mai un delta, idempotente come `hp.self_update`).
-    Prima questa scrittura restava solo sulla replica locale
-    (`esplorazione_tab.py`) e veniva cancellata dal prossimo resync
-    completo innescato da un qualsiasi altro evento.
+    sessione" — estensione di `CMD_HP_SELF_UPDATE`, stesso principio:
+    valore assoluto, mai un delta, idempotente come `hp.self_update`.
     """
     character = _resolve_world_character(ctx.world_id, ctx.target_id)
     if character is None:
@@ -1225,7 +1203,7 @@ def _apply_condition_to_character(
 ) -> CommandResult:
     """
     Nucleo comune a `_handle_condition_apply` (master/owner) e
-    `_handle_condition_self_apply` (2026-08-07, estensione graduale di
+    `_handle_condition_self_apply` (estensione graduale di
     hp.self_update): stessa identica scrittura, cambia solo CHI può
     invocarla — la verifica di permesso/proprietà resta nel chiamante,
     mai qui, per lo stesso principio di separazione già seguito altrove in
@@ -1268,7 +1246,7 @@ def _handle_condition_apply(ctx: HandlerContext) -> CommandResult:
 def _handle_condition_self_apply(ctx: HandlerContext) -> CommandResult:
     """
     Il giocatore stesso applica una condizione dalla propria scheda
-    (2026-08-07, estensione graduale di hp.self_update — vedi il docstring
+    (estensione graduale di hp.self_update — vedi il docstring
     di `perm.CMD_CONDITION_SELF_APPLY`). Come `_handle_hp_self_update`: il
     ruolo `player` da solo non basta, serve `perm.is_character_owner()`.
     """
@@ -1475,11 +1453,10 @@ def _handle_custom_ability_grant(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_CUSTOM_ABILITY_SELF_CREATE)
 def _handle_custom_ability_self_create(ctx: HandlerContext) -> CommandResult:
     """
-    Il giocatore stesso crea una propria abilità personalizzata
-    (2026-08-19, estensione di `CMD_HP_SELF_UPDATE` — prima questa
-    scrittura restava solo sulla replica locale, sia dal tab Esplorazione
-    che dal tab Combattimento, `esplorazione_tab.py`/`combattimento_tab.py`,
-    entrambi sulla stessa tabella `custom_abilities`). Come
+    Il giocatore stesso crea una propria abilità personalizzata — estensione
+    di `CMD_HP_SELF_UPDATE`; copre sia il tab Esplorazione che il tab
+    Combattimento (`esplorazione_tab.py`/`combattimento_tab.py`, entrambi
+    sulla stessa tabella `custom_abilities`). Come
     `_handle_hp_self_update`: il ruolo `player` da solo non basta, serve
     `perm.is_character_owner()`.
     """
@@ -1596,7 +1573,7 @@ def _handle_bonus_spell_grant(ctx: HandlerContext) -> CommandResult:
 def _handle_spell_self_upsert(ctx: HandlerContext) -> CommandResult:
     """
     Il giocatore stesso crea/aggiorna un proprio incantesimo conosciuto
-    (2026-08-19, estensione di `CMD_HP_SELF_UPDATE`) — copre sia il toggle
+    (estensione di `CMD_HP_SELF_UPDATE`) — copre sia il toggle
     di preparazione sul catalogo di classe (`spells_view.py::_toggle_prepared`/
     `_toggle_prepared_mc`) sia l'aggiunta manuale di un incantesimo bonus
     (`spells_view.py`, dialog "Aggiungi incantesimo bonus") sia le scelte
@@ -1720,12 +1697,9 @@ def _handle_diary_add_entry(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_DIARY_SELF_ADD_ENTRY)
 def _handle_diary_self_add_entry(ctx: HandlerContext) -> CommandResult:
     """
-    Il giocatore stesso scrive una voce sul proprio diario (2026-08-19,
-    estensione di `CMD_HP_SELF_UPDATE` — prima questa scrittura restava
-    solo sulla replica locale, `diario_tab.py`, e veniva cancellata dal
-    prossimo resync completo del personaggio innescato da un QUALSIASI
-    altro evento). Come `_handle_hp_self_update`: il ruolo `player` da solo
-    non basta, serve `perm.is_character_owner()`.
+    Il giocatore stesso scrive una voce sul proprio diario — estensione di
+    `CMD_HP_SELF_UPDATE`. Come `_handle_hp_self_update`: il ruolo `player`
+    da solo non basta, serve `perm.is_character_owner()`.
     """
     character = _resolve_world_character(ctx.world_id, ctx.target_id)
     if character is None:
@@ -1887,7 +1861,7 @@ def _handle_change_request_respond(ctx: HandlerContext) -> CommandResult:
             setattr(character, field_name, value)
         if not character_repo.update(character):
             return CommandResult(False, "Applicazione della modifica fallita.")
-        # Correttezza (2026-08-07): DES/COS/SAG entrano nella formula della CA
+        # Correttezza: DES/COS/SAG entrano nella formula della CA
         # senza armatura (Monaco: DES+SAG, Barbaro: DES+COS, Stregone
         # Discendenza Draconica: DES) e DES anche con armatura leggera/media
         # — esattamente come ogni altro punto dell'app che tocca queste
@@ -1916,12 +1890,11 @@ def _handle_change_request_respond(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_CHARACTER_INSTANCE_SYNC)
 def _handle_character_instance_sync(ctx: HandlerContext) -> CommandResult:
     """
-    Registra sull'host l'export integrale di un'istanza di personaggio
-    (fix 2026-08-07 — vedi il docstring di `perm.CMD_CHARACTER_INSTANCE_SYNC`
-    per il bug che questo comando risolve: senza questo, un'istanza creata
-    su un dispositivo che non ospita il mondo non esisteva mai sul DB
-    dell'host, e la Sezione Master risultava vuota anche a ingresso
-    riuscito).
+    Registra sull'host l'export integrale di un'istanza di personaggio —
+    vedi il docstring di `perm.CMD_CHARACTER_INSTANCE_SYNC` per il motivo:
+    senza questo, un'istanza creata su un dispositivo che non ospita il
+    mondo non esisterebbe mai sul DB dell'host, e la Sezione Master
+    risulterebbe vuota anche a ingresso riuscito.
 
     A differenza di ogni altro handler sopra, qui NON si passa da
     `_resolve_world_character()`: quella funzione presuppone che il
@@ -2123,12 +2096,11 @@ def _handle_combat_toggle_visibility(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_MAP_PUBLISH)
 def _handle_map_publish(ctx: HandlerContext) -> CommandResult:
     """
-    Pubblica una mappa PERSONALE nel mondo CLONANDOLA (§6.4, passo 8) —
-    riscritto il 2026-08-12: la versione precedente riusava la stessa riga
-    (`world_id`/`is_shared` impostati sulla mappa del personaggio), quindi
-    disegnarci sopra modificava anche la mappa personale di un personaggio
-    che magari non fa nemmeno parte di questo mondo (bug segnalato da
-    Davide). `maps_repo.clone_map_for_sharing()` crea invece una riga
+    Pubblica una mappa PERSONALE nel mondo CLONANDOLA (§6.4, passo 8):
+    riusare la stessa riga (`world_id`/`is_shared` impostati sulla mappa
+    del personaggio) farebbe sì che disegnarci sopra modifichi anche la
+    mappa personale di un personaggio che magari non fa nemmeno parte di
+    questo mondo. `maps_repo.clone_map_for_sharing()` crea invece una riga
     NUOVA, senza personaggio proprietario, annotazioni vuote — il
     personale non viene mai più toccato da qui in poi. L'immagine NON
     viaggia nell'evento — troppo grande per il giornale/lo snapshot: le
@@ -2154,7 +2126,7 @@ def _handle_map_publish(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_MAP_UPLOAD)
 def _handle_map_upload(ctx: HandlerContext) -> CommandResult:
     """
-    Carica una mappa NUOVA direttamente nel mondo (2026-08-12) — stesso
+    Carica una mappa NUOVA direttamente nel mondo — stesso
     risultato di `CMD_MAP_PUBLISH` (una riga condivisa senza personaggio
     proprietario), ma senza una mappa personale di origine: il master
     sceglie un'immagine dal proprio dispositivo e la condivide subito.
@@ -2177,10 +2149,9 @@ def _handle_map_upload(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_MAP_VISIBILITY)
 def _handle_map_visibility(ctx: HandlerContext) -> CommandResult:
     """
-    Mostra/nasconde ai giocatori una mappa già condivisa (2026-08-12) —
-    DISTINTO dall'eliminazione: la mappa resta nell'elenco del master in
-    entrambi i casi (§6.4, richiesta esplicita di Davide: "il tasto serve
-    solo per far visualizzare o meno la mappa ai giocatori non master").
+    Mostra/nasconde ai giocatori una mappa già condivisa — DISTINTO
+    dall'eliminazione: la mappa resta nell'elenco del master in entrambi i
+    casi (§6.4).
     """
     game_map = maps_repo.get_map(str(ctx.payload.get("map_id", "")))
     if game_map is None or game_map.world_id != ctx.world_id or not game_map.is_shared:
@@ -2202,11 +2173,10 @@ def _handle_map_visibility(ctx: HandlerContext) -> CommandResult:
 @register_handler(perm.CMD_MAP_DELETE)
 def _handle_map_delete(ctx: HandlerContext) -> CommandResult:
     """
-    Elimina definitivamente una mappa condivisa (2026-08-12) — l'unico modo
-    per farla sparire anche dall'elenco del master (§6.4, richiesta
-    esplicita di Davide: "poi ci vuole un tasto apposta per eliminarla").
-    La mappa personale di origine, se pubblicata per clonazione, non è mai
-    toccata: questa elimina solo il clone/la riga condivisa.
+    Elimina definitivamente una mappa condivisa — l'unico modo per farla
+    sparire anche dall'elenco del master (§6.4). La mappa personale di
+    origine, se pubblicata per clonazione, non è mai toccata: questa
+    elimina solo il clone/la riga condivisa.
     """
     game_map = maps_repo.get_map(str(ctx.payload.get("map_id", "")))
     if game_map is None or game_map.world_id != ctx.world_id or not game_map.is_shared:
@@ -2248,7 +2218,7 @@ def _handle_map_draw(ctx: HandlerContext) -> CommandResult:
 
 
 # ---------------------------------------------------------------------------
-# Deposito comune del gruppo — sincronizzazione (2026-08-19). Solo
+# Deposito comune del gruppo — sincronizzazione. Solo
 # `stash_kind="party"` passa da qui: il deposito privato del Master
 # (`stash_kind="master"`) resta intenzionalmente locale-solo, mai
 # condiviso, vedi il docstring di `data/repositories/loot_repo.py` e di
@@ -2474,7 +2444,7 @@ class RemoteBackend(WorldBackend):
         ottiene `status="pending"` e un `request_id` da interrogare con
         `poll_join_status()` finché il master non decide.
 
-        `transfer_code` (2026-08-17, §11.9): se valorizzato, questo dispositivo
+        `transfer_code` (§11.9): se valorizzato, questo dispositivo
         chiede di SUBENTRARE a un membro esistente invece di entrare come nuovo.
         Sostituisce il PIN (che l'host in quel caso non guarda) ma non
         l'approvazione del master. Campo aggiunto in coda alla richiesta JSON:
@@ -2540,10 +2510,9 @@ class RemoteBackend(WorldBackend):
         return JoinOutcome(result_status)
 
     def cancel_join_request(self, request_id: str) -> bool:
-        """`POST /join/cancel` (2026-08-19) — annulla una propria richiesta
-        di ingresso ancora in sospeso (bug segnalato da Davide: il
-        giocatore doveva poter annullare prima di poterne inviare una
-        nuova). `True` solo se l'host conferma l'annullamento — un errore
+        """`POST /join/cancel` — annulla una propria richiesta di ingresso
+        ancora in sospeso, necessario per poterne inviare una nuova.
+        `True` solo se l'host conferma l'annullamento — un errore
         di rete o una richiesta già evasa (approvata/rifiutata nel
         frattempo) ritornano `False`, il chiamante decide come reagire
         (tipicamente: prova comunque a inviarne una nuova)."""
@@ -2592,13 +2561,10 @@ class RemoteBackend(WorldBackend):
     def get_snapshot(self) -> dict | None:
         """`GET /snapshot` — stato completo del mondo (§9.2: "per il primo
         ingresso o dopo una lunga assenza"): mondo + membri + giornale
-        eventi, più (dal Multiplayer passo 6, vedi
-        `network.host_server.WorldHostServer.handle_snapshot`) l'export
-        delle istanze di personaggio di cui il chiamante è proprietario e le
-        richieste di modifica pendenti che le riguardano — pulizia
-        2026-08-07: questo docstring era rimasto fermo alla descrizione
-        pre-passo-6, ormai falsa (il codice sotto restituisce già tutto
-        quanto sopra, non solo mondo/membri/giornale)."""
+        eventi, più (vedi `network.host_server.WorldHostServer.handle_snapshot`)
+        l'export delle istanze di personaggio di cui il chiamante è
+        proprietario e le richieste di modifica pendenti che le
+        riguardano."""
         if self.token is None:
             return None
         try:
@@ -2634,7 +2600,7 @@ class RemoteBackend(WorldBackend):
             return CommandResult(False, data.get("error", "Comando rifiutato dall'host."))
 
         event = protocol.event_from_dict(data["event"]) if data.get("event") else None
-        # `data` (2026-08-17, §11.9): dati di risposta destinati solo al
+        # `data` (§11.9): dati di risposta destinati solo al
         # mittente, che NON possono viaggiare nel payload dell'evento perché il
         # giornale è trasmesso a tutte le repliche. Un host più vecchio non
         # manda la chiave: `.get` la rende assente, non un errore.
@@ -2696,11 +2662,11 @@ class RemoteBackend(WorldBackend):
 
     def fetch_map_annotations(self, map_id: str) -> str | None:
         """
-        `GET /map/<id>/annotations` (2026-08-19) — backfill lazy dei tratti
+        `GET /map/<id>/annotations` — backfill lazy dei tratti
         di disegno di una mappa condivisa per un dispositivo che non li ha
         mai visti (tipicamente un giocatore entrato DOPO che il master
-        aveva già disegnato — vedi `WorldHostServer.handle_map_annotations`
-        per il bug che questo risolve). A differenza di `fetch_map_image`
+        aveva già disegnato — vedi `WorldHostServer.handle_map_annotations`).
+        A differenza di `fetch_map_image`
         sopra, questa risposta È JSON (una stringa `annotations`, lo stesso
         formato di `game_maps.annotations`), quindi passa dal normale
         `_request()` invece di un client HTTP manuale. `None` se non

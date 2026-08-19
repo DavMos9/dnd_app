@@ -81,7 +81,7 @@ def get_db_path() -> str:
 
 def get_updates_path() -> str:
     """
-    Cartella di staging degli aggiornamenti scaricati dall'app (2026-08-17).
+    Cartella di staging degli aggiornamenti scaricati dall'app.
 
     Ricavata dalla cartella del database (`get_db_path()`), non reimplementando
     le tre strategie di ripiego Android: quelle sono già scritte, commentate e
@@ -116,14 +116,11 @@ def get_image_library_path() -> str:
     Cartella "libreria immagini" server-side, gestita a mano da Davide via
     SSH (scp/rsync) -- NON un upload dal client attraverso Flet.
 
-    Aggiunta il 2026-07-12 in sostituzione di un precedente tentativo
-    (get_upload_dir_path(), rimosso) che si basava su ft.FilePicker +
-    page.get_upload_url() per un vero upload client-server: quel
-    meccanismo si e' rivelato IRRAGGIUNGIBILE in modalita' web per un bug
-    upstream confermato di Flet (flet-dev/flet#6040, #6250, #6251 -- i
-    controlli "Service" come FilePicker sono strutturalmente rotti in web
-    mode, indipendentemente da come li si usa). Vedi CLAUDE.md per il
-    changelog completo dei tre tentativi.
+    ft.FilePicker + page.get_upload_url() (upload client-server vero) è
+    IRRAGGIUNGIBILE in modalita' web per un bug upstream confermato di Flet
+    (flet-dev/flet#6040, #6250, #6251 -- i controlli "Service" come
+    FilePicker sono strutturalmente rotti in web mode, indipendentemente da
+    come li si usa).
 
     Soluzione adottata: Davide carica le immagini direttamente sul
     filesystem del server (bind mount Docker, vedi docker-compose.yml ->
@@ -147,21 +144,20 @@ def get_image_library_path() -> str:
 def get_character_exports_path() -> str:
     """
     Cartella condivisa per l'export/import di personaggi in modalità web —
-    doppio ruolo, entrambi introdotti il 2026-07-24:
+    doppio ruolo:
 
-    1. IMPORT (stesso identico principio di get_image_library_path(),
-       2026-07-12): ft.FilePicker è strutturalmente non utilizzabile in web
-       mode (bug upstream Flet confermato flet-dev/flet#6040/#6250/#6251),
-       quindi l'import mostra un picker con l'elenco dei file .dndchar già
+    1. IMPORT (stesso identico principio di get_image_library_path()):
+       ft.FilePicker è strutturalmente non utilizzabile in web mode (bug
+       upstream Flet confermato flet-dev/flet#6040/#6250/#6251), quindi
+       l'import mostra un picker con l'elenco dei file .dndchar già
        presenti qui — Davide li carica a mano via SSH/scp (vedi
        ui/character_transfer.py). Questo lato resta bloccato in web mode,
        nessun modo per farlo funzionare lato applicazione.
 
-    2. EXPORT (aggiunto in un secondo momento, stessa data): questa cartella
-       è anche passata come assets_dir a ft.run() in modalità web (vedi
-       main.py) — Flet la monta staticamente alla radice dell'app. L'export
-       web scrive qui il file .dndchar e lo apre con
-       Button(url="/nomefile.dndchar", target=BLANK), che NON è un
+    2. EXPORT: questa cartella è anche passata come assets_dir a ft.run()
+       in modalità web (vedi main.py) — Flet la monta staticamente alla
+       radice dell'app. L'export web scrive qui il file .dndchar e lo apre
+       con Button(url="/nomefile.dndchar", target=BLANK), che NON è un
        controllo Service (a differenza di FilePicker/UrlLauncher) e quindi
        non soffre dello stesso bug: il browser scarica il file con la sua
        UI standard di download, senza bisogno di alcun accesso SSH.
@@ -169,9 +165,6 @@ def get_character_exports_path() -> str:
     Su desktop nativo questa funzione non viene usata: export/import
     passano dai dialoghi nativi del SO (vedi home_view.py), che lasciano
     scegliere liberamente il percorso — nessuna cartella fissa necessaria.
-
-    Vedi CLAUDE.md per il changelog completo della feature Import/Export
-    personaggio.
     """
     exports_dir = Path.home() / "dnd_character_exports"
     exports_dir.mkdir(parents=True, exist_ok=True)
@@ -181,12 +174,8 @@ def get_character_exports_path() -> str:
 def get_assets_path() -> str:
     """
     Cartella `dnd_app/assets/` — passata come `assets_dir` a `ft.run()` su
-    TUTTE le piattaforme (Fase A del restyle, 2026-07-26).
-
-    Prima di questa modifica `assets_dir` non era impostata affatto su
-    desktop/mobile, ed era occupata dalla cartella degli export in web mode:
-    era quindi tecnicamente impossibile caricare un font custom, che è il
-    prerequisito della Fase B del restyle (`ft.Page.fonts` legge da qui).
+    TUTTE le piattaforme: è il prerequisito per caricare un font custom
+    (`ft.Page.fonts` legge da qui).
 
     L'export web continua a funzionare: scrive in una sottocartella servita
     (`assets/exports/`, vedi `get_web_export_staging_path()`), quindi l'URL
@@ -216,11 +205,11 @@ def get_web_export_staging_path() -> str:
     return str(staging)
 
 
-#: Attesa massima su un lock SQLite prima di sollevare "database is locked"
-#: (2026-08-17). Prima era il default di sqlite3 (5s) applicato solo al
-#: `connect()`; qui è esplicito e vale anche per le singole scritture, che
-#: su un dispositivo con il ciclo di sync in background attivo possono
-#: trovare il lock preso da un altro thread per una frazione di secondo.
+#: Attesa massima su un lock SQLite prima di sollevare "database is locked".
+#: Esplicito (non solo il default di sqlite3) perché vale anche per le
+#: singole scritture, che su un dispositivo con il ciclo di sync in
+#: background attivo possono trovare il lock preso da un altro thread per
+#: una frazione di secondo.
 _SQLITE_TIMEOUT_S = 5.0
 
 
@@ -231,23 +220,16 @@ def _is_lock_error(e: BaseException) -> bool:
 
 class _ResilientConnection(sqlite3.Connection):
     """Connessione SQLite che sopravvive a una connessione ABBANDONATA da
-    un'altra funzione dello stesso processo (2026-08-17).
+    un'altra funzione dello stesso processo.
 
-    Bug segnalato da Davide: dopo essere entrato in un mondo LAN,
-    "impossibile copiare personaggio" **sempre**, fino al riavvio dell'app.
-    Causa: la quasi totalità delle funzioni dei repository di questo
-    progetto scriveva `conn.close()` come ULTIMA riga del blocco `try`, non
-    in un `finally` (167 `close()` in 165 funzioni, contati con uno scan
-    AST — tutti convertiti, vedi la nota in fondo a questo docstring). Se una
-    query solleva — es. `save_replica_note()` su una FK violata da dati
-    residui, vedi il fix dello stesso giorno lì — quella connessione non
-    viene mai chiusa. E non basta il refcount a liberarla: l'eccezione
-    crea un ciclo di riferimenti (eccezione → traceback → frame → la
-    variabile locale `conn`) che solo il garbage collector generazionale
-    può rompere. Fino a quel momento la connessione orfana trattiene la
-    transazione di scrittura fallita, e con essa il lock del file: **ogni
-    scrittura successiva del processo** fallisce con "database is locked",
-    in pratica per tutta la vita dell'app.
+    Se una query solleva e la connessione non viene chiusa (es. non era in
+    un `finally`), non basta il refcount a liberarla: l'eccezione crea un
+    ciclo di riferimenti (eccezione → traceback → frame → la variabile
+    locale `conn`) che solo il garbage collector generazionale può rompere.
+    Fino a quel momento la connessione orfana trattiene la transazione di
+    scrittura fallita, e con essa il lock del file: **ogni scrittura
+    successiva del processo** fallisce con "database is locked", in pratica
+    per tutta la vita dell'app.
 
     Al primo "database is locked" si forza un `gc.collect()` — che chiude le
     connessioni orfane rompendo quei cicli — e si riprova UNA volta. Un lock
@@ -255,19 +237,19 @@ class _ResilientConnection(sqlite3.Connection):
     `_SQLITE_TIMEOUT_S`: qui si ritenta una volta e poi l'errore risale al
     chiamante esattamente come prima.
 
-    ⚠️ **Questa classe NON è più la difesa principale** (aggiornato
-    2026-08-17, stessa giornata): quelle 165 funzioni sono state tutte
-    convertite a `try/finally`, quindi oggi non esiste più nessun punto noto
-    che abbandoni una connessione, e questo ritentativo non dovrebbe mai
-    scattare. La difesa principale è ora strutturale e verificata da
-    `test_connessioni_db.py`, che analizza l'AST di tutto il codebase e
-    fallisce se una qualsiasi funzione torna a chiudere la connessione solo
-    sul percorso felice. Questa resta come difesa in profondità, per il caso
-    in cui una funzione nuova sfugga alla guardia (o un percorso di terze
-    parti abbandoni una connessione): converte un errore permanente e
-    invisibile in un recupero trasparente con un `logger.warning` che dice
-    dov'è il problema. **Se questo warning appare nei log, c'è una
-    connessione abbandonata da trovare** — non è un funzionamento normale.
+    ⚠️ **Questa classe NON è la difesa principale**: tutte le funzioni dei
+    repository chiudono la connessione in un `finally`, quindi oggi non
+    esiste nessun punto noto che abbandoni una connessione, e questo
+    ritentativo non dovrebbe mai scattare. La difesa principale è
+    strutturale e verificata da `test_connessioni_db.py`, che analizza
+    l'AST di tutto il codebase e fallisce se una qualsiasi funzione torna a
+    chiudere la connessione solo sul percorso felice. Questa resta come
+    difesa in profondità, per il caso in cui una funzione nuova sfugga alla
+    guardia (o un percorso di terze parti abbandoni una connessione):
+    converte un errore permanente e invisibile in un recupero trasparente
+    con un `logger.warning` che dice dov'è il problema. **Se questo warning
+    appare nei log, c'è una connessione abbandonata da trovare** — non è un
+    funzionamento normale.
 
     Il ritentativo è sicuro: una statement che non ha ottenuto il lock non
     ha applicato NIENTE, quindi rieseguirla non può duplicare scritture.
@@ -354,12 +336,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # Mistificatore Arcano (Ladro) / Cavaliere Mistico (Guerriero) — traccia se
     # una riga known_spells è un pick "libero da vincolo di scuola" (8°/14°/20°
     # livello, +3° per il Cavaliere Mistico) — necessario per sapere, in un
-    # futuro scambio, se il rimpiazzo può essere di qualsiasi scuola. Vedi
-    # CLAUDE.md 2026-07-15, fix Mistificatore Arcano/Cavaliere Mistico.
+    # futuro scambio, se il rimpiazzo può essere di qualsiasi scuola.
     _add_column(cur, "known_spells",   "origin_unrestricted", "INTEGER DEFAULT 0")
-    # Override manuali (2026-07-16, richiesta Davide: "rendiamo modificabili
-    # anche i campi che non si possono modificare attualmente") — stesso
-    # pattern di proficiency_bonus_override/max_prepared_spells_override:
+    # Override manuali — stesso pattern di
+    # proficiency_bonus_override/max_prepared_spells_override:
     # 0 = nessun override, usa il valore calcolato dalla formula PHB.
     _add_column(cur, "characters", "passive_perception_override", "INTEGER DEFAULT 0")
     _add_column(cur, "characters", "carry_capacity_override",     "REAL DEFAULT 0")
@@ -368,7 +348,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # oggetto magico che concede +1 uso) — additivo rispetto al valore PHB
     # calcolato da get_class_resource_defaults(), sopravvive al ri-sync di
     # init_class_resources() (che altrimenti sovrascriverebbe max_value a
-    # ogni apertura tab/level-up). Vedi CLAUDE.md 2026-07-16.
+    # ogni apertura tab/level-up).
     _add_column(cur, "class_resources", "max_value_bonus", "INTEGER DEFAULT 0")
     # Incantesimo bonus aggiunto manualmente dal giocatore (es. concesso dal
     # master) — sezione dedicata "Incantesimi Bonus" in spells_view.py,
@@ -377,7 +357,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # perché quello si basa solo sul nome non presente nella lista di classe:
     # un incantesimo bonus scelto dalla STESSA lista della classe del
     # personaggio andrebbe altrimenti confuso con un incantesimo normale già
-    # preparato. Vedi CLAUDE.md 2026-07-16.
+    # preparato.
     _add_column(cur, "known_spells", "is_bonus", "INTEGER DEFAULT 0")
     # Incantesimo sempre pronto da privilegio di Dominio/Giuramento/Circolo
     # (es. Paladino Giuramento degli Antichi Lv.3: Colpo Intrappolante,
@@ -385,20 +365,18 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # giornaliera e non è disattivabile dal giocatore. Sincronizzato
     # automaticamente da character_repo.sync_bonus_domain_spells() ad ogni
     # apertura tab/level-up/level-down (self-healing, stesso pattern delle
-    # risorse di classe). Vedi CLAUDE.md 2026-07-16.
+    # risorse di classe).
     _add_column(cur, "known_spells", "always_prepared", "INTEGER DEFAULT 0")
-    # Bug reale trovato il 2026-07-17: il campo "reactions" esiste in
-    # monsters.json ed è già letto/scritto da un mostro all'altro nel bestiary
-    # picker, ma creature_entries non aveva MAI una colonna per riceverlo —
-    # le Reazioni di un mostro (es. Parata) sparivano silenziosamente quando
-    # il personaggio/master lo aggiungeva a Forma Selvatica/Evocazione. Vedi
-    # CLAUDE.md 2026-07-17.
+    # Il campo "reactions" esiste in monsters.json ed è letto/scritto dal
+    # bestiary picker, ma creature_entries non aveva una colonna per
+    # riceverlo — le Reazioni di un mostro (es. Parata) sparivano quando il
+    # personaggio/master lo aggiungeva a Forma Selvatica/Evocazione.
     _add_column(cur, "creature_entries", "reactions", "TEXT DEFAULT '[]'")
     # Azioni di Tana / Effetti Regionali (o "Tratti della Tana", stesso
     # concetto con nome diverso per il Demilich) — presenti solo per una
     # manciata di mostri con una tana propria (Kraken, Lich, Signore delle
     # Mummie, Sfinge, Unicorno, Vampiro, Demilich). Campi sempre vuoti per
-    # tutti gli altri mostri. Vedi CLAUDE.md 2026-07-17.
+    # tutti gli altri mostri.
     _add_column(cur, "creature_entries", "lair_actions_intro", "TEXT DEFAULT ''")
     _add_column(cur, "creature_entries", "lair_actions", "TEXT DEFAULT '[]'")
     _add_column(cur, "creature_entries", "regional_effects_label", "TEXT DEFAULT ''")
@@ -407,22 +385,21 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # Varianti opzionali "sidebar" del manuale (es. "Arma su Asta del Diavolo
     # d'Ossa", "Congreghe di Megere") — regole facoltative legate a un mostro
     # specifico, non un mostro a sé. Sola consultazione, il master decide se
-    # applicarle. Vedi CLAUDE.md 2026-07-17.
+    # applicarle.
     _add_column(cur, "creature_entries", "variant_rules", "TEXT DEFAULT '[]'")
-    # Calcolo automatico tiro per colpire (2026-07-17, vedi CLAUDE.md) —
-    # categoria PHB per il match di competenza (character_proficiencies),
-    # override esplicito di competenza/caratteristica/totale attacco.
+    # Calcolo automatico tiro per colpire — categoria PHB per il match di
+    # competenza (character_proficiencies), override esplicito di
+    # competenza/caratteristica/totale attacco.
     _add_column(cur, "weapons", "weapon_category",        "TEXT DEFAULT ''")
     _add_column(cur, "weapons", "proficiency_override",   "INTEGER DEFAULT 0")
     _add_column(cur, "weapons", "finesse_ability",        "TEXT DEFAULT ''")
     _add_column(cur, "weapons", "attack_total_override",  "INTEGER DEFAULT 0")
     _add_column(cur, "weapons", "attack_override_value",  "INTEGER DEFAULT 0")
     # Barbaro Cammino del Berserker — Frenesia dichiarata per l'ira in corso
-    # (0/1). Vedi data/models.py → Character.frenzy_active e CLAUDE.md
-    # 2026-07-19 per il changelog completo.
+    # (0/1). Vedi data/models.py → Character.frenzy_active.
     _add_column(cur, "characters", "frenzy_active", "INTEGER DEFAULT 0")
-    # Sezione Master — Calcolatore Difficoltà Incontro (2026-07-24): PE del
-    # mostro/NPC, per sommarli senza dover ricalcolare da un grado di sfida
+    # Sezione Master — Calcolatore Difficoltà Incontro: PE del mostro/NPC,
+    # per sommarli senza dover ricalcolare da un grado di sfida
     # (monsters.json ha già xp per ognuno dei 444 mostri auditati; per un NPC
     # "Nuovo Manuale" senza stat block il Master può valorizzarlo a mano).
     # Idempotente anche per chi ha già le 3 tabelle Master da prima di questa
@@ -444,50 +421,42 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "inventory_items", "requires_attunement", "INTEGER DEFAULT 0")
     _add_column(cur, "inventory_items", "is_attuned", "INTEGER DEFAULT 0")
     _add_column(cur, "master_encounter_members", "xp", "INTEGER DEFAULT 0")
-    # Mondi condivisi (2026-08-05, passo 2 — vedi multiplayer_design.md §8).
-    # '' / 0 su tutte e cinque = personaggio locale, comportamento identico
-    # a oggi: un personaggio esistente non entra mai in un mondo da solo.
-    # Un'istanza di mondo (passo 3) e' un record di questa stessa tabella
-    # con queste colonne valorizzate — vedi la nota "Perche' l'istanza e'
-    # un record di characters" nel design doc.
+    # Mondi condivisi (vedi multiplayer_design.md §8). '' / 0 su tutte e
+    # cinque = personaggio locale, comportamento identico a oggi: un
+    # personaggio esistente non entra mai in un mondo da solo. Un'istanza di
+    # mondo e' un record di questa stessa tabella con queste colonne
+    # valorizzate — vedi la nota "Perche' l'istanza e' un record di
+    # characters" nel design doc.
     _add_column(cur, "characters", "world_id",            "TEXT DEFAULT ''")
     _add_column(cur, "characters", "origin_character_id", "TEXT DEFAULT ''")
     _add_column(cur, "characters", "owner_device_id",     "TEXT DEFAULT ''")
     _add_column(cur, "characters", "is_replica",          "INTEGER DEFAULT 0")
     _add_column(cur, "characters", "world_seq",           "INTEGER DEFAULT 0")
-    # Espulsione da un mondo (2026-08-07, bug segnalato da Davide: "posso
-    # espellere il proprietario ma non il personaggio, che resta collegato
-    # per sempre" — `member.kick` toglieva solo la riga in `world_members`,
-    # mai le istanze possedute da quel device, che restavano visibili per
-    # sempre nella Sezione Master). Scelta di Davide tra le alternative
-    # proposte: "disattiva/archivia, non distruttivo, riattivabile" — non
-    # una colonna booleana di sola cancellazione logica generica, ma
-    # specifica per questo caso (un'istanza locale non la usa mai:
-    # `_handle_member_kick` in `core/world_backend.py` è l'unico punto di
-    # scrittura). Riattivazione: nessuna UI dedicata in questo giro — la
-    # rotta di rientro naturale è già la "Riprendi" esistente (§6): un
-    # nuovo giro di `character_instance.sync` sullo stesso `character_id`
-    # riscrive l'intera riga per introspezione di schema
-    # (`character_export.import_replica_character`), azzerando anche
-    # questa colonna senza bisogno di codice dedicato — vedi
-    # `docs/changelog_storico.md` per il ragionamento completo.
+    # Espulsione da un mondo: `member.kick` toglie la riga in
+    # `world_members`, ma le istanze possedute da quel device restano —
+    # questa colonna le archivia invece di cancellarle (non distruttivo,
+    # riattivabile), specifica per questo caso (un'istanza locale non la usa
+    # mai: `_handle_member_kick` in `core/world_backend.py` è l'unico punto
+    # di scrittura). Riattivazione: nessuna UI dedicata — la rotta di
+    # rientro naturale è già la "Riprendi" esistente (§6): un nuovo giro di
+    # `character_instance.sync` sullo stesso `character_id` riscrive
+    # l'intera riga per introspezione di schema
+    # (`character_export.import_replica_character`), azzerando anche questa
+    # colonna senza bisogno di codice dedicato.
     _add_column(cur, "characters", "world_instance_archived", "INTEGER DEFAULT 0")
-    # Bug segnalato da Davide (2026-08-18): se l'host è irraggiungibile nel
-    # momento in cui un'istanza viene creata/aggiornata, `_push_instance_to_host()`
-    # in `ui/views/home_view.py` falliva senza lasciare traccia di riprovare —
-    # il personaggio restava "nel mondo" solo in locale finché non si ripeteva
-    # a mano l'operazione con l'host online. 0 = niente in sospeso (default,
-    # comportamento di sempre) | 1 = push verso l'host non ancora confermato,
-    # da ritentare al prossimo giro del loop di sync in `world_view.py` — vedi
+    # Se l'host è irraggiungibile nel momento in cui un'istanza viene
+    # creata/aggiornata, `_push_instance_to_host()` in
+    # `ui/views/home_view.py` fallisce senza un modo di ritentare — questa
+    # colonna colma il gap. 0 = niente in sospeso (default) | 1 = push verso
+    # l'host non ancora confermato, da ritentare al prossimo giro del loop
+    # di sync in `world_view.py` — vedi
     # `core/world_sync.py::push_pending_instance()`.
     _add_column(cur, "characters", "host_sync_pending", "INTEGER DEFAULT 0")
-    # Modalità Master world-scoped (2026-08-06, fix bug segnalato da Davide:
-    # "il player entrato in un mondo appare duplicato" / "in Master escono i
-    # personaggi di ogni mondo mescolati" — causa: nessun picker personaggi
-    # della Sezione Master filtrava mai per mondo). Le Note di Campagna del
-    # Master seguono lo stesso principio (scelta esplicita di Davide,
-    # 2026-08-06: includere anche la visibilità per-nota di
-    # multiplayer_design.md §7 in questo stesso giro):
+    # Modalità Master world-scoped: i picker personaggi/NPC/incontri della
+    # Sezione Master filtrano per mondo selezionato, evitando che
+    # personaggi/note di mondi diversi si mescolino nella stessa vista. Le
+    # Note di Campagna del Master seguono lo stesso principio, con in più la
+    # visibilità per-nota di multiplayer_design.md §7:
     # '' = nota locale/di nessun mondo (comportamento di sempre). `visibility`
     # è significativa solo quando `world_id` è valorizzato: "private" (solo il
     # Master, default) | "all" (tutti i membri del mondo) | "selected" (solo i
@@ -495,15 +464,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # colonna registra l'INTENZIONE del Master; la consegna effettiva ai
     # dispositivi dei giocatori (nuovo tipo di evento nel giornale del mondo +
     # una schermata lato giocatore che oggi non esiste) resta un passo a sé,
-    # non ancora implementato — vedi CLAUDE.md.
+    # non ancora implementato.
     _add_column(cur, "master_campaign_notes", "world_id", "TEXT DEFAULT ''")
     _add_column(cur, "master_campaign_notes", "visibility", "TEXT DEFAULT 'private'")
     _add_column(cur, "master_campaign_notes", "visible_to_device_ids", "TEXT DEFAULT '[]'")
-    # Riconnessione del client dopo l'ingresso in LAN (2026-08-07, fix di
-    # correttezza: `ui/views/world/world_view.py` inviava OGNI comando con
-    # `LocalBackend`, anche su un mondo a cui ci si era uniti da remoto — un
-    # comando di un giocatore/co-master non-host non raggiungeva mai l'host,
-    # restava scritto solo sulla replica locale). Il token di sessione
+    # Riconnessione del client dopo l'ingresso in LAN: `ui/views/world/world_view.py`
+    # deve inviare i comandi con `RemoteBackend` quando ci si è uniti da
+    # remoto, non con `LocalBackend` — altrimenti un comando di un
+    # giocatore/co-master non-host non raggiunge mai l'host, e resta
+    # scritto solo sulla replica locale. Il token di sessione
     # (`RemoteBackend.token`, consegnato da `join()`) va persistito per poter
     # ricostruire un `RemoteBackend` funzionante ad ogni apertura della
     # sezione Mondi, senza richiedere di reinserire codice+PIN ogni volta —
@@ -534,46 +503,39 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # una mappa condivisa che non è posseduta localmente (il dispositivo di
     # un giocatore che non l'ha creata) — vedi
     # `_migrate_game_maps_nullable_character_id()` sotto per la migrazione
-    # delle righe esistenti (decisione presa con Davide: rendere
-    # `character_id` nullable, non un personaggio segnaposto né mappe
-    # condivise "solo live").
+    # delle righe esistenti.
     _add_column(cur, "game_maps", "world_id", "TEXT DEFAULT ''")
     _add_column(cur, "game_maps", "is_shared", "INTEGER DEFAULT 0")
     _migrate_game_maps_nullable_character_id(cur)
-    # Visibilità ai giocatori (2026-08-12, distinta da `is_shared`: una
-    # mappa condivisa resta nell'elenco del master anche quando nascosta —
-    # solo i giocatori smettono di vederla, vedi CMD_MAP_VISIBILITY).
+    # Visibilità ai giocatori, distinta da `is_shared`: una mappa condivisa
+    # resta nell'elenco del master anche quando nascosta — solo i giocatori
+    # smettono di vederla, vedi CMD_MAP_VISIBILITY.
     _add_column(cur, "game_maps", "visible_to_players", "INTEGER DEFAULT 1")
 
-    # Promemoria di backup del mondo (2026-08-12, passo 9E — vedi
+    # Promemoria di backup del mondo (passo 9E — vedi
     # `dnd_app/docs/multiplayer_design.md` §6.3): `world_events.seq` del
     # mondo al momento dell'ultimo export riuscito, aggiornato da
     # `world_repo.mark_world_exported()`. La UI (`ui/views/world/world_view.py`
     # ::`_backup_section`) confronta questo valore con il `seq` più recente
     # per decidere se mostrare l'avviso "sono successe N cose dall'ultimo
-    # backup" — soglia decisa con Davide (20 eventi), non a tavolino.
+    # backup" — soglia: 20 eventi.
     _add_column(cur, "worlds", "last_export_seq", "INTEGER DEFAULT 0")
 
-    # Sezione Master COMPLETAMENTE world-scoped (2026-08-12, bug report
-    # Davide: "note, incontri, oggetti bottino e npc... tutto deve essere
-    # dipendente dal mondo, quindi attualmente qualsiasi mondo seleziono
-    # vedo gli stessi incontri e la stessa visuale per tutto. selezionare
-    # un mondo è come se entrassi in un container con le sue cose").
-    # Completa il fix del 2026-08-06 sopra, che aveva coperto solo
-    # personaggi e note: gli NPC di rubrica non avevano ALCUNA colonna
-    # `world_id` (né qui né nel modello Python), e gli incontri la
-    # avevano già (riga sotto, dal Tracker condiviso §6.5) ma la
-    # UI/repository di lista/creazione non la usavano mai per filtrare —
-    # solo per il flag "visibile ai giocatori". '' = NPC locale/di nessun
-    # mondo (comportamento di sempre per chi non usa il Multiplayer).
+    # Sezione Master COMPLETAMENTE world-scoped: note, incontri, oggetti
+    # bottino e NPC dipendono tutti dal mondo selezionato. Gli NPC di
+    # rubrica non avevano ALCUNA colonna `world_id` (né qui né nel modello
+    # Python); gli incontri la avevano già (riga sotto, dal Tracker
+    # condiviso §6.5) ma la UI/repository di lista/creazione non la
+    # usavano mai per filtrare — solo per il flag "visibile ai giocatori".
+    # '' = NPC locale/di nessun mondo (comportamento di sempre per chi non
+    # usa il Multiplayer).
     _add_column(cur, "master_npcs", "world_id", "TEXT DEFAULT ''")
 
-    # Razza PHB strutturata sulla Rubrica NPC (2026-08-12, bug report Davide:
-    # "tipo creatura e taglia devono corrispondere a quelle già create
-    # automaticamente" — prima la razza viveva solo come testo libero dentro
-    # `tags`, mai riletta per l'auto-riempimento di Tipo creatura/Taglia).
-    # '' = NPC senza razza nota; per gli NPC creati prima di questa colonna
-    # nessuna migrazione dati qui — un fallback a runtime
+    # Razza PHB strutturata sulla Rubrica NPC: prima viveva solo come testo
+    # libero dentro `tags`, mai riletta per l'auto-riempimento di Tipo
+    # creatura/Taglia (che devono corrispondere a quelle già create
+    # automaticamente). '' = NPC senza razza nota; per gli NPC creati prima
+    # di questa colonna nessuna migrazione dati qui — un fallback a runtime
     # (`core.npc_generator.resolve_race_from_tags()`) la ricava da `tags`
     # quando serve, senza bisogno di riscrivere righe esistenti.
     _add_column(cur, "master_npcs", "race", "TEXT DEFAULT ''")
@@ -583,7 +545,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 def _migrate_backfill_character_classes(cur: sqlite3.Cursor) -> None:
     """
-    Multiclasse (2026-08-12): crea la riga `character_classes` primaria per
+    Multiclasse: crea la riga `character_classes` primaria per
     ogni personaggio che non ne ha ancora nessuna — sia i personaggi
     esistenti prima di questa migrazione, sia quelli creati da un vecchio
     export `.dndchar`/`.dndworld` importato dopo. Idempotente: un
@@ -618,10 +580,10 @@ def _add_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -
 def _migrate_game_maps_nullable_character_id(cur: sqlite3.Cursor) -> None:
     """
     Ricostruzione della tabella `game_maps` per rendere `character_id`
-    nullable — Multiplayer passo 8 (§6.4), decisione presa con Davide: una
-    mappa condivisa non ha un personaggio proprietario sul dispositivo di
-    un giocatore che non l'ha creata, ma la colonna era `NOT NULL
-    REFERENCES characters(id) ON DELETE CASCADE`.
+    nullable — Multiplayer passo 8 (§6.4): una mappa condivisa non ha un
+    personaggio proprietario sul dispositivo di un giocatore che non l'ha
+    creata, ma la colonna era `NOT NULL REFERENCES characters(id) ON DELETE
+    CASCADE`.
 
     SQLite non permette di rilassare un vincolo NOT NULL/FK con `ALTER
     TABLE` — serve ricreare la tabella. Prima migrazione di questo tipo nel
@@ -997,10 +959,10 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # ------------------------------------------------------------------
-    # Abilità Speciali custom (2026-07-16, richiesta Davide: abilità
-    # concesse dal master o voci aggiuntive non presenti nel PHB — non
-    # vanno mai a modificare in-place il testo ufficiale di una feature di
-    # classe/razza già rappresentata nei JSON, solo ad affiancarlo).
+    # Abilità Speciali custom: abilità concesse dal master o voci aggiuntive
+    # non presenti nel PHB — non vanno mai a modificare in-place il testo
+    # ufficiale di una feature di classe/razza già rappresentata nei JSON,
+    # solo ad affiancarlo.
     # category: "esplorazione" | "combattimento"
     # ------------------------------------------------------------------
     cur.execute("""
@@ -1020,8 +982,8 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # ------------------------------------------------------------------
-    # Sezione Master — rubrica NPC/mostri, incontri, membri d'incontro
-    # (2026-07-24). Deliberatamente INDIPENDENTI da `characters`/
+    # Sezione Master — rubrica NPC/mostri, incontri, membri d'incontro.
+    # Deliberatamente INDIPENDENTI da `characters`/
     # `creature_entries`: quest'ultima ha character_id NOT NULL CASCADE,
     # semantica "creatura temporanea di UN personaggio" — renderla nullable
     # per riusarla anche qui avrebbe rischiato regressioni su Forma
@@ -1118,10 +1080,10 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # ------------------------------------------------------------------
-    # master_campaign_notes (2026-07-24) — Note di Campagna del Master,
-    # stessa forma di `campaign_notes` (già esistente per DiaryView) ma
-    # SENZA character_id: indipendente da ogni personaggio, vive solo nella
-    # Sezione Master. 8 categorie: le 6 già condivise con campaign_notes
+    # master_campaign_notes — Note di Campagna del Master, stessa forma di
+    # `campaign_notes` (già esistente per DiaryView) ma SENZA character_id:
+    # indipendente da ogni personaggio, vive solo nella Sezione Master.
+    # 8 categorie: le 6 già condivise con campaign_notes
     # ("npc"/"npc_todo"/"place"/"place_todo"/"quest"/"faction") più due
     # nuove ("event"/"secret"). Nessuna fonte DMG da citare — puro
     # strumento organizzativo, non regolamento. Vedi
@@ -1146,12 +1108,12 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # ------------------------------------------------------------------
-    # app_settings (2026-07-30, Fase D del restyle) — preferenze
-    # dell'INSTALLAZIONE, non del personaggio: nessun `character_id`,
-    # nessuna FK, nessun CASCADE. Eliminare un personaggio non deve toccare
-    # il tema scelto, ed esportare un personaggio in `.dndchar` non deve
-    # portarsi dietro le preferenze della macchina di origine — per questo
-    # la tabella NON compare in `CHILD_TABLES` di `character_export.py`.
+    # app_settings — preferenze dell'INSTALLAZIONE, non del personaggio:
+    # nessun `character_id`, nessuna FK, nessun CASCADE. Eliminare un
+    # personaggio non deve toccare il tema scelto, ed esportare un
+    # personaggio in `.dndchar` non deve portarsi dietro le preferenze della
+    # macchina di origine — per questo la tabella NON compare in
+    # `CHILD_TABLES` di `character_export.py`.
     #
     # Forma chiave/valore generica invece di una colonna per preferenza:
     # aggiungerne una in futuro (densità, dimensione testo — entrambe
@@ -1161,7 +1123,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     # Vedi `data/repositories/settings_repo.py`.
     # ------------------------------------------------------------------
     # ------------------------------------------------------------------
-    # character_conditions (2026-07-30, Fase 4 feature 2b) — le condizioni
+    # character_conditions (Fase 4, feature 2b) — le condizioni
     # dell'Appendice A del PHB attive su un personaggio. Tabella e non colonne
     # perche' le condizioni possono essere piu' di una insieme e ognuna puo'
     # avere una fonte diversa ("Spavento del Bardo", "morso del ragno").
@@ -1192,7 +1154,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # ------------------------------------------------------------------
-    # loot_stash_entries (2026-07-31, Bottino — vedi dnd_app/docs/loot_design.md)
+    # loot_stash_entries (Bottino — vedi dnd_app/docs/loot_design.md)
     # Un'unica tabella per due contenitori distinti, discriminati da
     # `stash_kind`: "master" (archivio privato del Master, mai visibile ai
     # giocatori) | "party" (deposito comune del gruppo, visibile a tutti).
@@ -1234,14 +1196,13 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # ------------------------------------------------------------------
-    # Mondi condivisi / LAN party (2026-08-05, passo 2 di
-    # dnd_app/docs/multiplayer_design.md — "Modello mondo, senza rete").
+    # Mondi condivisi / LAN party (vedi dnd_app/docs/multiplayer_design.md).
     # Queste 4 tabelle esistono con lo STESSO schema su ogni dispositivo:
     # chi ospita ci tiene lo stato autoritativo, chi si collega ci tiene la
     # replica (§8 del design doc). Nessuna riga di trasporto di rete qui —
     # solo il modello: mondo, membri/ruoli, giornale eventi, richieste di
-    # modifica. Il passo 4 (rete) le riempirà da un altro dispositivo, non
-    # cambierà lo schema.
+    # modifica. Il livello di rete (`network/`) le riempie da un altro
+    # dispositivo, senza cambiare lo schema.
     # ------------------------------------------------------------------
     cur.execute("""
         CREATE TABLE IF NOT EXISTS worlds (
@@ -1304,9 +1265,9 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # Richieste del master che il giocatore deve approvare (§7.1, valvola di
-    # sfogo per le house rule sui campi altrimenti vietati). Non usata dal
-    # passo 2 (non esistono ancora istanze di personaggio su cui applicarle),
-    # ma la tabella nasce ora insieme al resto dello schema mondo.
+    # sfogo per le house rule sui campi altrimenti vietati) — proposte da
+    # `world_repo.create_change_request()` (CMD_CHANGE_REQUEST_PROPOSE in
+    # core/world_backend.py) e risolte dal giocatore.
     cur.execute("""
         CREATE TABLE IF NOT EXISTS world_change_requests (
             id             TEXT PRIMARY KEY,
@@ -1326,11 +1287,8 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # Richieste del GIOCATORE di far rientrare nel mondo un'istanza
-    # archiviata (2026-08-12, gap trovato analizzando l'espulsione/rimozione:
-    # nessun punto del codice riattivava mai davvero un'istanza archiviata,
-    # nonostante alcuni commenti/testi UI lo dessero per scontato — vedi
-    # `character_repo.unarchive_world_instance`). Verso OPPOSTO a
-    # `world_change_requests` sopra (lì propone il master, risponde il
+    # archiviata (vedi `character_repo.unarchive_world_instance`). Verso
+    # OPPOSTO a `world_change_requests` sopra (lì propone il master, risponde il
     # giocatore; qui propone il giocatore, risponde il master), quindi
     # tabella dedicata invece di sovraccaricare quella. `mode` distingue
     # "riprendi lo stato con cui fu rimossa" da "aggiorna al contenuto
@@ -1358,9 +1316,8 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """)
 
     # Codici di trasferimento di un personaggio su un ALTRO dispositivo
-    # (2026-08-17, richiesta di Davide: "un modo in cui un utente può accedere
-    # anche con un dispositivo diverso al mondo, scaricando il proprio
-    # personaggio dall'host"). Design in
+    # (permette a un utente di accedere con un dispositivo diverso al
+    # mondo, scaricando il proprio personaggio dall'host). Design in
     # `dnd_app/docs/multiplayer_design.md` §11.9.
     #
     # Il problema: l'identità di un giocatore è il `device_id` (UUID per
@@ -1373,10 +1330,10 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     #
     # Perché una TABELLA e non un campo in memoria come `self.pin` di
     # WorldHostServer: `stop()` azzera PIN e token per progetto (§9.4) e
-    # l'hosting si riavvia spesso (il fix `HostServerSlot` del 2026-08-07 esiste
-    # proprio perché si riavviava a ogni navigazione). Un codice emesso dal
-    # master per un dispositivo PERSO O ROTTO può essere riscattato giorni dopo:
-    # in memoria evaporerebbe. Inoltre le righe `redeemed` restano per sempre
+    # l'hosting si riavvia spesso (vedi `HostServerSlot`, che sopravvive ai
+    # riavvii a ogni navigazione). Un codice emesso dal master per un
+    # dispositivo PERSO O ROTTO può essere riscattato giorni dopo: in
+    # memoria evaporerebbe. Inoltre le righe `redeemed` restano per sempre
     # (sono minuscole) perché sono l'audit trail e la fonte del messaggio con
     # cui l'host spiega al VECCHIO dispositivo perché non è più membro —
     # altrimenti riceverebbe "PIN errato", attivamente fuorviante.
@@ -1408,7 +1365,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
         ON world_device_transfers(world_id, status)
     """)
 
-    # Multiclasse (PHB IT cap.6, p.163-165 — 2026-08-12, vedi
+    # Multiclasse (PHB IT cap.6, p.163-165 — vedi
     # dnd_app/docs/multiclasse_design.md). Una riga per classe posseduta dal
     # personaggio. `characters.class_name`/`subclass`/`level` NON vengono
     # toccate da questa tabella: restano SEMPRE la classe primaria (quella di

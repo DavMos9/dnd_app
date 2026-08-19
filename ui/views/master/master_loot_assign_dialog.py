@@ -114,7 +114,7 @@ def simple_item(
 ) -> dict[str, Any]:
     """Voce non monetaria (oggetto/oggetto magico/artefatto/veleno/gemma/arte).
 
-    `stash_kind` (2026-08-19): "master"/"party"/"" (non da uno stash) —
+    `stash_kind`: "master"/"party"/"" (non da uno stash) —
     contenitore d'ORIGINE della voce, se ne aveva uno. Serve a
     `_on_confirm()` per decidere se la cancellazione/consumo della voce
     d'origine deve passare dalla rete (`CMD_LOOT_STASH_DELETE`, solo per
@@ -228,23 +228,21 @@ def show_loot_assign_dialog(
     viene richiamato dopo una conferma andata a buon fine (es. per far
     ricaricare la lista alla scheda «Bottino»).
 
-    `world_id` (2026-08-06): il mondo correntemente selezionato in
-    `MasterView` — "" per la modalità locale. Determina sia l'elenco dei
-    personaggi destinatari (`character_repo.get_master_visible_characters()`)
-    sia il mondo a cui viene assegnata una voce spedita al "Deposito del
-    Gruppo" (mai all'"Archivio": resta sempre privato del dispositivo del
-    Master, vedi `LootStashEntry` in `data/models.py`).
+    `world_id`: il mondo correntemente selezionato in `MasterView` — "" per
+    la modalità locale. Determina sia l'elenco dei personaggi destinatari
+    (`character_repo.get_master_visible_characters()`) sia il mondo a cui
+    viene assegnata una voce spedita al "Deposito del Gruppo" (mai
+    all'"Archivio": resta sempre privato del dispositivo del Master, vedi
+    `LootStashEntry` in `data/models.py`).
 
-    `device_id` (2026-08-19): identità di QUESTO dispositivo, necessaria
-    per instradare l'assegnazione via rete (`CMD_LOOT_ASSIGN`/
-    `CMD_LOOT_STASH_ADD`/`CMD_LOOT_STASH_MOVE`) quando `world_id` è
-    valorizzato — bug segnalato da Davide: prima di questo fix ogni
-    scrittura restava sempre e solo locale al dispositivo che eseguiva
-    l'azione (ritardo di sincronizzazione, o assegnazione "al mondo
-    sbagliato" quando ad agire era un master non-host). Con `world_id`
-    valorizzato ma `device_id` vuoto/host irraggiungibile, la conferma
-    fallisce con un errore esplicito invece di scrivere silenziosamente
-    solo sulla replica locale — mai più il comportamento del bug originale.
+    `device_id`: identità di QUESTO dispositivo, necessaria per instradare
+    l'assegnazione via rete (`CMD_LOOT_ASSIGN`/`CMD_LOOT_STASH_ADD`/
+    `CMD_LOOT_STASH_MOVE`) quando `world_id` è valorizzato — senza,
+    la scrittura resterebbe locale al dispositivo che esegue l'azione
+    invece di raggiungere l'host. Con `world_id` valorizzato ma
+    `device_id` vuoto/host irraggiungibile, la conferma fallisce con un
+    errore esplicito invece di scrivere silenziosamente solo sulla
+    replica locale.
     """
     _remote_backends: dict[str, Any] = {}
 
@@ -541,12 +539,11 @@ def show_loot_assign_dialog(
                 pass
             return
 
-        # Instradamento in rete (2026-08-19): con un mondo selezionato,
-        # OGNI scrittura verso un personaggio o verso il deposito del
-        # gruppo passa da qui — mai più un'assegnazione locale-sola. Se
-        # l'host non è raggiungibile si fallisce esplicitamente (fail
-        # closed) invece di scrivere silenziosamente solo sulla replica di
-        # questo dispositivo, che è esattamente il bug originale.
+        # Instradamento in rete: con un mondo selezionato, OGNI scrittura
+        # verso un personaggio o verso il deposito del gruppo passa da qui
+        # — mai un'assegnazione locale-sola. Se l'host non è raggiungibile
+        # si fallisce esplicitamente (fail closed) invece di scrivere
+        # silenziosamente solo sulla replica di questo dispositivo.
         backend = _resolve_backend() if world_id else None
         if world_id and backend is None:
             error_text.value = (
@@ -756,8 +753,8 @@ def show_loot_assign_dialog(
         # `show_dialog()` per lo SnackBar) mentre l'`AlertDialog` di conferma è
         # ancora aperto lo sostituisce silenziosamente, e il `pop_dialog()`
         # successivo chiude lo SnackBar appena aperto invece del dialogo —
-        # nessun feedback visibile, bug segnalato da Davide il 2026-07-31.
-        # Stesso ordine già corretto in `home_view.py._confirm_import()`.
+        # nessun feedback visibile. Stesso ordine già corretto in
+        # `home_view.py._confirm_import()`.
         page.pop_dialog()
         show_snack(page, "Assegnato: " + ", ".join(msg_bits) if msg_bits else "Nessuna voce assegnata.")
         if on_committed:

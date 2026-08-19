@@ -8,7 +8,7 @@ risultato calcolato a partire dai dati di `data/game_data/treasure_tables.json`
 
 Fonte: "Guida del Dungeon Master" IT (DMG), Capitolo 7 "Tesori", p.133-149.
 Tutte le tabelle sono state lette visivamente dalle pagine renderizzate del
-PDF (`pdftoppm`, mai `pdftotext`/OCR per il contenuto) il 2026-07-24. Vedi
+PDF (`pdftoppm`, mai `pdftotext`/OCR per il contenuto). Vedi
 `treasure_tables.json → _source_note` per il changelog completo della
 trascrizione.
 
@@ -25,9 +25,9 @@ Due sistemi distinti, entrambi implementati qui, esattamente come nel manuale:
   tabella) e/o oggetti magici (tirati su una o più delle 9 Tabelle A-I).
 
 Le Tabelle degli Oggetti Magici A-I restituiscono SOLO il nome dell'oggetto
-(nessuna descrizione completa — quella appartiene al Compendio Oggetti
-Magici, punto 7 del design Master, deliberatamente rimandato a una sessione
-futura dedicata, vedi CLAUDE.md).
+(così come nel manuale) — la UI del dialog Genera Tesoro non incrocia
+ancora il nome con il Compendio Oggetti Magici (`core/magic_item_generator.py`)
+per mostrare la descrizione completa.
 """
 
 from __future__ import annotations
@@ -189,10 +189,10 @@ def generate_hoard_treasure(cr_band: str) -> dict[str, Any]:
 def roll_trinket() -> tuple[int, str]:
     """
     Tira 1d100 sulla tabella "Oggetti Insoliti" (PHB IT p.160-161,
-    equipment/trinkets.json) e ritorna (tiro, descrizione). Deciso con
-    Davide il 2026-07-24: pulsante "+ Cimelio" dentro il dialog "Genera
-    Tesoro", non una voce di navigazione a sé — un tiro 1d100 senza
-    parametri non giustifica una schermata dedicata.
+    equipment/trinkets.json) e ritorna (tiro, descrizione). Esposto come
+    pulsante "+ Cimelio" dentro il dialog "Genera Tesoro", non come voce di
+    navigazione a sé — un tiro 1d100 senza parametri non giustifica una
+    schermata dedicata.
     """
     roll = random.randint(1, 100)
     description = game_data.get_trinket_by_roll(roll) or "(voce non trovata)"

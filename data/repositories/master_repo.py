@@ -81,11 +81,10 @@ def get_npcs(query: str = "", world_id: str = "") -> list[MasterNpc]:
     Gli NPC di rubrica del mondo indicato, ordinati per nome. `query`
     (opzionale) filtra per sottostringa case-insensitive su nome/ruolo/tag.
 
-    `world_id` (2026-08-12, bug report Davide: "in Master... npc... tutto
-    deve essere dipendente dal mondo") — filtro per UGUAGLIANZA esatta,
-    stesso principio già in uso per personaggi/note/bottino: `""` (default)
-    ritorna solo gli NPC locali/di nessun mondo, un id di mondo ritorna
-    solo i suoi. Mai un OR/"mostra tutti" — un mondo è un container.
+    `world_id` filtra per UGUAGLIANZA esatta, stesso principio già in uso
+    per personaggi/note/bottino: `""` (default) ritorna solo gli NPC
+    locali/di nessun mondo, un id di mondo ritorna solo i suoi. Mai un
+    OR/"mostra tutti" — un mondo è un container.
     """
     conn = None
     try:
@@ -115,10 +114,9 @@ def get_npcs(query: str = "", world_id: str = "") -> list[MasterNpc]:
 def get_npc_by_id(npc_id: str) -> MasterNpc | None:
     """
     Singolo NPC di rubrica per id — usato da `MasterEncounterView` per
-    risolvere lo stat block completo di un membro `kind="npc"` (2026-08-03,
-    richiesta di Davide: consultare la scheda/tirare i dadi di un NPC/mostro
-    direttamente dal tracker di combattimento, senza dover tornare alla
-    Rubrica NPC).
+    risolvere lo stat block completo di un membro `kind="npc"`, per
+    consultare la scheda o tirare i dadi di un NPC/mostro direttamente dal
+    tracker di combattimento, senza dover tornare alla Rubrica NPC.
     """
     conn = None
     try:
@@ -173,12 +171,12 @@ def create_npc(
 ) -> MasterNpc | None:
     """
     Crea un nuovo NPC di rubrica. Ritorna l'NPC creato, o None in caso di
-    errore. `world_id` (2026-08-12): il mondo correntemente selezionato in
-    Modalità Master — `""` per un NPC locale/di nessun mondo. `race`
-    (2026-08-12): una delle 9 razze PHB di `core.npc_generator.RACE_OPTIONS`
-    (o testo libero se il Master ha scelto "Altro" nel form) — usata per
-    auto-riempire Tipo creatura/Taglia quando si attiva "Ha statistiche di
-    combattimento", vedi `core.npc_generator.resolve_creature_type_and_size()`.
+    errore. `world_id`: il mondo correntemente selezionato in Modalità
+    Master — `""` per un NPC locale/di nessun mondo. `race`: una delle 9
+    razze PHB di `core.npc_generator.RACE_OPTIONS` (o testo libero se il
+    Master ha scelto "Altro" nel form) — usata per auto-riempire Tipo
+    creatura/Taglia quando si attiva "Ha statistiche di combattimento",
+    vedi `core.npc_generator.resolve_creature_type_and_size()`.
     """
     import uuid as _uuid
     npc_id = str(_uuid.uuid4())
@@ -234,11 +232,11 @@ def create_npc_from_monster(
     precompila tutti i campi stat block da un dict grezzo di `monsters.json`
     (stessa forma già usata da `_save_creature()` in `combattimento_tab.py`),
     con `has_stat_block=True` e `source_page` valorizzato come citazione
-    leggibile invece di un numero grezzo. `world_id` (2026-08-12): vedi
-    `create_npc()`. `race` (2026-08-12): pass-through esplicito — un mostro
-    grezzo di Bestiario non porta un concetto di razza PHB, il chiamante lo
-    passa solo se lo conosce già (es. il Generatore NPC, quando lo stat
-    block scelto appartiene comunque a un NPC di razza nota).
+    leggibile invece di un numero grezzo. `world_id`: vedi `create_npc()`.
+    `race`: pass-through esplicito — un mostro grezzo di Bestiario non
+    porta un concetto di razza PHB, il chiamante lo passa solo se lo
+    conosce già (es. il Generatore NPC, quando lo stat block scelto
+    appartiene comunque a un NPC di razza nota).
     """
     src_page = monster.get("source_page")
     source_page = f"da Bestiario: {monster.get('name', '')} (p.{src_page})" if src_page else f"da Bestiario: {monster.get('name', '')}"
@@ -285,8 +283,8 @@ def create_npc_from_monster(
 def update_npc(npc: MasterNpc) -> bool:
     """
     Aggiornamento completo di un NPC esistente (tutti i campi). `race`
-    inclusa (2026-08-12) — a differenza di `world_id`, è modificabile dopo
-    la creazione: un Master che scopre "in realtà è un cambiaforma" deve
+    inclusa — a differenza di `world_id`, è modificabile dopo la
+    creazione: un Master che scopre "in realtà è un cambiaforma" deve
     poter correggerla e vederla persistere.
     """
     conn = None
@@ -372,12 +370,11 @@ def _row_to_encounter(row) -> MasterEncounter:
 def get_encounters(include_archived: bool = False, world_id: str = "") -> list[MasterEncounter]:
     """
     Incontri del mondo indicato, ordinati per ultima modifica (più recenti
-    prima). `world_id` (2026-08-12, bug report Davide: "in Master...
-    incontri... tutto deve essere dipendente dal mondo") — filtro per
-    UGUAGLIANZA esatta come per NPC/personaggi/note/bottino: `""`
-    (default) ritorna solo gli incontri locali/di nessun mondo. La colonna
-    esisteva già (Tracker condiviso §6.5) ma prima serviva solo al flag
-    "visibile ai giocatori", mai a filtrare questa lista.
+    prima). `world_id` filtra per UGUAGLIANZA esatta come per
+    NPC/personaggi/note/bottino: `""` (default) ritorna solo gli incontri
+    locali/di nessun mondo. La colonna esisteva già (Tracker condiviso
+    §6.5) ma prima serviva solo al flag "visibile ai giocatori", mai a
+    filtrare questa lista.
     """
     conn = None
     try:
@@ -419,11 +416,11 @@ def get_encounter_by_id(encounter_id: str) -> MasterEncounter | None:
 
 def create_encounter(name: str, notes: str = "", world_id: str = "") -> MasterEncounter | None:
     """
-    `world_id` (2026-08-12): il mondo correntemente selezionato in Modalità
-    Master al momento della creazione — `""` per un incontro locale/di
-    nessun mondo. Distinto da `visible_to_players` (§6.5, sempre spento
-    alla creazione): un incontro può appartenere a un mondo senza essere
-    ancora rivelato ai giocatori.
+    `world_id`: il mondo correntemente selezionato in Modalità Master al
+    momento della creazione — `""` per un incontro locale/di nessun mondo.
+    Distinto da `visible_to_players` (§6.5, sempre spento alla creazione):
+    un incontro può appartenere a un mondo senza essere ancora rivelato ai
+    giocatori.
     """
     import uuid as _uuid
     enc_id = str(_uuid.uuid4())
@@ -797,11 +794,10 @@ def get_encounter_members_resolved(encounter_id: str, active_only: bool = True) 
                         "hp_max": cd.get("hp_max", 0),
                         "xp": 0,  # i PG non contano mai come PE mostro
                         "source": "character",
-                        # world_id (fix 2026-08-07, azioni master in Incontro):
-                        # "" per un PG locale, altrimenti l'id del mondo di cui
-                        # questo PG è istanza — usato dalla UI per decidere se
-                        # mostrare le pillole Danno/Cura/Condizione al posto
-                        # del solo chip di sola lettura.
+                        # world_id: "" per un PG locale, altrimenti l'id del
+                        # mondo di cui questo PG è istanza — usato dalla UI
+                        # per decidere se mostrare le pillole Danno/Cura/
+                        # Condizione al posto del solo chip di sola lettura.
                         "world_id": cd.get("world_id", "") or "",
                     })
                     continue
@@ -998,12 +994,11 @@ def get_master_campaign_notes(category: str = "", world_id: str | None = None) -
     esatta; senza filtro, ordina prima per categoria poi per data di
     creazione (stesso pattern di `character_repo.get_campaign_notes`).
 
-    `world_id` (2026-08-06, Modalità Master world-scoped): `None` (default)
-    non filtra per mondo — compatibilità con eventuali chiamate future che
-    vogliono l'elenco completo. `""` restituisce solo le note locali/di
-    nessun mondo; un id valorizzato restituisce solo le note di quel mondo —
-    stessa convenzione già stabilita per
-    `character_repo.get_master_visible_characters()`.
+    `world_id`: `None` (default) non filtra per mondo — compatibilità con
+    eventuali chiamate future che vogliono l'elenco completo. `""`
+    restituisce solo le note locali/di nessun mondo; un id valorizzato
+    restituisce solo le note di quel mondo — stessa convenzione già
+    stabilita per `character_repo.get_master_visible_characters()`.
     """
     conn = None
     try:
@@ -1113,12 +1108,8 @@ def save_replica_note(note_data: dict) -> bool:
         # snapshot né negli eventi (`WorldHostServer.handle_snapshot()`
         # spedisce mondo/membri/giornale/schede/note/incontro/mappe, mai gli
         # NPC: sono materiale privato del master, §7B). Sulla replica di un
-        # giocatore quell'id quindi non esiste quasi mai, e l'INSERT
-        # falliva con "FOREIGN KEY constraint failed" — bug reale trovato il
-        # 2026-08-17 sui dati veri di Davide: 9 note su 11 erano collegate a
-        # un NPC e venivano TUTTE scartate, lasciando la replica con l'unica
-        # nota senza collegamento ("si vede solo 1 nota", segnalato da
-        # Davide e attribuito prima ad altro). Sulla replica il
+        # giocatore quell'id quindi non esiste quasi mai, e un INSERT diretto
+        # fallirebbe con "FOREIGN KEY constraint failed". Sulla replica il
         # collegamento non ha comunque alcun uso — non c'è una Rubrica NPC
         # da aprire — quindi si conserva solo se quell'NPC esiste davvero
         # in locale (vero sull'host, dove questa funzione non viene usata,
@@ -1154,10 +1145,10 @@ def save_replica_note(note_data: dict) -> bool:
         logger.error(f"Errore save_replica_note: {e}")
         return False
     finally:
-        # In un `finally`, non come ultima riga del `try` (2026-08-17): una
-        # connessione lasciata aperta da un errore trattiene il lock di
-        # scrittura del file e fa fallire con "database is locked" OGNI
-        # scrittura successiva del processo — vedi
+        # In un `finally`, non come ultima riga del `try`: una connessione
+        # lasciata aperta da un errore trattiene il lock di scrittura del
+        # file e fa fallire con "database is locked" OGNI scrittura
+        # successiva del processo — vedi
         # `data/database.py::_ResilientConnection` per la catena completa.
         if conn is not None:
             conn.close()

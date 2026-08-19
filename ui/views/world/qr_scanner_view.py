@@ -1,29 +1,23 @@
 """
 Scansione QR per l'ingresso in un mondo LAN — passo 5 di
-`dnd_app/docs/multiplayer_design.md` §9.3 ("Scoperta e comodità"),
-2026-08-06, sessione successiva a quella che aveva implementato solo la
-GENERAZIONE lato host (`network/qr_join.py`).
+`dnd_app/docs/multiplayer_design.md` §9.3 ("Scoperta e comodità").
+Lato host, la GENERAZIONE del QR vive in `network/qr_join.py`.
 
-Richiesta esplicita di Davide: "inquadri il QR code e sei dentro" — un
-vero mirino live con riconoscimento automatico, non uno scatto singolo.
+Un vero mirino live con riconoscimento automatico, non uno scatto singolo.
 Reso possibile da due pacchetti UFFICIALI del team Flet (non un'estensione
 scritta per questo progetto, a differenza di `flet_image_picker`):
 
 - `flet-camera` — anteprima live + streaming dei fotogrammi
   (`start_image_stream()`/`on_stream_image`), potenza del pacchetto
   Flutter ufficiale `camera`. Copertura piattaforma: iOS + Android + Web,
-  NON Windows/macOS/Linux (verificato su PyPI/flet.dev prima di scrivere
-  questo modulo) — per questo il pulsante che apre questa view va mostrato
-  SOLO su Android/iOS (`page.platform`), mai su desktop: vedi
+  NON Windows/macOS/Linux — per questo il pulsante che apre questa view va
+  mostrato SOLO su Android/iOS (`page.platform`), mai su desktop: vedi
   `ui/views/world/world_view.py::_open_lan_join_dialog`.
 - `pyzbar` — decodifica QR dei singoli fotogrammi JPEG. Scelto (invece di
   scrivere un'estensione nativa attorno a `mobile_scanner`, l'alternativa
   valutata) perché elencato tra i pacchetti binari GIÀ pre-compilati per
-  Android/iOS su pypi.flet.dev (dipendenza nativa `flet-libzbar`,
-  verificato su https://flet.dev/docs/reference/binary-packages-android-ios
-  prima di sceglierlo) — nessuna incognita di packaging nativo come lo era
-  stata `flet_image_picker` (due giri di build CI falliti prima di
-  funzionare, vedi changelog_storico.md).
+  Android/iOS su pypi.flet.dev (dipendenza nativa `flet-libzbar`) —
+  nessuna incognita di packaging nativo come per `flet_image_picker`.
 
 Il permesso fotocamera è richiesto a runtime con `flet-permission-handler`
 (pacchetto ufficiale a sé, la documentazione di flet-camera lo raccomanda
@@ -36,8 +30,8 @@ Il parsing del testo QR (`network.qr_join.parse_any_join_text`, che riconosce
 sia il QR d'ingresso sia quello di trasferimento del personaggio su un altro
 dispositivo — §11.9) è testato in isolamento in `test_scoperta_lan.py` e
 `test_trasferimento_dispositivo.py`; il ciclo vero fotocamera → pyzbar →
-ingresso può essere verificato solo da Davide su un dispositivo Android/iOS
-reale — è esattamente il tipo di limite già documentato per il resto del
+ingresso può essere verificato solo su un dispositivo Android/iOS reale —
+è esattamente il tipo di limite già documentato per il resto del
 Multiplayer (§15 del design doc).
 """
 
@@ -332,7 +326,7 @@ class QrScannerView(ft.Column):
                 text = result.data.decode("utf-8", errors="replace")
             except Exception:
                 continue
-            # `parse_any_join_text` (2026-08-17, §11.9) riconosce sia il QR
+            # `parse_any_join_text` (§11.9) riconosce sia il QR
             # d'ingresso normale sia quello di trasferimento del personaggio su
             # un altro dispositivo, e dichiara quale ha letto in `kind`. Un QR
             # di nessuno dei due formati continua a dare None → "QR non

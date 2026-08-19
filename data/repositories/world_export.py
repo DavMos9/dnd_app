@@ -2,28 +2,28 @@
 Export/Import di un intero Mondo condiviso in un file singolo (`.dndworld`)
 — passo 9D di `dnd_app/docs/multiplayer_design.md` §6.3/§13, stesso
 identico principio già collaudato per `.dndchar`
-(`data/repositories/character_export.py`, 2026-07-24): introspezione dello
+(`data/repositories/character_export.py`): introspezione dello
 schema via `PRAGMA table_info` invece di liste di colonne scritte a mano,
 "a prova di versione" in entrambe le direzioni senza manutenzione — vedi il
 docstring di quel modulo per il ragionamento completo (si applica identico
 qui). Questo modulo importa e riusa direttamente `_insert_row`/
-`_table_columns`/`_write_character_and_children`/`CHILD_TABLES` da lì (sono
-già generici, non specifici del "personaggio": scriverne una seconda copia
-qui violerebbe esattamente il principio "una colonna dimenticata in una
-lista scritta a mano" che quel modulo esiste per eliminare).
+`_table_columns`/`_write_character_and_children` da lì (sono già generici,
+non specifici del "personaggio": scriverne una seconda copia qui violerebbe
+esattamente il principio "una colonna dimenticata in una lista scritta a
+mano" che quel modulo esiste per eliminare).
 
 Contiene (§6.3): il mondo, i membri con i ruoli, TUTTE le istanze di
-personaggio di questo mondo — comprese quelle archiviate (2026-08-12,
-"Richiesta di rientro": un backup/trasferimento di campagna non deve MAI
-perdere un personaggio rimosso, altrimenti la rimozione diventerebbe
-silenziosamente definitiva al primo export/import) — con le loro tabelle
-figlio, il giornale degli eventi, i due contenitori di bottino (bottino del
+personaggio di questo mondo — comprese quelle archiviate ("Richiesta di
+rientro": un backup/trasferimento di campagna non deve MAI perdere un
+personaggio rimosso, altrimenti la rimozione diventerebbe silenziosamente
+definitiva al primo export/import) — con le loro tabelle figlio, il
+giornale degli eventi, i due contenitori di bottino (bottino del
 master/del gruppo, `loot_stash_entries.stash_kind`), le note del master con
-la loro visibilità, gli NPC di rubrica (2026-08-12, da quando
-`master_npcs` è world-scoped — vedi `_WORLD_FLAT_TABLES`), le richieste di
-modifica pendenti, le richieste di rientro pendenti (2026-08-12, non
-esisteva quando il design doc è stato scritto ma è a tutti gli effetti
-stato del mondo) e le mappe condivise (idem, §6.4). NON contiene gli
+la loro visibilità, gli NPC di rubrica (da quando `master_npcs` è
+world-scoped — vedi `_WORLD_FLAT_TABLES`), le richieste di modifica
+pendenti, le richieste di rientro pendenti (non esistevano quando il
+design doc è stato scritto ma sono a tutti gli effetti stato del mondo) e
+le mappe condivise (idem, §6.4). NON contiene gli
 Incontri (`master_encounters`): world-scoped anch'essi da questa stessa
 sessione ma con una tabella figlio propria (`master_encounter_members`)
 mai gestita da questo modulo — limite noto, vedi il commento su
@@ -45,7 +45,6 @@ from typing import Any
 
 from data.database import get_connection
 from data.repositories.character_export import (
-    CHILD_TABLES,
     _insert_row,
     _table_columns,
     _write_character_and_children,
@@ -61,7 +60,7 @@ EXPORT_FORMAT_VERSION = 1
 #: Soglia del promemoria di backup periodico (passo 9E, §6.3) — numero di
 #: eventi nel giornale del mondo dall'ultimo export riuscito oltre il quale
 #: la UI (`ui/views/world/world_view.py::_backup_section`) mostra un avviso
-#: non bloccante. Decisa insieme a Davide (2026-08-12): eventi di giornale
+#: non bloccante. Conta eventi di giornale
 #: (attività REALE della campagna) invece di un intervallo di calendario o
 #: di un conteggio di aperture della schermata — non disturba un mondo
 #: fermo, avvisa quando c'è davvero qualcosa di nuovo da proteggere. Valore
@@ -79,30 +78,21 @@ _WORLD_FLAT_TABLES: tuple[str, ...] = (
     "world_change_requests",
     "world_rejoin_requests",
     "loot_stash_entries",
-    # NPC di rubrica (2026-08-12, Sezione Master world-scoped — bug report
-    # Davide: "tutto deve essere dipendente dal mondo"): `master_npcs` ha
-    # guadagnato una colonna `world_id` solo in questa stessa sessione,
-    # stessa forma "piatta" di `loot_stash_entries`/`master_campaign_notes`
-    # (nessuna tabella figlio, nessun `character_id` da rimappare) — quindi
-    # entra qui invece che nel percorso "istanza di personaggio". LIMITE
-    # NOTO: `master_encounters` resta escluso da export/import/eliminazione
-    # del mondo (aveva già `world_id` da prima, ma per il flag "visibile ai
-    # giocatori" §6.5, mai per l'appartenenza) — ha una tabella figlio
-    # propria (`master_encounter_members`) che richiederebbe lo stesso
-    # trattamento dedicato di `characters`/`CHILD_TABLES`, non il percorso
-    # "piatto" qui sotto: un backup/trasferimento di mondo oggi NON porta
-    # con sé gli incontri creati in quel mondo, solo NPC/note/bottino/mappe.
+    # NPC di rubrica: stessa forma "piatta" di `loot_stash_entries`/
+    # `master_campaign_notes` (nessuna tabella figlio, nessun `character_id`
+    # da rimappare) — quindi entra qui invece che nel percorso "istanza di
+    # personaggio". LIMITE NOTO: `master_encounters` resta escluso da
+    # export/import/eliminazione del mondo — ha una tabella figlio propria
+    # (`master_encounter_members`) che richiederebbe lo stesso trattamento
+    # dedicato di `characters`/`CHILD_TABLES`, non il percorso "piatto" qui
+    # sotto: un backup/trasferimento di mondo oggi NON porta con sé gli
+    # incontri creati in quel mondo, solo NPC/note/bottino/mappe.
     #
-    # PRIMA di "master_campaign_notes" (2026-08-17, fix bug reale — vedi
-    # changelog_storico.md): `master_campaign_notes.linked_npc_id` ha una FK
-    # verso `master_npcs(id)`. SQLite la verifica riga per riga al momento
-    # dell'INSERT (nessun deferred/PRAGMA che lo cambi in questo progetto):
-    # scrivere le note prima degli NPC referenziati falliva SEMPRE con
-    # "FOREIGN KEY constraint failed" su qualunque mondo con almeno una nota
-    # collegata a un NPC — stessa classe di bug già diagnosticata una volta
-    # per il path di sync LAN (`world_sync.py`, "round 5"), qui riemersa
-    # indipendentemente nel path di export/import perché sono due funzioni
-    # diverse che scrivono le stesse due tabelle.
+    # PRIMA di "master_campaign_notes": `master_campaign_notes.linked_npc_id`
+    # ha una FK verso `master_npcs(id)`, verificata riga per riga da SQLite
+    # al momento dell'INSERT — scrivere le note prima degli NPC referenziati
+    # fallisce sempre con "FOREIGN KEY constraint failed" su un mondo con
+    # almeno una nota collegata a un NPC.
     "master_npcs",
     "master_campaign_notes",
 )

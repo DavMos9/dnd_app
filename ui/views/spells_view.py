@@ -5,9 +5,7 @@ Struttura:
   - Header: caratteristica/CD/bonus attacco + banner "X/Y preparati"
     (preparatori) o "X/Y conosciuti" (classi "know")
   - Lista slot per livello (read-only — modifica in Combattimento)
-  - Sezione incantesimi, con DUE modalità distinte in base alla classe
-    (task bug fix 2026-07-16, Davide: "Tutte le classi devono avere la
-    modalità coerente di incantesimi"):
+  - Sezione incantesimi, con DUE modalità distinte in base alla classe:
     · Full/half preparatori (Chierico, Druido, Mago, Paladino): intero
       catalogo di classe raggruppato per livello, con toggle di
       preparazione (cerchietto) — scrive/cancella in known_spells,
@@ -32,9 +30,7 @@ Regole PHB preparazione/conoscenza:
     sola lettura) — il Ranger NON prepara ogni giorno come Chierico/Druido/
     Paladino, "conosce" incantesimi fissi esattamente come Bardo/Stregone/
     Warlock (PHB IT, ranger.json → feature "Incantesimi": "Un ranger
-    conosce due incantesimi di 1° livello a sua scelta"). Corretto il
-    2026-07-11 — prima era erroneamente incluso tra gli "half caster",
-    vedi CLAUDE.md.
+    conosce due incantesimi di 1° livello a sua scelta").
   - Override manuale del giocatore: sovrascrive la formula se ≥ 1 (solo
     per i preparatori — non ha senso per le classi "know").
 """
@@ -62,13 +58,11 @@ from ui import design
 
 logger = logging.getLogger(__name__)
 
-#: Stesso intervallo già validato altrove (`sheet_view.py::_SHEET_SYNC_INTERVAL_S`)
-#: — copre il caso trovato da Davide (2026-08-16): un incantesimo/abilità
-#: bonus concesso dal master non compariva finché il giocatore non lasciava
-#: la sezione Incantesimi e ci rientrava, perché questa vista (di primo
-#: livello nella sidebar, non un tab di `SheetView`) non aveva mai avuto un
-#: `BackgroundSyncLoop` — nessuna vista scaricava eventi dall'host finché il
-#: giocatore restava qui.
+#: Stesso intervallo già validato altrove (`sheet_view.py::_SHEET_SYNC_INTERVAL_S`).
+#: Questa vista (di primo livello nella sidebar, non un tab di `SheetView`)
+#: ha bisogno di un proprio `BackgroundSyncLoop`: senza, un incantesimo/
+#: abilità bonus concesso dal master non compare finché il giocatore non
+#: lascia la sezione Incantesimi e ci rientra.
 _SPELLS_SYNC_INTERVAL_S = 2.0
 
 _loader = GameDataLoader()
@@ -80,8 +74,7 @@ _PREP_FULL: set[str] = {"chierico", "druido", "mago"}
 _PREP_HALF: set[str] = {"paladino"}
 # Classi "know" (nessun limite di preparazione) — il Ranger vive qui, non in
 # _PREP_HALF: PHB IT conferma "un ranger conosce due incantesimi di 1° livello
-# a sua scelta", stessa meccanica di Bardo/Stregone/Warlock (vedi CLAUDE.md,
-# fix 2026-07-11).
+# a sua scelta", stessa meccanica di Bardo/Stregone/Warlock.
 _KNOW_CLASSES: set[str] = {"bardo", "ranger", "stregone", "warlock"}
 
 
@@ -89,8 +82,8 @@ def _expected_known_spell_count_for(class_name: str, class_level: int) -> int:
     """
     Variante parametrizzata di `_expected_known_spell_count()` — stessa
     formula, ma su una classe/livello espliciti invece di leggerli sempre
-    da `c.class_name`/`c.level` (il totale del personaggio). Multiclasse
-    (2026-08-12): ogni classe "know" accumula i propri incantesimi
+    da `c.class_name`/`c.level` (il totale del personaggio). Multiclasse:
+    ogni classe "know" accumula i propri incantesimi
     conosciuti sul PROPRIO livello di classe (PHB IT p.165, stesso
     principio del limite di preparazione — vedi `_calc_max_prepared_value`),
     mai sul livello totale del personaggio.
@@ -112,12 +105,8 @@ def _expected_known_spell_count(c: Character) -> int:
     incantesimi arrivano al level-up verso il Lv.2) parte da 0. 0 per
     qualunque classe che non sia "know" (chiamante deve già filtrare).
 
-    Aggiunto 2026-07-11 — bug report di Davide: "per le classi con
-    incantesimi conosciuti fissi esce incantesimi conosciuti, ma non quelli
-    selezionati, comodo per capire se hai sforato" — prima il banner
-    mostrava solo il conteggio grezzo, senza un totale di riferimento contro
-    cui confrontarlo. Percorso a CLASSE SINGOLA (o primaria) — invariato,
-    delega alla variante parametrizzata sopra con `c.class_name`/`c.level`.
+    Percorso a CLASSE SINGOLA (o primaria): delega alla variante
+    parametrizzata sopra con `c.class_name`/`c.level`.
     """
     return _expected_known_spell_count_for(c.class_name or "", c.level)
 
@@ -130,14 +119,6 @@ def _max_preparable_spell_level(slots: list[SpellSlot]) -> int:
     cui il personaggio possiede uno slot incantesimo". I trucchetti
     (livello 0) non hanno questo vincolo (nessuno slot richiesto), gestiti
     a parte dal chiamante.
-
-    Bug fix 2026-07-16 (Davide): "L'aumento del livello mi mostra tutti gli
-    incantesimi, invece [...] il livello massimo degli incantesimi imparati
-    corrisponde al livello dello slot incantesimo più alto posseduto
-    dall'incantatore" — la sezione "Incantesimi" per i preparatori mostrava
-    l'intero catalogo di classe (fino al 9° livello) senza alcun filtro
-    basato sugli slot realmente posseduti, permettendo di "preparare" un
-    incantesimo di livello superiore a quanto il personaggio può lanciare.
     """
     return max((s.slot_level for s in slots if s.total > 0), default=0)
 
@@ -149,7 +130,7 @@ def _calc_max_prepared_value(
     """
     Nucleo della formula PHB di `_calc_max_prepared()`, parametrizzato su
     classe/livello/caratteristica espliciti invece che letti sempre da un
-    `Character` a classe singola. Multiclasse (2026-08-12): PHB IT p.165,
+    `Character` a classe singola. Multiclasse: PHB IT p.165,
     "determina gli incantesimi che puoi preparare per ciascuna classe
     individualmente, come se fossi un personaggio a classe singola di
     quella classe" — ogni classe usa il SUO livello di classe (mai il
@@ -200,8 +181,7 @@ class _ClassAbilityView:
     livello di PERSONAGGIO, mai di singola classe (PHB IT p.165) — al
     Character reale sottostante.
 
-    Multiclasse (2026-08-12, bug report Davide: "la sezione incantesimi
-    tiene conto solo della classe principale") — usata SOLO quando il
+    Multiclasse: usata SOLO quando il
     personaggio ha più di una classe con lista incantesimi propria
     (`SpellsView._caster_rows`, vedi `_section_magic_header_mc`); per un
     personaggio a classe singola l'header resta quello di sempre
@@ -230,7 +210,7 @@ def _caster_class_rows(character: Character) -> list[tuple[Any, list[dict[str, A
     riga (la primaria, byte-identica a `character.class_name`/`.level`) —
     usata SOLO per decidere se attivare il rendering multiclasse
     (`len(...) > 1`): il percorso a classe singola resta quello di sempre,
-    mai da qui (2026-08-12, vedi `SpellsView._build()`).
+    mai da qui (vedi `SpellsView._build()`).
     """
     rows = []
     for cc in character_repo.get_character_classes(character.id):
@@ -250,8 +230,8 @@ class SpellsView(ScrollMemoryListView):
         # Mistificatore Arcano (Ladro)/Cavaliere Mistico (Guerriero): sync
         # difensivo ad ogni apertura tab (stesso pattern di
         # combattimento_tab.py) — no-op per qualunque altra classe/
-        # sottoclasse. Copre anche i personaggi la cui sottoclasse era già
-        # stata scelta PRIMA di questo fix (2026-07-15).
+        # sottoclasse. Self-healing: copre anche i personaggi la cui
+        # sottoclasse era già stata scelta in precedenza.
         character_repo.sync_borrowed_spellcasting_ability(character)
         character_repo.init_borrowed_caster_slots(
             character.id, character.class_name or "", character.subclass or "", character.level
@@ -259,10 +239,10 @@ class SpellsView(ScrollMemoryListView):
         # Incantesimi sempre pronti da Dominio/Giuramento/Circolo della Terra
         # — sync difensiva ad ogni apertura tab, stesso pattern del casting
         # "preso in prestito" sopra (self-healing anche per personaggi la
-        # cui sottoclasse/terreno era già impostato prima di questo fix).
+        # cui sottoclasse/terreno era già impostato in precedenza).
         character_repo.sync_bonus_domain_spells(character)
         # Incantesimi innati di razza (Drow "Magia Drow", Tiefling "Eredità
-        # Infernale" — task #15, 2026-07-16): sync difensiva delle risorse
+        # Infernale"): sync difensiva delle risorse
         # (Luminescenza/Oscurità/Intimorire Infernale, 1/riposo lungo) così
         # il contatore esiste anche se il giocatore apre questa tab PRIMA di
         # Combattimento — stesso pattern self-healing già in uso sopra.
@@ -278,19 +258,16 @@ class SpellsView(ScrollMemoryListView):
         self._class_spells: list[dict[str, Any]] = _loader.get_spells(
             character.class_name or ""
         )
-        # Multiclasse (2026-08-12, bug report Davide: "la sezione
-        # incantesimi tiene conto solo della classe principale") — righe di
-        # character_classes con una PROPRIA lista di incantesimi. Per un
-        # personaggio a classe singola contiene sempre esattamente una riga
-        # (la primaria): il rendering più sotto resta quello di sempre in
-        # quel caso, il percorso multiclasse (nuovo) si attiva solo con
-        # len(self._caster_rows) > 1. `self._class_spells` sopra resta
-        # quella della sola PRIMARIA (invariata, per tutti i punti che la
-        # usavano già prima di questo fix), MAI usata per decidere se
-        # mostrare il nuovo rendering multiclasse.
+        # Multiclasse: righe di character_classes con una PROPRIA lista di
+        # incantesimi. Per un personaggio a classe singola contiene sempre
+        # esattamente una riga (la primaria): il rendering più sotto resta
+        # quello di sempre in quel caso, il percorso multiclasse si attiva
+        # solo con len(self._caster_rows) > 1. `self._class_spells` sopra
+        # resta quella della sola PRIMARIA, MAI usata per decidere se
+        # mostrare il rendering multiclasse.
         self._caster_rows: list[tuple[Any, list[dict[str, Any]]]] = _caster_class_rows(character)
 
-        # Sincronizzazione in background (2026-08-16) — vedi commento su
+        # Sincronizzazione in background — vedi commento su
         # `_SPELLS_SYNC_INTERVAL_S`. Scoped al SOLO mondo di questo
         # personaggio, stesso pattern di `sheet_view.py::SheetView`.
         self.device_id: str | None = None
@@ -390,7 +367,7 @@ class SpellsView(ScrollMemoryListView):
         return ks is not None and ks.is_prepared
 
     def _bonus_known(self) -> list[KnownSpell]:
-        """Incantesimi bonus aggiunti manualmente dal giocatore (task #25, 2026-07-16)."""
+        """Incantesimi bonus aggiunti manualmente dal giocatore."""
         return [ks for ks in self._known.values() if ks.is_bonus]
 
     def _prepared_count(self) -> int:
@@ -399,7 +376,7 @@ class SpellsView(ScrollMemoryListView):
         esclusi). Esclude anche gli incantesimi "sempre pronti" da privilegio
         di Dominio/Giuramento/Circolo (`always_prepared`) — PHB: questi
         incantesimi non contano nel numero di incantesimi che il personaggio
-        può preparare (task #26, 2026-07-16).
+        può preparare.
         """
         return sum(
             1 for (_, lv), ks in self._known.items()
@@ -409,7 +386,7 @@ class SpellsView(ScrollMemoryListView):
     def _prepared_count_for_class(self, class_name: str) -> int:
         """
         Come `_prepared_count()` ma filtrato sulla sola classe indicata
-        (`class_list`) — usato dalle sezioni multiclasse (2026-08-12), dove
+        (`class_list`) — usato dalle sezioni multiclasse, dove
         ogni classe ha il proprio limite/conteggio indipendente (PHB IT
         p.165). Stessa esclusione di `always_prepared`, NON esclude i
         bonus (`is_bonus`) — stessa scelta già fatta in `_prepared_count()`,
@@ -486,7 +463,7 @@ class SpellsView(ScrollMemoryListView):
 
     def _toggle_prepared_mc(self, spell: dict[str, Any], class_name: str) -> None:
         """
-        Variante multiclasse di `_toggle_prepared()` (2026-08-12) — stessa
+        Variante multiclasse di `_toggle_prepared()` — stessa
         logica, ma limite/conteggio calcolati SOLO sulla classe passata
         (`class_list`), e salva lo spell con `class_list=class_name`
         invece di `self.character.class_name` (che per una classe
@@ -766,8 +743,8 @@ class SpellsView(ScrollMemoryListView):
         c = self.character
         controls: list[ft.Control] = []
 
-        # Momento tipografico "hero" della schermata (Arcane Ledger, audit
-        # anti-AI-slop 2026-08-18) — stessa struttura di dice_view.py
+        # Momento tipografico "hero" della schermata (Arcane Ledger) —
+        # stessa struttura di dice_view.py
         # (l'altro forte candidato al registro indaco/magic): icona in
         # cerchietto tonalità "magic" + `hero_title()`. SpellsView è una
         # sezione di primo livello nella sidebar (vedi ui/app.py, come
@@ -789,7 +766,7 @@ class SpellsView(ScrollMemoryListView):
             padding=ft.Padding.only(bottom=16),
         ))
 
-        # Incantesimi Razziali (Drow/Tiefling — task #15, 2026-07-16) —
+        # Incantesimi Razziali (Drow/Tiefling) —
         # sezione SEMPRE visibile quando la razza/sottorazza li concede,
         # indipendentemente da spellcasting_ability: sono incantesimi
         # innati legati al tratto di razza (CD su Carisma fisso), non alla
@@ -800,20 +777,17 @@ class SpellsView(ScrollMemoryListView):
                 self._section_racial_spells(c),
             ]
 
-        # Multiclasse (2026-08-12, bug report Davide: "la sezione
-        # incantesimi tiene conto solo della classe principale") — CD/bonus
-        # attacco si calcolano SEPARATAMENTE per ciascuna classe
-        # incantatrice (PHB IT p.165), non un unico header sulla sola
-        # primaria. Attivo solo con più di una classe con lista propria
-        # (self._caster_rows); per una sola classe (compresi Mistificatore
-        # Arcano/Cavaliere Mistico, che vivono fuori da _caster_rows)
-        # resta l'header globale di sempre, invariato.
-        # Calcolato qui (prima serviva solo più sotto) per poter affiancare
-        # l'header CD/bonus attacco agli slot rimasti nel percorso a classe
-        # singola — vedi commento su `paired_slots` poco sotto. Pura
-        # anticipazione di un calcolo puro (list comprehension su
-        # `self._slots`, nessun effetto collaterale): l'insieme risultante è
-        # identico a quello usato più sotto prima di questo cambiamento.
+        # Multiclasse: CD/bonus attacco si calcolano SEPARATAMENTE per
+        # ciascuna classe incantatrice (PHB IT p.165), non un unico header
+        # sulla sola primaria. Attivo solo con più di una classe con lista
+        # propria (self._caster_rows); per una sola classe (compresi
+        # Mistificatore Arcano/Cavaliere Mistico, che vivono fuori da
+        # _caster_rows) resta l'header globale di sempre.
+        # `active_slots` è calcolato qui (non solo più sotto) per poter
+        # affiancare l'header CD/bonus attacco agli slot rimasti nel
+        # percorso a classe singola — vedi commento su `paired_slots` poco
+        # sotto. Pura list comprehension su `self._slots`, nessun effetto
+        # collaterale.
         active_slots = [s for s in self._slots if s.total > 0]
         paired_slots = False
 
@@ -831,7 +805,7 @@ class SpellsView(ScrollMemoryListView):
         elif c.spellcasting_ability:
             controls.append(section_header("Magia"))
             if active_slots:
-                # Audit anti-AI-slop (2026-08-18): CD/bonus attacco e slot
+                # CD/bonus attacco e slot
                 # rimasti sono la coppia di dati più consultata insieme
                 # durante il gioco vero e proprio — stesso principio di
                 # HP+statistiche in combattimento_tab.py
@@ -846,10 +820,7 @@ class SpellsView(ScrollMemoryListView):
             else:
                 controls.append(self._section_magic_header(c))
 
-        # Incantesimi Bonus (2026-07-16, richiesta Davide: "Permettere a
-        # tutte le classi di aggiungere un incantesimo... il player può
-        # scegliere tra tutti gli incantesimi e aggiungerli a quelli
-        # conosciuti o preparati") — sezione SEMPRE presente, anche per
+        # Incantesimi Bonus — sezione SEMPRE presente, anche per
         # classi senza spellcasting_ability (es. un Guerriero che riceve un
         # incantesimo concesso dal master). Distinta dal meccanismo "extra"
         # già esistente (Segreti Magici/Mistificatore) tramite il flag
@@ -885,9 +856,8 @@ class SpellsView(ScrollMemoryListView):
         # spellcasting_ability è valorizzata (accade solo per queste 2
         # sottoclassi quando _class_spells è vuota, dato che ogni classe con
         # una propria lista ha sempre spellcasting_ability + _class_spells
-        # non vuota insieme). Aggiunto 2026-07-15, fix Mistificatore Arcano/
-        # Cavaliere Mistico. Escluso anche se il personaggio ha già almeno un
-        # incantesimo bonus (2026-07-16) — altrimenti il messaggio "nessun
+        # non vuota insieme). Escluso anche se il personaggio ha già almeno
+        # un incantesimo bonus, altrimenti il messaggio "nessun
         # incantesimo" sarebbe contraddetto dalla sezione appena mostrata
         # sopra.
         if not self._class_spells and not c.spellcasting_ability and not bonus_spells:
@@ -898,16 +868,14 @@ class SpellsView(ScrollMemoryListView):
             ))
         elif self._class_spells:
             # Gli incantesimi "sempre pronti" da Dominio/Giuramento/Circolo
-            # (task #26) hanno una sezione dedicata più sotto e vanno esclusi
+            # hanno una sezione dedicata più sotto e vanno esclusi
             # da qui: altrimenti comparirebbero anche come voci normali
             # togglabili (molti, es. "Cura Ferite" per un Chierico, sono
             # anche parte della lista standard della classe).
             always_prep_names = {ks.name for ks in self._known.values() if ks.always_prepared}
 
             if len(self._caster_rows) > 1:
-                # Multiclasse (2026-08-12, bug report Davide: "la sezione
-                # incantesimi tiene conto solo della classe principale") —
-                # una sotto-sezione "Incantesimi" per CIASCUNA classe con
+                # Multiclasse: una sotto-sezione "Incantesimi" per CIASCUNA classe con
                 # lista propria, ciascuna col proprio banner di
                 # preparazione/limite e la propria lista, invece
                 # dell'unica sezione sulla sola primaria del percorso a
@@ -922,7 +890,7 @@ class SpellsView(ScrollMemoryListView):
                 ]
                 key = (c.class_name or "").strip().lower()
                 if key in _KNOW_CLASSES:
-                    # Bug fix 2026-07-16 (Davide): Bardo/Ranger/Stregone/Warlock
+                    # Bardo/Ranger/Stregone/Warlock
                     # NON preparano ogni giorno dall'intera lista di classe come
                     # Chierico/Druido/Mago — "conoscono" un set fisso di
                     # incantesimi, scelto alla creazione e modificato SOLO tramite
@@ -995,7 +963,7 @@ class SpellsView(ScrollMemoryListView):
                         ]
 
         # Incantesimi "sempre pronti" da privilegio di Dominio/Giuramento/
-        # Circolo della Terra (task #26, 2026-07-16) — sezione dedicata,
+        # Circolo della Terra — sezione dedicata,
         # badge 🔒, non disattivabile dal giocatore (si aggiorna solo
         # automaticamente in base a sottoclasse/terreno/livello, vedi
         # character_repo.sync_bonus_domain_spells()).
@@ -1019,15 +987,14 @@ class SpellsView(ScrollMemoryListView):
 
         # Incantesimi "extra" — conosciuti dal DB ma non nella lista JSON di
         # NESSUNA classe posseduta (Segreti Magici, Mistificatore, Eldritch
-        # Knight, etc.). Multiclasse (2026-08-12, bug report Davide):
-        # l'insieme è l'UNIONE delle liste di TUTTE le classi con lista
-        # propria (self._caster_rows), non solo quella della primaria —
-        # prima di questo fix gli incantesimi di una classe secondaria
-        # (es. il libro di un Mago preso in multiclasse) finivano
-        # erroneamente qui, etichettati come "Incantesimi Extra" invece
-        # che nella loro sezione "Incantesimi" dedicata. Per una sola
-        # classe l'unione coincide con self._class_spells, nessun cambio
-        # di comportamento.
+        # Knight, etc.). Multiclasse: l'insieme è l'UNIONE delle liste di
+        # TUTTE le classi con lista propria (self._caster_rows), non solo
+        # quella della primaria — altrimenti gli incantesimi di una classe
+        # secondaria (es. il libro di un Mago preso in multiclasse)
+        # finirebbero qui, etichettati come "Incantesimi Extra" invece che
+        # nella loro sezione "Incantesimi" dedicata. Per una sola classe
+        # l'unione coincide con self._class_spells, nessun cambio di
+        # comportamento.
         class_spell_names: set[str] = {
             sp.get("name", "") for _, spells in self._caster_rows for sp in spells
         }
@@ -1065,8 +1032,7 @@ class SpellsView(ScrollMemoryListView):
         """
         Sotto-sezione "Incantesimi" di UNA classe del personaggio, usata
         SOLO dal percorso multiclasse (`self._caster_rows` con più di una
-        riga — 2026-08-12, bug report Davide: "la sezione incantesimi
-        tiene conto solo della classe principale"). Stessa logica del
+        riga). Stessa logica del
         percorso a classe singola in `_build()` (preparatori full/half
         contro classi "know"), ma su `cc.class_name`/`cc.level` (il
         livello DI QUESTA CLASSE, mai il totale — PHB IT p.165) invece di
@@ -1149,8 +1115,8 @@ class SpellsView(ScrollMemoryListView):
         sp_mod  = get_modifier(_KEY_TO_SCORE.get(sp_key, 10))
         # Formula PHB "8 + competenza + mod" — riusa core/character_stats.py
         # invece di ricalcolarla qui (era duplicata anche in
-        # combattimento_tab.py: stessa formula in due posti, pulizia
-        # 2026-08-07). `_section_magic_header` è chiamata SOLO se
+        # combattimento_tab.py: stessa formula in due posti).
+        # `_section_magic_header` è chiamata SOLO se
         # `c.spellcasting_ability` è valorizzato (vedi `_build()`), quindi
         # `spell_save_dc()` non ritorna mai `None` qui.
         save_dc = cs.spell_save_dc(c)
@@ -1209,7 +1175,7 @@ class SpellsView(ScrollMemoryListView):
 
     def _section_magic_header_mc(self, class_name: str, spellcasting_ability: str) -> ft.Container:
         """
-        Variante multiclasse di `_section_magic_header()` (2026-08-12) —
+        Variante multiclasse di `_section_magic_header()` —
         stessa resa visiva (caratteristica/CD/bonus attacco), ma calcolata
         con la caratteristica da incantatore DI QUESTA CLASSE tramite
         `_ClassAbilityView` invece di `c.spellcasting_ability` (quello
@@ -1297,8 +1263,8 @@ class SpellsView(ScrollMemoryListView):
 
         if max_prep is None:
             # Classi "know": nessun limite RIGIDO (il toggle resta libero,
-            # coerente con la stessa scelta già accettata per i trucchetti —
-            # vedi CLAUDE.md), ma ora mostriamo comunque il totale atteso
+            # coerente con la stessa scelta già fatta per i trucchetti),
+            # ma mostriamo comunque il totale atteso
             # per livello (spells_known_at_1 + spell_learn_delta cumulativo,
             # la stessa tabella usata dal level-up) così il giocatore può
             # verificare a colpo d'occhio se ha selezionato più incantesimi
@@ -1358,7 +1324,7 @@ class SpellsView(ScrollMemoryListView):
 
     def _section_prep_banner_mc(self, class_name: str, class_level: int, spellcasting_ability: str) -> ft.Container:
         """
-        Variante multiclasse di `_section_prep_banner()` (2026-08-12) —
+        Variante multiclasse di `_section_prep_banner()` —
         stessa resa visiva, ma limite/conteggio calcolati SOLO sugli
         incantesimi DI QUESTA CLASSE (`class_list`), col SUO livello e la
         SUA caratteristica (PHB IT p.165) — mai quelli globali usati dal
@@ -1543,8 +1509,7 @@ class SpellsView(ScrollMemoryListView):
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
             # Bordo "magic" (non "primary"): il catalogo di classe è
             # contenuto arcano "core" della schermata — il toggle "◉"
-            # dentro ogni riga resta invece "primary" (stato "preparato",
-            # distinzione di stato invariata, audit anti-AI-slop 2026-08-18).
+            # dentro ogni riga resta invece "primary" (stato "preparato").
             border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
             shadow=design.elevation(1),
             border_radius=design.Radius.MD,
@@ -1552,7 +1517,7 @@ class SpellsView(ScrollMemoryListView):
 
     def _section_spell_list_mc(self, spells: list[dict], class_name: str, class_level: int) -> ft.Container:
         """
-        Variante multiclasse di `_section_spell_list()` (2026-08-12) —
+        Variante multiclasse di `_section_spell_list()` —
         stesso toggle di preparazione, ma limite/conteggio SOLO per questa
         classe e salvataggio via `_toggle_prepared_mc` (che scrive
         `class_list=class_name`, mai `self.character.class_name`). Usata
@@ -1645,8 +1610,7 @@ class SpellsView(ScrollMemoryListView):
             padding=ft.Padding.symmetric(horizontal=14, vertical=8),
             # Bordo "magic" (non "primary"): il catalogo di classe è
             # contenuto arcano "core" della schermata — il toggle "◉"
-            # dentro ogni riga resta invece "primary" (stato "preparato",
-            # distinzione di stato invariata, audit anti-AI-slop 2026-08-18).
+            # dentro ogni riga resta invece "primary" (stato "preparato").
             border=ft.Border.only(left=ft.BorderSide(3, design.T().magic)),
             shadow=design.elevation(1),
             border_radius=design.Radius.MD,
@@ -1655,8 +1619,7 @@ class SpellsView(ScrollMemoryListView):
     def _section_known_class_spell_list(self, spells: list[KnownSpell]) -> ft.Container:
         """
         Lista degli incantesimi REALMENTE conosciuti (dalla propria lista di
-        classe) per le classi "know" (Bardo/Ranger/Stregone/Warlock — task
-        bug fix 2026-07-16). Sola lettura, stesso principio di
+        classe) per le classi "know" (Bardo/Ranger/Stregone/Warlock). Sola lettura, stesso principio di
         `_section_extra_spell_list()`/`_section_always_prepared_list()`:
         nessun toggle per "preparare" un incantesimo qualunque dall'intero
         catalogo — i nuovi incantesimi si ottengono solo tramite i passi di
@@ -1870,7 +1833,7 @@ class SpellsView(ScrollMemoryListView):
     def _section_always_prepared_list(self, spells: list[KnownSpell]) -> ft.Container:
         """
         Lista degli incantesimi "sempre pronti" da Dominio/Giuramento/
-        Circolo della Terra (task #26, 2026-07-16) — badge 🔒, nessun
+        Circolo della Terra — badge 🔒, nessun
         toggle e nessun pulsante di rimozione: lo stato è determinato
         esclusivamente da sottoclasse/terreno/livello del personaggio e si
         aggiorna solo tramite `character_repo.sync_bonus_domain_spells()`
@@ -1969,7 +1932,7 @@ class SpellsView(ScrollMemoryListView):
         )
 
     # ------------------------------------------------------------------
-    # Incantesimi Bonus (task #25, 2026-07-16)
+    # Incantesimi Bonus
     # ------------------------------------------------------------------
 
     def _section_bonus_header(self) -> ft.Container:
@@ -2108,8 +2071,8 @@ class SpellsView(ScrollMemoryListView):
                         # Azione distruttiva vera (rimozione definitiva
                         # dell'incantesimo bonus, `character_repo.
                         # remove_known_spell`) — token isolato `danger_icon`,
-                        # non più `primary_icon` (Arcane Ledger separa i due
-                        # registri, audit anti-AI-slop 2026-08-18).
+                        # non `primary_icon` (Arcane Ledger separa i due
+                        # registri).
                         icon_color=design.T().danger_icon,
                         tooltip="Rimuovi incantesimo bonus",
                         on_click=_remove,
@@ -2134,7 +2097,7 @@ class SpellsView(ScrollMemoryListView):
     def _section_racial_spells(self, c: Character) -> ft.Container:
         """
         Incantesimi innati da tratto di razza (Drow "Magia Drow", Tiefling
-        "Eredità Infernale" — task #15, 2026-07-16). Sola lettura: nessun
+        "Eredità Infernale"). Sola lettura: nessun
         toggle preparazione (non passano da slot/preparazione, sono innati),
         nessuna rimozione (sono un tratto fisso di razza, non una scelta del
         giocatore). CD calcolata su Carisma FISSO — PHB: "il modificatore
@@ -2390,8 +2353,8 @@ class SpellsView(ScrollMemoryListView):
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title("Aggiungi Incantesimo Bonus"),
             content=ft.Container(
-                # scroll + altezza fissa spostati QUI (2026-07-16, fix
-                # scorrimento annidato — vedi ui/widgets.py): CardPicker non
+                # scroll + altezza fissa spostati QUI (scorrimento annidato
+                # — vedi ui/widgets.py): CardPicker non
                 # scrolla più se stesso, quindi il contenitore del dialog
                 # deve farlo — stesso ruolo già svolto dal content Column del
                 # dialog di level-up in profilo_tab.py.
@@ -2439,5 +2402,5 @@ class SpellsView(ScrollMemoryListView):
             pass
         # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
         # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
-        # singola azione (bug B10, revisione 2026-07-26).
+        # singola azione.
         self.restore_scroll()

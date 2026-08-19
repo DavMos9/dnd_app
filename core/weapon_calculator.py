@@ -6,15 +6,12 @@ Nessuna dipendenza da Flet: modulo puro, testabile in isolamento (stessa
 convenzione di wizard_engine.py / level_manager.py / equipment_manager.py —
 "Core: mai dipendenze da Flet").
 
-Contesto (bug report Davide, 2026-07-17, punti 3+4): il campo `attack_bonus`
-di `Weapon` esisteva già ma non veniva mai sommato a nulla — l'app mostrava
-solo il numero grezzo inserito dal giocatore, senza calcolare il vero tiro
-per colpire (modificatore caratteristica + bonus competenza se competente +
-bonus magico dell'arma, che può essere negativo per un'arma maledetta). La
-competenza stessa non veniva mai verificata contro le competenze arma
-possedute dal personaggio.
+Il tiro per colpire combina modificatore di caratteristica + bonus di
+competenza (se competente) + bonus magico dell'arma (`attack_bonus`, può
+essere negativo per un'arma maledetta); la competenza è verificata contro
+le competenze arma possedute dal personaggio, non solo assunta.
 
-Decisioni di design confermate da Davide (AskUserQuestion, 2026-07-17):
+Decisioni di design:
   - Calcolo automatico con possibilità di override manuale del TOTALE
     (Weapon.attack_total_override / attack_override_value).
   - Per le armi con proprietà "Accurata": automatico con il modificatore

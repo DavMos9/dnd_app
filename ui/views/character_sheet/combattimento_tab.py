@@ -63,8 +63,8 @@ class CombattimentoTab(ScrollMemoryListView):
         self.character = character
         self._on_refresh = on_refresh
         self._page: ft.Page | None = None
-        # Invio automatico dei PF verso il mondo (fix 2026-08-07, scelta di
-        # Davide — vedi `_schedule_hp_world_sync()`) — solo per un'istanza
+        # Invio automatico dei PF verso il mondo (vedi
+        # `_schedule_hp_world_sync()`) — solo per un'istanza
         # di mondo (`character.world_id`), risolto in modo asincrono in
         # `did_mount()` come già fatto altrove per `device_id`
         # (`ui/device_identity.py`). `_hp_sync_generation` è il "token" del
@@ -85,9 +85,9 @@ class CombattimentoTab(ScrollMemoryListView):
         # difensivo ad ogni apertura tab, stesso principio di
         # init_class_resources() più sotto — no-op per qualunque altra
         # classe/sottoclasse. Necessario anche per personaggi la cui
-        # sottoclasse era già stata scelta PRIMA di questo fix (2026-07-15):
-        # senza questa chiamata resterebbero con spellcasting_ability/slot
-        # vuoti finché non affrontano un level-up/level-down.
+        # sottoclasse era già stata scelta in precedenza: senza questa
+        # chiamata resterebbero con spellcasting_ability/slot vuoti finché
+        # non affrontano un level-up/level-down.
         character_repo.sync_borrowed_spellcasting_ability(character)
         character_repo.init_borrowed_caster_slots(
             character.id, character.class_name or "", character.subclass or "", character.level
@@ -101,14 +101,13 @@ class CombattimentoTab(ScrollMemoryListView):
             self._slots = character_repo.get_spell_slots(character.id)
         self._profs: list[CharacterProficiency] = character_repo.get_proficiencies(character.id)
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id)
-        # Condizioni attive + i loro effetti uniti (Fase 4, feature 2b).
-        # Gli effetti servono solo ai promemoria in sola lettura: l'app segnala
-        # "svantaggio" accanto ai tiri, non lo applica mai da sola.
+        # Condizioni attive + i loro effetti uniti. Gli effetti servono solo
+        # ai promemoria in sola lettura: l'app segnala "svantaggio" accanto
+        # ai tiri, non lo applica mai da sola.
         self._conditions = character_repo.get_conditions(character.id)
         self._cond_effects = character_repo.condition_effects(character.id)
-        # Armature/scudi equipaggiati (2026-07-17, bug report Davide punto 2:
-        # gli effetti magici di armature/scudi non erano mai leggibili in
-        # Combattimento — solo le armi avevano una sezione dedicata).
+        # Armature/scudi equipaggiati: gli effetti magici di armature/scudi
+        # vengono mostrati anche in Combattimento, non solo per le armi.
         self._armor_items: list[InventoryItem] = [
             it for it in character_repo.get_inventory(character.id)
             if it.category == "armor" and it.is_equipped
@@ -135,10 +134,10 @@ class CombattimentoTab(ScrollMemoryListView):
         self._evocazioni: list[CreatureEntry] = character_repo.get_creature_entries(
             character.id, entry_type="evocazione"
         )
-        # Abilità Speciali custom di combattimento (2026-07-16, richiesta
-        # Davide: abilità concesse dal master o annotazioni aggiuntive —
-        # puramente additivo, mai in sostituzione delle feature JSON ufficiali
-        # già mostrate sopra in "Abilità di Classe"/"Tratti di Razza").
+        # Abilità Speciali custom di combattimento: abilità concesse dal
+        # master o annotazioni aggiuntive — puramente additivo, mai in
+        # sostituzione delle feature JSON ufficiali già mostrate sopra in
+        # "Abilità di Classe"/"Tratti di Razza".
         self._custom_abilities: list[CustomAbility] = character_repo.get_custom_abilities(
             character.id, "combattimento"
         )
@@ -150,17 +149,14 @@ class CombattimentoTab(ScrollMemoryListView):
             self._page.run_task(self._init_device_identity)
 
     # ------------------------------------------------------------------
-    # Invio automatico dei PF verso il mondo (fix 2026-08-07)
+    # Invio automatico dei PF verso il mondo
     #
-    # Multiplayer §7/step 7 "Condivisione": prima di questo fix i PF che un
-    # giocatore si segnava da solo (danno subito, cura, riposo, tiri
-    # salvezza contro morte, modifica manuale) restavano SEMPRE locali — a
-    # differenza delle azioni del master ("Interviene a distanza",
-    # `hp.damage`/`hp.heal`), non esisteva alcun modo per cui il mondo/un
-    # incontro venissero mai a saperlo. Scelta esplicita di Davide dopo un
-    # confronto sui pro/contro: invio automatico in tempo reale, non un
-    # "Aggiorna il mio foglio" manuale (§6.1, che resta per il resync
-    # COMPLETO del personaggio, non per i soli PF).
+    # I PF che un giocatore si segna da solo (danno subito, cura, riposo,
+    # tiri salvezza contro morte, modifica manuale) vengono inviati al
+    # mondo/incontro in tempo reale, così come le azioni dirette del
+    # master ("Interviene a distanza", `hp.damage`/`hp.heal`). Distinto
+    # dall'"Aggiorna il mio foglio" manuale (§6.1), che resta per il
+    # resync COMPLETO del personaggio, non per i soli PF.
     #
     # Principi seguiti, tutti con un precedente già nel progetto:
     #   * MAI bloccante — la scheda locale si aggiorna e basta, l'invio è
@@ -261,11 +257,10 @@ class CombattimentoTab(ScrollMemoryListView):
             logger.warning("Invio hp.self_update fallito per %s: %s", c.id, e)
 
     # ------------------------------------------------------------------
-    # Condizioni — invio automatico verso il mondo (2026-08-07, estensione
-    # graduale di hp.self_update, richiesta di Davide: "la scheda che ha il
-    # giocatore deve essere completamente sincronizzata con i dati che ha
-    # il master"). A differenza dei PF non serve alcun debounce con
-    # "generation": aggiungere/rimuovere una condizione è già un'azione
+    # Condizioni — invio automatico verso il mondo (estensione di
+    # hp.self_update, così che la scheda del giocatore resti sincronizzata
+    # con quella del master). A differenza dei PF non serve alcun debounce
+    # con "generation": aggiungere/rimuovere una condizione è già un'azione
     # discreta e deliberata (un dialog di conferma esplicito), non un
     # flusso continuo di piccoli cambiamenti — un invio per azione.
     # ------------------------------------------------------------------
@@ -373,15 +368,15 @@ class CombattimentoTab(ScrollMemoryListView):
     def _build(self):
         c = self.character
         controls: list[ft.Control] = [
-            # Audit anti-AI-slop (2026-08-18): HP è l'unico elemento "hero"
-            # del tab (numero grande, colore dinamico, bottoni Danno/Cura) —
-            # affiancarlo alle statistiche di combattimento invece di
-            # impilarle rompe la colonna singola meccanica del resto del tab
-            # e rispecchia quanto sono effettivamente consultati insieme in
-            # combattimento. `section_header("Statistiche di Combattimento")`
-            # rimosso: l'accoppiamento visivo con l'HP rende il titolo
-            # ridondante, il contenuto (CA/velocità/iniziativa/ispirazione)
-            # resta autoesplicativo dalle etichette dei singoli riquadri.
+            # HP è l'unico elemento "hero" del tab (numero grande, colore
+            # dinamico, bottoni Danno/Cura) — affiancarlo alle statistiche di
+            # combattimento invece di impilarle rompe la colonna singola
+            # meccanica del resto del tab e rispecchia quanto sono
+            # effettivamente consultati insieme in combattimento.
+            # `section_header("Statistiche di Combattimento")` rimosso:
+            # l'accoppiamento visivo con l'HP rende il titolo ridondante, il
+            # contenuto (CA/velocità/iniziativa/ispirazione) resta
+            # autoesplicativo dalle etichette dei singoli riquadri.
             design.asymmetric_row(self._section_hp(c), self._section_stats(c),
                                    ratio=(7, 5)),
             section_header("Indebolimento"),
@@ -428,10 +423,10 @@ class CombattimentoTab(ScrollMemoryListView):
                 section_header("Tratti di Razza"),
                 self._section_racial_traits(),
             ]
-        # Stile di Combattimento — sola consultazione (2026-07-19, richiesta
-        # Davide: visibile anche in Combattimento pur restando scelto in
-        # Profilo, stesso principio già usato per Abilità di Classe/Tratti
-        # di Razza — nessuna duplicazione della scelta, solo lettura).
+        # Stile di Combattimento — sola consultazione: visibile anche in
+        # Combattimento pur restando scelto in Profilo, stesso principio già
+        # usato per Abilità di Classe/Tratti di Razza — nessuna duplicazione
+        # della scelta, solo lettura.
         if (self.character.fighting_style or "").strip():
             controls += [
                 section_header("Stile di Combattimento"),
@@ -574,19 +569,17 @@ class CombattimentoTab(ScrollMemoryListView):
             self._build_death_saves(c),
         ]
 
-        # Audit anti-AI-slop (2026-08-18): unico elemento "hero" del tab (vedi
-        # commento in _build) — `card(hero=True, ...)` invece di un
-        # `ft.Container` a mano: stesso ruolo di "elemento più consultato
-        # della schermata" già codificato in `design.card()` (level 2,
-        # Space.XL, bordo pieno nell'accento) invece di reinventarlo qui a
-        # valori sciolti. Il colore resta quello dinamico dello stato di
-        # salute (success/warning/danger), non un accento fisso: è più
-        # informativo di un rosso statico. `layered_shadow()` (chiamato
-        # internamente da `card()`) aggiunge un alone colorato attorno alla
-        # card SOLO in tema scuro (feedback di Davide, 2026-08-18: "per la
-        # modalità scura non ho notato molto i cambiamenti" — un'ombra nera
+        # HP è l'unico elemento "hero" del tab (vedi commento in _build) —
+        # `card(hero=True, ...)` invece di un `ft.Container` a mano: stesso
+        # ruolo di "elemento più consultato della schermata" già codificato
+        # in `design.card()` (level 2, Space.XL, bordo pieno nell'accento)
+        # invece di reinventarlo qui a valori sciolti. Il colore resta
+        # quello dinamico dello stato di salute (success/warning/danger),
+        # non un accento fisso: è più informativo di un rosso statico.
+        # `layered_shadow()` (chiamato internamente da `card()`) aggiunge un
+        # alone colorato attorno alla card SOLO in tema scuro: un'ombra nera
         # non si vede quasi contro un fondo già scuro, vedi il docstring di
-        # `accent_glow()` per il perché non si schiarisce invece `bgcolor`).
+        # `accent_glow()` per il perché non si schiarisce invece `bgcolor`.
         return design.card(
             ft.Column(rows, spacing=4),
             accent=hp_color,
@@ -649,9 +642,9 @@ class CombattimentoTab(ScrollMemoryListView):
             ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         ]
 
-        # Tiro del TS contro morte con applicazione automatica ai pallini
-        # (scelta di Davide, 2026-07-30). Offerto solo a 0 PF: fuori da quella
-        # condizione il tiro non ha senso e segnerebbe pallini a vuoto.
+        # Tiro del TS contro morte con applicazione automatica ai pallini.
+        # Offerto solo a 0 PF: fuori da quella condizione il tiro non ha
+        # senso e segnerebbe pallini a vuoto.
         if active:
             rows.append(
                 ft.Row([
@@ -728,17 +721,17 @@ class CombattimentoTab(ScrollMemoryListView):
         show_roll(self._page, cs.death_save_roll(), on_result=_apply)
 
     # ------------------------------------------------------------------
-    # Condizioni (Fase 4, feature 2b — Appendice A del PHB)
+    # Condizioni (Appendice A del PHB)
     # ------------------------------------------------------------------
 
     def _condition_hint(self, *keys: str) -> ft.Control | None:
         """
         Promemoria contestuale di una condizione attiva, in **sola lettura**.
 
-        Scelta di Davide (2026-07-30): l'app mostra l'effetto dove serve — es.
-        "svantaggio" accanto ai tiri per colpire se il personaggio è Avvelenato
-        — ma non lo applica mai da sola. Ritorna `None` se nessuna delle
-        condizioni indicate è attiva, così i chiamanti possono ignorarlo.
+        L'app mostra l'effetto dove serve — es. "svantaggio" accanto ai tiri
+        per colpire se il personaggio è Avvelenato — ma non lo applica mai
+        da sola. Ritorna `None` se nessuna delle condizioni indicate è
+        attiva, così i chiamanti possono ignorarlo.
         """
         labels = {
             "attack_disadvantage": "Svantaggio ai tiri per colpire",
@@ -901,7 +894,7 @@ class CombattimentoTab(ScrollMemoryListView):
         ))
 
     # ------------------------------------------------------------------
-    # Concentrazione (Fase 4, feature 2a — PHB p.203-204)
+    # Concentrazione (PHB p.203-204)
     # ------------------------------------------------------------------
 
     def _section_concentration(self, c: Character) -> ft.Container:
@@ -911,11 +904,11 @@ class CombattimentoTab(ScrollMemoryListView):
         return ft.Container(
             content=ft.Row(
                 [
-                    # Icona CENTER_FOCUS_STRONG rimossa (audit anti-AI-slop,
-                    # 2026-08-18): puramente decorativa — il nome
-                    # dell'incantesimo sotto è già titolato dalla sezione
-                    # "Concentrazione" (section_header sopra questa card),
-                    # l'icona non aggiungeva alcuna informazione in più.
+                    # Icona CENTER_FOCUS_STRONG rimossa: puramente decorativa
+                    # — il nome dell'incantesimo sotto è già titolato dalla
+                    # sezione "Concentrazione" (section_header sopra questa
+                    # card), l'icona non aggiungeva alcuna informazione in
+                    # più.
                     ft.Container(
                         content=ft.Column(
                             [
@@ -987,8 +980,8 @@ class CombattimentoTab(ScrollMemoryListView):
                 # Coerente con il pannello dei tiri: un 1 o un 20 naturale
                 # decidono da soli l'esito, senza sommare il modificatore.
                 # Nota: il PHB 2014 non prevede critici sui tiri salvezza —
-                # è una convenzione da tavolo scelta da Davide il 2026-07-30,
-                # applicata qui perché l'app mostri sempre la stessa cosa.
+                # è una convenzione applicata qui perché l'app mostri sempre
+                # la stessa cosa.
                 if result.is_crit_fail:
                     self._end_concentration()
                     self._show_rule_notice(
@@ -1108,10 +1101,8 @@ class CombattimentoTab(ScrollMemoryListView):
                 return
             c = self.character
             # Regole PHB (assorbimento HP temp, morte istantanea, TS contro
-            # morte a 0 PF, concentrazione) — core/damage_rules.py, estratto
-            # qui il 2026-08-06 per essere riusato anche dal comando remoto
-            # del master (Multiplayer passo 6). Nessuna regola è cambiata:
-            # stesso algoritmo di prima, solo spostato in una funzione pura.
+            # morte a 0 PF, concentrazione) vivono in core/damage_rules.py,
+            # condivise con il comando remoto del master.
             outcome = apply_damage(c, amt, is_critical=bool(crit_cb.value))
 
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
@@ -1172,8 +1163,7 @@ class CombattimentoTab(ScrollMemoryListView):
             # PHB p.197: "Il numero di entrambi i tipi torna a zero quando il
             # personaggio recupera dei punti ferita o diventa stabile" — e
             # "Il personaggio riprende i sensi se recupera un qualsiasi
-            # ammontare di punti ferita". core/damage_rules.py, stesso
-            # motivo dell'estrazione della funzione gemella di danno.
+            # ammontare di punti ferita". Vedi core/damage_rules.py.
             outcome = apply_heal(c, amt)
             character_repo.update_hp(c.id, c.hp_current, c.hp_temp)
             if outcome.death_saves_reset:
@@ -1196,11 +1186,9 @@ class CombattimentoTab(ScrollMemoryListView):
         """
         Click diretto sul box "HP TEMP" — imposta i punti ferita temporanei
         senza passare dal dialog combinato "✎ HP Max / Temp" (che tocca
-        anche HP Max e HP Attuali). Bug report Davide (2026-07-16): "poter
-        aggiungere hp temporanei cliccando direttamente su hp temporanei
-        senza cliccare sulla matita del modifica che usiamo anche per la
-        vita." Il pulsante "✎ HP Max / Temp" resta invariato per quando
-        serve modificare più campi insieme.
+        anche HP Max e HP Attuali). Permette di modificare gli HP
+        temporanei senza toccare gli altri campi; il pulsante "✎ HP Max /
+        Temp" resta invariato per quando serve modificare più campi insieme.
         """
         page = self._page
         if page is None:
@@ -1297,7 +1285,7 @@ class CombattimentoTab(ScrollMemoryListView):
     # ------------------------------------------------------------------
 
     def _section_stats(self, c: Character) -> ft.Container:
-        # Iniziativa da core/character_stats (unica fonte dal 2026-07-30).
+        # Iniziativa da core/character_stats (unica fonte).
         init_spec = cs.initiative_roll(c)
         init_str = init_spec.modifier_str
 
@@ -1397,11 +1385,11 @@ class CombattimentoTab(ScrollMemoryListView):
             tooltip="Clicca per aggiungere/rimuovere bonus CA temporaneo",
         )
 
-        # Audit anti-AI-slop (2026-08-18): `card(density="dense")` invece del
-        # `ft.Container` a mano — stessa resa (bordo/ombra/raggio livello 1,
-        # padding Space.MD=12 già usato qui) ma passando dal token condiviso,
-        # coerente col trattamento "dense" delle altre sezioni dati-intensive
-        # di questa tab (statistiche/tiri salvezza/abilità).
+        # `card(density="dense")` invece del `ft.Container` a mano — stessa
+        # resa (bordo/ombra/raggio livello 1, padding Space.MD=12 già usato
+        # qui) ma passando dal token condiviso, coerente col trattamento
+        # "dense" delle altre sezioni dati-intensive di questa tab
+        # (statistiche/tiri salvezza/abilità).
         return design.card(
             ft.Column(
                 [
@@ -1466,11 +1454,9 @@ class CombattimentoTab(ScrollMemoryListView):
             try:
                 c.ac = max(0, int(f_ac.value or c.ac))
                 # float, non int: alcune razze hanno velocità frazionaria
-                # (Nano/Halfling 7,5 m, Elfo dei Boschi 10,5 m) — prima di
-                # questo fix salvare la scheda con `int()` falliva sempre
-                # con ValueError su questi personaggi (il dialog restava
-                # aperto senza errore visibile). Normalizza anche la virgola
-                # italiana in punto, nel caso l'utente digiti "7,5".
+                # (Nano/Halfling 7,5 m, Elfo dei Boschi 10,5 m). Normalizza
+                # anche la virgola italiana in punto, nel caso l'utente
+                # digiti "7,5".
                 speed_raw = (f_speed.value or str(c.speed)).strip().replace(",", ".")
                 c.speed = max(0.0, float(speed_raw))
             except ValueError:
@@ -1770,9 +1756,9 @@ class CombattimentoTab(ScrollMemoryListView):
                 ),
                 move_bar,
                 # wrap=True: su finestre strette/smartphone i 7 pulsanti vanno a capo su
-                # più righe invece di uscire dal bordo destro (bug report Davide,
-                # 2026-07-24). Niente più spacer expand=True (non compatibile con una Row
-                # che va a capo) — "↩ Reset" resta semplicemente in fondo alla fila.
+                # più righe invece di uscire dal bordo destro. Niente più spacer
+                # expand=True (non compatibile con una Row che va a capo) —
+                # "↩ Reset" resta semplicemente in fondo alla fila.
                 ft.Row(
                     [
                         ft.TextButton("−0,5m", on_click=lambda e: use_movement(0.5),
@@ -1951,9 +1937,9 @@ class CombattimentoTab(ScrollMemoryListView):
             [_skill_row(n, k) for n, k in skill_items[half:]], spacing=3
         )
 
-        # Audit anti-AI-slop (2026-08-18): `card(density="dense")` — griglia
-        # dati-intensa (6 tiri salvezza + 18 abilità), stesso trattamento
-        # "dense" delle statistiche di combattimento qui sopra.
+        # `card(density="dense")` — griglia dati-intensa (6 tiri salvezza +
+        # 18 abilità), stesso trattamento "dense" delle statistiche di
+        # combattimento qui sopra.
         return design.card(
             ft.Column([
                 saves_col,
@@ -1975,14 +1961,13 @@ class CombattimentoTab(ScrollMemoryListView):
     def _section_weapons(self) -> ft.Container:
         """Armi is_equipped=True con bonus attacco, danno, proprietà.
 
-        Calcolo automatico del tiro per colpire/danno (2026-07-17, bug
-        report Davide punti 3+4): il totale mostrato è mod. caratteristica
-        (Forza/Destrezza, automatico o scelto dal giocatore) + bonus
-        competenza (solo se competente con quest'arma, dedotto da
-        Weapon.weapon_category/proficiency_override contro le competenze
-        arma del personaggio) + bonus magico dell'arma (attack_bonus, può
-        essere negativo) — sovrascrivibile con un totale manuale
-        (attack_total_override). Vedi core/weapon_calculator.py.
+        Calcolo automatico del tiro per colpire/danno: il totale mostrato è
+        mod. caratteristica (Forza/Destrezza, automatico o scelto dal
+        giocatore) + bonus competenza (solo se competente con quest'arma,
+        dedotto da Weapon.weapon_category/proficiency_override contro le
+        competenze arma del personaggio) + bonus magico dell'arma
+        (attack_bonus, può essere negativo) — sovrascrivibile con un totale
+        manuale (attack_total_override). Vedi core/weapon_calculator.py.
         """
         weapon_prof_names = {
             p.name.strip().lower()
@@ -2146,7 +2131,7 @@ class CombattimentoTab(ScrollMemoryListView):
         if not self._weapons:
             body = ft.Column([
                 ft.Text("Nessuna arma equipaggiata.", size=12, color=design.T().text_3),
-                ft.Text("Aggiungi armi dalla scheda Inventario (prossimamente).",
+                ft.Text("Aggiungi armi dalla scheda Inventario.",
                         size=11, color=design.T().text_3),
             ], spacing=4)
         else:
@@ -2164,7 +2149,7 @@ class CombattimentoTab(ScrollMemoryListView):
         )
 
     # ------------------------------------------------------------------
-    # Armatura e Scudo Equipaggiati (2026-07-17)
+    # Armatura e Scudo Equipaggiati
     # ------------------------------------------------------------------
 
     _ARMOR_TYPE_LABELS = {
@@ -2177,9 +2162,8 @@ class CombattimentoTab(ScrollMemoryListView):
 
     def _section_armor(self) -> ft.Container:
         """Armatura corporea + scudo equipaggiati, con CA ed effetti magici
-        mostrati per intero (bug report Davide, punto 2: prima solo un badge
-        a stella segnalava la presenza di effetti, senza mai mostrarne il
-        testo)."""
+        mostrati per intero (non solo un badge che ne segnala la
+        presenza)."""
 
         def _armor_card(it: InventoryItem) -> ft.Container:
             type_label = self._ARMOR_TYPE_LABELS.get(it.armor_type, it.armor_type or "—")
@@ -2275,8 +2259,8 @@ class CombattimentoTab(ScrollMemoryListView):
         if is_caster:
             sp_mod  = get_modifier(_KEY_TO_SCORE[sp_key])
             # Formula PHB "8 + competenza + mod" — riusa core/character_stats.py
-            # invece di ricalcolarla qui (era duplicata anche in
-            # spells_view.py: stessa formula in due posti, pulizia 2026-08-07).
+            # invece di ricalcolarla qui (stessa formula usata anche in
+            # spells_view.py).
             # Il blocco `if is_caster:` sopra garantisce che
             # `spell_save_dc()` non ritorni mai `None` qui.
             save_dc = cs.spell_save_dc(c)
@@ -2615,10 +2599,10 @@ class CombattimentoTab(ScrollMemoryListView):
             rows.append(ft.Divider(color=design.T().border, height=16))
             rows.append(self._section_flexible_casting(sp_res))
 
-        # Frenesia (Barbaro, Cammino del Berserker) — 2026-07-19, vedi
-        # CLAUDE.md per il changelog completo. "berserker" in sottoclasse è
-        # lo stesso pattern già usato altrove nel progetto (es. Totem/Terreno)
-        # per riconoscere una sottoclasse via substring case-insensitive.
+        # Frenesia (Barbaro, Cammino del Berserker). "berserker" in
+        # sottoclasse è lo stesso pattern già usato altrove nel progetto
+        # (es. Totem/Terreno) per riconoscere una sottoclasse via substring
+        # case-insensitive.
         if (self.character.class_name or "").strip().lower() == "barbaro" \
                 and "berserker" in (self.character.subclass or "").lower():
             rows.append(ft.Divider(color=design.T().border, height=16))
@@ -2961,12 +2945,11 @@ class CombattimentoTab(ScrollMemoryListView):
     def _on_edit_resource_bonus(self, res: ClassResource) -> None:
         """
         Dialog per impostare un bonus permanente additivo al massimo di una
-        risorsa di classe (2026-07-16, richiesta Davide: "rendiamo
-        modificabili... Risorse di classe") — es. un talento/oggetto magico
-        che concede +1 uso. Il bonus si somma al valore PHB calcolato e
-        sopravvive al ri-sync di init_class_resources() (chiamato ad ogni
-        apertura tab/level-up), a differenza di un override assoluto che
-        verrebbe sovrascritto.
+        risorsa di classe — es. un talento/oggetto magico che concede +1
+        uso. Il bonus si somma al valore PHB calcolato e sopravvive al
+        ri-sync di init_class_resources() (chiamato ad ogni apertura
+        tab/level-up), a differenza di un override assoluto che verrebbe
+        sovrascritto.
         """
         page = self._page
         if page is None:
@@ -3122,8 +3105,8 @@ class CombattimentoTab(ScrollMemoryListView):
         )
 
     # ------------------------------------------------------------------
-    # Stile di Combattimento / Suppliche Occulte — sola consultazione
-    # (2026-07-19). La scelta resta unicamente in Profilo (dove viene
+    # Stile di Combattimento / Suppliche Occulte — sola consultazione.
+    # La scelta resta unicamente in Profilo (dove viene
     # assegnata al level-up: character.fighting_style, e le righe
     # character_proficiencies proficiency_type="invocation") — qui si legge
     # lo stesso dato per mostrarlo dove ha effetto in combattimento, senza
@@ -3235,9 +3218,9 @@ class CombattimentoTab(ScrollMemoryListView):
         )
 
     # ------------------------------------------------------------------
-    # Abilità Speciali custom (2026-07-16) — voci additive, es. concesse
-    # dal master; non modificano mai il testo ufficiale delle feature di
-    # classe/razza mostrate sopra.
+    # Abilità Speciali custom — voci additive, es. concesse dal master; non
+    # modificano mai il testo ufficiale delle feature di classe/razza
+    # mostrate sopra.
     # ------------------------------------------------------------------
 
     def _section_custom_abilities_header(self) -> ft.Container:
@@ -3288,10 +3271,8 @@ class CombattimentoTab(ScrollMemoryListView):
         )
 
     def _custom_ability_row(self, ab: CustomAbility) -> ft.Container:
-        # 2026-07-17, bug report Davide (punto 1): la descrizione veniva
-        # troncata alla prima riga + 90 caratteri, rendendo illeggibili
-        # abilità speciali con testo lungo (es. "Punizione Glaciale").
-        # Mostrata ora per intero, andando a capo liberamente.
+        # Descrizione mostrata per intero, andando a capo liberamente (non
+        # troncata: testi lunghi come "Punizione Glaciale" restano leggibili).
         full_desc = ab.description.strip()
         return ft.Container(
             content=ft.Row(
@@ -3312,10 +3293,9 @@ class CombattimentoTab(ScrollMemoryListView):
                         padding=ft.Padding.all(2),
                     ),
                     ft.IconButton(
-                        # Audit anti-AI-slop (2026-08-18): `danger_icon`, non
-                        # `primary_icon` — azione distruttiva (elimina), la
-                        # palette separa ora i due registri (vedi Palette in
-                        # design.py).
+                        # `danger_icon`, non `primary_icon` — azione
+                        # distruttiva (elimina), la palette separa i due
+                        # registri (vedi Palette in design.py).
                         ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color=design.T().danger_icon,
                         tooltip="Elimina",
                         on_click=lambda e, a=ab: self._on_delete_custom_ability(a),
@@ -3411,8 +3391,8 @@ class CombattimentoTab(ScrollMemoryListView):
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=_cancel),
                 ft.ElevatedButton(
-                    # Audit anti-AI-slop (2026-08-18): `danger_fill`, non
-                    # `primary_fill` — conferma di un'eliminazione.
+                    # `danger_fill`, non `primary_fill` — conferma di
+                    # un'eliminazione.
                     "Elimina", on_click=_confirm,
                     style=ft.ButtonStyle(bgcolor=design.T().danger_fill, color=design.T().on_primary_fill),
                 ),
@@ -3431,17 +3411,14 @@ class CombattimentoTab(ScrollMemoryListView):
         personaggio: per un multiclasse i due divergono, PHB IT p.163).
         Ordina per livello poi per nome.
 
-        Multiclasse (2026-08-12): itera TUTTE le classi possedute
-        (character_classes), non solo la primaria — un personaggio a
-        classe singola ha una sola riga, il cui livello coincide sempre
-        con c.level, quindi l'output resta identico a prima per ogni
-        personaggio esistente. Prima di questa sessione filtrava solo
-        c.class_name/c.subclass contro c.level (il TOTALE): per un
-        multiclasse avrebbe mostrato feature della classe primaria mai
+        Itera TUTTE le classi possedute (character_classes), non solo la
+        primaria — un personaggio a classe singola ha una sola riga, il cui
+        livello coincide sempre con c.level, quindi l'output resta identico
+        per ogni personaggio a classe singola. Filtrare invece
+        c.class_name/c.subclass contro c.level (il TOTALE) farebbe
+        mostrare, per un multiclasse, feature della classe primaria mai
         realmente raggiunte (es. Chierico 12/Guerriero 1, c.level=13,
-        avrebbe mostrato feature Chierico fino al 13° livello) — bug
-        reale trovato in questa sessione prima di scrivere qualunque
-        nuova UI, corretto insieme a "Aggiungi una classe".
+        mostrerebbe feature Chierico fino al 13° livello).
         """
         classes = character_repo.get_character_classes(c.id)
         if not classes:
@@ -3723,11 +3700,9 @@ class CombattimentoTab(ScrollMemoryListView):
             """
             Tira i dadi vita indicati e compila il campo del totale.
 
-            Prima di questa feature il totale andava digitato a mano: si
-            tiravano i dadi al tavolo e si sommava mentalmente. Il modificatore
-            di Costituzione resta fuori dal campo (lo aggiunge `apply`, una
-            volta per dado, come vuole il PHB) — per questo si tira la sola
-            parte in dadi.
+            Il modificatore di Costituzione resta fuori dal campo (lo
+            aggiunge `apply`, una volta per dado, come vuole il PHB) — per
+            questo si tira la sola parte in dadi.
             """
             try:
                 n = max(1, min(remaining, int(f_dice.value or 1)))
@@ -4089,9 +4064,9 @@ class CombattimentoTab(ScrollMemoryListView):
                     ft.Text(f" / {forma.hp_max} PF", size=14, color=design.T().text_3,
                             font_family=design.Font.MONO),
                     ft.Container(expand=True),
-                    # Audit anti-AI-slop (2026-08-18): `danger_icon`, non
-                    # `primary_icon` — applica danno è l'azione distruttiva
-                    # gemella di "Cura" qui sotto (che resta `success`).
+                    # `danger_icon`, non `primary_icon` — applica danno è
+                    # l'azione distruttiva gemella di "Cura" qui sotto (che
+                    # resta `success`).
                     ft.IconButton(ft.Icons.REMOVE, on_click=_on_apply_damage,
                                   icon_color=design.T().danger_icon,
                                   tooltip="Applica danno"),
@@ -4142,8 +4117,8 @@ class CombattimentoTab(ScrollMemoryListView):
                 title=design.dialog_title("Rimuovi forma?"),
                 content=ft.Text(f"Rimuovere {forma.name.title()} dal bestiary?"),
                 actions=cast(list[ft.Control], wrap_dialog_actions([
-                    # Audit anti-AI-slop (2026-08-18): `danger`, non
-                    # `primary` — conferma di rimozione permanente.
+                    # `danger`, non `primary` — conferma di rimozione
+                    # permanente.
                     ft.TextButton("Rimuovi", on_click=confirm,
                                   style=ft.ButtonStyle(color=design.T().danger)),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
@@ -4372,9 +4347,8 @@ class CombattimentoTab(ScrollMemoryListView):
                     ),
                     ft.Text(f" — GS {evoc.cr}" if evoc.cr else "", size=11, color=design.T().text_3),
                     ft.Container(expand=True),
-                    # Audit anti-AI-slop (2026-08-18): `danger_icon`, non
-                    # `primary_icon` — vedi la stessa correzione per le forme
-                    # selvatiche qui sopra.
+                    # `danger_icon`, non `primary_icon` — stesso principio
+                    # delle forme selvatiche qui sopra.
                     ft.IconButton(ft.Icons.REMOVE, on_click=apply_damage,
                                   icon_color=design.T().danger_icon, icon_size=18,
                                   tooltip="Applica danno"),
@@ -4426,8 +4400,8 @@ class CombattimentoTab(ScrollMemoryListView):
                 title=design.dialog_title("Rimuovi evocazione?"),
                 content=ft.Text(f"Rimuovere {evoc.name.title()} dal bestiary?"),
                 actions=cast(list[ft.Control], wrap_dialog_actions([
-                    # Audit anti-AI-slop (2026-08-18): `danger`, non
-                    # `primary` — conferma di rimozione permanente.
+                    # `danger`, non `primary` — conferma di rimozione
+                    # permanente.
                     ft.TextButton("Rimuovi", on_click=confirm,
                                   style=ft.ButtonStyle(color=design.T().danger)),
                     ft.TextButton("Annulla", on_click=lambda _: page.pop_dialog()),
@@ -4472,17 +4446,16 @@ class CombattimentoTab(ScrollMemoryListView):
         )
 
     # ------------------------------------------------------------------
-    # Dialog ricerca creatura (condiviso tra Forme e Evocazioni) — Task #3/4
+    # Dialog ricerca creatura (condiviso tra Forme e Evocazioni)
     # ------------------------------------------------------------------
 
     def _open_creature_search(self, entry_type: str) -> None:
         """
         Dialog di ricerca nel bestiario con filtri tipo/GS e vista dettaglio
         inline. Delega interamente a `show_monster_picker`
-        (ui/components/monster_picker.py, estratto da qui il 2026-07-24 per
-        essere riusato anche dalla Sezione Master) — nessuna modifica di
-        comportamento rispetto a prima del refactoring, solo il salvataggio
-        su `creature_entries` (specifico del personaggio) resta locale qui.
+        (ui/components/monster_picker.py, riusato anche dalla Sezione
+        Master) — il salvataggio su `creature_entries` (specifico del
+        personaggio) resta locale qui.
         entry_type = "forma"      → filtra solo Bestie
                    = "evocazione" → tutte le creature
         """
@@ -4614,7 +4587,7 @@ class CombattimentoTab(ScrollMemoryListView):
         page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
-    # Dialog scheda creatura completa (condiviso) — Task #5
+    # Dialog scheda creatura completa (condiviso)
     # ------------------------------------------------------------------
 
     def _show_creature_sheet(self, c: CreatureEntry) -> None:
@@ -4622,9 +4595,8 @@ class CombattimentoTab(ScrollMemoryListView):
         AlertDialog con scheda completa della creatura: CA, HP, velocità,
         6 stat, TS, skill, resistenze, sensi, lingue, CR, tratti/azioni
         (scrollabile). Delega a `show_stat_block_dialog`/`creature_entry_dict`
-        (ui/components/monster_picker.py, estratto da qui il 2026-07-24) —
-        stesso identico rendering di prima, solo non più duplicato riga per
-        riga rispetto a `_open_creature_search`.
+        (ui/components/monster_picker.py) — stesso rendering condiviso con
+        `_open_creature_search`, senza duplicarlo riga per riga.
         """
         if not self._page:
             return
@@ -4662,7 +4634,7 @@ class CombattimentoTab(ScrollMemoryListView):
             pass
         # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
         # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
-        # singola azione (bug B10, revisione 2026-07-26).
+        # singola azione.
         self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

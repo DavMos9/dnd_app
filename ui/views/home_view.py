@@ -86,8 +86,8 @@ class HomeView(ft.Column):
         self._last_signature: str | None = None
         self._poll_thread: threading.Thread | None = None
         # FilePicker persistente per Export/Import su mobile nativo
-        # (Android/iOS) — registrato in did_mount(), MAI su desktop/web
-        # (vedi _ensure_file_picker() e nota 2026-07-24 più sotto).
+        # (Android/iOS) — registrato in modo lazy da _ensure_file_picker(),
+        # mai in did_mount() e mai su desktop/web (vedi did_mount() più sotto).
         self._file_picker: ft.FilePicker | None = None
         # Identità del dispositivo (Multiplayer passo 3) — risolta in modo
         # asincrono in did_mount(), None finché non è pronta. Finché è None
@@ -97,11 +97,8 @@ class HomeView(ft.Column):
         self.device_id: str | None = None
 
         # Sincronizzazione in background delle istanze di mondo possedute da
-        # questo dispositivo (2026-08-12, richiesta esplicita di Davide dopo
-        # l'aggiunta di "Rimuovi dal mondo" lato master: "come tutta l'app
-        # deve essere sincronizzata, anche l'app del giocatore ospitato, con
-        # la scomparsa dal mondo nella sua schermata Home" — principio
-        # generale: le app collegate mostrano gli stessi dati condivisi).
+        # questo dispositivo: quando il master rimuove un'istanza dal mondo,
+        # la Home del giocatore ospitato deve rifletterlo.
         # DISTINTA da `_poll_loop`/`_start_polling` sopra (quella è solo per
         # più schede web sullo stesso DB locale, mai per la rete LAN vera) —
         # questa gira su QUALUNQUE piattaforma, chiama `world_sync.
@@ -113,15 +110,14 @@ class HomeView(ft.Column):
         self._remote_backends: dict[str, RemoteBackend] = {}
         self._world_sync_loop: BackgroundSyncLoop | None = None
         #: Ultimo `RemoteBackend.connection_state()` osservato per ogni
-        #: mondo remoto (2026-08-16) — alimenta il LED di `_section_label`,
-        #: aggiornato ad ogni giro di `_start_world_sync`.
+        #: mondo remoto — alimenta il LED di `_section_label`, aggiornato
+        #: ad ogni giro di `_start_world_sync`.
         self._world_connection_states: dict[str, str] = {}
 
         # NOTA: il timer anti-spam di `_push_instance_to_host()` NON vive
-        # come attributo di istanza qui (stesso bug/fix di `WorldsView`,
-        # 2026-08-07: `HomeView` viene ricreata ad ogni navigazione/cambio
-        # tema in `ui/app.py`) — vive a livello di modulo in
-        # `core.world_sync` (`instance_push_cooldown_remaining`/
+        # come attributo di istanza qui, perché `HomeView` viene ricreata ad
+        # ogni navigazione/cambio tema in `ui/app.py` — vive a livello di
+        # modulo in `core.world_sync` (`instance_push_cooldown_remaining`/
         # `mark_instance_push`), richiamato direttamente da
         # `_push_instance_to_host` più sotto.
 
@@ -133,24 +129,13 @@ class HomeView(ft.Column):
 
     def did_mount(self):
         """
-        NON registra più il FilePicker qui (fix 2026-08-06, bug reale
-        segnalato da Davide: barra rossa "Unknown control: FilePicker" già
-        alla semplice apertura della Home su un vero dispositivo Android,
-        prima di qualunque interazione). La registrazione "subito al mount,
-        solo su mobile nativo" era basata su un'assunzione MAI verificata su
-        un vero dispositivo (il codice era stato scritto leggendo il
-        sorgente Flet per la sintassi corretta, non testato end-to-end — la
-        differenza tra "sintassi corretta" e "funziona davvero" è esattamente
-        il punto). Il parallelo con il bug già confermato in web mode è
-        diretto: lì la registrazione anticipata in did_mount() produceva lo
-        STESSO errore della registrazione al click, solo mostrato prima
-        (vedi `dnd_app/docs/regole_flet_api.md`). Qui il fix minimo e sicuro
-        è non registrare nulla finché non serve davvero: `_ensure_file_picker()`
-        resta comunque chiamato in modo lazy da `_on_mobile_export()`/
-        `_on_mobile_import()` al primo tocco reale di quei pulsanti — se
-        anche quello fallisce con lo stesso errore, il problema è più
-        profondo (FilePicker non utilizzabile affatto su questa build
-        Android) e va affrontato a parte, non qui.
+        Non registra il FilePicker qui: farlo produce un errore ("Unknown
+        control: FilePicker") alla semplice apertura della Home su mobile
+        nativo, prima di qualunque interazione — stesso problema già visto
+        in web mode (vedi `dnd_app/docs/regole_flet_api.md`).
+        `_ensure_file_picker()` resta comunque chiamato in modo lazy da
+        `_on_mobile_export()`/`_on_mobile_import()` al primo tocco reale di
+        quei pulsanti.
         """
         page = self.page
         self._start_polling()
@@ -195,7 +180,7 @@ class HomeView(ft.Column):
         self._stop_world_sync()
 
     # ------------------------------------------------------------------
-    # Sincronizzazione in background delle istanze di mondo (2026-08-12) —
+    # Sincronizzazione in background delle istanze di mondo —
     # vedi il commento su `self._world_sync_loop` in `__init__` per il
     # perché. Stesso `BackgroundSyncLoop` di `WorldsView`/
     # `MasterEncounterView`, dominio diverso: qui si scaricano gli eventi
@@ -280,11 +265,10 @@ class HomeView(ft.Column):
         Sincronizza la lista personaggi tra sessioni web diverse.
 
         `refresh(force=False)` ricostruisce le card solo se la firma della lista
-        è cambiata, e `page.update()` viene chiamato solo in quel caso: prima di
-        questo fix l'intera lista veniva ricostruita ogni 5 secondi a vuoto.
-        Un'eccezione transitoria (es. DB momentaneamente bloccato) viene
-        loggata e il ciclo continua: prima faceva `break`, quindi la
-        sincronizzazione moriva per sempre al primo errore, in silenzio.
+        è cambiata, e `page.update()` viene chiamato solo in quel caso, per
+        evitare ricostruzioni a vuoto ogni 5 secondi. Un'eccezione transitoria
+        (es. DB momentaneamente bloccato) viene loggata e il ciclo continua,
+        così la sincronizzazione non muore in silenzio al primo errore.
         """
         while not self._stop_event.wait(5):
             if self._stop_event.is_set():
@@ -308,10 +292,8 @@ class HomeView(ft.Column):
     def _build(self):
         p = d.T()
         # Logo: il wordmark dell'app, UNICO momento "hero" di questa schermata
-        # (Arcane Ledger — vedi design.hero_title). Prima era un ft.Text
-        # scelto a mano (48px, sopra la stessa scala DISPLAY=32 usata
-        # ovunque nell'app): ora usa il token HERO=40 dedicato, con l'oro
-        # `primary_icon` a marcare il brand.
+        # (Arcane Ledger — vedi design.hero_title). Usa il token HERO=40
+        # dedicato, con l'oro `primary_icon` a marcare il brand.
         logo_widget = d.hero_title("D&D", "COMPANION", color=p.primary_icon)
 
         header = d.surface(
@@ -319,16 +301,13 @@ class HomeView(ft.Column):
                 [
                     ft.Row([logo_widget], vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     ft.Container(height=d.Space.MD),
-                    # Azioni sempre visibili come pillole invece del vecchio menu a tre
-                    # puntini "Altro" (2026-07-24, redesign su richiesta di Davide: lo
-                    # stesso trattamento già applicato a master_view.py/
-                    # master_encounter_view.py, non solo alla Sezione Master come inteso
-                    # inizialmente — Davide ha chiarito che valeva anche per questa
-                    # Home). `wrap=True`: su schermi stretti (smartphone) le pillole e il
-                    # bottone "Nuovo Personaggio" vanno a capo su più righe invece di
-                    # traboccare — niente `Container(expand=True)` in questa Row, per lo
-                    # stesso motivo già documentato altrove nel progetto (incompatibile
-                    # con `wrap=True`): il logo vive in una riga separata sopra.
+                    # Azioni sempre visibili come pillole invece di un menu a tre
+                    # puntini "Altro" (stesso trattamento di master_view.py/
+                    # master_encounter_view.py). `wrap=True`: su schermi stretti
+                    # (smartphone) le pillole e il bottone "Nuovo Personaggio" vanno
+                    # a capo su più righe invece di traboccare — niente
+                    # `Container(expand=True)` in questa Row, incompatibile con
+                    # `wrap=True`: il logo vive in una riga separata sopra.
                     ft.Row(
                         self._header_actions(),
                         spacing=d.Space.SM, wrap=True,
@@ -385,18 +364,9 @@ class HomeView(ft.Column):
     def _header_actions(self) -> list[ft.Control]:
         """Azioni header sempre visibili — pillole "Modalità Master"/"Importa
         personaggio" + il pulsante primario "Nuovo Personaggio", tutte nella
-        stessa Row `wrap=True` (2026-07-24, redesign: sostituisce il vecchio
-        `_more_menu()` a tre puntini, stesso trattamento "pillole sempre
-        visibili" scelto da Davide per la Sezione Master — qui esteso alla
-        Home su sua esplicita richiesta). "Modalità Master" compare solo se
-        `on_open_master` è stato passato (stesso comportamento "nascosto se
-        assente" del vecchio menu, per non rompere chiamate legacy a
-        `HomeView`).
-
-        Dalla Fase E del restyle (2026-07-26) le pillole usano la primitiva
-        condivisa `design.pill()`: la copia locale `_action_pill` è stata
-        rimossa (era una delle 3 copie identiche sparse tra questo file,
-        `master_view.py` e `master_encounter_view.py`)."""
+        stessa Row `wrap=True`. "Modalità Master" compare solo se
+        `on_open_master` è stato passato (nascosto se assente, per non
+        rompere chiamate legacy a `HomeView`)."""
         p = d.T()
         actions: list[ft.Control] = []
         if self.on_open_worlds is not None:
@@ -427,7 +397,7 @@ class HomeView(ft.Column):
         modifica fatta in un'altra sessione web viene comunque rilevata,
         `world_id`/`owner_device_id` (Multiplayer passo 3) così un
         personaggio appena entrato in un mondo sposta sezione, e
-        `world_instance_archived` (2026-08-12) così la rimozione di
+        `world_instance_archived` così la rimozione di
         un'istanza dal mondo — che non tocca `updated_at` della RIGA
         stessa in ogni percorso, es. `import_replica_character` durante un
         resync — sposta comunque sezione senza aspettare un'altra modifica.
@@ -445,11 +415,10 @@ class HomeView(ft.Column):
         Separa i personaggi locali dalle istanze possedute da QUESTO
         dispositivo, raggruppate per mondo (Multiplayer passo 3, §6 —
         "Home raggruppata per mondo, personaggio locale in una sezione
-        'Non in un mondo'"), più le istanze RIMOSSE dal master (2026-08-12,
-        `characters.world_instance_archived`) in una terza sezione a sé —
-        richiesta esplicita di Davide: la rimozione lato master deve
-        "sparire dal mondo nella schermata Home" del giocatore, senza
-        toccare il personaggio (i dati restano, world_id compreso: la riga
+        'Non in un mondo'"), più le istanze RIMOSSE dal master
+        (`characters.world_instance_archived`) in una terza sezione a sé: la
+        rimozione lato master deve sparire dal mondo nella schermata Home
+        del giocatore, senza toccare il personaggio (i dati restano, world_id compreso: la riga
         NON diventa "locale", è solo trattata diversamente in questa
         vista). Un'istanza archiviata non compare mai in `by_world` — un
         master che l'ha rimossa non deve rivederla nella Sezione Master, e
@@ -479,10 +448,9 @@ class HomeView(ft.Column):
         Ricarica la lista personaggi dal database.
 
         `force=False` (usato dal polling di sincronizzazione) ricostruisce le
-        card SOLO se la firma della lista è cambiata: prima di questo controllo
-        il polling ricostruiva l'intera lista ogni 5 secondi anche quando nulla
-        era cambiato, sprecando lavoro e potendo interrompere l'interazione
-        dell'utente a metà.
+        card SOLO se la firma della lista è cambiata, per evitare di sprecare
+        lavoro e interrompere l'interazione dell'utente a metà quando nulla
+        è cambiato.
         """
         with self._refresh_lock:
             characters = character_repo.get_all()
@@ -520,10 +488,9 @@ class HomeView(ft.Column):
                             continue
                         conn_state = (None if world.is_local_host
                                       else self._world_connection_states.get(world_id, "connected"))
-                        # Bug report Davide (2026-08-20): dopo un trasferimento di
-                        # dispositivo (§11.9), il personaggio resta qui elencato
-                        # (corretto: i dati restano intatti) ma appariva solo
-                        # "disconnesso", indistinguibile da un normale mondo
+                        # Dopo un trasferimento di dispositivo (§11.9), il
+                        # personaggio resta qui elencato (corretto: i dati restano
+                        # intatti) ma va distinto da un normale mondo
                         # irraggiungibile — stessa targhetta già mostrata nel
                         # dettaglio della Sezione Mondi (`world_view.py::_world_card`),
                         # letta dallo stesso flag locale (nessun nuovo stato).
@@ -548,7 +515,7 @@ class HomeView(ft.Column):
                             )
 
                     if removed_from_world:
-                        # Istanze rimosse dal master (2026-08-12): niente
+                        # Istanze rimosse dal master: niente
                         # "Aggiorna il mio foglio"/"Aggiungi a un mondo" —
                         # non sono più un'istanza attiva, ma niente è stato
                         # cancellato (Gioca/Esporta/Elimina restano).
@@ -578,20 +545,19 @@ class HomeView(ft.Column):
         non `design.section()` (pensato per pannelli a sé, troppo pesante
         ripetuto più volte in una lista che scorre).
 
-        `connection_state` (2026-08-16, richiesta di Davide — vedi
-        `design.connection_led`): passato solo per un gruppo-mondo REMOTO
-        (non per "Non in un mondo"/"Rimossi dai mondi"), mostra il LED
-        verde/rosso aggiornato ad ogni giro di `_start_world_sync`.
+        `connection_state` (vedi `design.connection_led`): passato solo per un
+        gruppo-mondo REMOTO (non per "Non in un mondo"/"Rimossi dai mondi"),
+        mostra il LED verde/rosso aggiornato ad ogni giro di
+        `_start_world_sync`.
 
-        `transferred` (2026-08-20): stessa targhetta di `world_view.py::_world_card`
+        `transferred`: stessa targhetta di `world_view.py::_world_card`
         per un mondo il cui personaggio è stato spostato su un altro
         dispositivo (§11.9) — distingue "disconnesso perché trasferito
         altrove" da "disconnesso perché irraggiungibile in questo momento"."""
         p = d.T()
-        # Icona PUBLIC rimossa (audit anti-AI-slop, 2026-08-18): era mostrata
-        # SEMPRE, anche per "Non in un mondo"/"Rimossi dai mondi" (semantica
-        # sbagliata: quei due gruppi non sono un mondo) — e per un vero nome
-        # di mondo era comunque ridondante col testo stesso.
+        # Nessuna icona PUBLIC qui: sarebbe semanticamente sbagliata per
+        # "Non in un mondo"/"Rimossi dai mondi" (quei due gruppi non sono un
+        # mondo) e ridondante col testo per un vero nome di mondo.
         row_children: list[ft.Control] = [
             ft.Text(text.upper(), size=d.Size.LABEL, weight=ft.FontWeight.BOLD,
                     color=p.text_2, font_family=d.Font.BODY,
@@ -620,10 +586,10 @@ class HomeView(ft.Column):
         is_removed: bool = False,
     ) -> ft.Container:
         """
-        Card personaggio — riscritta nella Fase E del restyle (2026-07-26)
-        usando le primitive di `ui/design.py`: ritratto più grande e
-        arrotondato, ombra al posto del bordo 1px, chip semantici per
-        livello/classe/razza, accento crimson sul bordo sinistro.
+        Card personaggio, costruita con le primitive di `ui/design.py`:
+        ritratto più grande e arrotondato, ombra al posto del bordo 1px,
+        chip semantici per livello/classe/razza, accento crimson sul bordo
+        sinistro.
 
         `available_worlds`/`is_instance` (Multiplayer passo 3): un
         personaggio locale con almeno un mondo disponibile mostra "Aggiungi
@@ -727,15 +693,10 @@ class HomeView(ft.Column):
                           alignment=ft.MainAxisAlignment.END)
 
         return d.card(
-            # Riga superiore avatar+info, riga azioni separata sotto (fix
-            # 2026-08-05, segnalato da Davide: su smartphone nome/chip erano
-            # illeggibili). Prima erano tutti sulla STESSA riga: avatar fisso
-            # (76px) + fino a 4 IconButton non comprimibili lasciavano a
-            # `info` pochissimo spazio su schermo stretto — il nome veniva
-            # ellissato a poche lettere e i chip andavano a capo uno per
-            # riga. Separando le azioni su una riga propria, `info` è
+            # Riga superiore avatar+info, riga azioni separata sotto:
+            # separando le azioni su una riga propria, `info` (nome/chip) è
             # squeezato solo dall'avatar (largo fisso, noto), mai anche
-            # dalle azioni.
+            # dalle fino a 4 IconButton non comprimibili delle azioni.
             #
             # NIENTE wrap=True sulla riga avatar+info: `info` ha
             # expand=True, e wrap=True su una Row con un figlio expand=True
@@ -829,15 +790,11 @@ class HomeView(ft.Column):
 
     def _push_instance_to_host(self, world_id: str, character_id: str) -> None:
         """
-        Fix 2026-08-07 — bug segnalato da Davide: "il player può far unire
-        il personaggio al mondo... ma il master non vede il personaggio
-        che si è unito al mondo". Causa: `ci.create_or_resume_instance()`
-        (Multiplayer passo 3, 2026-08-05, prima che esistesse la rete)
-        scrive SOLO sul DB di QUESTO dispositivo. Se questo dispositivo
-        ospita il mondo va bene — quella riga È già lo stato autoritativo —
-        ma se è un dispositivo che si è solo unito in LAN, l'host non
-        veniva mai informato: la Sezione Master (che legge dal DB
-        dell'host) risultava vuota anche a ingresso riuscito.
+        Se il player si unisce a un mondo LAN (non ospitato su questo
+        dispositivo), `ci.create_or_resume_instance()` scrive SOLO sul DB
+        locale: l'host non verrebbe mai informato, e la Sezione Master (che
+        legge dal DB dell'host) risulterebbe vuota anche a ingresso
+        riuscito.
 
         Qui si invia esplicitamente l'export integrale dell'istanza appena
         creata come comando `character_instance.sync`
@@ -848,11 +805,8 @@ class HomeView(ft.Column):
         personaggio resta comunque creato in locale — non blocchiamo mai
         un'azione già riuscita per un problema di rete — ma lo segnaliamo
         con un avviso non bloccante e marchiamo l'istanza con
-        `host_sync_pending=1` (2026-08-18, bug segnalato da Davide: prima
-        questo non veniva ritentato automaticamente, l'istanza restava "nel
-        mondo" solo in locale finché non si ripeteva l'operazione a mano
-        con l'host online). Il loop di sync in background di `WorldsView`
-        (`core/world_sync.py::push_pending_instances`) ora ritenta da solo
+        `host_sync_pending=1`. Il loop di sync in background di `WorldsView`
+        (`core/world_sync.py::push_pending_instances`) ritenta da solo
         quando l'host torna raggiungibile; l'utente può comunque forzare un
         tentativo immediato riaprendo questo stesso dialogo, che sovrascrive
         senza creare un duplicato: stesso `character_id`.
@@ -868,13 +822,11 @@ class HomeView(ft.Column):
         if world is None or world.is_local_host:
             return  # Questo dispositivo ospita il mondo: nessun push necessario.
 
-        # Anti-spam (fix 2026-08-07, richiesta di Davide: "tutte le
-        # richieste online da sincronizzare" — questo comando è
-        # letteralmente chiamato "sync"): stesso timer di 10s condiviso con
-        # i tentativi di ingresso in WorldsView (`core.world_sync`), stato
-        # indipendente perché questa è un'altra view. Il personaggio resta
-        # comunque creato in locale: bloccare solo il PUSH, mai la
-        # creazione già avvenuta.
+        # Anti-spam: stesso timer di 10s condiviso con i tentativi di
+        # ingresso in WorldsView (`core.world_sync`), stato indipendente
+        # perché questa è un'altra view. Il personaggio resta comunque
+        # creato in locale: bloccare solo il PUSH, mai la creazione già
+        # avvenuta.
         remaining = world_sync.instance_push_cooldown_remaining()
         if remaining > 0:
             character_repo.set_host_sync_pending(character_id, True)
@@ -980,7 +932,7 @@ class HomeView(ft.Column):
         self.page.show_dialog(dlg)
 
     # ------------------------------------------------------------------
-    # Richiesta di rientro (2026-08-12) — un personaggio rimosso dal mondo
+    # Richiesta di rientro — un personaggio rimosso dal mondo
     # (`world_instance_archived`) non torna mai visibile in automatico: il
     # giocatore deve chiedere, il master deve approvare (§"Richiesta di
     # rientro" in `core/world_backend.py`). Punto unico condiviso dai due
@@ -1235,42 +1187,32 @@ class HomeView(ft.Column):
         callback()
 
     def _show_error(self, message: str):
-        """Pulizia 2026-08-07: `ui.widgets.show_snack()` esiste apposta dal
-        2026-07-31 per centralizzare QUESTO identico pattern — era rimasto
-        duplicato qui nonostante il suo stesso docstring lo citi come il
-        caso che l'ha motivato. Stesso esito visivo (tono "danger")."""
+        """Wrapper attorno a `ui.widgets.show_snack()` con tono "danger"."""
         show_snack(self.page, message, tone="danger")
 
     def _show_success(self, message: str):
-        """Vedi `_show_error` sopra. Tono "magic" per restare
-        visivamente identico a prima (non "success": il colore usato qui è
-        sempre stato quello magico dell'app, non quello verde)."""
+        """Vedi `_show_error` sopra. Tono "magic" (non "success"): il
+        colore usato qui è quello magico dell'app, non quello verde."""
         show_snack(self.page, message, tone="magic")
 
     # ------------------------------------------------------------------
     # Export / Import personaggio
     #
-    # Stato al 2026-08-06 — DIVERSO tra i due, leggere con attenzione:
-    #
-    # IMPORT (_on_mobile_import): riscritto per usare una WebView locale
-    # (ui/mobile_webview_picker.py), NON più ft.FilePicker. Motivo: un log
-    # `adb logcat` reale (preso per il caso foto profilo, diagnosi
-    # applicabile a QUALUNQUE uso di ft.FilePicker su questa build Android)
-    # ha mostrato che pick_files()/save_file() arrivano al bridge Dart ma
-    # vanno in TimeoutException — nessuna Activity nativa viene mai
-    # avviata. Il codice qui scritto il 2026-07-24 usava correttamente
-    # l'`await` (a differenza del bug trovato in profilo_tab.py/
-    # maps_view.py), ma un `await` corretto non basta se il controllo
-    # sottostante non è utilizzabile affatto. Vedi dnd_app/docs/
-    # changelog_storico.md.
+    # IMPORT (_on_mobile_import): usa una WebView locale
+    # (ui/mobile_webview_picker.py) invece di ft.FilePicker. Motivo: su
+    # questa build Android, pick_files()/save_file() arrivano al bridge
+    # Dart ma vanno in TimeoutException — nessuna Activity nativa viene mai
+    # avviata (diagnosi applicabile a QUALUNQUE uso di ft.FilePicker su
+    # questa build). Un `await` corretto non basta se il controllo
+    # sottostante non è utilizzabile affatto.
     #
     # EXPORT (_on_mobile_export): **NON ancora migrato**, resta su
-    # ft.FilePicker.save_file() — fuori scope in questa sessione (un
-    # download via WebView richiede intercettare un meccanismo diverso da
-    # quello usato per la selezione, mai verificato). Per la stessa
-    # diagnosi di cui sopra è MOLTO PROBABILE che vada in errore allo
-    # stesso modo (TimeoutException) su un vero dispositivo — non ancora
-    # confermato con un log dedicato. Se fallisce, il `try/except` già
+    # ft.FilePicker.save_file() — un download via WebView richiede
+    # intercettare un meccanismo diverso da quello usato per la selezione,
+    # mai verificato. Per la stessa diagnosi di cui sopra è MOLTO PROBABILE
+    # che vada in errore allo stesso modo (TimeoutException) su un vero
+    # dispositivo — non ancora confermato con un log dedicato. Se fallisce,
+    # il `try/except` già
     # presente lo intercetta e mostra un errore invece di bloccarsi in
     # silenzio, ma la funzionalità resta di fatto non disponibile su
     # mobile finché non viene affrontata a parte. Desktop e Web restano
@@ -1281,9 +1223,8 @@ class HomeView(ft.Column):
         """
         Ritorna il FilePicker mobile — usato ORA SOLO da _on_mobile_export()
         (vedi nota sopra: _on_mobile_import() è passato a WebView e non lo
-        usa più). Normalmente già registrato in did_mount(); se per qualche
-        motivo non lo fosse ancora (pagina non pronta al momento del
-        mount), lo crea e registra qui al volo.
+        usa più). Lo crea e registra al volo alla prima chiamata, se non
+        esiste già (mai in did_mount(), vedi il docstring di did_mount()).
         """
         page = self.page
         if page is None:
@@ -1300,24 +1241,20 @@ class HomeView(ft.Column):
     # --- Export -----------------------------------------------------------
 
     def _on_export_click(self, char: Character):
-        # Fix 2026-08-07 (Davide, dopo aver chiesto come vengono gestiti
-        # gli accessi/le sessioni tra dispositivi): un personaggio che è
-        # un'istanza di un mondo condiviso (`char.world_id` valorizzato)
-        # perde SEMPRE il collegamento al mondo alla normale importazione
-        # su un altro dispositivo (`character_export.import_character()`
-        # azzera world_id/origin_character_id/owner_device_id/is_replica/
-        # world_seq per design, vedi il suo docstring — un file esportato
-        # da un'istanza di mondo diventerebbe altrimenti una "replica" di
-        # un mondo inesistente sul dispositivo di destinazione, bloccata
-        # in sola lettura e non riparabile dall'interfaccia). Prima questo
-        # avveniva in silenzio: nessun errore, nessun avviso, il
-        # personaggio importato semplicemente "perdeva" il mondo senza che
-        # l'utente lo sapesse. Qui si avvisa PRIMA di esportare — non
-        # blocca l'esportazione (resta comunque utile per un backup locale
-        # o per stampare la scheda), solo la rende una scelta informata.
-        # Nessun avviso per un personaggio locale (`world_id == ""`, il
-        # caso comune): l'app deve restare rapida per l'uso ordinario, non
-        # aggiungere un passaggio in più dove non serve.
+        # Un personaggio che è un'istanza di un mondo condiviso
+        # (`char.world_id` valorizzato) perde SEMPRE il collegamento al
+        # mondo alla normale importazione su un altro dispositivo
+        # (`character_export.import_character()` azzera world_id/
+        # origin_character_id/owner_device_id/is_replica/world_seq per
+        # design, vedi il suo docstring — un file esportato da un'istanza
+        # di mondo diventerebbe altrimenti una "replica" di un mondo
+        # inesistente sul dispositivo di destinazione, bloccata in sola
+        # lettura e non riparabile dall'interfaccia). Qui si avvisa PRIMA
+        # di esportare — non blocca l'esportazione (resta comunque utile
+        # per un backup locale o per stampare la scheda), solo la rende una
+        # scelta informata. Nessun avviso per un personaggio locale
+        # (`world_id == ""`, il caso comune): l'app deve restare rapida per
+        # l'uso ordinario, non aggiungere un passaggio in più dove non serve.
         if char.world_id:
             self._confirm_export_world_linked(char)
             return
@@ -1391,12 +1328,9 @@ class HomeView(ft.Column):
 
     async def _on_mobile_export(self, char: Character):
         """
-        Export su Android/iOS (2026-07-24) — a differenza del vecchio
-        codice foto (profilo_tab.py/maps_view.py, mai verificato con una
-        vera build mobile), qui uso l'API realmente corretta di
-        flet==0.85.3: verificato leggendo il sorgente installato del
-        pacchetto che FilePicker in questa versione NON ha alcun evento
-        `on_result` (solo `on_upload`, per il progresso di un upload) —
+        Export su Android/iOS. `ft.FilePicker` in questa versione di Flet
+        (0.85.3) NON ha alcun evento `on_result` (solo `on_upload`, per il
+        progresso di un upload) —
         `save_file()`/`pick_files()` sono metodi `async` che restituiscono
         il risultato DIRETTAMENTE tramite `await`. Su mobile (a differenza
         del desktop) `save_file(..., src_bytes=...)` scrive anche
@@ -1430,14 +1364,12 @@ class HomeView(ft.Column):
     def _export_web(self, char: Character):
         """
         Modalità web: scrive il file in DUE posti — la cartella condivisa
-        (`get_character_exports_path()`), che Davide può prelevare via
-        SSH/scp come sempre, e la sottocartella servita staticamente
+        (`get_character_exports_path()`, bind mount Docker, accessibile via
+        SSH/scp), e la sottocartella servita staticamente
         (`assets/exports/`, vedi `get_web_export_staging_path()`).
-        Fino al 2026-07-26 le due coincidevano, perché `assets_dir` puntava
-        direttamente alla cartella degli export; ora `assets_dir` è
-        `dnd_app/assets/` (necessario per i font custom della Fase B del
-        restyle), quindi il file scaricabile va messo lì sotto — l'URL è
-        `/exports/<filename>`, permettendo un download reale
+        Le due NON coincidono perché `assets_dir` è `dnd_app/assets/`
+        (necessario per i font custom), quindi il file scaricabile va
+        messo lì sotto — l'URL è `/exports/<filename>`, permettendo un download reale
         da browser con un solo click (bottone "Scarica" nel dialog di
         conferma, vedi _show_export_success_dialog). Nessun controllo
         FilePicker/UrlLauncher coinvolto in questo meccanismo — è pura
@@ -1449,14 +1381,10 @@ class HomeView(ft.Column):
             self._show_error("Errore durante l'esportazione del personaggio.")
             return
         filename = character_export.suggested_export_filename(char.id)
-        # Due destinazioni, due scopi diversi (Fase A del restyle, 2026-07-26):
-        #  1. la cartella condivisa (bind mount Docker) resta la copia
-        #     persistente che Davide può prelevare via SSH, come sempre;
-        #  2. la sottocartella servita staticamente è ciò che rende possibile
-        #     il download reale dal browser. Prima coincidevano, perché
-        #     `assets_dir` puntava direttamente alla cartella degli export;
-        #     ora `assets_dir` è `dnd_app/assets/` (serve ai font custom),
-        #     quindi il file da scaricare va messo lì sotto.
+        # Due destinazioni, due scopi diversi (vedi docstring sopra): la
+        # cartella condivisa (bind mount Docker) resta la copia persistente
+        # accessibile via SSH/scp; la sottocartella servita staticamente è
+        # ciò che rende possibile il download reale dal browser.
         full_path = os.path.join(get_character_exports_path(), filename)
         staging_path = os.path.join(get_web_export_staging_path(), filename)
         written = False
@@ -1527,12 +1455,12 @@ class HomeView(ft.Column):
         - `(None, None)` → l'utente ha annullato il dialogo (nessun errore).
         - `(None, "messaggio")` → il dialogo non si è potuto aprire/completare
           per un motivo REALE (comando mancante, permessi di automazione
-          negati, ecc.) — DISTINTO da un annullamento pulito, perché prima
-          di questo fix (2026-07-24) i due casi erano indistinguibili: un
+          negati, ecc.) — DISTINTO da un annullamento pulito: un
           fallimento silenzioso (es. "System Events" senza permesso di
-          Automazione su macOS) produceva esattamente lo stesso risultato
-          di un Annulla — nessun file scritto, nessun errore mostrato,
-          "il file sparisce nel nulla" dal punto di vista dell'utente.
+          Automazione su macOS) produrrebbe altrimenti esattamente lo
+          stesso risultato di un Annulla — nessun file scritto, nessun
+          errore mostrato, "il file sparisce nel nulla" dal punto di vista
+          dell'utente.
 
         Imposta esplicitamente la cartella iniziale a Desktop su tutte e 3
         le piattaforme (`default location`/`InitialDirectory`/`--filename=`
@@ -1549,14 +1477,12 @@ class HomeView(ft.Column):
             if system == "Darwin":
                 # "choose file name"/"POSIX path of" vanno eseguiti FUORI dal
                 # blocco "tell application System Events" — annidarli dentro
-                # (come nella prima versione di questo fix, 2026-07-24) causa
-                # un errore di coercizione AppleScript reale, non un semplice
-                # difetto di stile: -1700 "Can't make ... into type
+                # causa un errore di coercizione AppleScript reale, non un
+                # semplice difetto di stile: -1700 "Can't make ... into type
                 # specifier", perché System Events prova a interpretare il
                 # riferimento a un file NON ANCORA esistente (restituito da
                 # "choose file name") con il proprio sistema di classi
-                # invece di quello generico delle Standard Additions — errore
-                # confermato in produzione da Davide (macOS, vedi CLAUDE.md).
+                # invece di quello generico delle Standard Additions.
                 # "System Events" serve solo per attivare/portare in primo
                 # piano il dialogo; il comando vero e propio gira nel
                 # contesto di scripting di livello top (Standard Additions).
@@ -1635,7 +1561,7 @@ class HomeView(ft.Column):
         problema "non trovo il file", indipendentemente dalla cartella
         effettiva scelta dal dialogo nativo), `None` altrimenti (web/mobile).
 
-        `download_url` (2026-07-24, SOLO export web): path relativo servito
+        `download_url` (SOLO export web): path relativo servito
         staticamente da Flet quando `assets_dir` coincide con
         `get_character_exports_path()` (vedi main.py) — mostra un pulsante
         "Scarica" che apre l'URL in una nuova scheda tramite la proprietà
@@ -1740,29 +1666,20 @@ class HomeView(ft.Column):
         ricade sulla WebView locale (`ui/mobile_webview_picker.py`) solo se
         il primo non è disponibile o fallisce.
 
-        **Perché non FilePicker (2026-08-06)**: questo metodo era stato
-        scritto il 2026-07-24 usando correttamente l'API async di
-        `pick_files()` — a differenza del vecchio codice foto in
-        profilo_tab.py/maps_view.py, qui l'`await` non era mai mancato. Ma
-        un log `adb logcat` reale (preso per il caso foto, diagnosi
-        applicabile a QUALUNQUE uso di `ft.FilePicker` su questa build) ha
-        mostrato che il problema è più a fondo dell'`await`: la chiamata
-        arriva al bridge Dart ma va in `TimeoutException: Timeout waiting
-        for invoke method listener` — nessuna Activity nativa Android
-        viene mai avviata. Un `await` corretto non basta: il controllo
-        `FilePicker` stesso non è utilizzabile su questa build, per
-        qualunque suo metodo. Vedi `dnd_app/docs/changelog_storico.md`.
+        **Perché non `ft.FilePicker`**: su questa build Android,
+        `pick_files()` arriva al bridge Dart ma va in `TimeoutException:
+        Timeout waiting for invoke method listener` — nessuna Activity
+        nativa viene mai avviata, indipendentemente dall'uso corretto di
+        `await`. Il controllo `FilePicker` stesso non è utilizzabile su
+        questa build, per qualunque suo metodo.
 
-        **Perché non solo WebView (2026-08-17)**: il bypass WebView
-        (`<input type=file>`) mostrato sotto è a sua volta confermato NON
-        funzionante su Android reale (Davide, stessa diagnosi già nota per
-        il caso foto: `webview_flutter` non implementa
+        **Perché non solo WebView**: il bypass WebView (`<input
+        type=file>`) mostrato sotto è a sua volta confermato NON
+        funzionante su Android reale — `webview_flutter` non implementa
         `WebChromeClient.onShowFileChooser`, il tap su "Scegli file" non
-        apre nulla). Stessa tecnica già verificata funzionante per le foto
-        (estensione nativa `flet_image_picker`) applicata qui al caso file
-        generico con `flet_file_picker`, non ancora verificata end-to-end
-        su un dispositivo reale — per questo resta il fallback WebView
-        sotto, non rimosso.
+        apre nulla. Il selettore nativo (`flet_file_picker`) resta quindi
+        il primo tentativo; il fallback WebView resta comunque presente
+        per le piattaforme/versioni dove funziona.
         """
         page = self.page
         if page is None:
@@ -1773,16 +1690,11 @@ class HomeView(ft.Column):
             )
         except FilePickerUnavailable as exc:
             logger.warning(f"FilePicker nativo non disponibile, uso WebView: {exc}")
-            # 2026-08-19 (bug segnalato da Davide: su tablet la selezione
-            # file non fa nulla, il ripiego WebView è a sua volta noto
-            # rotto su Android reale — vedi il docstring sopra): prima
-            # questo fallimento restava solo nel log, invisibile
-            # sull'interfaccia. Un avviso non bloccante col testo reale
-            # dell'eccezione rende il prossimo tentativo su tablet
-            # diagnosticabile (l'unico modo di andare oltre senza log
-            # `adb logcat` reali dal dispositivo) — non è di per sé una
-            # correzione, solo la differenza tra un fallimento silenzioso
-            # e uno che si può segnalare con un dettaglio utile.
+            # Il selettore nativo può fallire silenziosamente (es. su
+            # tablet, dove anche il fallback WebView è noto rotto — vedi il
+            # docstring sopra): un avviso non bloccante col testo reale
+            # dell'eccezione rende il problema diagnosticabile senza dover
+            # ricorrere a log `adb logcat` dal dispositivo.
             self._show_error(f"Selettore file nativo non disponibile: {exc}")
             native_result = None
             native_failed = True
@@ -1842,16 +1754,16 @@ class HomeView(ft.Column):
         scegliere per nome).
 
         Stesso contratto di ritorno `(path, error)` di `_save_dialog_native`
-        (2026-07-24) — vedi lì per il motivo (distinguere un annullamento
-        pulito da un fallimento reale del dialogo, prima indistinguibili).
+        — vedi lì per il motivo (distinguere un annullamento pulito da un
+        fallimento reale del dialogo).
         """
         import subprocess
         path: str | None = None
         error: str | None = None
         try:
             if system == "Darwin":
-                # Stessa correzione dell'export (vedi _save_dialog_native e
-                # CLAUDE.md 2026-07-24): "choose file"/"POSIX path of" fuori
+                # Stesso vincolo dell'export (vedi _save_dialog_native):
+                # "choose file"/"POSIX path of" fuori
                 # dal blocco "tell", System Events usato solo per activate.
                 script = (
                     'tell application "System Events" to activate\n'
@@ -1921,9 +1833,9 @@ class HomeView(ft.Column):
         usato da desktop e dal picker web (entrambi lavorano su un path
         locale raggiungibile dal processo Python). Il ramo mobile
         (_on_mobile_import) chiama invece _do_import_from_text()
-        direttamente con i byte già ottenuti da
-        FilePicker.pick_files(with_data=True) — su mobile non c'è mai
-        bisogno di passare da un path (vedi nota lì).
+        direttamente con i byte già ottenuti dal selettore nativo o dalla
+        WebView di fallback — su mobile non c'è mai bisogno di passare da
+        un path (vedi nota lì).
         """
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -1939,7 +1851,7 @@ class HomeView(ft.Column):
         Valida e (se non in conflitto) importa il contenuto testuale di un
         file .dndchar — nucleo comune a tutte e 3 le piattaforme,
         indipendente da come il testo è stato ottenuto (path locale su
-        desktop/web, byte in memoria su mobile via 2026-07-24).
+        desktop/web, byte in memoria su mobile).
         """
         data = character_export.load_json_string(text)
         if data is None:
@@ -1956,7 +1868,7 @@ class HomeView(ft.Column):
             self._show_error("Impossibile leggere i dati del personaggio dal file.")
             return
 
-        # Fix 2026-08-07 — vedi il commento gemello in `_on_export_click`:
+        # Vedi il commento gemello in `_on_export_click`:
         # stessa causa (`import_character()` azzera SEMPRE world_id/
         # origin_character_id/owner_device_id/is_replica/world_seq, per
         # design), stesso avviso speculare lato importazione. `world_id`

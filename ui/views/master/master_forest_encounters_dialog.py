@@ -1,15 +1,13 @@
 """
 Dialog "Genera Incontro per Ambiente" — Sezione Master, punto 10 del design
 (`dnd_app/docs/master_section_design.md`). Copre 4 ambienti, tutti trascritti
-dalla DMG con la stessa meccanica 1d12+1d8: Foresta Silvana (Cap.3, p.87,
-2026-07-24), Incontri Urbani/Sott'Acqua/In Mare (Cap.5, p.114-118,
-aggiunti il 2026-07-26 — una revisione precedente aveva concluso per errore
-che non esistesse altro materiale pronto nel manuale, vedi
-`data/game_data/forest_encounters.json` per il changelog completo e le
-2 voci "Drago di bronzo" che non risolvono una scheda per scelta deliberata,
-essendo l'età del drago non specificata dal manuale). Il Dropdown ambiente è
-generico (`game_data.get_environment_names()`): nuovi ambienti aggiunti solo
-al JSON compaiono qui automaticamente, senza altre modifiche di codice.
+dalla DMG con la stessa meccanica 1d12+1d8: Foresta Silvana (Cap.3, p.87),
+Incontri Urbani/Sott'Acqua/In Mare (Cap.5, p.114-118) — vedi
+`data/game_data/forest_encounters.json` per le 2 voci "Drago di bronzo" che
+non risolvono una scheda per scelta deliberata, essendo l'età del drago non
+specificata dal manuale. Il Dropdown ambiente è generico
+(`game_data.get_environment_names()`): nuovi ambienti aggiunti solo al JSON
+compaiono qui automaticamente, senza altre modifiche di codice.
 
 Meccanica di tiro: 1d12+1d8 (range 2-20), non un d20 piatto — privilegia i
 risultati centrali della tabella, esattamente come stampato nel manuale.
@@ -21,11 +19,9 @@ già condiviso con Forma Selvatica/Evocazioni/Rubrica NPC.
 
 Accessibile da `MasterView` (bottone in header, "Incontri per Ambiente").
 
-**"Aggiungi Incontro" (2026-07-31, segnalazione di Davide)**: prima il tiro
-veniva generato e mostrato ma non c'era alcun modo di farlo arrivare nella
-sezione "Incontri" — a differenza del Generatore di Incontri Casuali
-(`master_encounter_generator_dialog.py`), che quel pulsante ce l'ha già.
-Ora crea un nuovo `MasterEncounter` (`master_repo.create_encounter`) con le
+**"Aggiungi Incontro"**: porta il tiro nella sezione "Incontri", stesso
+pulsante già presente nel Generatore di Incontri Casuali
+(`master_encounter_generator_dialog.py`). Crea un nuovo `MasterEncounter` (`master_repo.create_encounter`) con le
 note = il testo integrale della riga tirata, e un membro "adhoc" per ciascuna
 creatura della riga risolta nel bestiario (stesse `ac`/`hp_max`/`xp` già usate
 da "Vedi scheda"). **Le quantità non vengono moltiplicate**: la tabella DMG
@@ -65,8 +61,8 @@ def _resolve_creature(name: str) -> dict[str, Any] | None:
 def show_forest_encounters_dialog(page: ft.Page, world_id: str = "") -> None:
     """Apre il dialog "Genera Incontro per Ambiente". Stato in closure,
     stesso pattern già in uso per `show_traps_dialog`/`show_health_hazards_dialog`.
-    `world_id` (2026-08-12): il mondo correntemente selezionato in
-    Modalità Master, inoltrato a `master_repo.create_encounter()`."""
+    `world_id`: il mondo correntemente selezionato in Modalità Master,
+    inoltrato a `master_repo.create_encounter()`."""
 
     env_names = game_data.get_environment_names()
     default_env = env_names[0] if env_names else ""
@@ -140,7 +136,7 @@ def show_forest_encounters_dialog(page: ft.Page, world_id: str = "") -> None:
     def _close(ev: Any) -> None:
         page.pop_dialog()
 
-    # -- "Aggiungi Incontro" (2026-07-31) --------------------------------
+    # -- "Aggiungi Incontro" ---------------------------------------------
     default_label = game_data.get_environment_table(default_env).get("label", default_env)
     name_tf = ft.TextField(
         label="Nome nuovo incontro", value=f"{default_label} — Incontro" if default_label else "",

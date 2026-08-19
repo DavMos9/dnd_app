@@ -40,8 +40,7 @@ giocatore.pdf", Capitolo 5 "Equipaggiamento" e Capitolo 9 "Combattimento"):
   - "Versatile": «Questa arma può essere usata a una o due mani. La
     proprietà è accompagnata da un valore in danni indicato tra parentesi
     (i danni che l'arma infligge quando viene impugnata a due mani per
-    effettuare un attacco in mischia).» A differenza della prima versione
-    di questo modulo (2026-07-11), l'impugnatura di un'arma Versatile è ora
+    effettuare un attacco in mischia).» L'impugnatura di un'arma Versatile è
     tracciata esplicitamente su `Weapon.grip_two_handed` (vedi
     `data/models.py`): se il giocatore la impugna a due mani, l'arma occupa
     2 mani esattamente come una vera arma "Due Mani" (nessun'altra arma o
@@ -78,10 +77,8 @@ def weapon_hands(properties: str, grip_two_handed: bool = False) -> int:
     # Confronto per sottostringa, non uguaglianza esatta: la UI di creazione/
     # modifica arma (inventario_tab.py -> _WEAPON_PROPERTIES) usa l'etichetta
     # "A due mani" (non "Due Mani" nudo) per questa proprietà — un confronto
-    # per uguaglianza esatta contro "due mani" non l'avrebbe mai riconosciuta,
-    # facendo trattare ERRONEAMENTE ogni arma a due mani come se occupasse
-    # una sola mano (bug reale trovato il 2026-07-11 mentre si estendeva
-    # questa funzione per il grip Versatile — vedi CLAUDE.md).
+    # per uguaglianza esatta contro "due mani" non la riconoscerebbe mai,
+    # facendo trattare ogni arma a due mani come se occupasse una sola mano.
     if any("due mani" in p for p in props):
         return 2
     if grip_two_handed and any("versatile" in p for p in props):
@@ -173,22 +170,13 @@ def resolve_weapon_equip(
 # equipaggiare un'armatura non tocca lo scudo già impugnato, e viceversa
 # (un guerriero con cotta di maglia + scudo indossa entrambi insieme).
 #
-# NOTA (2026-07-11, bug report Davide: "non devo poter indossare più
-# armature alla volta, o indosso abito comune o indosso armatura di
-# maglia ecc."): la postazione "corpo" include ANCHE gli item con
-# armor_type="" (indumenti non protettivi come "Abito comune", creati da
+# NOTA: la postazione "corpo" include ANCHE gli item con armor_type=""
+# (indumenti non protettivi come "Abito comune", creati da
 # `_save_armor_by_name()` quando il nome non risolve nel catalogo
-# equipment/armor.json — vedi CLAUDE.md). Prima di questo fix, un item
-# con armor_type="" veniva trattato come una "postazione diversa" che non
-# escludeva né veniva esclusa da una vera armatura corporea: un
-# personaggio poteva risultare con "Abito comune" E "Cotta di Maglia"
-# equipaggiati insieme (senza alcun effetto visibile sulla CA, dato che
-# solo l'armatura vera viene sommata — ma comunque scorretto: fisicamente
-# non si indossano contemporaneamente vestiti comuni e un'armatura sopra,
-# e la UI mostrava entrambi come "equipaggiati" in modo fuorviante). Ora
-# è sufficiente verificare "non è uno scudo" per appartenere alla
-# postazione corpo, quindi qualunque indumento/armatura la occupa e la
-# esclude in modo reciproco.
+# equipment/armor.json). Fisicamente non si indossano contemporaneamente
+# vestiti comuni e un'armatura sopra, quindi basta verificare "non è uno
+# scudo" per appartenere alla postazione corpo: qualunque indumento/
+# armatura la occupa e la esclude in modo reciproco.
 
 @dataclass
 class ArmorCandidate:

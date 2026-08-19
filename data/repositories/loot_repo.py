@@ -8,7 +8,7 @@ Deliberatamente indipendente da `character_repo.py`/`master_repo.py` —
 appartiene a nessun personaggio finché non viene assegnata (quel passaggio
 usa direttamente `character_repo.create_inventory_item()`/
 `get_currencies()`/`update_currencies()`, mai una scrittura da qui).
-`world_id` (2026-08-12, esteso a ENTRAMBI gli `stash_kind` — vedi
+`world_id` (esteso a ENTRAMBI gli `stash_kind` — vedi
 `LootStashEntry` in data/models.py): "" per una voce locale/di nessun
 mondo (comportamento di sempre per chi non usa il Multiplayer), altrimenti
 l'id del mondo selezionato in `MasterView` — questo modulo si limita a

@@ -1,8 +1,6 @@
 """
-Dialog "Genera NPC" — Sezione Master, terzo dei 3 nuovi strumenti richiesti
-da Davide oltre ai 10 già completati (vedi CLAUDE.md, TODO "Sezione Master
-(11)"/"(12)" per gli altri due e lo stesso requisito trasversale di
-varietà: la generazione non deve mai produrre sempre gli stessi risultati).
+Dialog "Genera NPC" — Sezione Master. La generazione non deve mai produrre
+sempre gli stessi risultati.
 
 Logica pura in `core/npc_generator.py` (razza/genere/allineamento risolti a
 caso se lasciati su "Qualsiasi", nome da `npc_names.json`, personalità da un
@@ -43,9 +41,9 @@ def show_npc_generator_dialog(
     """
     Apre il dialog "Genera NPC". `on_saved`, se passato, viene richiamato
     dopo ogni salvataggio riuscito in Rubrica (usato da `MasterNpcListView`
-    per aggiornare la lista senza dover riaprire la tab). `world_id`
-    (2026-08-12): il mondo correntemente selezionato in Modalità Master,
-    inoltrato a `master_repo.create_npc()`/`create_npc_from_monster()` così
+    per aggiornare la lista senza dover riaprire la tab). `world_id`: il
+    mondo correntemente selezionato in Modalità Master, inoltrato a
+    `master_repo.create_npc()`/`create_npc_from_monster()` così
     gli NPC generati qui finiscono nello stesso container del resto della
     rubrica, mai in quello locale per errore.
     """

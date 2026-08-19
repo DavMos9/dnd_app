@@ -1,7 +1,5 @@
 """
-Scaricamento in streaming dell'aggiornamento, con avanzamento reale
-(2026-08-17, richiesta di Davide: "l'upgrade automatico dell'app con la barra
-del download").
+Scaricamento in streaming dell'aggiornamento, con avanzamento reale.
 
 Nessun import di Flet: questo modulo espone uno stato mutabile
 (`DownloadProgress`) che la UI legge a intervalli, e una funzione bloccante che
@@ -22,7 +20,7 @@ import os
 import threading
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from version import APP_VERSION, parse_version

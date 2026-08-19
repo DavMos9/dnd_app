@@ -1,11 +1,7 @@
 """
-Generatore Rapido NPC — Sezione Master, terzo dei 3 nuovi strumenti
-richiesti da Davide oltre ai 10 già completati (vedi CLAUDE.md, TODO
-"Sezione Master (11) — Generatore Incontri Casuali" e "(12) — Generatore
-Oggetti Magici" per gli altri due e lo stesso requisito trasversale:
-"la generazione deve essere fatta bene, l'app non deve generare sempre gli
-stessi personaggi... deve essere uno strumento utile per il master" — ogni
-campo lasciato vuoto/"Qualsiasi" viene risolto a caso, mai un default fisso.
+Generatore Rapido NPC — Sezione Master. Ogni campo lasciato vuoto/"Qualsiasi"
+viene risolto a caso, mai un default fisso: la generazione deve variare ad
+ogni chiamata, non riproporre sempre lo stesso personaggio.
 
 Logica pura (nessuna dipendenza Flet/DB, stesso principio di
 `wizard_engine.py`/`level_manager.py`/`equipment_manager.py`/
@@ -69,10 +65,9 @@ def get_alignment_options() -> list[str]:
 
 def resolve_creature_type_and_size(race: str) -> tuple[str, str]:
     """
-    Tipo creatura/Taglia "canonici" per una razza PHB (2026-08-12, bug
-    report Davide: "tipo creatura e taglia devono corrispondere a quelle
-    già create automaticamente" — un NPC Halfling deve proporre
-    Umanoide/Piccola senza che il Master debba ricordarselo a memoria).
+    Tipo creatura/Taglia "canonici" per una razza PHB — un NPC Halfling deve
+    proporre Umanoide/Piccola senza che il Master debba ricordarselo a
+    memoria.
 
     Tutte e 9 le razze di `RACE_OPTIONS` sono Umanoidi — costante 5e
     implicita, nessun JSON di razza porta una chiave `creature_type` — la
@@ -92,9 +87,9 @@ def resolve_creature_type_and_size(race: str) -> tuple[str, str]:
 
 def resolve_race_from_tags(tags: str) -> str:
     """
-    Fallback per NPC generati PRIMA dell'introduzione di `MasterNpc.race`
-    (2026-08-12): fino ad allora la razza era scritta solo come primo
-    segmento CSV di `tags` (es. "Halfling, Femmina", scritto da
+    Fallback per NPC salvati prima dell'introduzione del campo
+    `MasterNpc.race`, quando la razza era scritta solo come primo segmento
+    CSV di `tags` (es. "Halfling, Femmina", scritto da
     `master_npc_generator_dialog.py::_do_save()`). Ritorna il valore
     CANONICO di `RACE_OPTIONS` se il primo segmento combacia
     case-insensitive, altrimenti stringa vuota (nessuna razza risolvibile

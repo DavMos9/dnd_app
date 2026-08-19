@@ -1,8 +1,6 @@
 """
-Sezione «Mondi» — passo 2 di `dnd_app/docs/multiplayer_design.md` ("Modello
-mondo, senza rete"). UI minimale per creare/gestire un mondo condiviso e
-verificare la pipeline comando → validazione → evento senza dover aspettare
-le istanze di personaggio (passo 3) o la rete LAN (passo 4).
+Sezione «Mondi» — creazione e gestione di campagne condivise (Mondi
+condivisi/LAN party, design completo in `dnd_app/docs/multiplayer_design.md`).
 
 Indipendente da ogni personaggio, stesso principio di `master_view.py`:
 raggiungibile dalla Home con una pillola sempre visibile (mai un'azione
@@ -18,6 +16,7 @@ import logging
 import os
 import threading
 from datetime import datetime
+from typing import Any
 
 import flet as ft
 import flet.canvas as cv
@@ -80,37 +79,36 @@ _CHANGE_REQUEST_NUMERIC_FIELDS: frozenset[str] = frozenset({
 })
 
 #: Intervallo del thread di sincronizzazione in background della scheda
-#: mondo aperta (2026-08-07) — stesso ordine di grandezza del polling già
-#: in uso in `home_view.py` (5s, caso web multi-sessione); qui un po' più
-#: stretto perché il caso d'uso (LAN, un tavolo di gioco) tollera un
-#: sovraccarico di rete più basso e beneficia di più reattività.
+#: mondo aperta — stesso ordine di grandezza del polling già in uso in
+#: `home_view.py` (5s, caso web multi-sessione); qui un po' più stretto
+#: perché il caso d'uso (LAN, un tavolo di gioco) tollera un sovraccarico
+#: di rete più basso e beneficia di più reattività.
 _DETAIL_SYNC_INTERVAL_S = 2.0
 
 #: Intervallo del polling automatico di `finish_pending_join()` mentre il
-#: dialogo "Unisciti in LAN" è in stato "in attesa dell'approvazione" (fix
-#: 2026-08-07, bug segnalato da Davide: "al giocatore non esce
-#: l'approvazione del master" — prima serviva premere "Controlla di nuovo"
-#: a mano, per design esplicito di `core.world_sync.finish_pending_join()`
-#: — vedi `_open_lan_join_dialog._poll_pending_join_loop`). Non condiviso
-#: con `_DETAIL_SYNC_INTERVAL_S`: sono due cicli su oggetti diversi (un
+#: dialogo "Unisciti in LAN" è in stato "in attesa dell'approvazione":
+#: `core.world_sync.finish_pending_join()` è per design puramente
+#: passivo (legge lo stato corrente, non notifica) — serve quindi un
+#: ciclo lato client che lo richiami periodicamente per far avanzare la
+#: UI da sola quando il master approva (vedi
+#: `_open_lan_join_dialog._poll_pending_join_loop`). Non condiviso con
+#: `_DETAIL_SYNC_INTERVAL_S`: sono due cicli su oggetti diversi (un
 #: dialogo transitorio vs. la scheda di un mondo aperta), un valore proprio
 #: evita un accoppiamento accidentale se in futuro cambia l'uno o l'altro.
 _PENDING_JOIN_POLL_INTERVAL_S = 3.0
 
-#: Chiave `app_settings` (2026-08-19, bug segnalato da Davide: "il
-#: giocatore può... spammare richieste con nomi diversi, [...] deve poter
-#: annullarla e solo poi può inviare una nuova richiesta") per ricordare
-#: una richiesta di ingresso ancora in sospeso ATTRAVERSO la chiusura del
-#: dialogo o il riavvio dell'app — senza questo, `pending_state` (una
-#: semplice variabile locale della closure di `_open_lan_join_dialog`)
-#: veniva perso non appena l'utente chiudeva il dialogo, permettendo di
-#: aprirne uno nuovo e inviare un'altra richiesta senza alcun ricordo
-#: della precedente. Chiave GLOBALE (non per-mondo): un giocatore ha
-#: realisticamente una sola richiesta di ingresso in sospeso alla volta.
+#: Chiave `app_settings` per ricordare una richiesta di ingresso ancora in
+#: sospeso ATTRAVERSO la chiusura del dialogo o il riavvio dell'app —
+#: `pending_state` è solo una variabile locale della closure di
+#: `_open_lan_join_dialog`, persa non appena l'utente chiude il dialogo;
+#: senza questa chiave si potrebbe riaprirne uno nuovo e inviare un'altra
+#: richiesta senza alcun ricordo della precedente. Chiave GLOBALE (non
+#: per-mondo): un giocatore ha realisticamente una sola richiesta di
+#: ingresso in sospeso alla volta.
 _PENDING_JOIN_REQUEST_SETTING_KEY = "pending_join_request"
 
 #: Intervallo di ridisegno della mappa condivisa aperta in sola lettura
-#: (§6.4, passo 8) — non serve un valore proprio più stretto: il DB locale
+#: (§6.4) — non serve un valore proprio più stretto: il DB locale
 #: è già tenuto allineato da `_start_detail_sync` a `_DETAIL_SYNC_INTERVAL_S`
 #: (sia in ricezione eventi su una replica, sia per lettura diretta se
 #: questo dispositivo ospita), quindi interrogarlo più spesso non
@@ -121,9 +119,8 @@ _SHARED_MAP_REDRAW_INTERVAL_S = _DETAIL_SYNC_INTERVAL_S
 #: Anti-spam su "Interviene a distanza"/ingresso-sincronizzazione: le
 #: costanti (3s per-personaggio sul master, 10s condiviso su ingresso/
 #: sync) e lo stato vivono in `core.world_permissions`/`core.world_sync`,
-#: non qui — vedi il docstring di `core.world_sync` per la cronologia
-#: completa dei due fix del 2026-08-07 (stato che sopravvive alla
-#: ricreazione della view, granularità per-personaggio sul master).
+#: non qui — a livello di modulo, non di istanza, perché sopravvive alla
+#: ricreazione della view, con granularità per-personaggio sul master.
 
 
 class WorldsView(ft.Column):
@@ -138,16 +135,16 @@ class WorldsView(ft.Column):
                  initial_world_id: str | None = None,
                  on_open_master=None, on_open_character=None):
         """
-        `initial_world_id` (2026-08-16, navigazione rapida): se valorizzato,
+        `initial_world_id` (navigazione rapida): se valorizzato,
         apre direttamente il dettaglio di quel mondo invece dell'elenco —
-        usato dai nuovi pulsanti "Vai al Mondo" in `SheetView`/`MasterView`
+        usato dai pulsanti "Vai al Mondo" in `SheetView`/`MasterView`
         (`ui/app.py::_show_worlds_view`). Risolto in `_init_identity()`
         (serve `device_id` per validare l'appartenenza), silenziosamente
         ignorato se il mondo non esiste più o questo dispositivo non ne fa
         più parte — stessa tolleranza già usata per `active_world_id` in
         `MasterView`.
 
-        `on_open_master`/`on_open_character` (2026-08-16, navigazione
+        `on_open_master`/`on_open_character` (navigazione
         rapida): callback dal dettaglio di un mondo verso, rispettivamente,
         la Sezione Master su quel mondo (`(world_id) -> None`, mostrato solo
         a master/owner) e la scheda del personaggio posseduto in quel mondo
@@ -166,18 +163,18 @@ class WorldsView(ft.Column):
         #: Backend "locale" — corretto SOLO per i mondi che QUESTO
         #: dispositivo ospita (`world.is_local_host`); per un mondo a cui ci
         #: si è uniti da remoto va risolto per-mondo con `_backend_for()`,
-        #: mai usato direttamente (fix 2026-08-07, vedi `_backend_for`).
+        #: mai usato direttamente (vedi `_backend_for`).
         self.backend = LocalBackend()
         self.device_id: str | None = None
         self._current_world: World | None = None  # None = elenco, valorizzato = dettaglio
 
-        #: Passo 4 (LAN): al più un hosting attivo per volta in questa
+        #: Al più un hosting attivo per volta in questa
         #: view — coerente con §11.5 ("due dispositivi non possono
-        #: ospitare lo stesso mondo"). Fix 2026-08-07 (bug reale su Wi-Fi:
-        #: l'hosting si fermava da solo ad ogni navigazione — vedi il
-        #: docstring di `HostServerSlot`): NON più un attributo di
-        #: istanza — `self._host_server` è ora una property che legge/
-        #: scrive `self._host_server_slot.server`, un contenitore passato
+        #: ospitare lo stesso mondo"). `self._host_server` è una property
+        #: che legge/scrive `self._host_server_slot.server` invece di
+        #: essere un attributo di istanza diretto — vedi il docstring di
+        #: `HostServerSlot` per il perché (l'hosting non deve fermarsi da
+        #: solo ad ogni navigazione) — un contenitore passato
         #: da `ui/app.py::DnDApp` che sopravvive alla ricreazione di
         #: questa view. Se non passato (es. un test che costruisce
         #: `WorldsView` direttamente, senza passare da `DnDApp`), se ne
@@ -188,26 +185,26 @@ class WorldsView(ft.Column):
 
         #: Un `RemoteBackend` connesso per mondo non-ospitato, riusato tra
         #: un'azione e l'altra invece di riconnettersi ad ogni comando
-        #: (2026-08-07, vedi `_backend_for`).
+        #: (vedi `_backend_for`).
         self._remote_backends: dict[str, RemoteBackend] = {}
 
         # NOTA: i timer anti-spam ("Interviene a distanza" + ingresso/sync)
-        # NON vivono più come attributi di istanza qui (bug 2026-08-07: le
-        # istanze di questa view vengono ricreate ad ogni navigazione/cambio
-        # tema, uno stato sull'istanza si azzererebbe ad ogni ricreazione) —
-        # vivono a livello di modulo in `core.world_sync`, richiamati
-        # direttamente da `_send_remote_command`/`_network_cooldown_remaining`/
+        # NON vivono come attributi di istanza qui: le istanze di questa
+        # view vengono ricreate ad ogni navigazione/cambio tema, uno stato
+        # sull'istanza si azzererebbe ad ogni ricreazione — vivono invece a
+        # livello di modulo in `core.world_sync`, richiamati direttamente
+        # da `_send_remote_command`/`_network_cooldown_remaining`/
         # `_mark_network_request` qui sotto.
 
         #: Sincronizzazione in background della scheda mondo aperta
-        #: (2026-08-07, §9.2 "attesa lunga" lato client + rilettura locale
+        #: (§9.2 "attesa lunga" lato client + rilettura locale
         #: periodica lato host — vedi `_start_detail_sync`): nessuna azione
         #: manuale dell'utente, l'app tira giù/rispecchia da sola gli eventi
         #: nuovi finché la scheda di un mondo resta aperta.
         self._detail_sync_loop_obj: BackgroundSyncLoop | None = None
         self._detail_signature: str | None = None
         #: Ultimo `RemoteBackend.connection_state()` osservato per il mondo
-        #: nel dettaglio aperto (2026-08-16) — alimenta il LED in
+        #: nel dettaglio aperto — alimenta il LED in
         #: `_render_detail()`, aggiornato ad ogni giro di `_start_detail_sync`.
         self._detail_connection_state: str = "connected"
         #: Guardia contro ticker di countdown sovrapposti — vedi
@@ -218,17 +215,16 @@ class WorldsView(ft.Column):
         #: stesso principio già in uso in `home_view.py::_refresh_lock`.
         self._render_lock = threading.Lock()
 
-        #: FilePicker mobile per l'export di un mondo (passo 9D, 2026-08-12)
-        #: — stesso principio di `HomeView._file_picker`: creato/registrato
+        #: FilePicker mobile per l'export di un mondo — stesso principio di
+        #: `HomeView._file_picker`: creato/registrato
         #: al volo da `_ensure_file_picker()` se non già presente.
         self._file_picker: ft.FilePicker | None = None
 
-        # `ScrollMemoryColumn` (2026-08-16, bug segnalato da Davide: "flash
-        # a schermo e uno scattino che riporta la vista in cima" durante la
-        # sincronizzazione) — `_render()` ricostruisce `.controls` da zero
-        # ad ogni ridisegno periodico (`_start_detail_sync`,
-        # `_master_cooldown_ticker_loop`), un `ft.Column` semplice perdeva
-        # lo scroll ogni volta anche senza alcuna azione dell'utente.
+        # `ScrollMemoryColumn`, non un `ft.Column` semplice: `_render()`
+        # ricostruisce `.controls` da zero ad ogni ridisegno periodico
+        # (`_start_detail_sync`, `_master_cooldown_ticker_loop`), un
+        # `ft.Column` semplice perderebbe lo scroll ogni volta anche senza
+        # alcuna azione dell'utente.
         self._body = ScrollMemoryColumn(spacing=d.Space.MD, scroll=ft.ScrollMode.AUTO, expand=True)
         self._build_shell()
         self._render_loading()
@@ -248,18 +244,14 @@ class WorldsView(ft.Column):
 
     def will_unmount(self):
         self._stop_detail_sync()
-        # Fix 2026-08-07 — bug reale segnalato da Davide su Wi-Fi: QUI
-        # NON si ferma più l'hosting eventualmente attivo. Prima di
-        # questo fix, `will_unmount()` fermava sempre `self._host_server`
-        # ("uscire dalla sezione Mondi senza fermarlo esplicitamente non
-        # deve lasciare una porta aperta") — ma `ui/app.py::_navigate()`
-        # ricrea l'intera pagina ad OGNI navigazione di primo livello
-        # (Home, Modalità Master, cambio tema incluso), quindi
-        # `will_unmount()` scattava ad ogni singola di quelle azioni, non
-        # solo uscendo davvero dalla Sezione Mondi — un master che apriva
-        # un'altra schermata mentre un giocatore era connesso lo
-        # disconnetteva silenziosamente, senza alcun errore a schermo.
-        # L'hosting vive ora in `self._host_server_slot` (vedi il
+        # QUI NON si ferma l'hosting eventualmente attivo: `ui/app.py::
+        # _navigate()` ricrea l'intera pagina ad OGNI navigazione di primo
+        # livello (Home, Modalità Master, cambio tema incluso), quindi
+        # `will_unmount()` scatta ad ogni singola di quelle azioni, non
+        # solo uscendo davvero dalla Sezione Mondi — fermare l'hosting qui
+        # disconnetterebbe silenziosamente un giocatore connesso ogni
+        # volta che il master apre un'altra schermata.
+        # L'hosting vive in `self._host_server_slot` (vedi il
         # docstring di `HostServerSlot` in `network/host_server.py`), che
         # sopravvive alla ricreazione di questa view: si ferma SOLO
         # tramite `_stop_hosting()` (pulsante "Ferma hosting", azione
@@ -312,9 +304,9 @@ class WorldsView(ft.Column):
                     ft.Row(header_actions, spacing=d.Space.SM, wrap=True,
                            vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     ft.Container(height=d.Space.XS),
-                    d.muted("Campagne condivise — passo 2, senza rete: funziona oggi "
-                            "solo tra sessioni che condividono lo stesso database "
-                            "(web mode multi-scheda)."),
+                    d.muted("Crea o unisciti a una campagna condivisa: chi si "
+                            "collega alla stessa rete locale vede mappe, note "
+                            "e personaggi in tempo reale."),
                 ],
                 spacing=0, tight=True,
             ),
@@ -416,26 +408,19 @@ class WorldsView(ft.Column):
         # Nessun pulsante di riconnessione su un mondo trasferito: non esiste più
         # una sessione da riprendere, e offrirlo produrrebbe solo un errore.
         if not world.is_local_host and not transferred_away:
-            # Riconnessione rapida (2026-08-16, richiesta di Davide: "se il
-            # master chiude l'app... vorrei un tasto di riconnessione
-            # rapida... senza dover reinserire i codici") — `_backend_for`
-            # riusa già `world.session_token` (§9.4), qui lo si rende
-            # un'azione ESPLICITA con un esito visibile invece di un
-            # side-effect silenzioso alla prossima apertura del dettaglio.
+            # Riconnessione rapida: `_backend_for` riusa già
+            # `world.session_token` (§9.4), qui lo si rende un'azione
+            # ESPLICITA con un esito visibile invece di un side-effect
+            # silenzioso alla prossima apertura del dettaglio.
             row_children.append(ft.IconButton(
                 ft.Icons.WIFI_PROTECTED_SETUP, icon_color=p.magic,
                 tooltip="Riconnettiti",
                 on_click=lambda e, w=world: self._reconnect_world(w),
             ))
         if transferred_away:
-            # 2026-08-19: il pulsante che `_transferred_away_banner()`
-            # promette da tempo ("si rimuove quando l'utente vuole, dal
-            # pulsante che esiste già nell'elenco dei mondi") in realtà non
-            # esisteva — bug segnalato da Davide ("il giocatore non ha la
-            # possibilità di... eliminare il mondo"). Solo locale: non c'è
-            # alcun backend raggiungibile per un mondo trasferito
-            # (`resolve_backend_for_world` ritorna sempre `None`, vedi
-            # `core.world_sync`), quindi nessun comando da inviare — un
+            # Solo locale: non c'è alcun backend raggiungibile per un mondo
+            # trasferito (`resolve_backend_for_world` ritorna sempre `None`,
+            # vedi `core.world_sync`), quindi nessun comando da inviare — un
             # semplice `stop_propagation` evita che il click apra anche il
             # dettaglio sotto.
             row_children.append(ft.IconButton(
@@ -455,17 +440,14 @@ class WorldsView(ft.Column):
     def _transferred_away_banner(self, world: World) -> ft.Control:
         """
         Avviso sul dettaglio di un mondo il cui personaggio è stato spostato su
-        un altro dispositivo (2026-08-17, §11.9).
+        un altro dispositivo (§11.9).
 
         La replica NON viene cancellata da sola: contiene il giornale, le
         note condivise e le mappe ricevute, cioè la memoria della campagna
         vista da qui, e il diario del giocatore. Resta consultabile in sola
         lettura — è la stessa condizione di §11.3 ("scollegati, l'istanza è
         in sola lettura"), qui definitiva invece che temporanea — e si
-        rimuove quando l'utente vuole, dal pulsante qui sotto (2026-08-19:
-        prima di questo fix il testo lo prometteva ma il pulsante non
-        esisteva da nessuna parte, né qui né nell'elenco mondi — bug
-        segnalato da Davide).
+        rimuove quando l'utente vuole, dal pulsante qui sotto.
         """
         p = d.T()
         return d.section(
@@ -575,11 +557,10 @@ class WorldsView(ft.Column):
             ft.Row(title_row, spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         ]
 
-        # Navigazione rapida (2026-08-16, richiesta di Davide: "un tasto...
-        # dalla sezione mondo del player porti velocemente alla scheda del
-        # personaggio registrato in quel mondo, per il master invece porti
-        # alla sezione master") — una riga di pillole, mostrata solo se il
-        # chiamante ha passato il relativo callback E c'è qualcosa da
+        # Navigazione rapida: dalla sezione mondo del player porta alla
+        # scheda del personaggio registrato in quel mondo, per il master
+        # invece alla sezione master — una riga di pillole, mostrata solo se
+        # il chiamante ha passato il relativo callback E c'è qualcosa da
         # mostrare (nessun pulsante fantasma per un ruolo che non lo usa).
         quick_nav: list[ft.Control] = []
         if self.on_open_master is not None and perm.can_perform(my_role, perm.CMD_XP_GRANT):
@@ -599,7 +580,7 @@ class WorldsView(ft.Column):
         if quick_nav:
             sections.append(ft.Row(quick_nav, spacing=d.Space.SM, wrap=True))
 
-        # Questo dispositivo è stato sostituito da un altro (2026-08-17, §11.9):
+        # Questo dispositivo è stato sostituito da un altro (§11.9):
         # va detto subito e in modo inequivocabile, prima di qualunque sezione
         # che invita ad agire — altrimenti il giocatore prova a mandare comandi
         # e li vede fallire senza capire perché.
@@ -640,20 +621,16 @@ class WorldsView(ft.Column):
         self._body.controls = sections
 
     # ------------------------------------------------------------------
-    # Routing dei comandi (§9.1) — fix 2026-08-07.
+    # Routing dei comandi (§9.1).
     #
-    # Prima di questo fix `_send_command`/`_backend_for` non esistevano: OGNI
-    # dialog di questa view chiamava `self.backend.send_command(...)`
-    # direttamente, e `self.backend` era SEMPRE `LocalBackend()` (impostato
-    # una volta in `__init__`, mai più cambiato). Per l'host va bene (il suo
-    # DB locale È lo stato autoritativo), ma per un dispositivo che si è
-    # unito in LAN (`is_local_host=False`) significava scrivere SOLO sulla
-    # propria replica, senza mai raggiungere l'host — un comando "riusciva"
-    # a schermo (nessun errore) ma non lasciava mai quel dispositivo. Bug
-    # pre-esistente (dalla sessione del 2026-08-06, "Interventi del master a
-    # distanza"), mai esercitato da nessun test perché nessun test istanzia
-    # `WorldsView` con un mondo non ospitato — trovato SOLO rispondendo alla
-    # domanda "cosa devo testare col Wi-Fi" di Davide.
+    # Ogni dialog di questa view deve passare da `_send_command`/
+    # `_backend_for` invece di chiamare `self.backend.send_command(...)`
+    # direttamente: `self.backend` è sempre `LocalBackend()`, va bene per
+    # l'host (il suo DB locale È lo stato autoritativo) ma per un
+    # dispositivo che si è unito in LAN (`is_local_host=False`) scriverebbe
+    # SOLO sulla propria replica, senza mai raggiungere l'host — il comando
+    # "riuscirebbe" a schermo (nessun errore) ma non lascerebbe mai quel
+    # dispositivo.
     # ------------------------------------------------------------------
 
     def _backend_for(self, world: World) -> WorldBackend | None:
@@ -666,10 +643,9 @@ class WorldsView(ft.Column):
         mai fallire in silenzio.
 
         Logica vera e propria in `core.world_sync.resolve_backend_for_world`
-        (estratta di qui il 2026-08-07, stesso giorno della sua introduzione,
-        perché serve identica anche a `ui/views/home_view.py`) — questo
-        resta un sottile adattatore che passa `self._remote_backends` come
-        cache persistente di questa view.
+        (serve identica anche a `ui/views/home_view.py`) — questo resta un
+        sottile adattatore che passa `self._remote_backends` come cache
+        persistente di questa view.
         """
         return world_sync.resolve_backend_for_world(
             world, self.device_id or "", self.backend, self._remote_backends,
@@ -793,10 +769,8 @@ class WorldsView(ft.Column):
                 icon_color=p.danger_icon,
                 on_click=lambda e, m=member: self._confirm_kick(world, m),
             ))
-        # Uscita volontaria (2026-08-19, bug segnalato da Davide: "il
-        # giocatore non ha la possibilità di lasciare... il mondo") — solo
-        # sul PROPRIO membro, mai sull'owner (deve prima trasferire la
-        # proprietà, stesso blocco già applicato al kick).
+        # Uscita volontaria: solo sul PROPRIO membro, mai sull'owner (deve
+        # prima trasferire la proprietà, stesso blocco già applicato al kick).
         if is_me and member.role != perm.ROLE_OWNER:
             actions.append(ft.IconButton(
                 ft.Icons.EXIT_TO_APP, tooltip="Esci dal mondo",
@@ -804,7 +778,7 @@ class WorldsView(ft.Column):
                 on_click=lambda e, m=member: self._confirm_leave(world, m),
             ))
 
-        # Codice per il cambio dispositivo (2026-08-17, §11.9). Visibile per il
+        # Codice per il cambio dispositivo (§11.9). Visibile per il
         # PROPRIO membro (sto per cambiare telefono e ho ancora questo in mano)
         # e, se sono master/owner, anche per i giocatori (il loro telefono è
         # perso o rotto e non possono generarselo). Mai per l'owner: il suo
@@ -850,8 +824,8 @@ class WorldsView(ft.Column):
 
     def _open_transfer_code_dialog(self, world: World, member: WorldMember):
         """
-        Genera e mostra un codice di trasferimento per `member` (2026-08-17,
-        §11.9): il codice con cui un ALTRO dispositivo subentra a questo membro
+        Genera e mostra un codice di trasferimento per `member` (§11.9): il
+        codice con cui un ALTRO dispositivo subentra a questo membro
         portandosi via i suoi personaggi.
 
         Il codice arriva in `CommandResult.data`, non nell'evento di giornale:
@@ -1127,9 +1101,9 @@ class WorldsView(ft.Column):
                 spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ))
 
-        # Audit anti-AI-slop (2026-08-18): unico elemento "hero" del
-        # dettaglio mondo (`hero=True`, bordo pieno invece della barretta
-        # sinistra normale) — quando un combattimento è visibile è di fatto
+        # Unico elemento "hero" del dettaglio mondo (`hero=True`, bordo
+        # pieno invece della barretta sinistra normale) — quando un
+        # combattimento è visibile è di fatto
         # il dato più urgente della schermata per qualunque membro, non
         # solo una sezione informativa come le altre. Il nome del mondo in
         # cima usa `hero_title()`, un momento tipografico diverso: le due
@@ -1209,9 +1183,8 @@ class WorldsView(ft.Column):
         """
         Il master (host) vede TUTTE le mappe condivise, visibili o
         nascoste ai giocatori — nascondere non è ritirare, la mappa resta
-        qui (2026-08-12, richiesta esplicita di Davide: "le mappe
-        condivise devono rimanere nella sezione apposita anche quando si
-        seleziona non visualizzare"). Un giocatore (o un master non-host,
+        nella sezione apposita anche se non selezionata per la
+        visualizzazione. Un giocatore (o un master non-host,
         sola lettura) vede solo quelle con `visible_to_players=True` —
         filtro qui in UI, in aggiunta a quello server-side su
         `GET /map/<id>/image` (§6.4): due strati, coerente con come già
@@ -1296,12 +1269,10 @@ class WorldsView(ft.Column):
 
     def _open_add_map_dialog(self, world: World):
         """
-        Scelta tra le due sorgenti di una mappa condivisa (2026-08-12):
-        una già salvata sotto un personaggio locale (`_open_publish_map_
-        dialog`, clona), o un'immagine nuova scelta al volo dal
-        dispositivo (`_open_upload_map_dialog`, richiesta esplicita di
-        Davide: "bisogna dare la possibilità al master di caricare anche
-        mappe nuove").
+        Scelta tra le due sorgenti di una mappa condivisa: una già salvata
+        sotto un personaggio locale (`_open_publish_map_dialog`, clona), o
+        un'immagine nuova scelta al volo dal dispositivo
+        (`_open_upload_map_dialog`).
         """
         page = self.page
         if page is None:
@@ -1400,8 +1371,8 @@ class WorldsView(ft.Column):
         ))
 
     def _open_upload_map_dialog(self, world: World):
-        """Carica un'immagine nuova direttamente nel mondo (2026-08-12,
-        `CMD_MAP_UPLOAD`) — stessi tre rami di selezione immagine già usati
+        """Carica un'immagine nuova direttamente nel mondo (`CMD_MAP_UPLOAD`)
+        — stessi tre rami di selezione immagine già usati
         da `ui/views/maps_view.py` (web/mobile/desktop), riusati da qui
         (`_pick_from_library`/`_pick_mobile` prendono ora una `Page`
         direttamente, non più un `MapsView` — vedi il loro docstring)."""
@@ -1572,14 +1543,13 @@ class WorldsView(ft.Column):
             strokes: list[dict] = json.loads(gm.annotations or "[]")
         except (json.JSONDecodeError, TypeError):
             strokes = []
-        #: Avviso una tantum per i tratti in formato legacy (2026-08-19,
-        #: pre-2026-08-12, salvati in pixel assoluti — vedi il docstring di
-        #: `ui.canvas_geometry`, "nessuna migrazione": le dimensioni
-        #: originali del riquadro non sono recuperabili). Calcolato una
-        #: sola volta all'apertura, sul contenuto letto sopra — non si
-        #: aggiorna da solo se altri tratti legacy arrivano dopo via
-        #: evento (caso raro: solo un dispositivo ancora su una versione
-        #: pre-fix potrebbe produrne di nuovi).
+        #: Avviso una tantum per i tratti in formato legacy (salvati in
+        #: pixel assoluti — vedi il docstring di `ui.canvas_geometry`,
+        #: "nessuna migrazione": le dimensioni originali del riquadro non
+        #: sono recuperabili). Calcolato una sola volta all'apertura, sul
+        #: contenuto letto sopra — non si aggiorna da solo se altri tratti
+        #: legacy arrivano dopo via evento (caso raro: solo un dispositivo
+        #: ancora su una versione precedente potrebbe produrne di nuovi).
         has_legacy = geo.has_legacy_strokes(gm.annotations or "[]")
         canvas = cv.Canvas(expand=True)
         closed = [False]
@@ -1588,17 +1558,15 @@ class WorldsView(ft.Column):
         # Dimensione CORRENTE del riquadro di disegno, in pixel — letta da
         # `on_size_change` (§ `ui/canvas_geometry.py` per il perché: Flet
         # 0.86.5 non offre altro modo di conoscerla). I punti persistiti
-        # sono frazioni [0,1] di questa dimensione, MAI pixel assoluti —
-        # fix 2026-08-12 del bug segnalato da Davide ("se la mappa non è a
-        # schermo intero le annotazioni non si rispecchiano in modo
-        # giusto"): due dispositivi/finestre di dimensione diversa
-        # convertono le stesse frazioni nei propri pixel assoluti, invece
-        # di ereditare la dimensione di chi ha disegnato per primo.
+        # sono frazioni [0,1] di questa dimensione, MAI pixel assoluti:
+        # due dispositivi/finestre di dimensione diversa convertono le
+        # stesse frazioni nei propri pixel assoluti, invece di ereditare
+        # la dimensione di chi ha disegnato per primo.
         box_size = [0.0, 0.0]
 
-        # Dimensione NATIVA dell'immagine (2026-08-16, fix disallineamento
-        # cross-device — vedi `geo.contain_rect()`): letta una volta sola,
-        # pigra (PIL non decodifica il raster per leggere `.size`), da
+        # Dimensione NATIVA dell'immagine (vedi `geo.contain_rect()`):
+        # letta una volta sola, pigra (PIL non decodifica il raster per
+        # leggere `.size`), da
         # `gm.image_data`. Con `fit=ft.BoxFit.CONTAIN` (sotto) l'immagine
         # occupa solo una PARTE di `box_size` se l'aspect ratio non
         # coincide — le coordinate normalizzate vanno prese rispetto a
@@ -1685,9 +1653,8 @@ class WorldsView(ft.Column):
                 logger.warning("map.draw non riuscito per %s: %s", gm.id, result.error)
 
         current_points: list[list[float]] = []
-        #: "pen" | "eraser" (2026-08-19, parità con la toolbar della mappa
-        #: personale — bug segnalato da Davide: la mappa condivisa non
-        #: aveva alcuna gomma). Gomma "a tratto intero": rimuove ogni
+        #: "pen" | "eraser", parità con la toolbar della mappa personale.
+        #: Gomma "a tratto intero": rimuove ogni
         #: tratto che passa vicino al trascinamento, più semplice della
         #: gomma "libera" (taglio per segmento) della mappa personale —
         #: qui basta a colmare il gap funzionale segnalato, senza portare
@@ -1846,10 +1813,9 @@ class WorldsView(ft.Column):
             stack_children.append(canvas)
         draw_stack = ft.Stack(stack_children, expand=True)
 
-        # Zoom/pan (2026-08-19, bug segnalato da Davide: "è impossibile
-        # zoommare la mappa sia su mobile che su pc") — `ft.InteractiveViewer`
-        # (Flet 0.86.5, confermato disponibile: nessuna nota contraria in
-        # `docs/regole_flet_api.md`) avvolge `draw_stack` invariato. Sempre
+        # Zoom/pan: `ft.InteractiveViewer` (Flet 0.86.5, confermato
+        # disponibile: nessuna nota contraria in `docs/regole_flet_api.md`)
+        # avvolge `draw_stack` invariato. Sempre
         # `pan_enabled=False`: un trascinamento a UN dito deve continuare a
         # disegnare (`draw_gesture` sopra), mai spostare la vista — un
         # pinch a DUE dita (o lo scroll del trackpad, `trackpad_scroll_
@@ -1899,11 +1865,10 @@ class WorldsView(ft.Column):
             bgcolor=d.CHROME.backdrop,
         )
 
-        # Pulsanti modalità Matita/Gomma (2026-08-19, parità con la mappa
-        # personale — prima questa toolbar non aveva alcuna gomma). Solo
-        # due pillole, non l'intero sistema "tratto/libera" della mappa
-        # personale: qui basta a colmare il gap segnalato ("gomma
-        # assente"), senza portare la geometria di taglio per segmento.
+        # Pulsanti modalità Matita/Gomma, parità con la mappa personale.
+        # Solo due pillole, non l'intero sistema "tratto/libera" della mappa
+        # personale: qui basta a coprire i due usi principali, senza
+        # portare la geometria di taglio per segmento.
         mode_btn_refs: list[ft.Container] = []
 
         def _style_mode_btn(btn: ft.Container, sel: bool) -> None:
@@ -1920,7 +1885,7 @@ class WorldsView(ft.Column):
                     btn.update()
                 except RuntimeError:
                     pass
-            # Modalità "Sposta" (2026-08-19, zoom/pan): un trascinamento a un
+            # Modalità "Sposta" (zoom/pan): un trascinamento a un
             # dito deve spostare la vista invece di disegnare — l'unico modo
             # pulito di evitare due riconoscitori di gesture in competizione
             # sullo stesso trascinamento è disattivare qui il gesture
@@ -2117,7 +2082,7 @@ class WorldsView(ft.Column):
     def _remote_character_row(self, world: World, character: Character) -> ft.Control:
         p = d.T()
 
-        # Countdown visivo (fix 2026-08-07): se QUESTO personaggio è in
+        # Countdown visivo: se QUESTO personaggio è in
         # cooldown, tutte le sue azioni (pillole + la "x" di rimozione
         # condizione qui sotto) diventano disabilitate (nessun on_click,
         # colore smorzato) e mostrano i secondi rimanenti invece
@@ -2205,17 +2170,14 @@ class WorldsView(ft.Column):
 
     def _confirm_remove_character(self, world: World, character: Character):
         """
-        Rimuove UN personaggio dal mondo (2026-08-12, richiesta esplicita
-        di Davide: "manca la possibilità di eliminare il personaggio dal
-        mondo, attualmente posso eliminare solo la persona [il membro]")
-        — DISTINTA da "Espelli membro" nella sezione Membri, che rimuove
-        l'intero dispositivo e archivia TUTTE le sue istanze. Qui il
-        giocatore resta membro, solo questo personaggio sparisce dalla
-        Sezione Master. Stessa non-distruttività già decisa con Davide per
-        l'espulsione: archiviato, non cancellato — il giocatore può poi
-        chiedere il rientro (§"Richiesta di rientro", 2026-08-12), che tu
-        dovrai approvare tu qui in "Richieste di rientro": non torna mai
-        visibile in automatico.
+        Rimuove UN personaggio dal mondo — DISTINTA da "Espelli membro"
+        nella sezione Membri, che rimuove l'intero dispositivo e archivia
+        TUTTE le sue istanze. Qui il giocatore resta membro, solo questo
+        personaggio sparisce dalla Sezione Master. Stessa non-distruttività
+        dell'espulsione: archiviato, non cancellato — il giocatore può poi
+        chiedere il rientro (§"Richiesta di rientro"), che tu dovrai
+        approvare tu qui in "Richieste di rientro": non torna mai visibile
+        in automatico.
         """
         page = self.page
         if page is None:
@@ -2254,10 +2216,9 @@ class WorldsView(ft.Column):
         self._send_remote_command(world, character, perm.CMD_CHARACTER_INSTANCE_REMOVE, {})
 
     # ------------------------------------------------------------------
-    # Anti-spam sulle richieste di rete "semplici" — fix 2026-08-07,
-    # richiesta di Davide dopo il timer sul master: "deve essere attivo su
-    # tutte le richieste anche quelle per cercare di unirsi, e tutte le
-    # richieste online da sincronizzare". Copre `_open_join_dialog._join`,
+    # Anti-spam sulle richieste di rete "semplici", stesso principio del
+    # timer sul master ma per tutte le richieste online da sincronizzare.
+    # Copre `_open_join_dialog._join`,
     # `_open_lan_join_dialog._attempt`/`_retry` qui sotto, e
     # `HomeView._push_instance_to_host` (stesso valore di cooldown,
     # `core.world_permissions.NETWORK_REQUEST_COOLDOWN_S`, ma stato
@@ -2282,8 +2243,7 @@ class WorldsView(ft.Column):
 
     def _start_network_cooldown_ticker(self, btn: ft.Control, base_label: str) -> None:
         """
-        Countdown visivo (fix 2026-08-07, richiesta di Davide dopo un
-        parere su questa stessa funzionalità) sul pulsante `btn` di un
+        Countdown visivo sul pulsante `btn` di un
         dialogo di ingresso: mentre il timer di rete è attivo, il pulsante
         resta disabilitato mostrando i secondi rimanenti nell'etichetta,
         invece del solo messaggio reattivo al click. Da richiamare
@@ -2340,11 +2300,11 @@ class WorldsView(ft.Column):
         """Punto unico di invio per OGNI azione di "Interviene a distanza"
         (PE/danno/cura/condizione/abilità/incantesimo/diario/proponi
         modifica — vedi `_remote_character_row`) — qui, e solo qui, si
-        applica il timer anti-spam del master, PER PERSONAGGIO (revisione
-        2026-08-07: prima era un solo timer per l'intera sezione, un'area
-        su 4 PG avrebbe costretto il master ad aspettare 3s tra un
-        personaggio e l'altro — ora il limite blocca solo il martellare
-        ripetuto sullo STESSO personaggio)."""
+        applica il timer anti-spam del master, PER PERSONAGGIO: un solo
+        timer per l'intera sezione costringerebbe il master ad aspettare
+        3s tra un personaggio e l'altro anche con un'area su 4 PG — a
+        granularità per-personaggio il limite blocca solo il martellare
+        ripetuto sullo STESSO personaggio."""
         remaining = world_sync.master_action_cooldown_remaining(character.id)
         if remaining > 0:
             self._show_error(
@@ -2369,14 +2329,12 @@ class WorldsView(ft.Column):
 
     def _start_master_cooldown_ticker(self, world: World) -> None:
         """
-        Countdown affidabile dei pulsanti "Interviene a distanza" (2026-08-16
-        — Davide, dopo il primo giro di test reali, ha confermato che il
-        countdown restava bloccato anche dopo il tentativo di fix via
-        `_should_redraw_anyway`/`_any_master_cooldown_active`, che dipende
-        dal poll a `_DETAIL_SYNC_INTERVAL_S=2.0` di `_start_detail_sync`:
-        con un cooldown di 3.0s il tick di sblocco può cadere in un
-        istante non osservato da un poll così largo, e teoricamente si
-        rischia di perderlo comunque su ritardi del thread). Stesso
+        Countdown affidabile dei pulsanti "Interviene a distanza": non basta
+        affidarsi al poll di `_should_redraw_anyway`/`_any_master_cooldown_
+        active`, che dipende dal ciclo a `_DETAIL_SYNC_INTERVAL_S=2.0` di
+        `_start_detail_sync` — con un cooldown di 3.0s il tick di sblocco
+        può cadere in un istante non osservato da un poll così largo, e si
+        rischia di perderlo comunque su ritardi del thread. Stesso
         principio, PIÙ affidabile, di `_network_cooldown_ticker_loop` qui
         sopra: un `async` dedicato schedulato con `page.run_task()`
         (nessun `threading.Thread`: gira già nel loop asyncio della
@@ -2460,7 +2418,7 @@ class WorldsView(ft.Column):
         self.page.show_dialog(dlg)
 
     def _open_damage_dialog(self, world: World, character: Character):
-        """Pulizia 2026-08-07: il dialog stesso vive in
+        """Il dialog stesso vive in
         `ui.components.remote_action_dialogs` (condiviso con
         `MasterEncounterView`, che invia la stessa azione dal tracker di
         combattimento) — qui resta solo "cosa fare col payload validato"."""
@@ -2546,7 +2504,7 @@ class WorldsView(ft.Column):
         default_class = character.class_name if character.class_name in class_names else class_names[0]
 
         # Nomi già posseduti (incantesimi normali, bonus già concessi in
-        # passato, o aggiunti manualmente dal giocatore) — 2026-08-16, vedi
+        # passato, o aggiunti manualmente dal giocatore) — vedi
         # `spell_card_options(known_names=...)`. Calcolato fresco
         # all'apertura del dialog: sufficiente, il dialog è a vita breve.
         known_names = {s.name for s in character_repo.get_known_spells(character.id)}
@@ -2887,7 +2845,7 @@ class WorldsView(ft.Column):
             self._show_error(result.error)
 
     # ------------------------------------------------------------------
-    # Richieste di rientro (2026-08-12) — verso opposto delle richieste di
+    # Richieste di rientro — verso opposto delle richieste di
     # modifica sopra: qui propone il giocatore, risponde SOLO master/owner
     # (a differenza di "Richieste in sospeso", non visibile a un giocatore
     # qualunque — è il master a dover decidere, non il proprietario del
@@ -3049,18 +3007,15 @@ class WorldsView(ft.Column):
     def _hosting_qr_image(self, world: World, host: WorldHostServer, ip: str) -> ft.Control:
         """
         QR con indirizzo, porta, codice e PIN già incorporati — per non
-        dover leggere/digitare a mano quei 4 dati (richiesta di Davide,
-        2026-08-06). Contenuto e generazione in `network/qr_join.py`; la
-        scansione lato giocatore resta manuale (nessuno scanner in-app,
-        vedi il docstring di quel modulo).
+        dover leggere/digitare a mano quei 4 dati. Contenuto e generazione
+        in `network/qr_join.py`; la scansione lato giocatore resta manuale
+        (nessuno scanner in-app, vedi il docstring di quel modulo).
 
-        Errore mostrato IN UI, non solo loggato (2026-08-06, corretto dopo
-        che Davide non riusciva a vedere il QR e il log su stderr non era
-        raggiungibile dall'app impacchettata che stava usando — un log da
-        solo non è "diagnosticabile" se nessuno lo legge, il primo
-        fallback era di fatto silenzioso quanto quello che voleva evitare).
-        Il PIN testuale sopra resta comunque sufficiente da solo per
-        entrare anche quando il QR fallisce.
+        Errore mostrato IN UI, non solo loggato: il log su stderr non è
+        raggiungibile da un'app impacchettata, quindi un log da solo non è
+        "diagnosticabile" se nessuno può leggerlo. Il PIN testuale sopra
+        resta comunque sufficiente da solo per entrare anche quando il QR
+        fallisce.
         """
         p = d.T()
         try:
@@ -3095,8 +3050,8 @@ class WorldsView(ft.Column):
 
     def _pending_request_row(self, world: World, req: PendingJoinRequest) -> ft.Control:
         p = d.T()
-        # Un trasferimento NON è un giocatore nuovo che entra (2026-08-17,
-        # §11.9): è uno scambio di identità, e approvarlo fa smettere di
+        # Un trasferimento NON è un giocatore nuovo che entra (§11.9):
+        # è uno scambio di identità, e approvarlo fa smettere di
         # funzionare il vecchio dispositivo. Il master deve poterlo capire dalla
         # riga, non dopo — icona e testo diversi, e un chip che lo dichiara.
         is_transfer = bool(req.transfer_id)
@@ -3164,8 +3119,8 @@ class WorldsView(ft.Column):
         self._refresh_detail()
 
     # ------------------------------------------------------------------
-    # Backup del mondo — esportazione/importazione (passo 9D, 2026-08-12,
-    # `dnd_app/docs/multiplayer_design.md` §6.3) — stesso identico
+    # Backup del mondo — esportazione/importazione
+    # (`dnd_app/docs/multiplayer_design.md` §6.3) — stesso identico
     # meccanismo di Import/Export personaggio (`.dndchar`), esteso a un
     # intero mondo (`.dndworld`): `data/repositories/world_export.py` per
     # la logica dati, `ui/file_export.py` per i dialoghi nativi del SO
@@ -3190,8 +3145,7 @@ class WorldsView(ft.Column):
 
     def _backup_section(self, world: World) -> ft.Control:
         """
-        Promemoria periodico (passo 9E, deciso con Davide 2026-08-12):
-        conta gli eventi di giornale dall'ultimo export riuscito
+        Promemoria periodico: conta gli eventi di giornale dall'ultimo export riuscito
         (`world.last_export_seq`) e mostra un avviso non bloccante —
         MAI un dialog che interrompe il flusso — quando supera
         `EXPORT_REMINDER_EVENT_THRESHOLD`. Un mondo mai esportato ha
@@ -3352,14 +3306,13 @@ class WorldsView(ft.Column):
         self, world_id: str, filename: str, path: str, system: str | None,
         download_url: str | None = None,
     ):
-        # Registra il promemoria (passo 9E) SOLO qui, dopo che il file è
+        # Registra il promemoria SOLO qui, dopo che il file è
         # stato scritto/scaricato con successo — un export fallito prima di
         # questo punto non deve mai spegnere l'avviso. Sola scrittura DB
         # (nessun `page.update()`/ri-render qui): questo metodo è chiamato
         # anche da un thread in background (`_export_world_desktop`), e
         # `page.update()` da un thread qualunque invece di `page.run_task()`
-        # è esattamente il bug già trovato e risolto altrove in questo
-        # progetto (vedi CLAUDE.md, 2026-08-07) — non reintrodurlo qui. La
+        # non è sicuro (vedi CLAUDE.md) — non farlo qui. La
         # sezione "Backup del mondo" si aggiorna comunque al prossimo giro
         # della sincronizzazione in background già attiva su questa scheda.
         world_repo.mark_world_exported(world_id, world_repo.get_latest_event_seq(world_id))
@@ -3513,10 +3466,9 @@ class WorldsView(ft.Column):
         """
         Chiede il nome del master PRIMA di procedere — questo dispositivo
         diventerà l'owner/host del mondo importato (§6.3), e il registro
-        deve poter mostrare chi è (stesso principio già stabilito per
-        "Crea un mondo"/"Unisciti con un codice": mai un default silenzioso
-        come "Master" per tutti — lezione del fix 2026-08-07 su
-        `_open_join_dialog`, applicata qui allo stesso modo).
+        deve poter mostrare chi è (stesso principio già applicato in
+        "Crea un mondo"/"Unisciti con un codice" e in `_open_join_dialog`:
+        mai un default silenzioso come "Master" per tutti).
         """
         page = self.page
         if page is None:
@@ -3626,7 +3578,7 @@ class WorldsView(ft.Column):
 
     def _danger_zone_section(self, world: World) -> ft.Control:
         p = d.T()
-        # Audit anti-AI-slop (2026-08-18): level=0 (nessuna ombra) invece del
+        # level=0 (nessuna ombra) invece del
         # default 1 — distingue questa sezione dalle altre ~11 nel dettaglio
         # mondo per ASSENZA di elevazione (segnale sobrio, coerente con
         # "manuale non poster") invece che per un colore diverso, dato che
@@ -3684,14 +3636,12 @@ class WorldsView(ft.Column):
             pass
 
     # ------------------------------------------------------------------
-    # Sincronizzazione automatica in background (2026-08-07) — nessuna
+    # Sincronizzazione automatica in background — nessuna
     # azione manuale richiesta: finché la scheda di UN mondo resta aperta,
     # un thread dedicato la tiene allineata da sola, sia per gli "arrivi"
     # (richieste di modifica proposte dal master, abilità/incantesimi/
     # diario concessi, danni/cure/condizioni) sia per le risposte del
-    # giocatore che il master deve vedere — richiesta esplicita di Davide:
-    # "l'utente deve fare il meno possibile, la parte tecnica la deve
-    # gestire in automatico l'app". Nessuna dipendenza nuova: solo
+    # giocatore che il master deve vedere. Nessuna dipendenza nuova: solo
     # `threading` di libreria standard, stesso pattern già in produzione in
     # `home_view.py` per il polling web multi-sessione.
     # ------------------------------------------------------------------
@@ -3699,9 +3649,8 @@ class WorldsView(ft.Column):
     def _start_detail_sync(self, world_id: str):
         """
         Delega a `ui.components.background_sync.BackgroundSyncLoop`
-        (estratto 2026-08-07 nella stessa sessione in cui è stato esteso a
-        `MasterEncounterView` — vedi il docstring del modulo): questo
-        metodo resta il punto in cui vive la logica di DOMINIO (cosa
+        (condiviso con `MasterEncounterView` — vedi il docstring del
+        modulo): questo metodo resta il punto in cui vive la logica di DOMINIO (cosa
         scaricare, cosa costituisce "stato cambiato"), il thread e il
         ponte verso il loop asyncio di Flet sono ora responsabilità
         dell'helper condiviso, comportamento invariato rispetto a prima
@@ -3731,9 +3680,9 @@ class WorldsView(ft.Column):
                 if isinstance(backend, RemoteBackend):
                     self._detail_connection_state = backend.connection_state()
                 world_sync.sync_replica(backend, world_id)
-                # Bug segnalato da Davide (2026-08-18): ritenta qui, non solo
-                # a comando dell'utente, il push di eventuali istanze create
-                # mentre l'host era offline (`host_sync_pending=1` — vedi
+                # Ritenta qui, non solo a comando dell'utente, il push di
+                # eventuali istanze create mentre l'host era offline
+                # (`host_sync_pending=1` — vedi
                 # `HomeView._push_instance_to_host`). Stesso backend appena
                 # verificato raggiungibile da `sync_replica()` sopra.
                 if self.device_id:
@@ -3747,9 +3696,8 @@ class WorldsView(ft.Column):
                 return None
             return f"{self._detail_signature_of(world)}|{self._detail_connection_state}"
 
-        # Cattura la transizione "era in cooldown, ora non più" — bug reale
-        # segnalato da Davide (2026-08-16, primo giro di test su Wi-Fi
-        # reale): il cooldown (`MASTER_ACTION_COOLDOWN_S=3.0`) e il poll di
+        # Cattura la transizione "era in cooldown, ora non più": il
+        # cooldown (`MASTER_ACTION_COOLDOWN_S=3.0`) e il poll di
         # questo loop (`_DETAIL_SYNC_INTERVAL_S=2.0`) hanno periodi diversi,
         # quindi lo scadere del cooldown può cadere TRA due tick. Se
         # `_any_master_cooldown_active` torna già `False` al tick in cui lo
@@ -3800,9 +3748,7 @@ class WorldsView(ft.Column):
         tabelle cambiano senza un `world_events.seq` osservabile qui
         (es. `member.kick` tocca `world_members`, non i campi di `world`).
 
-        Fix 2026-08-07 (bug segnalato da Davide dopo il primo vero test di
-        QUESTA funzionalità su Wi-Fi: "al master non esce la richiesta a
-        meno di un aggiornamento manuale"): le richieste di ingresso in
+        Le richieste di ingresso in
         sospeso (`PendingJoinRequest`) NON vivono in nessuna tabella del
         DB — sono stato in memoria su `WorldHostServer._pending` (§9.4,
         mai persistito: sono per definizione una fase transitoria prima
@@ -3901,23 +3847,20 @@ class WorldsView(ft.Column):
             if not code:
                 self._show_error("Inserisci il codice d'ingresso.")
                 return
-            # Fix 2026-08-16 (stesso bug di `_attempt()` nel dialogo LAN qui
-            # sotto — segnalato da Davide sul rientro via QR, ma presente
-            # identico anche qui): `join_world_by_code()` ignora già
-            # `display_name` se questo `device_id` è già membro del mondo
-            # (vedi il suo docstring) — nessuna chiamata di rete qui, stesso
-            # DB, quindi il controllo è locale e immediato.
+            # Stesso controllo di `_attempt()` nel dialogo LAN qui sotto:
+            # `join_world_by_code()` ignora già `display_name` se questo
+            # `device_id` è già membro del mondo (vedi il suo docstring) —
+            # nessuna chiamata di rete qui, stesso DB, quindi il controllo
+            # è locale e immediato.
             existing_world = world_repo.get_world_by_join_code(code)
             already_member = (
                 existing_world is not None
                 and world_repo.get_member(existing_world.id, self.device_id) is not None
             )
             if not display_name and not already_member:
-                # Fix 2026-08-07 (richiesta di Davide dopo il primo test
-                # reale su Wi-Fi): prima il nome cadeva su "Giocatore" se
-                # lasciato vuoto — nel registro/Sezione Master diventava
-                # impossibile distinguere due giocatori entrambi "senza
-                # nome". Obbligatorio per un ingresso NUOVO, nessun ripiego
+                # Obbligatorio per un ingresso NUOVO (senza, nel registro/
+                # Sezione Master diventa impossibile distinguere due
+                # giocatori entrambi "senza nome"), nessun ripiego
                 # silenzioso — non serve invece per chi è già membro.
                 self._show_error("Inserisci il tuo nome prima di entrare nel mondo.")
                 return
@@ -3959,8 +3902,8 @@ class WorldsView(ft.Column):
 
     def _open_lan_join_dialog(self):
         """
-        Ingresso in un mondo ospitato da un altro dispositivo (passo 4,
-        §9.3/§9.4) — a differenza di "Unisciti con un codice" (che scrive
+        Ingresso in un mondo ospitato da un altro dispositivo (§9.3/§9.4)
+        — a differenza di "Unisciti con un codice" (che scrive
         direttamente nello STESSO database, valido solo se questo
         dispositivo lo condivide già col mondo: web mode multi-scheda),
         questa parla via rete con `core.world_sync.start_lan_join()`.
@@ -3979,20 +3922,19 @@ class WorldsView(ft.Column):
         pin_field = ft.TextField(label="PIN a 6 cifre", dense=True,
                                   max_length=6, **d.field_style())
         display_field = ft.TextField(label="Il tuo nome", dense=True, **d.field_style())
-        # Bug report Davide (2026-08-20): in modalità trasferimento il campo
-        # veniva comunque mostrato, pur essendo facoltativo (vedi il commento
-        # su `display_name`/`transfer_mode["on"]` in `_attempt()` più sotto)
-        # — l'host conserva SEMPRE il nome del membro originale a prescindere
-        # da cosa arriva qui. Mostrarlo suggeriva all'utente di dover scegliere
-        # un nome nuovo, quando in realtà non cambia nulla: nascosto in
-        # modalità trasferimento, sostituito da questa spiegazione.
+        # In modalità trasferimento il campo nome resta facoltativo (vedi
+        # il commento su `display_name`/`transfer_mode["on"]` in `_attempt()`
+        # più sotto) — l'host conserva SEMPRE il nome del membro originale
+        # a prescindere da cosa arriva qui, quindi il campo viene nascosto
+        # e sostituito da questa spiegazione invece di suggerire all'utente
+        # di dover scegliere un nome nuovo.
         display_hint = d.muted(
             "Il tuo nome nel mondo resta quello di sempre — non serve reinserirlo."
         )
         display_hint.visible = False
         status_text = ft.Text("", color=p.danger, size=12)
 
-        # Modalità "cambio dispositivo" (2026-08-17, §11.9): il codice di
+        # Modalità "cambio dispositivo" (§11.9): il codice di
         # trasferimento prende il posto del PIN. Nasconde il campo PIN invece di
         # limitarsi ad affiancarlo, così non resta ambiguo quale dei due conta.
         transfer_mode: dict = {"on": False}
@@ -4008,11 +3950,11 @@ class WorldsView(ft.Column):
         transfer_hint.visible = False
         retry_btn = ft.TextButton("Controlla di nuovo", icon=ft.Icons.REFRESH,
                                    visible=False)
-        # Annulla richiesta (2026-08-19) — vedi `_PENDING_JOIN_REQUEST_SETTING_KEY`.
+        # Annulla richiesta — vedi `_PENDING_JOIN_REQUEST_SETTING_KEY`.
         cancel_btn = ft.TextButton("Annulla richiesta", icon=ft.Icons.CANCEL_OUTLINED,
                                     visible=False,
                                     style=ft.ButtonStyle(color=p.danger))
-        #: "polling_started" (fix 2026-08-07): evita di avviare più cicli
+        #: "polling_started": evita di avviare più cicli
         #: di polling automatico sovrapposti se lo stato "in attesa" viene
         #: rientrato più volte (es. `_attempt()` seguito da un
         #: `_retry()` manuale mentre il polling è già in corso) — vedi
@@ -4126,11 +4068,10 @@ class WorldsView(ft.Column):
                 status_text.value = result.error or "In attesa dell'approvazione del master…"
                 retry_btn.visible = True
                 cancel_btn.visible = True
-                # Fix 2026-08-07 (Davide: "al giocatore non esce
-                # l'approvazione del master" — prima bisognava premere
-                # "Controlla di nuovo" a mano): avvia il polling automatico
-                # UNA sola volta per questo dialogo, non ad ogni giro che
-                # conferma "ancora in attesa".
+                # Avvia il polling automatico UNA sola volta per questo
+                # dialogo, non ad ogni giro che conferma "ancora in attesa" —
+                # così il giocatore non deve premere "Controlla di nuovo"
+                # a mano per vedere l'approvazione del master.
                 if not pending_state["polling_started"]:
                     pending_state["polling_started"] = True
                     self.page.run_task(_poll_pending_join_loop)
@@ -4156,7 +4097,7 @@ class WorldsView(ft.Column):
 
         async def _poll_pending_join_loop():
             """
-            Fix 2026-08-07 — vedi il docstring di `_PENDING_JOIN_POLL_
+            Vedi il docstring di `_PENDING_JOIN_POLL_
             INTERVAL_S`. Ciclo `async` schedulato con `page.run_task()`
             (mai un `threading.Thread`: già dentro il loop asyncio della
             sessione, stesso principio di `_network_cooldown_ticker_loop`
@@ -4190,45 +4131,31 @@ class WorldsView(ft.Column):
                 await asyncio.sleep(_PENDING_JOIN_POLL_INTERVAL_S)
                 if pending_state["backend"] is None:
                     return
-                # Fix 2026-08-17 (bug pesante segnalato da Davide: dopo
-                # l'approvazione del master, il giocatore restava bloccato
-                # — nemmeno "Annulla"/"Entra"/"Controlla di nuovo"
-                # rispondevano più, fino al riavvio dell'app). Causa:
-                # `world_sync.finish_pending_join()` è una chiamata
-                # SINCRONA (rete + parecchie scritture SQLite in
-                # `_finalize_join()`, una per ogni nota/mappa/personaggio
-                # dello snapshot) chiamata direttamente dentro questa
-                # coroutine — che gira sull'UNICO loop asyncio di Flet.
-                # Una chiamata sincrona lì blocca l'INTERA pagina (bottoni
-                # compresi) per tutta la sua durata, non solo questo
-                # dialogo — normalmente un attimo, ma dopo la protezione
-                # 2026-08-16 (che non abbandona più al primo elemento
-                # rotto ma prova ognuno) su un mondo con tanta storia
-                # accumulata la somma di più scritture, ciascuna
-                # eventualmente in attesa di un lock SQLite già preso da
-                # un altro ciclo di sync in background, poteva sommarsi a
-                # un blocco di parecchi secondi — abbastanza da sembrare
-                # "bloccato per sempre" a chi prova a cliccare nel
-                # frattempo. Fix: `asyncio.to_thread` sposta la chiamata
-                # bloccante su un thread separato, lasciando il loop (e
-                # quindi i bottoni) libero di rispondere nel frattempo —
-                # stesso principio già usato da `BackgroundSyncLoop`
+                # `world_sync.finish_pending_join()` è una chiamata SINCRONA
+                # (rete + parecchie scritture SQLite in `_finalize_join()`,
+                # una per ogni nota/mappa/personaggio dello snapshot) — se
+                # chiamata direttamente dentro questa coroutine, che gira
+                # sull'UNICO loop asyncio di Flet, blocca l'INTERA pagina
+                # (bottoni compresi) per tutta la sua durata, non solo questo
+                # dialogo: su un mondo con tanta storia accumulata la somma
+                # di più scritture (ciascuna eventualmente in attesa di un
+                # lock SQLite già preso da un altro ciclo di sync in
+                # background) può sommarsi a un blocco di parecchi secondi.
+                # `asyncio.to_thread` sposta la chiamata bloccante su un
+                # thread separato, lasciando il loop (e quindi i bottoni)
+                # libero di rispondere nel frattempo — stesso principio già
+                # usato da `BackgroundSyncLoop`
                 # (`ui/components/background_sync.py`) per lo stesso
                 # identico motivo.
-                # Fix 2026-08-17 (secondo giro sullo stesso bug): senza questo
-                # try/except, QUALSIASI eccezione sollevata da
+                # Senza questo try/except, QUALSIASI eccezione sollevata da
                 # `finish_pending_join` — o da `_report`/`_open_detail` dopo un
-                # esito riuscito — uccide questa coroutine in silenzio.
-                # `page.run_task()` non ha alcun gestore che la mostri: il
-                # dialogo resta fermo su "In attesa dell'approvazione del
-                # master…" per sempre, senza né successo né errore, mentre il
-                # mondo risulta comunque registrato al riavvio dell'app perché
-                # `_finalize_join()` aveva già salvato la replica prima di
-                # incidentare. È esattamente il sintomo segnalato da Davide
-                # ("il giocatore rimane bloccato anche dopo l'accettazione del
-                # master... riavvio l'app e il mondo è visibile"), e l'unico
-                # motivo per cui è servito un round di test in più per
-                # trovarne la causa: l'errore vero non arrivava mai a schermo.
+                # esito riuscito — ucciderebbe questa coroutine in silenzio:
+                # `page.run_task()` non ha alcun gestore che la mostri, e il
+                # dialogo resterebbe fermo su "In attesa dell'approvazione
+                # del master…" per sempre, senza né successo né errore,
+                # mentre il mondo risulterebbe comunque registrato al
+                # riavvio dell'app perché `_finalize_join()` avrebbe già
+                # salvato la replica prima dell'eccezione.
                 try:
                     result = await asyncio.to_thread(
                         world_sync.finish_pending_join,
@@ -4275,9 +4202,7 @@ class WorldsView(ft.Column):
                 self.page.update()
                 return
             display_name = (display_field.value or "").strip()
-            # Fix 2026-08-16 (bug segnalato da Davide: un giocatore che
-            # rientra con lo stesso QR in un mondo in cui è GIÀ membro si
-            # vede comunque richiedere il nome) — sonda leggera (`GET
+            # Sonda leggera (`GET
             # /world`, nessun side-effect, stesso identico primo passo che
             # `world_sync.start_lan_join()` rifà comunque subito dopo) per
             # sapere se questo dispositivo è già un membro noto di quel
@@ -4294,24 +4219,21 @@ class WorldsView(ft.Column):
                 if probed_world_id:
                     already_member = world_repo.get_member(
                         probed_world_id, self.device_id) is not None
-            # In modalità trasferimento il nome NON è obbligatorio (2026-08-17,
-            # §11.9): si subentra a un membro che ha già un nome, e l'host lo
+            # In modalità trasferimento il nome NON è obbligatorio (§11.9):
+            # si subentra a un membro che ha già un nome, e l'host lo
             # conserva quando il campo arriva vuoto (`display_name or
             # member.display_name` in `_handle_transfer_join`) — cambiare
             # dispositivo non è un rinomino. Se l'utente scrive un nome quello
             # vince: è una scelta esplicita, non un ripiego silenzioso.
             if not display_name and not already_member and not transfer_mode["on"]:
-                # Fix 2026-08-07 (richiesta di Davide dopo il primo test
-                # reale su Wi-Fi, stesso principio di _open_join_dialog qui
-                # sopra): prima il nome cadeva su "Giocatore" se lasciato
-                # vuoto — anche qui, obbligatorio senza ripiego silenzioso
-                # per un ingresso NUOVO. Protegge anche l'ingresso via QR
-                # (_on_qr_scanned chiama questa stessa funzione): se il nome
-                # non è ancora stato scritto, l'inquadratura del QR non
-                # entra più in silenzio come "Giocatore", mostra questo
-                # stesso errore — a meno che (sopra) il dispositivo non sia
-                # già membro noto di questo mondo, nel qual caso il nome non
-                # serve affatto.
+                # Stesso principio di _open_join_dialog qui sopra:
+                # obbligatorio senza ripiego silenzioso per un ingresso
+                # NUOVO. Protegge anche l'ingresso via QR (_on_qr_scanned
+                # chiama questa stessa funzione): se il nome non è ancora
+                # stato scritto, l'inquadratura del QR non entra in
+                # silenzio come "Giocatore", mostra questo stesso errore —
+                # a meno che (sopra) il dispositivo non sia già membro noto
+                # di questo mondo, nel qual caso il nome non serve affatto.
                 status_text.color = p.danger
                 status_text.value = "Inserisci il tuo nome prima di entrare nel mondo."
                 self.page.update()
@@ -4351,7 +4273,7 @@ class WorldsView(ft.Column):
             self._mark_network_request()
             self._start_network_cooldown_ticker(enter_btn, "Entra")
             self._start_network_cooldown_ticker(retry_btn, "Controlla di nuovo")
-            # Fix 2026-08-17 — stesso motivo di `_poll_pending_join_loop`
+            # Stesso motivo di `_poll_pending_join_loop`
             # qui sopra: `finish_pending_join()` è sincrona e bloccante,
             # `async def` + `asyncio.to_thread` (Flet chiama direttamente
             # gli handler `async def`, vedi `base_control.py`) evita che un
@@ -4380,7 +4302,7 @@ class WorldsView(ft.Column):
         retry_btn.on_click = _retry
 
         async def _do_cancel(e):
-            """Annulla la richiesta in sospeso (2026-08-19) — riporta il
+            """Annulla la richiesta in sospeso — riporta il
             dialogo al modulo vuoto invece di chiuderlo, così l'utente può
             inviarne subito una nuova (nome corretto, host diverso...) senza
             doverlo riaprire."""
@@ -4406,9 +4328,7 @@ class WorldsView(ft.Column):
 
         cancel_btn.on_click = _do_cancel
 
-        # Richiesta in sospeso da un giro precedente (2026-08-19, bug
-        # segnalato da Davide: "il giocatore... deve poter annullarla e
-        # solo poi può inviare una nuova richiesta") — riaprendo il
+        # Richiesta in sospeso da un giro precedente — riaprendo il
         # dialogo (o riavviando l'app) si ripristina lo stato "in attesa"
         # invece di offrire subito un modulo vuoto, che avrebbe permesso
         # di spammarne una seconda senza ricordo della prima.
@@ -4462,13 +4382,13 @@ class WorldsView(ft.Column):
             # Il QR non porta il nome del giocatore (§7 di build_join_text:
             # solo i 4 dati tecnici) — display_field resta quello che
             # l'utente ha già scritto, se l'ha scritto. Compila e tenta
-            # subito l'ingresso: "inquadri e sei dentro" (richiesta di
-            # Davide, 2026-08-06), non solo "inquadri e poi premi Entra".
+            # subito l'ingresso: "inquadri e sei dentro", non solo
+            # "inquadri e poi premi Entra".
             self.page.pop_dialog()  # chiude lo scanner, il dialogo LAN resta sotto
             host_field.value = parsed["host"]
             port_field.value = str(parsed["port"])
             code_field.value = parsed["join_code"]
-            # Due formati di QR possibili (2026-08-17, §11.9), distinti da `kind`
+            # Due formati di QR possibili (§11.9), distinti da `kind`
             # (vedi `network.qr_join.parse_any_join_text`): quello d'ingresso
             # porta il PIN, quello di trasferimento porta il codice di
             # trasferimento e attiva da sé la modalità corrispondente — così
@@ -4511,7 +4431,7 @@ class WorldsView(ft.Column):
                                        style=ft.ButtonStyle(bgcolor=p.magic, color=p.on_primary))
 
         def _cancel(e):
-            # Fix 2026-08-07: azzerare `pending_state["backend"]` PRIMA di
+            # Azzerare `pending_state["backend"]` PRIMA di
             # chiudere il dialogo è ciò che ferma `_poll_pending_join_loop`
             # al suo prossimo risveglio (entro `_PENDING_JOIN_POLL_
             # INTERVAL_S`) — senza, il ciclo continuerebbe a interrogare
@@ -4562,9 +4482,7 @@ class WorldsView(ft.Column):
     # ------------------------------------------------------------------
 
     def _show_error(self, message: str):
-        """Pulizia 2026-08-07: costruiva la propria `ft.SnackBar` invece di
-        riusare `ui.widgets.show_snack()` (già introdotta il 2026-07-31
-        apposta per centralizzare questo identico pattern, duplicato in
-        origine in `home_view.py`) — stesso identico esito visivo, un solo
-        posto in meno dove il pattern SnackBar può disallinearsi."""
+        """Riusa `ui.widgets.show_snack()`, che centralizza questo stesso
+        pattern anche in `home_view.py` — un solo posto dove il pattern
+        SnackBar può disallinearsi."""
         show_snack(self.page, message, tone="danger")

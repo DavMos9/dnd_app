@@ -428,21 +428,10 @@ WIZARD_QUESTIONS = [
 ]
 
 
-# ------------------------------------------------------------------
-# BACKGROUND DATA — rimosso il 2026-07-10, vedi CLAUDE.md "Note Importanti"
-# Prima conteneva un secondo dataset dei 13 background PHB (skills, traits,
-# ideals, bonds, flaws) scritto a mano, in parallelo a data/game_data/backgrounds/*.json
-# — stesso tipo di duplicazione gia' eliminata per RACE_DATA e le costanti di classe.
-# L'audit riga-per-riga contro il manuale (pagine 127-141) ha confermato che questo
-# dataset Python aveva contenuto DIVERGENTE (non solo differente formattazione) da
-# backgrounds/*.json, ed era esso stesso non allineato al manuale in piu' punti
-# (es. chiave "Saggio" invece di "Sapiente" — bug reale: la domanda del wizard che
-# assegnava punti al background "Sapiente" non aveva mai effetto, perche' quella
-# chiave non esisteva in questo dizionario). Tutti i 13 file JSON sono stati
-# verificati e corretti contro il PHB IT (pdftoppm + lettura visiva delle pagine,
-# non pdftotext) e sono ora l'unica fonte. Vedi GameDataLoader.get_background(name) /
-# get_background_names() / get_all_backgrounds().
-# ------------------------------------------------------------------
+# Dati dei 13 background PHB (skills, traits, ideals, bonds, flaws): unica
+# fonte in data/game_data/backgrounds/*.json, verificati contro il PHB IT.
+# Vedi GameDataLoader.get_background(name) / get_background_names() /
+# get_all_backgrounds().
 
 # ------------------------------------------------------------------
 # MAPPING CLASSI → CARATTERISTICHE PRIMARIE

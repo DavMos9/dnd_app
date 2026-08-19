@@ -41,14 +41,14 @@ def cr_to_float(cr: Any) -> float:
     """Converte un Grado di Sfida ("1/4", "5", "—") in float per ordinamento/
     confronto. Valore fuori scala (9999.0) per GS assente/non parsabile, così
     finisce sempre in fondo a un ordinamento crescente senza sollevare
-    errori. Spostata qui da `ui/components/monster_picker.py` il 2026-07-25
-    (mantenuta come re-export in quel modulo per compatibilità) perché
-    `core/encounter_generator.py` — un modulo `core/` che per convenzione di
-    progetto non deve mai dipendere da Flet — ne aveva bisogno: importarla
-    da `monster_picker.py` avrebbe trascinato `import flet as ft` anche nel
-    layer `core/`, violazione della stessa regola già scritta nel docstring
-    di quel file. `data/game_data/game_data_loader.py` non ha invece alcuna
-    dipendenza Flet/DB ed è già importato sia da `core/` sia da `ui/`."""
+    errori. Vive qui (con re-export da `ui/components/monster_picker.py`
+    per compatibilità) perché `core/encounter_generator.py` — un modulo
+    `core/` che per convenzione di progetto non deve mai dipendere da Flet —
+    ne ha bisogno: importarla da `monster_picker.py` trascinerebbe
+    `import flet as ft` anche nel layer `core/`, violazione della stessa
+    regola già scritta nel docstring di quel file. `data/game_data/game_data_loader.py`
+    non ha invece alcuna dipendenza Flet/DB ed è già importato sia da
+    `core/` sia da `ui/`."""
     if not cr or cr in ("—", ""):
         return 9999.0
     s = str(cr)
@@ -67,15 +67,13 @@ def cr_to_float(cr: Any) -> float:
 def parse_monster_xp(raw: Any) -> int:
     """Converte il campo `xp` grezzo di un mostro (`monsters.json`) in un
     intero, tollerante ai formati misti realmente presenti nel dataset —
-    dato mai normalizzato durante le sessioni di trascrizione del bestiario,
-    innocuo finché nessun codice aveva mai provato a fare `int()` su OGNI
-    singola voce (bug reale trovato il 2026-07-25 costruendo il Generatore
-    di Incontri Casuali, che itera l'intero bestiario): intero puro, stringa
-    di sole cifre ("100"), stringa con il punto come separatore delle
-    migliaia in stile italiano ("1.800" → 1800, "25.000" → 25000 — 68 voci,
-    tutte draghi/giganti/elementali/golem di alto livello), stringa vuota
-    (9 mostri senza PE trascritto, es. WRAITH/ZOMBI) → 0. Mai solleva
-    un'eccezione, a differenza di un semplice `int(x)`."""
+    dato mai normalizzato durante le sessioni di trascrizione del bestiario:
+    intero puro, stringa di sole cifre ("100"), stringa con il punto come
+    separatore delle migliaia in stile italiano ("1.800" → 1800, "25.000" →
+    25000 — 68 voci, tutte draghi/giganti/elementali/golem di alto livello),
+    stringa vuota (9 mostri senza PE trascritto, es. WRAITH/ZOMBI) → 0. Mai
+    solleva un'eccezione, a differenza di un semplice `int(x)` — necessario
+    perché il Generatore di Incontri Casuali itera l'intero bestiario."""
     if raw is None:
         return 0
     if isinstance(raw, (int, float)):
@@ -94,9 +92,8 @@ def parse_monster_xp(raw: Any) -> int:
 def magic_item_category_base(category: str) -> str:
     """'Arma (qualsiasi spada)' -> 'Arma' — raggruppa una categoria di
     oggetto magico (`magic_items.json`) alla sua base, ignorando il
-    qualificatore tra parentesi. Spostata qui da
-    `ui/views/master/master_magic_items_view.py` il 2026-07-25 (mantenuta
-    come re-export in quel modulo) perché serve anche a
+    qualificatore tra parentesi. Vive qui (con re-export da
+    `ui/views/master/master_magic_items_view.py`) perché serve anche a
     `core/magic_item_generator.py` — un modulo `core/` che, per la stessa
     regola già applicata a `cr_to_float`/`parse_monster_xp`, non deve mai
     dipendere da Flet."""
@@ -256,9 +253,8 @@ class GameDataLoader:
         per le classi "know" (Bardo/Ranger/Stregone/Warlock). Letto dal campo
         "spell_learn_delta" del JSON di classe (chiavi stringa nel JSON,
         convertite in int qui). Dizionario vuoto per le altre classi.
-        Spostato da core/level_manager.py (_SPELL_LEARN_DELTA) il 2026-07-10
-        — numeri già verificati pagina per pagina contro il PHB IT nelle
-        sessioni di audit level-up, nessun valore cambiato in questa migrazione.
+        Numeri verificati pagina per pagina contro il PHB IT nelle sessioni
+        di audit level-up.
         """
         cls_data = self.get_class(class_name)
         if not cls_data:
@@ -301,7 +297,7 @@ class GameDataLoader:
         il manuale in sessioni di audit precedenti: la tabella
         `spell_learn_delta["Bardo"]` (verificata pag.53, somma dei delta dal
         Lv.2 al Lv.20 = 18) e il totale finale confermato a Lv.20 = 22
-        (vedi CLAUDE.md, audit level-up Bardo) → 22 − 18 = 4.
+        → 22 − 18 = 4.
         """
         cls_data = self.get_class(class_name)
         if not cls_data:
@@ -311,7 +307,7 @@ class GameDataLoader:
     def get_spellbook_starting_spells(self, class_name: str) -> int:
         """
         Numero di incantesimi di 1° livello con cui il libro degli
-        incantesimi del Mago inizia alla creazione (task #100, 2026-07-11).
+        incantesimi del Mago inizia alla creazione.
         Letto dal campo "spellbook_starting_spells" del JSON di classe
         (aggiunto in mago.json — 6, confermato testualmente dalla feature
         "Incantesimi": "Il tuo libro inizia con 6 incantesimi di 1°
@@ -384,8 +380,7 @@ class GameDataLoader:
         """
         Dado di danno dell'Attacco Furtivo del Ladro al livello indicato.
         Letto da ladro.json → "sneak_attack_dice_by_level" — tabella "Ladro"
-        del PHB IT (colonna "Attacco Furtivo"), trascritta da una foto della
-        pagina fornita da Davide il 2026-07-10: 1d6 al 1°, +1d6 ogni 2 livelli
+        del PHB IT (colonna "Attacco Furtivo"): 1d6 al 1°, +1d6 ogni 2 livelli
         (3°,5°,7°,9°,11°,13°,15°,17°,19°), fino a 10d6 al 19°-20°.
         Restituisce "1d6" come fallback se il campo manca o il livello è
         sotto la soglia minima.
@@ -443,9 +438,9 @@ class GameDataLoader:
     def get_fighting_style_data(self, class_name: str) -> list[dict[str, Any]]:
         """
         Stili di combattimento disponibili per la classe indicata, come dict
-        completi {"name","description"} — aggiunto il 2026-07-16 per il
-        widget ⓘ del level-up (task #24). Il Guerriero ha sempre la
-        descrizione completa in `fighting_style_details`; Paladino/Ranger
+        completi {"name","description"} — usati dal widget ⓘ del level-up.
+        Il Guerriero ha sempre la descrizione completa in
+        `fighting_style_details`; Paladino/Ranger
         hanno solo `name` nelle proprie `options` (nessuna description propria
         nel JSON) — in quel caso si risolve comunque la descrizione completa
         dalla lista canonica del Guerriero, stesso identico stile PHB.
@@ -475,9 +470,9 @@ class GameDataLoader:
     def get_metamagic_option_data(self) -> list[dict[str, Any]]:
         """
         Le 8 opzioni di Metamagia dello Stregone come dict completi
-        {"name","description"} — aggiunto il 2026-07-16 per poter mostrare la
-        descrizione nel widget ⓘ del level-up (task #24), senza scartare il
-        campo "description" come faceva `get_metamagic_options()`.
+        {"name","description"} — per mostrare la descrizione nel widget ⓘ
+        del level-up, senza scartare il campo "description" come faceva
+        `get_metamagic_options()`.
         """
         cls_data = self.get_class("stregone")
         if not cls_data:
@@ -507,12 +502,12 @@ class GameDataLoader:
         A differenza degli altri metodi di questa sezione, i 3 nomi non sono
         letti da un campo strutturato di barbaro.json: sono già scritti per
         esteso nella description della feature "Spirito Totemico" di quel
-        file ("Scegli un totem: Orso, Aquila o Lupo...") e Davide ha chiesto
-        esplicitamente (2026-07-09) di non aggiungere lì un array parallelo
-        con gli stessi 3 nomi (duplicazione pura, zero informazione nuova —
-        diverso dal caso Paladino/Ranger, dove "options" seleziona un
-        sottoinsieme dagli stili del Guerriero, dato non altrimenti
-        ricavabile). Nomi fissi PHB, non cambiano tra edizioni italiane.
+        file ("Scegli un totem: Orso, Aquila o Lupo...") — deliberatamente
+        non duplicati lì in un array parallelo con gli stessi 3 nomi
+        (zero informazione nuova, diverso dal caso Paladino/Ranger, dove
+        "options" seleziona un sottoinsieme dagli stili del Guerriero, dato
+        non altrimenti ricavabile). Nomi fissi PHB, non cambiano tra
+        edizioni italiane.
         """
         return ["Orso", "Aquila", "Lupo"]
 
@@ -547,9 +542,8 @@ class GameDataLoader:
         cercato per nome esatto (case-insensitive) dentro cls_data["subclasses"].
         None se la classe o la sottoclasse non esistono.
 
-        Aggiunto per il fix Mistificatore Arcano (Ladro)/Cavaliere Mistico
-        (Guerriero) — 2026-07-15 — ma generico, utilizzabile per qualunque
-        altra sottoclasse in futuro.
+        Usato per Mistificatore Arcano (Ladro)/Cavaliere Mistico (Guerriero),
+        ma generico, utilizzabile per qualunque altra sottoclasse.
         """
         cls_data = self.get_class(class_name)
         if not cls_data:
@@ -572,7 +566,7 @@ class GameDataLoader:
         `{"type":"choice","count":N,"from":[...]|"any_skill"}` che richiede
         una scelta del giocatore prima di poter essere applicata.
 
-        Aggiunto il 2026-07-16 insieme alla normalizzazione dei vecchi tag
+        Coerente con la normalizzazione dei vecchi tag
         `#armature_pesanti`/ecc. in `chierico.json`/`bardo.json` — vedi
         `character_repo.classify_bonus_proficiency_entries()` per il
         parsing e l'applicazione effettiva al personaggio.
@@ -607,12 +601,11 @@ class GameDataLoader:
 
         Il dict ritornato è il blocco sottoclasse stesso: contiene già
         "spellcasting_ability", "cantrip_options", "spell_progression"
-        (lista {level, cantrips_known, spells_known, slots}), oltre ai 3
-        campi aggiunti il 2026-07-15 per questo fix: "fixed_cantrip" (solo
-        Ladro — "Mano Magica"), "restricted_schools" (le 2 scuole vincolate),
-        "unrestricted_origin_levels" (livelli il cui incantesimo può essere
-        di qualsiasi scuola — asimmetrico tra le due sottoclassi, vedi
-        CLAUDE.md: Ladro [8,14,20], Guerriero [3,8,14,20], verificato
+        (lista {level, cantrips_known, spells_known, slots}), oltre a
+        "fixed_cantrip" (solo Ladro — "Mano Magica"), "restricted_schools"
+        (le 2 scuole vincolate), "unrestricted_origin_levels" (livelli il
+        cui incantesimo può essere di qualsiasi scuola — asimmetrico tra le
+        due sottoclassi: Ladro [8,14,20], Guerriero [3,8,14,20], verificato
         testualmente contro il PHB IT, non un refuso di trascrizione).
         """
         sc = self.get_subclass_data(class_name, subclass_name)
@@ -687,8 +680,7 @@ class GameDataLoader:
         """
         Tabella "Incantatore Multiclasse: Slot Incantesimo per Livello di
         Incantesimo" (PHB IT p.165) — **identica** alla progressione
-        full_caster (confermato pagina per pagina in questa sessione,
-        2026-08-12: è la stessa identica tabella del PHB, non solo per
+        full_caster, verificato pagina per pagina contro il PHB (non solo
         coincidenza numerica). Nessun dato duplicato: riusa direttamente
         full_caster invece di una quarta tabella ridondante nel JSON.
         """
@@ -879,16 +871,14 @@ class GameDataLoader:
         Incantesimi innati concessi da un tratto di razza (es. Drow "Magia
         Drow", Tiefling "Eredità Infernale") — PHB IT: lanciabili senza
         preparazione, senza slot, indipendentemente dalla classe del
-        personaggio, con CD calcolata su Carisma fisso (task #15, 2026-07-16
-        — TODO storico "Incantesimi razziali di Drow/Tiefling mai realmente
-        utilizzabili").
+        personaggio, con CD calcolata su Carisma fisso.
 
         Legge il campo strutturato `"innate_spells"` presente dentro i
-        singoli tratti in `data/game_data/races/*.json` (dato aggiunto in
-        questa sessione, non inventato: trascrive in forma di dati la stessa
-        prosa già presente e verificata nel tratto — es. "Magia Drow"/
-        "Eredità Infernale" — nessun nuovo fatto di regolamento introdotto).
-        Non tocca `traits`/`resources`, che restano l'unica fonte per la
+        singoli tratti in `data/game_data/races/*.json`: trascrive in forma
+        di dati la stessa prosa già presente e verificata nel tratto — es.
+        "Magia Drow"/"Eredità Infernale" — nessun nuovo fatto di
+        regolamento introdotto. Non tocca `traits`/`resources`, che restano
+        l'unica fonte per la
         descrizione testuale e per il contatore utilizzi già gestito in
         Combattimento.
 
@@ -1099,8 +1089,8 @@ class GameDataLoader:
         presenti nei file `classes/incantesimi_*.json`.
 
         Usato per gli incantesimi innati di razza (Drow "Magia Drow",
-        Tiefling "Eredità Infernale" — task #15, 2026-07-16): sono
-        incantesimi noti per tratto razziale, non per lista di classe,
+        Tiefling "Eredità Infernale"): sono incantesimi noti per tratto
+        razziale, non per lista di classe,
         quindi il lookup deve funzionare anche se, per assurdo, nessuna
         classe li avesse nella propria lista.
         """
@@ -1110,11 +1100,11 @@ class GameDataLoader:
     def get_expanded_spells(self, class_name: str, subclass_name: str) -> list[dict[str, Any]]:
         """
         Lista Incantesimi Ampliata di una sottoclasse (Warlock: Il Signore
-        Fatato/L'Immondo/Il Grande Antico, `bonus_proficiencies`... no,
-        campo `expanded_spells` in classes/warlock.json — dict con chiavi
-        "1".."5" = livello slot, ognuna con 2 nomi incantesimo) — task #25,
-        2026-07-16. A differenza degli incantesimi sempre pronti di
-        Dominio/Giuramento/Circolo (vedi `sync_bonus_domain_spells` in
+        Fatato/L'Immondo/Il Grande Antico, campo `expanded_spells` in
+        classes/warlock.json — dict con chiavi "1".."5" = livello slot,
+        ognuna con 2 nomi incantesimo). A differenza degli incantesimi
+        sempre pronti di Dominio/Giuramento/Circolo (vedi
+        `sync_bonus_domain_spells` in
         character_repo.py), la Lista Ampliata NON concede incantesimi
         gratuiti: aggiunge solo nomi al POOL tra cui il Warlock può
         scegliere quando impara un nuovo incantesimo (creazione,
@@ -1160,8 +1150,8 @@ class GameDataLoader:
         """
         Nomi (con maiuscola, es. "Bardo") delle classi che hanno una propria
         lista di incantesimi (i file spells/incantesimi_{classe}.json
-        esistenti e non vuoti) — aggiunto il 2026-07-16 per il picker
-        "Incantesimi Bonus" di spells_view.py, che deve poter offrire la
+        esistenti e non vuoti) — usato dal picker "Incantesimi Bonus" di
+        spells_view.py, che deve poter offrire la
         scelta della lista di provenienza a QUALSIASI personaggio, anche una
         classe non incantatrice (es. un Guerriero che riceve un incantesimo
         bonus concesso dal master). Calcolato dinamicamente (non una lista
@@ -1223,8 +1213,8 @@ class GameDataLoader:
         """
         Risolve una singola Supplica Occulta per nome esatto (case-insensitive),
         senza filtro di livello — usata per mostrare la descrizione completa di
-        una supplica già posseduta dal personaggio (2026-07-19, sezione di sola
-        lettura in Combattimento). Stesso pattern di get_weapon()/get_armor_item().
+        una supplica già posseduta dal personaggio, nella sezione di sola
+        lettura in Combattimento. Stesso pattern di get_weapon()/get_armor_item().
         """
         self._ensure_invocations()
         target = name.strip().lower()
@@ -1358,9 +1348,8 @@ class GameDataLoader:
         Nomi di tutte le armature/scudi PHB (equipment/armor.json), pronti
         per popolare un Dropdown "Tipo" nel dialog di creazione/modifica
         armatura — vedi `get_armor_item()` per il dettaglio risolto
-        (ca_value/armor_type) usato per l'autofill. Aggiunto 2026-07-16 su
-        richiesta di Davide ("autoriempi la scheda con le caratteristiche
-        del tipo di armatura").
+        (ca_value/armor_type) usato per autoriempire la scheda con le
+        caratteristiche del tipo di armatura.
         """
         armor = self.get_armor()
         result: list[str] = []
@@ -1379,8 +1368,8 @@ class GameDataLoader:
         """
         Contenuto strutturato di una Dotazione (es. "Dotazione da Avventuriero"),
         letto da equipment/adventuring_gear.json → packs[pack_name].contents_items
-        (campo aggiunto il 2026-07-11, parsing manuale della prosa "contents"
-        già verificata contro il manuale — vedi "_contents_items_note" nel JSON).
+        (parsing manuale della prosa "contents" già verificata contro il
+        manuale — vedi "_contents_items_note" nel JSON).
 
         Ritorna una lista di dict {"name": str, "quantity": int}, oppure None
         se pack_name non corrisponde a nessuna dotazione nota (case-insensitive
@@ -1409,10 +1398,9 @@ class GameDataLoader:
     def get_trinkets(self) -> list[dict[str, Any]]:
         """
         Le 100 voci della tabella d100 "Oggetti Insoliti" (PHB IT p.160-161,
-        equipment/trinkets.json — trascritta il 2026-07-24, esclusa a suo
-        tempo da adventuring_gear.json su scelta di Davide perché priva di
-        effetto meccanico, ora recuperata per la Sezione Master: generatore
-        di cimeli/loot flavor). Ogni voce è {"roll": int, "description": str}.
+        equipment/trinkets.json — tenuta separata da adventuring_gear.json
+        perché priva di effetto meccanico, usata dalla Sezione Master come
+        generatore di cimeli/loot flavor). Ogni voce è {"roll": int, "description": str}.
         """
         self._ensure_equipment_file("trinkets")
         return self._equipment["trinkets"].get("trinkets", [])
@@ -1467,7 +1455,7 @@ class GameDataLoader:
         items (campo "category": "strumenti_artigiano" | "strumenti_musicali"
         | "giochi" | "strumenti_vari"). Unica fonte dato — sostituisce le vecchie
         costanti ARTISAN_TOOLS/MUSICAL_INSTRUMENTS/GAMING_SETS di config/settings.py
-        (rimosse il 2026-07-10, stesso refactor già applicato a RACE_DATA e alle
+        (rimosse, stesso refactor già applicato a RACE_DATA e alle
         7 costanti di classe).
         """
         items = self.get_tools().get("items", [])
@@ -1642,7 +1630,7 @@ class GameDataLoader:
         return None
 
     # ------------------------------------------------------------------
-    # Artefatti (DMG Cap. 7) — 2026-07-30
+    # Artefatti (DMG Cap. 7)
     # ------------------------------------------------------------------
 
     def _ensure_artifacts(self) -> None:

@@ -12,16 +12,14 @@ nominate, più quattro tabelle d100 di proprietà casuali che il DM tira quando
 l'artefatto compare nel mondo — è per questo che erano rimasti fuori dal
 compendio fin dalla sua trascrizione.
 
-**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 4/6)**: la
-scheda di un artefatto (`_open_artifact`) ha "Assegna…"/"Salva nell'archivio"
-— prima non c'era alcun modo di far arrivare un artefatto sulla scheda di un
-giocatore. **Stessa coppia di pulsanti aggiunta anche alla scheda "Proprietà
-casuali"** (segnalazione di Davide, stesso giorno): il tiro su una delle 4
-tabelle veniva generato e mostrato ma non si poteva salvare/assegnare, a
-differenza di ogni altro generatore della Sezione Master. Opera sull'ULTIMO
-tiro soltanto (non sullo storico in `result_col`), con `entry_kind="item"`:
-una proprietà casuale non è un oggetto di per sé, è un ingrediente che il
-Master userebbe per comporre un artefatto/oggetto magico homebrew.
+**Bottino** (`dnd_app/docs/loot_design.md` §6): la scheda di un artefatto
+(`_open_artifact`) ha "Assegna…"/"Salva nell'archivio" per far arrivare un
+artefatto sulla scheda di un giocatore. **Stessa coppia di pulsanti sulla
+scheda "Proprietà casuali"**, coerente con ogni altro generatore della
+Sezione Master. Opera sull'ULTIMO tiro soltanto (non sullo storico in
+`result_col`), con `entry_kind="item"`: una proprietà casuale non è un
+oggetto di per sé, è un ingrediente che il Master userebbe per comporre un
+artefatto/oggetto magico homebrew.
 """
 
 from __future__ import annotations
@@ -50,11 +48,10 @@ _TABLES: list[tuple[str, str, str]] = [
 def show_artifacts_dialog(page: ft.Page, world_id: str = "", device_id: str = "") -> None:
     """Dialog a due schede: elenco degli artefatti e generatore di proprietà.
 
-    `world_id` (2026-08-06): il mondo correntemente selezionato in
-    `MasterView` — "" per la modalità locale, inoltrato ai pulsanti
-    "Assegna…"/"Salva nell'archivio" sotto. `device_id` (2026-08-19):
-    inoltrato insieme, per instradare via rete quando `world_id` è
-    valorizzato."""
+    `world_id`: il mondo correntemente selezionato in `MasterView` — "" per
+    la modalità locale, inoltrato ai pulsanti "Assegna…"/"Salva
+    nell'archivio" sotto. `device_id`: inoltrato insieme, per instradare
+    via rete quando `world_id` è valorizzato."""
     data = _loader.get_artifacts_data()
     artifacts = _loader.get_artifacts()
 
@@ -125,11 +122,10 @@ def show_artifacts_dialog(page: ft.Page, world_id: str = "", device_id: str = ""
         rows.append(muted_text(
             f"Guida del Master, pag. {art.get('source_page', '?')}", 10))
 
-        # -- Bottino: "Assegna…"/"Salva nell'archivio" (2026-07-31,
-        # `dnd_app/docs/loot_design.md` §6, punto 4/6) — prima non c'era
-        # alcun modo di far arrivare un artefatto sulla scheda di un
-        # giocatore. La descrizione porta lore + TUTTE le proprietà nominate
-        # per esteso (mai un riassunto, stessa regola di `LootStashEntry`).
+        # -- Bottino: "Assegna…"/"Salva nell'archivio"
+        # (`dnd_app/docs/loot_design.md` §6) — la descrizione porta lore +
+        # TUTTE le proprietà nominate per esteso (mai un riassunto, stessa
+        # regola di `LootStashEntry`).
         def _build_loot_item() -> dict[str, Any]:
             from ui.views.master.master_loot_assign_dialog import simple_item
             parts = [art.get("lore", "")]
@@ -208,13 +204,11 @@ def show_artifacts_dialog(page: ft.Page, world_id: str = "", device_id: str = ""
         except (RuntimeError, AssertionError):
             pass
 
-    # -- Bottino: "Assegna…"/"Salva nell'archivio" sull'ultimo tiro
-    # (2026-07-31, segnalazione di Davide: la scheda "Proprietà casuali"
-    # genera un tiro e lo mostra ma non dava modo di farlo arrivare da
-    # nessuna parte, a differenza degli altri generatori). Una proprietà
-    # casuale non è di per sé un oggetto — è un ingrediente che il Master
-    # userebbe per comporre un artefatto o oggetto magico homebrew — quindi
-    # `entry_kind="item"`, un generico appunto di testo, non "artifact".
+    # -- Bottino: "Assegna…"/"Salva nell'archivio" sull'ultimo tiro. Una
+    # proprietà casuale non è di per sé un oggetto — è un ingrediente che
+    # il Master userebbe per comporre un artefatto o oggetto magico
+    # homebrew — quindi `entry_kind="item"`, un generico appunto di testo,
+    # non "artifact".
     def _build_property_loot_item() -> dict[str, Any] | None:
         if not last_roll:
             return None

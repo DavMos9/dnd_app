@@ -7,18 +7,15 @@ prendono dati (il bestiario già caricato via
 `ui.components.monster_picker.load_monsters()`) e restituiscono una lista di
 mostri (dict grezzi di `monsters.json`).
 
-Due modalità, entrambe confermate da Davide (2026-07-25, via `AskUserQuestion`
-— "Modalità di calcolo del grado di sfida per il Generatore Incontri
-Casuali?" → "Entrambe le modalità (consigliato)"):
+Due modalità supportate:
 
 - **Diretta**: il Master fissa un intervallo di Grado di Sfida (GS) + un
   "tema" (il campo `type` del bestiario, es. "Non morto"/"Umanoide"/"Bestia")
   + un numero di mostri desiderato. Estrazione casuale CON ripetizione
   (`random.choices`) dal pool filtrato — le ripetizioni sono volute e
   realistiche (es. "4 goblin"), non un difetto; ad ogni chiamata il
-  risultato cambia (nessun seed fisso), coerente con la richiesta esplicita
-  di Davide ("la generazione... non deve generare sempre gli stessi...
-  incontri").
+  risultato cambia (nessun seed fisso): la generazione non deve produrre
+  sempre lo stesso incontro a parità di parametri.
 
 - **Per Gruppo**: il Master fissa i livelli del gruppo (PG reali + eventuali
   "PG fantasma", stesso concetto già usato dal Calcolatore Difficoltà in

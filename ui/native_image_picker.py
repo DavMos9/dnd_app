@@ -44,7 +44,7 @@ l'invocazione fallisce per qualunque motivo — i chiamanti (`profilo_tab.py`,
 `maps_view.py`) DEVONO intercettarla e ricadere su
 `pick_file_via_webview()` (`ui/mobile_webview_picker.py`), mai assumere che
 questo percorso funzioni al primo colpo su un dispositivo reale non ancora
-testato da Davide.
+testato end-to-end.
 """
 
 from __future__ import annotations

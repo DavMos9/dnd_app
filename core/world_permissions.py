@@ -23,7 +23,7 @@ from __future__ import annotations
 import time
 
 # ---------------------------------------------------------------------------
-# Ruoli (§4) — in scala di privilegio. Nessuno spettatore, scelta di Davide.
+# Ruoli (§4) — in scala di privilegio. Nessuno spettatore.
 # ---------------------------------------------------------------------------
 
 ROLE_PLAYER = "player"
@@ -49,9 +49,8 @@ CMD_MEMBER_PROMOTE = "member.promote"
 CMD_MEMBER_DEMOTE = "member.demote"
 CMD_MEMBER_KICK = "member.kick"
 
-#: Uscita volontaria dal mondo (2026-08-19, bug segnalato da Davide: "il
-#: giocatore non ha la possibilità di lasciare... il mondo") — controparte
-#: di `CMD_MEMBER_KICK` sopra ma auto-diretta: ruolo minimo `player` (vive
+#: Uscita volontaria dal mondo — controparte di `CMD_MEMBER_KICK` sopra ma
+#: auto-diretta: ruolo minimo `player` (vive
 #: in `PLAYER_OWNED_COMMANDS` sotto, non qui), l'attore rimuove SOLO se
 #: stesso. L'owner ne resta escluso (deve prima trasferire la proprietà,
 #: verificato dall'handler — stesso identico blocco già applicato al kick
@@ -84,25 +83,25 @@ CMD_DICE_REQUEST = "dice.request"
 CMD_ENCOUNTER_MANAGE = "encounter.manage"
 CMD_MAP_PUBLISH = "map.publish"
 CMD_MAP_DRAW = "map.draw"
-#: Carica una mappa nuova direttamente nel mondo (2026-08-12) — stesso
+#: Carica una mappa nuova direttamente nel mondo — stesso
 #: risultato finale di `CMD_MAP_PUBLISH` (una riga condivisa senza
 #: personaggio proprietario), ma senza passare da una mappa personale
 #: preesistente: il master sceglie subito un'immagine dal proprio
 #: dispositivo. Vedi `maps_repo.create_shared_map`.
 CMD_MAP_UPLOAD = "map.upload"
-#: Mostra/nasconde una mappa condivisa ai giocatori (2026-08-12) —
+#: Mostra/nasconde una mappa condivisa ai giocatori —
 #: DISTINTO dall'eliminazione (`CMD_MAP_DELETE`): la mappa resta
 #: nell'elenco del master in entrambi i casi, solo la visibilità per i
 #: giocatori cambia. Vedi `maps_repo.set_map_visibility`.
 CMD_MAP_VISIBILITY = "map.visibility"
-#: Elimina definitivamente una mappa condivisa (2026-08-12) — l'unico modo
+#: Elimina definitivamente una mappa condivisa — l'unico modo
 #: per farla sparire anche dall'elenco del master; la mappa personale di
 #: origine (se pubblicata per clonazione) non è mai toccata.
 CMD_MAP_DELETE = "map.delete"
 CMD_NOTE_SHARE = "note.share"
 CMD_COMBAT_TOGGLE_VISIBILITY = "combat.toggle_visibility"
 CMD_CHANGE_REQUEST_PROPOSE = "change_request.propose"
-#: Rimuove un'istanza di personaggio da un mondo (2026-08-12) — DISTINTA
+#: Rimuove un'istanza di personaggio da un mondo — DISTINTA
 #: dall'espulsione di un membro (`CMD_MEMBER_KICK`, che archivia TUTTE le
 #: istanze del dispositivo espulso): qui il master rimuove UN singolo
 #: personaggio mentre il suo giocatore resta membro del mondo (es. un
@@ -112,16 +111,16 @@ CMD_CHANGE_REQUEST_PROPOSE = "change_request.propose"
 CMD_CHARACTER_INSTANCE_REMOVE = "character_instance.remove"
 
 #: Risponde (accetta/rifiuta) a una richiesta di rientro di un personaggio
-#: archiviato (2026-08-12, "Richiesta di rientro" — vedi
-#: `CMD_CHARACTER_REJOIN_REQUEST` sotto, in `PLAYER_OWNED_COMMANDS`, per il
-#: verso opposto). Master/owner soltanto: è la controparte esatta di
+#: archiviato — vedi `CMD_CHARACTER_REJOIN_REQUEST` sotto, in
+#: `PLAYER_OWNED_COMMANDS`, per il verso opposto. Master/owner soltanto: è
+#: la controparte esatta di
 #: `CMD_CHANGE_REQUEST_RESPOND` ma con i ruoli invertiti — lì il giocatore
 #: risponde a una proposta del master, qui il master risponde a una
 #: richiesta del giocatore.
 CMD_CHARACTER_REJOIN_RESPOND = "character_rejoin.respond"
 
-#: Mutazioni sul deposito comune del gruppo (2026-08-19,
-#: `loot_stash_entries` con `stash_kind="party"` — vedi `data/repositories/loot_repo.py`).
+#: Mutazioni sul deposito comune del gruppo (`loot_stash_entries` con
+#: `stash_kind="party"` — vedi `data/repositories/loot_repo.py`).
 #: Solo il contenitore "party" (visibile a tutti i membri del mondo) passa
 #: da qui: il deposito privato del master (`stash_kind="master"`) resta
 #: intenzionalmente locale-solo, mai condiviso — nessun comando per esso.
@@ -159,9 +158,8 @@ MASTER_AND_OWNER_COMMANDS: frozenset[str] = frozenset({
 
 CMD_CHANGE_REQUEST_RESPOND = "change_request.respond"
 
-#: Invio automatico (fix 2026-08-07, Multiplayer §7/step 7 "Condivisione" —
-#: scelta esplicita di Davide dopo un confronto sui pro/contro: "sì, invio
-#: automatico in tempo reale") dei PF che il giocatore stesso modifica sulla
+#: Invio automatico (Multiplayer §7/step 7 "Condivisione") dei PF che il
+#: giocatore stesso modifica sulla
 #: propria scheda (danno subito, cura, riposo, tiri salvezza contro morte,
 #: modifica manuale) — mai un'azione visibile, parte dal client con lo
 #: stesso principio "best effort" di `CMD_CHARACTER_INSTANCE_SYNC`: se fallisce
@@ -174,10 +172,10 @@ CMD_HP_SELF_UPDATE = "hp.self_update"
 
 #: Registra sull'host l'istanza di personaggio appena creata/ripresa in
 #: locale da `core/character_instances.py::create_or_resume_instance()`
-#: (fix 2026-08-07: quella funzione, nata al passo 3 prima che esistesse la
-#: rete, scrive SOLO sul DB del dispositivo che la chiama — su un
-#: dispositivo che ha solo una replica del mondo, l'host non veniva mai
-#: informato, e la Sezione Master non vedeva mai l'istanza). Ruolo minimo
+#: (quella funzione, nata al passo 3 prima che esistesse la rete, scrive
+#: SOLO sul DB del dispositivo che la chiama — su un dispositivo che ha
+#: solo una replica del mondo, l'host non verrebbe mai informato, e la
+#: Sezione Master non vedrebbe mai l'istanza). Ruolo minimo
 #: `player` come `CMD_CHANGE_REQUEST_RESPOND`: chi invia questo comando può
 #: farlo solo per il PROPRIO personaggio — qui non c'è ancora una riga
 #: `characters` esistente sull'host da confrontare (è la prima scrittura),
@@ -185,13 +183,10 @@ CMD_HP_SELF_UPDATE = "hp.self_update"
 #: payload esportato invece che da `_resolve_world_character()`.
 CMD_CHARACTER_INSTANCE_SYNC = "character_instance.sync"
 
-#: Estensione graduale di `CMD_HP_SELF_UPDATE` ad altri campi della scheda
-#: (2026-08-07, richiesta di Davide dopo aver segnalato che "la scheda che
-#: ha il giocatore deve essere completamente sincronizzata con i dati che
-#: ha il master" — scelta tra le alternative proposte: "estendi
-#: gradualmente hp.self_update ad altri campi... ognuno un comando
-#: auditabile nel Registro", non un unico comando "sincronizza tutto").
-#: Le condizioni sono il primo campo: hanno già un'azione locale sulla
+#: Estensione graduale di `CMD_HP_SELF_UPDATE` ad altri campi della scheda,
+#: ognuno un comando auditabile a sé nel Registro invece di un unico
+#: comando "sincronizza tutto". Le condizioni sono il primo campo: hanno
+#: già un'azione locale sulla
 #: propria scheda (`CombattimentoTab._open_condition_picker`/
 #: `_on_condition_click`, mai sincronizzata finora) e un analogo lato
 #: master già esistente (`CMD_CONDITION_APPLY`/`CMD_CONDITION_REMOVE`) da
@@ -200,7 +195,7 @@ CMD_CHARACTER_INSTANCE_SYNC = "character_instance.sync"
 CMD_CONDITION_SELF_APPLY = "condition.self_apply"
 CMD_CONDITION_SELF_REMOVE = "condition.self_remove"
 
-#: Ulteriore estensione di `CMD_HP_SELF_UPDATE` (2026-08-19) ai campi della
+#: Ulteriore estensione di `CMD_HP_SELF_UPDATE` ai campi della
 #: scheda che finora venivano scritti SOLO in locale da diario_tab.py,
 #: esplorazione_tab.py, spells_view.py e profilo_tab.py — mai instradati
 #: verso l'host. Conseguenza: quando un QUALSIASI altro evento mutante
@@ -218,9 +213,9 @@ CMD_CUSTOM_ABILITY_SELF_UPDATE = "custom_ability.self_update"
 CMD_SPELL_SELF_UPSERT = "spell.self_upsert"
 CMD_SPELL_SELF_REMOVE = "spell.self_remove"
 
-#: Richiede il rientro nel mondo di UNA propria istanza archiviata
-#: (2026-08-12, "Richiesta di rientro"). Ruolo minimo `player`, proprietà
-#: verificata come gli altri comandi di questo gruppo — un giocatore può
+#: Richiede il rientro nel mondo di UNA propria istanza archiviata.
+#: Ruolo minimo `player`, proprietà verificata come gli altri comandi di
+#: questo gruppo — un giocatore può
 #: richiedere il rientro SOLO di un personaggio di cui è proprietario. A
 #: differenza di `CMD_CHARACTER_INSTANCE_SYNC` non crea/scrive mai
 #: direttamente il personaggio: crea solo una richiesta pendente, l'unico
@@ -229,7 +224,7 @@ CMD_SPELL_SELF_REMOVE = "spell.self_remove"
 CMD_CHARACTER_REJOIN_REQUEST = "character_rejoin.request"
 
 #: Emette/revoca un codice di trasferimento del personaggio su un altro
-#: dispositivo (2026-08-17, "cambio dispositivo" — §11.9 del design doc).
+#: dispositivo ("cambio dispositivo" — §11.9 del design doc).
 #:
 #: Ruolo minimo `player` come gli altri comandi di questo gruppo, ma con una
 #: verifica di proprietà in DUE forme, applicata dall'handler in
@@ -297,34 +292,34 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
     CMD_XP_GRANT, CMD_HP_DAMAGE, CMD_HP_HEAL, CMD_CONDITION_APPLY, CMD_CONDITION_REMOVE,
     CMD_RESOURCE_CONSUME, CMD_RESOURCE_RESTORE, CMD_CUSTOM_ABILITY_GRANT,
     CMD_BONUS_SPELL_GRANT, CMD_DIARY_ADD_ENTRY, CMD_CHANGE_REQUEST_RESPOND,
-    # CMD_HP_SELF_UPDATE (fix 2026-08-07): anche questo evento deve far
-    # rimaterializzare la replica su un TERZO dispositivo (es. un co-master
-    # su un altro telefono, o il device del padrone stesso se un giorno
-    # gira su più dispositivi) — stesso principio già commentato qui sotto
-    # per CMD_CHARACTER_INSTANCE_SYNC.
+    # CMD_HP_SELF_UPDATE: anche questo evento deve far rimaterializzare la
+    # replica su un TERZO dispositivo (es. un co-master su un altro
+    # telefono, o il device del padrone stesso se un giorno gira su più
+    # dispositivi) — stesso principio già commentato qui sotto per
+    # CMD_CHARACTER_INSTANCE_SYNC.
     CMD_HP_SELF_UPDATE,
-    # Anche questo comando (fix 2026-08-07) rientra qui: per un TERZO
-    # dispositivo del mondo (non l'host, non il proprietario — es. un
-    # co-master su un altro telefono) `core/world_sync.py` deve sapere di
-    # richiamare la rimaterializzazione via `GET /character/<id>` quando
-    # vede questo evento nel giornale, esattamente come per xp.grant e gli
-    # altri. `_resync_character_from_host()` gestisce già correttamente il
-    # caso "non sono il proprietario, l'host risponde 403" (nessuna
-    # scrittura, non un errore) — nessuna logica nuova da aggiungere lì.
+    # Anche questo comando rientra qui: per un TERZO dispositivo del mondo
+    # (non l'host, non il proprietario — es. un co-master su un altro
+    # telefono) `core/world_sync.py` deve sapere di richiamare la
+    # rimaterializzazione via `GET /character/<id>` quando vede questo
+    # evento nel giornale, esattamente come per xp.grant e gli altri.
+    # `_resync_character_from_host()` gestisce già correttamente il caso
+    # "non sono il proprietario, l'host risponde 403" (nessuna scrittura,
+    # non un errore) — nessuna logica nuova da aggiungere lì.
     CMD_CHARACTER_INSTANCE_SYNC,
-    # Stesso principio di CMD_HP_SELF_UPDATE (fix 2026-08-07, estensione
-    # graduale): un terzo dispositivo deve rimaterializzare il personaggio
-    # quando vede uno di questi due eventi nel giornale.
+    # Stesso principio di CMD_HP_SELF_UPDATE: un terzo dispositivo deve
+    # rimaterializzare il personaggio quando vede uno di questi due eventi
+    # nel giornale.
     CMD_CONDITION_SELF_APPLY,
     CMD_CONDITION_SELF_REMOVE,
-    # 2026-08-12: la rimozione di un'istanza tocca `world_instance_archived`
-    # sulla riga `characters` — la replica del proprietario (se non è
-    # l'host) deve rifletterlo come qualunque altra mutazione del
-    # personaggio, stesso principio di tutte le voci sopra.
+    # La rimozione di un'istanza tocca `world_instance_archived` sulla riga
+    # `characters` — la replica del proprietario (se non è l'host) deve
+    # rifletterlo come qualunque altra mutazione del personaggio, stesso
+    # principio di tutte le voci sopra.
     CMD_CHARACTER_INSTANCE_REMOVE,
-    # 2026-08-19: stesso principio di CMD_HP_SELF_UPDATE — un terzo
-    # dispositivo (es. un co-master) deve rimaterializzare il personaggio
-    # quando vede uno di questi eventi nel giornale.
+    # Stesso principio di CMD_HP_SELF_UPDATE — un terzo dispositivo (es. un
+    # co-master) deve rimaterializzare il personaggio quando vede uno di
+    # questi eventi nel giornale.
     CMD_DIARY_SELF_ADD_ENTRY,
     CMD_DIARY_SELF_UPDATE_ENTRY,
     CMD_NOTES_SELF_UPDATE,
@@ -332,27 +327,25 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
     CMD_CUSTOM_ABILITY_SELF_UPDATE,
     CMD_SPELL_SELF_UPSERT,
     CMD_SPELL_SELF_REMOVE,
-    # 2026-08-12: l'accettazione di una richiesta di rientro toglie
-    # l'archiviazione (e, con `mode="refresh_from_local"`, sovrascrive
-    # anche il contenuto) — stesso principio di CMD_CHARACTER_INSTANCE_REMOVE,
-    # verso opposto. CMD_CHARACTER_REJOIN_REQUEST NON è qui: crea solo una
-    # richiesta pendente, non muta mai il personaggio (stesso motivo per cui
+    # L'accettazione di una richiesta di rientro toglie l'archiviazione (e,
+    # con `mode="refresh_from_local"`, sovrascrive anche il contenuto) —
+    # stesso principio di CMD_CHARACTER_INSTANCE_REMOVE, verso opposto.
+    # CMD_CHARACTER_REJOIN_REQUEST NON è qui: crea solo una richiesta
+    # pendente, non muta mai il personaggio (stesso motivo per cui
     # CMD_CHANGE_REQUEST_PROPOSE non c'è).
     CMD_CHARACTER_REJOIN_RESPOND,
 })
 
 # ---------------------------------------------------------------------------
-# Anti-spam (fix 2026-08-07, esteso alla difesa in profondità lato host
-# nella stessa sessione — Davide, dopo la revisione del primo fix
-# "solo client": "sì, anche sull'host"). Solo le costanti e l'aritmetica
-# pura vivono qui, coerente col resto di questo modulo (nessuna dipendenza,
-# nessun accesso al DB): lo STATO — chi ha fatto cosa e quando — vive in
-# ciascun attore che applica il limite, mai qui:
+# Anti-spam, applicato sia lato client sia in difesa profondità lato host.
+# Solo le costanti e l'aritmetica pura vivono qui, coerente col resto di
+# questo modulo (nessuna dipendenza, nessun accesso al DB): lo STATO — chi
+# ha fatto cosa e quando — vive in ciascun attore che applica il limite,
+# mai qui:
 #   - `core.world_sync` — stato lato client/UI (`WorldsView`/`HomeView`),
-#     a livello di MODULO (non di istanza: quelle view vengono ricreate ad
-#     ogni navigazione/cambio tema in `ui/app.py`, uno stato tenuto
-#     sull'istanza si azzererebbe ad ogni ricreazione — bug reale trovato
-#     il 2026-08-07 in una prima versione di questo fix, corretto qui);
+#     a livello di MODULO e non di istanza: quelle view vengono ricreate ad
+#     ogni navigazione/cambio tema in `ui/app.py`, quindi uno stato tenuto
+#     sull'istanza si azzererebbe ad ogni ricreazione;
 #   - `core.world_backend.LocalBackend` — stato lato host per i comandi
 #     (`send_command()` è il choke point unico, sia per un mondo ospitato
 #     da questo dispositivo sia per un comando arrivato via rete);
@@ -365,7 +358,7 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
 MASTER_ACTION_COOLDOWN_S = 3.0
 NETWORK_REQUEST_COOLDOWN_S = 10.0
 
-#: Cooldown DEDICATO a `CMD_HP_SELF_UPDATE` (fix 2026-08-07) — deliberatamente
+#: Cooldown DEDICATO a `CMD_HP_SELF_UPDATE` — deliberatamente
 #: separato da `MASTER_ACTION_COOLDOWN_S`: quello protegge un'azione con
 #: conferma esplicita dell'utente (una pillola, un dialog), qui invece
 #: l'invio è automatico e silenzioso ad ogni modifica dei PF sulla propria
@@ -379,8 +372,8 @@ NETWORK_REQUEST_COOLDOWN_S = 10.0
 #: percepita dall'utente da minimizzare (è tutto in background).
 HP_SELF_UPDATE_COOLDOWN_S = 1.5
 
-#: Cooldown per `CMD_CONDITION_SELF_APPLY`/`CMD_CONDITION_SELF_REMOVE`
-#: (2026-08-07, estensione graduale di hp.self_update). A differenza dei PF
+#: Cooldown per `CMD_CONDITION_SELF_APPLY`/`CMD_CONDITION_SELF_REMOVE`,
+#: estensione graduale di hp.self_update. A differenza dei PF
 #: (un valore continuo che cambia con ogni click +/-, da debounciare) una
 #: condizione è già un'azione discreta e deliberata (un dialog di conferma):
 #: qui il cooldown è solo difesa in profondità contro un click ripetuto
@@ -428,8 +421,8 @@ def role_at_least(role: str, minimum: str) -> bool:
     player < master < owner. Fail-closed su un ruolo non valido, come
     `can_perform`.
 
-    Aggiunta il 2026-08-17 per il codice di trasferimento (§11.9), dove serve
-    distinguere "il membro stesso" da "un master o l'owner" DENTRO un comando
+    Serve per il codice di trasferimento (§11.9), dove va distinto "il
+    membro stesso" da "un master o l'owner" DENTRO un comando
     che `can_perform` autorizza già a partire da `player`. È l'unico modo di
     fare quel confronto senza che un altro modulo legga `_ROLE_RANK`, che è
     privato proprio perché la scala dei ruoli non deve essere reinterpretata
@@ -466,10 +459,9 @@ def can_perform(role: str, command_kind: str) -> bool:
 # protezione reale è STRUTTURALE (nessun handler in `world_backend.py`
 # scrive questi campi al di fuori del sottoinsieme allow-listato in
 # `CHANGE_REQUEST_ALLOWED_FIELDS` sotto), non un controllo a runtime su
-# questa lista — pulizia 2026-08-07: rimosso `is_forbidden_character_field()`,
-# mai chiamato da nessun handler. La costante resta: documenta §7 in una
-# forma verificabile dal codice (non solo in prosa nel design doc), ed è il
-# riferimento esplicito di `CHANGE_REQUEST_ALLOWED_FIELDS` qui sotto.
+# questa lista. La costante resta: documenta §7 in una forma verificabile
+# dal codice (non solo in prosa nel design doc), ed è il riferimento
+# esplicito di `CHANGE_REQUEST_ALLOWED_FIELDS` qui sotto.
 #
 # Competenze e talenti non compaiono come nomi di campo perché non sono
 # colonne di `characters` (vivono in `character_proficiencies`): sono

@@ -3,17 +3,12 @@ Regole PHB per applicare danno e cura a un personaggio — PHB p.197
 ("Punti Ferita", "Morte Istantanea", "Danni a 0 Punti Ferita") e p.203-204
 ("Concentrazione").
 
-Estratto da `ui/views/character_sheet/combattimento_tab.py` il 2026-08-06
-(Multiplayer passo 6, `dnd_app/docs/multiplayer_design.md` §7: "Applicare
-danni e cure" è tra le azioni che il master deve poter eseguire anche su
-un'istanza di personaggio remota) — la logica era corretta e già verificata
-da Davide sullo stesso dispositivo, ma viveva dentro un handler `on_click`
-di Flet: per riusarla anche da `core/world_backend.py` (che non può
-importare Flet, `core/*.py` non ne ha mai dipendenze) andava spostata in un
-modulo puro. Nessuna regola è cambiata in questa estrazione — stesso
-algoritmo, stesso ordine delle operazioni, solo una funzione in più invece
-di codice duplicato in due posti (che sarebbe stata la vera fonte di bug:
-due implementazioni della stessa regola destinate a divergere).
+Modulo puro (nessuna dipendenza Flet, come tutto `core/*.py`) perché va
+condiviso anche da `core/world_backend.py`, che non può importare Flet: la
+UI locale e i comandi multiplayer (applicare danni/cure a un'istanza di
+personaggio remota, `dnd_app/docs/multiplayer_design.md` §7) riusano la
+stessa implementazione invece di duplicarla in due posti — duplicazione
+che sarebbe la vera fonte di bug, con le due copie destinate a divergere.
 
 Principio: queste funzioni mutano l'oggetto `Character` passato (in
 memoria, stesso stile del chiamante originale in `combattimento_tab.py`)

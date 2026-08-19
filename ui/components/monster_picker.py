@@ -2,13 +2,11 @@
 Componenti condivisi per la ricerca nel bestiario (`monsters.json`, 444 mostri
 già interamente auditati) e la visualizzazione dello stat block di una creatura.
 
-Estratto da `ui/views/character_sheet/combattimento_tab.py` (dove viveva come
-metodi privati di `CombattimentoTab` per Forma Selvatica/Evocazioni) il
-2026-07-24, per essere riusato anche dalla Sezione Master (creazione NPC "dal
-Bestiario", tracker di combattimento). Nessuna modifica di comportamento per
-il codice esistente rispetto a prima del refactoring — stessa identica logica
-di filtro/rendering, solo estratta in funzioni pure/parametrizzate invece di
-essere duplicata o legata a `self.character`.
+Riusato sia dal codice originario in
+`ui/views/character_sheet/combattimento_tab.py` (Forma Selvatica/Evocazioni)
+sia dalla Sezione Master (creazione NPC "dal Bestiario", tracker di
+combattimento) — funzioni pure/parametrizzate invece di essere duplicate o
+legate a `self.character`.
 
 `show_monster_picker()` non scrive mai da sola su nessuna tabella: riceve un
 callback `on_select(monster_dict)` e lascia al chiamante decidere cosa farne
@@ -24,9 +22,9 @@ from typing import Any, Callable
 
 import flet as ft
 
-# cr_to_float vive ora in data/game_data/game_data_loader.py (2026-07-25,
-# serviva a core/encounter_generator.py, che per convenzione di progetto
-# non può dipendere da Flet) — re-esportata qui per compatibilità con
+# cr_to_float vive ora in data/game_data/game_data_loader.py (serviva a
+# core/encounter_generator.py, che per convenzione di progetto non può
+# dipendere da Flet) — re-esportata qui per compatibilità con
 # tutto il codice già esistente che fa `from ui.components.monster_picker
 # import cr_to_float`, comportamento identico a prima.
 from data.game_data.game_data_loader import cr_to_float  # noqa: F401

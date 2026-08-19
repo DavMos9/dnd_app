@@ -44,12 +44,9 @@ from ui.widgets import wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
-#: Stesso intervallo già validato altrove (`sheet_view.py::_SHEET_SYNC_INTERVAL_S`)
-#: — bug segnalato da Davide (2026-08-16): le note condivise non si
-#: aggiornavano da sole in questa sezione (di primo livello nella sidebar,
-#: non un tab di `SheetView`), che non aveva mai avuto un ciclo di sync in
-#: background — una sola risoluzione di `device_id` al mount, mai più
-#: ripetuta.
+#: Stesso intervallo già validato altrove (`sheet_view.py::_SHEET_SYNC_INTERVAL_S`).
+#: Sezione di primo livello nella sidebar (non un tab di `SheetView`): ha un
+#: proprio ciclo di sync in background per aggiornare le note condivise.
 _DIARY_SYNC_INTERVAL_S = 2.0
 
 # ── Costanti visive ────────────────────────────────────────────────────────────
@@ -121,11 +118,10 @@ CATEGORIES: list[dict[str, Any]] = [
         "add_label":  "Aggiungi Fazione",
         "empty_msg":  "Nessuna fazione registrata.\nTieni traccia delle organizzazioni.",
     },
-    # "event"/"secret" (2026-08-16): categorie di `MasterCampaignNote` non
-    # presenti finora tra quelle del giocatore — aggiunte qui perché una
-    # nota condivisa dal master in queste categorie deve poter comparire
-    # in una scheda "già esistente" (richiesta di Davide: niente più un
-    # riquadro "condiviso" separato), non solo nelle 6 categorie storiche.
+    # "event"/"secret": categorie di `MasterCampaignNote` non presenti tra
+    # quelle del giocatore — aggiunte qui perché una nota condivisa dal
+    # master in queste categorie deve comparire in una scheda "già
+    # esistente", non in un riquadro "condiviso" separato.
     {
         "key":        "event",
         "label":      "Eventi",
@@ -222,10 +218,7 @@ class DiaryView(ft.Column):
                                                   color=design.T().text_3,
                                                   style=ft.TextStyle(letter_spacing=2))
 
-        # Note condivise dal Master (2026-08-16, richiesta di Davide:
-        # "voglio che le note condivise... vengano visualizzate... nella
-        # sezione diario/note del giocatore già esistente", niente più un
-        # riquadro "condiviso" separato) — SOLO se `character.world_id` è
+        # Note condivise dal Master — SOLO se `character.world_id` è
         # valorizzato. Fuse direttamente in `self._notes[cat]` da
         # `_merge_shared_notes()`; `_shared_note_ids` distingue quelle non
         # modificabili da questo dispositivo (chip + pannello di sola
@@ -263,8 +256,8 @@ class DiaryView(ft.Column):
         self._start_world_sync()
 
     def _start_world_sync(self) -> None:
-        """Ciclo periodico (2026-08-16, vedi `_DIARY_SYNC_INTERVAL_S`) —
-        stesso pattern di `sheet_view.py::SheetView`/`spells_view.py::SpellsView`/
+        """Ciclo periodico (vedi `_DIARY_SYNC_INTERVAL_S`) — stesso pattern di
+        `sheet_view.py::SheetView`/`spells_view.py::SpellsView`/
         `maps_view.py::MapsView`: finché la sezione Diario resta aperta,
         scarica gli eventi nuovi dall'host (note condivise dal master) e
         ridisegna, senza richiedere di uscire e rientrare nella sezione."""
@@ -483,15 +476,11 @@ class DiaryView(ft.Column):
         self._left_list_lv = ft.Column(controls=items, spacing=2)
 
         return ft.Container(
-            # Un'unica regione scrollabile per tutto il pannello (fix
-            # 2026-07-30, bug report di Davide: con la finestra ridotta le
-            # categorie in fondo — Fazioni, Eventi… — restavano fuori schermo
-            # e non c'era modo di raggiungerle). Prima la lista era una
-            # `ListView(expand=True)` dentro una Column NON scrollabile: le
-            # voci sopra la occupavano tutta l'altezza e il resto veniva
-            # semplicemente tagliato. Ora scorre l'intero pannello, e la lista
-            # e' una Column normale — niente scroll annidato, stessa regola
-            # gia' stabilita per il CardPicker.
+            # Un'unica regione scrollabile per tutto il pannello: se la lista
+            # interna avesse il proprio scroll (`ListView(expand=True)` dentro
+            # una Column non scrollabile) le categorie in fondo resterebbero
+            # fuori schermo con la finestra ridotta. Niente scroll annidato —
+            # stessa regola gia' stabilita per il CardPicker.
             content=ft.Column(
                 [
                     cat_nav,
@@ -800,11 +789,10 @@ class DiaryView(ft.Column):
                         on_click=lambda e: self._on_next(),
                     ),
                 ],
-                # niente più spacer expand=True tra i 3 gruppi (bug report Davide,
-                # 2026-07-24: non si adattava a finestre strette/smartphone) —
-                # SPACE_BETWEEN ottiene lo stesso effetto visivo "ai bordi" senza
-                # bisogno di expand, e wrap=True fa scendere il gruppo centrale
-                # su una riga propria se davvero non c'è spazio.
+                # SPACE_BETWEEN ottiene l'effetto visivo "ai bordi" senza
+                # spacer expand=True (che non si adatta a finestre strette), e
+                # wrap=True fa scendere il gruppo centrale su una riga propria
+                # se non c'è spazio.
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 wrap=True,
@@ -903,9 +891,9 @@ class DiaryView(ft.Column):
                 f"Nessuna {meta['label'].lower()} selezionata",
                 meta["empty_msg"],
             )
-        # Nota condivisa dal master (2026-08-16): sola lettura, modificarla
-        # resta compito del master — mai il pannello di modifica, che
-        # presume `character_repo.update_campaign_note` (scrittura su
+        # Nota condivisa dal master: sola lettura, modificarla resta compito
+        # del master — mai il pannello di modifica, che presume
+        # `character_repo.update_campaign_note` (scrittura su
         # `campaign_notes`, non su `master_campaign_notes`).
         if note.id in self._shared_note_ids:
             return self._build_note_reading_panel(note)
@@ -1062,10 +1050,9 @@ class DiaryView(ft.Column):
             options=[ft.DropdownOption(key=s, text=s) for s in opts],
             border_color=design.T().border,
             focused_border_color=design.T().primary,
-            # 2026-08-16: NON "transparent" — causa del menu a tendina
-            # semitrasparente/nero (bug report Davide su `master_notes_view.py`,
-            # stesso identico pattern qui): in questa versione di Flet il
-            # riempimento del popup segue il `bgcolor` del campo stesso.
+            # NON "transparent" — in questa versione di Flet il riempimento
+            # del menu a tendina segue il `bgcolor` del campo stesso, quindi
+            # "transparent" renderebbe il popup semitrasparente/nero.
             bgcolor=design.T().surface,
             label_style=ft.TextStyle(color=design.T().text_3, size=11),
             border_radius=design.field_style()['border_radius'], text_style=design.field_style()['text_style'])

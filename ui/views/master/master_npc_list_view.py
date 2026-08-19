@@ -64,11 +64,10 @@ class MasterNpcListView(ft.Column):
     def __init__(self, world_id: str = ""):
         super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
         self._page: ft.Page | None = None
-        #: Mondo correntemente selezionato in `MasterView` (2026-08-12, bug
-        #: report Davide: "in Master... npc... tutto deve essere dipendente
-        #: dal mondo") — "" per la modalità locale. Stesso principio già in
-        #: uso per Incontri/Note/Bottino: un mondo è un container, la
-        #: rubrica NPC ne mostra/crea solo il contenuto.
+        #: Mondo correntemente selezionato in `MasterView` — "" per la
+        #: modalità locale. Stesso principio già in uso per
+        #: Incontri/Note/Bottino: un mondo è un container, la rubrica NPC
+        #: ne mostra/crea solo il contenuto.
         self._world_id = world_id
         self._npcs: list[MasterNpc] = []
         self._search_query: str = ""
@@ -536,8 +535,8 @@ class MasterNpcListView(ft.Column):
         tags_tf = ft.TextField(label="Tag (separati da virgola)", value=src["tags"], dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
         notes_tf = ft.TextField(label="Note di ruolo / backstory", value=src["notes"],
                                  multiline=True, min_lines=2, max_lines=6, dense=True, border_radius=design.Radius.SM, border_color=design.field_style()['border_color'], focused_border_color=design.field_style()['focused_border_color'], bgcolor=design.field_style()['bgcolor'], text_style=design.field_style()['text_style'])
-        # Razza (2026-08-12, bug report Davide) — fuori da stat_fields_col:
-        # ha senso anche per un NPC "solo ruolo" senza stat block, e serve
+        # Razza — fuori da stat_fields_col: ha senso anche per un NPC
+        # "solo ruolo" senza stat block, e serve
         # da fonte per l'auto-riempimento di Tipo creatura/Taglia sotto.
         race_picker = DropdownAltro("Razza", ng.get_race_options(), src["race"], width=180)
         error_text = ft.Text("", size=12, color=design.T().danger)
@@ -603,8 +602,7 @@ class MasterNpcListView(ft.Column):
         stat_fields_col = ft.Column(
             [
                 ft.Divider(height=14, color=design.T().border),
-                # wrap=True (2026-08-15, bug report Davide: campi tagliati a
-                # destra) — la somma delle larghezze fisse dei campi supera
+                # wrap=True: la somma delle larghezze fisse dei campi supera
                 # quella del dialog su schermi stretti; qui è sicuro perché
                 # il contenitore del dialog ha una width esplicita
                 # (responsive_dialog_width) e nessun Row non-expand si
@@ -630,10 +628,10 @@ class MasterNpcListView(ft.Column):
 
         def _apply_race_autofill() -> None:
             """
-            Auto-riempimento di Tipo creatura/Taglia dalla Razza scelta
-            (2026-08-12, bug report Davide) — scrive SOLO se i campi sono
-            attualmente vuoti, non sovrascrive mai un valore che il Master
-            ha già impostato a mano o da un salvataggio precedente.
+            Auto-riempimento di Tipo creatura/Taglia dalla Razza scelta —
+            scrive SOLO se i campi sono attualmente vuoti, non sovrascrive
+            mai un valore che il Master ha già impostato a mano o da un
+            salvataggio precedente.
             """
             if not stat_cb.value:
                 return

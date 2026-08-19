@@ -2,9 +2,8 @@
 Codice condiviso tra i due flussi di creazione personaggio
 (`wizard_view.WizardView` e `manual_form.ManualCreationForm`).
 
-Perché esiste (Fase 2 della revisione 2026-07-26, punto "codice ridondante"):
-i due file sono nati come copie l'uno dell'altro e sono cresciuti in
-parallelo. Misurato con AST alla data di creazione di questo modulo:
+Perché esiste: i due file sono nati come copie l'uno dell'altro e sono
+cresciuti in parallelo. Un confronto AST ha misurato:
 
   * 51 funzioni con lo stesso nome nei due file;
   * di queste, **24 hanno logica identica** (a meno di annotazioni di tipo,
@@ -25,8 +24,7 @@ bisogna prima spezzare quei metodi, che è un intervento a sé — vedi la nota
 **Regola per il futuro**: qualunque nuova logica di creazione che serva a
 entrambi i flussi va scritta QUI, non copiata nei due file. La duplicazione
 è la causa documentata di più bug del progetto (ogni fix va applicato due
-volte, e in almeno un caso registrato in CLAUDE.md è stato applicato a uno
-solo dei due file).
+volte).
 
 ---
 Lavoro residuo, misurato, per completare la deduplicazione (non fatto qui):
@@ -40,10 +38,9 @@ Lavoro residuo, misurato, per completare la deduplicazione (non fatto qui):
 | `_render_equipment`        | 269 vs 259             | 92.2%      |
 | `_rebuild_lang_tool_col`   | 185 vs 164             | 86.0%      |
 
-Verificato con un confronto del grafo delle chiamate che **nessuna** di queste
-divergenze è una correzione applicata a un solo file (nessun "drift bug"):
-tutte le differenze nelle funzioni chiamate si spiegano con la diversa
-struttura a fasi dei due flussi.
+Nessuna di queste divergenze è una correzione applicata a un solo file
+(nessun "drift bug"): tutte le differenze nelle funzioni chiamate si
+spiegano con la diversa struttura a fasi dei due flussi.
 """
 
 from typing import Any
@@ -145,10 +142,9 @@ class CreationSharedMixin:
         Numero totale di lingue "a scelta libera" concesse dalla RAZZA (non
         dal background) — somma di tutte le entry {"type":"choice","count":N}
         in get_resolved_race(...)["languages"]. Generalizza il vecchio
-        special-case hardcoded solo su "Umano" (2026-07-16, task Mezzelfo,
-        CLAUDE.md TODO "Mezzelfo non riceve mai la scelta della terza lingua
-        libera"): Umano e Mezzelfo hanno la stessa identica struttura dati,
-        leggerla qui copre entrambi (e razze future) senza duplicare logica.
+        special-case hardcoded solo su "Umano": Umano e Mezzelfo hanno la
+        stessa identica struttura dati, leggerla qui copre entrambi (e razze
+        future) senza duplicare logica.
         """
         if not self._review_race:
             return 0

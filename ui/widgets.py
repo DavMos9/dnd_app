@@ -1,68 +1,33 @@
 """
 Widget condivisi riutilizzabili tra creazione personaggio, wizard e level-up.
 
-Aggiunto il 2026-07-16 su richiesta di Davide: quando il giocatore deve
-scegliere un incantesimo/trucchetto/talento/supplica occulta/opzione di
-metamagia da un Dropdown, deve poter vedere la descrizione completa
-dell'opzione ATTUALMENTE selezionata prima di confermare — non solo il
-nome. Primo pattern scelto (confermato da Davide su 4 alternative proposte):
-icona informazione (ⓘ) accanto al Dropdown, che apre un AlertDialog con la
-descrizione.
+`CardPicker` sostituisce il pattern Dropdown/icona ⓘ per la scelta di
+incantesimi/trucchetti/talenti/suppliche occulte/opzioni di metamagia: una
+lista scorrevole di card cliccabili dove UN SOLO click seleziona l'opzione E
+ne mostra subito la descrizione completa inline, senza alcun dialog
+separato — stesso principio già in uso nel compendio Talenti (`FeatsView`),
+esteso qui a un widget riutilizzabile e stateful. Usato per
+incantesimi/trucchetti (creazione e level-up), talento all'ASI, Metamagia,
+Suppliche Occulte, Discipline Elementali, Dono del Patto, Stile di
+Combattimento.
 
-**Sostituito il 2026-07-16, stesso giorno, su feedback diretto di Davide**:
-"non mi piace quando vengono scelti gli incantesimi devi prima selezionarli
-e poi premere info, è macchinoso e difficile per il player" — il pattern
-Dropdown+ⓘ richiedeva due gesti separati (selezionare alla cieca, poi aprire
-un dialog per leggere cosa si è appena scelto). Sostituito da `CardPicker`:
-una lista scorrevole di card cliccabili dove UN SOLO click seleziona
-l'opzione E ne mostra subito la descrizione completa inline, senza alcun
-dialog separato — stesso principio già in uso nel compendio Talenti
-(`FeatsView`), esteso qui a un widget riutilizzabile e stateful. Applicato
-(confermato da Davide) a TUTTI i punti che usavano `dropdown_with_info` o
-un'icona ⓘ standalone: incantesimi/trucchetti (creazione e level-up),
-talento all'ASI, Metamagia, Suppliche Occulte, Discipline Elementali, Dono
-del Patto, Stile di Combattimento.
+Le funzioni `format_*_body()` sono usate dagli helper `*_card_options()` qui
+sotto — nessuna duplicazione di logica di formattazione.
 
-**Pulizia 2026-07-26 (Fase 2 della revisione)**: `dropdown_with_info()` e le
-quattro `make_*_describe()` sono state **rimosse**. Erano rimaste in questo
-modulo "come helper generico riutilizzabile" dopo la conversione al
-`CardPicker`, ma non hanno mai più avuto un solo chiamante: erano dead code a
-tutti gli effetti (~200 righe). Le funzioni `format_*_body()` restano e sono
-tuttora usate dagli helper `*_card_options()` qui sotto — nessuna duplicazione
-di logica di formattazione.
-
-**Bug fix 2026-07-16, stesso giorno, feedback diretto di Davide dopo aver
-provato il redesign sopra**: "lo scorrimento è difficoltoso, se scelgo
-l'incantesimo e poi voglio scorrere alle sezioni sotto ho difficoltà a
-scorrere la finestra perché mi scorre la lista degli incantesimi... viene
-usata pure da tablet". Causa: `CardPicker.control` era una `ft.Column` a
-ALTEZZA FISSA con `scroll=ft.ScrollMode.AUTO` propria — sempre annidata
-dentro un contenitore GIÀ scrollabile (il content Column del dialog di
-level-up in `profilo_tab.py`, o il Column dell'intera fase in
+`CardPicker.control` è una `ft.Column` SENZA scroll proprio e SENZA altezza
+fissa: si dimensiona naturalmente al contenuto e diventa parte della stessa,
+unica regione scrollabile del contenitore che la ospita (il content Column
+del dialog di level-up in `profilo_tab.py`, o il Column dell'intera fase in
 `wizard_view.py`/`manual_form.py`, entrambi già `scroll=ft.ScrollMode.AUTO`).
-Due regioni scrollabili annidate = il trascinamento sopra la card list viene
-sempre catturato dalla lista (la più vicina al dito), mai dal contenitore
-esterno — un problema di "nested scroll" classico, particolarmente fastidioso
-su touch/tablet perché non c'è una scrollbar visibile da afferrare fuori
-dalla lista per "bucare" verso lo scroll esterno. Flet 0.85.3 non espone un
+Due regioni scrollabili annidate causano un problema di "nested scroll"
+classico — il trascinamento sopra la card list viene sempre catturato dalla
+lista (la più vicina al dito), mai dal contenitore esterno — particolarmente
+fastidioso su touch/tablet perché non c'è una scrollbar visibile da afferrare
+fuori dalla lista per "bucare" verso lo scroll esterno. Flet non espone un
 equivalente del "NestedScrollView" nativo (nessuna fisica "scrolla la lista
-solo se non è già al suo limite, altrimenti passa lo scroll al genitore") —
-l'unica soluzione robusta con i controlli disponibili è eliminare la seconda
-regione scrollabile: `CardPicker.control` ora è una `ft.Column` SENZA scroll
-proprio e SENZA altezza fissa (si dimensiona naturalmente al contenuto,
-esattamente come qualunque altra sezione di lista già presente nel progetto,
-es. `_section_spell_list`/`_section_extra_spell_list` in `spells_view.py` —
-mai scroll annidato lì, sempre stato così) — diventa così parte della stessa,
-unica regione scrollabile del contenitore che la ospita. Il parametro
-`height` è stato rimosso dalla firma (e da tutte le ~24 chiamate nel
-progetto): non serve più, dato che non c'è più nulla da "tagliare" a una
-finestra fissa. **Unico punto che richiedeva una modifica aggiuntiva**: il
-dialog "Aggiungi Incantesimo Bonus" in `spells_view.py`, dove il CardPicker
-era l'UNICA regione scrollabile (il Column del dialog non scrollava affatto,
-`tight=True`) — lì lo scroll è stato spostato sul Column del dialog stesso
-(stesso pattern già in uso in tutti gli altri dialog del progetto), così la
-regola resta universale e senza eccezioni: **CardPicker non scrolla mai se
-stesso, è sempre il contenitore che lo ospita a scrollare**.
+solo se non è già al suo limite, altrimenti passa lo scroll al genitore"),
+quindi la regola resta universale e senza eccezioni: **CardPicker non
+scrolla mai se stesso, è sempre il contenitore che lo ospita a scrollare**.
 """
 
 import flet as ft
@@ -78,8 +43,8 @@ class ScrollMemoryListView(ft.ListView):
     `ft.ListView` che ricorda la posizione di scroll e la ripristina dopo un
     rebuild dei propri `controls`.
 
-    Perché serve (bug B10 della revisione 2026-07-26): tutti i tab della scheda
-    personaggio si aggiornano con lo stesso pattern
+    Perché serve: tutti i tab della scheda personaggio si aggiornano con lo
+    stesso pattern
     `self.controls.clear(); self._build(); self.update()`, cioè ricostruendo
     l'intero contenuto ad OGNI singola interazione — anche un semplice "−1 HP".
     Dato che i controlli sono oggetti nuovi, Flutter riparte da capo e **lo
@@ -154,14 +119,11 @@ class ScrollMemoryListView(ft.ListView):
 
 class ScrollMemoryColumn(ft.Column):
     """
-    `ft.Column` con la stessa memoria di scroll di `ScrollMemoryListView`
-    (bug B10) — introdotta il 2026-08-16 per un bug gemello segnalato da
-    Davide sui cicli di sincronizzazione in background: `WorldsView._body`
-    e `MasterEncounterView` sono `ft.Column(scroll=...)` semplici, quindi
-    ogni ridisegno periodico (`BackgroundSyncLoop`, i ticker di countdown a
-    1s) ricostruisce `.controls` da zero e riporta lo scroll in cima —
-    "una specie di flash a schermo e uno scattino" durante la
-    sincronizzazione, anche senza alcuna interazione dell'utente.
+    `ft.Column` con la stessa memoria di scroll di `ScrollMemoryListView`:
+    `WorldsView._body` e `MasterEncounterView` sono `ft.Column(scroll=...)`
+    semplici, quindi ogni ridisegno periodico (`BackgroundSyncLoop`, i ticker
+    di countdown a 1s) ricostruisce `.controls` da zero e riporta lo scroll
+    in cima, anche senza alcuna interazione dell'utente.
 
     Stessa API di `ScrollMemoryListView` (`restore_scroll()`, sempre da
     richiamare dopo `.update()`): duplicata invece di condivisa via mixin
@@ -220,8 +182,8 @@ class CardPicker:
     richiamare `.update()` con guard `try/except RuntimeError`, mai
     riassegnare `.controls` — vedi CLAUDE.md).
 
-    **Nessuno scroll proprio** (fix 2026-07-16, vedi nota di modulo più
-    sopra): `.control` si dimensiona sempre al proprio contenuto — il
+    **Nessuno scroll proprio** (vedi nota di modulo più sopra): `.control`
+    si dimensiona sempre al proprio contenuto — il
     contenitore che lo ospita è SEMPRE responsabile dello scroll (dialog di
     level-up, fase di creazione, ecc., già tutti scrollabili). Non annidare
     mai un secondo `scroll=ft.ScrollMode.AUTO` intorno a `.control`.
@@ -301,8 +263,8 @@ class CardPicker:
         self._disabled = disabled
 
         # Nessuno scroll/altezza fissa propria — vedi nota di modulo e
-        # docstring di classe (fix 2026-07-16): il contenitore che ospita
-        # `.control` è sempre responsabile dello scroll.
+        # docstring di classe: il contenitore che ospita `.control` è
+        # sempre responsabile dello scroll.
         self.control = ft.Column(spacing=4)
         self.options = options  # invoca il setter -> costruisce le card iniziali
 
@@ -479,14 +441,9 @@ class DropdownAltro:
     creatura, Taglia, Allineamento, Grado di Sfida, Razza...), ma sempre
     personalizzabile (es. un NPC che risulta un cambiaforma).
 
-    Aggiunto 2026-08-12 (Rubrica NPC, bug report Davide: "tipo creatura e
-    taglia devono corrispondere a quelle già create automaticamente...
-    avere la tendina in cui selezionare tutti i tipi disponibili e infondo
-    'altro' che permette l'inserimento manuale"). Nessun componente
-    equivalente esisteva nel progetto prima di questo — stesso principio
-    di `CardPicker` sopra: un wrapper Python plain (non un `ft.Control`),
-    possiede un `ft.Column` (`.control`) e gestisce la propria reattività
-    internamente.
+    Stesso principio di `CardPicker` sopra: un wrapper Python plain (non un
+    `ft.Control`), possiede un `ft.Column` (`.control`) e gestisce la propria
+    reattività internamente.
 
     .value       — str: opzione scelta, o il testo libero se è stato scelto
                    "Altro" (stringa vuota se nulla è ancora stato scelto).
@@ -610,12 +567,11 @@ class MultiSelectAltro:
     personalizzato..." (`ft.TextField` + pulsante) che accoda una nuova
     card già selezionata, senza limite al numero di valori custom.
 
-    Aggiunto 2026-08-12 (Rubrica NPC, stessa richiesta di `DropdownAltro`
-    sopra, estesa dopo conferma di Davide ai 4 campi multi-valore
-    dell'NPC — vulnerabilità/resistenze/immunità ai danni, immunità alle
-    condizioni). Questi campi restano colonne TEXT (CSV) nel DB — questo è
-    solo un layer UI: il chiamante converte CSV → `list[str]` in apertura e
-    `list[str]` → CSV al salvataggio (nessuna modifica di schema).
+    Usato per i 4 campi multi-valore dell'NPC — vulnerabilità/resistenze/
+    immunità ai danni, immunità alle condizioni. Questi campi restano
+    colonne TEXT (CSV) nel DB — questo è solo un layer UI: il chiamante
+    converte CSV → `list[str]` in apertura e `list[str]` → CSV al
+    salvataggio (nessuna modifica di schema).
 
     .values      — `list[str]` (property, come `CardPicker.values`).
     .picker      — il `CardPicker` sottostante, per accesso avanzato.
@@ -714,18 +670,15 @@ def spell_card_options(spells: list[dict], known_names: set[str] | None = None) 
     Opzioni CardPicker da una lista di dict incantesimo/trucchetto (stesso
     input di `make_spell_describe`, es. `_loader.get_spells(classe)`).
 
-    Ogni card mostra anche un badge col livello (fix 2026-07-16, richiesta
-    Davide: "affianco [al titolo] sia indicato anche il livello
-    dell'incantesimo" — utile soprattutto per i picker che mescolano più
-    livelli nella stessa lista, es. SPELL_LEARN al level-up o "Incantesimi
-    Bonus", dove non è ovvio a colpo d'occhio il livello di ogni voce).
-    Stessa convenzione testo/colore già usata nei dialog di dettaglio di
-    `spells_view.py` ("0" blu per i trucchetti, "Lv{N}" crimson per gli
-    incantesimi) — coerenza visiva tra la lista di scelta e i dialog.
+    Ogni card mostra anche un badge col livello — utile soprattutto per i
+    picker che mescolano più livelli nella stessa lista, es. SPELL_LEARN al
+    level-up o "Incantesimi Bonus", dove non è ovvio a colpo d'occhio il
+    livello di ogni voce. Stessa convenzione testo/colore già usata nei
+    dialog di dettaglio di `spells_view.py` ("0" blu per i trucchetti,
+    "Lv{N}" crimson per gli incantesimi) — coerenza visiva tra la lista di
+    scelta e i dialog.
 
-    `known_names` (2026-08-16, bug report Davide: "il master può concedere
-    anche incantesimi bonus che già sono stati aggiunti... o già concessi
-    in precedenza"): se passato, i nomi presenti vengono marcati nel titolo
+    `known_names`: se passato, i nomi presenti vengono marcati nel titolo
     con "· Già posseduto" — solo un flag visibile (`CardPicker` supporta un
     solo badge, già occupato dal livello), nessun blocco: il master resta
     libero di concederlo comunque.
@@ -888,11 +841,9 @@ def format_equipment_item_body(item: dict, loader: Any) -> str:
     Corpo descrittivo per una singola voce di equipaggiamento iniziale —
     espande il contenuto di una Dotazione ("Dotazione da Avventuriero" ecc.)
     nei singoli oggetti che contiene, via `loader.get_pack_contents(name)`
-    (2026-07-11, dato già strutturato in adventuring_gear.json). Richiesta
-    di Davide (2026-07-17): "rendere come la scelta degli incantesimi...
-    quando scelgo voglio vedere cosa mi dà la dotazione scelta" — stesso
-    principio dei formatter `format_*_body` sopra, applicato qui alle
-    dotazioni invece che a incantesimi/talenti.
+    (dato già strutturato in adventuring_gear.json) — stesso principio dei
+    formatter `format_*_body` sopra, applicato qui alle dotazioni invece che
+    a incantesimi/talenti.
 
     Ritorna stringa vuota per un oggetto che non è una dotazione nota (nulla
     da espandere, il solo nome nel titolo della card è già sufficiente) o
@@ -958,9 +909,7 @@ def wrap_dialog_actions(buttons: list[ft.Control]) -> list[ft.Control]:
     Avvolge una lista di pulsanti da usare in `ft.AlertDialog(actions=...)`
     in un'unica `ft.Row` con `wrap=True`.
 
-    Aggiunto il 2026-07-24 (bug report Davide: "l'interfaccia si deve sempre
-    adattare alla finestra, conta che deve essere usato anche per
-    smartphone"). `AlertDialog.actions` in Flet è renderizzato come una Row
+    `AlertDialog.actions` in Flet è renderizzato come una Row
     che NON va mai a capo da sola — con 3+ pulsanti (es. "Annulla" / "Reset"
     / "Applica") su una finestra stretta o su smartphone i pulsanti in più
     escono dal bordo del dialog invece di diventare una seconda riga.
@@ -978,11 +927,10 @@ def show_snack(page: Any, message: str, tone: str = "success") -> None:
     """
     SnackBar di conferma/errore in stile uniforme — centralizza il pattern
     già duplicato in `home_view.py` (`_show_success`/`_show_error`, due
-    `ft.SnackBar` quasi identici). Aggiunto per il Bottino (2026-07-31): i
-    punti di aggancio "Assegna…"/"Salva nell'archivio" vivono in 5 dialog
-    diversi (Tesoro, Oggetto Magico, Compendio, Artefatti, Veleni) e devono
-    dare lo stesso feedback senza duplicare la costruzione dello SnackBar
-    in ognuno.
+    `ft.SnackBar` quasi identici). I punti di aggancio "Assegna…"/"Salva
+    nell'archivio" vivono in 5 dialog diversi (Tesoro, Oggetto Magico,
+    Compendio, Artefatti, Veleni) e devono dare lo stesso feedback senza
+    duplicare la costruzione dello SnackBar in ognuno.
 
     In Flet 0.85.3 `SnackBar` è un `DialogControl`: si apre con
     `page.show_dialog()`, mai con `page.snack_bar = ...` (vedi
@@ -1000,11 +948,9 @@ def responsive_dialog_width(page: Any, base_width: int, margin: int = 32, min_wi
     Calcola una larghezza sicura per il content di un `ft.AlertDialog`, che
     non superi mai lo spazio disponibile della finestra/schermo.
 
-    Aggiunto il 2026-07-24 (stesso bug report "l'interfaccia si deve sempre
-    adattare alla finestra... anche per smartphone" già alla base di
-    `wrap_dialog_actions`): diversi dialog della Sezione Master (Genera
-    Tesoro/Trappola, Malattie e Veleni, Incontri per Ambiente) avevano un
-    `width=` fisso (420-440px) sul `ft.Column` di contenuto — su uno
+    Diversi dialog della Sezione Master (Genera Tesoro/Trappola, Malattie e
+    Veleni, Incontri per Ambiente) avevano un `width=` fisso (420-440px) sul
+    `ft.Column` di contenuto — su uno
     smartphone più stretto di quel valore (es. iPhone SE, ~375px di
     viewport) il dialog stesso va in overflow orizzontale, indipendentemente
     da quanto siano responsive i pulsanti al suo interno.
@@ -1023,7 +969,7 @@ def responsive_dialog_width(page: Any, base_width: int, margin: int = 32, min_wi
 
 
 # ---------------------------------------------------------------------------
-# Cambio tema (Fase D del restyle, 2026-07-30)
+# Cambio tema
 # ---------------------------------------------------------------------------
 
 #: Icona ed etichetta per ciascuna preferenza di tema. Un unico posto, così i

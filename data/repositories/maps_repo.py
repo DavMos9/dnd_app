@@ -205,15 +205,14 @@ def clone_map_for_sharing(source_map_id: str, world_id: str) -> GameMap | None:
     (`character_id=NULL`, id nuovo, annotazioni vuote) invece di
     riusare la riga personale del personaggio che l'ha creata.
 
-    Bug corretto qui (2026-08-12, segnalato da Davide): la versione
-    precedente riusava la STESSA riga (`UPDATE ... SET world_id=?,
-    is_shared=1 WHERE id=?`), quindi disegnare sulla mappa condivisa nel
-    mondo modificava anche la mappa personale del personaggio proprietario
-    — anche se quel personaggio non faceva parte di NESSUN mondo. Clonare
-    disaccoppia le due cose per sempre: il personale resta personale
-    (mai toccato da qui in poi), il clone è dell'unico proprietario "il
-    mondo" (nessun `character_id`, come una mappa caricata direttamente
-    — vedi `create_shared_map`), e disegnarci sopra tocca solo il clone.
+    Riusare la STESSA riga (`UPDATE ... SET world_id=?, is_shared=1 WHERE
+    id=?`) farebbe sì che disegnare sulla mappa condivisa nel mondo
+    modifichi anche la mappa personale del personaggio proprietario — anche
+    se quel personaggio non fa parte di NESSUN mondo. Clonare disaccoppia le
+    due cose per sempre: il personale resta personale (mai toccato da qui in
+    poi), il clone è dell'unico proprietario "il mondo" (nessun
+    `character_id`, come una mappa caricata direttamente — vedi
+    `create_shared_map`), e disegnarci sopra tocca solo il clone.
     """
     source = get_map(source_map_id)
     if source is None:

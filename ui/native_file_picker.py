@@ -6,8 +6,8 @@ Android/iOS tramite il plugin Flutter ufficiale `file_picker`.
 **Perché esiste**: import personaggio (`.dndchar`) e import mondo
 (`.dndworld`) su mobile passavano da `ui/mobile_webview_picker.py`
 (`ft.WebView` + `<input type=file>`) — confermato NON funzionante su
-Android reale anche per la selezione file generica (segnalato da Davide,
-stessa diagnosi già nota per il caso foto: `webview_flutter` non implementa
+Android reale anche per la selezione file generica (stessa diagnosi già
+nota per il caso foto: `webview_flutter` non implementa
 `WebChromeClient.onShowFileChooser` di default). Questo modulo applica la
 stessa tecnica già verificata funzionante per le foto
 (`ui/native_image_picker.py`, estensione nativa su misura) al caso file
@@ -30,7 +30,7 @@ l'invocazione fallisce per qualunque motivo — i chiamanti
 `world_view.py::_on_mobile_import_world()`) DEVONO intercettarla e ricadere
 su `pick_file_via_webview()` (`ui/mobile_webview_picker.py`), mai assumere
 che questo percorso funzioni al primo colpo su un dispositivo reale non
-ancora testato da Davide.
+ancora testato end-to-end.
 """
 
 from __future__ import annotations

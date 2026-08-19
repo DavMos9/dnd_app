@@ -1,17 +1,15 @@
 """
 Tema Flet dell'app + helper legacy.
 
-**Riscritto nella Fase A del restyle (2026-07-26).** Prima usava 2 soli campi
-di `ft.Theme` (`color_scheme` e `font_family`) su 58 disponibili: ogni dialog,
-bottone e scrollbar era quindi stilizzato a mano, uno per uno, in 25 file.
-Ora il tema configura i sotto-temi, e questo **restyla in un colpo solo tutti
-i ~60 AlertDialog dell'app** senza toccarne nemmeno uno.
+Il tema configura i sotto-temi di `ft.Theme` (dialog, bottoni, scrollbar,
+dropdown, ecc.) invece dei soli `color_scheme`/`font_family`: questo permette
+di restylare in un colpo solo tutti gli AlertDialog, bottoni e controlli
+Material dell'app senza toccare le singole view.
 
 I valori vengono dai token in `ui/design.py` (palette doppia chiaro/scuro con
 contrasti WCAG calcolati). Gli helper legacy in fondo al file
 (`title_text`, `fantasy_card`, `section_header`, …) restano invariati e
-funzionanti: le view migrano alle nuove primitive una superficie alla volta
-nella Fase E, non tutte insieme.
+funzionanti: le view migrano alle nuove primitive una superficie alla volta.
 """
 
 import flet as ft
@@ -75,9 +73,9 @@ def _build_theme(p: "d.Palette") -> ft.Theme:
             body_small=txt(d.Size.LABEL, p.text_3),
             label_medium=txt(d.Size.LABEL, p.text_3, ft.FontWeight.BOLD),
         ),
-        # Forma, padding e tipografia dei bottoni vivono QUI: nella Fase E.4 le
-        # 81 `shape=RoundedRectangleBorder(radius=4|6|8)` inline sono state
-        # rimosse dalle view, così ogni bottone dell'app prende questi valori.
+        # Forma, padding e tipografia dei bottoni vivono QUI, non sparsi come
+        # `shape=RoundedRectangleBorder(radius=4|6|8)` inline nelle view, così
+        # ogni bottone dell'app prende questi valori.
         button_theme=ft.ButtonTheme(style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=d.Radius.SM),
             padding=ft.Padding.symmetric(horizontal=d.Space.LG, vertical=d.Space.MD),
@@ -111,15 +109,14 @@ def _build_theme(p: "d.Palette") -> ft.Theme:
             interactive=True,
         ),
         # Controlli Material che l'app usa dentro i dialog: uniformati dal tema
-        # (Fase E, coda 2026-07-30) invece che stilizzati caso per caso.
+        # invece che stilizzati caso per caso.
         #
-        # `menu_style` (bug report Davide 2026-08-15, "Note di Campagna"):
-        # senza uno sfondo esplicito, il menu a tendina di OGNI `Dropdown`
-        # dell'app (non solo quello segnalato) cade sul default Material —
-        # un riquadro semitrasparente scuro che si vede a malapena sul testo,
-        # indipendentemente dal tema chiaro/scuro dell'app. Impostare
-        # `bgcolor`/`shadow_color`/`shape` qui risolve tutti i Dropdown in un
-        # colpo solo, stesso principio già applicato sopra a dialog/bottoni.
+        # `menu_style`: senza uno sfondo esplicito, il menu a tendina di OGNI
+        # `Dropdown` dell'app cade sul default Material — un riquadro
+        # semitrasparente scuro che si vede a malapena sul testo, indipendentemente
+        # dal tema chiaro/scuro dell'app. Impostare `bgcolor`/`shadow_color`/`shape`
+        # qui risolve tutti i Dropdown in un colpo solo, stesso principio già
+        # applicato sopra a dialog/bottoni.
         dropdown_theme=ft.DropdownTheme(
             text_style=txt(d.Size.BODY_SM, p.text),
             menu_style=ft.MenuStyle(
@@ -172,7 +169,7 @@ def get_theme() -> ft.Theme:
 
 
 def get_dark_theme() -> ft.Theme:
-    """Tema scuro. Collegato al toggle nella Fase D del restyle."""
+    """Tema scuro. Collegato al toggle di cambio tema."""
     return _build_theme(d.DARK)
 
 
@@ -186,7 +183,7 @@ def title_text(text: str, size: int = 20) -> ft.Text:
 
 def body_text(text: str, size: int = 14, color: str | None = None, weight=None) -> ft.Text:
     # `color` NON può avere `d.T()...` come default: sarebbe valutato una sola
-    # volta all'import, congelando la palette chiara (Fase E.3).
+    # volta all'import, congelando la palette chiara.
     return d.body(text, size=size, color=color, weight=weight)
 
 
@@ -200,7 +197,7 @@ def muted_text(text: str, size: int = 12, text_align: ft.TextAlign | None = None
 
 def label_text(text: str, size: int = 10) -> ft.Text:
     t = d.label(text)
-    t.size = max(size, d.Size.LABEL)   # mai sotto 11px (regola della Fase B)
+    t.size = max(size, d.Size.LABEL)   # mai sotto 11px
     return t
 
 
@@ -216,9 +213,9 @@ def fantasy_card(content: ft.Control, padding: int = 16) -> ft.Container:
 def section_header(text: str, accent: str | None = None) -> ft.Container:
     """
     Intestazione di sezione: barretta d'accento + etichetta maiuscola spaziata +
-    filo di separazione. Delega a `design.header_row()` (Arcane Ledger,
-    2026-08-20) così i 68+ call site ancora su questa API legacy ricevono
-    ogni futuro cambio di stile delle intestazioni senza bisogno di migrare.
+    filo di separazione. Delega a `design.header_row()` così i 68+ call site
+    ancora su questa API legacy ricevono ogni futuro cambio di stile delle
+    intestazioni senza bisogno di migrare.
     """
     p = d.T()
     row = d.header_row(text, accent)

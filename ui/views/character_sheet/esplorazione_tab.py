@@ -6,8 +6,8 @@ Struttura (ListView scrollabile):
   - Sensi                — scurovisione, altri sensi speciali da razza
   - Velocità             — base + nuoto / scalata / volo (se presenti)
   - Lingue               — dalla scheda proficiencies (type="language"), sola
-                        lettura (editing centralizzato in ProfiloTab dal
-                        2026-07-17, vedi ProfiloTab._section_altre_competenze)
+                        lettura (editing centralizzato in ProfiloTab, vedi
+                        ProfiloTab._section_altre_competenze)
   - Strumenti            — dalla scheda proficiencies (type="tool"), sola
                         lettura, stesso motivo di Lingue
   - Tiri Salvezza        — griglia compatta 6 valori con indicatore competenza
@@ -54,15 +54,15 @@ class EsplorazioneTab(ScrollMemoryListView):
         # Competenze base di classe (armor_proficiencies/weapon_proficiencies) —
         # self-healing ad ogni apertura tab, stesso principio già usato per
         # sync_borrowed_spellcasting_ability/init_class_resources altrove nel
-        # progetto: backfilla i personaggi creati prima di questo fix
-        # (2026-07-16), idempotente (dedup per proficiency_type+name).
+        # progetto: backfilla i personaggi creati prima che questa logica
+        # esistesse, idempotente (dedup per proficiency_type+name).
         if character.class_name:
             character_repo.apply_class_base_proficiencies(character.id, character.class_name)
         self._profs: list[CharacterProficiency] = character_repo.get_proficiencies(character.id)
-        # Abilità Speciali custom di esplorazione (2026-07-16, richiesta
-        # Davide: abilità concesse dal master o annotazioni aggiuntive —
-        # puramente additivo, mai in sostituzione dei tratti razziali/PHB
-        # già mostrati sopra in "Sensi e Velocità").
+        # Abilità Speciali custom di esplorazione: abilità concesse dal
+        # master o annotazioni aggiuntive — puramente additivo, mai in
+        # sostituzione dei tratti razziali/PHB già mostrati sopra in
+        # "Sensi e Velocità".
         self._custom_abilities: list[CustomAbility] = character_repo.get_custom_abilities(
             character.id, "esplorazione"
         )
@@ -140,11 +140,11 @@ class EsplorazioneTab(ScrollMemoryListView):
 
         # IMPORTANTE: modifica in-place — NON riassegnare self.controls
         self.controls.clear()
-        # Audit anti-AI-slop (2026-08-18): Percezione Passiva è l'unico
-        # elemento "hero" del tab (il valore più consultato dal DM per le
-        # verifiche passive, unico dei due con override manuale) — affiancata
-        # a Indagare Passivo invece di impilata, stesso principio già usato
-        # per HP+statistiche in combattimento_tab.py.
+        # Percezione Passiva è l'unico elemento "hero" del tab (il valore più
+        # consultato dal DM per le verifiche passive, unico dei due con
+        # override manuale) — affiancata a Indagare Passivo invece di
+        # impilata, stesso principio già usato per HP+statistiche in
+        # combattimento_tab.py.
         self.controls.append(design.asymmetric_row(
             self._section_percezione(c, pb), self._section_indagare_passiva(c, pb),
             ratio=(7, 5),
@@ -311,10 +311,10 @@ class EsplorazioneTab(ScrollMemoryListView):
         """
         Indagare Passivo (10 + mod INT + eventuale competenza + bonus da
         talenti, es. Osservatore: +5) — sola lettura, nessun override
-        manuale (a differenza della Percezione Passiva): aggiunta insieme al
-        fix del talento Osservatore (2026-07-16), che è il primo e unico
-        caso PHB in cui questo valore serve davvero in questa app. Se in
-        futuro servisse un override anche qui, andrebbe aggiunta una nuova
+        manuale (a differenza della Percezione Passiva): il talento
+        Osservatore è il primo e unico caso PHB in cui questo valore serve
+        davvero in questa app. Se in futuro servisse un override anche qui,
+        andrebbe aggiunta una nuova
         colonna dedicata (stesso pattern di passive_perception_override).
         """
         int_mod = get_modifier(c.int_score)
@@ -382,8 +382,8 @@ class EsplorazioneTab(ScrollMemoryListView):
 
         # Velocità a piedi effettiva: include il bonus dinamico di classe
         # non equipaggiato (Monaco Movimento Senza Armatura, Barbaro
-        # Movimento Veloce — Categoria B, audit 2026-07-09). Le velocità
-        # speciali sotto (Nuoto/Scalata/Volo) restano al valore base: il
+        # Movimento Veloce). Le velocità speciali sotto (Nuoto/Scalata/Volo)
+        # restano al valore base: il
         # PHB descrive entrambe le capacità come bonus alla velocità di
         # movimento a piedi, non alle velocità speciali di razza.
         effective_walk_speed = character_repo.get_effective_speed(c)
@@ -473,15 +473,13 @@ class EsplorazioneTab(ScrollMemoryListView):
 
     # ------------------------------------------------------------------
     # Lingue — sola lettura (editing centralizzato in ProfiloTab, vedi
-    # ProfiloTab._section_altre_competenze — decisione Davide 2026-07-17:
-    # "Tutto in Profilo")
+    # ProfiloTab._section_altre_competenze: principio "Tutto in Profilo")
     # ------------------------------------------------------------------
 
     def _section_lingue_header(self) -> ft.Container:
-        # Audit anti-AI-slop (2026-08-18): era una reimplementazione a mano
-        # identica a `section_header()` (già importata in questo file e già
-        # usata più sotto per "Tiri Salvezza"/"Abilità") — stesso header,
-        # zero differenza visiva, una sola fonte di verità in più.
+        # Usa section_header() invece di reimplementarlo a mano: stesso
+        # header già usato più sotto per "Tiri Salvezza"/"Abilità", una sola
+        # fonte di verità.
         return section_header("Lingue")
 
     def _section_lingue(self) -> ft.Container:
@@ -490,10 +488,10 @@ class EsplorazioneTab(ScrollMemoryListView):
         if not lingue:
             rows: list[ft.Control] = [muted_text("Nessuna lingua registrata — usa + Aggiungi", 12)]
         else:
-            # Audit anti-AI-slop (2026-08-18): icona LANGUAGE rimossa — era
-            # identica e ripetuta su ogni riga dentro una sezione già
-            # titolata "Lingue", zero informazione aggiuntiva (a differenza
-            # di ★/● in Strumenti qui sotto, che comunica competenza/maestria).
+            # Nessuna icona per riga: la sezione è già titolata "Lingue" e
+            # un'icona identica ripetuta su ogni riga non aggiungerebbe
+            # informazione (a differenza di ★/● in Strumenti qui sotto, che
+            # comunica competenza/maestria).
             rows = []
             for p in sorted(lingue, key=lambda x: x.name):
                 rows.append(
@@ -508,11 +506,11 @@ class EsplorazioneTab(ScrollMemoryListView):
 
     # ------------------------------------------------------------------
     # Strumenti — sola lettura (editing centralizzato in ProfiloTab, vedi
-    # ProfiloTab._section_altre_competenze — decisione Davide 2026-07-17)
+    # ProfiloTab._section_altre_competenze)
     # ------------------------------------------------------------------
 
     def _section_strumenti_header(self) -> ft.Container:
-        # Audit anti-AI-slop (2026-08-18): stesso motivo di _section_lingue_header.
+        # Stesso motivo di _section_lingue_header.
         return section_header("Strumenti")
 
     def _section_strumenti(self) -> ft.Container:
@@ -545,9 +543,9 @@ class EsplorazioneTab(ScrollMemoryListView):
         return self._compact_card(rows)
 
     # ------------------------------------------------------------------
-    # Abilità Speciali custom (2026-07-16) — voci additive, es. concesse
-    # dal master; non modificano mai i tratti razziali/PHB già mostrati
-    # sopra in "Sensi e Velocità".
+    # Abilità Speciali custom — voci additive, es. concesse dal master; non
+    # modificano mai i tratti razziali/PHB già mostrati sopra in
+    # "Sensi e Velocità".
     # ------------------------------------------------------------------
 
     def _section_custom_abilities_header(self) -> ft.Container:
@@ -590,8 +588,7 @@ class EsplorazioneTab(ScrollMemoryListView):
         return self._compact_card(rows)
 
     def _custom_ability_row(self, ab: CustomAbility) -> ft.Container:
-        # 2026-07-17, bug report Davide (punto 1, stesso fix gemello di
-        # combattimento_tab.py): mostrata per intero, non più troncata.
+        # Mostrata per intero, non troncata (stesso principio in combattimento_tab.py).
         full_desc = ab.description.strip()
         return ft.Container(
             content=ft.Row(
@@ -722,8 +719,7 @@ class EsplorazioneTab(ScrollMemoryListView):
 
     def _section_saves(self, c: Character, pb: int) -> ft.Container:
         # I modificatori vengono da core/character_stats (unica fonte di
-        # verità dal 2026-07-30, Fase 4): prima la stessa matematica era
-        # ripetuta inline qui e in altri 5 punti della UI.
+        # verità): non ripetere questa matematica inline nella UI.
         cells: list[ft.Control] = []
         for key, abbr in zip(ABILITY_KEYS, ABILITY_ABBR):
             spec = cs.save_roll(c, self._profs, key)
@@ -820,20 +816,16 @@ class EsplorazioneTab(ScrollMemoryListView):
 
             skill_items.append(
                 ft.Container(
-                    # `col`: griglia responsive (fix 2026-08-05, segnalato da
-                    # Davide — "anche le abilità non si leggono bene da
-                    # smartphone"). Prima le 18 righe erano divise in due
-                    # colonne FISSE con un semplice slicing Python: su uno
-                    # schermo stretto ogni colonna aveva ~150px, e il nome
-                    # abilità (expand=True, senza protezione dal testo
-                    # lungo) veniva schiacciato a pochi caratteri. `col` è
-                    # valutato lato client in base alla larghezza reale del
-                    # ResponsiveRow che lo contiene (non richiede leggere
-                    # `page.width` in Python, cosa che qui non sarebbe
-                    # comunque affidabile — vedi nota in home_view.py sullo
-                    # stesso problema): sotto la soglia "sm" (576px, default
-                    # Flet) una riga intera per abilità, sopra due colonne
-                    # come prima.
+                    # `col`: griglia responsive. Le 18 righe NON vanno divise
+                    # in due colonne fisse con slicing Python: su schermo
+                    # stretto il nome abilità (expand=True) verrebbe
+                    # schiacciato a pochi caratteri. `col` è valutato lato
+                    # client in base alla larghezza reale del ResponsiveRow
+                    # che lo contiene (non richiede leggere `page.width` in
+                    # Python, cosa che qui non sarebbe comunque affidabile —
+                    # vedi nota in home_view.py sullo stesso problema): sotto
+                    # la soglia "sm" (576px, default Flet) una riga intera
+                    # per abilità, sopra due colonne.
                     col={"xs": 12, "sm": 6},
                     content=ft.Row(
                         [
@@ -884,12 +876,10 @@ class EsplorazioneTab(ScrollMemoryListView):
             border_radius=design.Radius.MD,
         )
 
-    # NOTA: Lingue/Strumenti sono sola lettura da qui (2026-07-17) —
-    # l'editing (aggiunta con autofill da catalogo, rimozione) vive ora in
+    # NOTA: Lingue/Strumenti sono sola lettura da qui — l'editing (aggiunta
+    # con autofill da catalogo, rimozione) vive in
     # ProfiloTab._open_add_competenza_dialog() / ProfiloTab._on_delete_
-    # proficiency(), decisione di Davide "Tutto in Profilo". Il metodo
-    # _on_delete_proficiency che viveva qui è stato rimosso (nessun
-    # chiamante residuo in questo file).
+    # proficiency(), principio "Tutto in Profilo".
 
     # ------------------------------------------------------------------
     # Helper
@@ -1008,7 +998,7 @@ class EsplorazioneTab(ScrollMemoryListView):
             pass
         # Ripristina la posizione di scroll: il rebuild sopra ricrea tutti i
         # controlli, quindi senza questo la vista tornerebbe in cima ad ogni
-        # singola azione (bug B10, revisione 2026-07-26).
+        # singola azione.
         self.restore_scroll()
         if self._on_refresh:
             self._on_refresh()

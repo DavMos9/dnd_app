@@ -34,8 +34,7 @@ contiene solo 2), il pool viene esaurito una volta per intero e poi
 completato con ripetizioni (`random.choices`) solo per la parte eccedente
 — non solleva mai un errore, ma nemmeno finge una varietà che i dati non
 permettono. Nessun seed fisso in nessun caso: stesso bersaglio, risultati
-diversi ad ogni generazione, coerente con il requisito esplicito di Davide
-("la generazione... non deve generare sempre gli stessi... oggetti").
+diversi ad ogni generazione.
 """
 
 from __future__ import annotations

@@ -12,7 +12,7 @@ applica mai un evento da sola.
 
 Copriva SOLO gli eventi di gestione del mondo (rinomina, promuovi/
 retrocedi/espelli, trasferimento di proprietà, ingresso di un membro) fino
-al passo 4. **Dal passo 6** (2026-08-06, Multiplayer §7) copre anche gli
+al passo 4. **Dal passo 6** (Multiplayer §7) copre anche gli
 eventi che mutano un'istanza di personaggio (PE, danno, cura, condizioni,
 risorse di classe, abilità custom, incantesimo bonus, voce di diario,
 risposta a una richiesta di modifica) e le richieste di modifica stesse
@@ -45,34 +45,27 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Anti-spam lato client — stato di MODULO, fix 2026-08-07 (rivisto due
-# volte nella stessa giornata).
-#
-# Prima versione: timer tenuti come attributi di istanza su `WorldsView`/
-# `HomeView`. Bug trovato chiedendo un parere su questa stessa
-# implementazione: `ui/app.py::_show_worlds_view()`/`_show_home()` creano
-# un'istanza NUOVA della view ad ogni navigazione — e anche ad ogni cambio
-# tema, che passa dallo stesso `_rebuild_route` — quindi uno stato
-# sull'istanza si azzerava ad ogni ricreazione, rendendo il limite
+# Anti-spam lato client — stato di MODULO, non di istanza:
+# `ui/app.py::_show_worlds_view()`/`_show_home()` creano un'istanza NUOVA
+# di `WorldsView`/`HomeView` ad ogni navigazione — e anche ad ogni cambio
+# tema, che passa dallo stesso `_rebuild_route` — quindi uno stato tenuto
+# sull'istanza si azzererebbe ad ogni ricreazione, rendendo il limite
 # aggirabile senza nemmeno volerlo. Un'istanza di modulo sopravvive per
 # tutta la durata del processo, che è esattamente ciò che serve a un
-# guardrail "non permettere all'utente di spammare" (Davide).
+# guardrail "non permettere all'utente di spammare".
 #
 # Costanti e aritmetica pura (`MASTER_ACTION_COOLDOWN_S`/
 # `NETWORK_REQUEST_COOLDOWN_S`/`cooldown_remaining()`) vivono in
 # `core.world_permissions`, non qui: servono anche lato HOST
 # (`core.world_backend.LocalBackend`, `network.host_server.WorldHostServer`
-# — difesa in profondità, stessa richiesta di Davide), e quel modulo è la
-# base dipendenza-zero già condivisa da client e host. Qui vive SOLO lo
-# stato lato client.
+# — difesa in profondità), e quel modulo è la base dipendenza-zero già
+# condivisa da client e host. Qui vive SOLO lo stato lato client.
 #
-# Il timer del master (`MASTER_ACTION_COOLDOWN_S`, 3s) è ora PER
-# PERSONAGGIO (`master_action_last_at: dict[character_id, float]`), non un
-# solo timer globale sulla sezione: un'area che colpisce 4 PG non
-# costringe il master ad aspettare 3s tra un personaggio e l'altro, il
-# limite blocca solo il martellare ripetuto sullo STESSO personaggio
-# (revisione richiesta da Davide dopo un parere sulla prima versione, che
-# era un timer unico su tutta la sezione).
+# Il timer del master (`MASTER_ACTION_COOLDOWN_S`, 3s) è PER PERSONAGGIO
+# (`master_action_last_at: dict[character_id, float]`), non un solo timer
+# globale sulla sezione: un'area che colpisce 4 PG non costringe il master
+# ad aspettare 3s tra un personaggio e l'altro, il limite blocca solo il
+# martellare ripetuto sullo STESSO personaggio.
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -80,12 +73,12 @@ class _ClientCooldownState:
     master_action_last_at: dict[str, float] = field(default_factory=dict)  # character_id -> float
     network_request_last_at: float = 0.0     # ingresso in un mondo (codice/LAN/QR) + retry
     instance_push_last_at: float = 0.0       # HomeView._push_instance_to_host
-    #: hp.self_update (fix 2026-08-07) — per personaggio come master_action,
+    #: hp.self_update — per personaggio come master_action,
     #: ma usato per DECIDERE quando è il momento di inviare (debounce in
     #: `CombattimentoTab`), mai per bloccare l'azione locale sulla scheda.
     hp_self_update_last_at: dict[str, float] = field(default_factory=dict)
-    #: condition.self_apply/self_remove (2026-08-07, estensione graduale di
-    #: hp.self_update) — per personaggio, usato solo per non martellare
+    #: condition.self_apply/self_remove, estensione graduale di
+    #: hp.self_update — per personaggio, usato solo per non martellare
     #: l'host con click ripetuti ravvicinati: l'azione locale (aggiungi/
     #: rimuovi condizione sulla propria scheda) non è mai bloccata da
     #: questo cooldown.
@@ -111,7 +104,7 @@ def network_request_cooldown_remaining() -> float:
     """Secondi rimanenti prima del prossimo tentativo di ingresso in un
     mondo o controllo di una richiesta in sospeso — un solo tracciato
     condiviso tra `_join`/`_attempt`/`_retry` (tutte "richieste di rete
-    semplici" per Davide, non categorie separate)."""
+    semplici", non categorie separate)."""
     return perm.cooldown_remaining(
         _client_cooldowns.network_request_last_at, perm.NETWORK_REQUEST_COOLDOWN_S,
     )
@@ -136,7 +129,7 @@ def mark_instance_push() -> None:
 
 def hp_self_update_cooldown_remaining(character_id: str) -> float:
     """Secondi rimanenti prima del prossimo invio automatico dei PF di
-    QUESTO personaggio verso l'host (`CombattimentoTab`, fix 2026-08-07).
+    QUESTO personaggio verso l'host (`CombattimentoTab`).
     Usato solo per decidere quando spedire (debounce), mai per bloccare
     l'azione locale del giocatore sulla propria scheda."""
     last_at = _client_cooldowns.hp_self_update_last_at.get(character_id, 0.0)
@@ -236,9 +229,7 @@ def apply_event_to_replica(local_world_id: str, event: WorldEvent, remote_backen
         # entrambe le scritture devono avvenire per quell'evento, quindi
         # niente `elif` tra i due.
         #
-        # Eccezione (2026-08-16, bug segnalato da Davide: "il tiro salvezza
-        # segnato manualmente scompare, oppure riappare in ritardo"):
-        # `CMD_HP_SELF_UPDATE` è per costruzione inviato SOLO dal
+        # Eccezione: `CMD_HP_SELF_UPDATE` è per costruzione inviato SOLO dal
         # proprietario del personaggio (`perm.is_character_owner` in
         # `world_backend.py::_handle_hp_self_update`), che scrive la
         # propria replica locale PRIMA di spedire il comando
@@ -361,7 +352,7 @@ def apply_event_to_replica(local_world_id: str, event: WorldEvent, remote_backen
             # L'immagine non viaggia mai qui (§6.4) — solo lo stub, scaricata
             # lazy via GET /map/<id>/image la prima volta che la mappa si apre.
             # Stesso identico stub per una mappa clonata (publish) o caricata
-            # direttamente (upload, 2026-08-12): la replica non distingue le
+            # direttamente (upload): la replica non distingue le
             # due origini, entrambe producono una riga senza personaggio
             # proprietario (`character_id` NULL).
             maps_repo.replica_create_map_stub(
@@ -486,9 +477,9 @@ def _resync_character_from_host(remote_backend, character_id: str, seq: int) -> 
     data = remote_backend.get_character(character_id)
     if data is None:
         return
-    # `game_maps` escluse (2026-08-19, bug segnalato da Davide): le mappe
-    # personali non vengono mai inviate all'host (mai condivise, per
-    # design), quindi lo snapshot dell'host qui sopra non le contiene mai —
+    # `game_maps` escluse: le mappe personali non vengono mai inviate
+    # all'host (mai condivise, per design), quindi lo snapshot dell'host
+    # qui sopra non le contiene mai —
     # senza questa esclusione il DELETE CASCADE dentro
     # `import_replica_character()` le cancellerebbe ad ogni resync
     # innescato da un evento che non le riguarda affatto (danno HP, PE...).
@@ -594,22 +585,18 @@ def sync_replica(remote_backend, local_world_id: str, refresh_members: bool = Tr
         world_repo.update_last_synced_seq(local_world_id, latest_seq)
         applied = len(events)
 
-    # Fix 2026-08-16 (bug segnalato da Davide: note/mappe condivise "già
-    # esistenti" invisibili a un personaggio entrato dopo, e sincronizzazione
-    # "molto lenta, alcune note non compaiono"): PRIMA questo passo viveva
-    # dopo un `if not events: return 0` — quindi, non appena un dispositivo
-    # aveva raggiunto la punta del giornale (nessun evento incrementale
-    # nuovo da applicare, il caso più comune durante una sessione tranquilla
-    # o subito dopo un ingresso), lo snapshot smetteva di essere
-    # ri-scaricato del tutto: se per qualunque motivo una nota/mappa non era
-    # stata seminata correttamente al primo ingresso (`_finalize_join`),
-    # nessun ciclo successivo aveva più occasione di correggerlo.  Ora gira
-    # SEMPRE (quando `refresh_members=True`, il default), a prescindere da
-    # `events` — costo di una sola chiamata di rete in più ogni ciclo, già
-    # accettato per i soli membri, qui esteso a note e mappe condivise (che
-    # riusano gli stessi identici scrittori di `_finalize_join`, un solo
-    # punto di verità su "come si materializza lo stato derivato dallo
-    # snapshot", mai due copie della stessa logica).
+    # Questo passo gira SEMPRE (quando `refresh_members=True`, il default),
+    # a prescindere da `events`: se girasse solo dopo eventi incrementali
+    # nuovi, un dispositivo che ha già raggiunto la punta del giornale (il
+    # caso più comune durante una sessione tranquilla, o subito dopo un
+    # ingresso) smetterebbe di ri-scaricare lo snapshot del tutto — se per
+    # qualunque motivo una nota/mappa non fosse stata seminata correttamente
+    # al primo ingresso (`_finalize_join`), nessun ciclo successivo avrebbe
+    # più occasione di correggerlo. Costo di una sola chiamata di rete in
+    # più ogni ciclo, già accettato per i soli membri, qui esteso a note e
+    # mappe condivise (che riusano gli stessi identici scrittori di
+    # `_finalize_join`, un solo punto di verità su "come si materializza lo
+    # stato derivato dallo snapshot", mai due copie della stessa logica).
     if refresh_members:
         _refresh_snapshot_derived_state(remote_backend, local_world_id)
 
@@ -619,10 +606,10 @@ def sync_replica(remote_backend, local_world_id: str, refresh_members: bool = Tr
 def push_pending_instances(remote_backend, local_world_id: str, device_id: str) -> int:
     """
     Ritenta il push verso l'host delle istanze di QUESTO dispositivo rimaste
-    con `host_sync_pending=1` (2026-08-18, bug segnalato da Davide: se
-    `HomeView._push_instance_to_host()` falliva perché l'host era offline nel
-    momento della creazione, il personaggio restava "nel mondo" solo in
-    locale finché non si ripeteva l'operazione a mano con l'host online).
+    con `host_sync_pending=1`: se `HomeView._push_instance_to_host()` fallisce
+    perché l'host è offline nel momento della creazione, il personaggio
+    resterebbe "nel mondo" solo in locale finché non si ripete l'operazione
+    a mano con l'host online.
 
     Va chiamata dallo stesso loop periodico che già chiama `sync_replica()`
     (`ui/views/world/world_view.py`) — qui, non in `sync_replica()` stessa,
@@ -663,9 +650,7 @@ def push_pending_instances(remote_backend, local_world_id: str, device_id: str) 
 def _backfill_map_annotations_if_empty(remote_backend, map_id: str) -> None:
     """
     Recupera una volta sola i tratti di disegno di una mappa condivisa
-    quando la replica locale non li ha ancora (2026-08-19, bug segnalato
-    da Davide: "le scritte del master sulla mappa precedenti all'entrata
-    del giocatore nel mondo non sono visibili") — `replica_create_map_stub`
+    quando la replica locale non li ha ancora — `replica_create_map_stub`
     inizializza sempre `annotations='[]'` e non le aggiorna più su un
     UPDATE (righe già presenti), quindi senza questo backfill un
     dispositivo che si unisce dopo che il master ha già disegnato non
@@ -735,7 +720,7 @@ def _refresh_snapshot_derived_state(remote_backend, local_world_id: str) -> None
                 logger.error("_refresh_snapshot_derived_state: mappa %r scartata: %s",
                              map_data.get("id"), e)
 
-    # Deposito comune del gruppo (2026-08-19) — solo `stash_kind="party"`,
+    # Deposito comune del gruppo — solo `stash_kind="party"`,
     # mai "master" (l'archivio del Master non è mai incluso nello snapshot,
     # vedi `network/host_server.py::handle_snapshot`). A differenza di
     # note/mappe sopra (solo aggiunte) il deposito supporta anche la
@@ -758,7 +743,7 @@ def _refresh_snapshot_derived_state(remote_backend, local_world_id: str) -> None
 
 
 # ---------------------------------------------------------------------------
-# Risoluzione del backend di un mondo — fix 2026-08-07
+# Risoluzione del backend di un mondo
 # ---------------------------------------------------------------------------
 
 def resolve_backend_for_world(world: World, device_id: str, local_backend,
@@ -771,8 +756,7 @@ def resolve_backend_for_world(world: World, device_id: str, local_backend,
     stato possibile stabilire una connessione valida.
 
     Estratto da `ui/views/world/world_view.py::WorldsView._backend_for()`
-    (dove nasce lo stesso giorno, per il fix del routing dei comandi) perché
-    la stessa identica logica serve ora anche a `ui/views/home_view.py`
+    perché la stessa identica logica serve anche a `ui/views/home_view.py`
     (`CMD_CHARACTER_INSTANCE_SYNC`: registrare sull'host un'istanza appena
     creata) — un solo punto di verità su "come si raggiunge l'host di un
     mondo da questo dispositivo", mai due copie destinate a divergere.
@@ -820,13 +804,12 @@ def resolve_backend_for_world(world: World, device_id: str, local_backend,
     if not remote.reconnect_with_token(world.session_token):
         # Token non più valido — quasi sempre perché il master ha fermato e
         # riavviato l'hosting: `WorldHostServer.stop()` svuota TUTTI i
-        # token in memoria e `start()` rigenera il PIN (§9.4). Prima del
-        # 2026-08-16 questo era un vicolo cieco ("mai un ritentativo
-        # automatico con credenziali scadute") — bug segnalato da Davide:
-        # un giocatore già membro restava bloccato con l'errore "host non
-        # connesso o PIN cambiato" finché non reinseriva codice+PIN a mano.
+        # token in memoria e `start()` rigenera il PIN (§9.4). Senza un
+        # ritentativo automatico, un giocatore già membro resterebbe
+        # bloccato con l'errore "host non connesso o PIN cambiato" finché
+        # non reinserisce codice+PIN a mano.
         #
-        # Fix ("implementare registrazione"): un dispositivo già presente
+        # Un dispositivo già presente
         # in `world_members` (persistito su DB dall'host, sopravvive al
         # riavvio) rientra con il solo `join_code` — MAI col PIN, vedi
         # `network/host_server.py::handle_join`. Se questa replica ricorda
@@ -840,7 +823,7 @@ def resolve_backend_for_world(world: World, device_id: str, local_backend,
         retry = start_lan_join(host, port, world.join_code, "", device_id or "", "")
         if not retry.success or retry.backend is None:
             # Percorso REALE del vecchio dispositivo dopo un trasferimento
-            # (2026-08-17, §11.9): quasi sempre era spento o fuori portata nel
+            # (§11.9): quasi sempre era spento o fuori portata nel
             # momento in cui il master ha approvato, quindi non ha mai visto
             # l'evento `device_transfer.redeem` e non si è marcato da sé. Lo
             # scopre qui, dalla risposta dell'host al primo ritentativo. Senza
@@ -849,15 +832,12 @@ def resolve_backend_for_world(world: World, device_id: str, local_backend,
             if retry.reason == "transferred_away":
                 _mark_world_transferred_away(world.id)
                 return None
-            # Fix 2026-08-19 (§11.7): `host`/`port` qui sopra vengono SEMPRE
+            # §11.7: `host`/`port` qui sopra vengono SEMPRE
             # da `world.last_seen_host`, che diventa stale non appena l'host
             # cambia rete (nuovo IP LAN — es. il master ospita da un'altra
-            # casa la settimana dopo). Bug segnalato da Davide: "Riconnetti"
-            # non funzionava su una rete diversa da quella dell'ultimo
-            # ingresso, ma riscansionare il QR sì — non per una vera
-            # correzione, solo perché un ingresso completo da QR
-            # sovrascrive `last_seen_host` come effetto collaterale
-            # (`_finalize_join` sotto). Prima di arrendersi, ripete lo
+            # casa la settimana dopo) — senza questo ritentativo "Riconnetti"
+            # funzionerebbe solo sulla stessa rete dell'ultimo ingresso.
+            # Prima di arrendersi, ripete lo
             # stesso identico ritentativo con un indirizzo fresco trovato
             # via scoperta broadcast — l'host lo manda comunque
             # (`network/discovery.py`), quindi non serve QR né digitare
@@ -899,7 +879,7 @@ def _retry_with_rediscovery(world: World, device_id: str) -> object | None:
 
 
 # ---------------------------------------------------------------------------
-# Push self-service best-effort verso l'host (2026-08-19)
+# Push self-service best-effort verso l'host
 # ---------------------------------------------------------------------------
 
 async def push_character_self_command(page, character, device_id_cache: dict, kind: str,
@@ -997,7 +977,7 @@ def start_lan_join(host: str, port: int, join_code: str, pin: str,
     richiamare `finish_pending_join()` (tipicamente con un pulsante
     «Controlla di nuovo») finché il master non approva o rifiuta.
 
-    `transfer_code` (2026-08-17, §11.9): riscatta un codice di trasferimento per
+    `transfer_code` (§11.9): riscatta un codice di trasferimento per
     subentrare a un membro esistente e riprendersi i suoi personaggi, invece di
     entrare come dispositivo nuovo. Sostituisce il PIN, non l'approvazione del
     master. La capacità dell'host viene verificata al passo 1, sullo stesso
@@ -1068,7 +1048,7 @@ def finish_pending_join(backend, request_id: str, host_port: str) -> LanJoinResu
     if outcome.status == "rejected":
         return LanJoinResult(False, error="Il master ha rifiutato la richiesta di ingresso.")
     if outcome.status == "cancelled":
-        # 2026-08-19: la richiesta è stata annullata (tipicamente da questo
+        # La richiesta è stata annullata (tipicamente da questo
         # stesso dispositivo, `RemoteBackend.cancel_join_request()`) — stato
         # TERMINALE come il rifiuto, mai più "in attesa": senza questo ramo
         # cadrebbe nel fallback sotto e resterebbe "in attesa" per sempre
@@ -1087,7 +1067,7 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
     (mondo, membri, giornale) — così è leggibile offline fin dal primo
     momento, non solo dal prossimo evento in poi (§6).
 
-    Dal passo 6 (Multiplayer, 2026-08-06) semina anche le istanze di
+    Dal passo 6 (Multiplayer) semina anche le istanze di
     personaggio DI CUI QUESTO DISPOSITIVO È PROPRIETARIO
     (`snapshot["characters"]`, già filtrate lato host —
     `WorldHostServer.handle_snapshot()`) e le richieste di modifica in
@@ -1120,15 +1100,14 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
         return LanJoinResult(False, backend=backend,
                               error="Salvataggio della replica del mondo fallito.")
 
-    # Questi due loop erano gli ULTIMI rimasti senza isolamento in questa
-    # funzione (2026-08-17): a differenza di tutti quelli sotto, un'eccezione
-    # qui risaliva fino al chiamante — e nessuno dei due chiamanti la
-    # intercettava (`_poll_pending_join_loop` è una coroutine: l'eccezione
-    # uccide il task in silenzio e il dialogo del giocatore resta fermo su
+    # Senza isolamento per elemento, un'eccezione qui risalirebbe fino al
+    # chiamante — e nessuno dei due chiamanti la intercetta
+    # (`_poll_pending_join_loop` è una coroutine: l'eccezione ucciderebbe il
+    # task in silenzio e il dialogo del giocatore resterebbe fermo su
     # "In attesa dell'approvazione del master…" per sempre, mentre il mondo
-    # risulta comunque registrato al riavvio perché `save_replica_world()`
-    # sopra ha già scritto). Ora anche loro degradano a "salta questo
-    # elemento".
+    # risulterebbe comunque registrato al riavvio perché
+    # `save_replica_world()` sopra ha già scritto). Per questo anche questi
+    # due loop degradano a "salta questo elemento".
     for m in snapshot.get("members", []):
         try:
             world_repo.save_replica_member(protocol.member_from_dict(m))
@@ -1161,20 +1140,20 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
     if truncated and safe_seq < latest_seq:
         world_repo.update_last_synced_seq(world.id, safe_seq)
 
-    # Isolamento per elemento (2026-08-16, stesso bug/stessa cura di
+    # Isolamento per elemento (stesso principio di
     # `_refresh_snapshot_derived_state` più sotto e di `handle_snapshot()`
-    # lato host): un'eccezione su UNA scheda/nota/mappa (dati residui di
-    # una sessione di test precedente) qui non era isolata — faceva
-    # fallire l'INTERA `_finalize_join()` con un'eccezione non gestita,
-    # DOPO che `world_repo.save_replica_world(world)` sopra aveva già
-    # scritto la riga del mondo sulla replica locale. Risultato osservato
-    # da Davide: l'app del giocatore non mostra alcun esito (l'eccezione
-    # risale silenziosa fino al gestore del pulsante "Controlla di nuovo"
-    # o al ciclo di polling automatico, nessuno dei due la intercetta),
-    # ma il mondo risulta comunque "registrato" al riavvio dell'app,
-    # perché quella riga era già stata salvata prima del crash. Ogni voce
-    # qui sotto degrada quindi a "salta questo singolo elemento" invece di
-    # far fallire l'intero ingresso, con un log per poterla poi correggere.
+    # lato host): senza, un'eccezione su UNA scheda/nota/mappa (es. dati
+    # residui di una sessione di test precedente) farebbe fallire l'INTERA
+    # `_finalize_join()` con un'eccezione non gestita, DOPO che
+    # `world_repo.save_replica_world(world)` sopra ha già scritto la riga
+    # del mondo sulla replica locale — risultato: l'app del giocatore non
+    # mostrerebbe alcun esito (l'eccezione risalirebbe silenziosa fino al
+    # gestore del pulsante "Controlla di nuovo" o al ciclo di polling
+    # automatico, nessuno dei due la intercetta), ma il mondo risulterebbe
+    # comunque "registrato" al riavvio dell'app, perché quella riga era già
+    # stata salvata prima del crash. Ogni voce qui sotto degrada quindi a
+    # "salta questo singolo elemento" invece di far fallire l'intero
+    # ingresso, con un log per poterla poi correggere.
     for char_data in snapshot.get("characters", []):
         char_row = char_data.get("character") or {}
         character_id = str(char_row.get("id") or "")

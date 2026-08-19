@@ -1,6 +1,6 @@
 """
 Il messaggio "Aggiornamento completato", e come sopravvive alla morte del
-processo (2026-08-17).
+processo.
 
 Il problema: su Android il processo dell'app viene UCCISO e sostituito durante
 l'installazione del nuovo APK. Il messaggio di conferma non può quindi essere

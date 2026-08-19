@@ -1,10 +1,10 @@
 """
 Libreria immagini condivisa — picker per foto profilo e immagini mappa in
 modalità web (browser, deploy Docker), dove ft.FilePicker è strutturalmente
-non utilizzabile (bug upstream Flet confermato, vedi CLAUDE.md 2026-07-12,
+non utilizzabile (bug upstream Flet confermato, vedi CLAUDE.md,
 issue flet-dev/flet#6040/#6250/#6251).
 
-Al posto di un upload dal client, Davide carica le immagini a mano sul
+Al posto di un upload dal client, le immagini vengono caricate a mano sul
 server via SSH (scp/rsync) in una cartella dedicata — vedi
 data/database.py → get_image_library_path() — e questo modulo mostra un
 picker con le miniature di quella cartella. Selezionare un'immagine
@@ -76,9 +76,9 @@ def _make_thumbnail_b64(path: str) -> str:
         from PIL import Image as PILImage  # type: ignore[import-untyped]
         from PIL import ImageOps  # type: ignore[import-untyped]
         with PILImage.open(path) as img:
-            # Stesso fix EXIF di profilo_tab.py/maps_view.py (2026-08-06):
-            # senza questo, foto caricate in libreria via SSH da uno
-            # smartphone in verticale risulterebbero ruotate nella miniatura.
+            # Stesso fix EXIF di profilo_tab.py/maps_view.py: senza questo,
+            # foto caricate in libreria via SSH da uno smartphone in
+            # verticale risulterebbero ruotate nella miniatura.
             img = ImageOps.exif_transpose(img)
             img = img.convert("RGB")
             img.thumbnail(_THUMB_MAX_SIZE)

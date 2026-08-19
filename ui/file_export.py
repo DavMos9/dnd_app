@@ -1,22 +1,19 @@
 """
 Dialoghi nativi del SO per salvare/aprire un file di testo (JSON), generici
-— estratti il 2026-08-12 dalla logica già collaudata e confermata da Davide
-in produzione per l'export/import di un personaggio
+— estratti dalla logica già collaudata per l'export/import di un personaggio
 (`ui/views/home_view.py::_save_dialog_native`/`_open_dialog_native`/
-`_reveal_in_file_manager`, 2026-07-24), parametrizzati per titolo/nome
-suggerito/filtro invece che scritti a mano per ".dndchar" — così l'export
-del Mondo (`.dndworld`, passo 9D) può riusarli senza duplicare ~150 righe
-di subprocess AppleScript/PowerShell/zenity, e senza toccare (quindi senza
-alcun rischio di regressione su) il codice di `home_view.py` già verificato
-su build reali.
+`_reveal_in_file_manager`), parametrizzati per titolo/nome suggerito/filtro
+invece che scritti a mano per ".dndchar" — così l'export del Mondo
+(`.dndworld`) può riusarli senza duplicare ~150 righe di subprocess
+AppleScript/PowerShell/zenity, e senza toccare (quindi senza alcun rischio di
+regressione su) il codice di `home_view.py` già verificato su build reali.
 
-Deliberatamente NON usato per rifattorizzare `home_view.py` in questa
-stessa sessione: quel codice è già in produzione e confermato funzionante
-da Davide su macOS/Windows/Linux — un refactor "a costo zero" sulla carta
-ha comunque un rischio reale su codice di automazione OS così delicato
-(vedi CLAUDE.md, i bug -1700/System Events già risolti in passato). Questo
-modulo è la base per OGNI nuovo export/import di file di testo che si
-aggiunga da qui in avanti.
+Deliberatamente NON usato per rifattorizzare `home_view.py`: quel codice è
+già in produzione e confermato funzionante su macOS/Windows/Linux — un
+refactor "a costo zero" sulla carta ha comunque un rischio reale su codice
+di automazione OS così delicato (vedi CLAUDE.md). Questo modulo è la base
+per OGNI nuovo export/import di file di testo che si aggiunga da qui in
+avanti.
 """
 
 from __future__ import annotations

@@ -9,12 +9,10 @@ Gira in un thread separato per non bloccare la UI (vedi
     if has_update:
         ...  # info.asset_url, info.asset_size, info.requires_reinstall
 
-Fino al 2026-08-17 questo modulo leggeva solo `tag_name` e `html_url`: sapeva
-DIRE che c'era un aggiornamento ma non da dove scaricarlo, e la UI si limitava
-ad aprire la pagina della release nel browser. Ora legge anche gli `assets`
-della release e individua quello della piattaforma corrente, che è ciò che rende
-possibile il download in-app con barra di avanzamento
-(`core/update_downloader.py`).
+Legge anche gli `assets` della release e individua quello della piattaforma
+corrente — è ciò che rende possibile il download in-app con barra di
+avanzamento (`core/update_downloader.py`), invece di limitarsi a dire che
+un aggiornamento esiste e aprire la pagina della release nel browser.
 
 Nessun import di Flet, come tutto `core/*.py`: la piattaforma si rileva
 dall'ambiente, non da `page.platform`.

@@ -130,7 +130,7 @@ class DiceView(ft.Column):
 
                         # Numero dadi + modificatore — wrap=True: su schermi stretti/
                         # smartphone i due blocchi vanno a capo invece di uscire dal
-                        # bordo della finestra (bug report Davide, 2026-07-24).
+                        # bordo della finestra.
                         ft.Row(
                             [
                                 self._spinner_block("Numero Dadi", self._count_label,
@@ -366,9 +366,9 @@ class DiceView(ft.Column):
 
     def _die_style(self, d: int) -> ft.ButtonStyle:
         """
-        Tasti dado (Fase E.4): quello attivo è pieno e in rilievo, gli altri
-        piatti sulla superficie alternativa — prima si distinguevano solo per un
-        bordo da 1px. Cifre in font monospaziato, così i "d4 d6 d8…" si allineano.
+        Tasti dado: quello attivo è pieno e in rilievo, gli altri piatti sulla
+        superficie alternativa. Cifre in font monospaziato, così i "d4 d6 d8…"
+        si allineano.
 
         Colore `magic` (indaco), non `primary` (oro): questa è la schermata
         dei dadi stessi — il registro compositivo "Arcane Ledger" pensato per

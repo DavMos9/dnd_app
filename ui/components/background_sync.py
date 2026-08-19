@@ -1,14 +1,9 @@
 """
 Sincronizzazione in background per una vista Flet che deve riflettere da
 sola i cambiamenti di un Mondo condiviso (Multiplayer), senza polling
-manuale dell'utente — richiesta esplicita di Davide (2026-08-07): "l'utente
-deve fare il meno possibile, la parte tecnica la deve gestire in automatico
-l'app".
+manuale dell'utente.
 
-Nato in `ui/views/world/world_view.py::WorldsView` (2026-08-07, prima
-sessione) e poi estratto qui (stessa giornata, bug segnalato da Davide: "in
-Incontri i PF non si aggiornano da soli, il master deve prima andare in
-Sezione Mondi e tornare indietro") per essere condiviso anche da
+Condivisa da `ui/views/world/world_view.py::WorldsView` e
 `ui/views/master/master_encounter_view.py::MasterEncounterView` — le due
 viste hanno bisogno esattamente della stessa infrastruttura (thread
 dedicato + ponte thread-safe verso il loop asyncio di Flet), ma logiche di
@@ -18,16 +13,13 @@ callback, per non accoppiare questo modulo a un mondo o a una vista
 specifica (Dependency Inversion — questo modulo non importa né
 `world_repo` né `world_sync`).
 
-Il bug che ha reso necessaria questa attenzione al ponte thread-safe
-(2026-08-07, verificato leggendo il sorgente di `flet==0.86.5`): l'UNICO
-modo documentato per raggiungere in sicurezza il loop asyncio di una
+L'UNICO modo documentato per raggiungere in sicurezza il loop asyncio di una
 sessione Flet da un `threading.Thread` estraneo è `page.run_task()`
-(= `asyncio.run_coroutine_threadsafe(...)` sotto il cofano). Chiamare
+(= `asyncio.run_coroutine_threadsafe(...)` sotto il cofano, verificato
+leggendo il sorgente di `flet==0.86.5`). Chiamare
 `page.update()`/toccare i controlli direttamente da un thread qualunque
 scrive lo stato giusto nel DB ma può lasciarlo invisibile a schermo finché
-un'azione dell'utente non forza un giro sul thread giusto — esattamente il
-sintomo "serve il refresh manuale" segnalato due volte da Davide su
-funzionalità diverse (Sezione Mondi, poi Incontri).
+un'azione dell'utente non forza un giro sul thread giusto.
 """
 
 import logging
@@ -141,10 +133,9 @@ class BackgroundSyncLoop:
                 try:
                     page = self._get_page()
                 except Exception as e:
-                    # Bug segnalato da Davide (2026-08-18): la sessione può
-                    # terminare (tab chiusa/ricaricata) tra un giro e
-                    # l'altro di questo thread — `self.page` su un Control
-                    # non più agganciato a una pagina viva solleva
+                    # La sessione può terminare (tab chiusa/ricaricata) tra
+                    # un giro e l'altro di questo thread — `self.page` su
+                    # un Control non più agganciato a una pagina viva solleva
                     # RuntimeError ("Control must be added to the page
                     # first", stesso meccanismo già documentato in
                     # regole_flet_api.md per l'accesso PRIMA di page.add(),

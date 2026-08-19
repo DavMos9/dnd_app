@@ -16,10 +16,9 @@ regole/effetti da applicare a mano dal Master). 3 sotto-tab, come da design:
 
 Accessibile da `MasterView` (bottone in header, "Malattie e Veleni").
 
-**Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 5/6)**: la
-scheda di un veleno ha ora "Assegna…"/"Salva nell'archivio" (Malattie e
-Follia restano di sola consultazione — non sono oggetti che finiscono in un
-inventario).
+**Bottino** (`dnd_app/docs/loot_design.md` §6): la scheda di un veleno ha
+"Assegna…"/"Salva nell'archivio" (Malattie e Follia restano di sola
+consultazione — non sono oggetti che finiscono in un inventario).
 """
 
 from __future__ import annotations
@@ -44,10 +43,10 @@ def show_health_hazards_dialog(page: ft.Page, world_id: str = "", device_id: str
     """Apre il dialog "Malattie, Veleni e Follia". Stato in closure, stesso
     pattern già in uso per `show_traps_dialog`/`show_treasure_generator_dialog`.
 
-    `world_id` (2026-08-06): il mondo correntemente selezionato in
-    `MasterView` — "" per la modalità locale, inoltrato al pulsante
-    "Assegna…" della scheda Veleni. `device_id` (2026-08-19): inoltrato
-    insieme, per instradare via rete quando `world_id` è valorizzato."""
+    `world_id`: il mondo correntemente selezionato in `MasterView` — "" per
+    la modalità locale, inoltrato al pulsante "Assegna…" della scheda
+    Veleni. `device_id`: inoltrato insieme, per instradare via rete quando
+    `world_id` è valorizzato."""
 
     state: dict[str, Any] = {"tab": "diseases", "madness_kind": "temporanea", "rolled": None}
 
@@ -106,9 +105,8 @@ def show_health_hazards_dialog(page: ft.Page, world_id: str = "", device_id: str
     )
 
     # -- Modalità "Veleni" ----------------------------------------------------
-    # Bottino (2026-07-31, `dnd_app/docs/loot_design.md` §6, punto 5/6): prima
-    # non c'era alcun modo di far arrivare uno dei 14 veleni sulla scheda di
-    # un giocatore — solo consultazione, applicazione manuale del Master.
+    # Bottino (`dnd_app/docs/loot_design.md` §6): fa arrivare uno dei 14
+    # veleni sulla scheda di un giocatore.
     def _build_poison_loot_item(poison: dict[str, Any]) -> dict[str, Any]:
         from ui.views.master.master_loot_assign_dialog import simple_item
         ptype = poison.get("type", "")

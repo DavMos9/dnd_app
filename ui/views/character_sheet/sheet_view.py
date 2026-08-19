@@ -30,13 +30,12 @@ from ui.device_identity import resolve_device_id
 logger = logging.getLogger(__name__)
 
 #: Stesso intervallo già validato in `WorldsView`/`HomeView`
-#: (`ui/views/world/world_view.py::_DETAIL_SYNC_INTERVAL_S`) — qui copre il
-#: caso mancante trovato da Davide nel primo giro di test su Wi-Fi reale
-#: (2026-08-16): la scheda personaggio restava l'unica vista multiplayer
-#: senza alcun `BackgroundSyncLoop`, quindi un giocatore che teneva la
-#: scheda aperta non vedeva MAI un intervento del master (PF, condizioni,
-#: risorse) finché non tornava alla Home e ci rientrava — o chiudeva e
-#: riapriva la scheda a mano.
+#: (`ui/views/world/world_view.py::_DETAIL_SYNC_INTERVAL_S`). Senza un
+#: `BackgroundSyncLoop` qui, la scheda personaggio resterebbe l'unica vista
+#: multiplayer priva di sincronizzazione: un giocatore che tiene la scheda
+#: aperta non vedrebbe MAI un intervento del master (PF, condizioni,
+#: risorse) finché non torna alla Home e ci rientra — o chiude e riapre la
+#: scheda a mano.
 _SHEET_SYNC_INTERVAL_S = 2.0
 
 SHEET_TABS = [
@@ -57,7 +56,7 @@ class SheetView(ft.Column):
     def __init__(self, character: Character, proficiencies: list[CharacterProficiency],
                  is_mobile: bool = False, on_open_world=None):
         """
-        `is_mobile` (2026-08-06): decide lo stile della tab bar — vedi il
+        `is_mobile` decide lo stile della tab bar — vedi il
         docstring di `_build_header_and_tabs()`. Passato da `DnDApp` con lo
         stesso breakpoint (`_MOBILE_BP = 600`, `ui/app.py`) già usato per
         scegliere tra sidebar e bottom nav — nessun nuovo concetto di
@@ -65,7 +64,7 @@ class SheetView(ft.Column):
         restare compatibile con i costruttori esistenti (test, chiamate
         legacy) che non lo passano.
 
-        `on_open_world` (2026-08-16, navigazione rapida): callback
+        `on_open_world` (navigazione rapida): callback
         `(world_id) -> None` verso `DnDApp._show_worlds_view`, propagato
         dal pulsante "Vai al Mondo" nell'header — mostrato SOLO se
         `character.world_id` non è vuoto. `None` (default) nasconde il
@@ -82,7 +81,7 @@ class SheetView(ft.Column):
         self._stat_bar_container: ft.Container | None = None
         self._header_container: ft.Container | None = None
 
-        # Sincronizzazione in background (2026-08-16, vedi commento su
+        # Sincronizzazione in background (vedi commento su
         # `_SHEET_SYNC_INTERVAL_S`) — stesso stato persistente (device_id,
         # cache backend remoti) già usato da `WorldsView`/`HomeView`, qui
         # scoped al SOLO mondo di questo personaggio (`character.world_id`).
@@ -117,7 +116,7 @@ class SheetView(ft.Column):
         self._start_world_sync()
 
     # ------------------------------------------------------------------
-    # Sincronizzazione automatica in background (2026-08-16) — stesso
+    # Sincronizzazione automatica in background — stesso
     # pattern di `WorldsView._start_detail_sync`/`_stop_detail_sync`
     # (`ui/views/world/world_view.py`), qui scoped al mondo di QUESTO
     # personaggio: finché la scheda resta aperta, un thread dedicato scarica
@@ -143,10 +142,9 @@ class SheetView(ft.Column):
                 world_sync.sync_replica(backend, world_id)
             else:
                 # Nessun backend risolvibile (host irraggiungibile, token
-                # scaduto) — bug segnalato da Davide (2026-08-16): il LED
-                # restava verde nella scheda perché questo ramo mancava,
-                # lo stato restava congelato sull'ultimo valore noto. Stessa
-                # correzione già presente in `home_view.py`/`world_view.py`.
+                # scaduto): senza aggiornare qui lo stato resterebbe
+                # congelato sull'ultimo valore noto (LED verde stantio).
+                # Stessa logica in `home_view.py`/`world_view.py`.
                 self._connection_state = "disconnected"
 
         def _signature() -> str | None:
@@ -155,7 +153,7 @@ class SheetView(ft.Column):
                 return None
             conditions = character_repo.get_conditions(updated.id)
             cond_sig = "|".join(sorted(c.condition_key for c in conditions))
-            # `last_synced_seq` (2026-08-16) invece di enumerare a mano ogni
+            # `last_synced_seq` invece di enumerare a mano ogni
             # campo che può cambiare via evento remoto — qualunque nuovo
             # evento applicato (incantesimo/abilità bonus, nota condivisa,
             # ecc.) incrementa questo numero, garantendo il ridisegno anche
@@ -207,22 +205,17 @@ class SheetView(ft.Column):
 
     def _build_stat_bar(self) -> ft.Container:
         """
-        Barra flottante delle caratteristiche (Fase E.4 del restyle).
-
-        Prima: sei riquadri bianchi identici con l'etichetta piccola e il
-        modificatore come semplice testo blu. Ora la barra è un pannello elevato
-        con i riquadri incassati (`surface_alt`), il punteggio in cifre
-        tabellari e il modificatore in un chip d'accento — quello che il
-        giocatore legge più spesso è anche l'elemento con più peso visivo.
+        Barra flottante delle caratteristiche: pannello elevato con i
+        riquadri incassati (`surface_alt`), il punteggio in cifre tabellari
+        e il modificatore in un chip d'accento — quello che il giocatore
+        legge più spesso è anche l'elemento con più peso visivo.
         """
         p = design.T()
-        # Audit anti-AI-slop (2026-08-18): prima le 6 celle erano
-        # identiche — nessuna gerarchia, nonostante il punteggio più alto
-        # sia in pratica quello che il giocatore consulta/tira più spesso
-        # (caratteristica principale della classe). Il primo punteggio più
-        # alto in ordine FOR→CAR "vince" in caso di parità — scelta
-        # deterministica, non serve altro criterio per un solo accento
-        # visivo in più su 6 celle.
+        # Il punteggio più alto ha un accento visivo: è in pratica quello
+        # che il giocatore consulta/tira più spesso (caratteristica
+        # principale della classe). Il primo punteggio più alto in ordine
+        # FOR→CAR "vince" in caso di parità — scelta deterministica, non
+        # serve altro criterio per un solo accento visivo in più su 6 celle.
         top_key = max(ABILITY_KEYS, key=lambda k: getattr(self.character, f"{k}_score"))
         boxes = []
         for abbr, key in zip(ABILITY_ABBR, ABILITY_KEYS):
@@ -234,11 +227,9 @@ class SheetView(ft.Column):
                 ft.Container(
                     content=ft.Column(
                         [
-                            # Icona matita (2026-07-24, fix affordance "nulla di
-                            # nascosto": prima solo tooltip+bordo, nessuna icona
-                            # visibile a colpo d'occhio come le altre sezioni
-                            # editabili dell'app — stessa convenzione "✎" già
-                            # usata ovunque)
+                            # Icona matita: senza, nessun indizio visibile a
+                            # colpo d'occhio che la cella sia editabile —
+                            # stessa convenzione "✎" usata ovunque nell'app.
                             ft.Row(
                                 [
                                     ft.Text(abbr, size=design.Size.LABEL,
@@ -337,14 +328,12 @@ class SheetView(ft.Column):
         pb = char_prof_bonus(c)
         is_override = (c.proficiency_bonus_override or 0) > 0
 
-        # Testo bonus competenza — cliccabile per override
-        # Icona matita sempre presente (2026-07-24, fix affordance "nulla di
-        # nascosto"): prima l'unico indizio che fosse cliccabile era il
-        # tooltip (visibile solo passandoci sopra) più il "✎" mostrato SOLO
-        # quando già in override — un personaggio senza override non aveva
-        # alcun indizio visivo. Ora è una `design.pill()` (Arcane Ledger):
-        # stesso linguaggio visivo delle pillole "Lv./classe/razza" sotto,
-        # invece di un Text+Icon nudo senza contorno.
+        # Testo bonus competenza — cliccabile per override.
+        # Icona matita sempre presente: senza di essa l'unico indizio che
+        # sia cliccabile sarebbe il tooltip (visibile solo al passaggio del
+        # mouse). `design.pill()` (Arcane Ledger) usa lo stesso linguaggio
+        # visivo delle pillole "Lv./classe/razza" sotto, invece di un
+        # Text+Icon nudo senza contorno.
         pb_btn = design.pill(
             ft.Icons.EDIT,
             f"+{pb} comp.",
@@ -353,7 +342,7 @@ class SheetView(ft.Column):
             tooltip="Clicca per modificare il bonus competenza",
         )
 
-        # LED di stato connessione (2026-08-16) — SOLO per un personaggio
+        # LED di stato connessione — SOLO per un personaggio
         # che è la replica locale di un mondo ospitato da un ALTRO
         # dispositivo (`world_id` valorizzato e non ospitato qui): un
         # personaggio locale o ospitato da questo stesso dispositivo non ha
@@ -370,8 +359,8 @@ class SheetView(ft.Column):
             if world is not None and not world.is_local_host:
                 name_row_children.append(design.connection_led(self._connection_state))
             if self.on_open_world is not None:
-                # Navigazione rapida (2026-08-16) — richiesta di Davide:
-                # "un tasto... che porti velocemente alla sezione mondo".
+                # Navigazione rapida: un tasto che porti velocemente alla
+                # sezione mondo.
                 name_row_children.append(ft.IconButton(
                     ft.Icons.PUBLIC, icon_size=18, icon_color=design.T().magic,
                     tooltip="Vai al Mondo",
@@ -412,50 +401,22 @@ class SheetView(ft.Column):
                     ),
                     # Controllo segmentato (pillole) invece dei tab sottolineati.
                     #
-                    # STORIA (per chi legge il changelog — tre round nella
-                    # stessa giornata, 2026-08-06):
-                    # 1) `wrap=True` + pillole senza `expand`: le pillole in
-                    #    eccesso finivano su una riga in più a piena
-                    #    larghezza ("si prende tutto lo schermo").
-                    # 2) `scroll=ft.ScrollMode.AUTO` al posto di `wrap=True`:
-                    #    altezza fissa, ma lo sfondo `surface_alt` che dava
-                    #    l'aspetto di "pista" si allargava ben oltre le
-                    #    pillole vere (un `SingleChildScrollView` orizzontale
-                    #    non si restringe mai al contenuto — comportamento
-                    #    noto di Flutter). Tolto lo sfondo dall'involucro,
-                    #    lasciato solo sulla singola pillola attiva.
-                    # 3) Lo scroll di per sé restava comunque sbagliato:
-                    #    Davide ha fatto notare che, restringendo la
-                    #    finestra, le pillole "vengono tagliate o
-                    #    scompaiono" — in contrasto con la preferenza già
-                    #    nota di questo progetto per un'interfaccia sempre
-                    #    visibile, mai azioni nascoste dietro uno scroll non
-                    #    scoperto. FIX DEFINITIVO (qui): niente più scroll
-                    #    NÉ wrap multi-riga — la barra ora è DAVVERO
-                    #    responsive, non solo "meno peggio". Sotto il
-                    #    breakpoint mobile dell'app (`is_mobile`, passato da
-                    #    `DnDApp` con lo stesso `_MOBILE_BP = 600` di
-                    #    `ui/app.py`), ogni pillola mostra SOLO l'icona
-                    #    (tooltip con l'etichetta completa, sempre
-                    #    raggiungibile) — 5 pillole icona-sola stanno
-                    #    comodamente su una riga anche a 360-375px, la
-                    #    larghezza minima comune di uno smartphone. Sopra il
-                    #    breakpoint, icona + etichetta come prima. `scroll=
-                    #    ft.ScrollMode.AUTO` resta solo come rete di
-                    #    sicurezza per casi patologici (font di sistema
-                    #    enormi, finestra sotto i 360px), non più come
-                    #    meccanismo primario.
+                    # `wrap=True` non va usato qui: le pillole in eccesso
+                    # finirebbero su una riga in più a piena larghezza. Sotto
+                    # il breakpoint mobile dell'app (`is_mobile`, stesso
+                    # `_MOBILE_BP = 600` di `ui/app.py`), ogni pillola mostra
+                    # SOLO l'icona (tooltip con l'etichetta completa) — 5
+                    # pillole icona-sola stanno comodamente su una riga anche
+                    # a 360-375px, la larghezza minima comune di uno
+                    # smartphone. Sopra il breakpoint, icona + etichetta.
+                    # `scroll=ft.ScrollMode.AUTO` resta come rete di
+                    # sicurezza per casi patologici (font di sistema enormi,
+                    # finestra sotto i 360px), non come meccanismo primario.
                     #
-                    # NOTA (2026-08-06, sessione successiva): per un difetto
-                    # analogo nella tab bar della Sezione Master (etichette
-                    # più lunghe, tagliate anche su desktop) era stato
-                    # provato — per parità — lo stesso `wrap=True` anche
-                    # qui. Davide ha chiesto di riportare QUESTA tab bar
-                    # (sezione giocatore) esattamente com'era, perché andava
-                    # già bene così: ripristinato `scroll=ft.ScrollMode.AUTO`.
                     # Il fix con `wrap=True` resta solo in `MasterView`
-                    # (`ui/views/master/master_view.py::_build_tab_bar()`),
-                    # NON toccare più questa Row per lo stesso motivo.
+                    # (`ui/views/master/master_view.py::_build_tab_bar()`,
+                    # che ha etichette più lunghe) — NON applicarlo a questa
+                    # Row: qui il comportamento voluto è quello sopra.
                     ft.Container(
                         content=ft.Row(tab_row, spacing=design.Space.XS,
                                        scroll=ft.ScrollMode.AUTO),
@@ -473,9 +434,9 @@ class SheetView(ft.Column):
     def _style_tab_button(self, btn: ft.Container, active: bool) -> None:
         """Stile della pillola di tab — usato sia in costruzione sia al cambio tab.
 
-        `p.surface_alt` per la pillola attiva, NON `p.surface` (2026-08-06,
-        fix dell'"alone allungato"): l'header che contiene questa barra ha
-        già `bgcolor=p.surface` (vedi `_build_header_and_tabs()`) — da
+        `p.surface_alt` per la pillola attiva, NON `p.surface`: l'header che
+        contiene questa barra ha già `bgcolor=p.surface` (vedi
+        `_build_header_and_tabs()`) — da
         quando l'involucro esterno beige è stato tolto, una pillola attiva
         con `bgcolor=p.surface` sarebbe risultata invisibile (bianco su
         bianco). `surface_alt` è lo stesso colore che prima dava lo sfondo
@@ -504,8 +465,8 @@ class SheetView(ft.Column):
     def _make_tab_button(self, key: str, label: str, icon: ft.IconData) -> ft.Container:
         """
         Pillola di tab — icona sempre presente, etichetta testuale SOLO se
-        `self._compact_tabs` è `False` (2026-08-06, fix definitivo della
-        tab bar — vedi lo storico nel commento di `_build_header_and_tabs()`).
+        `self._compact_tabs` è `False` (vedi il commento su `wrap=True` in
+        `_build_header_and_tabs()`).
         In modalità compatta l'etichetta completa resta comunque
         raggiungibile via `tooltip`, non è mai persa, solo non sempre
         visibile a colpo d'occhio: nessuna voce viene nascosta o rimossa
@@ -777,10 +738,10 @@ class SheetView(ft.Column):
 
     def _soft_refresh(self) -> None:
         """
-        Refresh NON distruttivo, usato dal ciclo di sync in background
-        (2026-08-16, bug segnalato da Davide: "una specie di flash a
-        schermo e uno scattino che riporta la vista in cima" ad ogni
-        sincronizzazione). A differenza di `_refresh_all()` (usato dai
+        Refresh NON distruttivo, usato dal ciclo di sync in background: un
+        refresh distruttivo qui produrrebbe un flash a schermo e riporterebbe
+        la vista in cima ad ogni sincronizzazione. A differenza di
+        `_refresh_all()` (usato dai
         dialog interni, azione rara e deliberata dell'utente), qui il tab
         corrente NON viene mai ricreato da zero: tutti e 5 i tab
         (`ProfiloTab`/`CombattimentoTab`/`EsplorazioneTab`/`InventarioTab`/
@@ -860,7 +821,7 @@ class SheetView(ft.Column):
                     ft.Container(height=12),
                     ft.Text(label, size=20, color=design.T().text_3),
                     ft.Container(height=8),
-                    ft.Text("In sviluppo...", size=13, color=design.T().text_3),
+                    ft.Text("Sezione non disponibile.", size=13, color=design.T().text_3),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,

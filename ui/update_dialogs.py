@@ -1,6 +1,6 @@
 """
 I dialoghi dell'aggiornamento in-app: barra di download reale, consegna
-all'installer e "Aggiornamento completato" (2026-08-17).
+all'installer e "Aggiornamento completato".
 
 Vive in un modulo suo, non in `ui/app.py`: quel file è il router dell'app e
 tenerci dentro altre 300 righe di dialoghi lo renderebbe il posto dove si
@@ -76,8 +76,7 @@ def _desktop_instructions(system: str) -> str:
     richiede di uscire, lanciare un processo helper che aspetta la chiusura,
     scambiare i file e rilanciare — lavoro specifico per ogni sistema operativo,
     col rischio concreto che l'app non riparta più se lo scambio si interrompe a
-    metà. Valutato e respinto il 2026-08-06 (vedi
-    `docs/changelog_storico.md`), decisione confermata da Davide il 2026-08-17.
+    metà.
     """
     if system == "Darwin":
         return (
