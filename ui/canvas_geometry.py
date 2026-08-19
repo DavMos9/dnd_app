@@ -36,6 +36,39 @@ peggiore), quelli nuovi si allineano correttamente in qualunque riquadro.
 
 from __future__ import annotations
 
+import json
+
+
+def has_legacy_strokes(annotations_json: str) -> bool:
+    """
+    Vero se `annotations_json` (il campo `game_maps.annotations`, una lista
+    JSON di tratti — vedi `data/repositories/maps_repo.py::apply_stroke_batch`)
+    contiene almeno un tratto NON normalizzato (pixel assoluti pre-fix
+    2026-08-12 — vedi il docstring del modulo). Usata dalla UI (2026-08-19)
+    per mostrare un avviso una tantum: questi tratti restano renderizzati
+    "as-is" (`denormalize_points` non li tocca) e possono quindi apparire
+    disallineati su un dispositivo con un riquadro di disegno diverso da
+    quello con cui furono disegnati — nessuna migrazione automatica è
+    possibile (le dimensioni originali del riquadro non sono recuperabili),
+    quindi l'unica azione sensata è darne conto all'utente, non nasconderla.
+
+    `False` per JSON vuoto/non valido/nessun tratto — stesso principio
+    "degrada, non solleva mai" già seguito da `apply_stroke_batch`.
+    """
+    try:
+        strokes = json.loads(annotations_json or "[]")
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if not isinstance(strokes, list):
+        return False
+    for stroke in strokes:
+        if not isinstance(stroke, dict):
+            continue
+        points = stroke.get("points", [])
+        if points and not looks_normalized(points):
+            return True
+    return False
+
 
 def contain_rect(box_w: float, box_h: float, img_w: float, img_h: float) -> tuple[float, float, float, float]:
     """

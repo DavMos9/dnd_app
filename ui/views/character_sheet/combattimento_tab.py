@@ -75,6 +75,12 @@ class CombattimentoTab(ScrollMemoryListView):
         # valore, non uno per click.
         self._device_id: str | None = None
         self._hp_sync_generation: int = 0
+        #: Cache del device id per il push best-effort delle abilità
+        #: personalizzate (`_push_custom_ability_to_world`,
+        #: `core.world_sync.push_character_self_command`) — dict separato da
+        #: `self._device_id` sopra perché quella funzione condivisa lo tiene
+        #: in un dict passato dal chiamante, non su un attributo dedicato.
+        self._device_id_cache: dict = {}
         # Mistificatore Arcano (Ladro)/Cavaliere Mistico (Guerriero): sync
         # difensivo ad ogni apertura tab, stesso principio di
         # init_class_resources() più sotto — no-op per qualunque altra
@@ -341,6 +347,24 @@ class CombattimentoTab(ScrollMemoryListView):
             # interrompere l'esperienza sulla scheda.
             logger.warning("Invio condition.self_%s fallito per %s: %s",
                            action, self.character.id, e)
+
+    def _push_custom_ability_to_world(self, action: str, fields: dict) -> None:
+        """Invia l'abilità personalizzata (categoria "combattimento") appena
+        creata/modificata verso l'host, best effort — no-op se il
+        personaggio non è un'istanza di un mondo. Vedi
+        `core.world_sync.push_character_self_command`."""
+        if not self.character.world_id or self._page is None:
+            return
+        from core import world_permissions as perm
+        from core import world_sync
+        kind = (
+            perm.CMD_CUSTOM_ABILITY_SELF_CREATE if action == "create"
+            else perm.CMD_CUSTOM_ABILITY_SELF_UPDATE
+        )
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache, kind, fields,
+        )
 
     # ------------------------------------------------------------------
     # Build principale
@@ -3338,10 +3362,18 @@ class CombattimentoTab(ScrollMemoryListView):
                 if not new_id:
                     show_error_dialog(page, "Errore nel salvataggio dell'abilità.")
                     return
+                self._push_custom_ability_to_world(
+                    "create", {"category": "combattimento", "name": name, "description": desc},
+                )
             else:
                 if not character_repo.update_custom_ability(ab.id, name, desc):
                     show_error_dialog(page, "Errore nel salvataggio dell'abilità.")
                     return
+                self._push_custom_ability_to_world(
+                    "update",
+                    {"ability_id": ab.id, "category": "combattimento", "name": name,
+                     "description": desc},
+                )
             page.pop_dialog()
             self._refresh()
 

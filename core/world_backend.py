@@ -34,7 +34,7 @@ from core import damage_rules
 from core import world_permissions as perm
 from data.models import WorldEvent
 from data.repositories import (
-    character_export, character_repo, maps_repo, master_repo, world_repo,
+    character_export, character_repo, loot_repo, maps_repo, master_repo, world_repo,
     world_transfer_repo,
 )
 from network import protocol
@@ -451,6 +451,39 @@ def _handle_member_kick(ctx: HandlerContext) -> CommandResult:
     return CommandResult(True, event=event)
 
 
+@register_handler(perm.CMD_MEMBER_LEAVE)
+def _handle_member_leave(ctx: HandlerContext) -> CommandResult:
+    """
+    Uscita volontaria dal mondo (2026-08-19, bug segnalato da Davide: "il
+    giocatore non ha la possibilità di lasciare... il mondo") — controparte
+    di `_handle_member_kick` sopra, stessa logica di rimozione/archiviazione,
+    ma auto-diretta: nessun `device_id` nel payload, l'attore rimuove SOLO
+    se stesso (`ctx.actor_device_id`), mai un altro membro — quello resta
+    compito esclusivo di `CMD_MEMBER_KICK` (owner-only).
+    """
+    target = world_repo.get_member(ctx.world_id, ctx.actor_device_id)
+    if target is None:
+        return CommandResult(False, "Non sei membro di questo mondo.")
+    if target.role == perm.ROLE_OWNER:
+        return CommandResult(
+            False, "Il proprietario non può uscire — trasferisci prima la proprietà.",
+        )
+    if not world_repo.remove_member(ctx.world_id, ctx.actor_device_id):
+        return CommandResult(False, "Uscita fallita.")
+    archived_count = character_repo.archive_world_instances(ctx.world_id, ctx.actor_device_id)
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_MEMBER_LEAVE, target_type="member", target_id=target.id,
+        summary=(
+            f"{ctx.actor_name} ha lasciato il mondo"
+            + (f" ({archived_count} personaggio/i archiviato/i)." if archived_count else ".")
+        ),
+        payload=json.dumps({"device_id": ctx.actor_device_id, "archived_instances": archived_count}),
+        before_state=json.dumps({"role": target.role, "display_name": target.display_name}),
+    )
+    return CommandResult(True, event=event)
+
+
 @register_handler(perm.CMD_CHARACTER_INSTANCE_REMOVE)
 def _handle_character_instance_remove(ctx: HandlerContext) -> CommandResult:
     """
@@ -835,11 +868,16 @@ def _handle_world_delete(ctx: HandlerContext) -> CommandResult:
 # Fuori scope in questo passo (resta nella matrice dei permessi ma senza
 # handler, esattamente come CMD_MAP_PUBLISH/CMD_MAP_DRAW lo erano prima del
 # passo 8 — non ridiscutere chi può inviarlo, solo aggiungere l'handler
-# quando arriva il suo passo): CMD_LOOT_ASSIGN (il Bottino funziona già in
-# locale, `loot_design.md` passo 6 — deposito lato giocatore — dipende da
-# qui ma è un lavoro a sé), CMD_DICE_REQUEST (è una richiesta senza
+# quando arriva il suo passo): CMD_DICE_REQUEST (è una richiesta senza
 # scrittura sul personaggio — richiede un meccanismo di notifica lato
 # giocatore non ancora progettato, valutato a parte).
+#
+# CMD_LOOT_ASSIGN (2026-08-19, non più fuori scope — bug segnalato da
+# Davide: "il generatore oggetti si sincronizza molto in ritardo" e
+# "l'oggetto magico viene assegnato ai personaggi in locale invece che a
+# quelli del mondo selezionato") ha il suo handler più sotto, subito dopo
+# `_handle_xp_grant`: passa da `_resolve_world_character()` come gli altri
+# comandi di questo blocco.
 #
 # CMD_NOTE_SHARE (passo 7B, §6.2), CMD_ENCOUNTER_MANAGE/
 # CMD_COMBAT_TOGGLE_VISIBILITY (passo 7C, §6.5) e CMD_MAP_PUBLISH/
@@ -897,6 +935,118 @@ def _handle_xp_grant(ctx: HandlerContext) -> CommandResult:
         before_state=json.dumps({"xp": old_xp}),
     )
     return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_LOOT_ASSIGN)
+def _handle_loot_assign(ctx: HandlerContext) -> CommandResult:
+    """
+    Assegna un lotto di oggetti/monete a uno o più personaggi di questo
+    mondo (2026-08-19). Ogni riga del payload risolve il proprio
+    `target_character_id` in modo indipendente e fail-closed via
+    `_resolve_world_character(ctx.world_id, ...)` — questo è precisamente
+    ciò che impedisce a un master non-host su un ALTRO mondo di scrivere
+    per errore in un personaggio che non gli compete (bug segnalato da
+    Davide: "assegna oggetto magico... lo assegna ai personaggi in
+    locale... dovrebbe assegnarli a quelli del mondo selezionato" —
+    succedeva perché prima di questo handler la scrittura restava sempre e
+    solo locale al dispositivo che eseguiva l'azione, mai instradata verso
+    l'host). Righe con un id che non risolve a un personaggio DI QUESTO
+    mondo vengono saltate (non abortiscono l'intero batch): il Master vede
+    comunque applicato tutto ciò che era valido, coerente con la UI che
+    ricalcola le ripartizioni prima di inviare (validazione già fatta lato
+    client, questo è un controllo di sicurezza in profondità).
+
+    UN EVENTO PER PERSONAGGIO EFFETTIVAMENTE COINVOLTO, non un solo evento
+    per l'intero batch: `core.world_sync.apply_event_to_replica` rimaterializza
+    la replica di un personaggio SOLO per un evento con
+    `target_type=="character"` (vedi il suo `if event.kind in
+    CHARACTER_MUTATING_COMMANDS and event.target_type == "character"`) — un
+    unico evento con `target_type="world"` per un'assegnazione a più
+    personaggi non farebbe MAI aggiornare le repliche di quei personaggi.
+    """
+    items = ctx.payload.get("items", [])
+    coins = ctx.payload.get("coins", [])
+    if not isinstance(items, list):
+        items = []
+    if not isinstance(coins, list):
+        coins = []
+    if not items and not coins:
+        return CommandResult(False, "Nessuna voce da assegnare.")
+
+    # Raggruppa per personaggio bersaglio così ognuno riceve un solo evento
+    # (oggetti + monete insieme, se entrambi presenti), invece di un evento
+    # per riga — più leggibile nel registro e meno rumore di resync.
+    per_character: dict[str, dict] = {}
+
+    def _bucket(character_id: str):
+        character = _resolve_world_character(ctx.world_id, character_id)
+        if character is None:
+            return None
+        return per_character.setdefault(
+            character.id, {"character": character, "item_names": [], "coins_applied": False},
+        )
+
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get("name", "")).strip()
+        if not name:
+            continue
+        bucket = _bucket(str(it.get("target_character_id", "")))
+        if bucket is None:
+            continue
+        created = character_repo.create_inventory_item(
+            bucket["character"].id, name, quantity=int(it.get("quantity", 1) or 1),
+            description=str(it.get("description", "")),
+            category=str(it.get("category", "misc")) or "misc",
+            requires_attunement=bool(it.get("requires_attunement", False)),
+            effects=str(it.get("effects", "")),
+        )
+        if created is not None:
+            bucket["item_names"].append(name)
+
+    for c in coins:
+        if not isinstance(c, dict):
+            continue
+        bucket = _bucket(str(c.get("target_character_id", "")))
+        if bucket is None:
+            continue
+        character = bucket["character"]
+        existing = character_repo.get_currencies(character.id)
+        ok = character_repo.update_currencies(
+            character.id,
+            (existing.copper if existing else 0) + int(c.get("copper", 0) or 0),
+            (existing.silver if existing else 0) + int(c.get("silver", 0) or 0),
+            (existing.electrum if existing else 0) + int(c.get("electrum", 0) or 0),
+            (existing.gold if existing else 0) + int(c.get("gold", 0) or 0),
+            (existing.platinum if existing else 0) + int(c.get("platinum", 0) or 0),
+        )
+        bucket["coins_applied"] = bucket["coins_applied"] or ok
+
+    n_chars = 0
+    last_event = None
+    for bucket in per_character.values():
+        if not bucket["item_names"] and not bucket["coins_applied"]:
+            continue
+        character = bucket["character"]
+        bits = []
+        if bucket["item_names"]:
+            bits.append(", ".join(f"«{n}»" for n in bucket["item_names"]))
+        if bucket["coins_applied"]:
+            bits.append("monete")
+        n_chars += 1
+        last_event = world_repo.append_event(
+            ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+            kind=perm.CMD_LOOT_ASSIGN, target_type="character", target_id=character.id,
+            summary=f"{ctx.actor_name} ha assegnato a {character.name}: " + " e ".join(bits) + ".",
+            payload=json.dumps({
+                "item_names": bucket["item_names"], "coins_applied": bucket["coins_applied"],
+            }),
+        )
+
+    if n_chars == 0 or last_event is None:
+        return CommandResult(False, "Nessuna voce valida per questo mondo.")
+    return CommandResult(True, event=last_event)
 
 
 @register_handler(perm.CMD_HP_DAMAGE)
@@ -1036,6 +1186,36 @@ def _handle_hp_self_update(ctx: HandlerContext) -> CommandResult:
             "death_saves_failure": death_saves_failure,
         }),
         before_state=json.dumps(before),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_NOTES_SELF_UPDATE)
+def _handle_notes_self_update(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore stesso invia il testo aggiornato delle proprie "Appunti di
+    sessione" (2026-08-19, estensione di `CMD_HP_SELF_UPDATE` — stesso
+    principio: valore assoluto, mai un delta, idempotente come `hp.self_update`).
+    Prima questa scrittura restava solo sulla replica locale
+    (`esplorazione_tab.py`) e veniva cancellata dal prossimo resync
+    completo innescato da un qualsiasi altro evento.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può aggiornarne le note.",
+        )
+    notes = str(ctx.payload.get("notes", ""))
+    if not character_repo.update_session_notes(character.id, notes):
+        return CommandResult(False, "Aggiornamento delle note fallito.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_NOTES_SELF_UPDATE, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha aggiornato le proprie note di sessione.",
+        payload=json.dumps({"notes": notes}),
     )
     return CommandResult(True, event=event)
 
@@ -1292,6 +1472,87 @@ def _handle_custom_ability_grant(ctx: HandlerContext) -> CommandResult:
     return CommandResult(True, event=event)
 
 
+@register_handler(perm.CMD_CUSTOM_ABILITY_SELF_CREATE)
+def _handle_custom_ability_self_create(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore stesso crea una propria abilità personalizzata
+    (2026-08-19, estensione di `CMD_HP_SELF_UPDATE` — prima questa
+    scrittura restava solo sulla replica locale, sia dal tab Esplorazione
+    che dal tab Combattimento, `esplorazione_tab.py`/`combattimento_tab.py`,
+    entrambi sulla stessa tabella `custom_abilities`). Come
+    `_handle_hp_self_update`: il ruolo `player` da solo non basta, serve
+    `perm.is_character_owner()`.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può creare una propria abilità.",
+        )
+    category = str(ctx.payload.get("category", "")).strip()
+    name = str(ctx.payload.get("name", "")).strip()
+    description = str(ctx.payload.get("description", ""))
+    if category not in ("esplorazione", "combattimento"):
+        return CommandResult(False, "Categoria non valida (esplorazione|combattimento).")
+    if not name:
+        return CommandResult(False, "Nome dell'abilità mancante.")
+
+    ability_id = character_repo.create_custom_ability(character.id, category, name, description)
+    if ability_id is None:
+        return CommandResult(False, "Creazione dell'abilità fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CUSTOM_ABILITY_SELF_CREATE, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha creato l'abilità speciale «{name}».",
+        payload=json.dumps({"category": category, "name": name, "description": description}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CUSTOM_ABILITY_SELF_UPDATE)
+def _handle_custom_ability_self_update(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore modifica una propria abilità personalizzata già esistente
+    sull'host — stesso ripiego su una creazione se `ability_id` è stale
+    (un resync completo l'ha rigenerato) già usato in
+    `_handle_diary_self_update_entry`, vedi il suo docstring per il perché.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può modificare una propria abilità.",
+        )
+    category = str(ctx.payload.get("category", "")).strip()
+    name = str(ctx.payload.get("name", "")).strip()
+    description = str(ctx.payload.get("description", ""))
+    ability_id = str(ctx.payload.get("ability_id", ""))
+    if category not in ("esplorazione", "combattimento"):
+        return CommandResult(False, "Categoria non valida (esplorazione|combattimento).")
+    if not name:
+        return CommandResult(False, "Nome dell'abilità mancante.")
+
+    if ability_id and character_repo.custom_ability_exists(ability_id, character.id):
+        ok = character_repo.update_custom_ability(ability_id, name, description)
+    else:
+        ok = character_repo.create_custom_ability(
+            character.id, category, name, description,
+        ) is not None
+    if not ok:
+        return CommandResult(False, "Aggiornamento dell'abilità fallito.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CUSTOM_ABILITY_SELF_UPDATE, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha modificato l'abilità speciale «{name}».",
+        payload=json.dumps({"category": category, "name": name, "description": description}),
+    )
+    return CommandResult(True, event=event)
+
+
 @register_handler(perm.CMD_BONUS_SPELL_GRANT)
 def _handle_bonus_spell_grant(ctx: HandlerContext) -> CommandResult:
     character = _resolve_world_character(ctx.world_id, ctx.target_id)
@@ -1331,6 +1592,99 @@ def _handle_bonus_spell_grant(ctx: HandlerContext) -> CommandResult:
     return CommandResult(True, event=event)
 
 
+@register_handler(perm.CMD_SPELL_SELF_UPSERT)
+def _handle_spell_self_upsert(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore stesso crea/aggiorna un proprio incantesimo conosciuto
+    (2026-08-19, estensione di `CMD_HP_SELF_UPDATE`) — copre sia il toggle
+    di preparazione sul catalogo di classe (`spells_view.py::_toggle_prepared`/
+    `_toggle_prepared_mc`) sia l'aggiunta manuale di un incantesimo bonus
+    (`spells_view.py`, dialog "Aggiungi incantesimo bonus") sia le scelte
+    fatte in `profilo_tab.py` (creazione/level-up). Come
+    `_handle_bonus_spell_grant`: `character_repo.upsert_known_spell`
+    identifica già la riga per (character_id, name, level), quindi nessun
+    problema di id stale dopo un resync (a differenza di diario/abilità).
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può modificare i propri incantesimi.",
+        )
+    name = str(ctx.payload.get("name", "")).strip()
+    try:
+        level = int(ctx.payload.get("level", 0))
+    except (TypeError, ValueError):
+        return CommandResult(False, "Livello dell'incantesimo non valido.")
+    if not name:
+        return CommandResult(False, "Nome dell'incantesimo mancante.")
+    if not (0 <= level <= 9):
+        return CommandResult(False, "Livello dell'incantesimo fuori intervallo (0-9).")
+    is_bonus = ctx.payload.get("is_bonus")
+    if is_bonus is not None:
+        is_bonus = bool(is_bonus)
+    always_prepared = ctx.payload.get("always_prepared")
+    if always_prepared is not None:
+        always_prepared = bool(always_prepared)
+
+    ok = character_repo.upsert_known_spell(
+        character.id, name, level, is_prepared=bool(ctx.payload.get("is_prepared", True)),
+        school=str(ctx.payload.get("school", "")),
+        casting_time=str(ctx.payload.get("casting_time", "")),
+        spell_range=str(ctx.payload.get("spell_range", "")),
+        components=str(ctx.payload.get("components", "")),
+        duration=str(ctx.payload.get("duration", "")),
+        description=str(ctx.payload.get("description", "")),
+        higher_levels=str(ctx.payload.get("higher_levels", "")),
+        class_list=str(ctx.payload.get("class_list", "")),
+        origin_unrestricted=bool(ctx.payload.get("origin_unrestricted", False)),
+        is_bonus=is_bonus,
+        always_prepared=always_prepared,
+    )
+    if not ok:
+        return CommandResult(False, "Aggiornamento dell'incantesimo fallito.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_SPELL_SELF_UPSERT, target_type="character", target_id=character.id,
+        summary=f"{character.name}: incantesimo «{name}» aggiornato.",
+        payload=json.dumps({"name": name, "level": level}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_SPELL_SELF_REMOVE)
+def _handle_spell_self_remove(ctx: HandlerContext) -> CommandResult:
+    """Il giocatore stesso rimuove un proprio incantesimo conosciuto —
+    controparte di `_handle_spell_self_upsert`."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può rimuovere i propri incantesimi.",
+        )
+    name = str(ctx.payload.get("name", "")).strip()
+    try:
+        level = int(ctx.payload.get("level", 0))
+    except (TypeError, ValueError):
+        return CommandResult(False, "Livello dell'incantesimo non valido.")
+    if not name:
+        return CommandResult(False, "Nome dell'incantesimo mancante.")
+
+    if not character_repo.remove_known_spell(character.id, name, level):
+        return CommandResult(False, "Rimozione dell'incantesimo fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_SPELL_SELF_REMOVE, target_type="character", target_id=character.id,
+        summary=f"{character.name}: incantesimo «{name}» rimosso.",
+        payload=json.dumps({"name": name, "level": level}),
+    )
+    return CommandResult(True, event=event)
+
+
 @register_handler(perm.CMD_DIARY_ADD_ENTRY)
 def _handle_diary_add_entry(ctx: HandlerContext) -> CommandResult:
     """
@@ -1358,6 +1712,84 @@ def _handle_diary_add_entry(ctx: HandlerContext) -> CommandResult:
         ctx.world_id, ctx.actor_device_id, ctx.actor_name,
         kind=perm.CMD_DIARY_ADD_ENTRY, target_type="character", target_id=character.id,
         summary=f"{ctx.actor_name} ha scritto una voce sul diario di {character.name}: «{title}».",
+        payload=json.dumps({"title": title}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_DIARY_SELF_ADD_ENTRY)
+def _handle_diary_self_add_entry(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore stesso scrive una voce sul proprio diario (2026-08-19,
+    estensione di `CMD_HP_SELF_UPDATE` — prima questa scrittura restava
+    solo sulla replica locale, `diario_tab.py`, e veniva cancellata dal
+    prossimo resync completo del personaggio innescato da un QUALSIASI
+    altro evento). Come `_handle_hp_self_update`: il ruolo `player` da solo
+    non basta, serve `perm.is_character_owner()`.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può scrivere sul proprio diario.",
+        )
+    title = str(ctx.payload.get("title", "")).strip()
+    content = str(ctx.payload.get("content", "")).strip()
+    if not title or not content:
+        return CommandResult(False, "Titolo e testo della voce di diario sono obbligatori.")
+    session_date = str(ctx.payload.get("session_date", ""))
+
+    if not character_repo.create_diary_entry(character.id, title, content, session_date):
+        return CommandResult(False, "Scrittura della voce di diario fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_DIARY_SELF_ADD_ENTRY, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha scritto una voce sul proprio diario: «{title}».",
+        payload=json.dumps({"title": title}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_DIARY_SELF_UPDATE_ENTRY)
+def _handle_diary_self_update_entry(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore modifica una propria voce di diario già esistente
+    sull'host. `entry_id` nel payload è quello della replica locale del
+    giocatore — può essere stale se un resync completo è avvenuto tra
+    l'apertura del dialog di modifica e il salvataggio (una voce diario
+    riceve un nuovo id ad ogni resync, vedi
+    `character_repo.diary_entry_exists`): in quel caso si ripiega su una
+    CREAZIONE invece di un aggiornamento, così la modifica non va
+    silenziosamente persa — meglio una voce duplicata occasionale (rara,
+    l'utente se ne accorge e può cancellarla) che una modifica scomparsa.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può modificare il proprio diario.",
+        )
+    title = str(ctx.payload.get("title", "")).strip()
+    content = str(ctx.payload.get("content", "")).strip()
+    if not title or not content:
+        return CommandResult(False, "Titolo e testo della voce di diario sono obbligatori.")
+    session_date = str(ctx.payload.get("session_date", ""))
+    entry_id = str(ctx.payload.get("entry_id", ""))
+
+    if entry_id and character_repo.diary_entry_exists(entry_id, character.id):
+        ok = character_repo.update_diary_entry(entry_id, title, content, session_date)
+    else:
+        ok = character_repo.create_diary_entry(character.id, title, content, session_date)
+    if not ok:
+        return CommandResult(False, "Aggiornamento della voce di diario fallito.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_DIARY_SELF_UPDATE_ENTRY, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha modificato una voce sul proprio diario: «{title}».",
         payload=json.dumps({"title": title}),
     )
     return CommandResult(True, event=event)
@@ -1816,6 +2248,137 @@ def _handle_map_draw(ctx: HandlerContext) -> CommandResult:
 
 
 # ---------------------------------------------------------------------------
+# Deposito comune del gruppo — sincronizzazione (2026-08-19). Solo
+# `stash_kind="party"` passa da qui: il deposito privato del Master
+# (`stash_kind="master"`) resta intenzionalmente locale-solo, mai
+# condiviso, vedi il docstring di `data/repositories/loot_repo.py` e di
+# `LootStashEntry` in `data/models.py`. Non toccano `characters`, stesso
+# motivo per cui CMD_MAP_PUBLISH/CMD_MAP_DRAW non passano da
+# `_resolve_world_character()`.
+# ---------------------------------------------------------------------------
+
+def _loot_stash_entry_payload(entry) -> dict:
+    """Stato completo di una voce, incluso nell'evento — così le repliche
+    possono materializzarla (`loot_repo.replica_upsert_entry`) senza
+    un'altra interrogazione, stesso principio di `_handle_map_draw`."""
+    return {
+        "id": entry.id, "stash_kind": entry.stash_kind, "world_id": entry.world_id,
+        "entry_kind": entry.entry_kind, "name": entry.name,
+        "description": entry.description, "quantity": entry.quantity,
+        "source_note": entry.source_note,
+        "copper": entry.copper, "silver": entry.silver, "electrum": entry.electrum,
+        "gold": entry.gold, "platinum": entry.platinum,
+        "added_by_device_id": entry.added_by_device_id,
+        "created_at": entry.created_at, "updated_at": entry.updated_at,
+    }
+
+
+@register_handler(perm.CMD_LOOT_STASH_ADD)
+def _handle_loot_stash_add(ctx: HandlerContext) -> CommandResult:
+    """Aggiunge una voce al deposito comune del gruppo di questo mondo."""
+    entry_kind = str(ctx.payload.get("entry_kind", "item")).strip() or "item"
+    name = str(ctx.payload.get("name", ""))
+    if entry_kind != "coins" and not name.strip():
+        return CommandResult(False, "Nome della voce mancante.")
+    entry = loot_repo.create_entry(
+        "party", entry_kind, name=name, description=str(ctx.payload.get("description", "")),
+        quantity=int(ctx.payload.get("quantity", 1) or 0),
+        source_note=str(ctx.payload.get("source_note", "")), world_id=ctx.world_id,
+        copper=int(ctx.payload.get("copper", 0) or 0), silver=int(ctx.payload.get("silver", 0) or 0),
+        electrum=int(ctx.payload.get("electrum", 0) or 0), gold=int(ctx.payload.get("gold", 0) or 0),
+        platinum=int(ctx.payload.get("platinum", 0) or 0), added_by_device_id=ctx.actor_device_id,
+    )
+    if entry is None:
+        return CommandResult(False, "Aggiunta al deposito del gruppo fallita.")
+    label = "monete" if entry_kind == "coins" else f"«{name}»"
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_LOOT_STASH_ADD, target_type="loot_stash", target_id=entry.id,
+        summary=f"{ctx.actor_name} ha aggiunto {label} al deposito del gruppo.",
+        payload=json.dumps(_loot_stash_entry_payload(entry)),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_LOOT_STASH_UPDATE)
+def _handle_loot_stash_update(ctx: HandlerContext) -> CommandResult:
+    """Aggiorna i campi testuali/quantità di una voce del deposito comune
+    già esistente (mai le colonne valuta — stessa convenzione di
+    `loot_repo.update_entry`, la UI ricorre a elimina+ricrea per le
+    monete, vedi `master_loot_view.py::_open_edit_dialog`)."""
+    entry_id = str(ctx.payload.get("entry_id", ""))
+    entry = loot_repo.get_entry(entry_id) if entry_id else None
+    if entry is None or entry.stash_kind != "party" or entry.world_id != ctx.world_id:
+        return CommandResult(False, "Voce non trovata nel deposito del gruppo di questo mondo.")
+    if not loot_repo.update_entry(
+        entry_id, name=str(ctx.payload.get("name", "")),
+        description=str(ctx.payload.get("description", "")),
+        quantity=int(ctx.payload.get("quantity", entry.quantity) or 0),
+        source_note=str(ctx.payload.get("source_note", "")),
+    ):
+        return CommandResult(False, "Aggiornamento della voce fallito.")
+    updated = loot_repo.get_entry(entry_id)
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_LOOT_STASH_UPDATE, target_type="loot_stash", target_id=entry_id,
+        summary=f"{ctx.actor_name} ha modificato una voce del deposito del gruppo.",
+        payload=json.dumps(_loot_stash_entry_payload(updated)),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_LOOT_STASH_MOVE)
+def _handle_loot_stash_move(ctx: HandlerContext) -> CommandResult:
+    """
+    Sposta una voce tra il deposito del gruppo e l'archivio privato del
+    Master (in entrambe le direzioni: la stessa voce può iniziare in uno
+    dei due contenitori). Solo lo stato risultante "party" è mai visibile
+    alle repliche — vedi `core.world_sync.apply_event_to_replica`, che
+    applica questo evento come upsert se `new_stash_kind=="party"` o come
+    rimozione locale se `"master"` (una voce spostata fuori dal deposito
+    comune deve sparire dalla vista delle repliche, non restarci "fantasma").
+    """
+    entry_id = str(ctx.payload.get("entry_id", ""))
+    new_kind = str(ctx.payload.get("new_stash_kind", "")).strip()
+    if new_kind not in ("master", "party"):
+        return CommandResult(False, "Contenitore di destinazione non valido.")
+    entry = loot_repo.get_entry(entry_id) if entry_id else None
+    if entry is None or entry.world_id != ctx.world_id:
+        return CommandResult(False, "Voce non trovata in questo mondo.")
+    if not loot_repo.move_entry(
+        entry_id, new_kind, new_world_id=ctx.world_id if new_kind == "party" else "",
+    ):
+        return CommandResult(False, "Spostamento della voce fallito.")
+    updated = loot_repo.get_entry(entry_id)
+    dest_label = "deposito del gruppo" if new_kind == "party" else "archivio privato"
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_LOOT_STASH_MOVE, target_type="loot_stash", target_id=entry_id,
+        summary=f"{ctx.actor_name} ha spostato una voce di bottino nel {dest_label}.",
+        payload=json.dumps({"new_stash_kind": new_kind, **_loot_stash_entry_payload(updated)}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_LOOT_STASH_DELETE)
+def _handle_loot_stash_delete(ctx: HandlerContext) -> CommandResult:
+    """Elimina definitivamente una voce del deposito comune del gruppo."""
+    entry_id = str(ctx.payload.get("entry_id", ""))
+    entry = loot_repo.get_entry(entry_id) if entry_id else None
+    if entry is None or entry.stash_kind != "party" or entry.world_id != ctx.world_id:
+        return CommandResult(False, "Voce non trovata nel deposito del gruppo di questo mondo.")
+    if not loot_repo.delete_entry(entry_id):
+        return CommandResult(False, "Eliminazione della voce fallita.")
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_LOOT_STASH_DELETE, target_type="loot_stash", target_id=entry_id,
+        summary=f"{ctx.actor_name} ha eliminato una voce dal deposito del gruppo.",
+        payload=json.dumps({"entry_id": entry_id}),
+    )
+    return CommandResult(True, event=event)
+
+
+# ---------------------------------------------------------------------------
 # RemoteBackend — passo 4: host + client in LAN (§9 del design doc).
 # ---------------------------------------------------------------------------
 
@@ -1976,6 +2539,23 @@ class RemoteBackend(WorldBackend):
             self._state = "rejected"
         return JoinOutcome(result_status)
 
+    def cancel_join_request(self, request_id: str) -> bool:
+        """`POST /join/cancel` (2026-08-19) — annulla una propria richiesta
+        di ingresso ancora in sospeso (bug segnalato da Davide: il
+        giocatore doveva poter annullare prima di poterne inviare una
+        nuova). `True` solo se l'host conferma l'annullamento — un errore
+        di rete o una richiesta già evasa (approvata/rifiutata nel
+        frattempo) ritornano `False`, il chiamante decide come reagire
+        (tipicamente: prova comunque a inviarne una nuova)."""
+        try:
+            status, _data = self._request(
+                "POST", "/join/cancel",
+                {"request_id": request_id, "device_id": self.device_id},
+            )
+        except (OSError, http.client.HTTPException):
+            return False
+        return status == 200
+
     def reconnect_with_token(self, token: str) -> bool:
         """
         Riconnessione rapida (§11.1/§11.7): riusa un token ottenuto in una
@@ -2113,6 +2693,32 @@ class RemoteBackend(WorldBackend):
             return None
         finally:
             conn.close()
+
+    def fetch_map_annotations(self, map_id: str) -> str | None:
+        """
+        `GET /map/<id>/annotations` (2026-08-19) — backfill lazy dei tratti
+        di disegno di una mappa condivisa per un dispositivo che non li ha
+        mai visti (tipicamente un giocatore entrato DOPO che il master
+        aveva già disegnato — vedi `WorldHostServer.handle_map_annotations`
+        per il bug che questo risolve). A differenza di `fetch_map_image`
+        sopra, questa risposta È JSON (una stringa `annotations`, lo stesso
+        formato di `game_maps.annotations`), quindi passa dal normale
+        `_request()` invece di un client HTTP manuale. `None` se non
+        connesso/non raggiungibile/l'host risponde un errore — il chiamante
+        (`core/world_sync.py`) tratta `None` come "riprova al prossimo
+        giro", mai un'eccezione.
+        """
+        if self.token is None or not map_id:
+            return None
+        try:
+            status, data = self._request(
+                "GET", f"/map/{urllib.parse.quote(map_id, safe='')}/annotations", authed=True,
+            )
+        except (OSError, http.client.HTTPException):
+            return None
+        if status != 200:
+            return None
+        return str(data.get("annotations", "[]"))
 
     def fetch_events(self, world_id: str, since_seq: int = 0) -> list[WorldEvent]:
         """Interroga senza attesa lunga (`wait=0`): la sincronizzazione

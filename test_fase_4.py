@@ -182,7 +182,7 @@ def test_stats() -> None:
 
     c = Character(name="T", class_name="Ladro", race="Umano", level=5,
                   str_score=10, dex_score=18, con_score=14, int_score=12,
-                  wis_score=13, cha_score=8, hit_dice_type="d8",
+                  wis_score=13, cha_score=8, hit_dice_type=8,
                   initiative_bonus=5)
     profs = [
         CharacterProficiency(character_id=c.id, proficiency_type="skill",

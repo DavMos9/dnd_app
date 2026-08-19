@@ -2791,6 +2791,28 @@ def update_diary_entry(entry_id: str, title: str, content: str,
             conn.close()
 
 
+def diary_entry_exists(entry_id: str, character_id: str) -> bool:
+    """Vero se `entry_id` esiste ancora ed è ancora di `character_id` — usato
+    da `core.world_backend._handle_diary_self_update_entry` per distinguere
+    una modifica di una voce reale da un id di replica ormai stale (una
+    voce diario riceve un nuovo id ad ogni resync completo del
+    personaggio, `character_export._write_character_and_children`)."""
+    conn = None
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT 1 FROM diary_entries WHERE id=? AND character_id=?",
+            (entry_id, character_id),
+        ).fetchone()
+        return row is not None
+    except Exception as e:
+        logger.error(f"Errore verifica voce diario {entry_id}: {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def delete_diary_entry(entry_id: str) -> bool:
     """Elimina una voce di diario."""
     conn = None
@@ -3009,6 +3031,26 @@ def update_custom_ability(ability_id: str, name: str, description: str) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore aggiornamento custom_ability {ability_id}: {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def custom_ability_exists(ability_id: str, character_id: str) -> bool:
+    """Vero se `ability_id` esiste ancora ed è ancora di `character_id` —
+    stesso motivo di `diary_entry_exists`: un'abilità custom riceve un
+    nuovo id ad ogni resync completo del personaggio."""
+    conn = None
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT 1 FROM custom_abilities WHERE id=? AND character_id=?",
+            (ability_id, character_id),
+        ).fetchone()
+        return row is not None
+    except Exception as e:
+        logger.error(f"Errore verifica custom_ability {ability_id}: {e}")
         return False
     finally:
         if conn is not None:

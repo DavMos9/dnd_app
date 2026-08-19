@@ -813,6 +813,23 @@ invece di fallire in modi imprevedibili a metà partita.
 il client ripiega sulla scoperta automatica e, se anche quella non trova nulla,
 chiede l'indirizzo. Nessun blocco definitivo.
 
+*Implementato solo dal 2026-08-19* — fino ad allora questo paragrafo
+descriveva il comportamento voluto ma `resolve_backend_for_world()` non
+ripiegava mai davvero sulla scoperta: si limitava a ritentare lo stesso
+indirizzo stale e poi arrendersi. Bug segnalato da Davide dal vivo (host
+ospitato da una rete diversa da quella dell'ultimo ingresso: né
+l'auto-reconnect né "Riconnetti" funzionavano, solo riscansionare il QR — che
+"funzionava" solo perché un ingresso completo riscrive `last_seen_host` come
+effetto collaterale, non per una correzione vera). Fix in
+`core/world_sync.py::resolve_backend_for_world()` /
+`_retry_with_rediscovery()`: quando l'indirizzo salvato non risponde più,
+chiama `network/discovery.py::discover_worlds()` (lo stesso annuncio
+broadcast UDP che l'host manda comunque ogni 2s), e se trova il `world_id`
+ripete l'ingresso con l'indirizzo fresco — che a sua volta lo persiste su
+`last_seen_host` tramite il normale `_finalize_join()`. Resta vero il limite
+di sempre: reti che bloccano il broadcast (Wi-Fi pubblici con isolamento
+client) restano scoperte solo dal percorso manuale.
+
 **11.8 — Lo stesso personaggio in due mondi.** Non è un errore: sono due
 istanze indipendenti (§6). Va reso evidente nella UI, non impedito.
 

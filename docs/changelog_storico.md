@@ -10716,6 +10716,63 @@ Verificato: `test_fase_d.py` 101/101, `test_trasferimento_dispositivo.py` 146/14
 
 ---
 
+## Rilascio v0.3.1 — primo aggiornamento in-app confermato dal vivo (2026-08-19)
+
+Dopo le due rifiniture al trasferimento dispositivo sopra, Davide ha chiesto di preparare ed eseguire un vero
+rilascio versionato per verificare l'aggiornamento in-app end-to-end — la parte non ancora testata dal vivo del
+lavoro del 2026-08-17 (firma di rilascio permanente + `flet_apk_installer`), dato che l'aggiornamento a `v0.3.0`
+era stato fatto disinstallando/reinstallando a mano invece che dal dialogo guidato.
+
+Procedura seguita da `RELEASE.md`: `version.py::APP_VERSION` e `pyproject.toml [project].version` portati a
+`"0.3.1"`, `test_versione_app.py` (28/29 — l'unico fallito è il controllo strutturalmente obsoleto su
+`compute_build_number(FIRST_SIGNED_VERSION)` contro i tag già rilasciati, non causato da questo bump e non in
+scope), `compileall` pulito, commit `chore: release v0.3.1`, tag `v0.3.1`, push con `--tags` — GitHub Actions ha
+buildato Windows/macOS/Linux/Android e pubblicato la Release.
+
+**Confermato da Davide**: l'aggiornamento in-app ha funzionato correttamente sia su Android sia su macOS, in
+loco, senza disinstallare — la prima verifica reale che la migrazione alla firma di rilascio permanente (§
+"Aggiornamento automatico in-app", 2026-08-17) risolve davvero il problema originale, non solo in teoria.
+
+---
+
+## Riconnessione dopo cambio di rete dell'host — bug reale + fix (2026-08-19)
+
+Bug segnalato da Davide durante un test dal vivo, distinto dai due precedenti: se il gruppo gioca una settimana
+su una rete diversa da quella solita (es. l'host non è più ospitato "da casa" ma da un'altra rete), sul
+dispositivo del giocatore **né l'auto-reconnect né il pulsante "Riconnetti" funzionavano** — soltanto
+riscansionare il QR del master risolveva.
+
+**Causa**: `world.last_seen_host` (`"192.168.1.7:8765"`) viene scritto una volta al primo ingresso
+(`_finalize_join()`) e mai più aggiornato lungo il percorso di riconnessione. Il QR invece incorpora sempre
+l'IP ATTUALE dell'host (`network/host_server.py::local_ip_hint()`, ricalcolato ogni volta che si apre la
+schermata di hosting) — cambiando rete, l'host ottiene un nuovo IP LAN, il QR lo riflette subito, l'indirizzo
+salvato no. `core/world_sync.py::resolve_backend_for_world()` (usata sia dal pulsante "Riconnetti" in
+`world_view.py` sia dall'auto-reconnect di `home_view.py`) provava solo il reconnect col token e un retry-join
+sullo STESSO indirizzo stale, poi si arrendeva — mai una vera riscoperta. Riscansionare il QR "funzionava" solo
+per effetto collaterale: un ingresso completo da QR passa comunque per `_finalize_join()`, che sovrascrive
+`last_seen_host` con l'indirizzo fresco appena letto dal QR.
+
+Nota a margine: `§11.7` di `multiplayer_design.md` descriveva già da tempo "il client ripiega sulla scoperta
+automatica" come comportamento voluto — era design aspirazionale mai davvero cablato, non una regressione.
+
+**Fix**: nuova funzione `core/world_sync.py::_retry_with_rediscovery()`, chiamata da
+`resolve_backend_for_world()` quando il retry sull'indirizzo salvato fallisce (e non è un caso di trasferimento
+dispositivo già gestito, §11.9). Ascolta per una finestra breve l'annuncio broadcast UDP che l'host manda
+comunque ogni ~2s (`network/discovery.py::discover_worlds()`, già esistente ma finora usato solo dalla ricerca
+manuale "Cerca partite nelle vicinanze"), cerca l'entry con lo stesso `world.id`, e se la trova ripete
+`start_lan_join()` con l'indirizzo fresco — che persiste da solo il nuovo `last_seen_host` tramite il normale
+`_finalize_join()`, nessun aggiornamento separato necessario. Nessuna azione richiesta all'utente: sia
+l'auto-reconnect sia "Riconnetti" ora si riprendono da soli, stesso limite di sempre della scoperta LAN (reti
+che bloccano il broadcast, es. Wi-Fi pubblici con isolamento client, restano coperte solo dal percorso manuale).
+
+Verificato: `compileall` pulito su `core/`, `test_fase_d.py` 101/101, `test_scoperta_lan.py` 25/25,
+`test_home_sync_rimozione_mondo.py` 14/14, `test_character_instance_sync.py` 20/20. Nessun test dedicato nuovo
+scritto (il percorso richiede due dispositivi reali su reti fisicamente diverse per essere riprodotto in modo
+non simulato) — **resta da confermare dal vivo**. File toccati: `core/world_sync.py`,
+`docs/multiplayer_design.md` (§11.7 aggiornato da "design" a "implementato").
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

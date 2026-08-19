@@ -646,14 +646,18 @@ class MasterView(ft.Column):
         if page is None:
             return
         from ui.views.master.master_treasure_dialog import show_treasure_generator_dialog
-        show_treasure_generator_dialog(cast(ft.Page, page), world_id=self._active_world_id)
+        show_treasure_generator_dialog(
+            cast(ft.Page, page), world_id=self._active_world_id, device_id=self.device_id or "",
+        )
 
     def _open_magic_item_generator_dialog(self) -> None:
         page = self.page
         if page is None:
             return
         from ui.views.master.master_magic_item_generator_dialog import show_magic_item_generator_dialog
-        show_magic_item_generator_dialog(cast(ft.Page, page), world_id=self._active_world_id)
+        show_magic_item_generator_dialog(
+            cast(ft.Page, page), world_id=self._active_world_id, device_id=self.device_id or "",
+        )
 
     def _open_traps_dialog(self) -> None:
         page = self.page
@@ -667,7 +671,9 @@ class MasterView(ft.Column):
         if page is None:
             return
         from ui.views.master.master_health_hazards_dialog import show_health_hazards_dialog
-        show_health_hazards_dialog(cast(ft.Page, page), world_id=self._active_world_id)
+        show_health_hazards_dialog(
+            cast(ft.Page, page), world_id=self._active_world_id, device_id=self.device_id or "",
+        )
 
     def _open_forest_encounters_dialog(self) -> None:
         page = self.page
@@ -681,7 +687,9 @@ class MasterView(ft.Column):
         if page is None:
             return
         from ui.views.master.master_artifacts_dialog import show_artifacts_dialog
-        show_artifacts_dialog(cast(ft.Page, page), world_id=self._active_world_id)
+        show_artifacts_dialog(
+            cast(ft.Page, page), world_id=self._active_world_id, device_id=self.device_id or "",
+        )
 
     def _on_tab_click(self, key: str):
         if key == self.active_tab:
@@ -745,7 +753,9 @@ class MasterView(ft.Column):
         elif key == "loot":
             try:
                 from ui.views.master.master_loot_view import MasterLootView
-                return MasterLootView(world_id=self._active_world_id)
+                return MasterLootView(
+                    world_id=self._active_world_id, device_id=self.device_id or "",
+                )
             except ImportError:
                 return self._placeholder(
                     ft.Icons.INVENTORY_2_OUTLINED, "Bottino",

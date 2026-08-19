@@ -52,8 +52,11 @@ from typing import Any, Callable
 import flet as ft
 
 from core import loot_calculator as lc
+from core import world_permissions as perm
+from core import world_sync
+from core.world_backend import LocalBackend
 from data.models import LootStashEntry
-from data.repositories import character_repo, loot_repo
+from data.repositories import character_repo, loot_repo, world_repo
 from ui import design
 from ui.widgets import responsive_dialog_width, wrap_dialog_actions, show_snack
 
@@ -107,8 +110,17 @@ def simple_item(
     source_note: str = "",
     requires_attunement: bool = False,
     stash_entry_id: str = "",
+    stash_kind: str = "",
 ) -> dict[str, Any]:
-    """Voce non monetaria (oggetto/oggetto magico/artefatto/veleno/gemma/arte)."""
+    """Voce non monetaria (oggetto/oggetto magico/artefatto/veleno/gemma/arte).
+
+    `stash_kind` (2026-08-19): "master"/"party"/"" (non da uno stash) —
+    contenitore d'ORIGINE della voce, se ne aveva uno. Serve a
+    `_on_confirm()` per decidere se la cancellazione/consumo della voce
+    d'origine deve passare dalla rete (`CMD_LOOT_STASH_DELETE`, solo per
+    `"party"`) o restare locale (`"master"`, mai sincronizzato — vedi
+    `_handle_loot_stash_delete` in `core/world_backend.py`, che rifiuta
+    apposta una voce non "party")."""
     return {
         "entry_kind": entry_kind or "item",
         "name": name,
@@ -118,11 +130,13 @@ def simple_item(
         "requires_attunement": requires_attunement,
         "coins": {},
         "stash_entry_id": stash_entry_id,
+        "stash_kind": stash_kind,
     }
 
 
-def coins_item(coins: dict[str, int], *, source_note: str = "", stash_entry_id: str = "") -> dict[str, Any]:
-    """Voce puramente monetaria."""
+def coins_item(coins: dict[str, int], *, source_note: str = "", stash_entry_id: str = "",
+               stash_kind: str = "") -> dict[str, Any]:
+    """Voce puramente monetaria. `stash_kind`: vedi `simple_item()`."""
     return {
         "entry_kind": "coins",
         "name": "",
@@ -132,6 +146,7 @@ def coins_item(coins: dict[str, int], *, source_note: str = "", stash_entry_id: 
         "requires_attunement": False,
         "coins": {k: max(0, coins.get(k, 0)) for k in _COIN_ORDER},
         "stash_entry_id": stash_entry_id,
+        "stash_kind": stash_kind,
     }
 
 
@@ -152,12 +167,13 @@ def item_from_stash_entry(entry: LootStashEntry) -> dict[str, Any]:
                 "copper": entry.copper, "silver": entry.silver, "electrum": entry.electrum,
                 "gold": entry.gold, "platinum": entry.platinum,
             },
-            source_note=entry.source_note, stash_entry_id=entry.id,
+            source_note=entry.source_note, stash_entry_id=entry.id, stash_kind=entry.stash_kind,
         )
     heuristic_attunement = "sintonia" in (entry.description + " " + entry.source_note).lower()
     return simple_item(
         entry.entry_kind, entry.name, entry.description, entry.quantity,
         entry.source_note, requires_attunement=heuristic_attunement, stash_entry_id=entry.id,
+        stash_kind=entry.stash_kind,
     )
 
 
@@ -204,6 +220,7 @@ def show_loot_assign_dialog(
     *,
     on_committed: Callable[[], None] | None = None,
     world_id: str = "",
+    device_id: str = "",
 ) -> None:
     """
     Apre il dialog di assegnazione per `items` (costruiti con
@@ -217,7 +234,29 @@ def show_loot_assign_dialog(
     sia il mondo a cui viene assegnata una voce spedita al "Deposito del
     Gruppo" (mai all'"Archivio": resta sempre privato del dispositivo del
     Master, vedi `LootStashEntry` in `data/models.py`).
+
+    `device_id` (2026-08-19): identità di QUESTO dispositivo, necessaria
+    per instradare l'assegnazione via rete (`CMD_LOOT_ASSIGN`/
+    `CMD_LOOT_STASH_ADD`/`CMD_LOOT_STASH_MOVE`) quando `world_id` è
+    valorizzato — bug segnalato da Davide: prima di questo fix ogni
+    scrittura restava sempre e solo locale al dispositivo che eseguiva
+    l'azione (ritardo di sincronizzazione, o assegnazione "al mondo
+    sbagliato" quando ad agire era un master non-host). Con `world_id`
+    valorizzato ma `device_id` vuoto/host irraggiungibile, la conferma
+    fallisce con un errore esplicito invece di scrivere silenziosamente
+    solo sulla replica locale — mai più il comportamento del bug originale.
     """
+    _remote_backends: dict[str, Any] = {}
+
+    def _resolve_backend():
+        if not world_id:
+            return None
+        world = world_repo.get_world(world_id)
+        if world is None:
+            return None
+        return world_sync.resolve_backend_for_world(
+            world, device_id, LocalBackend(), _remote_backends,
+        )
     characters = character_repo.get_master_visible_characters(world_id)
     char_options = [(c.id, f"{c.name} (Lv.{c.level})") for c in characters]
     dest_options = char_options + [(DEST_PARTY, "Deposito del Gruppo"), (DEST_ARCHIVE, "Archivio")]
@@ -502,9 +541,116 @@ def show_loot_assign_dialog(
                 pass
             return
 
+        # Instradamento in rete (2026-08-19): con un mondo selezionato,
+        # OGNI scrittura verso un personaggio o verso il deposito del
+        # gruppo passa da qui — mai più un'assegnazione locale-sola. Se
+        # l'host non è raggiungibile si fallisce esplicitamente (fail
+        # closed) invece di scrivere silenziosamente solo sulla replica di
+        # questo dispositivo, che è esattamente il bug originale.
+        backend = _resolve_backend() if world_id else None
+        if world_id and backend is None:
+            error_text.value = (
+                "Impossibile raggiungere l'host di questo mondo — riprova "
+                "quando la connessione è di nuovo attiva."
+            )
+            try:
+                error_text.update()
+            except RuntimeError:
+                pass
+            return
+
         error_text.value = ""
         n_items = 0
         n_chars_coins = 0
+        loot_assign_items: list[dict[str, Any]] = []
+        loot_assign_coins: list[dict[str, Any]] = []
+
+        def _consume_stash_source(it: dict[str, Any]) -> None:
+            """Rimuove la voce d'origine (se questa assegnazione parte da
+            una voce già in archivio/deposito) dopo che è stata consumata
+            interamente da un'assegnazione a personaggio. Solo una voce
+            d'origine "party" passa dalla rete (`CMD_LOOT_STASH_DELETE`,
+            l'unica che l'handler host accetta — vedi il suo docstring):
+            una voce "master" non ha mai lasciato questo dispositivo, quindi
+            resta una cancellazione locale anche con un mondo selezionato."""
+            stash_id = it.get("stash_entry_id")
+            if not stash_id:
+                return
+            if world_id and backend is not None and it.get("stash_kind") == "party":
+                backend.send_command(
+                    world_id, device_id, perm.CMD_LOOT_STASH_DELETE,
+                    {"entry_id": stash_id}, target_type="loot_stash", target_id=stash_id,
+                )
+            else:
+                loot_repo.delete_entry(stash_id)
+
+        def _move_or_create_stash(it: dict[str, Any], dest: str, quantity: int) -> None:
+            """Crea (o sposta, se la voce viene già dall'archivio/deposito)
+            una voce verso `DEST_PARTY`/`DEST_ARCHIVE`. Solo il deposito del
+            gruppo sincronizza in rete — l'archivio del Master resta sempre
+            locale, per design."""
+            new_kind = "party" if dest == DEST_PARTY else "master"
+            stash_id = it.get("stash_entry_id")
+            if world_id and backend is not None:
+                if stash_id:
+                    backend.send_command(
+                        world_id, device_id, perm.CMD_LOOT_STASH_MOVE,
+                        {"entry_id": stash_id, "new_stash_kind": new_kind},
+                        target_type="loot_stash", target_id=stash_id,
+                    )
+                elif new_kind == "party":
+                    backend.send_command(
+                        world_id, device_id, perm.CMD_LOOT_STASH_ADD,
+                        {
+                            "entry_kind": it["entry_kind"], "name": it.get("name", ""),
+                            "description": it.get("description", ""), "quantity": quantity,
+                            "source_note": it.get("source_note", ""),
+                        },
+                        target_type="loot_stash",
+                    )
+                else:
+                    loot_repo.create_entry(
+                        "master", it["entry_kind"], name=it.get("name", ""),
+                        description=it.get("description", ""), quantity=quantity,
+                        source_note=it.get("source_note", ""),
+                    )
+            elif stash_id:
+                loot_repo.move_entry(stash_id, new_kind, new_world_id=world_id if new_kind == "party" else "")
+            else:
+                loot_repo.create_entry(
+                    new_kind, it["entry_kind"], name=it.get("name", ""),
+                    description=it.get("description", ""), quantity=quantity,
+                    source_note=it.get("source_note", ""),
+                    world_id=world_id if new_kind == "party" else "",
+                )
+
+        def _create_stash_split(it: dict[str, Any], dest: str, quantity: int) -> None:
+            """Variante di `_move_or_create_stash` per il ramo "quote
+            multiple" (una voce indivisibile con quantity>1 ripartita su
+            più destinazioni): crea SEMPRE una nuova voce, non sposta mai
+            quella d'origine — la stessa riga non può "spostarsi" verso più
+            di una destinazione. La voce d'origine (se esisteva) viene
+            cancellata una sola volta a ripartizione completata, vedi il
+            richiamo di `_consume_stash_source` più sotto — stesso
+            comportamento del codice pre-rete."""
+            new_kind = "party" if dest == DEST_PARTY else "master"
+            if world_id and backend is not None and new_kind == "party":
+                backend.send_command(
+                    world_id, device_id, perm.CMD_LOOT_STASH_ADD,
+                    {
+                        "entry_kind": it["entry_kind"], "name": it.get("name", ""),
+                        "description": it.get("description", ""), "quantity": quantity,
+                        "source_note": it.get("source_note", ""),
+                    },
+                    target_type="loot_stash",
+                )
+            else:
+                loot_repo.create_entry(
+                    new_kind, it["entry_kind"], name=it.get("name", ""),
+                    description=it.get("description", ""), quantity=quantity,
+                    source_note=it.get("source_note", ""),
+                    world_id=world_id if new_kind == "party" else "",
+                )
 
         # -- Oggetti indivisibili --------------------------------------
         for st in included_states:
@@ -514,35 +660,38 @@ def show_loot_assign_dialog(
             if qty <= 1:
                 dest = st["dest"]
                 if dest in (DEST_PARTY, DEST_ARCHIVE):
-                    if it.get("stash_entry_id"):
-                        loot_repo.move_entry(it["stash_entry_id"], "party" if dest == DEST_PARTY else "master")
-                    else:
-                        loot_repo.create_entry(
-                            "party" if dest == DEST_PARTY else "master", it["entry_kind"],
-                            name=it.get("name", ""), description=it.get("description", ""),
-                            quantity=qty, source_note=it.get("source_note", ""),
-                            world_id=world_id if dest == DEST_PARTY else "",
-                        )
+                    _move_or_create_stash(it, dest, qty)
+                elif world_id and backend is not None:
+                    loot_assign_items.append({
+                        "target_character_id": dest, "name": it.get("name", ""),
+                        "quantity": qty, "category": category,
+                        "description": it.get("description", ""),
+                        "requires_attunement": bool(it.get("requires_attunement")),
+                        "effects": "",
+                    })
+                    _consume_stash_source(it)
                 else:
                     character_repo.create_inventory_item(
                         dest, it.get("name", ""), quantity=qty, category=category,
                         description=it.get("description", ""),
                         requires_attunement=bool(it.get("requires_attunement")),
                     )
-                    if it.get("stash_entry_id"):
-                        loot_repo.delete_entry(it["stash_entry_id"])
+                    _consume_stash_source(it)
                 n_items += 1
             else:
                 for dest, share in st["shares"].items():
                     if share <= 0:
                         continue
                     if dest in (DEST_PARTY, DEST_ARCHIVE):
-                        loot_repo.create_entry(
-                            "party" if dest == DEST_PARTY else "master", it["entry_kind"],
-                            name=it.get("name", ""), description=it.get("description", ""),
-                            quantity=share, source_note=it.get("source_note", ""),
-                            world_id=world_id if dest == DEST_PARTY else "",
-                        )
+                        _create_stash_split(it, dest, share)
+                    elif world_id and backend is not None:
+                        loot_assign_items.append({
+                            "target_character_id": dest, "name": it.get("name", ""),
+                            "quantity": share, "category": category,
+                            "description": it.get("description", ""),
+                            "requires_attunement": bool(it.get("requires_attunement")),
+                            "effects": "",
+                        })
                     else:
                         character_repo.create_inventory_item(
                             dest, it.get("name", ""), quantity=share, category=category,
@@ -551,9 +700,11 @@ def show_loot_assign_dialog(
                         )
                 # L'intera quantità è sempre completamente ripartita (per la
                 # validazione sopra) quindi la voce d'origine, se esisteva,
-                # è del tutto consumata.
+                # è del tutto consumata — sempre cancellata qui (mai
+                # spostata: `_create_stash_split` sopra crea sempre righe
+                # nuove per ogni destinazione, mai la stessa riga d'origine).
                 if it.get("stash_entry_id"):
-                    loot_repo.delete_entry(it["stash_entry_id"])
+                    _consume_stash_source(it)
                 n_items += 1
 
         # -- Monete -----------------------------------------------------
@@ -563,19 +714,36 @@ def show_loot_assign_dialog(
                 for cid, per in result["per_recipient"].items():
                     if not any(per.values()):
                         continue
-                    existing = character_repo.get_currencies(cid)
-                    character_repo.update_currencies(
-                        cid,
-                        (existing.copper if existing else 0) + per.get("copper", 0),
-                        (existing.silver if existing else 0) + per.get("silver", 0),
-                        (existing.electrum if existing else 0) + per.get("electrum", 0),
-                        (existing.gold if existing else 0) + per.get("gold", 0),
-                        (existing.platinum if existing else 0) + per.get("platinum", 0),
-                    )
+                    if world_id and backend is not None:
+                        loot_assign_coins.append({"target_character_id": cid, **per})
+                    else:
+                        existing = character_repo.get_currencies(cid)
+                        character_repo.update_currencies(
+                            cid,
+                            (existing.copper if existing else 0) + per.get("copper", 0),
+                            (existing.silver if existing else 0) + per.get("silver", 0),
+                            (existing.electrum if existing else 0) + per.get("electrum", 0),
+                            (existing.gold if existing else 0) + per.get("gold", 0),
+                            (existing.platinum if existing else 0) + per.get("platinum", 0),
+                        )
                     n_chars_coins += 1
                 for it in coin_items:
                     if it.get("stash_entry_id"):
-                        loot_repo.delete_entry(it["stash_entry_id"])
+                        _consume_stash_source(it)
+
+        if world_id and backend is not None and (loot_assign_items or loot_assign_coins):
+            result = backend.send_command(
+                world_id, device_id, perm.CMD_LOOT_ASSIGN,
+                {"items": loot_assign_items, "coins": loot_assign_coins},
+                target_type="world", target_id=world_id,
+            )
+            if not result.success:
+                error_text.value = result.error or "Assegnazione fallita."
+                try:
+                    error_text.update()
+                except RuntimeError:
+                    pass
+                return
 
         msg_bits = []
         if n_items:

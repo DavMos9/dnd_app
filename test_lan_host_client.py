@@ -344,6 +344,85 @@ def test_join_rate_limit() -> None:
 
 
 # ---------------------------------------------------------------------------
+# [1ter] Deduplica delle richieste di ingresso + annullamento (2026-08-19,
+# bug segnalato da Davide: "il giocatore può... spammare richieste con nomi
+# diversi, [...] deve poter annullarla e solo poi può inviare una nuova")
+# ---------------------------------------------------------------------------
+
+def test_join_request_dedup_and_cancel() -> None:
+    print("\n[1ter] Deduplica richieste di ingresso + annullamento (POST /join/cancel)")
+
+    world = world_repo.create_world("Mondo Dedup Ingresso", "dev-owner-dedup", "Il Master")
+    assert world is not None
+
+    host = WorldHostServer(world.id, long_poll_timeout=2.0, announce=False)
+    port = host.start()
+    try:
+        client = RemoteBackend("127.0.0.1", port, "dev-spam-dedup")
+
+        first = client.join(world.join_code, host.pin, "Primo Nome")
+        check("il primo tentativo va in pending", first.status == "pending" and bool(first.request_id))
+        check("una sola richiesta in sospeso dopo il primo tentativo",
+              len(host.list_pending()) == 1)
+
+        # Ritenta con un nome diverso — bypassando il cooldown di 10s come
+        # fa `test_join_rate_limit` sopra, per isolare la logica di
+        # deduplica da quella di rate limit (due difese distinte).
+        host.reset_join_rate_limit_for_tests()
+        second = client.join(world.join_code, host.pin, "Nome Diverso")
+        check("il secondo tentativo (stesso device_id) ritorna lo STESSO request_id",
+              second.status == "pending" and second.request_id == first.request_id)
+        check("resta comunque UNA sola richiesta in sospeso, non due",
+              len(host.list_pending()) == 1)
+        check("il nome mostrato al master è quello dell'ULTIMO tentativo",
+              host.list_pending()[0].display_name == "Nome Diverso")
+
+        # Un TERZO tentativo, ancora nessuna riga aggiuntiva.
+        host.reset_join_rate_limit_for_tests()
+        third = client.join(world.join_code, host.pin, "Terzo Nome")
+        check("un terzo tentativo riusa ancora la stessa richiesta",
+              third.request_id == first.request_id)
+        check("ancora una sola richiesta in sospeso dopo tre tentativi",
+              len(host.list_pending()) == 1)
+
+        # Un device_id DIVERSO ottiene una PROPRIA richiesta, mai fusa con
+        # quella del primo — la deduplica è per-dispositivo, non globale.
+        other = RemoteBackend("127.0.0.1", port, "dev-altro-dedup")
+        other_outcome = other.join(world.join_code, host.pin, "Altro Giocatore")
+        check("un device_id diverso ottiene una richiesta propria",
+              other_outcome.status == "pending"
+              and other_outcome.request_id != first.request_id)
+        check("ora ci sono due richieste in sospeso, una per dispositivo",
+              len(host.list_pending()) == 2)
+
+        # Annullamento: il richiedente stesso annulla la propria richiesta.
+        cancelled = client.cancel_join_request(first.request_id)
+        check("l'annullamento della propria richiesta riesce", cancelled)
+        check("dopo l'annullamento resta solo la richiesta dell'altro dispositivo",
+              len(host.list_pending()) == 1
+              and host.list_pending()[0].id == other_outcome.request_id)
+
+        status_after_cancel = client.poll_join_status(first.request_id)
+        check("interrogare una richiesta annullata ritorna status='cancelled', "
+              "mai 'pending' per sempre",
+              status_after_cancel.status == "cancelled")
+
+        # Dopo l'annullamento, un nuovo tentativo dallo stesso device_id
+        # crea una richiesta NUOVA (quella vecchia è chiusa, non riusabile).
+        host.reset_join_rate_limit_for_tests()
+        fresh = client.join(world.join_code, host.pin, "Richiesta Nuova")
+        check("dopo l'annullamento, un nuovo tentativo crea una richiesta diversa",
+              fresh.status == "pending" and fresh.request_id != first.request_id)
+
+        # Un device_id CHE NON possiede la richiesta non può annullarla.
+        not_mine = other.cancel_join_request(other_outcome.request_id + "-fake")
+        check("annullare un request_id inesistente fallisce",
+              not not_mine)
+    finally:
+        host.stop()
+
+
+# ---------------------------------------------------------------------------
 # [2] Applicazione degli eventi sulla replica — isolata, nessun server vivo
 # ---------------------------------------------------------------------------
 
@@ -620,6 +699,7 @@ def main() -> int:
     init_db()
     test_network_protocol()
     test_join_rate_limit()
+    test_join_request_dedup_and_cancel()
     test_apply_event_to_replica()
     test_lan_join_orchestration()
 

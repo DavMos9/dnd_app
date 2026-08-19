@@ -190,6 +190,12 @@ class MapsView(ft.Column):
     _MODE_DEFS = [
         ("pen",    ft.Icons.EDIT,            "Penna"),
         ("eraser", ft.Icons.AUTO_FIX_NORMAL, "Gomma"),
+        # "Sposta" (2026-08-19, zoom/pan — bug segnalato da Davide: "è
+        # impossibile zoommare la mappa"): un trascinamento a un dito in
+        # questa modalità sposta la vista invece di disegnare/cancellare —
+        # vedi `_on_pan_start/_on_pan_update/_on_pan_end` (branch dedicato)
+        # e `_select_mode` (toggle di `InteractiveViewer.pan_enabled`).
+        ("move",   ft.Icons.OPEN_WITH,       "Sposta"),
     ]
 
     def __init__(self, character: Character):
@@ -222,6 +228,12 @@ class MapsView(ft.Column):
         self._fs_canvas: cv.Canvas | None = None
         self._detail_draw_stack: ft.Stack | None = None
         self._fs_draw_stack: ft.Stack | None = None
+        #: `ft.InteractiveViewer` che avvolge ciascuno dei due stack sopra
+        #: (2026-08-19, zoom/pan) — riferimenti tenuti per poterne
+        #: mutare `pan_enabled` da `_select_mode()` quando si passa alla
+        #: modalità "Sposta", stesso principio dei riferimenti canvas/stack.
+        self._detail_interactive_viewer: ft.InteractiveViewer | None = None
+        self._fs_interactive_viewer: ft.InteractiveViewer | None = None
         self._current_gm: GameMap | None = None
 
         # Dimensione CORRENTE (pixel) del riquadro di disegno inline e a
@@ -686,8 +698,10 @@ class MapsView(ft.Column):
         self._detail_canvas = cv.Canvas(expand=True)
         self._redraw_canvas(self._detail_canvas)
 
+        # `_build_draw_stack` imposta già `self._detail_draw_stack` (l'inner
+        # Stack) e `self._detail_interactive_viewer` — `draw_stack` qui è
+        # l'InteractiveViewer che li avvolge, usato solo per il layout sotto.
         draw_stack = self._build_draw_stack(gm, self._detail_canvas, is_fs=False)
-        self._detail_draw_stack = draw_stack
 
         toolbar_row, toolbar_body = self._build_drawing_toolbar(
             gm=gm, is_fs=False,
@@ -721,6 +735,7 @@ class MapsView(ft.Column):
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
+        legacy_banner = self._legacy_banner(gm)
         return ft.Column(
             [
                 ft.Container(
@@ -729,6 +744,7 @@ class MapsView(ft.Column):
                                             top=design.Space.SM, bottom=design.Space.SM),
                     shadow=design.elevation(1),
                 ),
+                *([legacy_banner] if legacy_banner is not None else []),
                 # L'area di disegno è scura: fa risaltare la mappa e i tratti
                 # chiari, e stacca l'immagine dal fondo pergamena della scheda.
                 ft.Container(expand=True, content=draw_stack,
@@ -770,8 +786,18 @@ class MapsView(ft.Column):
         )
 
     def _build_draw_stack(self, gm: GameMap, canvas: cv.Canvas,
-                          is_fs: bool) -> ft.Stack:
-        """Costruisce lo Stack: immagine + canvas + gesture + overlay testo."""
+                          is_fs: bool) -> ft.InteractiveViewer:
+        """Costruisce lo Stack (immagine + canvas + gesture) avvolto in un
+        `ft.InteractiveViewer` per zoom/pan (2026-08-19). `pan_enabled`
+        parte sempre `False`: un trascinamento a un dito deve disegnare
+        finché l'utente non passa esplicitamente alla modalità "Sposta"
+        (`_select_mode`) — `scale_enabled` resta invece sempre `True`, un
+        pinch a due dita (o lo scroll del trackpad) non compete mai con il
+        disegno a un dito, nessun interruttore necessario per lo zoom in
+        sé, solo per il pan. Il tipo di ritorno cambia da `ft.Stack` a
+        `ft.InteractiveViewer`: entrambi i chiamanti (`_build_detail_panel`/
+        `_open_fullscreen`) lo usano solo come `content` di un Container,
+        quindi il cambio è trasparente per loro."""
         if gm.image_data:
             img_layer: ft.Control = ft.Image(
                 src=_data_uri(gm.image_data), fit=ft.BoxFit.CONTAIN, expand=True,
@@ -802,7 +828,22 @@ class MapsView(ft.Column):
             [img_layer, gesture],
             expand=True,
         )
-        return stack
+        interactive_viewer = ft.InteractiveViewer(
+            content=stack, pan_enabled=False, scale_enabled=True,
+            trackpad_scroll_causes_scale=True, min_scale=1.0, max_scale=5.0,
+        )
+        # `self._{detail,fs}_draw_stack` deve restare il vero `ft.Stack`
+        # (non l'`InteractiveViewer` che lo avvolge): `_clear_all()` più
+        # sotto manipola direttamente `stack.controls`, che l'InteractiveViewer
+        # non ha (ha `content`, non `controls`) — da qui i due riferimenti
+        # separati, uno per l'inner Stack (invariato) e uno per il wrapper.
+        if is_fs:
+            self._fs_draw_stack = stack
+            self._fs_interactive_viewer = interactive_viewer
+        else:
+            self._detail_draw_stack = stack
+            self._detail_interactive_viewer = interactive_viewer
+        return interactive_viewer
 
     def _back_to_list(self):
         self._strokes.clear()
@@ -812,6 +853,8 @@ class MapsView(ft.Column):
         self._detail_canvas = None
         self._detail_draw_stack = None
         self._fs_draw_stack = None
+        self._detail_interactive_viewer = None
+        self._fs_interactive_viewer = None
         self._current_gm = None
         self._swatch_refs.clear()
         self._mode_refs.clear()
@@ -945,6 +988,12 @@ class MapsView(ft.Column):
     # ------------------------------------------------------------------
 
     def _on_pan_start(self, e: ft.DragStartEvent, canvas: cv.Canvas):
+        # Modalità "Sposta" (2026-08-19, zoom/pan): il gesture detector del
+        # disegno resta agganciato ma inerte — `InteractiveViewer.pan_enabled`
+        # (attivato solo in questa modalità, vedi `_select_mode`) reclama il
+        # trascinamento a un dito per spostare la vista invece.
+        if self._draw_mode == "move":
+            return
         x, y = e.local_position.x, e.local_position.y
         if self._draw_mode == "eraser":
             self._eraser_cursor_pos = [x, y]
@@ -959,6 +1008,8 @@ class MapsView(ft.Column):
         self._current_points.append([x, y])
 
     def _on_pan_update(self, e: ft.DragUpdateEvent, gm: GameMap, canvas: cv.Canvas):
+        if self._draw_mode == "move":
+            return
         x, y = e.local_position.x, e.local_position.y
         if self._draw_mode == "eraser":
             self._eraser_cursor_pos = [x, y]
@@ -984,6 +1035,8 @@ class MapsView(ft.Column):
             pass
 
     def _on_pan_end(self, e: ft.DragEndEvent, gm: GameMap, canvas: cv.Canvas):
+        if self._draw_mode == "move":
+            return
         self._eraser_cursor_pos = None
         if self._draw_mode == "eraser":
             self._update_all_canvases()
@@ -1119,6 +1172,71 @@ class MapsView(ft.Column):
             except RuntimeError:
                 pass
 
+    def _has_legacy_strokes(self) -> bool:
+        """Vero se `self._strokes` contiene almeno un tratto in formato
+        legacy (pre-2026-08-12, pixel assoluti) — vedi il docstring di
+        `ui.canvas_geometry`. Controlla la lista già in memoria, non
+        `gm.annotations` da disco: resta corretto anche a runtime dopo un
+        disegno/una cancellazione, senza dover rileggere il DB."""
+        return any(
+            s.get("type") == "stroke" and s.get("points")
+            and not geo.looks_normalized(s.get("points", []))
+            for s in self._strokes
+        )
+
+    def _clear_legacy_strokes(self, gm: GameMap) -> None:
+        """Rimuove SOLO i tratti in formato legacy, preservando quelli già
+        corretti — l'utente può poi ridisegnarli allineati. Nessuna
+        migrazione automatica è possibile (vedi `ui.canvas_geometry`)."""
+        self._strokes[:] = [
+            s for s in self._strokes
+            if s.get("type") != "stroke" or geo.looks_normalized(s.get("points", []))
+        ]
+        maps_repo.update_map(gm.id, annotations=json.dumps(self._strokes))
+        gm.annotations = json.dumps(self._strokes)
+        self._update_all_canvases()
+
+    def _legacy_banner(self, gm: GameMap) -> ft.Control | None:
+        """Avviso una tantum + azione "Cancella tratti precedenti" — `None`
+        se non ci sono tratti legacy da segnalare (nessun controllo
+        aggiunto all'albero in quel caso)."""
+        if not self._has_legacy_strokes():
+            return None
+
+        banner_ref: list[ft.Container] = []
+
+        def _on_clear(e: Any) -> None:
+            self._clear_legacy_strokes(gm)
+            if banner_ref:
+                banner_ref[0].visible = False
+                try:
+                    banner_ref[0].update()
+                except RuntimeError:
+                    pass
+
+        banner = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=16, color=design.T().danger),
+                    ft.Text(
+                        "Alcuni tratti di questa mappa sono di un formato precedente e "
+                        "potrebbero non allinearsi su schermi diversi.",
+                        size=12, color=design.CHROME.text, expand=True,
+                    ),
+                    ft.TextButton(
+                        "Cancella tratti precedenti", icon=ft.Icons.DELETE_OUTLINE,
+                        on_click=_on_clear,
+                        style=ft.ButtonStyle(color=design.T().danger),
+                    ),
+                ],
+                spacing=design.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+            bgcolor=ft.Colors.with_opacity(0.12, design.T().danger),
+        )
+        banner_ref.append(banner)
+        return banner
+
     # ------------------------------------------------------------------
     # Toolbar disegno
     # ------------------------------------------------------------------
@@ -1220,11 +1338,24 @@ class MapsView(ft.Column):
                                 margin=ft.Margin.only(left=design.Space.SM,
                                                       right=design.Space.SM))
 
+        # `wrap=True` invece di `scroll=ft.ScrollMode.AUTO` (2026-08-19, bug
+        # segnalato da Davide: su smartphone "bisogna scorrere per vedere i
+        # restanti colori e i pulsanti") — vedi `docs/regole_flet_api.md`,
+        # sezione "TAB BAR / BARRE DI PILLOLE...": per una barra di
+        # navigazione a striscia fissa lo scroll è la scelta corretta, ma
+        # per un controllo come questa toolbar (dove il contenuto DEVE
+        # restare tutto visibile senza un gesto nascosto — preferenza
+        # esplicita del progetto, "no hidden UI actions") crescere in
+        # altezza è accettabile, a differenza di una tab bar che deve
+        # restare fissa. Nessun figlio qui sotto usa `expand=True`, quindi
+        # nessun rischio del crash "wrap+expand sulla stessa Row" già
+        # documentato lì.
         top_row = ft.Row(
             [mode_row, _sep(), swatches, _sep(), undo_btn, clearall_btn],
             spacing=design.Space.SM,
+            run_spacing=design.Space.SM,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            scroll=ft.ScrollMode.AUTO,
+            wrap=True,
         )
 
         # ── Body dinamico (cambia con la modalità) ───────────────────
@@ -1241,13 +1372,7 @@ class MapsView(ft.Column):
         else:
             self._toolbar_body = toolbar_body
 
-        return (
-            ft.Row(
-                [top_row],
-                scroll=ft.ScrollMode.AUTO,
-            ),
-            toolbar_body,
-        )
+        return (top_row, toolbar_body)
 
     # ── Stile dei controlli della barra (condiviso build ↔ selezione) ──
     # Prima lo stile era scritto due volte: una in costruzione e una dentro
@@ -1397,6 +1522,20 @@ class MapsView(ft.Column):
         self._draw_mode = key
         self._eraser_cursor_pos = None
 
+        # Zoom/pan (2026-08-19): `self._draw_mode` è condiviso tra pannello
+        # inline e schermo intero, quindi entrambi gli `InteractiveViewer`
+        # (quello/i effettivamente montati in questo momento) vanno
+        # aggiornati insieme — non solo quello del pannello che ha appena
+        # cambiato modalità.
+        for viewer in (self._detail_interactive_viewer, self._fs_interactive_viewer):
+            if viewer is None:
+                continue
+            viewer.pan_enabled = key == "move"
+            try:
+                viewer.update()
+            except RuntimeError:
+                pass
+
         for i, (k, _, _) in enumerate(self._MODE_DEFS):
             if i >= len(mode_list):
                 break
@@ -1477,8 +1616,9 @@ class MapsView(ft.Column):
         self._fs_canvas = cv.Canvas(expand=True)
         self._redraw_canvas(self._fs_canvas)
 
+        # Stesso principio del pannello inline: `_build_draw_stack` imposta
+        # già `self._fs_draw_stack`/`self._fs_interactive_viewer`.
         fs_draw_stack = self._build_draw_stack(gm, self._fs_canvas, is_fs=True)
-        self._fs_draw_stack = fs_draw_stack
 
         fs_toolbar_row, fs_toolbar_body = self._build_drawing_toolbar(gm, is_fs=True)
 
@@ -1489,6 +1629,7 @@ class MapsView(ft.Column):
                 page.overlay.remove(overlay_list[0])
             self._fs_canvas = None
             self._fs_draw_stack = None
+            self._fs_interactive_viewer = None
             self._fs_swatch_refs.clear()
             self._fs_mode_refs.clear()
             self._fs_ersub_refs.clear()
@@ -1515,11 +1656,13 @@ class MapsView(ft.Column):
             bgcolor=design.CHROME.backdrop,
         )
 
+        fs_legacy_banner = self._legacy_banner(gm)
         overlay = ft.Container(
             expand=True, bgcolor=design.CHROME.canvas,
             content=ft.Column(
                 [
                     header,
+                    *([fs_legacy_banner] if fs_legacy_banner is not None else []),
                     ft.Container(expand=True, content=fs_draw_stack,
                                  on_size_change=lambda e: self._on_box_resize(True, e)),
                     ft.Container(

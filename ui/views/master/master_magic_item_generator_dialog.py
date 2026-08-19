@@ -47,14 +47,19 @@ logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
 
 
-def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
+def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_id: str = "") -> None:
     """Apre il dialog "Genera Oggetto Magico". Nessun valore ritornato —
     tutta la logica di stato vive nella closure, stesso pattern già in uso
     per gli altri dialog generatore della Sezione Master.
 
     `world_id` (2026-08-06): il mondo correntemente selezionato in
     `MasterView` — "" per la modalità locale, vedi
-    `character_repo.get_master_visible_characters()`."""
+    `character_repo.get_master_visible_characters()`.
+
+    `device_id` (2026-08-19): identità di questo dispositivo — instrada
+    "Aggiungi all'inventario" e "Assegna…" via rete quando `world_id` è
+    valorizzato (bug segnalato da Davide: prima veniva scritto solo sulla
+    replica locale, invece che sul personaggio del mondo selezionato)."""
 
     all_items = _loader.get_magic_items()
     category_options = mig.get_category_options(all_items)
@@ -278,7 +283,29 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
         items = result_state["items"]
         if not char_id or not items:
             return
+
+        backend = None
+        if world_id:
+            from core import world_sync
+            from core.world_backend import LocalBackend
+            from data.repositories import world_repo as _world_repo
+            world = _world_repo.get_world(world_id)
+            if world is not None:
+                backend = world_sync.resolve_backend_for_world(
+                    world, device_id, LocalBackend(), {},
+                )
+            if backend is None:
+                feedback_text.value = (
+                    "Impossibile raggiungere l'host di questo mondo — riprova."
+                )
+                try:
+                    feedback_text.update()
+                except RuntimeError:
+                    pass
+                return
+
         added = 0
+        loot_assign_items: list[dict[str, Any]] = []
         for name, qty in Counter(it.get("name", "") for it in items).items():
             item = next((it for it in items if it.get("name", "") == name), {})
             category = item.get("category", "")
@@ -288,13 +315,33 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
             summary_bits = [b for b in (category, rarity_raw.capitalize()) if b]
             if requires_att:
                 summary_bits.append("Richiede sintonia" + (f" ({att_restriction})" if att_restriction else ""))
-            ok = character_repo.create_inventory_item(
-                char_id, name, quantity=qty, category="magic",
-                description=item.get("description", ""),
-                effects=" · ".join(summary_bits),
-            )
-            if ok:
+            if backend is not None:
+                loot_assign_items.append({
+                    "target_character_id": char_id, "name": name, "quantity": qty,
+                    "category": "magic", "description": item.get("description", ""),
+                    "requires_attunement": requires_att,
+                    "effects": " · ".join(summary_bits),
+                })
                 added += 1
+            else:
+                ok = character_repo.create_inventory_item(
+                    char_id, name, quantity=qty, category="magic",
+                    description=item.get("description", ""),
+                    effects=" · ".join(summary_bits),
+                )
+                if ok:
+                    added += 1
+
+        if backend is not None and loot_assign_items:
+            from core import world_permissions as perm
+            result = backend.send_command(
+                world_id, device_id, perm.CMD_LOOT_ASSIGN,
+                {"items": loot_assign_items, "coins": []},
+                target_type="world", target_id=world_id,
+            )
+            if not result.success:
+                added = 0
+
         char_name = next((c.name for c in characters if c.id == char_id), "personaggio")
         if added:
             feedback_text.value = f"Aggiunto a {char_name}: {added} oggett{'o' if added == 1 else 'i'} magic{'o' if added == 1 else 'i'}."
@@ -336,7 +383,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "") -> None:
         items = _build_loot_items()
         if not items:
             return
-        show_loot_assign_dialog(page, items, world_id=world_id)
+        show_loot_assign_dialog(page, items, world_id=world_id, device_id=device_id)
 
     def _on_save_to_archive(ev: Any) -> None:
         from ui.views.master.master_loot_assign_dialog import save_items_to_stash

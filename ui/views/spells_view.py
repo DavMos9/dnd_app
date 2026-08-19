@@ -50,6 +50,7 @@ from data.repositories import world_repo
 from data.game_data.game_data_loader import GameDataLoader
 from ui.theme import section_header, muted_text
 import core.character_stats as cs
+from core import world_permissions as perm
 from core import world_sync
 from core.world_backend import LocalBackend, RemoteBackend
 from ui.components.background_sync import BackgroundSyncLoop
@@ -360,6 +361,20 @@ class SpellsView(ScrollMemoryListView):
             self._sync_loop.stop()
         self._sync_loop = None
 
+    def _push_spell_to_world(self, kind: str, payload: dict) -> None:
+        """Invia verso l'host l'incantesimo appena aggiornato/rimosso, best
+        effort — no-op se il personaggio non è un'istanza di un mondo.
+        Riusa `self.device_id` (già risolto da `_init_world_sync`) invece
+        di richiederlo di nuovo, coerente col resto di questa vista. Vedi
+        `core.world_sync.push_character_self_command`."""
+        if not self.character.world_id or self._page is None:
+            return
+        device_id_cache = {"id": self.device_id} if self.device_id else {}
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, device_id_cache, kind, payload,
+        )
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -446,13 +461,13 @@ class SpellsView(ScrollMemoryListView):
 
         if was_prepared:
             character_repo.remove_known_spell(self.character.id, name, level)
+            self._push_spell_to_world(perm.CMD_SPELL_SELF_REMOVE, {"name": name, "level": level})
         else:
             comps = spell.get("components", [])
             comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
             if spell.get("material"):
                 comp_str += f" ({spell['material']})"
-            character_repo.upsert_known_spell(
-                character_id=self.character.id,
+            spell_fields = dict(
                 name=name, level=level, is_prepared=True,
                 school=spell.get("school", ""),
                 casting_time=spell.get("casting_time", ""),
@@ -463,6 +478,8 @@ class SpellsView(ScrollMemoryListView):
                 higher_levels=spell.get("higher_levels", "") or "",
                 class_list=self.character.class_name or "",
             )
+            character_repo.upsert_known_spell(character_id=self.character.id, **spell_fields)
+            self._push_spell_to_world(perm.CMD_SPELL_SELF_UPSERT, spell_fields)
 
         self._reload_known()
         self._refresh()
@@ -516,13 +533,13 @@ class SpellsView(ScrollMemoryListView):
 
         if was_prepared:
             character_repo.remove_known_spell(c.id, name, level)
+            self._push_spell_to_world(perm.CMD_SPELL_SELF_REMOVE, {"name": name, "level": level})
         else:
             comps = spell.get("components", [])
             comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
             if spell.get("material"):
                 comp_str += f" ({spell['material']})"
-            character_repo.upsert_known_spell(
-                character_id=c.id,
+            spell_fields = dict(
                 name=name, level=level, is_prepared=True,
                 school=spell.get("school", ""),
                 casting_time=spell.get("casting_time", ""),
@@ -533,6 +550,8 @@ class SpellsView(ScrollMemoryListView):
                 higher_levels=spell.get("higher_levels", "") or "",
                 class_list=class_name,
             )
+            character_repo.upsert_known_spell(character_id=c.id, **spell_fields)
+            self._push_spell_to_world(perm.CMD_SPELL_SELF_UPSERT, spell_fields)
 
         self._reload_known()
         self._refresh()
@@ -2053,6 +2072,10 @@ class SpellsView(ScrollMemoryListView):
                 character_repo.remove_known_spell(
                     self.character.id, _ks.name, _ks.spell_level
                 )
+                self._push_spell_to_world(
+                    perm.CMD_SPELL_SELF_REMOVE,
+                    {"name": _ks.name, "level": _ks.spell_level},
+                )
                 self._reload_known()
                 self._build()
                 try:
@@ -2340,8 +2363,7 @@ class SpellsView(ScrollMemoryListView):
             comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
             if spell.get("material"):
                 comp_str += f" ({spell['material']})"
-            character_repo.upsert_known_spell(
-                character_id=c.id,
+            spell_fields = dict(
                 name=spell.get("name", name),
                 level=spell.get("level", 0),
                 is_prepared=True,
@@ -2355,6 +2377,8 @@ class SpellsView(ScrollMemoryListView):
                 class_list=cls,
                 is_bonus=True,
             )
+            character_repo.upsert_known_spell(character_id=c.id, **spell_fields)
+            self._push_spell_to_world(perm.CMD_SPELL_SELF_UPSERT, spell_fields)
             page.pop_dialog()
             self._reload_known()
             self._build()

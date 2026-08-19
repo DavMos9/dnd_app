@@ -40,13 +40,14 @@ _MADNESS_KIND_LABELS = {
 }
 
 
-def show_health_hazards_dialog(page: ft.Page, world_id: str = "") -> None:
+def show_health_hazards_dialog(page: ft.Page, world_id: str = "", device_id: str = "") -> None:
     """Apre il dialog "Malattie, Veleni e Follia". Stato in closure, stesso
     pattern già in uso per `show_traps_dialog`/`show_treasure_generator_dialog`.
 
     `world_id` (2026-08-06): il mondo correntemente selezionato in
     `MasterView` — "" per la modalità locale, inoltrato al pulsante
-    "Assegna…" della scheda Veleni."""
+    "Assegna…" della scheda Veleni. `device_id` (2026-08-19): inoltrato
+    insieme, per instradare via rete quando `world_id` è valorizzato."""
 
     state: dict[str, Any] = {"tab": "diseases", "madness_kind": "temporanea", "rolled": None}
 
@@ -121,7 +122,9 @@ def show_health_hazards_dialog(page: ft.Page, world_id: str = "") -> None:
     def _open_poison_detail(poison: dict[str, Any]) -> None:
         def _on_assign_loot(ev: Any) -> None:
             from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
-            show_loot_assign_dialog(page, [_build_poison_loot_item(poison)], world_id=world_id)
+            show_loot_assign_dialog(
+                page, [_build_poison_loot_item(poison)], world_id=world_id, device_id=device_id,
+            )
 
         def _on_save_to_archive(ev: Any) -> None:
             from ui.views.master.master_loot_assign_dialog import save_items_to_stash

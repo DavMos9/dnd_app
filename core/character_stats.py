@@ -256,9 +256,8 @@ def hit_die_roll(character: Any) -> RollSpec:
     Il minimo del recupero (0 sul totale, non per dado — PHB p.186) resta a
     carico di chi applica il risultato: qui si descrive solo il tiro.
     """
-    die = (getattr(character, "hit_dice_type", "") or "d8").strip()
-    if not die.startswith("d"):
-        die = f"d{die}"
+    die_value = getattr(character, "hit_dice_type", None) or 8
+    die = f"d{int(die_value)}"
     con_mod = ability_modifier(character, "con")
     return RollSpec(
         kind="hit_die",

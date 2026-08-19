@@ -81,7 +81,8 @@ class _LevelingClassView:
             setattr(object.__getattribute__(self, "_character"), name, value)
 
 
-def _save_multiclass_known_spell(spell_name: str, class_name: str, character_id: str) -> None:
+def _save_multiclass_known_spell(spell_name: str, class_name: str, character: Character,
+                                  page: ft.Page | None = None) -> None:
     """
     Salva un incantesimo/trucchetto conosciuto scelto prendendo `class_name`
     come nuova classe in multiclasse (suo livello 1) — stessa logica di
@@ -89,6 +90,12 @@ def _save_multiclass_known_spell(spell_name: str, class_name: str, character_id:
     (duplicata qui, non estratta: quella vive in una closure di ~2400 righe
     mai toccata in questa sessione per non introdurre rischio sul level-up
     esistente, vedi docs/multiclasse_design.md §8.3).
+
+    Riceve `character` (non solo `character_id`, 2026-08-19) e inoltra la
+    scrittura verso l'host se è un'istanza di mondo — vedi
+    `core.world_sync.push_character_self_command`, stesso principio del
+    fix di `CMD_HP_SELF_UPDATE`: prima questa scrittura restava solo sulla
+    replica locale e veniva persa al prossimo resync completo.
     """
     spell = next(
         (s for s in _loader.get_spells(class_name) if s.get("name") == spell_name), None
@@ -100,8 +107,7 @@ def _save_multiclass_known_spell(spell_name: str, class_name: str, character_id:
     comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
     if spell.get("material"):
         comp_str += f" ({spell['material']})"
-    character_repo.upsert_known_spell(
-        character_id=character_id,
+    spell_fields = dict(
         name=spell_name,
         level=spell.get("level", 0),
         is_prepared=True,
@@ -114,6 +120,14 @@ def _save_multiclass_known_spell(spell_name: str, class_name: str, character_id:
         higher_levels=spell.get("higher_levels", "") or "",
         class_list=class_name,
     )
+    character_repo.upsert_known_spell(character_id=character.id, **spell_fields)
+    if character.world_id and page is not None:
+        from core import world_permissions as perm
+        from core import world_sync
+        page.run_task(
+            world_sync.push_character_self_command,
+            page, character, {}, perm.CMD_SPELL_SELF_UPSERT, spell_fields,
+        )
 
 
 def _data_uri(b64: str) -> str:
@@ -3622,8 +3636,7 @@ class ProfiloTab(ScrollMemoryListView):
             comp_str = ", ".join(comps) if isinstance(comps, list) else str(comps)
             if spell.get("material"):
                 comp_str += f" ({spell['material']})"
-            character_repo.upsert_known_spell(
-                character_id=char.id,
+            spell_fields = dict(
                 name=spell_name,
                 level=spell.get("level", 0),
                 is_prepared=True,
@@ -3636,6 +3649,26 @@ class ProfiloTab(ScrollMemoryListView):
                 higher_levels=spell.get("higher_levels", "") or "",
                 class_list=class_name,
                 origin_unrestricted=origin_unrestricted,
+            )
+            character_repo.upsert_known_spell(character_id=char.id, **spell_fields)
+            if char.world_id and page is not None:
+                from core import world_permissions as perm
+                from core import world_sync
+                page.run_task(
+                    world_sync.push_character_self_command,
+                    page, char, {}, perm.CMD_SPELL_SELF_UPSERT, spell_fields,
+                )
+
+        def _push_spell_removed(char: Character, name: str, level: int) -> None:
+            """Controparte di `_save_known_spell` per le rimozioni (scambio
+            di un incantesimo conosciuto con un altro) — stesso principio."""
+            if not char.world_id or page is None:
+                return
+            from core import world_permissions as perm
+            from core import world_sync
+            page.run_task(
+                world_sync.push_character_self_command,
+                page, char, {}, perm.CMD_SPELL_SELF_REMOVE, {"name": name, "level": level},
             )
 
         def do_level_up(ev):
@@ -4073,6 +4106,7 @@ class ProfiloTab(ScrollMemoryListView):
                     )
                     if _old_row is not None:
                         character_repo.remove_known_spell(c.id, _old_name, _old_row.spell_level)
+                        _push_spell_removed(c, _old_name, _old_row.spell_level)
                     _save_known_spell(_swap_add.value, lc.class_name or "", lc)
 
             # Segreti Magici (qualsiasi classe)
@@ -4138,6 +4172,7 @@ class ProfiloTab(ScrollMemoryListView):
                     _was_unrestricted = _old_row_bsw.origin_unrestricted if _old_row_bsw else False
                     if _old_row_bsw is not None:
                         character_repo.remove_known_spell(c.id, _old_name_bsw, _old_row_bsw.spell_level)
+                        _push_spell_removed(c, _old_name_bsw, _old_row_bsw.spell_level)
                     _save_known_spell(_bsw_add.value, "Mago", c, origin_unrestricted=_was_unrestricted)
 
             # Bonus PF permanente per-livello di talenti come Robusto
@@ -4539,7 +4574,7 @@ class ProfiloTab(ScrollMemoryListView):
 
             for picker in cantrip_pickers_ref + spell_pickers_ref:
                 if picker.value:
-                    _save_multiclass_known_spell(picker.value, class_name, c.id)
+                    _save_multiclass_known_spell(picker.value, class_name, c, page)
 
             c.level = character_repo.sync_character_total_level(c.id) or c.level
 

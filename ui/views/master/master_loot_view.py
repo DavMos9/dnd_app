@@ -30,8 +30,11 @@ from typing import Any, cast
 
 import flet as ft
 
+from core import world_permissions as perm
+from core import world_sync
+from core.world_backend import LocalBackend
 from data.models import LootStashEntry
-from data.repositories import loot_repo
+from data.repositories import loot_repo, world_repo
 from ui import design
 from ui.widgets import responsive_dialog_width, wrap_dialog_actions, show_snack
 
@@ -80,7 +83,7 @@ def _coin_summary(entry: LootStashEntry) -> str:
 class MasterLootView(ft.Column):
     """Tab «Bottino»: archivio del Master + deposito del gruppo."""
 
-    def __init__(self, world_id: str = "") -> None:
+    def __init__(self, world_id: str = "", device_id: str = "") -> None:
         super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
         self._page: ft.Page | None = None
         #: Mondo correntemente selezionato in `MasterView` (2026-08-06,
@@ -91,6 +94,13 @@ class MasterLootView(ft.Column):
         #: Master (mai sincronizzato/visibile ai giocatori) resta un asse
         #: indipendente da questo, invariata.
         self._world_id = world_id
+        #: Identità di questo dispositivo (2026-08-19) — instrada le
+        #: scritture sul deposito del gruppo (`stash_kind="party"`) via
+        #: rete quando `_world_id` è valorizzato, vedi
+        #: `_resolve_stash_backend()`. L'archivio del Master
+        #: (`stash_kind="master"`) resta sempre locale, non lo usa mai.
+        self._device_id = device_id
+        self._remote_backends: dict[str, Any] = {}
         self._active_kind: str = "master"  # "master" | "party"
         self._list_col = ft.Column(spacing=8)
         self._build()
@@ -103,6 +113,19 @@ class MasterLootView(ft.Column):
         stesso mondo selezionato per entrambi i contenitori (2026-08-12,
         vedi il commento nel costruttore)."""
         return self._world_id
+
+    def _resolve_stash_backend(self):
+        """Backend per un comando `CMD_LOOT_STASH_*` — `None` se non c'è un
+        mondo selezionato o l'host non è raggiungibile, stesso meccanismo
+        di `MasterEncounterView._resolve_encounter_backend()`."""
+        if not self._world_id:
+            return None
+        world = world_repo.get_world(self._world_id)
+        if world is None:
+            return None
+        return world_sync.resolve_backend_for_world(
+            world, self._device_id or "", LocalBackend(), self._remote_backends,
+        )
 
     # ------------------------------------------------------------------
 
@@ -280,17 +303,29 @@ class MasterLootView(ft.Column):
             return
         from ui.views.master.master_loot_assign_dialog import item_from_stash_entry, show_loot_assign_dialog
         show_loot_assign_dialog(page, [item_from_stash_entry(entry)], on_committed=self._refresh_list_only,
-                                 world_id=self._world_id)
+                                 world_id=self._world_id, device_id=self._device_id)
 
     def _on_move(self, entry: LootStashEntry) -> None:
         new_kind = "party" if self._active_kind == "master" else "master"
-        # world_id esplicito (2026-08-12): senza, move_entry lo azzererebbe
-        # al default "" — corretto per la modalità locale, ma sposterebbe
-        # la voce FUORI dal mondo selezionato (invisibile nell'altro
-        # contenitore finché non si torna in modalità locale). Entrambi i
-        # contenitori condividono lo stesso mondo, quindi uno spostamento
-        # resta sempre dentro lo stesso container.
-        loot_repo.move_entry(entry.id, new_kind, new_world_id=self._world_id)
+        # 2026-08-19: con un mondo selezionato lo spostamento passa dalla
+        # rete (`CMD_LOOT_STASH_MOVE`) — l'handler host non distingue
+        # l'origine (`entry.stash_kind` d'origine), quindi funziona in
+        # entrambe le direzioni master<->party, vedi il suo docstring in
+        # `core/world_backend.py`. Fallback locale se l'host non è
+        # raggiungibile o non c'è un mondo selezionato (comportamento di
+        # sempre, world_id esplicito — 2026-08-12: senza, move_entry lo
+        # azzererebbe al default "").
+        backend = self._resolve_stash_backend()
+        if self._world_id and backend is not None:
+            result = backend.send_command(
+                self._world_id, self._device_id or "", perm.CMD_LOOT_STASH_MOVE,
+                {"entry_id": entry.id, "new_stash_kind": new_kind},
+                target_type="loot_stash", target_id=entry.id,
+            )
+            if not result.success and self._page is not None:
+                show_snack(self._page, result.error or "Spostamento fallito.", tone="danger")
+        else:
+            loot_repo.move_entry(entry.id, new_kind, new_world_id=self._world_id)
         self._refresh_list_only()
 
     def _on_delete(self, entry: LootStashEntry) -> None:
@@ -301,7 +336,22 @@ class MasterLootView(ft.Column):
         def do_delete(ev: Any) -> None:
             if page is None:
                 return
-            loot_repo.delete_entry(entry.id)
+            # Solo una voce "party" con un mondo selezionato passa dalla
+            # rete — l'archivio del Master resta sempre locale, stesso
+            # motivo di `_on_move` sopra (vedi `_handle_loot_stash_delete`,
+            # che rifiuta apposta una voce non "party").
+            backend = self._resolve_stash_backend()
+            if self._world_id and entry.stash_kind == "party" and backend is not None:
+                result = backend.send_command(
+                    self._world_id, self._device_id or "", perm.CMD_LOOT_STASH_DELETE,
+                    {"entry_id": entry.id}, target_type="loot_stash", target_id=entry.id,
+                )
+                if not result.success:
+                    show_snack(page, result.error or "Eliminazione fallita.", tone="danger")
+                    page.pop_dialog()
+                    return
+            else:
+                loot_repo.delete_entry(entry.id)
             page.pop_dialog()
             self._refresh_list_only()
 
@@ -341,14 +391,31 @@ class MasterLootView(ft.Column):
                 # `loot_repo.update_entry()` non tocca le 5 colonne valuta (pensato
                 # per le voci non monetarie): per una voce "coins" si passa da
                 # elimina+ricrea, più semplice che aggiungere una funzione di
-                # scrittura usata da un solo chiamante.
-                loot_repo.delete_entry(entry.id)
-                loot_repo.create_entry(
-                    entry.stash_kind, "coins", source_note=(note_tf.value or "").strip(),
-                    world_id=entry.world_id,
-                    copper=values["copper"], silver=values["silver"], electrum=values["electrum"],
-                    gold=values["gold"], platinum=values["platinum"],
-                )
+                # scrittura usata da un solo chiamante — stesso principio in
+                # rete (CMD_LOOT_STASH_DELETE + CMD_LOOT_STASH_ADD) quando la
+                # voce è "party" e c'è un mondo selezionato.
+                backend = self._resolve_stash_backend()
+                if self._world_id and entry.stash_kind == "party" and backend is not None:
+                    backend.send_command(
+                        self._world_id, self._device_id or "", perm.CMD_LOOT_STASH_DELETE,
+                        {"entry_id": entry.id}, target_type="loot_stash", target_id=entry.id,
+                    )
+                    backend.send_command(
+                        self._world_id, self._device_id or "", perm.CMD_LOOT_STASH_ADD,
+                        {
+                            "entry_kind": "coins", "source_note": (note_tf.value or "").strip(),
+                            **values,
+                        },
+                        target_type="loot_stash",
+                    )
+                else:
+                    loot_repo.delete_entry(entry.id)
+                    loot_repo.create_entry(
+                        entry.stash_kind, "coins", source_note=(note_tf.value or "").strip(),
+                        world_id=entry.world_id,
+                        copper=values["copper"], silver=values["silver"], electrum=values["electrum"],
+                        gold=values["gold"], platinum=values["platinum"],
+                    )
                 page.pop_dialog()
                 self._refresh_list_only()
 
@@ -380,11 +447,23 @@ class MasterLootView(ft.Column):
                 qty = max(1, int((qty_tf.value or "1").strip()))
             except ValueError:
                 qty = 1
-            loot_repo.update_entry(
-                entry.id, name=(name_tf.value or "").strip(),
-                description=(desc_tf.value or "").strip(), quantity=qty,
-                source_note=(note_tf.value or "").strip(),
-            )
+            backend = self._resolve_stash_backend()
+            if self._world_id and entry.stash_kind == "party" and backend is not None:
+                backend.send_command(
+                    self._world_id, self._device_id or "", perm.CMD_LOOT_STASH_UPDATE,
+                    {
+                        "entry_id": entry.id, "name": (name_tf.value or "").strip(),
+                        "description": (desc_tf.value or "").strip(), "quantity": qty,
+                        "source_note": (note_tf.value or "").strip(),
+                    },
+                    target_type="loot_stash", target_id=entry.id,
+                )
+            else:
+                loot_repo.update_entry(
+                    entry.id, name=(name_tf.value or "").strip(),
+                    description=(desc_tf.value or "").strip(), quantity=qty,
+                    source_note=(note_tf.value or "").strip(),
+                )
             page.pop_dialog()
             self._refresh_list_only()
 
@@ -445,6 +524,10 @@ class MasterLootView(ft.Column):
             if page is None:
                 return
             kind = state["kind"]
+            # Solo il deposito del gruppo ("party") con un mondo selezionato
+            # passa dalla rete — l'archivio del Master resta sempre locale.
+            backend = self._resolve_stash_backend() if self._active_kind == "party" else None
+            use_network = bool(self._world_id and self._active_kind == "party" and backend is not None)
             if kind == "coins":
                 values = {}
                 for k, tf in coin_tfs.items():
@@ -455,12 +538,22 @@ class MasterLootView(ft.Column):
                 if not any(values.values()):
                     show_snack(page, "Nessuna moneta indicata.", tone="warning")
                     return
-                loot_repo.create_entry(
-                    self._active_kind, "coins", source_note=(note_tf.value or "").strip(),
-                    copper=values["copper"], silver=values["silver"], electrum=values["electrum"],
-                    gold=values["gold"], platinum=values["platinum"],
-                    world_id=self._effective_world_id(),
-                )
+                if use_network:
+                    backend.send_command(
+                        self._world_id, self._device_id or "", perm.CMD_LOOT_STASH_ADD,
+                        {
+                            "entry_kind": "coins", "source_note": (note_tf.value or "").strip(),
+                            **values,
+                        },
+                        target_type="loot_stash",
+                    )
+                else:
+                    loot_repo.create_entry(
+                        self._active_kind, "coins", source_note=(note_tf.value or "").strip(),
+                        copper=values["copper"], silver=values["silver"], electrum=values["electrum"],
+                        gold=values["gold"], platinum=values["platinum"],
+                        world_id=self._effective_world_id(),
+                    )
             else:
                 name = (name_tf.value or "").strip()
                 if not name:
@@ -470,11 +563,22 @@ class MasterLootView(ft.Column):
                     qty = max(1, int((qty_tf.value or "1").strip()))
                 except ValueError:
                     qty = 1
-                loot_repo.create_entry(
-                    self._active_kind, kind, name=name, description=(desc_tf.value or "").strip(),
-                    quantity=qty, source_note=(note_tf.value or "").strip(),
-                    world_id=self._effective_world_id(),
-                )
+                if use_network:
+                    backend.send_command(
+                        self._world_id, self._device_id or "", perm.CMD_LOOT_STASH_ADD,
+                        {
+                            "entry_kind": kind, "name": name,
+                            "description": (desc_tf.value or "").strip(), "quantity": qty,
+                            "source_note": (note_tf.value or "").strip(),
+                        },
+                        target_type="loot_stash",
+                    )
+                else:
+                    loot_repo.create_entry(
+                        self._active_kind, kind, name=name, description=(desc_tf.value or "").strip(),
+                        quantity=qty, source_note=(note_tf.value or "").strip(),
+                        world_id=self._effective_world_id(),
+                    )
             page.pop_dialog()
             self._refresh_list_only()
 

@@ -307,7 +307,7 @@ def test_ui_aggiungi_classe_helpers():
 
     bardo_spells = [s["name"] for s in game_data.get_spells("Bardo") if s.get("level") == 1]
     check("almeno un incantesimo di 1° livello Bardo disponibile per il test", len(bardo_spells) > 0)
-    _save_multiclass_known_spell(bardo_spells[0], "Bardo", c.id)
+    _save_multiclass_known_spell(bardo_spells[0], "Bardo", c)
 
     known = {ks.name: ks for ks in character_repo.get_known_spells(c.id)}
     check("incantesimo salvato tra i conosciuti", bardo_spells[0] in known)
@@ -316,7 +316,7 @@ def test_ui_aggiungi_classe_helpers():
 
     # Nome inesistente: no-op sicuro (stesso comportamento di _save_known_spell
     # dentro _on_level_up_click), non deve sollevare eccezioni né scrivere nulla.
-    _save_multiclass_known_spell("Incantesimo Che Non Esiste XYZ", "Bardo", c.id)
+    _save_multiclass_known_spell("Incantesimo Che Non Esiste XYZ", "Bardo", c)
     known_after = {ks.name for ks in character_repo.get_known_spells(c.id)}
     check("nome incantesimo inesistente: nessuna scrittura, nessuna eccezione",
           "Incantesimo Che Non Esiste XYZ" not in known_after)

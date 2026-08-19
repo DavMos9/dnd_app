@@ -1773,6 +1773,17 @@ class HomeView(ft.Column):
             )
         except FilePickerUnavailable as exc:
             logger.warning(f"FilePicker nativo non disponibile, uso WebView: {exc}")
+            # 2026-08-19 (bug segnalato da Davide: su tablet la selezione
+            # file non fa nulla, il ripiego WebView è a sua volta noto
+            # rotto su Android reale — vedi il docstring sopra): prima
+            # questo fallimento restava solo nel log, invisibile
+            # sull'interfaccia. Un avviso non bloccante col testo reale
+            # dell'eccezione rende il prossimo tentativo su tablet
+            # diagnosticabile (l'unico modo di andare oltre senza log
+            # `adb logcat` reali dal dispositivo) — non è di per sé una
+            # correzione, solo la differenza tra un fallimento silenzioso
+            # e uno che si può segnalare con un dettaglio utile.
+            self._show_error(f"Selettore file nativo non disponibile: {exc}")
             native_result = None
             native_failed = True
         else:

@@ -66,10 +66,42 @@ class EsplorazioneTab(ScrollMemoryListView):
         self._custom_abilities: list[CustomAbility] = character_repo.get_custom_abilities(
             character.id, "esplorazione"
         )
+        self._device_id_cache: dict = {}
         self._build()
 
     def did_mount(self) -> None:
         self._page = cast(ft.Page, self.page)
+
+    def _push_notes_to_world(self, notes: str) -> None:
+        """Invia le note di sessione appena modificate verso l'host, best
+        effort — no-op se il personaggio non è un'istanza di un mondo. Vedi
+        `core.world_sync.push_character_self_command`."""
+        if not self.character.world_id or self._page is None:
+            return
+        from core import world_permissions as perm
+        from core import world_sync
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache,
+            perm.CMD_NOTES_SELF_UPDATE, {"notes": notes},
+        )
+
+    def _push_custom_ability_to_world(self, action: str, fields: dict) -> None:
+        """Invia l'abilità personalizzata appena creata/modificata verso
+        l'host, best effort — no-op se il personaggio non è un'istanza di
+        un mondo. Vedi `core.world_sync.push_character_self_command`."""
+        if not self.character.world_id or self._page is None:
+            return
+        from core import world_permissions as perm
+        from core import world_sync
+        kind = (
+            perm.CMD_CUSTOM_ABILITY_SELF_CREATE if action == "create"
+            else perm.CMD_CUSTOM_ABILITY_SELF_UPDATE
+        )
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache, kind, fields,
+        )
 
     # ------------------------------------------------------------------
     # Build principale
@@ -626,10 +658,18 @@ class EsplorazioneTab(ScrollMemoryListView):
                 if not new_id:
                     show_error_dialog(page, "Errore nel salvataggio dell'abilità.")
                     return
+                self._push_custom_ability_to_world(
+                    "create", {"category": "esplorazione", "name": name, "description": desc},
+                )
             else:
                 if not character_repo.update_custom_ability(ab.id, name, desc):
                     show_error_dialog(page, "Errore nel salvataggio dell'abilità.")
                     return
+                self._push_custom_ability_to_world(
+                    "update",
+                    {"ability_id": ab.id, "category": "esplorazione", "name": name,
+                     "description": desc},
+                )
             page.pop_dialog()
             self._refresh()
 
@@ -931,6 +971,7 @@ class EsplorazioneTab(ScrollMemoryListView):
             if notes != (c.session_notes or ""):
                 character_repo.update_session_notes(c.id, notes)
                 c.session_notes = notes
+                self._push_notes_to_world(notes)
 
         notes_field.on_blur = on_blur
 

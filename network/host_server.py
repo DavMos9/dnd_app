@@ -49,7 +49,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from core import world_permissions as perm
 from core.image_utils import sniff_mime
 from core.world_backend import LocalBackend
-from data.repositories import character_repo, maps_repo, master_repo, world_repo
+from data.repositories import character_repo, loot_repo, maps_repo, master_repo, world_repo
 from data.repositories import character_export, world_transfer_repo
 from network import protocol
 from network.discovery import LanAnnouncer
@@ -213,6 +213,10 @@ class _RequestHandler(BaseHTTPRequestHandler):
                 map_id = path[len("/map/"):-len("/image")]
                 status, content_type, data = host.handle_map_image(self._bearer_token(), map_id)
                 self._send_binary(status, content_type, data)
+            elif path.startswith("/map/") and path.endswith("/annotations"):
+                map_id = path[len("/map/"):-len("/annotations")].rstrip("/")
+                status, payload = host.handle_map_annotations(self._bearer_token(), map_id)
+                self._send_json(status, payload)
             else:
                 self._send_json(404, {"error": "Rotta sconosciuta."})
         except Exception as e:
@@ -227,6 +231,9 @@ class _RequestHandler(BaseHTTPRequestHandler):
         try:
             if path == "/join":
                 status, payload = host.handle_join(body)
+                self._send_json(status, payload)
+            elif path == "/join/cancel":
+                status, payload = host.handle_join_cancel(body)
                 self._send_json(status, payload)
             elif path == "/command":
                 status, payload = host.handle_command(self._bearer_token(), body)
@@ -540,6 +547,25 @@ class WorldHostServer:
             req.status = "rejected"
         return True
 
+    def cancel_own_request(self, request_id: str, device_id: str) -> bool:
+        """
+        Annulla una richiesta di ingresso — a differenza di `reject()`
+        sopra (il master rifiuta la richiesta di un ALTRO), qui è il
+        richiedente stesso ad annullare la propria (2026-08-19, bug
+        segnalato da Davide: "il giocatore... deve poter annullarla e solo
+        poi può inviare una nuova richiesta"). Verifica che `device_id`
+        corrisponda al proprietario della richiesta — nessun token esiste
+        ancora a questo punto del flusso (il dispositivo non è membro),
+        quindi questo confronto è l'unica autenticazione disponibile, come
+        già per l'intero `handle_join()`.
+        """
+        with self._lock:
+            req = self._pending.get(request_id)
+            if req is None or req.status != "pending" or req.device_id != device_id:
+                return False
+            req.status = "cancelled"
+        return True
+
     # ------------------------------------------------------------------
     # Rotte — chiamate dal dispatcher HTTP, ma testabili anche a diretto
     # (senza socket) passando token/body a mano: la logica di dominio non
@@ -664,11 +690,41 @@ class WorldHostServer:
         # esplicita del master (§9.4: «Marco vuole entrare»).
         if not self.pin or pin != self.pin:
             return 403, {"error": "PIN errato."}
-        req = PendingJoinRequest(id=str(_uuid.uuid4()), device_id=device_id,
-                                  display_name=display_name)
+
+        # Deduplica (2026-08-19, bug segnalato da Davide: "il giocatore può
+        # anche spammare richieste con nomi diversi"): un dispositivo con
+        # già una richiesta in sospeso la riusa invece di accodarne una
+        # nuova ad ogni ritentativo — l'unico limite prima d'ora era il
+        # cooldown di 10s su `_check_join_rate_limit`, che rallenta lo
+        # spam ma non lo impedisce (bastava aspettare tra un tentativo e
+        # l'altro). `display_name` dell'ultimo tentativo aggiorna quello
+        # già in coda (l'utente può aver corretto un refuso nel nome prima
+        # di ritentare), il resto della riga (id, timestamp) resta quello
+        # originale — il master vede comunque una sola richiesta.
         with self._lock:
+            existing = next(
+                (r for r in self._pending.values()
+                 if r.device_id == device_id and r.status == "pending"),
+                None,
+            )
+            if existing is not None:
+                existing.display_name = display_name
+                return 200, {"status": "pending", "request_id": existing.id}
+            req = PendingJoinRequest(id=str(_uuid.uuid4()), device_id=device_id,
+                                      display_name=display_name)
             self._pending[req.id] = req
         return 200, {"status": "pending", "request_id": req.id}
+
+    def handle_join_cancel(self, body: dict) -> tuple[int, dict]:
+        """`POST /join/cancel` (2026-08-19) — controparte di `handle_join`
+        per l'annullamento lato richiedente, vedi `cancel_own_request()`."""
+        request_id = str(body.get("request_id", "")).strip()
+        device_id = str(body.get("device_id", "")).strip()
+        if not request_id or not device_id:
+            return 400, {"error": "request_id/device_id mancanti."}
+        if not self.cancel_own_request(request_id, device_id):
+            return 404, {"error": "Richiesta non trovata o già evasa."}
+        return 200, {"ok": True}
 
     def _handle_transfer_join(self, transfer_code: str, device_id: str,
                                display_name: str) -> tuple[int, dict]:
@@ -744,6 +800,8 @@ class WorldHostServer:
             return {"status": "approved", "token": req.token, "role": req.role}
         if req.status == "rejected":
             return {"status": "rejected"}
+        if req.status == "cancelled":
+            return {"status": "cancelled"}
         return {"status": "pending"}
 
     def handle_events(self, token: str, since: int, wait: float) -> tuple[int, dict]:
@@ -917,6 +975,20 @@ class WorldHostServer:
             logger.error("handle_snapshot: errore costruendo le mappe condivise: %s", e)
             shared_maps = []
 
+        # Deposito comune del gruppo (2026-08-19) — solo `stash_kind="party"`,
+        # stesso gap delle sezioni sopra: senza questo, un giocatore/master
+        # non-host che entra dopo che una voce è stata depositata non la
+        # vedrebbe mai finché non arriva un evento successivo. L'archivio
+        # privato del Master (`stash_kind="master"`) non entra MAI qui —
+        # resta intenzionalmente locale, vedi `data/repositories/loot_repo.py`.
+        try:
+            loot_stash = [
+                asdict(entry) for entry in loot_repo.get_entries("party", world_id=self.world_id)
+            ]
+        except Exception as e:
+            logger.error("handle_snapshot: errore costruendo il deposito del gruppo: %s", e)
+            loot_stash = []
+
         return 200, {
             "world": protocol.world_to_dict(world),
             "members": [protocol.member_to_dict(m) for m in members],
@@ -927,6 +999,7 @@ class WorldHostServer:
             "notes": notes,
             "visible_encounter": encounter_payload,
             "shared_maps": shared_maps,
+            "loot_stash": loot_stash,
         }
 
     def handle_get_character(self, token: str, character_id: str) -> tuple[int, dict]:
@@ -1005,6 +1078,46 @@ class WorldHostServer:
         except Exception:
             return _error(500, "Immagine della mappa non decodificabile.")
         return 200, sniff_mime(raw), raw
+
+    def handle_map_annotations(self, token: str, map_id: str) -> tuple[int, dict]:
+        """
+        `GET /map/<id>/annotations` (2026-08-19) — backfill lazy delle
+        annotazioni di una mappa condivisa, stesso principio di
+        `handle_map_image` sopra ma per i tratti di disegno invece
+        dell'immagine: entrambi restano fuori da `handle_snapshot`
+        (§6.4, "solo metadati... MAI `image_data`"), qui perché anche un
+        deposito di molti tratti disegnati nel tempo può crescere oltre
+        quanto è ragionevole spedire ad OGNI ciclo di sync per OGNI
+        membro — a differenza dell'immagine però questa resta una
+        risposta JSON (niente byte grezzi), quindi passa dal normale
+        dispatcher JSON invece che da quello dedicato di `handle_map_image`.
+
+        Bug che questo risolve (segnalato da Davide): "le scritte del
+        master sulla mappa precedenti all'entrata del giocatore nel mondo
+        non sono visibili" — lo stub creato al join
+        (`maps_repo.replica_create_map_stub`) inizializza sempre
+        `annotations='[]'` e non viene mai aggiornato retroattivamente;
+        solo i tratti disegnati DOPO l'ingresso arrivano via eventi
+        `CMD_MAP_DRAW`. Stessa regola di visibilità di `handle_map_image`:
+        chiunque sia membro del mondo, tranne un giocatore contro una
+        mappa nascosta (`visible_to_players=False`).
+        """
+        device_id = self._resolve_device_by_token(token)
+        if device_id is None:
+            return 401, {"error": "Token non valido: riconnettersi al mondo."}
+        if not map_id:
+            return 400, {"error": "Id mappa mancante."}
+
+        game_map = maps_repo.get_map(map_id)
+        if game_map is None or game_map.world_id != self.world_id or not game_map.is_shared:
+            return 404, {"error": "Mappa non trovata in questo mondo."}
+        member = world_repo.get_member(self.world_id, device_id)
+        if member is None:
+            return 403, {"error": "Non sei membro di questo mondo."}
+        if not game_map.visible_to_players and member.role == perm.ROLE_PLAYER:
+            return 404, {"error": "Mappa non trovata in questo mondo."}
+
+        return 200, {"annotations": game_map.annotations or "[]"}
 
     def handle_leave(self, token: str) -> tuple[int, dict]:
         device_id = self._resolve_device_by_token(token)

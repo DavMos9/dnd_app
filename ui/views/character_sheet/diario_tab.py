@@ -38,10 +38,28 @@ class DiarioTab(ScrollMemoryListView):
         self._on_refresh = on_refresh
         self._page: ft.Page | None = None
         self._entries: list[DiaryEntry] = character_repo.get_diary_entries(character.id)
+        self._device_id_cache: dict = {}
         self._build()
 
     def did_mount(self):
         self._page = cast(ft.Page, self.page)
+
+    def _push_diary_to_world(self, action: str, fields: dict) -> None:
+        """Invia la voce di diario appena scritta/modificata verso l'host,
+        best effort — no-op se il personaggio non è un'istanza di un mondo.
+        Vedi `core.world_sync.push_character_self_command`."""
+        if not self.character.world_id or self._page is None:
+            return
+        from core import world_permissions as perm
+        from core import world_sync
+        kind = (
+            perm.CMD_DIARY_SELF_ADD_ENTRY if action == "add"
+            else perm.CMD_DIARY_SELF_UPDATE_ENTRY
+        )
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache, kind, fields,
+        )
 
     # ------------------------------------------------------------------
     # Build principale
@@ -274,9 +292,17 @@ class DiarioTab(ScrollMemoryListView):
             content = (f_content.value or "").strip()
             if is_new:
                 character_repo.create_diary_entry(self.character.id, title, content, date)
+                self._push_diary_to_world(
+                    "add", {"title": title, "content": content, "session_date": date},
+                )
             else:
                 assert entry is not None
                 character_repo.update_diary_entry(entry.id, title, content, date)
+                self._push_diary_to_world(
+                    "update",
+                    {"entry_id": entry.id, "title": title, "content": content,
+                     "session_date": date},
+                )
             page.pop_dialog()
             self._refresh()
 

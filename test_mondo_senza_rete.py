@@ -382,6 +382,44 @@ def test_backend() -> None:
     res_again = backend.send_command(w.id, "owner-1", perm.CMD_MEMBER_KICK, {"device_id": "player-2"})
     check("espellere un non-membro fallisce (membro non trovato)", not res_again.success)
 
+    # Uscita volontaria (2026-08-19, bug segnalato da Davide: "il giocatore
+    # non ha la possibilità di lasciare... il mondo") — controparte di
+    # CMD_MEMBER_KICK sopra, ma auto-diretta: un membro fresco ("player-3",
+    # mai toccato dai test di kick/promote sopra) esce da sé, con una
+    # propria istanza da verificare archiviata come nel caso del kick.
+    # `w.join_code` è ormai stale: `CMD_WORLD_JOIN_CODE_REGENERATE` più
+    # sopra (riga ~321) l'ha rigenerato sul DB senza aggiornare l'oggetto
+    # Python `w` in memoria — serve rileggerlo, altrimenti `join_world_by_code`
+    # fallisce silenziosamente e "player-3" non diventa mai membro.
+    fresh_join_code = world_repo.get_world(w.id).join_code
+    world_repo.join_world_by_code(fresh_join_code, "player-3", "Terzo Giocatore")
+    leave_instance = Character(name="Uscente", class_name="Ladro", race="Elfo",
+                                level=2, hp_max=16, hp_current=16)
+    character_repo.create(leave_instance)
+    conn = get_connection()
+    conn.execute(
+        "UPDATE characters SET world_id=?, owner_device_id=? WHERE id=?",
+        (w.id, "player-3", leave_instance.id),
+    )
+    conn.commit()
+    conn.close()
+
+    res = backend.send_command(w.id, "owner-1", perm.CMD_MEMBER_LEAVE, {})
+    check("l'owner non può uscire (deve prima trasferire la proprietà)", not res.success)
+    check("owner ancora membro dopo il tentativo di uscita", world_repo.get_member(w.id, "owner-1") is not None)
+
+    res = backend.send_command(w.id, "player-3", perm.CMD_MEMBER_LEAVE, {})
+    check("uscita volontaria riuscita", res.success)
+    check("il membro uscito non è più tra i membri", world_repo.get_member(w.id, "player-3") is None)
+    check("l'evento riporta quante istanze sono state archiviate",
+          res.event is not None and json.loads(res.event.payload).get("archived_instances") == 1)
+    archived_leave = character_repo.get_by_id(leave_instance.id)
+    check("l'istanza del membro uscito è archiviata, non eliminata",
+          archived_leave is not None and archived_leave.world_instance_archived is True)
+
+    res_again_leave = backend.send_command(w.id, "player-3", perm.CMD_MEMBER_LEAVE, {})
+    check("uscire di nuovo (già non più membro) fallisce", not res_again_leave.success)
+
     # Riattivazione (2026-08-07, scelta di Davide: "riattivabile"): la rotta
     # naturale è un nuovo `character_instance.sync` sullo stesso
     # character_id — riscrive l'intera riga per introspezione di schema,
@@ -427,12 +465,14 @@ def test_backend() -> None:
 
     # Registro non-handler: comando noto ai permessi ma senza handler in questo passo.
     # CMD_XP_GRANT era l'esempio originale (nessun handler esisteva prima del
-    # passo 6) — dal 2026-08-06 ha un handler vero (core/world_backend.py),
-    # quindi la sonda usa CMD_LOOT_ASSIGN, deliberatamente ancora senza
-    # handler (il Bottino resta locale finché non arriva il suo passo — vedi
-    # "Piano di lavoro attivo" in CLAUDE.md e i commenti in world_backend.py).
+    # passo 6) — dal 2026-08-06 ha un handler vero (core/world_backend.py);
+    # CMD_LOOT_ASSIGN lo ha avuto a sua volta dal 2026-08-19 (bug segnalato
+    # da Davide: assegnazione bottino restava locale-sola invece di
+    # raggiungere l'host). La sonda usa ora CMD_DICE_REQUEST, deliberatamente
+    # ancora senza handler (richiede un meccanismo di notifica lato
+    # giocatore non ancora progettato — vedi i commenti in world_backend.py).
     w4 = world_repo.create_world("Mondo Senza Handler", "owner-2", "Owner2")
-    res = backend.send_command(w4.id, "owner-2", perm.CMD_LOOT_ASSIGN, {})
+    res = backend.send_command(w4.id, "owner-2", perm.CMD_DICE_REQUEST, {})
     check("comando master+owner senza handler ancora registrato fallisce con errore chiaro",
           not res.success and "sconosciuto" in res.error.lower())
 

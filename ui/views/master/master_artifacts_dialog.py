@@ -47,12 +47,14 @@ _TABLES: list[tuple[str, str, str]] = [
 ]
 
 
-def show_artifacts_dialog(page: ft.Page, world_id: str = "") -> None:
+def show_artifacts_dialog(page: ft.Page, world_id: str = "", device_id: str = "") -> None:
     """Dialog a due schede: elenco degli artefatti e generatore di proprietà.
 
     `world_id` (2026-08-06): il mondo correntemente selezionato in
     `MasterView` — "" per la modalità locale, inoltrato ai pulsanti
-    "Assegna…"/"Salva nell'archivio" sotto."""
+    "Assegna…"/"Salva nell'archivio" sotto. `device_id` (2026-08-19):
+    inoltrato insieme, per instradare via rete quando `world_id` è
+    valorizzato."""
     data = _loader.get_artifacts_data()
     artifacts = _loader.get_artifacts()
 
@@ -142,7 +144,7 @@ def show_artifacts_dialog(page: ft.Page, world_id: str = "") -> None:
 
         def _on_assign_loot(ev: Any) -> None:
             from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
-            show_loot_assign_dialog(page, [_build_loot_item()], world_id=world_id)
+            show_loot_assign_dialog(page, [_build_loot_item()], world_id=world_id, device_id=device_id)
 
         def _on_save_to_archive(ev: Any) -> None:
             from ui.views.master.master_loot_assign_dialog import save_items_to_stash
@@ -230,7 +232,7 @@ def show_artifacts_dialog(page: ft.Page, world_id: str = "") -> None:
             show_snack(page, "Tira prima una proprietà (premi uno dei pulsanti sopra).", tone="warning")
             return
         from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
-        show_loot_assign_dialog(page, [item], world_id=world_id)
+        show_loot_assign_dialog(page, [item], world_id=world_id, device_id=device_id)
 
     def _on_save_property_to_archive(ev: Any) -> None:
         item = _build_property_loot_item()

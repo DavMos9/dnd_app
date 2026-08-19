@@ -178,6 +178,87 @@ def delete_entry(entry_id: str) -> bool:
             conn.close()
 
 
+def get_entry(entry_id: str) -> LootStashEntry | None:
+    """Una singola voce per id — usata dagli handler di rete
+    (`core/world_backend.py::_handle_loot_stash_*`) per includere lo stato
+    aggiornato nell'evento del giornale dopo un `move_entry`/`update_entry`,
+    così le repliche possono applicarlo senza un'altra interrogazione."""
+    conn = None
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT * FROM loot_stash_entries WHERE id=?", (entry_id,)
+        ).fetchone()
+        return _row_to_entry(row) if row else None
+    except Exception as e:
+        logger.error(f"Errore get_entry({entry_id}): {e}")
+        return None
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def replica_upsert_entry(entry: dict) -> bool:
+    """
+    Materializza sulla replica locale una voce del deposito comune del
+    gruppo (`stash_kind="party"`) arrivata dall'host — via snapshot
+    (`core/world_sync.py::_refresh_snapshot_derived_state`) o via evento
+    incrementale (`apply_event_to_replica`). A differenza delle tabelle
+    figlio di un personaggio (`character_export.py`), qui l'id NON viene
+    mai rigenerato: un `INSERT OR REPLACE` chiavato su `id` è corretto
+    perché l'id di una voce di bottino è già stabile e condiviso da tutti i
+    dispositivi (generato una sola volta da `create_entry()` sull'host),
+    non un dettaglio interno di una singola replica.
+    """
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute(
+            """
+            INSERT INTO loot_stash_entries (
+                id, stash_kind, world_id, entry_kind, name, description,
+                quantity, source_note,
+                copper, silver, electrum, gold, platinum,
+                added_by_device_id, created_at, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET
+                stash_kind=excluded.stash_kind, world_id=excluded.world_id,
+                entry_kind=excluded.entry_kind, name=excluded.name,
+                description=excluded.description, quantity=excluded.quantity,
+                source_note=excluded.source_note,
+                copper=excluded.copper, silver=excluded.silver,
+                electrum=excluded.electrum, gold=excluded.gold,
+                platinum=excluded.platinum, updated_at=excluded.updated_at
+            """,
+            (
+                str(entry.get("id") or ""), _s(entry.get("stash_kind")) or "party",
+                _s(entry.get("world_id")), _s(entry.get("entry_kind")) or "item",
+                _s(entry.get("name")), _s(entry.get("description")),
+                int(entry.get("quantity") or 0), _s(entry.get("source_note")),
+                int(entry.get("copper") or 0), int(entry.get("silver") or 0),
+                int(entry.get("electrum") or 0), int(entry.get("gold") or 0),
+                int(entry.get("platinum") or 0), _s(entry.get("added_by_device_id")),
+                _s(entry.get("created_at")) or datetime.now().isoformat(),
+                _s(entry.get("updated_at")) or datetime.now().isoformat(),
+            ),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Errore replica_upsert_entry: {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def replica_delete_entry(entry_id: str) -> bool:
+    """Controparte di `replica_upsert_entry` per una voce rimossa
+    dall'host (eliminata, o spostata fuori dal deposito comune verso
+    l'archivio privato del Master, mai sincronizzato)."""
+    return delete_entry(entry_id)
+
+
 def move_entry(entry_id: str, new_stash_kind: str, new_world_id: str = "") -> bool:
     """
     Sposta una voce da un contenitore all'altro (es. dall'archivio privato

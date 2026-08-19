@@ -32,7 +32,9 @@ from data.models import (
     Character, GameMap, World, WorldChangeRequest, WorldEvent, WorldMember,
     WorldRejoinRequest,
 )
-from data.repositories import character_repo, maps_repo, master_repo, world_export, world_repo
+from data.repositories import (
+    character_repo, maps_repo, master_repo, settings_repo, world_export, world_repo,
+)
 from network.host_server import HostServerSlot, PendingJoinRequest, WorldHostServer, local_ip_hint
 from network.qr_join import build_join_text, build_transfer_text, generate_qr_png_base64
 from ui.components.background_sync import BackgroundSyncLoop
@@ -94,6 +96,18 @@ _DETAIL_SYNC_INTERVAL_S = 2.0
 #: dialogo transitorio vs. la scheda di un mondo aperta), un valore proprio
 #: evita un accoppiamento accidentale se in futuro cambia l'uno o l'altro.
 _PENDING_JOIN_POLL_INTERVAL_S = 3.0
+
+#: Chiave `app_settings` (2026-08-19, bug segnalato da Davide: "il
+#: giocatore può... spammare richieste con nomi diversi, [...] deve poter
+#: annullarla e solo poi può inviare una nuova richiesta") per ricordare
+#: una richiesta di ingresso ancora in sospeso ATTRAVERSO la chiusura del
+#: dialogo o il riavvio dell'app — senza questo, `pending_state` (una
+#: semplice variabile locale della closure di `_open_lan_join_dialog`)
+#: veniva perso non appena l'utente chiudeva il dialogo, permettendo di
+#: aprirne uno nuovo e inviare un'altra richiesta senza alcun ricordo
+#: della precedente. Chiave GLOBALE (non per-mondo): un giocatore ha
+#: realisticamente una sola richiesta di ingresso in sospeso alla volta.
+_PENDING_JOIN_REQUEST_SETTING_KEY = "pending_join_request"
 
 #: Intervallo di ridisegno della mappa condivisa aperta in sola lettura
 #: (§6.4, passo 8) — non serve un valore proprio più stretto: il DB locale
@@ -413,6 +427,22 @@ class WorldsView(ft.Column):
                 tooltip="Riconnettiti",
                 on_click=lambda e, w=world: self._reconnect_world(w),
             ))
+        if transferred_away:
+            # 2026-08-19: il pulsante che `_transferred_away_banner()`
+            # promette da tempo ("si rimuove quando l'utente vuole, dal
+            # pulsante che esiste già nell'elenco dei mondi") in realtà non
+            # esisteva — bug segnalato da Davide ("il giocatore non ha la
+            # possibilità di... eliminare il mondo"). Solo locale: non c'è
+            # alcun backend raggiungibile per un mondo trasferito
+            # (`resolve_backend_for_world` ritorna sempre `None`, vedi
+            # `core.world_sync`), quindi nessun comando da inviare — un
+            # semplice `stop_propagation` evita che il click apra anche il
+            # dettaglio sotto.
+            row_children.append(ft.IconButton(
+                ft.Icons.DELETE_OUTLINE, icon_color=p.danger_icon,
+                tooltip="Rimuovi dalla lista",
+                on_click=lambda e, w=world: self._confirm_remove_transferred(w),
+            ))
         row_children.append(ft.Icon(ft.Icons.CHEVRON_RIGHT, color=p.text_3))
         return d.card(
             ft.Row(
@@ -427,12 +457,15 @@ class WorldsView(ft.Column):
         Avviso sul dettaglio di un mondo il cui personaggio è stato spostato su
         un altro dispositivo (2026-08-17, §11.9).
 
-        La replica NON viene cancellata: contiene il giornale, le note condivise
-        e le mappe ricevute, cioè la memoria della campagna vista da qui, e il
-        diario del giocatore. Resta consultabile in sola lettura — è la stessa
-        condizione di §11.3 ("scollegati, l'istanza è in sola lettura"), qui
-        definitiva invece che temporanea — e si rimuove quando l'utente vuole,
-        dal pulsante che esiste già nell'elenco dei mondi.
+        La replica NON viene cancellata da sola: contiene il giornale, le
+        note condivise e le mappe ricevute, cioè la memoria della campagna
+        vista da qui, e il diario del giocatore. Resta consultabile in sola
+        lettura — è la stessa condizione di §11.3 ("scollegati, l'istanza è
+        in sola lettura"), qui definitiva invece che temporanea — e si
+        rimuove quando l'utente vuole, dal pulsante qui sotto (2026-08-19:
+        prima di questo fix il testo lo prometteva ma il pulsante non
+        esisteva da nessuna parte, né qui né nell'elenco mondi — bug
+        segnalato da Davide).
         """
         p = d.T()
         return d.section(
@@ -456,6 +489,10 @@ class WorldsView(ft.Column):
                         "registro, le note e le mappe ricevute, ma non inviare più "
                         "nulla al master. Puoi rimuovere il mondo quando vuoi."
                     ),
+                    ft.Row([d.pill(
+                        ft.Icons.DELETE_OUTLINE, "Rimuovi mondo", color=p.danger,
+                        on_click=lambda e, w=world: self._confirm_remove_transferred(w),
+                    )], alignment=ft.MainAxisAlignment.END),
                 ],
                 spacing=d.Space.XS, tight=True,
             ),
@@ -756,6 +793,16 @@ class WorldsView(ft.Column):
                 icon_color=p.danger_icon,
                 on_click=lambda e, m=member: self._confirm_kick(world, m),
             ))
+        # Uscita volontaria (2026-08-19, bug segnalato da Davide: "il
+        # giocatore non ha la possibilità di lasciare... il mondo") — solo
+        # sul PROPRIO membro, mai sull'owner (deve prima trasferire la
+        # proprietà, stesso blocco già applicato al kick).
+        if is_me and member.role != perm.ROLE_OWNER:
+            actions.append(ft.IconButton(
+                ft.Icons.EXIT_TO_APP, tooltip="Esci dal mondo",
+                icon_color=p.danger_icon,
+                on_click=lambda e, m=member: self._confirm_leave(world, m),
+            ))
 
         # Codice per il cambio dispositivo (2026-08-17, §11.9). Visibile per il
         # PROPRIO membro (sto per cambiare telefono e ho ancora questo in mano)
@@ -943,6 +990,91 @@ class WorldsView(ft.Column):
     def _do_kick(self, world: World, member: WorldMember):
         self.page.pop_dialog()
         self._member_command(world, perm.CMD_MEMBER_KICK, member)
+
+    def _confirm_leave(self, world: World, member: WorldMember):
+        p = d.T()
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Esci dal mondo", ft.Icons.EXIT_TO_APP, tone="danger"),
+            content=ft.Text(
+                f'Uscire da "{world.name}"? I tuoi personaggi in questo mondo verranno '
+                f"archiviati (non cancellati) e il mondo sparirà dalla tua lista.",
+                color=p.text,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton(
+                    "Esci", icon=ft.Icons.EXIT_TO_APP,
+                    on_click=lambda e: self._do_leave(world),
+                    style=ft.ButtonStyle(bgcolor=p.danger_fill, color=p.text),
+                ),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _do_leave(self, world: World):
+        """Esce dal mondo: invia `CMD_MEMBER_LEAVE` (rimuove il membro
+        sull'host, archivia le sue istanze — vedi
+        `core.world_backend._handle_member_leave`), poi rimuove la replica
+        locale di QUESTO mondo (`world_repo.delete_world`, righe 403-419:
+        un semplice DELETE locale, safe anche su una replica non
+        autoritativa) così sparisce dalla lista mondi di questo
+        dispositivo — stesso passo finale già usato dall'owner in
+        `_do_delete` sopra, qui aggiunto esplicitamente perché lì la riga
+        viene già rimossa dall'handler sulla PROPRIA authoritative DB."""
+        self.page.pop_dialog()
+        result = self._send_command(world, perm.CMD_MEMBER_LEAVE, {})
+        if not result.success:
+            self._show_error(result.error)
+            return
+        world_repo.delete_world(world.id)
+        self._current_world = None
+        self._render()
+        try:
+            self.page.update()
+        except RuntimeError:
+            pass
+
+    def _confirm_remove_transferred(self, world: World):
+        """Rimuove dalla lista un mondo "trasferito via" (§11.9 — il
+        personaggio di questo dispositivo è stato spostato su un altro).
+        Solo locale, mai un comando di rete: `resolve_backend_for_world`
+        ritorna sempre `None` per un mondo in questo stato
+        (`world_sync.is_world_transferred_away`), non c'è alcun host da
+        notificare — a differenza di `_do_leave` sopra, che invece invia
+        `CMD_MEMBER_LEAVE` perché lì il mondo è ancora raggiungibile."""
+        p = d.T()
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Rimuovi mondo", ft.Icons.DELETE_OUTLINE, tone="danger"),
+            content=ft.Text(
+                f'Rimuovere "{world.name}" dalla tua lista? Questa copia locale '
+                f"(registro, note, mappe ricevute) andrà persa — il mondo stesso, "
+                f"sull'host, non viene toccato.",
+                color=p.text,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton(
+                    "Rimuovi", icon=ft.Icons.DELETE_OUTLINE,
+                    on_click=lambda e: self._do_remove_transferred(world),
+                    style=ft.ButtonStyle(bgcolor=p.danger_fill, color=p.text),
+                ),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _do_remove_transferred(self, world: World):
+        self.page.pop_dialog()
+        world_repo.delete_world(world.id)
+        self._current_world = None
+        self._render()
+        try:
+            self.page.update()
+        except RuntimeError:
+            pass
 
     def _live_combat_section(self, world: World) -> ft.Control | None:
         """
@@ -1440,6 +1572,15 @@ class WorldsView(ft.Column):
             strokes: list[dict] = json.loads(gm.annotations or "[]")
         except (json.JSONDecodeError, TypeError):
             strokes = []
+        #: Avviso una tantum per i tratti in formato legacy (2026-08-19,
+        #: pre-2026-08-12, salvati in pixel assoluti — vedi il docstring di
+        #: `ui.canvas_geometry`, "nessuna migrazione": le dimensioni
+        #: originali del riquadro non sono recuperabili). Calcolato una
+        #: sola volta all'apertura, sul contenuto letto sopra — non si
+        #: aggiorna da solo se altri tratti legacy arrivano dopo via
+        #: evento (caso raro: solo un dispositivo ancora su una versione
+        #: pre-fix potrebbe produrne di nuovi).
+        has_legacy = geo.has_legacy_strokes(gm.annotations or "[]")
         canvas = cv.Canvas(expand=True)
         closed = [False]
         pen_color_idx = [0]
@@ -1512,7 +1653,7 @@ class WorldsView(ft.Column):
                     shapes.append(path)
             if live_points and len(live_points) >= 2:
                 path = _path_from_abs_points(
-                    live_points, _PEN_COLORS[pen_color_idx[0]], 5.0)
+                    live_points, _PEN_COLORS[pen_color_idx[0]], pen_width_ref[0])
                 if path is not None:
                     shapes.append(path)
             canvas.shapes = shapes
@@ -1544,14 +1685,58 @@ class WorldsView(ft.Column):
                 logger.warning("map.draw non riuscito per %s: %s", gm.id, result.error)
 
         current_points: list[list[float]] = []
+        #: "pen" | "eraser" (2026-08-19, parità con la toolbar della mappa
+        #: personale — bug segnalato da Davide: la mappa condivisa non
+        #: aveva alcuna gomma). Gomma "a tratto intero": rimuove ogni
+        #: tratto che passa vicino al trascinamento, più semplice della
+        #: gomma "libera" (taglio per segmento) della mappa personale —
+        #: qui basta a colmare il gap funzionale segnalato, senza portare
+        #: tutta la geometria di taglio di `maps_view.py`.
+        draw_mode_ref = ["pen"]
+        pen_width_ref = [5.0]
+        #: id dei tratti da rimuovere, raccolti durante il trascinamento in
+        #: modalità gomma — rimossi tutti insieme a `_on_pan_end` (un solo
+        #: `replace_all`, non uno per tratto toccato).
+        eraser_hits: set[int] = set()
+        _ERASER_HIT_RADIUS = 14.0
+
+        def _dist_point_to_segment(px, py, ax, ay, bx, by) -> float:
+            dx, dy = bx - ax, by - ay
+            if dx == 0 and dy == 0:
+                return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+            t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+            cx, cy = ax + t * dx, ay + t * dy
+            return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
+
+        def _erase_near(x: float, y: float) -> None:
+            ox, oy, dw, dh = _draw_rect()
+            for idx, stroke in enumerate(strokes):
+                if idx in eraser_hits or stroke.get("type") != "stroke":
+                    continue
+                abs_points = geo.denormalize_points(stroke.get("points", []), dw, dh, ox, oy)
+                if len(abs_points) < 2:
+                    if abs_points and ((x - abs_points[0][0]) ** 2 + (y - abs_points[0][1]) ** 2) ** 0.5 <= _ERASER_HIT_RADIUS:
+                        eraser_hits.add(idx)
+                    continue
+                for (ax, ay), (bx, by) in zip(abs_points, abs_points[1:]):
+                    if _dist_point_to_segment(x, y, ax, ay, bx, by) <= _ERASER_HIT_RADIUS:
+                        eraser_hits.add(idx)
+                        break
 
         def _on_pan_start(e: ft.DragStartEvent):
             current_points.clear()
             current_points.append([e.local_position.x, e.local_position.y])
+            if draw_mode_ref[0] == "eraser":
+                eraser_hits.clear()
+                _erase_near(e.local_position.x, e.local_position.y)
 
         def _on_pan_update(e: ft.DragUpdateEvent):
             current_points.append([e.local_position.x, e.local_position.y])
-            _redraw(live_points=current_points)
+            if draw_mode_ref[0] == "eraser":
+                _erase_near(e.local_position.x, e.local_position.y)
+                _redraw()
+            else:
+                _redraw(live_points=current_points)
             _update_canvas()
 
         def _on_pan_end(e: ft.DragEndEvent):
@@ -1561,11 +1746,17 @@ class WorldsView(ft.Column):
             # scrivere anche qui direttamente duplicherebbe il tratto al
             # prossimo giro (l'handler legge le annotazioni correnti dal DB e
             # ci APPENDE il pacchetto, non le sostituisce).
-            if len(current_points) >= 2:
+            if draw_mode_ref[0] == "eraser":
+                if eraser_hits:
+                    for idx in sorted(eraser_hits, reverse=True):
+                        del strokes[idx]
+                    _sync_to_world([{"op": "replace_all", "strokes": strokes}])
+                eraser_hits.clear()
+            elif len(current_points) >= 2:
                 ox, oy, dw, dh = _draw_rect()
                 stroke = {
                     "type": "stroke", "color": _PEN_COLORS[pen_color_idx[0]],
-                    "width": 5.0,
+                    "width": pen_width_ref[0],
                     "points": geo.normalize_points(current_points, dw, dh, ox, oy),
                 }
                 strokes.append(stroke)
@@ -1584,6 +1775,27 @@ class WorldsView(ft.Column):
         def _clear_all(e=None):
             strokes.clear()
             _sync_to_world([{"op": "clear"}])
+            _redraw()
+            _update_canvas()
+
+        legacy_banner_ref: list[ft.Control] = []
+
+        def _clear_legacy_strokes(e=None):
+            """Rimuove SOLO i tratti in formato legacy (non normalizzati),
+            preservando quelli già corretti — l'utente può poi ridisegnarli
+            allineati. Vedi il commento su `has_legacy` sopra per il perché
+            nessuna migrazione automatica è possibile."""
+            strokes[:] = [
+                s for s in strokes
+                if s.get("type") != "stroke" or geo.looks_normalized(s.get("points", []))
+            ]
+            _sync_to_world([{"op": "replace_all", "strokes": strokes}])
+            if legacy_banner_ref:
+                legacy_banner_ref[0].visible = False
+                try:
+                    legacy_banner_ref[0].update()
+                except RuntimeError:
+                    pass
             _redraw()
             _update_canvas()
 
@@ -1623,14 +1835,42 @@ class WorldsView(ft.Column):
             )
 
         stack_children: list[ft.Control] = [img_layer]
+        draw_gesture: ft.GestureDetector | None = None
         if can_manage:
-            stack_children.append(ft.GestureDetector(
+            draw_gesture = ft.GestureDetector(
                 content=canvas, on_pan_start=_on_pan_start, on_pan_update=_on_pan_update,
                 on_pan_end=_on_pan_end, drag_interval=16, expand=True,
-            ))
+            )
+            stack_children.append(draw_gesture)
         else:
             stack_children.append(canvas)
         draw_stack = ft.Stack(stack_children, expand=True)
+
+        # Zoom/pan (2026-08-19, bug segnalato da Davide: "è impossibile
+        # zoommare la mappa sia su mobile che su pc") — `ft.InteractiveViewer`
+        # (Flet 0.86.5, confermato disponibile: nessuna nota contraria in
+        # `docs/regole_flet_api.md`) avvolge `draw_stack` invariato. Sempre
+        # `pan_enabled=False`: un trascinamento a UN dito deve continuare a
+        # disegnare (`draw_gesture` sopra), mai spostare la vista — un
+        # pinch a DUE dita (o lo scroll del trackpad, `trackpad_scroll_
+        # causes_scale`) resta comunque libero di ingrandire, i due gesti
+        # sono per natura disgiunti (1 dito vs. 2), nessun interruttore
+        # "modalità disegno/sposta" necessario per lo zoom. Il pan (spostare
+        # la vista quando si è ingranditi) invece SERVE un interruttore,
+        # perché userebbe lo stesso gesto a un dito del disegno — vedi
+        # `_select_draw_mode`, modalità "move" più sotto: solo lì
+        # `pan_enabled` passa a True e il gesture detector del disegno
+        # viene disattivato, mai contemporaneamente ai due attivi.
+        # `pan_enabled` parte da `not can_manage`: un giocatore in sola
+        # lettura non ha alcun gesture detector di disegno che reclami il
+        # trascinamento a un dito (vedi `stack_children` sopra, ramo
+        # `else`), quindi può spostare la vista subito, senza passare da
+        # un interruttore di modalità che per lui non esisterebbe nemmeno
+        # (la toolbar sotto è tutta dentro `if can_manage:`).
+        interactive_viewer = ft.InteractiveViewer(
+            content=draw_stack, pan_enabled=not can_manage, scale_enabled=True,
+            trackpad_scroll_causes_scale=True, min_scale=1.0, max_scale=5.0,
+        )
 
         overlay_list: list[ft.Control] = []
 
@@ -1659,15 +1899,112 @@ class WorldsView(ft.Column):
             bgcolor=d.CHROME.backdrop,
         )
 
-        body: list[ft.Control] = [
-            header,
-            ft.Container(expand=True, content=draw_stack, on_size_change=_on_box_resize),
-        ]
+        # Pulsanti modalità Matita/Gomma (2026-08-19, parità con la mappa
+        # personale — prima questa toolbar non aveva alcuna gomma). Solo
+        # due pillole, non l'intero sistema "tratto/libera" della mappa
+        # personale: qui basta a colmare il gap segnalato ("gomma
+        # assente"), senza portare la geometria di taglio per segmento.
+        mode_btn_refs: list[ft.Container] = []
+
+        def _style_mode_btn(btn: ft.Container, sel: bool) -> None:
+            btn.bgcolor = p.primary_fill if sel else "transparent"
+            if isinstance(btn.content, ft.Row):
+                for c in btn.content.controls:
+                    c.color = p.on_primary_fill if sel else d.CHROME.text_muted
+
+        def _select_draw_mode(mode: str) -> None:
+            draw_mode_ref[0] = mode
+            for btn, key in zip(mode_btn_refs, ("pen", "eraser", "move")):
+                _style_mode_btn(btn, key == mode)
+                try:
+                    btn.update()
+                except RuntimeError:
+                    pass
+            # Modalità "Sposta" (2026-08-19, zoom/pan): un trascinamento a un
+            # dito deve spostare la vista invece di disegnare — l'unico modo
+            # pulito di evitare due riconoscitori di gesture in competizione
+            # sullo stesso trascinamento è disattivare qui il gesture
+            # detector del disegno (mai contemporaneo a `pan_enabled=True`
+            # sull'InteractiveViewer, vedi il commento lì sopra).
+            is_move = mode == "move"
+            interactive_viewer.pan_enabled = is_move
+            try:
+                interactive_viewer.update()
+            except RuntimeError:
+                pass
+            if draw_gesture is not None:
+                draw_gesture.on_pan_start = None if is_move else _on_pan_start
+                draw_gesture.on_pan_update = None if is_move else _on_pan_update
+                draw_gesture.on_pan_end = None if is_move else _on_pan_end
+                try:
+                    draw_gesture.update()
+                except RuntimeError:
+                    pass
+
+        def _mode_btn(key: str, icon: Any, label: str) -> ft.Container:
+            btn = ft.Container(
+                content=ft.Row(
+                    [ft.Icon(icon, size=14), ft.Text(label, size=d.Size.LABEL,
+                                                      weight=ft.FontWeight.BOLD)],
+                    spacing=4, tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.Padding.symmetric(horizontal=d.Space.SM, vertical=d.Space.XS + 2),
+                border_radius=d.Radius.PILL,
+                on_click=lambda e, k=key: _select_draw_mode(k),
+                ink=True,
+            )
+            _style_mode_btn(btn, key == draw_mode_ref[0])
+            mode_btn_refs.append(btn)
+            return btn
+
+        def _on_pen_width_change(e: Any) -> None:
+            pen_width_ref[0] = float(e.control.value)
+
+        body: list[ft.Control] = [header]
+        if has_legacy and can_manage:
+            legacy_banner = ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=16, color=p.danger),
+                        ft.Text(
+                            "Alcuni tratti di questa mappa sono di un formato precedente e "
+                            "potrebbero non allinearsi su schermi diversi.",
+                            size=12, color=d.CHROME.text, expand=True,
+                        ),
+                        ft.TextButton(
+                            "Cancella tratti precedenti", icon=ft.Icons.DELETE_OUTLINE,
+                            on_click=_clear_legacy_strokes,
+                            style=ft.ButtonStyle(color=p.danger),
+                        ),
+                    ],
+                    spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+                bgcolor=ft.Colors.with_opacity(0.12, p.danger),
+            )
+            legacy_banner_ref.append(legacy_banner)
+            body.append(legacy_banner)
+        body.append(
+            ft.Container(expand=True, content=interactive_viewer, on_size_change=_on_box_resize),
+        )
         if can_manage:
             body.append(ft.Container(
                 content=ft.Row(
                     [
+                        _mode_btn("pen", ft.Icons.EDIT_OUTLINED, "Matita"),
+                        _mode_btn("eraser", ft.Icons.AUTO_FIX_NORMAL, "Gomma"),
+                        _mode_btn("move", ft.Icons.OPEN_WITH, "Sposta"),
+                        ft.Container(width=d.Space.SM),
                         *[_swatch(i) for i in range(len(_PEN_COLORS))],
+                        ft.Container(width=d.Space.SM),
+                        ft.Text("Spessore", size=d.Size.LABEL, color=d.CHROME.text_dim,
+                                weight=ft.FontWeight.BOLD),
+                        ft.Slider(
+                            min=1, max=20, value=pen_width_ref[0], divisions=19,
+                            active_color=p.primary_fill, thumb_color=d.CHROME.text,
+                            inactive_color=d.CHROME.border, width=110, height=32,
+                            on_change=_on_pen_width_change,
+                        ),
                         ft.Container(width=d.Space.MD),
                         ft.TextButton("Annulla ultimo", icon=ft.Icons.UNDO, on_click=_undo,
                                       style=ft.ButtonStyle(color=d.CHROME.text)),
@@ -1675,8 +2012,9 @@ class WorldsView(ft.Column):
                                       on_click=_clear_all,
                                       style=ft.ButtonStyle(color=p.danger)),
                     ],
-                    spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    scroll=ft.ScrollMode.AUTO,
+                    spacing=d.Space.SM, run_spacing=d.Space.SM,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    wrap=True,
                 ),
                 padding=d.Space.SM, bgcolor=d.CHROME.panel,
             ))
@@ -3670,6 +4008,10 @@ class WorldsView(ft.Column):
         transfer_hint.visible = False
         retry_btn = ft.TextButton("Controlla di nuovo", icon=ft.Icons.REFRESH,
                                    visible=False)
+        # Annulla richiesta (2026-08-19) — vedi `_PENDING_JOIN_REQUEST_SETTING_KEY`.
+        cancel_btn = ft.TextButton("Annulla richiesta", icon=ft.Icons.CANCEL_OUTLINED,
+                                    visible=False,
+                                    style=ft.ButtonStyle(color=p.danger))
         #: "polling_started" (fix 2026-08-07): evita di avviare più cicli
         #: di polling automatico sovrapposti se lo stato "in attesa" viene
         #: rientrato più volte (es. `_attempt()` seguito da un
@@ -3678,6 +4020,39 @@ class WorldsView(ft.Column):
         pending_state: dict = {
             "backend": None, "request_id": "", "host_port": "", "polling_started": False,
         }
+
+        def _save_pending_join() -> None:
+            """Persiste `pending_state` in `app_settings` — sopravvive alla
+            chiusura del dialogo e al riavvio dell'app, vedi il commento su
+            `_PENDING_JOIN_REQUEST_SETTING_KEY`."""
+            if not pending_state["request_id"] or not self.device_id:
+                return
+            settings_repo.set_setting(_PENDING_JOIN_REQUEST_SETTING_KEY, json.dumps({
+                "host_port": pending_state["host_port"],
+                "request_id": pending_state["request_id"],
+                "device_id": self.device_id,
+            }))
+
+        def _clear_pending_join() -> None:
+            settings_repo.set_setting(_PENDING_JOIN_REQUEST_SETTING_KEY, "")
+
+        def _load_pending_join() -> dict | None:
+            """Richiesta salvata da un giro precedente di QUESTO dispositivo
+            — `None` se assente, malformata, o di un altro dispositivo
+            (cambio identità raro ma non impossibile, es. dopo una
+            reinstallazione)."""
+            raw = settings_repo.get_setting(_PENDING_JOIN_REQUEST_SETTING_KEY, "")
+            if not raw:
+                return None
+            try:
+                data = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return None
+            if not isinstance(data, dict) or data.get("device_id") != self.device_id:
+                return None
+            if not data.get("host_port") or not data.get("request_id"):
+                return None
+            return data
 
         discovery_results = ft.Column(spacing=d.Space.XS, tight=True)
         discovery_status = ft.Text("", color=p.text_2, size=12)
@@ -3738,6 +4113,7 @@ class WorldsView(ft.Column):
         def _report(result, keep_dialog_open_on_pending: bool = True):
             if result.success:
                 pending_state["backend"] = None  # ferma il polling automatico, vedi sotto
+                _clear_pending_join()
                 self.page.pop_dialog()
                 assert result.world is not None
                 self._open_detail(result.world)
@@ -3745,9 +4121,11 @@ class WorldsView(ft.Column):
             if result.pending_request_id and keep_dialog_open_on_pending:
                 pending_state["backend"] = result.backend
                 pending_state["request_id"] = result.pending_request_id
+                _save_pending_join()
                 status_text.color = p.text_2
                 status_text.value = result.error or "In attesa dell'approvazione del master…"
                 retry_btn.visible = True
+                cancel_btn.visible = True
                 # Fix 2026-08-07 (Davide: "al giocatore non esce
                 # l'approvazione del master" — prima bisognava premere
                 # "Controlla di nuovo" a mano): avvia il polling automatico
@@ -3767,8 +4145,10 @@ class WorldsView(ft.Column):
                 status_text.color = p.danger
                 status_text.value = result.error or "Ingresso fallito."
                 retry_btn.visible = False
+                cancel_btn.visible = False
                 pending_state["backend"] = None
                 pending_state["polling_started"] = False
+                _clear_pending_join()
             try:
                 self.page.update()
             except RuntimeError:
@@ -3999,6 +4379,57 @@ class WorldsView(ft.Column):
 
         retry_btn.on_click = _retry
 
+        async def _do_cancel(e):
+            """Annulla la richiesta in sospeso (2026-08-19) — riporta il
+            dialogo al modulo vuoto invece di chiuderlo, così l'utente può
+            inviarne subito una nuova (nome corretto, host diverso...) senza
+            doverlo riaprire."""
+            backend = pending_state["backend"]
+            request_id = pending_state["request_id"]
+            pending_state["backend"] = None  # ferma _poll_pending_join_loop
+            pending_state["polling_started"] = False
+            if backend is not None and request_id:
+                try:
+                    await asyncio.to_thread(backend.cancel_join_request, request_id)
+                except Exception as ex:
+                    logger.warning("Annullamento richiesta di ingresso fallito: %s", ex)
+            _clear_pending_join()
+            pending_state["request_id"] = ""
+            pending_state["host_port"] = ""
+            status_text.value = ""
+            retry_btn.visible = False
+            cancel_btn.visible = False
+            try:
+                self.page.update()
+            except RuntimeError:
+                pass
+
+        cancel_btn.on_click = _do_cancel
+
+        # Richiesta in sospeso da un giro precedente (2026-08-19, bug
+        # segnalato da Davide: "il giocatore... deve poter annullarla e
+        # solo poi può inviare una nuova richiesta") — riaprendo il
+        # dialogo (o riavviando l'app) si ripristina lo stato "in attesa"
+        # invece di offrire subito un modulo vuoto, che avrebbe permesso
+        # di spammarne una seconda senza ricordo della prima.
+        _resumed = _load_pending_join()
+        if _resumed is not None and self.device_id:
+            host_addr, _, port_text = _resumed["host_port"].rpartition(":")
+            host_field.value = host_addr
+            port_field.value = port_text
+            pending_state["host_port"] = _resumed["host_port"]
+            pending_state["request_id"] = _resumed["request_id"]
+            pending_state["backend"] = RemoteBackend(
+                host_addr, int(port_text) if port_text.isdigit() else 8765,
+                self.device_id, world_id="",
+            )
+            status_text.color = p.text_2
+            status_text.value = "Hai già una richiesta di ingresso in sospeso per questo host."
+            retry_btn.visible = True
+            cancel_btn.visible = True
+            pending_state["polling_started"] = True
+            self.page.run_task(_poll_pending_join_loop)
+
         def _set_transfer_mode(on: bool) -> None:
             """
             Entra/esce dalla modalità "cambio dispositivo". Il campo PIN e quello
@@ -4109,7 +4540,7 @@ class WorldsView(ft.Column):
                     host_field, port_field, code_field,
                     pin_field, transfer_field, transfer_hint, transfer_toggle,
                     display_field, display_hint,
-                    status_text, retry_btn,
+                    status_text, retry_btn, cancel_btn,
                 ],
                 tight=True, spacing=d.Space.SM, scroll=ft.ScrollMode.AUTO,
             ),

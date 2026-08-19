@@ -282,6 +282,7 @@ def _write_character_and_children(
     target_id: str,
     delete_existing: bool,
     char_overrides: dict[str, Any],
+    skip_tables: frozenset[str] = frozenset(),
 ) -> None:
     """
     Nucleo comune a `import_character()` e `import_replica_character()`:
@@ -293,7 +294,29 @@ def _write_character_and_children(
     entrambi i casi, vive qui una volta sola (evita la stessa classe di bug
     già risolta altrove in questo modulo con l'introspezione dello schema:
     due copie della stessa logica destinate a divergere).
+
+    `skip_tables` (2026-08-19): tabelle di `CHILD_TABLES` da NON toccare —
+    né cancellare né reinserire — anche quando `delete_existing=True` fa
+    scattare il DELETE CASCADE su `characters`. Nata per `game_maps`: le
+    mappe personali (`ui/views/maps_view.py`, mai condivise con l'host, per
+    design) sono comunque elencate in `CHILD_TABLES` per l'export/import
+    `.dndchar` completo — ma un resync di replica innescato da un evento
+    che NON riguarda le mappe (danno HP, PE, ecc.) porta uno snapshot
+    dell'host che di `game_maps` non contiene mai nulla (l'host non le ha
+    mai viste), quindi il DELETE CASCADE le cancellava silenziosamente ad
+    ogni resync — bug segnalato da Davide. Chi chiama con `delete_existing=
+    True` e vuole preservare una tabella la aggiunge qui; il DELETE CASCADE
+    di riga `characters` sopra la toccherebbe comunque, quindi le righe di
+    quella tabella vanno lette PRIMA della cancellazione e reinserite dopo
+    — vedi il blocco dedicato subito sotto.
     """
+    preserved_rows: dict[str, list[sqlite3.Row]] = {}
+    if delete_existing and skip_tables:
+        for table in skip_tables:
+            preserved_rows[table] = conn.execute(
+                f"SELECT * FROM {table} WHERE character_id = ?", (target_id,)
+            ).fetchall()
+
     if delete_existing:
         # CASCADE rimuove automaticamente tutte le righe figlio.
         conn.execute("DELETE FROM characters WHERE id = ?", (target_id,))
@@ -303,6 +326,8 @@ def _write_character_and_children(
     _insert_row(conn, "characters", char_row, live_char_cols, overrides)
 
     for table in CHILD_TABLES:
+        if table in skip_tables:
+            continue
         rows = related.get(table) or []
         if not isinstance(rows, list):
             continue
@@ -316,15 +341,31 @@ def _write_character_and_children(
                 row_overrides["id"] = str(uuid.uuid4())
             _insert_row(conn, table, row, live_cols, row_overrides)
 
+    for table, rows in preserved_rows.items():
+        live_cols = _table_columns(conn, table)
+        for row in rows:
+            _insert_row(conn, table, dict(row), live_cols, {"character_id": target_id})
+
 
 def import_replica_character(
     data: dict[str, Any], target_id: str, world_seq: int = 0,
+    skip_tables: frozenset[str] = frozenset(),
 ) -> str | None:
     """
     Materializza (o rimaterializza per intero) la replica locale di
     un'istanza di personaggio ricevuta dall'host — Multiplayer passo 6
     (`dnd_app/docs/multiplayer_design.md` §6: "sul dispositivo del
     giocatore sono repliche, aggiornate dagli eventi").
+
+    `skip_tables` (2026-08-19): inoltrato a `_write_character_and_children`
+    — vedi il suo docstring. I chiamanti di QUESTA funzione decidono se
+    passarlo: `core/world_sync.py::_resync_character_from_host()` e
+    `_finalize_join()` lo passano (`{"game_maps"}`, mappe personali mai
+    condivise con l'host — vedi il loro docstring), mentre
+    `core/world_backend.py::_handle_character_instance_sync()` (l'host che
+    RICEVE il push completo di un client) non lo passa mai: lì la
+    direzione è l'opposto (client → host, il giocatore vuole intenzionalmente
+    che l'host rifletta anche le proprie mappe personali).
 
     A differenza di `import_character()` (pensata per un file `.dndchar`
     portato da fuori, che deve SEMPRE azzerare le colonne di mondo — §14.1)
@@ -383,6 +424,7 @@ def import_replica_character(
                     "is_replica": 1,
                     "world_seq": int(world_seq),
                 },
+                skip_tables=skip_tables,
             )
             conn.commit()
             logger.info(

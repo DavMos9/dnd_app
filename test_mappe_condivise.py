@@ -421,6 +421,61 @@ def test_mappa_arriva_a_chi_entra_dopo() -> None:
 
 
 # ---------------------------------------------------------------------------
+# [6c] Bug segnalato da Davide: le annotazioni disegnate PRIMA dell'ingresso
+# non erano visibili al nuovo membro — GET /map/<id>/annotations (2026-08-19)
+# ---------------------------------------------------------------------------
+
+def test_annotazioni_arrivano_a_chi_entra_dopo() -> None:
+    print("\n[6c] Le annotazioni disegnate PRIMA dell'ingresso arrivano al nuovo membro "
+          "(backfill lazy, bug segnalato da Davide)")
+
+    from network.host_server import WorldHostServer
+    from core.world_backend import RemoteBackend
+
+    world, source_id = _make_world_with_map(owner="dev-owner-8", player="dev-player-8")
+    backend = LocalBackend()
+    clone_id = _publish(backend, world.id, "dev-owner-8", source_id)
+
+    stroke = {"type": "stroke", "color": "#FF0000", "width": 5.0,
+              "points": [[0.1, 0.1], [0.5, 0.5]]}
+    draw_result = _send(backend, world.id, "dev-owner-8", perm.CMD_MAP_DRAW,
+                         {"map_id": clone_id, "strokes": [{"op": "add", **stroke}]})
+    check("il tratto disegnato prima dell'ingresso viene applicato",
+          draw_result.success)
+
+    host = WorldHostServer(world.id, backend=backend, long_poll_timeout=2.0, announce=False)
+    port = host.start()
+    try:
+        client = RemoteBackend("127.0.0.1", port, "dev-player-tardivo-2", world_id=world.id)
+        outcome = client.join(world.join_code, host.pin, "Arrivato Dopo Con Disegno")
+        req_id = outcome.request_id
+        host.approve(req_id)
+        join_outcome = client.poll_join_status(req_id)
+        check("ingresso approvato con token", join_outcome.status == "approved" and bool(client.token))
+
+        finalize_result = world_sync._finalize_join(client, f"127.0.0.1:{port}")
+        check("_finalize_join riesce", finalize_result.success)
+
+        replica_map = maps_repo.get_map(clone_id)
+        check("lo stub della mappa esiste sulla replica", replica_map is not None)
+        try:
+            replica_strokes = json.loads(replica_map.annotations or "[]") if replica_map else []
+        except json.JSONDecodeError:
+            replica_strokes = []
+        check("le annotazioni disegnate PRIMA dell'ingresso sono arrivate via backfill "
+              "(non più '[]')",
+              any(s.get("color") == "#FF0000" for s in replica_strokes))
+
+        # Fetch diretto della rotta, per verificarne il comportamento isolato
+        # dal resto di _finalize_join.
+        raw = client.fetch_map_annotations(clone_id)
+        check("RemoteBackend.fetch_map_annotations ritorna le annotazioni reali",
+              raw is not None and "#FF0000" in raw)
+    finally:
+        host.stop()
+
+
+# ---------------------------------------------------------------------------
 # [7] Migrazione character_id nullable
 # ---------------------------------------------------------------------------
 
@@ -504,6 +559,7 @@ def main() -> int:
     test_map_draw()
     test_replica_riceve_mappa()
     test_mappa_arriva_a_chi_entra_dopo()
+    test_annotazioni_arrivano_a_chi_entra_dopo()
     test_migrazione_character_id_nullable()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

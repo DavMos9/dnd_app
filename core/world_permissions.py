@@ -49,6 +49,15 @@ CMD_MEMBER_PROMOTE = "member.promote"
 CMD_MEMBER_DEMOTE = "member.demote"
 CMD_MEMBER_KICK = "member.kick"
 
+#: Uscita volontaria dal mondo (2026-08-19, bug segnalato da Davide: "il
+#: giocatore non ha la possibilità di lasciare... il mondo") — controparte
+#: di `CMD_MEMBER_KICK` sopra ma auto-diretta: ruolo minimo `player` (vive
+#: in `PLAYER_OWNED_COMMANDS` sotto, non qui), l'attore rimuove SOLO se
+#: stesso. L'owner ne resta escluso (deve prima trasferire la proprietà,
+#: verificato dall'handler — stesso identico blocco già applicato al kick
+#: dell'owner).
+CMD_MEMBER_LEAVE = "member.leave"
+
 OWNER_ONLY_COMMANDS: frozenset[str] = frozenset({
     CMD_WORLD_RENAME, CMD_WORLD_DELETE, CMD_WORLD_JOIN_CODE_REGENERATE,
     CMD_WORLD_TRANSFER_OWNERSHIP, CMD_MEMBER_PROMOTE, CMD_MEMBER_DEMOTE,
@@ -111,6 +120,18 @@ CMD_CHARACTER_INSTANCE_REMOVE = "character_instance.remove"
 #: richiesta del giocatore.
 CMD_CHARACTER_REJOIN_RESPOND = "character_rejoin.respond"
 
+#: Mutazioni sul deposito comune del gruppo (2026-08-19,
+#: `loot_stash_entries` con `stash_kind="party"` — vedi `data/repositories/loot_repo.py`).
+#: Solo il contenitore "party" (visibile a tutti i membri del mondo) passa
+#: da qui: il deposito privato del master (`stash_kind="master"`) resta
+#: intenzionalmente locale-solo, mai condiviso — nessun comando per esso.
+#: Master/owner soltanto, come `CMD_LOOT_ASSIGN`: il deposito comune è
+#: gestito dal master, non scritto direttamente dai giocatori.
+CMD_LOOT_STASH_ADD = "loot_stash.add"
+CMD_LOOT_STASH_UPDATE = "loot_stash.update"
+CMD_LOOT_STASH_MOVE = "loot_stash.move"
+CMD_LOOT_STASH_DELETE = "loot_stash.delete"
+
 MASTER_AND_OWNER_COMMANDS: frozenset[str] = frozenset({
     CMD_XP_GRANT, CMD_LOOT_ASSIGN, CMD_HP_DAMAGE, CMD_HP_HEAL,
     CMD_CONDITION_APPLY, CMD_CONDITION_REMOVE, CMD_RESOURCE_CONSUME,
@@ -120,6 +141,8 @@ MASTER_AND_OWNER_COMMANDS: frozenset[str] = frozenset({
     CMD_MAP_DELETE, CMD_NOTE_SHARE,
     CMD_COMBAT_TOGGLE_VISIBILITY, CMD_CHANGE_REQUEST_PROPOSE,
     CMD_CHARACTER_INSTANCE_REMOVE, CMD_CHARACTER_REJOIN_RESPOND,
+    CMD_LOOT_STASH_ADD, CMD_LOOT_STASH_UPDATE, CMD_LOOT_STASH_MOVE,
+    CMD_LOOT_STASH_DELETE,
 })
 
 # ---------------------------------------------------------------------------
@@ -177,6 +200,24 @@ CMD_CHARACTER_INSTANCE_SYNC = "character_instance.sync"
 CMD_CONDITION_SELF_APPLY = "condition.self_apply"
 CMD_CONDITION_SELF_REMOVE = "condition.self_remove"
 
+#: Ulteriore estensione di `CMD_HP_SELF_UPDATE` (2026-08-19) ai campi della
+#: scheda che finora venivano scritti SOLO in locale da diario_tab.py,
+#: esplorazione_tab.py, spells_view.py e profilo_tab.py — mai instradati
+#: verso l'host. Conseguenza: quando un QUALSIASI altro evento mutante
+#: forzava il resync completo del personaggio (`_resync_character_from_host`,
+#: che sostituisce ogni tabella figlio con lo snapshot dell'host), questi
+#: dati locale-solo venivano cancellati — non "sovrascritti" in un conflitto,
+#: semplicemente persi perché non erano mai arrivati sull'host. Stesso
+#: principio "best effort"/proprietà di `CMD_HP_SELF_UPDATE`: un giocatore
+#: può inviarli SOLO per il proprio personaggio.
+CMD_DIARY_SELF_ADD_ENTRY = "diary.self_add_entry"
+CMD_DIARY_SELF_UPDATE_ENTRY = "diary.self_update_entry"
+CMD_NOTES_SELF_UPDATE = "notes.self_update"
+CMD_CUSTOM_ABILITY_SELF_CREATE = "custom_ability.self_create"
+CMD_CUSTOM_ABILITY_SELF_UPDATE = "custom_ability.self_update"
+CMD_SPELL_SELF_UPSERT = "spell.self_upsert"
+CMD_SPELL_SELF_REMOVE = "spell.self_remove"
+
 #: Richiede il rientro nel mondo di UNA propria istanza archiviata
 #: (2026-08-12, "Richiesta di rientro"). Ruolo minimo `player`, proprietà
 #: verificata come gli altri comandi di questo gruppo — un giocatore può
@@ -221,9 +262,17 @@ PLAYER_OWNED_COMMANDS: frozenset[str] = frozenset({
     CMD_HP_SELF_UPDATE,
     CMD_CONDITION_SELF_APPLY,
     CMD_CONDITION_SELF_REMOVE,
+    CMD_DIARY_SELF_ADD_ENTRY,
+    CMD_DIARY_SELF_UPDATE_ENTRY,
+    CMD_NOTES_SELF_UPDATE,
+    CMD_CUSTOM_ABILITY_SELF_CREATE,
+    CMD_CUSTOM_ABILITY_SELF_UPDATE,
+    CMD_SPELL_SELF_UPSERT,
+    CMD_SPELL_SELF_REMOVE,
     CMD_CHARACTER_REJOIN_REQUEST,
     CMD_DEVICE_TRANSFER_ISSUE,
     CMD_DEVICE_TRANSFER_REVOKE,
+    CMD_MEMBER_LEAVE,
 })
 
 #: Ogni comando conosciuto -> ruolo minimo richiesto per inviarlo.
@@ -273,6 +322,16 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
     # l'host) deve rifletterlo come qualunque altra mutazione del
     # personaggio, stesso principio di tutte le voci sopra.
     CMD_CHARACTER_INSTANCE_REMOVE,
+    # 2026-08-19: stesso principio di CMD_HP_SELF_UPDATE — un terzo
+    # dispositivo (es. un co-master) deve rimaterializzare il personaggio
+    # quando vede uno di questi eventi nel giornale.
+    CMD_DIARY_SELF_ADD_ENTRY,
+    CMD_DIARY_SELF_UPDATE_ENTRY,
+    CMD_NOTES_SELF_UPDATE,
+    CMD_CUSTOM_ABILITY_SELF_CREATE,
+    CMD_CUSTOM_ABILITY_SELF_UPDATE,
+    CMD_SPELL_SELF_UPSERT,
+    CMD_SPELL_SELF_REMOVE,
     # 2026-08-12: l'accettazione di una richiesta di rientro toglie
     # l'archiviazione (e, con `mode="refresh_from_local"`, sovrascrive
     # anche il contenuto) — stesso principio di CMD_CHARACTER_INSTANCE_REMOVE,

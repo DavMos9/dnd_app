@@ -36,7 +36,9 @@ from dataclasses import dataclass, field
 
 from core import world_permissions as perm
 from data.models import World, WorldChangeRequest, WorldEvent, WorldRejoinRequest
-from data.repositories import character_export, character_repo, maps_repo, master_repo, world_repo
+from data.repositories import (
+    character_export, character_repo, loot_repo, maps_repo, master_repo, world_repo,
+)
 from network import protocol
 
 logger = logging.getLogger(__name__)
@@ -380,6 +382,28 @@ def apply_event_to_replica(local_world_id: str, event: WorldEvent, remote_backen
             if isinstance(strokes, list) and strokes:
                 maps_repo.apply_stroke_batch(event.target_id, strokes)
 
+        elif event.kind in (perm.CMD_LOOT_STASH_ADD, perm.CMD_LOOT_STASH_UPDATE):
+            # Il payload porta già lo stato completo della voce (vedi
+            # `_loot_stash_entry_payload` in `core/world_backend.py`) —
+            # upsert diretto, nessuna interrogazione aggiuntiva necessaria.
+            if payload.get("id"):
+                loot_repo.replica_upsert_entry(payload)
+
+        elif event.kind == perm.CMD_LOOT_STASH_MOVE:
+            # Solo lo stato risultante "party" resta visibile alla replica:
+            # una voce spostata verso l'archivio del Master (`"master"`)
+            # deve sparire dalla vista locale, non restarci "fantasma" —
+            # vedi il docstring di `_handle_loot_stash_move`.
+            if payload.get("new_stash_kind") == "party" and payload.get("id"):
+                loot_repo.replica_upsert_entry(payload)
+            elif payload.get("id"):
+                loot_repo.replica_delete_entry(str(payload["id"]))
+
+        elif event.kind == perm.CMD_LOOT_STASH_DELETE:
+            entry_id = str(payload.get("entry_id", ""))
+            if entry_id:
+                loot_repo.replica_delete_entry(entry_id)
+
         elif event.kind == perm.DEVICE_TRANSFER_REDEEM_KIND:
             # Un membro ha spostato il proprio personaggio su un altro
             # dispositivo (§11.9). Due letture completamente diverse dello
@@ -462,7 +486,15 @@ def _resync_character_from_host(remote_backend, character_id: str, seq: int) -> 
     data = remote_backend.get_character(character_id)
     if data is None:
         return
-    character_export.import_replica_character(data, character_id, world_seq=seq)
+    # `game_maps` escluse (2026-08-19, bug segnalato da Davide): le mappe
+    # personali non vengono mai inviate all'host (mai condivise, per
+    # design), quindi lo snapshot dell'host qui sopra non le contiene mai —
+    # senza questa esclusione il DELETE CASCADE dentro
+    # `import_replica_character()` le cancellerebbe ad ogni resync
+    # innescato da un evento che non le riguarda affatto (danno HP, PE...).
+    character_export.import_replica_character(
+        data, character_id, world_seq=seq, skip_tables=frozenset({"game_maps"}),
+    )
 
 
 def _update_replica_owner(world_id: str, new_owner_device_id: str) -> None:
@@ -628,6 +660,37 @@ def push_pending_instances(remote_backend, local_world_id: str, device_id: str) 
     return pushed
 
 
+def _backfill_map_annotations_if_empty(remote_backend, map_id: str) -> None:
+    """
+    Recupera una volta sola i tratti di disegno di una mappa condivisa
+    quando la replica locale non li ha ancora (2026-08-19, bug segnalato
+    da Davide: "le scritte del master sulla mappa precedenti all'entrata
+    del giocatore nel mondo non sono visibili") — `replica_create_map_stub`
+    inizializza sempre `annotations='[]'` e non le aggiorna più su un
+    UPDATE (righe già presenti), quindi senza questo backfill un
+    dispositivo che si unisce dopo che il master ha già disegnato non
+    vedrebbe mai quei tratti, solo quelli disegnati dopo (via evento
+    `CMD_MAP_DRAW`). Stessa semantica "una tantum, mai ad ogni apertura"
+    di `fetch_map_image` — se la mappa risulta già annotata localmente
+    (fetch precedente riuscito, o tratti arrivati nel frattempo via
+    evento) non richiede nulla alla rete.
+
+    No-op silenzioso se `remote_backend` non è un `RemoteBackend` (questo
+    dispositivo ospita il mondo: la propria copia È già quella
+    autoritativa) o se il fetch fallisce — riproverà al prossimo giro di
+    `_refresh_snapshot_derived_state`.
+    """
+    from core.world_backend import RemoteBackend
+    if not isinstance(remote_backend, RemoteBackend):
+        return
+    local_map = maps_repo.get_map(map_id)
+    if local_map is None or (local_map.annotations or "[]").strip() not in ("", "[]"):
+        return
+    annotations = remote_backend.fetch_map_annotations(map_id)
+    if annotations and annotations != "[]":
+        maps_repo.update_map(map_id, annotations=annotations)
+
+
 def _refresh_snapshot_derived_state(remote_backend, local_world_id: str) -> None:
     """
     Ri-materializza sulla replica locale lo stato che uno `GET /snapshot`
@@ -667,9 +730,31 @@ def _refresh_snapshot_derived_state(remote_backend, local_world_id: str) -> None
                 maps_repo.replica_create_map_stub(
                     map_data["id"], local_world_id, str(map_data.get("name", "")),
                 )
+                _backfill_map_annotations_if_empty(remote_backend, str(map_data["id"]))
             except Exception as e:
                 logger.error("_refresh_snapshot_derived_state: mappa %r scartata: %s",
                              map_data.get("id"), e)
+
+    # Deposito comune del gruppo (2026-08-19) — solo `stash_kind="party"`,
+    # mai "master" (l'archivio del Master non è mai incluso nello snapshot,
+    # vedi `network/host_server.py::handle_snapshot`). A differenza di
+    # note/mappe sopra (solo aggiunte) il deposito supporta anche la
+    # cancellazione/spostamento fuori dal mondo — serve quindi la stessa
+    # riconciliazione per rimozione già usata per i membri sopra: le righe
+    # locali "party" di questo mondo non più presenti nello snapshot
+    # vengono rimosse (spostate altrove o cancellate sull'host).
+    incoming_stash_ids: set[str] = set()
+    for entry_data in snapshot.get("loot_stash", []):
+        if entry_data.get("id"):
+            incoming_stash_ids.add(str(entry_data["id"]))
+            try:
+                loot_repo.replica_upsert_entry(entry_data)
+            except Exception as e:
+                logger.error("_refresh_snapshot_derived_state: voce di bottino %r scartata: %s",
+                             entry_data.get("id"), e)
+    for local_entry in loot_repo.get_entries("party", world_id=local_world_id):
+        if local_entry.id not in incoming_stash_ids:
+            loot_repo.replica_delete_entry(local_entry.id)
 
 
 # ---------------------------------------------------------------------------
@@ -763,11 +848,116 @@ def resolve_backend_for_world(world: World, device_id: str, local_backend,
             # UI non potrebbe spiegare perché il mondo non risponde più.
             if retry.reason == "transferred_away":
                 _mark_world_transferred_away(world.id)
-            return None
+                return None
+            # Fix 2026-08-19 (§11.7): `host`/`port` qui sopra vengono SEMPRE
+            # da `world.last_seen_host`, che diventa stale non appena l'host
+            # cambia rete (nuovo IP LAN — es. il master ospita da un'altra
+            # casa la settimana dopo). Bug segnalato da Davide: "Riconnetti"
+            # non funzionava su una rete diversa da quella dell'ultimo
+            # ingresso, ma riscansionare il QR sì — non per una vera
+            # correzione, solo perché un ingresso completo da QR
+            # sovrascrive `last_seen_host` come effetto collaterale
+            # (`_finalize_join` sotto). Prima di arrendersi, ripete lo
+            # stesso identico ritentativo con un indirizzo fresco trovato
+            # via scoperta broadcast — l'host lo manda comunque
+            # (`network/discovery.py`), quindi non serve QR né digitare
+            # nulla.
+            rediscovered = _retry_with_rediscovery(world, device_id)
+            if rediscovered is None:
+                return None
+            remote_cache[world.id] = rediscovered
+            return rediscovered
         remote_cache[world.id] = retry.backend
         return retry.backend
     remote_cache[world.id] = remote
     return remote
+
+
+def _retry_with_rediscovery(world: World, device_id: str) -> object | None:
+    """Ripiego di `resolve_backend_for_world()` quando `world.last_seen_host`
+    non risponde più: ascolta l'annuncio broadcast UDP che l'host manda
+    comunque ogni pochi secondi (`network/discovery.py::discover_worlds()`)
+    per trovare il suo indirizzo ATTUALE, poi ripete l'ingresso con
+    `world.join_code`. Se trovato, `start_lan_join()` → `_finalize_join()`
+    salva il nuovo indirizzo su `last_seen_host` come parte del normale
+    ingresso — nessun aggiornamento separato necessario qui.
+
+    Nessun ritentativo se il broadcast è bloccato dalla rete (Wi-Fi
+    pubblico con isolamento client, §3.2 di `discovery.py`): in quel caso
+    `discover_worlds()` ritorna una lista vuota e l'utente resta comunque
+    con il percorso manuale (reinserire codice+PIN o riscansionare il QR)."""
+    if not world.join_code:
+        return None
+    from network.discovery import discover_worlds
+    found = next((w for w in discover_worlds() if w.world_id == world.id), None)
+    if found is None:
+        return None
+    retry = start_lan_join(found.host, found.port, world.join_code, "", device_id or "", "")
+    if not retry.success or retry.backend is None:
+        return None
+    return retry.backend
+
+
+# ---------------------------------------------------------------------------
+# Push self-service best-effort verso l'host (2026-08-19)
+# ---------------------------------------------------------------------------
+
+async def push_character_self_command(page, character, device_id_cache: dict, kind: str,
+                                       payload: dict) -> None:
+    """
+    Invia un comando self-service (diario, note di sessione, abilità
+    personalizzate, incantesimi) verso l'host per `character`, best effort —
+    stessa forma di `_push_hp_to_world`/`_push_condition_to_world`
+    (`ui/views/character_sheet/combattimento_tab.py`), estratta qui perché
+    ora serve identica a più tab (diario, esplorazione, incantesimi) invece
+    di essere duplicata in ognuno.
+
+    Nessun retry automatico né debounce con "generation": a differenza dei
+    PF (un flusso continuo di piccoli cambiamenti mentre l'utente tocca la
+    scheda) queste sono azioni discrete e deliberate (un pulsante "Salva"),
+    un invio per azione — stesso principio di `_push_condition_to_world`.
+
+    No-op silenzioso se il personaggio non è un'istanza di un mondo, se la
+    pagina non è più disponibile, o se l'host non è raggiungibile — la
+    scrittura locale (già avvenuta dal chiamante prima di invocare questa
+    funzione) resta comunque corretta; senza questo comando l'host non la
+    vedrà mai finché non arriva un prossimo invio riuscito.
+
+    `device_id_cache` è un dict tenuto dal chiamante (es. `self._device_id_cache
+    = {}` sul tab) per evitare di richiedere `resolve_device_id()` ad ogni
+    invio — stesso ruolo di `self._device_id` sui tab che già usano questo
+    pattern, ma passato esplicitamente perché questa funzione non ha una
+    propria istanza su cui tenerlo.
+    """
+    if not character.world_id or page is None:
+        return
+
+    device_id = device_id_cache.get("id")
+    if device_id is None:
+        from ui.device_identity import resolve_device_id
+        device_id = await resolve_device_id(page)
+        device_id_cache["id"] = device_id
+    if not device_id:
+        return
+
+    from core.world_backend import LocalBackend
+    from data.repositories import world_repo
+    world = world_repo.get_world(character.world_id)
+    if world is None:
+        return
+    backend = resolve_backend_for_world(world, device_id, LocalBackend(), {})
+    if backend is None:
+        return
+
+    try:
+        backend.send_command(
+            world.id, device_id, kind, payload,
+            target_type="character", target_id=character.id,
+        )
+    except Exception as e:
+        # Best effort per definizione (vedi il docstring sopra): logga e
+        # basta, non deve mai interrompere l'esperienza sulla scheda.
+        logger.warning("Invio %s fallito per %s: %s", kind, character.id, e)
 
 
 # ---------------------------------------------------------------------------
@@ -877,6 +1067,13 @@ def finish_pending_join(backend, request_id: str, host_port: str) -> LanJoinResu
         return _finalize_join(backend, host_port)
     if outcome.status == "rejected":
         return LanJoinResult(False, error="Il master ha rifiutato la richiesta di ingresso.")
+    if outcome.status == "cancelled":
+        # 2026-08-19: la richiesta è stata annullata (tipicamente da questo
+        # stesso dispositivo, `RemoteBackend.cancel_join_request()`) — stato
+        # TERMINALE come il rifiuto, mai più "in attesa": senza questo ramo
+        # cadrebbe nel fallback sotto e resterebbe "in attesa" per sempre
+        # anche dopo l'annullamento.
+        return LanJoinResult(False, error="Richiesta di ingresso annullata.")
     if outcome.status == "error":
         return LanJoinResult(False, backend=backend, pending_request_id=request_id,
                               error=outcome.error)
@@ -983,7 +1180,13 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
         character_id = str(char_row.get("id") or "")
         if character_id:
             try:
-                character_export.import_replica_character(char_data, character_id, world_seq=latest_seq)
+                # `game_maps` escluse — stesso motivo di
+                # `_resync_character_from_host()` sopra: le mappe personali
+                # non arrivano mai nell'export dell'host.
+                character_export.import_replica_character(
+                    char_data, character_id, world_seq=latest_seq,
+                    skip_tables=frozenset({"game_maps"}),
+                )
             except Exception as e:
                 logger.error("_finalize_join: personaggio %r scartato: %s", character_id, e)
 
@@ -1038,6 +1241,7 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
                 maps_repo.replica_create_map_stub(
                     map_data["id"], world.id, str(map_data.get("name", "")),
                 )
+                _backfill_map_annotations_if_empty(backend, str(map_data["id"]))
             except Exception as e:
                 logger.error("_finalize_join: mappa %r scartata: %s", map_data.get("id"), e)
 
