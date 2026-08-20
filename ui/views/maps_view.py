@@ -763,6 +763,37 @@ class MapsView(ft.Column):
             expand=True, spacing=0,
         )
 
+    def _canvas_layer_for_mode(self, mode: str, gm: GameMap, canvas: cv.Canvas) -> ft.Control:
+        """Il secondo figlio dello Stack sotto l'`InteractiveViewer`:
+        avvolge il canvas in un `GestureDetector` per disegnare/cancellare
+        (modalità "pen"/"eraser"), o lo lascia nudo in modalità "move" —
+        BUG FIX (2026-08-20, bug report Davide: "lo zoom funziona per pc ma
+        non funziona per smartphone"). Causa: un `GestureDetector` con
+        `on_pan_*` resta iscritto nella gesture arena di Flutter anche
+        quando la modalità è "move" e gli handler fanno subito `return`
+        (`_on_pan_start`/`_on_pan_update` sotto) — il suo recognizer di pan
+        vince comunque il pinch a due dita PRIMA che possa arrivare allo
+        `ScaleGestureRecognizer` dell'`InteractiveViewer` padre. Un
+        mouse/trackpad non lo nota mai (drag a un dito; lo zoom da trackpad
+        passa da `trackpad_scroll_causes_scale`, un canale di eventi scroll
+        separato dalla gesture arena), un dito reale su schermo touch sì —
+        da qui "funziona su PC, non su smartphone". In modalità "move" non
+        si disegna comunque nulla, quindi il `GestureDetector` può sparire
+        del tutto: pan/zoom nativi dell'`InteractiveViewer` restano liberi
+        di ricevere il gesto senza competizione. Richiamata sia dalla
+        costruzione iniziale (`_build_draw_stack`) sia da `_select_mode`,
+        che ricostruisce questo layer ad ogni cambio modalità."""
+        if mode == "move":
+            return canvas
+        return ft.GestureDetector(
+            content=canvas,
+            on_pan_start=lambda e: self._on_pan_start(e, canvas),
+            on_pan_update=lambda e: self._on_pan_update(e, gm, canvas),
+            on_pan_end=lambda e: self._on_pan_end(e, gm, canvas),
+            drag_interval=16,
+            expand=True,
+        )
+
     def _build_draw_stack(self, gm: GameMap, canvas: cv.Canvas,
                           is_fs: bool) -> ft.InteractiveViewer:
         """Costruisce lo Stack (immagine + canvas + gesture) avvolto in un
@@ -793,14 +824,7 @@ class MapsView(ft.Column):
                 shadow=design.elevation(1), border_radius=design.Radius.MD,
             )
 
-        gesture = ft.GestureDetector(
-            content=canvas,
-            on_pan_start=lambda e: self._on_pan_start(e, canvas),
-            on_pan_update=lambda e: self._on_pan_update(e, gm, canvas),
-            on_pan_end=lambda e: self._on_pan_end(e, gm, canvas),
-            drag_interval=16,
-            expand=True,
-        )
+        gesture = self._canvas_layer_for_mode(self._draw_mode, gm, canvas)
 
         stack = ft.Stack(
             [img_layer, gesture],
@@ -1522,6 +1546,22 @@ class MapsView(ft.Column):
             viewer.pan_enabled = key == "move"
             try:
                 viewer.update()
+            except RuntimeError:
+                pass
+
+        # BUG FIX (2026-08-20, zoom rotto su smartphone): ricostruisce il
+        # layer gesture di ogni Stack montato — vedi `_canvas_layer_for_
+        # mode()` per il perché è necessario ad ogni cambio modalità, non
+        # solo alla costruzione iniziale.
+        for stack, canvas in (
+            (self._detail_draw_stack, self._detail_canvas),
+            (self._fs_draw_stack, self._fs_canvas),
+        ):
+            if stack is None or canvas is None:
+                continue
+            stack.controls[1] = self._canvas_layer_for_mode(key, gm, canvas)
+            try:
+                stack.update()
             except RuntimeError:
                 pass
 

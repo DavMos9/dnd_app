@@ -71,6 +71,7 @@ def _row_to_npc(row) -> MasterNpc:
         source_page=d.get("source_page", ""),
         world_id=d.get("world_id", ""),
         race=d.get("race", ""),
+        image_data=d.get("image_data", ""),
         created_at=d.get("created_at", ""),
         updated_at=d.get("updated_at", ""),
     )
@@ -168,6 +169,7 @@ def create_npc(
     source_page: str = "",
     world_id: str = "",
     race: str = "",
+    image_data: str = "",
 ) -> MasterNpc | None:
     """
     Crea un nuovo NPC di rubrica. Ritorna l'NPC creato, o None in caso di
@@ -176,7 +178,8 @@ def create_npc(
     razze PHB di `core.npc_generator.RACE_OPTIONS` (o testo libero se il
     Master ha scelto "Altro" nel form) — usata per auto-riempire Tipo
     creatura/Taglia quando si attiva "Ha statistiche di combattimento",
-    vedi `core.npc_generator.resolve_creature_type_and_size()`.
+    vedi `core.npc_generator.resolve_creature_type_and_size()`. `image_data`:
+    ritratto in base64 (2026-08-20), "" se non caricato.
     """
     import uuid as _uuid
     npc_id = str(_uuid.uuid4())
@@ -193,8 +196,8 @@ def create_npc(
                 saving_throws, skills,
                 damage_vulnerabilities, damage_resistances, damage_immunities, condition_immunities,
                 senses, languages, cr, xp, traits, actions, reactions, legendary_actions,
-                source_page, world_id, race, created_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                source_page, world_id, race, image_data, created_at, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 npc_id, _s(name), _s(role), _s(notes), _s(tags), int(has_stat_block),
@@ -204,7 +207,7 @@ def create_npc(
                 _s(damage_vulnerabilities), _s(damage_resistances), _s(damage_immunities), _s(condition_immunities),
                 _s(senses), _s(languages), _s(cr), int(xp or 0), _s(traits) or "[]", _s(actions) or "[]",
                 _s(reactions) or "[]", _s(legendary_actions) or "[]",
-                _s(source_page), _s(world_id), _s(race), now, now,
+                _s(source_page), _s(world_id), _s(race), _s(image_data), now, now,
             ),
         )
         conn.commit()
@@ -299,7 +302,7 @@ def update_npc(npc: MasterNpc) -> bool:
                 saving_throws=?, skills=?,
                 damage_vulnerabilities=?, damage_resistances=?, damage_immunities=?, condition_immunities=?,
                 senses=?, languages=?, cr=?, xp=?, traits=?, actions=?, reactions=?, legendary_actions=?,
-                source_page=?, race=?, updated_at=?
+                source_page=?, race=?, image_data=?, updated_at=?
             WHERE id=?
             """,
             (
@@ -313,13 +316,106 @@ def update_npc(npc: MasterNpc) -> bool:
                 _s(npc.senses), _s(npc.languages), _s(npc.cr), int(npc.xp or 0),
                 _s(npc.traits) or "[]", _s(npc.actions) or "[]",
                 _s(npc.reactions) or "[]", _s(npc.legendary_actions) or "[]",
-                _s(npc.source_page), _s(npc.race), datetime.now().isoformat(), npc.id,
+                _s(npc.source_page), _s(npc.race), _s(npc.image_data),
+                datetime.now().isoformat(), npc.id,
             ),
         )
         conn.commit()
         return True
     except Exception as e:
         logger.error(f"Errore update_npc: {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def replica_upsert_npc(data: dict) -> bool:
+    """
+    Materializza sulla replica di un giocatore un NPC collegato a una nota
+    di campagna visibile (2026-08-20) — stesso principio di
+    `loot_repo.replica_upsert_entry()`/`maps_repo.replica_create_map_stub()`:
+    `INSERT OR REPLACE` per id, l'id resta quello generato una sola volta
+    sull'host (mai rigenerato), un solo scrittore usato sia da
+    `core.world_sync.apply_event_to_replica`/`_refresh_snapshot_derived_
+    state` (ogni giro di sync) sia da `core.world_sync._finalize_join`
+    (semina iniziale al momento dell'ingresso).
+
+    A differenza del resto della Rubrica NPC del Master (mai condivisa per
+    intero, §7B — materiale privato), SOLO gli NPC referenziati da almeno
+    una nota visibile a questo device arrivano qui: `WorldHostServer.
+    handle_snapshot()` filtra a monte, questa funzione si limita a scrivere
+    quello che riceve. Chiude il gap per cui `save_replica_note()` doveva
+    azzerare `linked_npc_id` quando l'NPC non esisteva ancora in locale —
+    bug report Davide: "il giocatore può premere sul nome del personaggio e
+    vedere l'immagine che il master ha caricato".
+
+    `data`: stessa forma di `dataclasses.asdict(MasterNpc(...))` — tutti i
+    campi del modello, incluso `image_data`.
+    """
+    npc_id = str(data.get("id") or "")
+    if not npc_id:
+        return False
+    now = datetime.now().isoformat()
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute(
+            """
+            INSERT INTO master_npcs (
+                id, name, role, notes, tags, has_stat_block,
+                creature_type, size, alignment, ac, ac_note, hp_max, hp_formula, speed,
+                str_score, dex_score, con_score, int_score, wis_score, cha_score,
+                saving_throws, skills,
+                damage_vulnerabilities, damage_resistances, damage_immunities, condition_immunities,
+                senses, languages, cr, xp, traits, actions, reactions, legendary_actions,
+                source_page, world_id, race, image_data, created_at, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name, role=excluded.role, notes=excluded.notes,
+                tags=excluded.tags, has_stat_block=excluded.has_stat_block,
+                creature_type=excluded.creature_type, size=excluded.size,
+                alignment=excluded.alignment, ac=excluded.ac, ac_note=excluded.ac_note,
+                hp_max=excluded.hp_max, hp_formula=excluded.hp_formula, speed=excluded.speed,
+                str_score=excluded.str_score, dex_score=excluded.dex_score,
+                con_score=excluded.con_score, int_score=excluded.int_score,
+                wis_score=excluded.wis_score, cha_score=excluded.cha_score,
+                saving_throws=excluded.saving_throws, skills=excluded.skills,
+                damage_vulnerabilities=excluded.damage_vulnerabilities,
+                damage_resistances=excluded.damage_resistances,
+                damage_immunities=excluded.damage_immunities,
+                condition_immunities=excluded.condition_immunities,
+                senses=excluded.senses, languages=excluded.languages, cr=excluded.cr,
+                xp=excluded.xp, traits=excluded.traits, actions=excluded.actions,
+                reactions=excluded.reactions, legendary_actions=excluded.legendary_actions,
+                source_page=excluded.source_page, world_id=excluded.world_id,
+                race=excluded.race, image_data=excluded.image_data,
+                updated_at=excluded.updated_at
+            """,
+            (
+                npc_id, _s(data.get("name")), _s(data.get("role")), _s(data.get("notes")),
+                _s(data.get("tags")), int(bool(data.get("has_stat_block"))),
+                _s(data.get("creature_type")), _s(data.get("size")), _s(data.get("alignment")),
+                int(data.get("ac") or 10), _s(data.get("ac_note")), int(data.get("hp_max") or 1),
+                _s(data.get("hp_formula")), _s(data.get("speed")),
+                int(data.get("str_score") or 10), int(data.get("dex_score") or 10),
+                int(data.get("con_score") or 10), int(data.get("int_score") or 10),
+                int(data.get("wis_score") or 10), int(data.get("cha_score") or 10),
+                _s(data.get("saving_throws")) or "{}", _s(data.get("skills")) or "{}",
+                _s(data.get("damage_vulnerabilities")), _s(data.get("damage_resistances")),
+                _s(data.get("damage_immunities")), _s(data.get("condition_immunities")),
+                _s(data.get("senses")), _s(data.get("languages")), _s(data.get("cr")),
+                int(data.get("xp") or 0), _s(data.get("traits")) or "[]",
+                _s(data.get("actions")) or "[]", _s(data.get("reactions")) or "[]",
+                _s(data.get("legendary_actions")) or "[]", _s(data.get("source_page")),
+                _s(data.get("world_id")), _s(data.get("race")), _s(data.get("image_data")),
+                _s(data.get("created_at")) or now, _s(data.get("updated_at")) or now,
+            ),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Errore replica_upsert_npc: {e}")
         return False
     finally:
         if conn is not None:
@@ -1104,18 +1200,19 @@ def save_replica_note(note_data: dict) -> bool:
         ).fetchone()
         created_at = existing["created_at"] if existing else now
         # `linked_npc_id` ha una FK verso `master_npcs(id)` (ON DELETE SET
-        # NULL) — ma la Rubrica NPC del master NON viaggia mai nello
-        # snapshot né negli eventi (`WorldHostServer.handle_snapshot()`
-        # spedisce mondo/membri/giornale/schede/note/incontro/mappe, mai gli
-        # NPC: sono materiale privato del master, §7B). Sulla replica di un
-        # giocatore quell'id quindi non esiste quasi mai, e un INSERT diretto
-        # fallirebbe con "FOREIGN KEY constraint failed". Sulla replica il
-        # collegamento non ha comunque alcun uso — non c'è una Rubrica NPC
-        # da aprire — quindi si conserva solo se quell'NPC esiste davvero
-        # in locale (vero sull'host, dove questa funzione non viene usata,
-        # e in un eventuale futuro in cui gli NPC vengano condivisi), e
-        # altrimenti si degrada a NULL: esattamente il valore che la FK
-        # stessa prevede quando l'NPC non c'è più.
+        # NULL). Dal 2026-08-20 `WorldHostServer.handle_snapshot()` include
+        # anche gli NPC referenziati da una nota visibile (`shared_npcs`,
+        # mai l'intera Rubrica — resto materiale privato del master, §7B),
+        # replicati PRIMA delle note da `_refresh_snapshot_derived_state()`/
+        # `_finalize_join()` (vedi `replica_upsert_npc()`) — quindi l'NPC
+        # esiste già in locale nel caso comune. Questo controllo resta
+        # comunque come rete di sicurezza (un INSERT diretto fallirebbe con
+        # "FOREIGN KEY constraint failed" se per qualunque motivo l'NPC non
+        # fosse ancora arrivato, es. un evento incrementale ricevuto fuori
+        # ordine): si conserva il collegamento solo se l'NPC esiste
+        # davvero in locale, altrimenti si degrada a NULL — lo stesso
+        # valore che la FK prevede quando l'NPC non c'è più, e che si
+        # autocorregge al giro di sync successivo non appena l'NPC arriva.
         linked_npc_id = note_data.get("linked_npc_id") or None
         if linked_npc_id is not None:
             npc_exists = conn.execute(

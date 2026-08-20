@@ -920,6 +920,25 @@ class WorldHostServer:
             logger.error("handle_snapshot: errore costruendo le note condivise: %s", e)
             notes = []
 
+        # NPC collegati a una delle note sopra (2026-08-20) — SOLO quelli
+        # referenziati da almeno una nota visibile a questo device, mai
+        # l'intera Rubrica NPC (materiale privato del Master, §7B). Bug
+        # report Davide: "il giocatore può premere sul nome del personaggio
+        # e vedere l'immagine che il master ha caricato" — senza questo,
+        # `linked_npc_id` sulla replica del giocatore viene sempre azzerato
+        # da `master_repo.save_replica_note()` perché l'NPC non esiste mai
+        # in locale (vedi il suo docstring).
+        try:
+            linked_npc_ids = {n.get("linked_npc_id") for n in notes if n.get("linked_npc_id")}
+            shared_npcs = []
+            for npc_id in linked_npc_ids:
+                npc = master_repo.get_npc_by_id(npc_id)
+                if npc is not None:
+                    shared_npcs.append(asdict(npc))
+        except Exception as e:
+            logger.error("handle_snapshot: errore costruendo gli NPC collegati: %s", e)
+            shared_npcs = []
+
         # Incontro visibile ai giocatori, se c'è (§6.5, passo 7C) — stesso
         # gap delle note sopra: senza questo, un giocatore che entra mentre
         # un combattimento è già visibile non lo vedrebbe mai finché non
@@ -977,6 +996,7 @@ class WorldHostServer:
             "visible_encounter": encounter_payload,
             "shared_maps": shared_maps,
             "loot_stash": loot_stash,
+            "shared_npcs": shared_npcs,
         }
 
     def handle_get_character(self, token: str, character_id: str) -> tuple[int, dict]:

@@ -778,6 +778,21 @@ def _refresh_snapshot_derived_state(remote_backend, local_world_id: str) -> None
     # per l'intero ciclo — un singolo dato malformato (es. residuo di una
     # sessione di test precedente) non deve impedire agli ALTRI elementi,
     # per il resto sani, di arrivare sulla replica.
+    # NPC collegati a una nota visibile (2026-08-20) — PRIMA delle note
+    # sotto: `master_repo.save_replica_note()` azzera `linked_npc_id` se
+    # l'NPC non esiste ancora in locale al momento in cui la nota viene
+    # scritta, quindi l'NPC deve arrivare per primo nello stesso giro.
+    # Vedi `master_repo.replica_upsert_npc()` per il perché di questa
+    # sezione (bug report Davide: dossier PNG collegato a una nota
+    # condivisa).
+    for npc_data in snapshot.get("shared_npcs", []):
+        if npc_data.get("id"):
+            try:
+                master_repo.replica_upsert_npc(npc_data)
+            except Exception as e:
+                logger.error("_refresh_snapshot_derived_state: NPC %r scartato: %s",
+                             npc_data.get("id"), e)
+
     for note_data in snapshot.get("notes", []):
         if note_data.get("id"):
             try:
@@ -1290,6 +1305,17 @@ def _finalize_join(backend, host_port: str) -> LanJoinResult:
     # vedrebbe mai. Riusa lo stesso scrittore del ramo `note.share` in
     # `apply_event_to_replica` — un solo punto che sa scrivere una nota
     # sulla replica.
+    # NPC collegati a una nota visibile (2026-08-20) — PRIMA delle note
+    # sotto, stesso motivo di `_refresh_snapshot_derived_state` (evita che
+    # `save_replica_note()` azzeri `linked_npc_id` per un NPC arrivato un
+    # istante dopo).
+    for npc_data in snapshot.get("shared_npcs", []):
+        if npc_data.get("id"):
+            try:
+                master_repo.replica_upsert_npc(npc_data)
+            except Exception as e:
+                logger.error("_finalize_join: NPC %r scartato: %s", npc_data.get("id"), e)
+
     for note_data in snapshot.get("notes", []):
         if note_data.get("id"):
             try:

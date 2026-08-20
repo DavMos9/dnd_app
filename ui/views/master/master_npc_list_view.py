@@ -11,6 +11,7 @@ bestiario condiviso (`ui.components.monster_picker`).
 """
 
 import logging
+import threading
 from typing import Any
 
 import flet as ft
@@ -24,7 +25,9 @@ from ui.components.monster_picker import (
     creature_entry_dict, load_monsters, show_monster_picker,
     build_stat_block_column, monster_display_name,
 )
+from ui.components.npc_dossier import build_npc_dossier_column
 from ui.theme import body_text, muted_text, primary_button
+from ui.views.maps_view import _data_uri, _pick_desktop, _pick_from_library, _pick_mobile
 from ui.widgets import DropdownAltro, MultiSelectAltro, wrap_dialog_actions, responsive_dialog_width
 from ui import design
 
@@ -171,10 +174,19 @@ class MasterNpcListView(ft.Column):
         tone: design.Tone = "primary" if npc.has_stat_block else "magic"
         icon = ft.Icons.SHIELD if npc.has_stat_block else ft.Icons.PERSON_OUTLINE
 
+        avatar: ft.Control = (
+            ft.Container(
+                content=ft.Image(src=_data_uri(npc.image_data), fit=ft.BoxFit.COVER),
+                width=44, height=44, border_radius=design.Radius.MD,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            )
+            if npc.image_data else
+            design.icon_badge(icon, tone=tone, size=44)
+        )
         return design.card(
             ft.Row(
                 [
-                    design.icon_badge(icon, tone=tone, size=44),
+                    avatar,
                     ft.Container(width=design.Space.MD),
                     ft.Column(
                         [
@@ -225,6 +237,14 @@ class MasterNpcListView(ft.Column):
             )
 
         info_rows: list[ft.Control] = []
+        if npc.image_data:
+            info_rows.append(ft.Container(
+                content=ft.Image(src=_data_uri(npc.image_data), fit=ft.BoxFit.COVER),
+                width=96, height=96, border_radius=design.Radius.MD,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                shadow=design.elevation(1),
+            ))
+            info_rows.append(ft.Container(height=6))
         if npc.role:
             info_rows.append(body_text(f"Ruolo: {npc.role}", size=12, color=design.T().text_2))
         if npc.tags:
@@ -480,6 +500,7 @@ class MasterNpcListView(ft.Column):
                 "reactions": npc.reactions, "legendary_actions": npc.legendary_actions,
                 "source_page": npc.source_page,
                 "race": npc.race or ng.resolve_race_from_tags(npc.tags),
+                "image_data": npc.image_data,
             }
         elif prefill_monster is not None:
             m = prefill_monster
@@ -511,6 +532,7 @@ class MasterNpcListView(ft.Column):
                     if m.get("source_page") else f"da Bestiario: {m.get('name', '')}"
                 ),
                 "race": "",
+                "image_data": "",
             }
         else:
             src = {
@@ -526,6 +548,7 @@ class MasterNpcListView(ft.Column):
                 "traits": "[]", "actions": "[]", "reactions": "[]", "legendary_actions": "[]",
                 "source_page": "",
                 "race": "",
+                "image_data": "",
             }
 
         # --- campi anagrafici, sempre visibili ---
@@ -540,6 +563,58 @@ class MasterNpcListView(ft.Column):
         # da fonte per l'auto-riempimento di Tipo creatura/Taglia sotto.
         race_picker = DropdownAltro("Razza", ng.get_race_options(), src["race"], width=180)
         error_text = ft.Text("", size=12, color=design.T().danger)
+
+        # --- Ritratto (2026-08-20) — bug report Davide: "dare la
+        # possibilità di inserire l'immagine dell'npc al master nella
+        # rubrica". Stessi 3 rami web/mobile/desktop già consolidati per
+        # mappe/personaggio, riusati tali e quali da `ui/views/maps_view.py`
+        # (già pensati per un `page` diretto, non solo per `MapsView`).
+        img_data: list[str] = [src["image_data"]]
+        img_label = ft.Text(
+            "Immagine caricata ✓" if src["image_data"] else "Nessuna immagine",
+            size=11, color=design.T().text_3,
+        )
+        img_preview = ft.Container(
+            content=(
+                ft.Image(src=_data_uri(src["image_data"]), fit=ft.BoxFit.COVER)
+                if src["image_data"] else
+                ft.Icon(ft.Icons.PERSON_OUTLINE, size=32, color=design.T().border)
+            ),
+            width=72, height=72, bgcolor=design.T().surface_alt,
+            border_radius=design.Radius.MD, alignment=ft.Alignment.CENTER,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS if src["image_data"] else ft.ClipBehavior.NONE,
+        )
+
+        def _pick_portrait(ev: Any) -> None:
+            if page.web:
+                _pick_from_library(page, img_data, img_label, img_preview)
+            elif page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+                page.run_task(_pick_mobile, page, img_data, img_label, img_preview)
+            else:
+                import platform as _sys
+                threading.Thread(
+                    target=_pick_desktop,
+                    args=(_sys.system(), img_data, img_label, img_preview, page),
+                    daemon=True,
+                ).start()
+
+        portrait_row = ft.Row(
+            [
+                img_preview,
+                ft.Column(
+                    [
+                        ft.OutlinedButton(
+                            "Scegli ritratto…", icon=ft.Icons.ADD_PHOTO_ALTERNATE,
+                            on_click=_pick_portrait,
+                            style=ft.ButtonStyle(color=design.T().primary),
+                        ),
+                        img_label,
+                    ],
+                    spacing=2, tight=True,
+                ),
+            ],
+            spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
 
         # --- toggle + campi statistiche ---
         stat_cb = ft.Checkbox(label="Ha statistiche di combattimento", value=src["has_stat_block"])
@@ -687,6 +762,7 @@ class MasterNpcListView(ft.Column):
                 source_page=src["source_page"],
                 world_id=self._world_id,
                 race=race_picker.value or "",
+                image_data=img_data[0],
             )
 
             if is_edit and npc is not None:
@@ -705,6 +781,7 @@ class MasterNpcListView(ft.Column):
                 npc.senses = kwargs["senses"]; npc.languages = kwargs["languages"]; npc.cr = kwargs["cr"]
                 npc.xp = kwargs["xp"]
                 npc.race = kwargs["race"]
+                npc.image_data = kwargs["image_data"]
                 ok = master_repo.update_npc(npc)
             else:
                 ok = master_repo.create_npc(**kwargs) is not None
@@ -726,6 +803,8 @@ class MasterNpcListView(ft.Column):
                 content=ft.Column(
                     [
                         name_tf, role_tf, race_picker.control, tags_tf, notes_tf,
+                        ft.Container(height=6),
+                        portrait_row,
                         ft.Container(height=6),
                         stat_cb,
                         stat_fields_col,

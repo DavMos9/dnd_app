@@ -29,6 +29,7 @@ from core import world_sync
 from core.world_backend import LocalBackend
 from data.models import MasterCampaignNote, MasterNpc, WorldMember
 from data.repositories import master_repo, world_repo
+from ui.components.npc_dossier import show_npc_dossier_dialog
 from ui.widgets import wrap_dialog_actions, responsive_dialog_width, show_snack
 from ui import design
 
@@ -553,16 +554,30 @@ class MasterNotesView(ft.Column):
                 ft.Text(note.description, size=14, color=design.T().text, selectable=True)
             )
 
-        npc_name = self._npc_name(note.linked_npc_id) if note.linked_npc_id else ""
-        if npc_name:
+        linked_npc = next((n for n in self._npcs if n.id == note.linked_npc_id),
+                          None) if note.linked_npc_id else None
+        if linked_npc is not None:
+            # Cliccabile (2026-08-20): apre lo stesso dossier che vede il
+            # giocatore — comodo per il Master per verificare cosa sta
+            # condividendo, coerente con `diary_view.py` lato giocatore.
             page_content_items += [
                 ft.Container(height=14),
                 ft.Row(
                     [
-                        ft.Icon(ft.Icons.PERSON, size=14, color=design.T().text_3),
-                        ft.Container(width=6),
-                        ft.Text(f"PNG collegato: {npc_name}", size=12,
-                                color=design.T().text_2, italic=True),
+                        ft.TextButton(
+                            content=ft.Row(
+                                [
+                                    ft.Icon(ft.Icons.BADGE_OUTLINED, size=14,
+                                             color=design.T().primary_icon),
+                                    ft.Text(f"PNG collegato: {linked_npc.name}", size=12,
+                                             weight=ft.FontWeight.BOLD, color=design.T().primary),
+                                ],
+                                spacing=4, tight=True,
+                            ),
+                            on_click=lambda e, n=linked_npc: (
+                                show_npc_dossier_dialog(self._page, n) if self._page else None
+                            ),
+                        ),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),

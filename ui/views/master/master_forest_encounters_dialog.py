@@ -24,25 +24,72 @@ pulsante già presente nel Generatore di Incontri Casuali
 (`master_encounter_generator_dialog.py`). Crea un nuovo `MasterEncounter` (`master_repo.create_encounter`) con le
 note = il testo integrale della riga tirata, e un membro "adhoc" per ciascuna
 creatura della riga risolta nel bestiario (stesse `ac`/`hp_max`/`xp` già usate
-da "Vedi scheda"). **Le quantità non vengono moltiplicate**: la tabella DMG
-scrive quantità in prosa dentro `text` ("2d4 gnoll", "1d4 gnoll and 2d4
-iene") mai come numero strutturato in `creatures` — inventarne uno sarebbe
-scrivere un dato di regolamento non presente nella fonte. Il Master legge la
-riga (rimasta nelle note dell'incontro) e aggiunge le copie extra a mano con
-"+ Aggiungi mostro", già esistente in `MasterEncounterView`.
+da "Vedi scheda").
+
+**Quantità (2026-08-20)**: la tabella DMG scrive la quantità in prosa dentro
+`text` ("2d4 gnoll", "1d4 gnoll and 2d4 iene") mai come numero strutturato in
+`creatures` — bug report Davide: "che tira i dadi e poi permette di creare
+l'incontro descritto... permettiamo anche di inserire il risultato al
+master, non costringiamolo al tiro automatico". Ogni creatura risolta ha ora
+un campo "Quantità" (default 1, sempre editabile a mano) e, quando
+`_suggest_quantities()` riesce ad abbinare con sicurezza un'espressione di
+quantità della riga a quella creatura (stesso conteggio di numeri e
+creature, unica euristica usata — mai un vero parser del regolamento: solo
+un aiuto a leggere ciò che il testo già dice), un pulsante 🎲 che tira quella
+espressione e precompila il campo. "Aggiungi Incontro" crea tante copie
+numerate quante il campo Quantità indica al momento della conferma (stessa
+convenzione "Nome 1"/"Nome 2" già in uso in "+ Aggiungi NPC dalla Rubrica" di
+`MasterEncounterView`) — nessun tiro forzato, il Master può sempre ignorare
+il dado e scrivere il numero che vuole.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import flet as ft
 
+from core import dice as core_dice
 from data.game_data.game_data_loader import parse_monster_xp, game_data
 from data.repositories import master_repo
 from ui.components.monster_picker import load_monsters, show_stat_block_dialog
 from ui.widgets import responsive_dialog_width, show_snack, wrap_dialog_actions
 from ui import design
+
+#: Percentuali tra parentesi ("(50%)") non sono mai una quantità — vanno
+#: escluse prima di cercare i numeri, altrimenti "50" verrebbe scambiato per
+#: una creatura in più.
+_PAREN_RE = re.compile(r"\([^)]*\)")
+#: Un'espressione di quantità: un dado "NdM" o un numero fisso.
+_QTY_TOKEN_RE = re.compile(r"\d+d\d+|\d+")
+
+
+def _suggest_quantities(text: str, creatures: list[str]) -> list[str]:
+    """
+    Prova ad abbinare, in ordine di lettura, un'espressione di quantità di
+    `text` a ciascuna voce di `creatures` — le tabelle DMG scrivono sempre
+    la quantità PRIMA del nome della creatura, nello stesso ordine in cui le
+    creature compaiono in `creatures` (verificato a mano su tutte le voci
+    multi-creatura di Foresta Silvana/Incontri Urbani/Sott'Acqua/In Mare:
+    es. "1 gnoll signore del branco e 2d4 gnoll" → `["1", "2d4"]` per
+    `["Gnoll Signore del Branco", "Gnoll"]`; "1d4 alci (75%) o 1 alce
+    gigante (25%)" → `["1d4", "1"]` per `["Alce", "Alce Gigante"]").
+
+    Ritorna una lista della stessa lunghezza di `creatures` — tutte voci
+    vuote `""` se il conteggio dei numeri trovati non coincide con quello
+    delle creature: MEGLIO nessun suggerimento che uno probabilmente
+    sbagliato (es. una CD/un'altra quantità nella prosa che confonderebbe il
+    conteggio) — il Master scrive comunque la quantità a mano in quel caso,
+    non è mai bloccato dall'euristica.
+    """
+    if not creatures:
+        return []
+    stripped = _PAREN_RE.sub(" ", text)
+    tokens = _QTY_TOKEN_RE.findall(stripped)
+    if len(tokens) != len(creatures):
+        return ["" for _ in creatures]
+    return tokens
 
 
 def _resolve_creature(name: str) -> dict[str, Any] | None:
@@ -102,20 +149,51 @@ def show_forest_encounters_dialog(page: ft.Page, world_id: str = "") -> None:
                 result_col.controls.append(
                     ft.Text(r["note"], size=11, italic=True, color=design.T().text_3)
                 )
-            links: list[ft.Control] = []
-            for cname in r.get("creatures", []):
+            creatures = r.get("creatures", [])
+            suggested = _suggest_quantities(r.get("text", ""), creatures)
+            state["quantity_fields"] = {}
+            creature_rows: list[ft.Control] = []
+            for cname, sugg in zip(creatures, suggested):
                 mdata = _resolve_creature(cname)
-                if mdata:
-                    links.append(
-                        ft.OutlinedButton(
-                            f"Vedi scheda: {cname}",
-                            icon=ft.Icons.MENU_BOOK_OUTLINED,
-                            style=ft.ButtonStyle(color=design.T().magic),
-                            on_click=lambda e, mm=mdata: _open_creature_sheet(mm),
-                        )
-                    )
-            if links:
-                result_col.controls.append(ft.Row(links, spacing=6, wrap=True))
+                if not mdata:
+                    continue
+                is_dice = bool(sugg) and "d" in sugg.lower()
+                try:
+                    prefill = int(sugg) if sugg and not is_dice else 1
+                except ValueError:
+                    prefill = 1
+                qty_tf = ft.TextField(
+                    label="Quantità", value=str(max(1, prefill)), width=64, dense=True,
+                    keyboard_type=ft.KeyboardType.NUMBER, **design.field_style(),
+                )
+                state["quantity_fields"][cname] = qty_tf
+
+                def _do_roll(ev: Any, tf: ft.TextField = qty_tf, formula: str = sugg) -> None:
+                    total = core_dice.roll(formula).total
+                    tf.value = str(max(1, total))
+                    try:
+                        tf.update()
+                    except RuntimeError:
+                        pass
+
+                row_controls: list[ft.Control] = [
+                    ft.OutlinedButton(
+                        f"Vedi scheda: {cname}",
+                        icon=ft.Icons.MENU_BOOK_OUTLINED,
+                        style=ft.ButtonStyle(color=design.T().magic),
+                        on_click=lambda e, mm=mdata: _open_creature_sheet(mm),
+                    ),
+                    qty_tf,
+                ]
+                if is_dice:
+                    row_controls.append(ft.IconButton(
+                        icon=ft.Icons.CASINO, tooltip=f"Tira {sugg} e precompila la quantità",
+                        icon_color=design.T().primary_icon, on_click=_do_roll,
+                    ))
+                creature_rows.append(ft.Row(row_controls, spacing=6, wrap=True,
+                                            vertical_alignment=ft.CrossAxisAlignment.CENTER))
+            if creature_rows:
+                result_col.controls.append(ft.Column(creature_rows, spacing=8))
         try:
             result_col.update()
         except RuntimeError:
@@ -157,23 +235,33 @@ def show_forest_encounters_dialog(page: ft.Page, world_id: str = "") -> None:
             show_snack(page, "Errore nella creazione dell'incontro — vedi log.", tone="danger")
             return
         added = 0
-        for idx, cname in enumerate(r.get("creatures", [])):
+        order_index = 0
+        quantity_fields = state.get("quantity_fields", {})
+        for cname in r.get("creatures", []):
             m = _resolve_creature(cname)
             if not m:
                 continue
-            master_repo.add_member(
-                encounter_id=enc.id, kind="adhoc", display_name=str(m.get("name", cname)),
-                ac=int(m.get("ac", 10) or 10),
-                hp_current=int(m.get("hp_max", 1) or 1),
-                hp_max=int(m.get("hp_max", 1) or 1),
-                xp=parse_monster_xp(m.get("xp", 0)),
-                initiative=10, order_index=idx,
-            )
-            added += 1
+            qty_tf = quantity_fields.get(cname)
+            try:
+                qty = max(1, int((qty_tf.value or "1").strip())) if qty_tf is not None else 1
+            except ValueError:
+                qty = 1
+            base_name = str(m.get("name", cname))
+            for i in range(qty):
+                master_repo.add_member(
+                    encounter_id=enc.id, kind="adhoc",
+                    display_name=f"{base_name} {i + 1}" if qty > 1 else base_name,
+                    ac=int(m.get("ac", 10) or 10),
+                    hp_current=int(m.get("hp_max", 1) or 1),
+                    hp_max=int(m.get("hp_max", 1) or 1),
+                    xp=parse_monster_xp(m.get("xp", 0)),
+                    initiative=10, order_index=order_index,
+                )
+                order_index += 1
+                added += 1
         msg = f"Incontro «{name}» creato"
         msg += (
-            f" con {added} creatur{'a' if added == 1 else 'e'} (1 copia ciascuna — "
-            "le quantità esatte sono nelle note, aggiungi le altre copie a mano)."
+            f" con {added} creatur{'a' if added == 1 else 'e'}."
             if added else " (nessuna creatura con scheda nel bestiario da aggiungere)."
         )
         show_snack(page, msg)

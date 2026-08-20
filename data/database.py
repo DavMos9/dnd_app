@@ -563,6 +563,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "loot_stash_entries", "armor_type", "TEXT DEFAULT ''")
     _add_column(cur, "loot_stash_entries", "armor_effects", "TEXT DEFAULT ''")
 
+    # Ritratto NPC caricato dal Master (2026-08-20) — stesso formato base64
+    # di characters.image_data/game_maps.image_data. '' = nessuna foto.
+    _add_column(cur, "master_npcs", "image_data", "TEXT DEFAULT ''")
+
     _migrate_backfill_character_classes(cur)
 
 

@@ -338,6 +338,68 @@ def test_gomma_libera_rinormalizza() -> None:
           all(x <= 380 or x >= 420 for x in xs))
 
 
+# ---------------------------------------------------------------------------
+# [5] BUG FIX (2026-08-20): zoom rotto su smartphone in modalità "move"
+# ---------------------------------------------------------------------------
+
+def test_move_mode_rimuove_gesture_detector() -> None:
+    """
+    Bug report Davide: "lo zoom funziona per pc ma non funziona per
+    smartphone". Causa: il `GestureDetector` di disegno restava sempre
+    montato, anche in modalità "Sposta" (dove i suoi handler `on_pan_*`
+    fanno subito `return`, vedi `_on_pan_start`) — il suo recognizer di pan
+    vince comunque la gesture arena di Flutter su un pinch a due dita
+    PRIMA che l'`InteractiveViewer` padre possa riconoscerlo come zoom (un
+    trackpad non lo nota mai, passa da un canale di eventi diverso).
+    `_select_mode("move", ...)` ora ricostruisce il layer del canvas senza
+    il `GestureDetector`, lasciando l'`InteractiveViewer` libero di gestire
+    pan/zoom nativamente.
+    """
+    print("\n[5] Modalità «Sposta» — il GestureDetector di disegno sparisce, "
+          "l'InteractiveViewer resta libero per pinch/pan (2026-08-20)")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Zoom Mobile")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+
+    check("modalità di default 'pen'", mv._draw_mode == "pen")
+    stack = mv._detail_draw_stack
+    assert stack is not None
+    check("in modalità 'pen' il canvas è avvolto in un GestureDetector",
+          isinstance(stack.controls[1], ft.GestureDetector))
+    viewer = mv._detail_interactive_viewer
+    assert viewer is not None
+    check("in modalità 'pen' l'InteractiveViewer non pannerebbe comunque (pan_enabled=False)",
+          viewer.pan_enabled is False)
+
+    mv._select_mode("move", [], [], [], gm, is_fs=False)
+    check("il draw_mode è cambiato in 'move'", mv._draw_mode == "move")
+    check("BUG FIX: in modalità 'move' il GestureDetector è sparito, "
+          "il canvas è figlio diretto dello Stack",
+          stack.controls[1] is mv._detail_canvas)
+    check("l'InteractiveViewer ora ha pan_enabled=True (nessun concorrente nella gesture arena)",
+          viewer.pan_enabled is True)
+
+    # Tornando a "pen" il GestureDetector di disegno deve ricomparire —
+    # altrimenti si perderebbe la possibilità di disegnare.
+    mv._select_mode("pen", [], [], [], gm, is_fs=False)
+    check("tornando a 'pen' il GestureDetector di disegno ricompare",
+          isinstance(stack.controls[1], ft.GestureDetector))
+
+    # Disegnare deve ancora funzionare dopo il giro di andata/ritorno.
+    gesture = stack.controls[1]
+    gesture.on_pan_start(_FakeDragEvent(0, 0))
+    gesture.on_pan_update(_FakeDragEvent(50, 50))
+    gesture.on_pan_end(_FakeDragEvent(50, 50))
+    check("il disegno funziona ancora dopo un giro pen→move→pen",
+          bool(json.loads(maps_repo.get_map(gm.id).annotations)))
+
+
 def main() -> int:
     print("=" * 62)
     print("Mappe locali — fix coordinate 2026-08-12 (inline/schermo intero/gomma)")
@@ -348,6 +410,7 @@ def main() -> int:
     test_schermo_intero_riquadro_indipendente()
     test_gomma_tratto_riquadro_diverso()
     test_gomma_libera_rinormalizza()
+    test_move_mode_rimuove_gesture_detector()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

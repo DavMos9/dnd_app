@@ -11492,6 +11492,180 @@ più utile ma non so come") — discussa con Davide, nessuna decisione presa in 
 
 ---
 
+## Zoom mappa rotto su smartphone + Quantità nel Generatore Incontri per Ambiente (2026-08-20, giro successivo)
+
+Due richieste dirette di Davide dopo la lista precedente: "lo zoom funziona per pc ma non
+funziona per smartphone" (correggeva la valutazione "già implementato" della revisione
+precedente, fatta solo leggendo il codice) e la proposta sulla Sezione Ambiente accettata
+con una precisazione — "che tira i dadi e poi permette di creare l'incontro descritto
+nella sezione incontri, in modo da facilitare il master... permettiamo anche di inserire
+il risultato al master, non costringiamolo al tiro automatico".
+
+**Zoom mappa su smartphone.** Causa (confermata via analisi del codice, non ancora su
+dispositivo touch reale — vedi sotto): `ui/views/maps_view.py::_build_draw_stack()`
+avvolge SEMPRE il canvas di disegno in un `ft.GestureDetector` con `on_pan_start/update/
+end` (per disegnare/cancellare), annidato dentro il `content` di un `ft.InteractiveViewer`
+(`scale_enabled=True` per lo zoom). In Flutter, un `GestureDetector` con `on_pan_*` resta
+iscritto nella gesture arena anche quando i suoi handler fanno subito `return` (modalità
+"Sposta", `_draw_mode == "move"`) — il suo `PanGestureRecognizer` vince comunque un pinch
+a due dita PRIMA che possa arrivare allo `ScaleGestureRecognizer` dell'`InteractiveViewer`
+padre. Un trackpad non lo nota mai: lo zoom da trackpad passa da
+`trackpad_scroll_causes_scale`, un canale di eventi scroll separato dalla gesture arena,
+mai in competizione col `GestureDetector` annidato — da qui "funziona su PC, non su
+smartphone". Fix: nuovo `_canvas_layer_for_mode(mode, gm, canvas)` — in modalità "move" il
+canvas torna figlio diretto dello `Stack` (nessun `GestureDetector`, nulla con cui
+competere: pan/zoom nativi dell'`InteractiveViewer` liberi); in "pen"/"eraser" resta
+avvolto come prima (serve per disegnare). `_build_draw_stack()` lo usa alla costruzione
+iniziale, `_select_mode()` lo ricostruisce ad ogni cambio modalità (prima cambiava solo
+`viewer.pan_enabled`, mai la presenza del `GestureDetector`). **Non risolve il pinch
+DURANTE il disegno** (modalità "pen"/"eraser", per scelta deliberata — richiederebbe un
+recognizer custom che distingue 1 e 2 dita, complessità/rischio non giustificati qui):
+il Master/giocatore deve passare a "Sposta" per zoomare/pannare, esattamente il pulsante
+già pensato per quello. Nuovo `test_mappe_locali_coordinate.py` [5] (+8 controlli):
+verifica che il `GestureDetector` sparisca in "move" e ricompaia in "pen", e che disegnare
+funzioni ancora dopo un giro pen→move→pen. **Resta da confermare dal vivo su un
+dispositivo touch reale** — l'ipotesi (gesture arena di Flutter) è solida e già osservata
+in una forma analoga in questo stesso progetto (`regole_flet_api.md`, "Container
+cliccabile che non risponde al tap"), ma nessun test di questo sandbox può simulare un
+vero pinch multi-touch.
+
+**Quantità nel Generatore Incontri per Ambiente.** Prima, "Aggiungi Incontro" creava
+SEMPRE una copia di ciascuna creatura risolta nel bestiario, qualunque fosse la quantità
+scritta in prosa nella riga tirata (es. "2d4 gnoll") — il Master doveva leggere il testo e
+aggiungere le copie in più a mano con "+ Aggiungi mostro". Nuova
+`_suggest_quantities(text, creatures)` in `master_forest_encounters_dialog.py` (funzione
+pura, nessun Flet): abbina in ordine di lettura un'espressione di quantità ("NdM" o un
+numero fisso) a ciascuna creatura — le tabelle DMG scrivono sempre la quantità PRIMA del
+nome, nello stesso ordine delle creature in `creatures` (verificato a mano su tutte le
+voci multi-creatura dei 4 ambienti trascritti). Le percentuali tra parentesi ("(50%)")
+vengono escluse per non essere scambiate per una quantità. **Nessun abbinamento se il
+conteggio dei numeri trovati non coincide con quello delle creature** — meglio nessun
+suggerimento che uno probabilmente sbagliato (es. una CD/un'altra cifra nella prosa che
+confonderebbe il conteggio); in quel caso il campo resta comunque compilabile a mano.
+Ogni creatura risolta ha ora un campo "Quantità" (default 1, sempre editabile) e, solo
+quando il suggerimento è un vero dado (non un numero fisso), un pulsante 🎲 che tira
+quella espressione (`core/dice.py::roll()`, stesso motore di tiro già in uso altrove
+nell'app) e precompila il campo — **mai un tiro forzato**: il Master può ignorare il dado
+e scrivere il numero che preferisce, prima o dopo aver premuto 🎲. "Aggiungi Incontro"
+crea tante copie numerate quante il campo Quantità indica AL MOMENTO della conferma
+(stessa convenzione "Nome 1"/"Nome 2" già in uso in "+ Aggiungi NPC dalla Rubrica" di
+`MasterEncounterView`), non più sempre una. Nuovo `test_incontri_ambiente_quantita.py`
+(19/19): la funzione pura su righe reali della tabella (incluso il caso "nessun
+abbinamento sicuro"), e un flusso UI end-to-end con `random.randint` seminato
+deterministicamente (tira la riga 3 di Foresta Silvana, verifica il precompilamento, tira
+il dado di quantità, sovrascrive a mano un campo, conferma, verifica che l'incontro creato
+abbia esattamente le quantità indicate nei campi).
+
+Verificato: `compileall` pulito, `test_mappe_locali_coordinate.py` 21/21,
+`test_fase_d.py` 101/101, `test_note_e_inventario_sync.py` 93/93,
+`test_incontri_ambiente_quantita.py` 19/19, `test_fase_4.py` 303/303 — nessuna
+regressione. **Nessun commit fatto.**
+
+---
+
+## Dossier PNG: ritratto NPC in Rubrica + sincronizzazione verso i giocatori in un Mondo condiviso (2026-08-20, giro successivo)
+
+Richiesta di Davide prima del prossimo rilascio, con riferimento visivo allegato (una
+tessera identificativa "Her Majesty Secret Service"): "dare la possibilità di inserire
+l'immagine dell'npc al master nella rubrica degli npc. quando poi quell'npc viene
+condiviso in una nota... il giocatore può premere sul nome del personaggio e vedere
+l'immagine... in pg incontrati vorrei farlo apparire tipo carta di identità con
+descrizione sotto, tipo dossier... solo senza il top secret senza il bianco e nero e
+senza le impronte digitali ma con la descrizione" — stile coerente con "Arcane Ledger"
+(guida `ui-ux-pro-max`).
+
+**Modello e ritratto lato Master.** Nuovo `MasterNpc.image_data` (base64, stesso formato
+di `characters.image_data`/`game_maps.image_data`), colonna self-healing in
+`data/database.py` (`_add_column("master_npcs", "image_data", ...)`), filata attraverso
+`master_repo.create_npc()`/`update_npc()`/`_row_to_npc()`. `MasterNpcListView._open_npc_form()`
+(`ui/views/master/master_npc_list_view.py`) ha ora un picker ritratto — stessi identici 3
+rami web/mobile/desktop già consolidati per mappe/personaggio, riusati DIRETTAMENTE da
+`ui/views/maps_view.py` (`_pick_from_library`/`_pick_mobile`/`_pick_desktop`/`_data_uri`,
+già scritti per accettare una `Page` diretta, non solo una `MapsView` — nessuna
+duplicazione). Thumbnail nella card della lista NPC e nel dettaglio del Master.
+
+**Dossier condiviso.** Nuovo `ui/components/npc_dossier.py` (`build_npc_dossier_column()`/
+`show_npc_dossier_dialog()`, sola lettura) — stesso principio di `monster_picker.py::
+show_stat_block_dialog()`, un solo posto che sa costruire la card, riusato sia lato
+giocatore sia lato Master. Layout: nome + campi (ruolo/razza/tipo/taglia/allineamento) +
+tag a sinistra, ritratto (o icona segnaposto) a destra via `design.asymmetric_row()` (si
+impila da solo su schermo stretto, niente colonne fisse fuori posto su mobile), poi la
+descrizione (`notes`) a tutta larghezza sotto — niente timbro, niente bianco e nero,
+niente impronte digitali. In `ui/views/diary_view.py::_build_note_reading_panel()` e nel
+gemello lato Master `ui/views/master/master_notes_view.py`, una nota condivisa con
+`linked_npc_id` valorizzato mostra ora un pulsante cliccabile "Collegato a: {nome}" (prima
+era solo testo statico lato Master, e lato giocatore non compariva affatto — `note` per
+una nota condivisa in `diary_view.py` è in realtà un `MasterCampaignNote` non convertito,
+fuso direttamente nella stessa lista da `_merge_shared_notes()`, da cui il `getattr`
+difensivo per leggere `linked_npc_id` solo se `is_shared`). Nuovo `test_npc_dossier.py`
+(27/27): round trip repo, costruzione pura della card, pulsante cliccabile end-to-end sia
+lato giocatore sia lato Master (con verifica che una nota SENZA collegamento non mostri
+nulla — nessun falso positivo).
+
+**Gap scoperto e chiuso nella stessa sessione: gli NPC non erano mai sincronizzati verso i
+giocatori in un Mondo condiviso.** Verificato con Davide prima di dichiarare la feature
+completa (`grep -rn "master_npcs" core/world_sync.py core/world_backend.py
+network/host_server.py` non dava nessun risultato): a differenza di mappe/bottino/note, la
+Rubrica NPC del Master non viaggiava mai verso la replica di un giocatore su un
+dispositivo separato — `master_repo.save_replica_note()` degradava già da tempo (fix del
+2026-08-17, `test_replica_note_fk_lock.py`) `linked_npc_id` a NULL proprio perché l'NPC
+referenziato non esisteva mai in locale sul dispositivo del giocatore. Senza questo
+secondo fix, il pulsante "Collegato a" sarebbe stato invisibile per qualunque giocatore su
+un dispositivo diverso da quello del Master — la feature avrebbe funzionato SOLO
+testandola sullo stesso dispositivo/DB. **Decisione esplicita di Davide** di completarla
+subito, non rimandarla: "sì, completa ora" davanti al tradeoff (7-8 file, ampiezza
+paragonabile all'introduzione del deposito bottino condiviso).
+
+Fix, seguendo lo schema già consolidato per `loot_stash_entries` (payload pieno, nessun
+pattern stub+lazy per l'immagine — un ritratto NPC è tipicamente più leggero di una foto
+mappa, non giustificava la complessità di un endpoint lazy dedicato):
+- `network/host_server.py::handle_snapshot()` — nuova sezione `shared_npcs`: SOLO gli NPC
+  referenziati da `linked_npc_id` in almeno una nota già inclusa in `notes` (mai l'intera
+  Rubrica, resta materiale privato del Master, §7B del design doc).
+- Nuova `master_repo.replica_upsert_npc(data: dict) -> bool` — `INSERT ... ON CONFLICT DO
+  UPDATE` per id (stesso principio di `loot_repo.replica_upsert_entry()`: l'id è quello
+  generato una sola volta sull'host, mai rigenerato sulla replica).
+- `core/world_sync.py::_refresh_snapshot_derived_state()` (ogni giro di sync periodico,
+  ~2s) e `_finalize_join()` (ingresso in un mondo) — nuovo blocco che scrive
+  `snapshot["shared_npcs"]` in locale **PRIMA** del blocco note già esistente (stesso
+  file, poche righe più sotto): l'NPC deve esistere quando `save_replica_note()` valida la
+  FK, altrimenti verrebbe azzerato come prima di questo fix.
+- Aggiornato il commento/docstring di `save_replica_note()` (ormai obsoleto: diceva "la
+  Rubrica NPC non viaggia mai") per riflettere che ora l'NPC arriva PRIMA nel caso comune —
+  il controllo difensivo resta comunque come rete di sicurezza (evento fuori ordine, NPC
+  cancellato dopo la condivisione), autocorretta al giro di sync successivo.
+
+Effetto collaterale positivo non richiesto esplicitamente ma naturale con questo design
+("eventual consistency", stesso principio già di bottino/mappe/note): se il Master
+modifica il ritratto o la descrizione di un NPC DOPO averlo già condiviso, l'aggiornamento
+arriva al giocatore al giro di sync successivo, senza bisogno di ri-condividere la nota o
+di un evento dedicato.
+
+Nuovo `test_npc_sync_multiplayer.py` (18/18) — quattro parti, tutte con un vero
+`WorldHostServer` + `RemoteBackend` (stesso schema end-to-end di `test_note_sharing.py`
+parte [5]): [1] un NPC collegato a una nota condivisa PRIMA dell'ingresso di un giocatore
+arriva comunque sulla sua replica via `_finalize_join()`, col ritratto, collegamento non
+azzerato; [2] un NPC NON referenziato da nessuna nota visibile non compare MAI in
+`shared_npcs` (privacy verificata sullo snapshot HTTP reale, non solo sulla tabella
+condivisa in-process); [3] un NPC condiviso DOPO l'ingresso e un ritratto aggiornato
+arrivano al giro di `_refresh_snapshot_derived_state()` successivo, senza un nuovo evento
+dedicato; [4] rete di sicurezza invariata — un NPC mai arrivato degrada ancora a NULL,
+nessuna regressione sul fix del 2026-08-17.
+
+Verificato: `compileall` pulito, `test_npc_dossier.py` 27/27, `test_npc_sync_multiplayer.py`
+18/18 (nuovi), più l'intera superficie di test multiplayer già esistente confermata verde
+per escludere regressioni sul sistema di sync (`test_note_sharing.py` 26/26,
+`test_replica_note_fk_lock.py` 22/22, `test_lan_host_client.py` 113/113,
+`test_ingresso_lan_sincronizzazione.py` 31/31, `test_character_instance_sync.py` 20/20,
+`test_combat_tracker_condiviso.py` 47/47, `test_home_sync_rimozione_mondo.py` 14/14,
+`test_esportazione_mondo.py` 86/86, `test_master_world_scoping.py` 96/96,
+`test_mondo_senza_rete.py` 215/215, `test_npc_race_autofill.py` 33/33). **Nessun commit
+fatto.** **Resta da confermare dal vivo su due dispositivi fisici** — stesso limite di
+sempre, non simulabile in modo affidabile in questo sandbox (il test end-to-end usa un
+vero `WorldHostServer` in un thread separato, ma sullo stesso processo/DB).
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

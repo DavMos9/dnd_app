@@ -40,6 +40,7 @@ from core import world_sync
 from core.world_backend import LocalBackend, RemoteBackend
 from ui import design
 from ui.components.background_sync import BackgroundSyncLoop
+from ui.components.npc_dossier import show_npc_dossier_dialog
 from ui.device_identity import resolve_device_id
 from ui.widgets import ScrollMemoryColumn, wrap_dialog_actions
 
@@ -1013,6 +1014,43 @@ class DiaryView(ft.Column):
                 weight=ft.FontWeight.BOLD, color=design.T().text,
                 text_align=ft.TextAlign.CENTER, italic=True,
             ),
+        ]
+
+        # PNG collegato (2026-08-20) — bug report Davide: "quando quell'npc
+        # viene condiviso in una nota... il giocatore può premere sul nome
+        # del personaggio e vedere l'immagine". `linked_npc_id` esiste solo
+        # su `MasterCampaignNote` (una nota propria del giocatore non è mai
+        # collegata a un NPC) — `note` qui è tipizzato `CampaignNote` ma per
+        # le note condivise (`is_shared`) è in realtà un `MasterCampaignNote`
+        # non convertito (`_merge_shared_notes()` li mescola direttamente
+        # nella stessa lista), da qui il `getattr` difensivo.
+        linked_npc_id = getattr(note, "linked_npc_id", "") if is_shared else ""
+        linked_npc = master_repo.get_npc_by_id(linked_npc_id) if linked_npc_id else None
+        if linked_npc is not None:
+            page_content_items.append(ft.Container(height=8))
+            page_content_items.append(
+                ft.Row(
+                    [
+                        ft.TextButton(
+                            content=ft.Row(
+                                [
+                                    ft.Icon(ft.Icons.BADGE_OUTLINED, size=15,
+                                             color=design.T().primary_icon),
+                                    ft.Text(f"Collegato a: {linked_npc.name}", size=12,
+                                             weight=ft.FontWeight.BOLD, color=design.T().primary),
+                                ],
+                                spacing=4, tight=True,
+                            ),
+                            on_click=lambda e, n=linked_npc: (
+                                show_npc_dossier_dialog(self._page, n) if self._page else None
+                            ),
+                        ),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                )
+            )
+
+        page_content_items += [
             ft.Container(height=14),
             ornament,
             ft.Container(height=18),

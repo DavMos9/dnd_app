@@ -586,6 +586,16 @@ class MasterNpc:
     # e vederla persistere.
     race: str = ""
 
+    # Ritratto caricato dal Master (2026-08-20) — base64, stesso formato di
+    # `Character.image_data`/`GameMap.image_data` (normalizzato a JPEG via
+    # PIL prima del salvataggio). "" = nessuna foto, la UI ripiega sulle
+    # iniziali. Consultabile dal giocatore nel dossier PNG quando l'NPC è
+    # collegato a una nota di campagna condivisa (`MasterCampaignNote.
+    # linked_npc_id`) — bug report Davide: "dare la possibilità di inserire
+    # l'immagine dell'npc al master nella rubrica... il giocatore può
+    # premere sul nome del personaggio e vedere l'immagine".
+    image_data: str = ""
+
     # Campi stat block, stessa forma di CreatureEntry — tutti opzionali
     creature_type: str = ""
     size: str = ""
