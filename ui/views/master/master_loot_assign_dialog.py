@@ -45,6 +45,7 @@ parziale silenziosa.
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 from typing import Any, Callable
@@ -114,6 +115,7 @@ _COIN_LABELS = {"copper": "mr", "silver": "ma", "electrum": "me", "gold": "mo", 
 _EMPTY_MECHANICS: dict[str, Any] = {
     "weapon_damage_dice": "", "weapon_damage_type": "", "weapon_category": "",
     "weapon_properties": "", "weapon_attack_bonus": 0, "weapon_damage_bonus": 0,
+    "weapon_magic_damages": "[]",
     "armor_ca_value": 0, "armor_type": "", "armor_effects": "",
 }
 
@@ -176,12 +178,87 @@ def build_weapon_mechanics_fields(prefill: dict[str, Any] | None = None) -> tupl
                                  value=str(prefill.get("weapon_damage_bonus", 0) or 0),
                                  keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
 
+    # --- Danni magici aggiuntivi tipizzati (repeatable) — bug report Davide
+    # (2026-08-20): "nella sezione giocatore puoi aggiungere più danni, di
+    # vari tipi, esempio: ghiaccio 1d8 + fuoco 1d6 oltre a quelli base
+    # dell'arma", qui c'era solo un dado/tipo singolo. Stesso identico
+    # formato JSON di `inventario_tab.py::_open_weapon_dialog`
+    # (`weapons.magic_damages`/`{"dice","type","note"}`), così un'arma del
+    # Bottino/Oggetti Magici assegnata arriva già completa sulla scheda.
+    try:
+        existing_magic = json.loads(prefill.get("weapon_magic_damages", "") or "[]")
+    except (json.JSONDecodeError, TypeError):
+        existing_magic = []
+    magic_rows_col = ft.Column(spacing=6)
+
+    def _make_magic_row(dice_v: str = "", type_v: str = "Fuoco", note_v: str = "") -> ft.Row:
+        row_dice = ft.TextField(label="Dadi (es. 1d6)", dense=True, value=dice_v, width=110,
+                                 **design.field_style())
+        row_type = ft.Dropdown(
+            label="Tipo", dense=True, value=type_v, width=140,
+            options=[ft.DropdownOption(key=t, text=t) for t in WEAPON_DAMAGE_TYPES],
+            **design.field_style(),
+        )
+        row_note = ft.TextField(label="Note", dense=True, value=note_v, expand=True,
+                                 **design.field_style())
+        row_ref: list[ft.Row] = []
+
+        def _remove(ev: Any) -> None:
+            if row_ref and row_ref[0] in magic_rows_col.controls:
+                magic_rows_col.controls.remove(row_ref[0])
+                try:
+                    magic_rows_col.update()
+                except RuntimeError:
+                    pass
+
+        r = ft.Row(
+            [row_dice, row_type, row_note,
+             ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE, icon_color=design.T().danger_icon,
+                            icon_size=16, tooltip="Rimuovi", on_click=_remove,
+                            padding=ft.Padding.all(0))],
+            spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        row_ref.append(r)
+        return r
+
+    for md in existing_magic:
+        magic_rows_col.controls.append(
+            _make_magic_row(md.get("dice", ""), md.get("type", "Fuoco"), md.get("note", ""))
+        )
+
+    def _add_magic_row(ev: Any) -> None:
+        magic_rows_col.controls.append(_make_magic_row())
+        try:
+            magic_rows_col.update()
+        except RuntimeError:
+            pass
+
+    magic_section = ft.Column(
+        [
+            ft.Row(
+                [design.muted("Danni magici aggiuntivi (oltre al dado base sopra)"),
+                 ft.TextButton("+ Aggiungi danno", on_click=_add_magic_row,
+                               style=ft.ButtonStyle(color=design.T().primary))],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            magic_rows_col,
+        ],
+        spacing=4,
+    )
+
     def _read() -> dict[str, Any]:
         def _int(tf: ft.TextField) -> int:
             try:
                 return int((tf.value or "0").strip())
             except ValueError:
                 return 0
+        magic_dmgs = []
+        for row in magic_rows_col.controls:
+            dice_v = row.controls[0].value or ""
+            type_v = row.controls[1].value or "Fuoco"
+            note_v = row.controls[2].value or ""
+            if dice_v.strip():
+                magic_dmgs.append({"dice": dice_v.strip(), "type": type_v, "note": note_v.strip()})
         return {
             "weapon_damage_dice": (dice_tf.value or "").strip(),
             "weapon_damage_type": dtype_dd.value or "",
@@ -189,12 +266,14 @@ def build_weapon_mechanics_fields(prefill: dict[str, Any] | None = None) -> tupl
             "weapon_properties": (props_tf.value or "").strip(),
             "weapon_attack_bonus": _int(atk_bonus_tf),
             "weapon_damage_bonus": _int(dmg_bonus_tf),
+            "weapon_magic_damages": json.dumps(magic_dmgs, ensure_ascii=False),
         }
 
     column = ft.Column(
         [ft.Row([dice_tf, dtype_dd], spacing=10, wrap=True),
          category_dd, props_tf,
-         ft.Row([atk_bonus_tf, dmg_bonus_tf], spacing=10, wrap=True)],
+         ft.Row([atk_bonus_tf, dmg_bonus_tf], spacing=10, wrap=True),
+         magic_section],
         spacing=10,
     )
     return column, _read
@@ -321,6 +400,7 @@ def item_from_stash_entry(entry: LootStashEntry) -> dict[str, Any]:
             "weapon_properties": entry.weapon_properties,
             "weapon_attack_bonus": entry.weapon_attack_bonus,
             "weapon_damage_bonus": entry.weapon_damage_bonus,
+            "weapon_magic_damages": entry.weapon_magic_damages,
             "armor_ca_value": entry.armor_ca_value,
             "armor_type": entry.armor_type,
             "armor_effects": entry.armor_effects,
@@ -397,8 +477,10 @@ def _create_recipient_item(character_id: str, it: dict[str, Any], quantity: int)
                 properties=it.get("weapon_properties", ""),
                 weapon_category=it.get("weapon_category", ""),
                 magic_description=it.get("description", ""),
+                magic_damages=it.get("weapon_magic_damages", "[]") or "[]",
                 is_magical=bool(it.get("requires_attunement")) or bool(it.get("weapon_attack_bonus")
-                                                                        or it.get("weapon_damage_bonus")),
+                                                                        or it.get("weapon_damage_bonus")
+                                                                        or it.get("weapon_magic_damages", "[]") not in ("", "[]")),
             )
     elif entry_kind == "armor":
         character_repo.create_inventory_item(
@@ -438,6 +520,7 @@ def _recipient_item_payload(it: dict[str, Any], target_character_id: str, quanti
         "weapon_properties": it.get("weapon_properties", ""),
         "weapon_attack_bonus": it.get("weapon_attack_bonus", 0),
         "weapon_damage_bonus": it.get("weapon_damage_bonus", 0),
+        "weapon_magic_damages": it.get("weapon_magic_damages", "[]"),
         "armor_ca_value": it.get("armor_ca_value", 0),
         "armor_type": it.get("armor_type", ""),
     }

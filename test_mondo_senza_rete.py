@@ -959,6 +959,107 @@ def test_custom_magic_item_weapon_armor_detection() -> None:
           _custom_mechanics_kind("Oggetto meraviglioso") == "")
     check("categoria vuota -> nessuna casella meccanica", _custom_mechanics_kind("") == "")
 
+    print("[12b] BUG FIX (2026-08-20, terza revisione): _resolve_entry_kind() — "
+          "un'arma PESCATA DAL COMPENDIO (nessun 'entry_kind' esplicito nel dict, "
+          "solo 'category', a differenza dell'oggetto magico 'Personalizzato') "
+          "va comunque riconosciuta come arma, non come oggetto magico generico")
+    from ui.views.master.master_magic_item_generator_dialog import _resolve_entry_kind
+    from ui.views.master.master_loot_assign_dialog import _create_recipient_item, simple_item
+
+    compendio_weapon = {"name": "Ammazzadraghi", "category": "Arma (qualsiasi spada)",
+                         "description": "Bonus +1 ai tiri per colpire e ai danni."}
+    check("voce del Compendio senza entry_kind esplicito -> 'weapon'",
+          _resolve_entry_kind(compendio_weapon) == "weapon")
+    compendio_armor = {"name": "Corazza di Mitril", "category": "Armatura", "description": ""}
+    check("voce del Compendio senza entry_kind esplicito -> 'armor'",
+          _resolve_entry_kind(compendio_armor) == "armor")
+    compendio_wondrous = {"name": "Ampolla di Ferro", "category": "Oggetto meraviglioso",
+                           "description": ""}
+    check("un oggetto meraviglioso resta 'magic_item' (nessuna casella meccanica da inventare)",
+          _resolve_entry_kind(compendio_wondrous) == "magic_item")
+    custom_explicit = {"name": "Spada su misura", "category": "Arma (qualsiasi spada)",
+                        "entry_kind": "weapon"}
+    check("entry_kind esplicito (Personalizzato) resta invariato",
+          _resolve_entry_kind(custom_explicit) == "weapon")
+
+    local_bug5 = Character(name="Falkar", class_name="Guerriero", race="Umano", level=4)
+    character_repo.create(local_bug5)
+    char_id = local_bug5.id
+    _create_recipient_item(
+        char_id,
+        simple_item(_resolve_entry_kind(compendio_weapon), compendio_weapon["name"],
+                    description=compendio_weapon["description"]),
+        1,
+    )
+    check("BUG FIX: l'arma pescata dal Compendio finisce in weapons, non in inventory_items",
+          any(w.name == "Ammazzadraghi"
+              for w in character_repo.get_weapons(char_id, equipped_only=False)))
+    check("...e la descrizione dell'oggetto magico non è andata persa (magic_description)",
+          any(w.magic_description == compendio_weapon["description"]
+              for w in character_repo.get_weapons(char_id, equipped_only=False)))
+    check("nessuna riga generica in inventory_items per la stessa arma",
+          not any(i.name == "Ammazzadraghi" for i in character_repo.get_inventory(char_id)))
+
+
+def test_worlds_view_archived_characters_section() -> None:
+    """
+    Gap segnalato da Davide: "quando un giocatore lascia un mondo c'è
+    scritto che il personaggio viene archiviato, l'archiviazione è
+    disponibile al master? Dove si può consultare?" — prima nessuna vista
+    Master mostrava un personaggio archiviato (`get_master_visible_
+    characters()` lo esclude sempre). Ora `WorldsView._archived_characters_
+    section()` costruisce una card "Personaggi Archiviati" (sola lettura,
+    nessuna scheda editabile) se e solo se il mondo ha almeno un'istanza
+    con `world_instance_archived=1`, e il pulsante "Vedi dettagli" apre un
+    riepilogo (`_open_archived_character_dialog`).
+    """
+    print("\n[13] WorldsView — card «Personaggi Archiviati» (gap Davide)")
+    from core import character_instances as ci
+    from ui.views.world.world_view import WorldsView
+
+    _patch_worlds_view_page_property()
+
+    world = world_repo.create_world("Mondo Archivio", "dev-master-arch", "Master")
+    local = Character(name="Ombrasera", class_name="Ranger", subclass="Cacciatore",
+                       race="Elfo", subrace="Silvano", level=6, background="Forestiero")
+    character_repo.create(local)
+    result = ci.create_or_resume_instance(world.id, local.id, "dev-player-arch", mode="as_is")
+    assert result.success, result.error
+    instance = character_repo.get_by_id(result.character_id)
+    assert instance is not None
+    world_repo.join_world_by_code(world.join_code, "dev-player-arch", "Giocatore")
+
+    wv = WorldsView(on_back_to_home=lambda: None)
+
+    check("nessuna istanza archiviata -> nessuna card",
+          wv._archived_characters_section(world) is None)
+
+    ok = character_repo.archive_world_instance(world.id, instance.id)
+    check("archive_world_instance riesce", ok)
+    archived_character = character_repo.get_by_id(instance.id)
+    check("l'istanza risulta archiviata", archived_character is not None
+          and archived_character.world_instance_archived)
+    check("get_master_visible_characters continua ad escluderla (invariato)",
+          not any(c.id == instance.id
+                  for c in character_repo.get_master_visible_characters(world.id)))
+
+    archived_ids = [c.id for c in character_repo.get_archived_world_instances(world.id)]
+    check("FIX: get_archived_world_instances() la trova", instance.id in archived_ids)
+
+    section = wv._archived_characters_section(world)
+    check("ora la card esiste", section is not None)
+    texts = _texts(section)
+    check("la card mostra il nome del personaggio archiviato", "Ombrasera" in texts)
+    check("...e classe/livello/razza", any("Ranger" in t and "Liv. 6" in t for t in texts))
+
+    wv._test_fake_page = _FakePageDialogs()
+    wv._open_archived_character_dialog(archived_character)
+    check("«Vedi dettagli» apre un dialog", len(wv._test_fake_page.dialogs) == 1)
+    dlg = wv._test_fake_page.dialogs[-1]
+    dlg_texts = _texts(dlg.content) + _texts(dlg.title)
+    check("il dialog di dettaglio mostra il nome", "Ombrasera" in dlg_texts)
+    check("...e il background", "Forestiero" in dlg_texts)
+
 
 def test_magic_items_view_world_scoped_loot() -> None:
     """
@@ -1042,6 +1143,7 @@ def main() -> int:
     test_worlds_view_remote_actions()
     test_worlds_view_shared_loot()
     test_worlds_view_claim_loot()
+    test_worlds_view_archived_characters_section()
     test_magic_items_view_world_scoped_loot()
     test_custom_magic_item_weapon_armor_detection()
 

@@ -474,11 +474,18 @@ def test_loot_weapon_armor_mechanics() -> None:
     backend = LocalBackend()
 
     # -- Round trip nel repository -------------------------------------
+    import json as _json
+
+    magic_dmgs_json = _json.dumps(
+        [{"dice": "1d8", "type": "Freddo", "note": ""}, {"dice": "1d6", "type": "Fuoco", "note": ""}],
+        ensure_ascii=False,
+    )
     weapon_entry = loot_repo.create_entry(
         "party", "weapon", name="Spada Fiammeggiante", world_id=world.id,
         description="Una spada avvolta dalle fiamme.",
         weapon_damage_dice="1d8", weapon_damage_type="Fuoco", weapon_category="guerra",
         weapon_properties="Accurata, Leggera", weapon_attack_bonus=1, weapon_damage_bonus=1,
+        weapon_magic_damages=magic_dmgs_json,
     )
     assert weapon_entry is not None
     reloaded = loot_repo.get_entry(weapon_entry.id)
@@ -486,6 +493,8 @@ def test_loot_weapon_armor_mechanics() -> None:
           reloaded is not None and reloaded.weapon_damage_dice == "1d8"
           and reloaded.weapon_damage_type == "Fuoco" and reloaded.weapon_category == "guerra"
           and reloaded.weapon_attack_bonus == 1 and reloaded.weapon_damage_bonus == 1)
+    check("BUG FIX (2026-08-20): i danni magici multipli tipizzati sopravvivono al round trip",
+          reloaded is not None and reloaded.weapon_magic_damages == magic_dmgs_json)
 
     armor_entry = loot_repo.create_entry(
         "party", "armor", name="Corazza di Mitril", world_id=world.id,
@@ -515,6 +524,9 @@ def test_loot_weapon_armor_mechanics() -> None:
               w.name == "Spada Fiammeggiante" and w.damage_dice == "1d8"
               and w.damage_type == "Fuoco" and w.weapon_category == "guerra"
               and w.attack_bonus == 1 and w.damage_bonus == 1)
+        check("BUG FIX: i danni magici multipli tipizzati (ghiaccio 1d8 + fuoco 1d6) "
+              "sono arrivati sull'arma presa dal deposito",
+              _json.loads(w.magic_damages or "[]") == _json.loads(magic_dmgs_json))
     check("l'arma presa NON è finita anche in inventory_items",
           not any(i.name == "Spada Fiammeggiante" for i in character_repo.get_inventory(instance.id)))
 
@@ -531,13 +543,17 @@ def test_loot_weapon_armor_mechanics() -> None:
           and armor_item.effects == "Nessun malus a Furtività")
 
     # -- Assegnazione dal Master (CMD_LOOT_ASSIGN) ----------------------
+    assign_magic_dmgs = _json.dumps([{"dice": "1d6", "type": "Tuono", "note": "al colpo"}],
+                                     ensure_ascii=False)
     weapon_item = simple_item(
         "weapon", "Ascia da Battaglia", description="Un'ascia pesante.",
         mechanics={"weapon_damage_dice": "1d10", "weapon_damage_type": "Taglio",
                    "weapon_category": "guerra", "weapon_attack_bonus": 0, "weapon_damage_bonus": 0,
-                   "weapon_properties": "A due mani"},
+                   "weapon_properties": "A due mani", "weapon_magic_damages": assign_magic_dmgs},
     )
     payload = _recipient_item_payload(weapon_item, instance.id, 1)
+    check("il payload di rete porta con sé i danni magici multipli",
+          payload.get("weapon_magic_damages") == assign_magic_dmgs)
     before_weapons_2 = {w.id for w in character_repo.get_weapons(instance.id, equipped_only=False)}
     result_assign = backend.send_command(
         world.id, "dev-owner-9", perm.CMD_LOOT_ASSIGN,
@@ -549,6 +565,179 @@ def test_loot_weapon_armor_mechanics() -> None:
     check("è comparsa una nuova arma assegnata dal Master, con i campi giusti",
           len(new_weapons_2) == 1 and new_weapons_2[0].name == "Ascia da Battaglia"
           and new_weapons_2[0].damage_dice == "1d10" and new_weapons_2[0].weapon_category == "guerra")
+    check("BUG FIX: i danni magici multipli sono arrivati sull'arma assegnata dal Master",
+          bool(new_weapons_2) and _json.loads(new_weapons_2[0].magic_damages or "[]")
+          == _json.loads(assign_magic_dmgs))
+
+    # -- build_weapon_mechanics_fields(): righe ripetibili lato UI --------
+    from ui.views.master.master_loot_assign_dialog import build_weapon_mechanics_fields
+
+    _, read_empty = build_weapon_mechanics_fields()
+    check("form vuoto -> nessun danno magico", read_empty()["weapon_magic_damages"] == "[]")
+
+    control, read_fn = build_weapon_mechanics_fields()
+    magic_section = control.controls[-1]
+    add_btn = magic_section.controls[0].controls[1]
+    magic_rows_col = magic_section.controls[1]
+    add_btn.on_click(None)
+    add_btn.on_click(None)
+    check("«+ Aggiungi danno» aggiunge righe", len(magic_rows_col.controls) == 2)
+    magic_rows_col.controls[0].controls[0].value = "1d8"
+    magic_rows_col.controls[0].controls[1].value = "Freddo"
+    magic_rows_col.controls[1].controls[0].value = "1d6"
+    magic_rows_col.controls[1].controls[1].value = "Fuoco"
+    result = read_fn()["weapon_magic_damages"]
+    check("_read() raccoglie entrambe le righe compilate",
+          _json.loads(result) == [{"dice": "1d8", "type": "Freddo", "note": ""},
+                                   {"dice": "1d6", "type": "Fuoco", "note": ""}])
+
+    remove_btn = magic_rows_col.controls[0].controls[3]
+    remove_btn.on_click(None)
+    check("il pulsante rimuovi toglie la riga", len(magic_rows_col.controls) == 1)
+
+    _, read_prefill = build_weapon_mechanics_fields({"weapon_magic_damages": magic_dmgs_json})
+    check("il prefill ricostruisce le righe esistenti in modifica",
+          _json.loads(read_prefill()["weapon_magic_damages"]) == _json.loads(magic_dmgs_json))
+
+
+class _FakePage:
+    """Sola `show_dialog`/`pop_dialog`/`update`/`run_task` — sufficiente
+    per costruire un dialog di `MasterLootView` senza montarlo davvero."""
+
+    def __init__(self) -> None:
+        self.dialogs: list = []
+
+    def show_dialog(self, dlg) -> None:
+        self.dialogs.append(dlg)
+
+    def pop_dialog(self, *_a) -> None:
+        if self.dialogs:
+            self.dialogs.pop()
+
+    def update(self, *_a, **_k) -> None:
+        pass
+
+    def run_task(self, *_a, **_k) -> None:
+        pass
+
+
+def test_loot_entry_kind_editable() -> None:
+    """
+    Bug report Davide: "quando un artefatto viene salvato in archivio dopo
+    che è stato generato... quando lo modifico deve avere la possibilità di
+    essere modificato in toto, e cioè può essere selezionato il tipo, magari
+    il master vuole assegnare quell'effetto ad un abito ad un'arma o ad un
+    anello... e così via". Prima `loot_repo.update_entry()` non toccava
+    affatto la colonna `entry_kind` e "Modifica Voce" non aveva alcun
+    dropdown tipo (solo "Aggiungi Voce" lo aveva) — una volta salvata, una
+    voce restava per sempre del tipo scelto alla creazione.
+    """
+    print("\n[10] Bottino — tipo di voce modificabile dopo il salvataggio (2026-08-20)")
+    from ui.views.master.master_loot_view import MasterLootView
+
+    # -- Livello repository: entry_kind ora è un campo scrivibile --------
+    artifact_entry = loot_repo.create_entry(
+        "master", "artifact", name="Lama del Vuoto",
+        description="Un artefatto DMG che risucchia l'anima.",
+    )
+    assert artifact_entry is not None
+    ok = loot_repo.update_entry(
+        artifact_entry.id, name="Lama del Vuoto", description=artifact_entry.description,
+        quantity=1, source_note="", entry_kind="weapon",
+        weapon_damage_dice="2d6", weapon_damage_type="Necrotico", weapon_category="guerra",
+    )
+    check("update_entry con un nuovo entry_kind riesce", ok)
+    reloaded_artifact = loot_repo.get_entry(artifact_entry.id)
+    check("BUG FIX: il tipo è cambiato da 'artifact' a 'weapon'",
+          reloaded_artifact is not None and reloaded_artifact.entry_kind == "weapon")
+    check("...con i campi meccanici della nuova arma applicati",
+          reloaded_artifact is not None and reloaded_artifact.weapon_damage_dice == "2d6"
+          and reloaded_artifact.weapon_damage_type == "Necrotico")
+
+    ok2 = loot_repo.update_entry(
+        artifact_entry.id, name="Lama del Vuoto (rinominata)", description="",
+        quantity=1, source_note="",  # entry_kind non passato -> default ""
+    )
+    check("update_entry senza entry_kind riesce", ok2)
+    reloaded_again = loot_repo.get_entry(artifact_entry.id)
+    check("entry_kind non passato ('') lascia il tipo invariato ('weapon')",
+          reloaded_again is not None and reloaded_again.entry_kind == "weapon")
+
+    # -- Livello UI: dropdown «Tipo di voce» in «Modifica Voce» ----------
+    ring_entry = loot_repo.create_entry(
+        "master", "artifact", name="Anello del Vuoto",
+        description="Un artefatto minore, ancora senza meccaniche assegnate.",
+    )
+    assert ring_entry is not None
+    view = MasterLootView(world_id="", device_id="dev-master-10")
+    view._page = _FakePage()  # type: ignore[attr-defined]
+    view._active_kind = "master"
+    view._open_edit_dialog(ring_entry)
+    check("«Modifica Voce» apre un dialog", bool(view._page.dialogs))
+    dlg = view._page.dialogs[-1]
+
+    def _find_kind_dd(control):
+        if getattr(control, "label", None) == "Tipo di voce":
+            return control
+        for attr in ("controls",):
+            kids = getattr(control, attr, None)
+            if isinstance(kids, (list, tuple)):
+                for k in kids:
+                    found = _find_kind_dd(k)
+                    if found is not None:
+                        return found
+        content = getattr(control, "content", None)
+        if content is not None and not isinstance(content, str):
+            return _find_kind_dd(content)
+        return None
+
+    kind_dd = _find_kind_dd(dlg.content)
+    check("il dialog «Modifica Voce» ora ha un dropdown «Tipo di voce»", kind_dd is not None)
+    check("il valore di partenza è il tipo corrente della voce ('artifact')",
+          kind_dd is not None and kind_dd.value == "artifact")
+    check("«Monete» non è tra le opzioni (cambio di forma dei dati, non di tipo)",
+          kind_dd is not None and not any(o.key == "coins" for o in kind_dd.options))
+
+    def _find_field(control, label_substr: str):
+        if label_substr in str(getattr(control, "label", "")):
+            return control
+        for attr in ("controls",):
+            kids = getattr(control, attr, None)
+            if isinstance(kids, (list, tuple)):
+                for k in kids:
+                    found = _find_field(k, label_substr)
+                    if found is not None:
+                        return found
+        content = getattr(control, "content", None)
+        if content is not None and not isinstance(content, str):
+            return _find_field(content, label_substr)
+        return None
+
+    check("nessuna sezione meccanica per 'artifact' inizialmente",
+          _find_field(dlg.content, "Dado danno") is None)
+
+    # Cambia il tipo in "weapon": deve comparire la sezione meccanica.
+    kind_dd.value = "weapon"
+    kind_dd.on_select(None)
+    check("selezionare 'Arma' fa comparire le caselle meccaniche",
+          _find_field(dlg.content, "Dado danno") is not None)
+
+    # Compila il campo "Dado danno" appena comparso, poi salva.
+    dice_field = _find_field(dlg.content, "Dado danno")
+    if dice_field is not None:
+        dice_field.value = "1d10"
+
+    save_btn = dlg.actions[0].controls[1]
+    check("il secondo pulsante è «Salva»",
+          getattr(save_btn, "content", None) == "Salva")
+    save_btn.on_click(None)
+
+    reloaded_ring = loot_repo.get_entry(ring_entry.id)
+    check("BUG FIX: la voce d'archivio è passata da 'artifact' ad 'weapon' via UI",
+          reloaded_ring is not None and reloaded_ring.entry_kind == "weapon")
+    if dice_field is not None:
+        check("...con il dado danno compilato nel form applicato",
+              reloaded_ring is not None and reloaded_ring.weapon_damage_dice == "1d10")
 
 
 def main() -> int:
@@ -567,6 +756,7 @@ def main() -> int:
     test_loot_stash_move_handler_preserves_world_id()
     test_loot_stash_claim()
     test_loot_weapon_armor_mechanics()
+    test_loot_entry_kind_editable()
 
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

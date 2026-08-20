@@ -11392,6 +11392,106 @@ residuo su nessuna delle 24 righe. `test_pdf_sheet_export.py` ancora 17/17,
 
 ---
 
+## Sei richieste dal giro di test di Davide: duplicato personaggio all'uscita dal mondo, armi dal Compendio in inventario, archivio non consultabile dal master, descrizione oggetto illeggibile, danni multipli mancanti nel Bottino, tipo voce non modificabile (2026-08-20)
+
+Lista di 10 bug/migliorie riportata da Davide dopo un giro di test dell'app. Di questi,
+4 non erano bug reali (zoom mappa: già implementato, `InteractiveViewer` 1x-5x; "Prendi"
+dal deposito comune: già rimaterializza correttamente sui dispositivi terzi da un fix
+precedente; malattie/veleni: 3+14 è il totale reale trascritto dalla DMG, non una lista
+tagliata; sezione Ambiente: richiesta di design aperta, discussa con Davide ma non
+implementata in questo giro — resta da riprendere). I 6 restanti erano reali, in ordine
+di rischio crescente:
+
+**1. Duplicato del personaggio all'uscita dal mondo** (bug report: "mi ritrovo 2 copie
+del personaggio in locale"). Causa: `_do_leave()` chiamava `character_repo.
+detach_world_instances()` in blocco, che slega SEMPRE l'istanza dal mondo trasformandola
+in un secondo personaggio locale — senza controllare che l'originale (`origin_character_
+id`, per un'istanza "porta com'è"/`core/character_instances.py::_copy_character`, una
+vera COPIA) fosse ancora vivo. **Decisione esplicita di Davide** (non una scelta
+a senso unico presa in autonomia): all'uscita, se l'origine locale esiste ancora, il
+giocatore sceglie istanza per istanza — dialog nuovo, `WorldsView._show_leave_merge_
+dialog()` — se "Fondere con il locale" (riusa `character_instances.apply_refresh()`,
+la stessa funzione dietro "Aggiorna il mio foglio", poi cancella la copia del mondo) o
+"Eliminare la copia del mondo" (cancella la copia, l'originale resta intatto); messaggio
+esplicito nel dialog che il personaggio locale non viene MAI toccato, solo la copia del
+mondo che si sta lasciando. Se l'origine non esiste più (cancellata nel frattempo):
+fallback storico invariato, nuova `character_repo.detach_world_instance()` (singolare).
+Nuova `character_repo.get_owned_world_instances(world_id, owner_device_id)`. Nuovo
+`test_uscita_mondo_fusione.py` (20/20).
+
+**2. Armi dal Compendio Oggetti Magici finiscono sempre in inventario** (bug report:
+"quando assegno un'arma dagli oggetti magici finisce sempre nell'inventario"). Causa:
+le 264 voci di `magic_items.json` non hanno mai un campo `entry_kind` (solo `category`,
+testo libero tipo "Arma (qualsiasi spada)") — `master_magic_item_generator_dialog.py`
+usava sempre il default `"magic_item"`. Il fix del 2026-08-20 precedente per `weapon`/
+`armor` copriva solo le voci create a mano o l'oggetto magico "Personalizzato", non la
+pesca dal Compendio. Nuova `_resolve_entry_kind(item)`, che riusa l'euristica già
+esistente `_custom_mechanics_kind()` (categoria → base via `magic_item_category_base()`)
+anche quando `entry_kind` non è esplicito nel dict. La descrizione non andava persa in
+scrittura (già finiva in `weapons.magic_description`), solo l'arma finiva nella sezione
+sbagliata. `test_mondo_senza_rete.py` [12b] (+7 controlli).
+
+**3. Personaggio archiviato non consultabile dal master** (bug report: "l'archiviazione
+è disponibile al master? Dove si può consultare?"). Gap reale confermato: `get_master_
+visible_characters()` esclude sempre `world_instance_archived=1`, nessuna vista Master
+lo mostrava. Nuova card "Personaggi Archiviati" in `WorldsView._render_detail` (stesso
+gate di permesso di "Interviene a distanza", `CMD_XP_GRANT`), sola lettura — niente
+`SheetView` editabile per un personaggio altrui, mai stata un'opzione. Pulsante "Vedi
+dettagli" apre un riepilogo (classe/razza/livello/background/PF/conteggio armi-oggetti-
+incantesimi), stesso principio dello stat block dialog di mostri/NPC in Sezione Incontri.
+Nuova `character_repo.get_archived_world_instances(world_id)`. `test_mondo_senza_rete.py`
+[13] (+13 controlli).
+
+**4. Descrizione oggetto magico illeggibile in inventario** (bug report: "perde la sua
+descrizione diventando sostanzialmente inutile... bisogna aggiungere la possibilità di
+cliccare sull'oggetto e leggerne la descrizione... come nella sezione incontri del
+master... con anche la possibilità di modificarla"). Non era una perdita di dati (`create_
+inventory_item(description=...)` la salva sempre), ma `_item_row()` in `inventario_tab.py`
+non la mostrava mai — bisognava aprire il form "Modifica" completo solo per leggerla
+(armi/armature invece già la mostrano inline). Nuovo pulsante 📖 "Descrizione" per riga →
+`InventarioTab._open_item_description_dialog()`, dialog dedicato con `TextField`
+multilinea precompilato, editabile, "Salva" scrive con `update_inventory_item()` e
+instrada al mondo (`_push_item_to_world()`) se il personaggio è un'istanza. Vale per
+QUALSIASI oggetto (assegnato, aggiunto a mano, o già presente), nessuna distinzione di
+provenienza. `test_fase_4.py` [9] (+6 controlli).
+
+**5. Danni magici multipli tipizzati mancanti nel Bottino/Oggetti Magici** (bug report:
+"nella sezione giocatore puoi aggiungere più danni, di vari tipi, esempio: ghiaccio 1d8
++ fuoco 1d6 oltre a quelli base dell'arma" — il form del Bottino aveva solo un dado/tipo
+singolo). Nuova colonna `loot_stash_entries.weapon_magic_damages` (TEXT, JSON, stesso
+formato `[{"dice","type","note"}]` di `weapons.magic_damages`, migrazione self-healing
+in `data/database.py`), filata attraverso `LootStashEntry`, `loot_repo.create_entry/
+update_entry/replica_upsert_entry`, `master_loot_assign_dialog.py` (`_EMPTY_MECHANICS`,
+`build_weapon_mechanics_fields()` — nuove righe ripetibili "+ Aggiungi danno" identiche
+a `inventario_tab.py::_open_weapon_dialog`, `item_from_stash_entry`, `_create_recipient_
+item`, `_recipient_item_payload`) e `core/world_backend.py` (`_handle_loot_assign`,
+`_handle_loot_stash_add/_update/_claim`, `_loot_stash_entry_payload`). `test_master_
+world_scoping.py` [9] (+9 controlli: round trip repo, presa dal deposito, assegnazione
+dal Master, righe ripetibili lato UI).
+
+**6. Tipo di un Artefatto non modificabile dopo il salvataggio** (bug report: "quando
+un artefatto viene salvato in archivio... quando lo modifico deve avere la possibilità
+di essere modificato in toto... può essere selezionato il tipo, magari il master vuole
+assegnare quell'effetto ad un abito, un'arma, un anello, una statuetta"). Causa: `loot_
+repo.update_entry()` non toccava affatto la colonna `entry_kind`, e "Modifica Voce"
+(`master_loot_view.py::_open_edit_dialog`) non aveva il dropdown tipo che invece
+"Aggiungi Voce" ha sempre avuto. Aggiunto `entry_kind: str = ""` a `update_entry()`
+(`""` = lascia invariato, via `COALESCE(NULLIF(?,''), entry_kind)` — non rompe i
+chiamanti esistenti) e `CMD_LOOT_STASH_UPDATE`; "Modifica Voce" ora ha un dropdown "Tipo
+di voce" (tutte le opzioni tranne "Monete", cambio di forma dei dati troppo diverso) con
+re-render dinamico delle caselle meccaniche weapon/armor al cambio — precompilate SOLO
+se il tipo non è cambiato rispetto all'originale. `test_master_world_scoping.py` [10]
+(+15 controlli).
+
+Verificato: `compileall` pulito, tutte le suite toccate (`test_uscita_mondo_fusione.py`
+20/20, `test_mondo_senza_rete.py` 215/215, `test_note_e_inventario_sync.py` 93/93,
+`test_character_rejoin.py` 68/68, `test_fase_4.py` 303/303, `test_master_world_scoping.py`
+96/96, `test_trasferimento_dispositivo.py` 146/146) verdi, nessuna regressione. **Nessun
+commit fatto.** **Resta aperta**: la richiesta sulla sezione Ambiente ("vorrei renderla
+più utile ma non so come") — discussa con Davide, nessuna decisione presa in questo giro.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

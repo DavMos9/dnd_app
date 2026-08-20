@@ -53,6 +53,7 @@ def _row_to_entry(row) -> LootStashEntry:
         weapon_properties=d.get("weapon_properties", ""),
         weapon_attack_bonus=d.get("weapon_attack_bonus", 0),
         weapon_damage_bonus=d.get("weapon_damage_bonus", 0),
+        weapon_magic_damages=d.get("weapon_magic_damages", "[]") or "[]",
         armor_ca_value=d.get("armor_ca_value", 0),
         armor_type=d.get("armor_type", ""),
         armor_effects=d.get("armor_effects", ""),
@@ -106,6 +107,7 @@ def create_entry(
     weapon_properties: str = "",
     weapon_attack_bonus: int = 0,
     weapon_damage_bonus: int = 0,
+    weapon_magic_damages: str = "[]",
     armor_ca_value: int = 0,
     armor_type: str = "",
     armor_effects: str = "",
@@ -132,9 +134,10 @@ def create_entry(
                 added_by_device_id,
                 weapon_damage_dice, weapon_damage_type, weapon_category,
                 weapon_properties, weapon_attack_bonus, weapon_damage_bonus,
+                weapon_magic_damages,
                 armor_ca_value, armor_type, armor_effects,
                 created_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 entry_id, _s(stash_kind) or "master", _s(world_id),
@@ -146,6 +149,7 @@ def create_entry(
                 _s(added_by_device_id),
                 _s(weapon_damage_dice), _s(weapon_damage_type), _s(weapon_category),
                 _s(weapon_properties), weapon_attack_bonus, weapon_damage_bonus,
+                _s(weapon_magic_damages) or "[]",
                 armor_ca_value, _s(armor_type), _s(armor_effects),
                 now, now,
             ),
@@ -175,9 +179,11 @@ def update_entry(
     weapon_properties: str = "",
     weapon_attack_bonus: int = 0,
     weapon_damage_bonus: int = 0,
+    weapon_magic_damages: str = "[]",
     armor_ca_value: int = 0,
     armor_type: str = "",
     armor_effects: str = "",
+    entry_kind: str = "",
 ) -> bool:
     """
     Aggiorna i campi testuali/quantità di una voce non monetaria. I
@@ -187,6 +193,16 @@ def update_entry(
     stesso principio già in uso per le monete (mai un aggiornamento
     parziale): per ogni altra voce restano ai default '' /0, coerenti con
     `create_entry()`.
+
+    `entry_kind`: "" (default) lascia il tipo invariato — bug report Davide
+    (2026-08-20): "quando un artefatto... modifico deve avere la possibilità
+    di essere modificato in toto, e cioè può essere selezionato il tipo"
+    (assegnare quell'effetto a un'arma, un anello, un abito, ecc.). Prima
+    `update_entry()` non toccava affatto la colonna `entry_kind`: una volta
+    salvata, una voce restava per sempre del tipo scelto alla creazione. Un
+    valore non vuoto sovrascrive il tipo — nessun controllo di compatibilità
+    qui: è compito del chiamante (`master_loot_view.py::_open_edit_dialog`)
+    mostrare/nascondere le caselle meccaniche coerenti col nuovo tipo.
     """
     conn = None
     try:
@@ -196,13 +212,17 @@ def update_entry(
                SET name=?, description=?, quantity=?, source_note=?,
                    weapon_damage_dice=?, weapon_damage_type=?, weapon_category=?,
                    weapon_properties=?, weapon_attack_bonus=?, weapon_damage_bonus=?,
+                   weapon_magic_damages=?,
                    armor_ca_value=?, armor_type=?, armor_effects=?,
+                   entry_kind=COALESCE(NULLIF(?, ''), entry_kind),
                    updated_at=?
                WHERE id=?""",
             (_s(name), _s(description), max(0, quantity), _s(source_note),
              _s(weapon_damage_dice), _s(weapon_damage_type), _s(weapon_category),
              _s(weapon_properties), weapon_attack_bonus, weapon_damage_bonus,
+             _s(weapon_magic_damages) or "[]",
              armor_ca_value, _s(armor_type), _s(armor_effects),
+             _s(entry_kind),
              datetime.now().isoformat(), entry_id),
         )
         conn.commit()
@@ -274,9 +294,10 @@ def replica_upsert_entry(entry: dict) -> bool:
                 added_by_device_id,
                 weapon_damage_dice, weapon_damage_type, weapon_category,
                 weapon_properties, weapon_attack_bonus, weapon_damage_bonus,
+                weapon_magic_damages,
                 armor_ca_value, armor_type, armor_effects,
                 created_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET
                 stash_kind=excluded.stash_kind, world_id=excluded.world_id,
                 entry_kind=excluded.entry_kind, name=excluded.name,
@@ -291,6 +312,7 @@ def replica_upsert_entry(entry: dict) -> bool:
                 weapon_properties=excluded.weapon_properties,
                 weapon_attack_bonus=excluded.weapon_attack_bonus,
                 weapon_damage_bonus=excluded.weapon_damage_bonus,
+                weapon_magic_damages=excluded.weapon_magic_damages,
                 armor_ca_value=excluded.armor_ca_value,
                 armor_type=excluded.armor_type,
                 armor_effects=excluded.armor_effects,
@@ -307,6 +329,7 @@ def replica_upsert_entry(entry: dict) -> bool:
                 _s(entry.get("weapon_damage_dice")), _s(entry.get("weapon_damage_type")),
                 _s(entry.get("weapon_category")), _s(entry.get("weapon_properties")),
                 int(entry.get("weapon_attack_bonus") or 0), int(entry.get("weapon_damage_bonus") or 0),
+                _s(entry.get("weapon_magic_damages")) or "[]",
                 int(entry.get("armor_ca_value") or 0), _s(entry.get("armor_type")),
                 _s(entry.get("armor_effects")),
                 _s(entry.get("created_at")) or datetime.now().isoformat(),

@@ -163,6 +163,55 @@ def get_all_instances_of_world(world_id: str) -> list[Character]:
             conn.close()
 
 
+def get_owned_world_instances(world_id: str, owner_device_id: str) -> list[Character]:
+    """Istanze non archiviate di `world_id` possedute da `owner_device_id` su
+    questo dispositivo — usata da `WorldsView._do_leave()` per decidere,
+    istanza per istanza, se fondere la progressione fatta nel mondo
+    nell'origine locale o scartarla quando il giocatore esce dal mondo."""
+    conn = None
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM characters WHERE world_id=? AND owner_device_id=? "
+            "AND world_instance_archived=0",
+            (world_id, owner_device_id),
+        ).fetchall()
+        return [_row_to_character(r) for r in rows]
+    except Exception as e:
+        logger.error(f"Errore get_owned_world_instances: {e}")
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def get_archived_world_instances(world_id: str) -> list[Character]:
+    """Istanze ARCHIVIATE di `world_id` (`world_instance_archived=1`,
+    scritto da `archive_world_instances()`/`archive_world_instance()` sopra
+    quando un giocatore esce/viene espulso) — usata dalla card "Personaggi
+    Archiviati" lato Master (`ui/views/world/world_view.py`), gap segnalato
+    da Davide: prima non c'era alcun modo di consultare un personaggio
+    archiviato, `get_master_visible_characters()` lo esclude sempre. A
+    differenza di `get_owned_world_instances()` (lato giocatore, solo le
+    proprie istanze) qui non si filtra per `owner_device_id`: il master
+    vede TUTTI i personaggi archiviati del mondo."""
+    conn = None
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM characters WHERE world_id=? AND world_instance_archived=1 "
+            "ORDER BY updated_at DESC",
+            (world_id,),
+        ).fetchall()
+        return [_row_to_character(r) for r in rows]
+    except Exception as e:
+        logger.error(f"Errore get_archived_world_instances: {e}")
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def get_master_visible_characters(world_id: str = "") -> list[Character]:
     """
     Personaggi rilevanti per il contesto correntemente selezionato nella
@@ -629,6 +678,33 @@ def detach_world_instances(world_id: str, owner_device_id: str) -> int:
     except Exception as e:
         logger.error(f"Errore detach_world_instances: {e}")
         return 0
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def detach_world_instance(character_id: str) -> bool:
+    """Come `detach_world_instances()` sopra ma per UNA sola istanza — usata
+    da `WorldsView._do_leave()` quando l'istanza non ha (più) un'origine
+    locale da cui è nata (personaggio locale nel frattempo cancellato): in
+    quel caso non c'è nulla con cui fondere né confrontarsi, l'istanza
+    diventa lei stessa il personaggio locale, stesso comportamento di prima
+    del fix del 2026-08-20 sul duplicato."""
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.execute(
+            """UPDATE characters
+               SET world_id='', origin_character_id='', owner_device_id='',
+                   world_seq=0, host_sync_pending=0, updated_at=?
+               WHERE id=?""",
+            (datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"Errore detach_world_instance: {e}")
+        return False
     finally:
         if conn is not None:
             conn.close()

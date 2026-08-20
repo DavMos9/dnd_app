@@ -996,8 +996,10 @@ def _handle_loot_assign(ctx: HandlerContext) -> CommandResult:
                     properties=str(it.get("weapon_properties", "")),
                     weapon_category=str(it.get("weapon_category", "")),
                     magic_description=str(it.get("description", "")),
+                    magic_damages=str(it.get("weapon_magic_damages", "[]") or "[]"),
                     is_magical=bool(it.get("requires_attunement"))
-                    or bool(it.get("weapon_attack_bonus") or it.get("weapon_damage_bonus")),
+                    or bool(it.get("weapon_attack_bonus") or it.get("weapon_damage_bonus"))
+                    or it.get("weapon_magic_damages", "[]") not in ("", "[]"),
                 ) or ok
             created = name if ok else None
         elif str(it.get("entry_kind", "")) == "armor":
@@ -2627,6 +2629,7 @@ def _loot_stash_entry_payload(entry) -> dict:
         "weapon_properties": entry.weapon_properties,
         "weapon_attack_bonus": entry.weapon_attack_bonus,
         "weapon_damage_bonus": entry.weapon_damage_bonus,
+        "weapon_magic_damages": entry.weapon_magic_damages,
         "armor_ca_value": entry.armor_ca_value,
         "armor_type": entry.armor_type,
         "armor_effects": entry.armor_effects,
@@ -2654,6 +2657,7 @@ def _handle_loot_stash_add(ctx: HandlerContext) -> CommandResult:
         weapon_properties=str(ctx.payload.get("weapon_properties", "")),
         weapon_attack_bonus=int(ctx.payload.get("weapon_attack_bonus", 0) or 0),
         weapon_damage_bonus=int(ctx.payload.get("weapon_damage_bonus", 0) or 0),
+        weapon_magic_damages=str(ctx.payload.get("weapon_magic_damages", "[]") or "[]"),
         armor_ca_value=int(ctx.payload.get("armor_ca_value", 0) or 0),
         armor_type=str(ctx.payload.get("armor_type", "")),
         armor_effects=str(ctx.payload.get("armor_effects", "")),
@@ -2691,9 +2695,11 @@ def _handle_loot_stash_update(ctx: HandlerContext) -> CommandResult:
         weapon_properties=str(ctx.payload.get("weapon_properties", entry.weapon_properties)),
         weapon_attack_bonus=int(ctx.payload.get("weapon_attack_bonus", entry.weapon_attack_bonus) or 0),
         weapon_damage_bonus=int(ctx.payload.get("weapon_damage_bonus", entry.weapon_damage_bonus) or 0),
+        weapon_magic_damages=str(ctx.payload.get("weapon_magic_damages", entry.weapon_magic_damages) or "[]"),
         armor_ca_value=int(ctx.payload.get("armor_ca_value", entry.armor_ca_value) or 0),
         armor_type=str(ctx.payload.get("armor_type", entry.armor_type)),
         armor_effects=str(ctx.payload.get("armor_effects", entry.armor_effects)),
+        entry_kind=str(ctx.payload.get("entry_kind", "")),
     ):
         return CommandResult(False, "Aggiornamento della voce fallito.")
     updated = loot_repo.get_entry(entry_id)
@@ -2824,8 +2830,10 @@ def _handle_loot_stash_claim(ctx: HandlerContext) -> CommandResult:
                     attack_bonus=entry.weapon_attack_bonus, damage_bonus=entry.weapon_damage_bonus,
                     properties=entry.weapon_properties, weapon_category=entry.weapon_category,
                     magic_description=entry.description,
+                    magic_damages=entry.weapon_magic_damages or "[]",
                     is_magical=heuristic_attunement
-                    or bool(entry.weapon_attack_bonus or entry.weapon_damage_bonus),
+                    or bool(entry.weapon_attack_bonus or entry.weapon_damage_bonus)
+                    or entry.weapon_magic_damages not in ("", "[]"),
                 ) and ok
             created = entry.name if ok else None
         elif entry.entry_kind == "armor":

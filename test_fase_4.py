@@ -967,6 +967,44 @@ def test_magic_items() -> None:
           not any(sec["key"] == "items" for sec in SECTIONS))
     check("la sidebar del giocatore ha 6 sezioni", len(SECTIONS) == 6)
 
+    # --- BUG FIX (2026-08-20): dialog dedicato lettura/modifica descrizione
+    # oggetto generico — bug report Davide: un oggetto magico assegnato
+    # "perde la sua descrizione diventando sostanzialmente inutile", serve
+    # un modo per leggerla/modificarla senza aprire il form "Modifica"
+    # completo (come già succede per mostri/NPC in Sezione Incontri). ---
+    magic_item = next(i for i in character_repo.get_inventory(c.id)
+                       if i.name == "Anello di Protezione")
+    tab2 = InventarioTab(character_repo.get_by_id(c.id))
+    tab2._page = FakePage()   # type: ignore[attr-defined]
+    tab2._open_item_description_dialog(magic_item)
+    check("il click apre un dialog", bool(tab2._page.dialogs))
+    dlg = tab2._page.dialogs[-1]
+    check("il titolo del dialog è il nome dell'oggetto",
+          any(magic_item.name in t for t in texts(dlg.title)))
+    desc_field = dlg.content.content
+    check("il campo mostra la descrizione esistente ('Testo ufficiale')",
+          isinstance(desc_field, ft.TextField) and desc_field.value == "Testo ufficiale")
+
+    desc_field.value = "Aggiornata dal giocatore in sessione"
+    save_btn = dlg.actions[0].controls[1]
+    check("il secondo pulsante è «Salva»", save_btn.content == "Salva" if hasattr(save_btn, "content") else False)
+    save_btn.on_click(None)
+    check("la nuova descrizione è stata salvata su DB",
+          next(i for i in character_repo.get_inventory(c.id)
+               if i.name == "Anello di Protezione").description
+          == "Aggiornata dal giocatore in sessione")
+    check("il dialog si chiude dopo il salvataggio", not tab2._page.dialogs)
+
+    # Funziona anche per un oggetto senza descrizione (aggiunto a mano dal
+    # giocatore, mai assegnato da un master) — nessuna distinzione di
+    # provenienza, stesso campo per tutti.
+    plain_item_id = character_repo.create_inventory_item(c.id, "Torcia", category="misc")
+    plain_item = next(i for i in character_repo.get_inventory(c.id) if i.id == plain_item_id)
+    tab2._open_item_description_dialog(plain_item)
+    empty_field = tab2._page.dialogs[-1].content.content
+    check("un oggetto senza descrizione mostra il campo vuoto (non un errore)",
+          empty_field.value == "")
+
 
 # ---------------------------------------------------------------------------
 # 10 — Feature 2b: le condizioni dell'Appendice A

@@ -22,6 +22,7 @@ import flet as ft
 import flet.canvas as cv
 
 from config.settings import DRACONIDE_ANCESTRIES
+from core import character_instances
 from core import world_permissions as perm
 from core import world_sync
 from core.world_backend import CommandResult, LocalBackend, RemoteBackend, WorldBackend
@@ -625,6 +626,9 @@ class WorldsView(ft.Column):
             sections.append(shared_loot_section)
         if perm.can_perform(my_role, perm.CMD_XP_GRANT):
             sections.append(self._remote_actions_section(world))
+            archived_section = self._archived_characters_section(world)
+            if archived_section is not None:
+                sections.append(archived_section)
         sections.append(self._members_section(world, my_role))
         sections.append(self._events_section(world))
 
@@ -985,8 +989,7 @@ class WorldsView(ft.Column):
             modal=True,
             title=d.dialog_title("Esci dal mondo", ft.Icons.EXIT_TO_APP, tone="danger"),
             content=ft.Text(
-                f'Uscire da "{world.name}"? I tuoi personaggi in questo mondo verranno '
-                f"archiviati (non cancellati) e il mondo sparirà dalla tua lista.",
+                f'Uscire da "{world.name}"? Il mondo sparirà dalla tua lista.',
                 color=p.text,
             ),
             actions=wrap_dialog_actions([
@@ -1002,22 +1005,128 @@ class WorldsView(ft.Column):
         self.page.show_dialog(dlg)
 
     def _do_leave(self, world: World):
-        """Esce dal mondo: invia `CMD_MEMBER_LEAVE` (rimuove il membro
-        sull'host, archivia le sue istanze — vedi
-        `core.world_backend._handle_member_leave`), poi invalida la propria
-        sessione (`RemoteBackend.leave()` — `POST /leave`, BUG FIX
-        2026-08-20: mancava del tutto, il token restava valido sull'host
-        anche a mondo abbandonato), slega dal mondo la PROPRIA copia locale
-        di ogni istanza posseduta qui (`character_repo.detach_world_instances()`
-        — BUG FIX 2026-08-20: senza questo la riga restava con `world_id`
-        puntato a un mondo che sta per sparire, e il personaggio diventava
-        invisibile ovunque in Home, vedi il suo docstring) e infine rimuove
-        la replica locale di QUESTO mondo (`world_repo.delete_world`, righe
-        403-419: un semplice DELETE locale, safe anche su una replica non
-        autoritativa) così sparisce dalla lista mondi di questo dispositivo
-        — stesso passo finale già usato dall'owner in `_do_delete` sopra,
-        qui aggiunto esplicitamente perché lì la riga viene già rimossa
-        dall'handler sulla PROPRIA authoritative DB."""
+        """Primo passo dell'uscita dal mondo: se possiedo qui una o più
+        istanze "porta com'è"/"dal 1° livello" che hanno ancora un'origine
+        locale viva (`origin_character_id`), non si può decidere in
+        automatico cosa farne — BUG FIX (2026-08-20): prima questa istanza
+        diventava semplicemente un secondo personaggio locale accanto
+        all'originale mai toccato (`detach_world_instances`), un duplicato
+        agli occhi del giocatore. Ora si chiede, istanza per istanza: fondere
+        la progressione fatta nel mondo nell'originale, o scartare la copia.
+        Se nessuna istanza ha un'origine ancora viva (es. cancellata nel
+        frattempo), non c'è nulla da chiedere: si passa dritti a
+        `_finalize_leave` con le scelte vuote (fallback storico, l'istanza
+        diventa lei stessa il personaggio locale)."""
+        self.page.pop_dialog()
+        pending = character_repo.get_owned_world_instances(world.id, self.device_id) if self.device_id else []
+        mergeable = [
+            c for c in pending
+            if c.origin_character_id and character_repo.get_by_id(c.origin_character_id) is not None
+        ]
+        if mergeable:
+            self._show_leave_merge_dialog(world, pending, mergeable)
+            return
+        self._finalize_leave(world, pending, {})
+
+    def _show_leave_merge_dialog(self, world: World, pending: list[Character],
+                                  mergeable: list[Character]):
+        """Un pulsante Fondi/Elimina per ciascuna istanza in `mergeable`
+        (default preselezionato: Fondi, l'opzione senza perdita di dati) —
+        vedi `_do_leave` sopra per il perché esiste."""
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+        choices: dict[str, str] = {c.id: "merge" for c in mergeable}
+        rows: list[ft.Control] = [
+            ft.Text(
+                "Il tuo personaggio locale NON viene toccato in nessun caso: "
+                "scegli solo cosa fare della copia usata in questo mondo.",
+                color=p.text, size=d.Size.BODY_SM,
+            ),
+        ]
+        merge_btns: dict[str, ft.ElevatedButton] = {}
+        discard_btns: dict[str, ft.OutlinedButton] = {}
+
+        def _style(selected: bool, danger: bool = False) -> ft.ButtonStyle:
+            if not selected:
+                return ft.ButtonStyle(bgcolor=p.surface_alt, color=p.text_2)
+            if danger:
+                return ft.ButtonStyle(bgcolor=p.danger_fill, color=p.text)
+            return ft.ButtonStyle(bgcolor=p.primary_fill, color=p.on_primary_fill)
+
+        def _set_choice(cid: str, choice: str):
+            choices[cid] = choice
+            merge_btns[cid].style = _style(choice == "merge")
+            discard_btns[cid].style = _style(choice == "discard", danger=True)
+            page.update()
+
+        for c in mergeable:
+            origin = character_repo.get_by_id(c.origin_character_id)
+            origin_name = origin.name if origin else c.name
+            merge_btn = ft.ElevatedButton(
+                "Fondi con il locale", icon=ft.Icons.MERGE_TYPE,
+                style=_style(True),
+            )
+            discard_btn = ft.OutlinedButton(
+                "Elimina copia del mondo", icon=ft.Icons.DELETE_OUTLINE,
+                style=_style(False),
+            )
+            merge_btn.on_click = lambda e, cid=c.id: _set_choice(cid, "merge")
+            discard_btn.on_click = lambda e, cid=c.id: _set_choice(cid, "discard")
+            merge_btns[c.id] = merge_btn
+            discard_btns[c.id] = discard_btn
+            rows.append(ft.Column(
+                [
+                    ft.Text(
+                        f'{c.name} (Liv. {c.level}, in "{world.name}") '
+                        f'→ personaggio locale "{origin_name}"',
+                        weight=ft.FontWeight.BOLD, color=p.text, size=d.Size.BODY_SM,
+                    ),
+                    ft.Row([merge_btn, discard_btn], spacing=d.Space.SM, wrap=True),
+                ],
+                spacing=d.Space.XS,
+            ))
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Esci dal mondo", ft.Icons.EXIT_TO_APP, tone="danger"),
+            content=ft.Container(
+                width=responsive_dialog_width(page, 420),
+                content=ft.Column(rows, spacing=d.Space.MD, tight=True, scroll=ft.ScrollMode.AUTO),
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton(
+                    "Conferma uscita", icon=ft.Icons.EXIT_TO_APP,
+                    on_click=lambda e: self._finalize_leave(world, pending, choices),
+                    style=ft.ButtonStyle(bgcolor=p.danger_fill, color=p.text),
+                ),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _finalize_leave(self, world: World, pending: list[Character], choices: dict[str, str]):
+        """Secondo passo dell'uscita dal mondo (o unico, se `_do_leave` non
+        ha trovato nulla da chiedere): invia `CMD_MEMBER_LEAVE` (rimuove il
+        membro sull'host, archivia le sue istanze — vedi
+        `core.world_backend._handle_member_leave`), invalida la propria
+        sessione (`RemoteBackend.leave()` — `POST /leave`), poi applica la
+        scelta fatta in `_show_leave_merge_dialog` per ciascuna istanza
+        posseduta qui:
+        - "merge": ricopia la progressione sull'originale locale
+          (`character_instances.apply_refresh`, stessa funzione già dietro
+          "Aggiorna il mio foglio") e poi cancella la copia del mondo
+          (`character_repo.delete`) — nessun duplicato, nessun dato perso.
+        - "discard": cancella la copia del mondo, l'originale locale resta
+          esattamente com'era.
+        - nessuna scelta registrata (istanza senza un'origine locale viva):
+          `character_repo.detach_world_instance`, fallback storico,
+          l'istanza diventa lei stessa il personaggio locale.
+        Infine rimuove la replica locale di QUESTO mondo
+        (`world_repo.delete_world`) così sparisce dalla lista mondi di
+        questo dispositivo."""
         self.page.pop_dialog()
         result = self._send_command(world, perm.CMD_MEMBER_LEAVE, {})
         if not result.success:
@@ -1026,8 +1135,15 @@ class WorldsView(ft.Column):
         backend = self._remote_backends.pop(world.id, None)
         if isinstance(backend, RemoteBackend):
             backend.leave()
-        if self.device_id:
-            character_repo.detach_world_instances(world.id, self.device_id)
+        for c in pending:
+            choice = choices.get(c.id)
+            if choice == "merge":
+                character_instances.apply_refresh(c.id)
+                character_repo.delete(c.id)
+            elif choice == "discard":
+                character_repo.delete(c.id)
+            else:
+                character_repo.detach_world_instance(c.id)
         world_repo.delete_world(world.id)
         self._current_world = None
         self._render()
@@ -3058,6 +3174,98 @@ class WorldsView(ft.Column):
             world, character, perm.CMD_CHARACTER_REJOIN_RESPOND,
             {"request_id": request.id, "accept": accept},
         )
+
+    # ------------------------------------------------------------------
+    # Personaggi Archiviati — gap segnalato da Davide: un personaggio che
+    # esce/viene espulso dal mondo (`world_instance_archived=1`) prima non
+    # era consultabile da nessuna vista Master, `get_master_visible_
+    # characters()` lo esclude sempre. Card di sola lettura (nessuna scheda
+    # editabile: il master non deve poter modificare un personaggio che non
+    # sta più giocando in questo mondo), stesso gate di permesso di
+    # `_remote_actions_section` (solo chi può intervenire a distanza).
+    # ------------------------------------------------------------------
+
+    def _archived_characters_section(self, world: World) -> ft.Control | None:
+        archived = character_repo.get_archived_world_instances(world.id)
+        if not archived:
+            return None
+        rows: list[ft.Control] = []
+        for i, character in enumerate(archived):
+            if i > 0:
+                rows.append(ft.Divider(height=1))
+            rows.append(self._archived_character_row(character))
+        return d.section(
+            "Personaggi Archiviati",
+            ft.Column(rows, spacing=d.Space.SM, tight=True),
+        )
+
+    def _archived_character_row(self, character: Character) -> ft.Control:
+        p = d.T()
+        class_line = character.class_name
+        if character.subclass:
+            class_line += f" ({character.subclass})"
+        archived_on = (character.updated_at or "")[:10]
+        return d.asymmetric_row(
+            ft.Column(
+                [
+                    ft.Text(character.name, weight=ft.FontWeight.BOLD, color=p.text),
+                    d.muted(f"{class_line} · Liv. {character.level} · {character.race}"),
+                    d.muted(f"Archiviato il {archived_on}" if archived_on else "Archiviato"),
+                ],
+                spacing=0, tight=True,
+            ),
+            d.pill(ft.Icons.VISIBILITY, "Vedi dettagli", color=p.text_2,
+                   on_click=lambda e: self._open_archived_character_dialog(character)),
+            ratio=(8, 4),
+        )
+
+    def _open_archived_character_dialog(self, character: Character):
+        """Riepilogo di sola lettura — NON la scheda editabile completa
+        (`SheetView`, mai raggiungibile per un personaggio altrui, vedi
+        `_render_detail`): stesso principio del dialog di dettaglio
+        mostro/NPC in Sezione Incontri (`master_encounter_view.py::
+        _open_stat_block_click`), qui applicato a un personaggio."""
+        page = self.page
+        if page is None:
+            return
+        p = d.T()
+        weapons = character_repo.get_weapons(character.id, equipped_only=False)
+        inventory = character_repo.get_inventory(character.id)
+        spells = character_repo.get_known_spells(character.id)
+        class_line = character.class_name
+        if character.subclass:
+            class_line += f" ({character.subclass})"
+        race_line = character.race
+        if character.subrace:
+            race_line += f" ({character.subrace})"
+        lines = [
+            ("Classe", class_line),
+            ("Razza", race_line),
+            ("Livello", str(character.level)),
+            ("Background", character.background or "—"),
+            ("PF", f"{character.hp_current} / {character.hp_max}"),
+            ("Armi", str(len(weapons))),
+            ("Oggetti in inventario", str(len(inventory))),
+            ("Incantesimi conosciuti", str(len(spells))),
+        ]
+        content = ft.Column(
+            [
+                ft.Row(
+                    [ft.Text(k, color=p.text_2, size=d.Size.BODY_SM),
+                     ft.Text(v, color=p.text, weight=ft.FontWeight.BOLD, size=d.Size.BODY_SM)],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                )
+                for k, v in lines
+            ],
+            spacing=d.Space.XS, tight=True,
+        )
+        page.show_dialog(ft.AlertDialog(
+            title=d.dialog_title(character.name, ft.Icons.PERSON_OFF),
+            content=ft.Container(content=content, width=responsive_dialog_width(page, 360)),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
+            ]),
+        ))
 
     # ------------------------------------------------------------------
     # Hosting LAN (passo 4) — solo owner, solo sul mondo che ospita

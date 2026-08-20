@@ -28,7 +28,7 @@ from core.equipment_manager import (
 )
 from data.game_data.game_data_loader import GameDataLoader, game_data as _loader
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
-from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
+from ui.widgets import ScrollMemoryListView, responsive_dialog_width, wrap_dialog_actions
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -1008,6 +1008,12 @@ class InventarioTab(ScrollMemoryListView):
                 padding=ft.Padding.all(2),
             )] if item.requires_attunement else []),
             ft.IconButton(
+                icon=ft.Icons.MENU_BOOK,
+                icon_color=design.T().text_3, icon_size=14, tooltip="Descrizione",
+                on_click=lambda e, it=item: self._open_item_description_dialog(it),
+                padding=ft.Padding.all(2),
+            ),
+            ft.IconButton(
                 icon=ft.Icons.EDIT,
                 icon_color=design.T().text_3, icon_size=14, tooltip="Modifica",
                 on_click=lambda e, it=item: self._on_edit_item(it),
@@ -1926,6 +1932,60 @@ class InventarioTab(ScrollMemoryListView):
         if page is None:
             return
         self._open_item_dialog(page, item=None)
+
+    def _open_item_description_dialog(self, item: InventoryItem) -> None:
+        """
+        Dialog dedicato per leggere/modificare SOLO la descrizione — bug
+        report Davide: "se assegno un oggetto magico va nell'inventario del
+        giocatore e perde la sua descrizione diventando sostanzialmente
+        inutile, bisogna aggiungere nell'inventario la possibilità di
+        cliccare sull'oggetto e leggerne la descrizione (più o meno come
+        facciamo nella sezione incontri del master con i mostri ed npc) con
+        anche la possibilità di modificare la descrizione". La descrizione
+        NON era mai persa in scrittura (`create_inventory_item(description=
+        ...)` la salva sempre), ma `_item_row()` sopra non la mostra mai —
+        andava aperto il form "Modifica" completo (nome/peso/categoria/...)
+        solo per leggerla. Vale per QUALSIASI oggetto (assegnato dal master,
+        aggiunto a mano dal giocatore, o già presente) — nessuna distinzione
+        di provenienza, stesso `inventory_items.description` per tutti.
+        """
+        page = self._page
+        if page is None:
+            return
+        p = design.T()
+        desc_tf = ft.TextField(
+            value=item.description or "", multiline=True, min_lines=4, max_lines=14,
+            text_style=ft.TextStyle(size=13, color=p.text),
+            border_color=p.border, focused_border_color=p.primary,
+            bgcolor=p.surface, border_radius=design.field_style()['border_radius'],
+            hint_text="Nessuna descrizione — scrivine una.",
+        )
+
+        def _save(e: ft.ControlEvent) -> None:
+            ok = character_repo.update_inventory_item(
+                item.id, item.name, item.quantity, item.weight,
+                desc_tf.value or "", item.category or "misc", item.is_equipped,
+                ca_value=item.ca_value or 0, armor_type=item.armor_type or "",
+                effects=item.effects or "",
+            )
+            if not ok:
+                show_error_dialog(self._page)
+                return
+            self._push_item_to_world(item.id)
+            page.pop_dialog()
+            self._refresh()
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title(item.name, ft.Icons.MENU_BOOK),
+            content=ft.Container(content=desc_tf, width=responsive_dialog_width(page, 380)),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),
+                ft.ElevatedButton(
+                    "Salva", icon=ft.Icons.SAVE, on_click=_save,
+                    style=ft.ButtonStyle(bgcolor=p.primary_fill, color=p.on_primary_fill),
+                ),
+            ]),
+        ))
 
     def _on_edit_item(self, item: InventoryItem) -> None:
         page = self._page

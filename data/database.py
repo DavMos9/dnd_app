@@ -555,6 +555,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column(cur, "loot_stash_entries", "weapon_properties", "TEXT DEFAULT ''")
     _add_column(cur, "loot_stash_entries", "weapon_attack_bonus", "INTEGER DEFAULT 0")
     _add_column(cur, "loot_stash_entries", "weapon_damage_bonus", "INTEGER DEFAULT 0")
+    # Danni magici aggiuntivi tipizzati (es. ghiaccio 1d8 + fuoco 1d6, oltre al
+    # danno base) — bug report Davide (2026-08-20): la sezione giocatore li
+    # supporta (weapons.magic_damages) ma il Bottino/Oggetti Magici no.
+    _add_column(cur, "loot_stash_entries", "weapon_magic_damages", "TEXT DEFAULT '[]'")
     _add_column(cur, "loot_stash_entries", "armor_ca_value", "INTEGER DEFAULT 0")
     _add_column(cur, "loot_stash_entries", "armor_type", "TEXT DEFAULT ''")
     _add_column(cur, "loot_stash_entries", "armor_effects", "TEXT DEFAULT ''")

@@ -102,15 +102,35 @@ convenzione già seguita dal Generatore Oggetti Magici quando scrive
 meccaniche della scheda giocatore invece di restare testo libero — bug report
 Davide: "devono avere le stesse caselle di quando crei l'arma o l'armatura
 nella sezione giocatore". `weapon`: dado danno, tipo danno, categoria
-(semplice/guerra), proprietà, bonus attacco/danno (per una versione magica).
-`armor`: CA base, tipo (leggera/media/pesante/scudo), effetti testuali. Alla
-presa/assegnazione, `weapon` crea sempre una riga vera in `weapons` (mai un
-oggetto d'inventario generico); `armor` crea un `inventory_items` con
-`category="armor"`. Stesso form (`master_loot_assign_dialog.
-build_weapon_mechanics_fields()`/`build_armor_mechanics_fields()`) riusato sia
-in "+ Aggiungi voce"/"Modifica Voce" del Bottino sia nell'Oggetto Magico
-Personalizzato del Generatore Oggetti Magici, quando la categoria scelta è
-un'arma o un'armatura.
+(semplice/guerra), proprietà, bonus attacco/danno (per una versione magica), e
+**danni magici aggiuntivi tipizzati e ripetibili** (colonna `weapon_magic_
+damages`, JSON `[{"dice","type","note"}]`, stesso formato/UI di `weapons.
+magic_damages` — es. ghiaccio 1d8 + fuoco 1d6 oltre al danno base, aggiunto
+2026-08-20 dopo un secondo bug report: il form aveva solo un dado/tipo
+singolo). `armor`: CA base, tipo (leggera/media/pesante/scudo), effetti
+testuali. Alla presa/assegnazione, `weapon` crea sempre una riga vera in
+`weapons` (mai un oggetto d'inventario generico); `armor` crea un
+`inventory_items` con `category="armor"`. Stesso form (`master_loot_assign_
+dialog.build_weapon_mechanics_fields()`/`build_armor_mechanics_fields()`)
+riusato sia in "+ Aggiungi voce"/"Modifica Voce" del Bottino sia nell'Oggetto
+Magico Personalizzato del Generatore Oggetti Magici, quando la categoria
+scelta è un'arma o un'armatura — **ma non ancora per le 264 voci pescate dal
+Compendio in modalità "random"**, che non hanno mai dati meccanici strutturati
+nel JSON (solo prosa): quelle vengono instradate a `weapon`/`armor` da
+`_resolve_entry_kind()` (`master_magic_item_generator_dialog.py`, 2026-08-20)
+solo per finire nella sezione giusta, senza precompilare dado/CA (il Master li
+compila a mano se vuole, la descrizione ufficiale resta comunque intatta in
+`magic_description`/`description`).
+
+**Il tipo (`entry_kind`) di una voce è modificabile anche dopo il
+salvataggio** (2026-08-20) — bug report Davide su un Artefatto in archivio:
+"quando lo modifico deve avere la possibilità di essere modificato in toto...
+può essere selezionato il tipo". "Modifica Voce" ora ha lo stesso dropdown
+tipo di "Aggiungi Voce" (tutte le opzioni tranne `coins`, che resta un cambio
+di forma dei dati a parte); cambiare tipo verso `weapon`/`armor` fa comparire
+le caselle meccaniche (vuote, salvo che il tipo scelto sia lo stesso di
+partenza — in quel caso precompilate con i valori già salvati).
+`loot_repo.update_entry(entry_kind=...)`, `""` = lascia invariato.
 
 `coins` è l'unica voce **divisibile**, e ha un trattamento a parte (§5). Tutte
 le altre sono indivisibili: si assegnano a **un** destinatario. Con quantità

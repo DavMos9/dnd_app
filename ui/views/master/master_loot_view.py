@@ -21,6 +21,7 @@ piano).
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, cast
 
@@ -88,6 +89,13 @@ def _mechanics_summary(entry: LootStashEntry) -> str:
             bits.append(f"{entry.weapon_attack_bonus:+d} attacco")
         if entry.weapon_damage_bonus:
             bits.append(f"{entry.weapon_damage_bonus:+d} danno")
+        try:
+            magic_dmgs = json.loads(entry.weapon_magic_damages or "[]")
+        except (json.JSONDecodeError, TypeError):
+            magic_dmgs = []
+        for md in magic_dmgs:
+            if md.get("dice"):
+                bits.append(f"+{md['dice']} {md.get('type', '')}".strip())
         return " · ".join(bits)
     if entry.entry_kind == "armor":
         bits = []
@@ -469,32 +477,66 @@ class MasterLootView(ft.Column):
                                 min_lines=3, max_lines=10, **design.field_style())
         note_tf = ft.TextField(value=entry.source_note, label="Fonte / note", dense=True, **design.field_style())
 
-        # Voce "weapon"/"armor" (2026-08-20): stesse caselle meccaniche di
-        # `_open_add_dialog`, precompilate dai valori correnti — vedi
-        # `master_loot_assign_dialog.build_weapon_mechanics_fields()`/
-        # `build_armor_mechanics_fields()`.
-        mechanics_getter = None
-        content_controls: list[ft.Control] = [name_tf, qty_tf, desc_tf, note_tf]
-        if entry.entry_kind in _MECHANICAL_KINDS:
-            from ui.views.master.master_loot_assign_dialog import (
-                build_armor_mechanics_fields, build_weapon_mechanics_fields,
-            )
-            prefill = {
-                "weapon_damage_dice": entry.weapon_damage_dice,
-                "weapon_damage_type": entry.weapon_damage_type,
-                "weapon_category": entry.weapon_category,
-                "weapon_properties": entry.weapon_properties,
-                "weapon_attack_bonus": entry.weapon_attack_bonus,
-                "weapon_damage_bonus": entry.weapon_damage_bonus,
-                "armor_ca_value": entry.armor_ca_value,
-                "armor_type": entry.armor_type,
-                "armor_effects": entry.armor_effects,
-            }
-            builder = (build_weapon_mechanics_fields if entry.entry_kind == "weapon"
-                       else build_armor_mechanics_fields)
-            mechanics_control, mechanics_getter = builder(prefill)
-            content_controls.append(ft.Divider(height=1, color=design.T().border))
-            content_controls.append(mechanics_control)
+        # Tipo di voce MODIFICABILE (2026-08-20, bug report Davide su un
+        # Artefatto salvato in archivio: "quando lo modifico deve avere la
+        # possibilità di essere modificato in toto... può essere selezionato
+        # il tipo, magari il master vuole assegnare quell'effetto ad un
+        # abito, un'arma, un anello, una statuetta"). Prima questo dialog
+        # non aveva alcun dropdown tipo (solo "Aggiungi Voce" lo aveva) —
+        # `loot_repo.update_entry()` non toccava affatto la colonna
+        # `entry_kind`. "Monete" resta escluso: passare da/a una voce
+        # monetaria è un cambio di forma dei dati (5 colonne valuta invece
+        # di nome/descrizione), non un semplice cambio di tipo — usa
+        # elimina+ricrea come già per "Modifica Monete" sopra.
+        state: dict[str, Any] = {"kind": entry.entry_kind, "mechanics_getter": None}
+        kind_dd = ft.Dropdown(
+            label="Tipo di voce", value=entry.entry_kind,
+            options=[ft.DropdownOption(key=k, text=label) for k, label in _KIND_OPTIONS
+                     if k != "coins"],
+            **design.field_style(),
+        )
+        mechanics_col = ft.Column(spacing=10)
+
+        def _render_mechanics() -> None:
+            mechanics_col.controls.clear()
+            state["mechanics_getter"] = None
+            if state["kind"] in _MECHANICAL_KINDS:
+                from ui.views.master.master_loot_assign_dialog import (
+                    build_armor_mechanics_fields, build_weapon_mechanics_fields,
+                )
+                # Precompila SOLO se il tipo non è cambiato rispetto
+                # all'originale — passare da "artefatto" ad "arma" non ha
+                # caselle meccaniche pregresse da riproporre, cambiare idea
+                # e tornare al tipo originale invece le ritrova intatte.
+                prefill = {
+                    "weapon_damage_dice": entry.weapon_damage_dice,
+                    "weapon_damage_type": entry.weapon_damage_type,
+                    "weapon_category": entry.weapon_category,
+                    "weapon_properties": entry.weapon_properties,
+                    "weapon_attack_bonus": entry.weapon_attack_bonus,
+                    "weapon_damage_bonus": entry.weapon_damage_bonus,
+                    "weapon_magic_damages": entry.weapon_magic_damages,
+                    "armor_ca_value": entry.armor_ca_value,
+                    "armor_type": entry.armor_type,
+                    "armor_effects": entry.armor_effects,
+                } if state["kind"] == entry.entry_kind else {}
+                builder = (build_weapon_mechanics_fields if state["kind"] == "weapon"
+                           else build_armor_mechanics_fields)
+                mechanics_control, getter = builder(prefill)
+                state["mechanics_getter"] = getter
+                mechanics_col.controls.append(ft.Divider(height=1, color=design.T().border))
+                mechanics_col.controls.append(mechanics_control)
+            try:
+                mechanics_col.update()
+            except RuntimeError:
+                pass
+
+        def _on_kind_change(ev: Any) -> None:
+            state["kind"] = kind_dd.value or entry.entry_kind
+            _render_mechanics()
+
+        kind_dd.on_select = _on_kind_change
+        _render_mechanics()
 
         def save_item(ev: Any) -> None:
             if page is None:
@@ -503,7 +545,8 @@ class MasterLootView(ft.Column):
                 qty = max(1, int((qty_tf.value or "1").strip()))
             except ValueError:
                 qty = 1
-            mechanics = mechanics_getter() if mechanics_getter else {}
+            mechanics = state["mechanics_getter"]() if state["mechanics_getter"] else {}
+            new_kind = state["kind"]
             backend = self._resolve_stash_backend()
             if self._world_id and entry.stash_kind == "party" and backend is not None:
                 backend.send_command(
@@ -512,6 +555,7 @@ class MasterLootView(ft.Column):
                         "entry_id": entry.id, "name": (name_tf.value or "").strip(),
                         "description": (desc_tf.value or "").strip(), "quantity": qty,
                         "source_note": (note_tf.value or "").strip(),
+                        "entry_kind": new_kind,
                         **mechanics,
                     },
                     target_type="loot_stash", target_id=entry.id,
@@ -521,6 +565,7 @@ class MasterLootView(ft.Column):
                     entry.id, name=(name_tf.value or "").strip(),
                     description=(desc_tf.value or "").strip(), quantity=qty,
                     source_note=(note_tf.value or "").strip(),
+                    entry_kind=new_kind,
                     **mechanics,
                 )
             page.pop_dialog()
@@ -528,7 +573,8 @@ class MasterLootView(ft.Column):
 
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title("Modifica Voce"),
-            content=ft.Column(content_controls, spacing=10,
+            content=ft.Column([name_tf, qty_tf, desc_tf, note_tf, kind_dd, mechanics_col],
+                               spacing=10,
                                scroll=ft.ScrollMode.AUTO, width=responsive_dialog_width(page, 420)),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog() if page else None),

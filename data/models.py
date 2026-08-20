@@ -776,6 +776,7 @@ class LootStashEntry:
     weapon_properties: str = ""
     weapon_attack_bonus: int = 0   # bonus magico al tiro per colpire (0 = nessuno)
     weapon_damage_bonus: int = 0   # bonus magico al danno (0 = nessuno)
+    weapon_magic_damages: str = "[]"  # JSON [{"dice":"1d6","type":"Fuoco","note":""}], stesso formato di weapons.magic_damages (2026-08-20, danni multipli tipizzati)
     armor_ca_value: int = 0
     armor_type: str = ""           # "leggera" | "media" | "pesante" | "scudo"
     armor_effects: str = ""

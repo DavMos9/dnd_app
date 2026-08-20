@@ -64,6 +64,23 @@ def _custom_mechanics_kind(category: str) -> str:
     return ""
 
 
+def _resolve_entry_kind(item: dict[str, Any]) -> str:
+    """`entry_kind` esplicito (oggetto magico "Personalizzato", valorizzato
+    dal Master) oppure dedotto dalla categoria — stessa euristica di
+    `_custom_mechanics_kind()` sopra, ma applicata anche alla modalità
+    "random" (pesca dal Compendio Oggetti Magici), che non porta MAI
+    `entry_kind` nel dizionario (le 264 voci di `magic_items.json` non hanno
+    questo campo). BUG FIX (2026-08-20, terza revisione): un'arma pescata
+    dal Compendio (es. "Ammazzadraghi", categoria "Arma (qualsiasi spada)")
+    finiva sempre in inventario come oggetto magico generico invece che
+    nella sezione Armi — la descrizione non andava persa (`magic_description`
+    di `create_weapon()`), ma l'arma non era nel posto giusto."""
+    explicit = item.get("entry_kind", "")
+    if explicit:
+        return explicit
+    return _custom_mechanics_kind(item.get("category", "")) or "magic_item"
+
+
 def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_id: str = "") -> None:
     """Apre il dialog "Genera Oggetto Magico". Nessun valore ritornato —
     tutta la logica di stato vive nella closure, stesso pattern già in uso
@@ -364,7 +381,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
             rarity_raw = item.get("rarity", "").strip()
             requires_att = bool(item.get("requires_attunement"))
             att_restriction = item.get("attunement_restriction", "")
-            entry_kind = item.get("entry_kind", "magic_item")
+            entry_kind = _resolve_entry_kind(item)
             mechanics = item.get("mechanics", {})
             summary_bits = [b for b in (category, rarity_raw.capitalize()) if b]
             if requires_att:
@@ -435,7 +452,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
             if requires_att:
                 note_bits.append("Richiede sintonia" + (f" ({att_restriction})" if att_restriction else ""))
             out.append(simple_item(
-                item.get("entry_kind", "magic_item"), name, quantity=qty,
+                _resolve_entry_kind(item), name, quantity=qty,
                 description=item.get("description", ""),
                 source_note=_source_label() + (" · " + " · ".join(note_bits) if note_bits else ""),
                 requires_attunement=requires_att,
