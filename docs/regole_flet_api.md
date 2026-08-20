@@ -813,6 +813,40 @@ ft.ElevatedButton(
   l'URL **e** chiama l'handler. Utile per chiudere il dialogo contestualmente,
   senza annullare l'apertura.
 
+## `ft.Container` CLICCABILE — serve `bgcolor` esplicito, non solo `on_click`+`ink=True` (2026-08-20)
+
+Un `ft.Container` con `on_click=...` e `ink=True` ma **senza `bgcolor`** è
+**inaffidabile per l'hit-test del tap**: il Container resta visibile (testo/icone/
+bordo disegnati normalmente) ma il click non fa scattare `on_click`, senza
+sollevare alcuna eccezione — silenzioso anche in un pacchetto desktop senza
+console. Trovato da un bug report di Davide con screenshot reale: la riga
+"Rimuovi NomeClasse" in `profilo_tab.py` (rimozione classe secondaria
+multiclasse) era perfettamente visibile ma cliccarla non apriva mai il dialog di
+conferma. Per estensione, trovato un bug gemello mai innescato prima in
+`_show_level_up_class_picker()` (stesso file) — corretto aggiungendo `bgcolor`.
+
+```python
+# ❌ Rischioso — il click può non registrare, specie su un'area quasi vuota
+ft.Container(content=..., on_click=handler, ink=True)
+
+# ✅ Sicuro — bgcolor esplicito garantisce l'hit-test su tutta l'area
+ft.Container(content=..., on_click=handler, ink=True, bgcolor=design.T().surface)
+
+# ✅ Alternativa più sicura ancora per "icona + testo cliccabile" piccolo:
+# un ft.TextButton con content= invece del Container manuale — stesso
+# controllo già usato ovunque nell'app (Level up/Level down/Multiclasse,
+# "Salva" XP), mai un problema di hit-test perché non è un Container nudo.
+ft.TextButton(content=ft.Row([icon, text]), on_click=handler)
+```
+
+**Non è stato fatto un audit sistematico** di tutti gli altri usi di `ink=True`
+nel progetto (21 file, la maggior parte quasi certamente a posto — un Container
+CON `bgcolor` sembra hit-testare correttamente, es. le card personaggio di
+`home_view.py`, confermate funzionanti in produzione). Se riemerge lo stesso
+sintomo ("il controllo è visibile ma il click non fa nulla, nessun errore") su
+una riga/area cliccabile mai testata dal vivo, controllare per primo se il suo
+Container ha un `bgcolor` esplicito.
+
 ## PROGRESSBAR — vedi la sezione dedicata sopra
 
 Ribadito qui perché è ricomparso il 2026-08-17 scrivendo la barra di download

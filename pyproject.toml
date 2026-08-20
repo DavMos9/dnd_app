@@ -124,6 +124,11 @@ dependencies = [
     # perché lo scanner è raggiungibile solo su Android/iOS, dove
     # flet-libzbar è fornito automaticamente da `flet build`.
     "pyzbar==0.1.9",
+    # Aggiunte il 2026-08-20: export scheda personaggio in PDF — vedi il
+    # commento gemello e più esteso in requirements.txt. Entrambe pure
+    # Python, nessuna estensione Flet dedicata necessaria.
+    "reportlab==5.0.0",
+    "pypdf==6.16.1",
 ]
 
 # Dipendenze "dev/path" — pacchetti locali non pubblicati su PyPI, risolti

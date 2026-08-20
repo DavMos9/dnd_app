@@ -508,3 +508,12 @@ e note in `test_qr_scan.py`, indipendenti da questa feature.
   livello" per il Mago nei dati — usa un libro, non un elenco fisso), da
   popolare a mano dalla tab Incantesimi — messaggio esplicito nel dialog,
   non un dead-end silenzioso.
+- ~~**Rimuovere per intero una classe secondaria (es. presa per
+  errore).**~~ **Fatto (2026-08-20).** Nuova `character_repo.py::
+  remove_multiclass_class()` + riga "Rimuovi NomeClasse" nell'header
+  Profilo, visibile solo per la classe NON primaria — promuovere la
+  secondaria al posto della primaria resta fuori scope (vedi §3 punto 2:
+  `characters.class_name/subclass/level` sono sempre la primaria in
+  tutto il resto del codice). Dettaglio completo, incluso il limite
+  dichiarato su competenze/incantesimi non ripuliti automaticamente, in
+  `changelog_storico.md`, voce omonima.

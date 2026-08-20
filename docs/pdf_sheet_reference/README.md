@@ -112,27 +112,46 @@ due condividono la fascia finale della pagina.
    compresso nello spazio "Equipaggiamento".
 3. Pagina 3 (incantesimi) → solo se il personaggio ha una `spellcasting_ability`.
 
-## Cosa manca ancora prima di scrivere il modulo
+## Stato — implementato (2026-08-20)
 
-1. Calibrare a vista (con `grid-1.png`/`grid-2.png`/`grid-3.png`) le coordinate esatte
-   di: cerchi modificatore/punteggio delle 6 caratteristiche, cerchio Bonus di Competenza,
-   cerchio Ispirazione, scudi CA/Iniziativa/Velocità, colonna X dei pallini competenza
-   (abilità + tiri salvezza), box PF (max/attuali/temporanei), riquadro Dadi Vita, cerchi
-   TS contro morte (successi/fallimenti), le 5 caselle moneta, la griglia armi (3 righe),
-   i box grandi di solo testo (bounding box preciso per il word-wrap), pagina 2 per intero
-   (Simbolo/fede, Aspetto, Alleati&Organizzazioni, Tratti Aggiuntivi, Storia, Tesoro),
-   e su pagina 3 le righe vuote sotto ogni livello (per nome incantesimo + pallino
-   preparato) e la larghezza esatta di ogni "pillola" slot totali/spesi.
-2. Creare `core/pdf_sheet_exporter.py` (modulo puro, no Flet): costruisce un overlay
-   per pagina con `reportlab.pdfgen.canvas`, poi fonde overlay+template con
-   `pypdf.PdfWriter`/`PdfReader` (`page.merge_page()`).
-3. Aggiungere `reportlab` e `pypdf` a `requirements.txt` (non ancora presenti — oggi il
-   progetto ha solo `flet`/`Pillow`).
-4. Copiare il template in `dnd_app/assets/character_sheet_template.pdf` (asset bundlato
-   con l'app, letto a runtime — **non richiede internet né dati esterni**).
-5. Wiring UI: bottone "Esporta Scheda PDF" (probabile posizione: header di `SheetView` o
-   `ProfiloTab`, accanto alle altre azioni), riusando lo stesso pattern cross-platform
-   già collaudato per l'export `.dndchar` in `home_view.py` (dialog nativo desktop via
-   subprocess, download reale in web via `assets_dir`, `FilePicker.save_file()` su mobile).
-6. Aggiornare `CLAUDE.md` a fine implementazione con lo stesso livello di dettaglio già
-   usato per le altre feature del progetto (changelog, verifica, TODO chiusa).
+Tutti i 6 punti sopra sono fatti. `core/pdf_sheet_exporter.py` (modulo puro, no Flet):
+`export_character_pdf(character_id, output_path) -> bool` genera l'overlay reportlab
+pagina per pagina e lo fonde col template (`assets/character_sheet_template.pdf`) via
+pypdf; `suggested_pdf_filename(character_id)` riusa lo slug/timestamp di
+`character_export.suggested_export_filename()`. `reportlab==5.0.0`/`pypdf==6.16.1`
+pinnati in `requirements.txt`/`pyproject.toml` (entrambe pure Python, nessuna libreria
+di sistema richiesta). Bottone "Esporta scheda PDF" nella card personaggio di
+`home_view.py`, accanto a "Esporta personaggio (.dndchar)" — stesso pattern cross-
+platform a 3 rami (dialog nativo desktop via `ui/file_export.py`, download web via
+`assets_dir`, `FilePicker.save_file()` mobile), fattorizzato in `_generate_pdf_bytes()`
+perché a differenza dell'export JSON qui serve sempre un file temporaneo intermedio
+(`export_character_pdf()` scrive su percorso, non ritorna byte).
+
+Calibrazione: iterata con render reale (`pdftoppm` → confronto visivo con
+`grid-1/2/3.png`) fino a un risultato fedele su entrambe le pagine e sulla griglia
+incantesimi di pagina 3. Un bug reale di allineamento trovato in una verifica
+indipendente dopo la prima stesura: il testo dei nomi incantesimo su pagina 3 aveva la
+baseline calcolata un intero `_ROW_HEIGHT` più in basso del rigo stampato a cui
+apparteneva (finiva a cavallo del rigo SUCCESSIVO, effetto "barrato") — corretto
+ancorando la baseline sopra il proprio rigo (`row_top - 2.5`) invece che sotto; scoperto
+anche che livello 1/colonna 1 (l'unico punto dell'intero foglio con le didascalie
+"PREPARATI"/"NOME INCANTESIMO" uniche, non ripetute altrove) ha una riga di capienza in
+meno delle altre perché quella prima riga è occupata dalla didascalia stessa.
+
+Limiti noti, scelte deliberate (non dimenticanze):
+- "Privilegi & Tratti" elenca nome+livello+fonte delle feature (classe/razza/abilità
+  custom), non la descrizione PHB completa — non ci sta in nessun box ragionevole.
+- Percezione Passiva non considera bonus da talento (es. Sagace) — solo
+  `10 + prova abilità` più l'override manuale, la stessa scansione di talenti che
+  `esplorazione_tab.py` fa inline non è stata duplicata qui.
+- Pagina 2, box "Tesoro": nessun campo dedicato nel modello dati — composto dalle
+  stesse monete di pagina 1 più gli oggetti di categoria "magic" dall'inventario.
+- Pagina 2, riquadro decorativo "Simbolo/fede": nessun campo dedicato, lasciato vuoto
+  (il testo di Alleati & Organizzazioni resta confinato alla metà sinistra del box per
+  non sovrapporsi al disegno).
+- Pagina 3, "Classe da Incantatore": mostra solo la classe PRIMARIA — il foglio fisico
+  non prevede comunque un modo di rappresentare l'incantesimo multiclasse.
+
+`test_pdf_sheet_export.py` (17/17): incantatore → 3 pagine, marziale puro → 2 pagine,
+>3 armi equipaggiate → nessuna eccezione, backstory 2000+ caratteri → percorso
+auto-shrink senza eccezioni, `character_id` inesistente → `False` mai un'eccezione.

@@ -11191,6 +11191,202 @@ ambientali pre-esistenti, non causati da questo lavoro). **Nessun commit fatto.*
 
 ---
 
+## Rimozione di una classe da un personaggio multiclasse (2026-08-20)
+
+Ultima voce aperta dalla revisione generale del 2026-08-19 (§ sopra, "Proposte emerse da questa revisione, non
+ancora decise da Davide", punto 3): `character_repo.py::remove_character_class()` esisteva già lato repository
+(una semplice `DELETE` sulla riga `character_classes`) ma non era mai stata agganciata a nessun pulsante — un
+personaggio multiclasse poteva solo aggiungere una classe o scendere di livello, mai togliersi del tutto una
+classe presa per errore.
+
+**Scope deciso**: rimozione solo della classe SECONDARIA, mai della primaria — `characters.class_name/subclass/
+level` rappresentano sempre e solo la classe primaria in tutto il resto del codice (vedi
+`multiclasse_design.md` §3 punto 2), promuovere la secondaria al suo posto avrebbe richiesto riscrivere quei tre
+campi più ricalcolare dado vita/spellcasting_ability/tutto ciò che ne dipende: un lavoro diverso e più rischioso,
+fuori scope per una feature pensata per il caso comune "ho cliccato + Multiclasse e scelto la classe sbagliata".
+Con al massimo 2 classi per il PHB, la guardia è semplice: il pulsante di rimozione esiste solo per la classe
+`is_primary=False`.
+
+**Nuova funzione di orchestrazione**, `character_repo.py::remove_multiclass_class(character_id,
+character_classes_id) -> bool`: cancella la riga, risincronizza il livello totale
+(`sync_character_total_level`), e risincronizza slot incantesimo e risorse di classe sull'unica classe rimasta —
+`init_class_resources()` fa già l'unione sulle classi rimaste in `character_classes`, quindi ripulisce da sola
+le risorse della classe tolta senza bisogno di codice apposito. Per gli slot incantesimo serviva invece un
+intervento esplicito: `auto_init_spell_slots()` è un no-op silenzioso per una classe non incantatrice (per
+design — lascia gli slot intatti se richiamata su una classe senza `caster_type`), quindi rimuovendo un Mago da
+un Guerriero+Mago i totali del pool combinato multiclasse sarebbero rimasti stantii. Nuova funzione privata
+`_clear_spell_slot_totals()`, richiamata solo quando né `auto_init_spell_slots()` né
+`init_borrowed_caster_slots()` (Mistificatore Arcano/Cavaliere Mistico) trovano una classe incantatrice tra
+quelle rimaste.
+
+**Limite noto e dichiarato, non un dimenticanza**: competenze (`character_proficiencies`) e incantesimi
+conosciuti (`known_spells`) ottenuti tramite la classe rimossa NON vengono ripuliti — nessuna delle due tabelle
+ha una colonna che leghi la riga alla classe di origine (stesso limite già accettato altrove per gli incroci
+rari di `multiclasse_design.md` §8.2), separarli richiederebbe uno schema nuovo. Il dialog di conferma in
+`profilo_tab.py` lo dichiara esplicitamente ("toglili a mano dalle rispettive sezioni se necessario") invece di
+promettere una pulizia che non avviene.
+
+**UI** (`ui/views/character_sheet/profilo_tab.py`): riga "Rimuovi NomeClasse (classe secondaria, Lv.N)" sotto la
+riga classe/razza dell'header Profilo, visibile solo se il personaggio ha una classe secondaria — icona CLOSE
+neutra + testo piccolo (`text_3`), stesso registro visivo delle righe cliccabili già in uso (`Container` +
+`ink=True`, non un `ft.Row` che in Flet 0.86.5 non ha `on_click`) invece di un bottone vero, per non competere
+visivamente con Level up/Level down/Multiclasse. Il dialog di conferma (`_on_remove_multiclass_click`) mostra il
+nuovo livello totale, una stima dei PF da sottrarre (`core.level_manager.estimate_hp_loss()` per ogni livello
+della classe rimossa più l'eventuale bonus PF permanente di sottoclasse, stessa formula "media" già usata dal
+Level down esistente — dichiarata come stima, non un'inversione esatta) e l'avviso su competenze/incantesimi non
+ripuliti, prima di confermare con un pulsante `danger_fill` (mai `primary_fill` — è un'eliminazione).
+
+**Verificato**: nuova sezione `[11]` in `test_multiclasse.py` (5 scenari — Ranger4/Mago3 con risincronizzazione
+corretta della tabella half-caster del solo Ranger rimasto, Guerriero+Mago con azzeramento totale degli slot
+quando non resta nessun incantatore, Barbaro+Monaco con pulizia corretta delle risorse di classe, guardia sulla
+primaria, guardia su un personaggio a classe singola — 86/86 nel file, da 72). Suite intera: 34/36 file al 100%
+(stessi 2 residui ambientali pre-esistenti, `test_qr_scan.py`/`test_versione_app.py`, indipendenti da questo
+lavoro). `compileall` pulito.
+
+**Bug report di Davide, screenshot reale della UI**: la riga "Rimuovi Mago (classe
+secondaria, Lv.3)" era visibile esattamente dove previsto (header Profilo, sotto la
+riga classe/razza) ma il click non apriva alcun dialog — nessun errore visibile
+(l'app è un pacchetto desktop, nessuna console). Causa: la riga usava un
+`ft.Container(..., on_click=..., ink=True)` SENZA `bgcolor` esplicito — un Container
+Flet/Flutter senza colore di sfondo non è affidabile per l'hit-test del tap del proprio
+`on_click`. Corretto sostituendo il Container con un `ft.TextButton(content=...)` —
+lo stesso controllo già usato e confermato funzionante ovunque in questo header
+(Level up/Level down/Multiclasse, "Salva" XP). **Trovato per estensione anche un bug
+gemello, mai innescato prima** in `_show_level_up_class_picker()` (il dialog "quale
+classe sale?" per un level-up su un personaggio multiclasse): stesso identico
+pattern (Container senza bgcolor, solo `border`), mai verificato dal vivo da nessuno
+(`multiclasse_design.md` §8.4 lo segnalava esplicitamente come "verificato solo a
+livello di repository/logica, nessun accesso a screen recording in quella sessione")
+— corretto aggiungendo `bgcolor=design.T().surface` allo stesso Container, senza
+cambiarne lo stile a bottone (qui la resa a card va bene, il problema era solo
+l'assenza di sfondo). **Non è stato fatto un giro sistematico su tutto il resto
+dell'app** (21 file usano `ink=True`, la maggior parte già confermata funzionante in
+produzione — un Container CON `bgcolor` sembra hit-testare correttamente, solo il
+caso "trasparente" è a rischio) — se in futuro riemerge lo stesso sintomo ("il click
+non fa nulla, nessun errore") su una riga cliccabile mai testata dal vivo, controllare
+per primo se il suo Container ha un `bgcolor`. `compileall` pulito, `test_multiclasse.py`
+ancora 86/86 (nessuno di questi due bug è coperto da un test automatico — sono
+puramente di interazione UI, non di logica dati). **Nessun commit fatto.**
+
+---
+
+## Export scheda personaggio in PDF (2026-08-20)
+
+Ultima voce del piano di lavoro rimasta aperta dopo il passo 6 del Bottino e la rimozione
+classe multiclasse (voci sopra): la ricognizione era ferma da settimane in
+`docs/pdf_sheet_reference/` (README.md + `raw_extraction.json` da `pdfplumber` +
+`grid-1/2/3.png` a 150dpi con griglia 25pt), nessuna riga di modulo scritta. Richiesta
+esplicita di Davide di finire questa e la rimozione classe "così finiamo tutte le
+implementazioni" prima di valutare la prima release ufficiale v1.0.0.
+
+**Approccio**: il template (`dnd_blankcharactersheet_it.pdf`, 3 pagine, 594×783pt) è un
+PDF vettoriale piatto senza campi AcroForm — l'unico modo di compilarlo è disegnare un
+overlay di testo per pagina con `reportlab.pdfgen.canvas` (origine BASSO-sinistra) e
+fonderlo sopra il template originale con `pypdf` (`PdfReader`/`PdfWriter.merge_page()`).
+Le coordinate derivano da `raw_extraction.json` (origine ALTO-sinistra, convertite con
+una funzione `_y()`) più calibrazione a vista dove il JSON non bastava (cerchi/scudi/
+caselle decorative, mai testo). Nuove dipendenze `reportlab==5.0.0`/`pypdf==6.16.1`
+(entrambe pure Python — nessuna libreria di sistema, a differenza dei picker nativi già
+in `pyproject.toml`), pinnate in `requirements.txt` e `pyproject.toml`. Template copiato
+in `assets/character_sheet_template.pdf` (asset bundlato, letto a runtime).
+
+**Delegato in background** (sessione lunga, calibrazione meccanica ripetitiva —
+lettura visiva della griglia, render di prova, confronto, correzione, ripetere) a un
+sotto-agente con un brief molto dettagliato: README già scritto da leggere per intero,
+le 3 decisioni di design già confermate con Davide da NON rimettere in discussione
+(font auto-shrink mai troncato, solo le prime 3 armi equipaggiate in tabella + resto
+in elenco compresso, pagina 3 solo se `spellcasting_ability` valorizzata), la lista
+esatta delle funzioni di `character_repo.py` da usare per raccogliere i dati, e
+l'istruzione esplicita di NON fidarsi delle coordinate calcolate a occhio ma di
+renderizzare (`pdftoppm`) e leggere l'immagine risultante per verificare ogni volta.
+
+**Consegnato**: `core/pdf_sheet_exporter.py` (modulo puro, no Flet — stessa convenzione
+di `core/character_stats.py`/`weapon_calculator.py`), API pubblica
+`export_character_pdf(character_id, output_path) -> bool` (mai un'eccezione — `False` +
+log se il personaggio non esiste o qualcosa va storto, stesso contratto di tutte le
+altre funzioni "best effort" del progetto) e `suggested_pdf_filename(character_id)`
+(riusa lo slug/timestamp di `character_export.suggested_export_filename()`, nessuna
+duplicazione di regex). `test_pdf_sheet_export.py`, stessa convenzione di
+`test_multiclasse.py` (HOME temporaneo, `check()`/`main()`): incantatore → 3 pagine,
+marziale puro → 2 pagine, >3 armi equipaggiate → nessuna eccezione, backstory 2000+
+caratteri → percorso di auto-shrink senza eccezioni, `character_id` inesistente →
+`False` mai un'eccezione. 17/17 al primo giro.
+
+**Verifica indipendente e bug reale trovato** (dopo la consegna del sotto-agente, prima
+di considerare il lavoro chiuso): generato un personaggio di prova reale (Mago 6 con
+incantesimi/slot popolati), esportato, renderizzato con `pdftoppm` e letta l'immagine
+pagina per pagina — non ci si è fidati del solo resoconto del sotto-agente. Pagine 1 e 2
+fedeli al template fin dal primo giro (intestazione, 6 caratteristiche, CA/Iniziativa/
+Velocità, PF/Dadi Vita/TS morte, tabella armi, monete, tutti i box di testo pagina 1 e
+2). Pagina 3 (griglia incantesimi) aveva un bug reale: la baseline del nome incantesimo
+era calcolata un `_ROW_HEIGHT` intero (14pt) più in basso del rigo stampato a cui
+apparteneva — il testo finiva scritto sopra il rigo SUCCESSIVO invece che sopra il
+proprio, effetto visivo "barrato" (il rigo tagliava il testo a metà altezza).
+Confermato misurando le coordinate reali dei righi in `raw_extraction.json`
+(`lines`, pagina 3): passo verticale 14pt esatto, primo rigo del livello 1/colonna 1 a
+top=348.93 contro un `marker_top` di 312.5 (offset reale ≈35-36, non i 41 usati). Corretto
+ancorando la baseline SOPRA il proprio rigo (`row_top - 2.5`, mai sotto) e separando
+l'offset iniziale per il livello 0/Trucchetti (33, nessuna barra "SLOT TOTALI/SPESI"
+sopra) da quello dei livelli 1+ (35, con la barra). Una seconda verifica visiva ha
+scoperto un secondo problema, indipendente: livello 1/colonna 1 è l'UNICO punto
+dell'intero foglio dove le didascalie "PREPARATI"/"NOME INCANTESIMO" sono stampate
+(non si ripetono altrove, per design del template ufficiale) — la prima riga scrivibile
+lì è quindi la seconda, non la prima, un rigo di capienza in meno solo in quella cella.
+Entrambi corretti, ri-renderizzato e riletto per confermare: nessuna sovrapposizione
+residua su nessuna colonna/livello testato (0-9 con incantesimi reali).
+
+**Limiti noti, dichiarati non nascosti** (stesso principio già in uso per gli altri
+"limiti noti" del progetto — vedi `multiclasse_design.md` §8.2): "Privilegi & Tratti"
+elenca nome+livello+fonte delle feature, non la descrizione PHB completa (non ci sta in
+nessun box ragionevole); Percezione Passiva non scansiona bonus da talento (es. Sagace),
+solo prova+override manuale; il box "Tesoro" di pagina 2 non ha un campo dedicato nel
+modello dati e viene composto dalle monete di pagina 1 più gli oggetti di categoria
+"magic"; il riquadro decorativo "Simbolo/fede" resta vuoto (nessun campo dedicato);
+pagina 3 mostra solo la classe PRIMARIA per l'incantesimo (il foglio fisico non prevede
+comunque un modo di rappresentare un incantatore multiclasse).
+
+**UI** (`ui/views/home_view.py`): nuovo `IconButton` "Esporta scheda PDF" nella card
+personaggio, accanto a "Esporta personaggio (.dndchar)" — stesso schema a 3 rami
+desktop/web/mobile di `_on_export_click`, ma per un file binario invece di JSON:
+`_generate_pdf_bytes()` genera sempre prima in un file temporaneo
+(`export_character_pdf()` scrive su percorso, non ritorna byte) e ne legge i byte,
+perché a differenza di `character_export.export_to_json_string()` non esiste una
+versione "ritorna una stringa" dell'export PDF. Il ramo desktop riusa
+`ui/file_export.py::native_save_dialog()` (l'helper già estratto per l'export Mondo)
+invece di duplicare ancora una volta l'AppleScript/PowerShell/zenity inline come fa
+`_export_desktop()` per `.dndchar` (mai toccato, zero rischio di regressione lì).
+Nessun avviso "personaggio collegato a un mondo" (quell'avviso riguarda il RE-IMPORT,
+che un PDF non supporta comunque) — si esporta sempre direttamente.
+
+Verificato: `compileall` pulito, suite intera 35/37 file (era 36, +1 per
+`test_pdf_sheet_export.py`; sempre gli stessi 2 residui ambientali pre-esistenti,
+`test_qr_scan.py`/`test_versione_app.py`, indipendenti da questo lavoro).
+**Resta da confermare dal vivo**: aprire il dialogo di export su un dispositivo reale
+(desktop testato solo a livello di generazione file/rendering PNG in questo sandbox, non
+il dialogo nativo del SO — stesso limite di sempre per l'automazione macOS/Windows;
+mobile per definizione non testabile qui).
+
+**Bug report di Davide, stesso giorno, dopo un export reale** ("quasi, devi allineare
+meglio le scritte ma soprattutto le abilità"): allegato il PDF vero esportato dall'app
+(un Monaco 10 con più skill/salvezze proficienti), non solo una descrizione. Trovato il
+file su `~/Desktop`, renderizzato con `pdftoppm` e confrontato a zoom con lo stesso
+render del template vuoto — il template ha già un pallino proprio stampato su OGNI riga
+di Tiri Salvezza/Abilità (misurato dopo, in `raw_extraction.json`: centro x≈96.5,
+raggio≈3.3, offset Y dal `row_top` di quel rigo ≈2.9 pt, costante su tutte le righe
+controllate), ma `_draw_prof_row()` ne disegnava un secondo, leggermente sfalsato
+(x=92, offset Y diverso) E SEMPRE (contorno vuoto anche quando non competente) — il
+risultato erano due cerchi quasi sovrapposti ma non coincidenti su tutte le 24 righe
+(6 tiri salvezza + 18 abilità), l'effetto "doppio cerchio" che Davide ha notato. Corretto
+allineando il cerchio disegnato esattamente sopra quello del template (stesso centro,
+stesso raggio) e disegnandolo SOLO quando il personaggio è competente (il template
+fornisce già il cerchio vuoto per le righe non competenti, ridisegnarci sopra un
+contorno identico non serviva a nulla). Verificato di nuovo con lo stesso metodo (render
++ zoom + confronto col template vuoto) prima di richiudere: nessun doppio cerchio
+residuo su nessuna delle 24 righe. `test_pdf_sheet_export.py` ancora 17/17,
+`compileall` pulito. **Nessun commit fatto.**
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

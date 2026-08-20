@@ -1703,6 +1703,74 @@ def remove_character_class(character_classes_id: str) -> bool:
             conn.close()
 
 
+def _clear_spell_slot_totals(character_id: str) -> bool:
+    """
+    Azzera total/used di tutti gli slot incantesimo — usata solo da
+    remove_multiclass_class() quando, dopo la rimozione, l'unica classe
+    rimasta non è un incantatore (auto_init_spell_slots/
+    init_borrowed_caster_slots sono entrambe no-op in quel caso e
+    lascerebbero i totali del pool condiviso multiclasse ormai stantii).
+    """
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE spell_slots SET total=0, used=0 WHERE character_id=?",
+            (character_id,),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Errore _clear_spell_slot_totals {character_id}: {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def remove_multiclass_class(character_id: str, character_classes_id: str) -> bool:
+    """
+    Rimuove per intero una classe SECONDARIA da un personaggio multiclasse
+    (mai la primaria — characters.class_name/subclass/level la rappresentano
+    sempre, promuoverne un'altra al suo posto è fuori scope, vedi
+    docs/multiclasse_design.md §8.2/§8.4 "voci aperte"; la UI in
+    profilo_tab.py non offre mai questa scelta). Pensata per il caso
+    "aggiunta per errore": rimuove la riga character_classes, ricalcola il
+    livello totale, e risincronizza slot incantesimo (torna al singolo
+    caster rimasto, azzerando i totali se non è un incantatore — vedi
+    _clear_spell_slot_totals) e risorse di classe (init_class_resources fa
+    già l'unione sulle classi rimaste in character_classes, quindi ripulisce
+    da sola quelle della classe tolta, nessuna chiamata extra necessaria).
+
+    NON rimuove competenze o incantesimi già ottenuti tramite quella classe:
+    né character_proficiencies né known_spells hanno una colonna che li leghi
+    alla classe di origine (stesso limite già documentato per altri incroci
+    in §8.2) — resta un'operazione manuale, il dialog di conferma in
+    profilo_tab.py lo segnala esplicitamente. PF/dadi vita non vengono
+    toccati qui: la UI applica una stima simmetrica a quella già usata dal
+    level-down (core.level_manager.estimate_hp_loss) prima di chiamare
+    questa funzione.
+    """
+    classes = get_character_classes(character_id)
+    target = next((cc for cc in classes if cc.id == character_classes_id), None)
+    if target is None or target.is_primary or len(classes) < 2:
+        return False
+    if not remove_character_class(character_classes_id):
+        return False
+    sync_character_total_level(character_id)
+    remaining = get_character_classes(character_id)
+    if len(remaining) == 1:
+        rc = remaining[0]
+        if not auto_init_spell_slots(character_id, rc.class_name, rc.level):
+            if not init_borrowed_caster_slots(character_id, rc.class_name, rc.subclass, rc.level):
+                _clear_spell_slot_totals(character_id)
+    character = get_by_id(character_id)
+    if character:
+        init_class_resources(character_id, character.class_name or "", character.level, character)
+        calculate_and_update_ca(character_id)
+    return True
+
+
 _ABILITY_SCORE_FIELDS = {
     "forza": "str_score", "destrezza": "dex_score", "costituzione": "con_score",
     "intelligenza": "int_score", "saggezza": "wis_score", "carisma": "cha_score",

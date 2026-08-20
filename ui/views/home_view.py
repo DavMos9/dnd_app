@@ -12,6 +12,8 @@ from typing import cast
 from data.database import get_character_exports_path, get_web_export_staging_path
 from data.models import Character, World
 from data.repositories import character_repo, character_export, world_repo
+from core.pdf_sheet_exporter import export_character_pdf, suggested_pdf_filename
+from ui import file_export
 from core import character_instances as ci
 from core import world_permissions as perm
 from core import world_sync
@@ -685,6 +687,9 @@ class HomeView(ft.Column):
             ft.IconButton(icon=ft.Icons.IOS_SHARE, icon_color=p.text_3,
                           tooltip="Esporta personaggio (file .dndchar)",
                           on_click=lambda e, c=char: self._on_export_click(c)),
+            ft.IconButton(icon=ft.Icons.PICTURE_AS_PDF, icon_color=p.text_3,
+                          tooltip="Esporta scheda PDF",
+                          on_click=lambda e, c=char: self._on_export_pdf_click(c)),
             ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=p.danger_icon,
                           tooltip="Elimina personaggio",
                           on_click=lambda e, c=char: self._confirm_delete(c)),
@@ -1441,6 +1446,148 @@ class HomeView(ft.Column):
             return
         self._show_export_success_dialog(os.path.basename(path), path, system=system)
 
+    # --- Export scheda PDF (2026-08-20) -----------------------------------
+    # Stesso schema a 3 rami di _on_export_click/_proceed_export
+    # (desktop/web/mobile) ma per un file BINARIO invece di JSON testuale —
+    # export_character_pdf() scrive su un percorso, quindi qui si genera
+    # sempre PRIMA in un file temporaneo e poi si copiano i byte verso la
+    # destinazione vera (nessuna versione "ritorna una stringa" del PDF,
+    # a differenza di character_export.export_to_json_string()). Nessun
+    # avviso "personaggio collegato a un mondo" (quello riguarda il
+    # re-import, che il PDF non supporta comunque) — si esporta sempre
+    # direttamente.
+
+    def _on_export_pdf_click(self, char: Character):
+        page = self.page
+        if page is None:
+            return
+        if page.web:
+            self._export_pdf_web(char)
+            return
+        platform = page.platform
+        if platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS):
+            page.run_task(self._on_mobile_export_pdf, char)
+            return
+        import platform as sys_platform
+        system = sys_platform.system()
+        threading.Thread(target=self._export_pdf_desktop, args=(char, system), daemon=True).start()
+
+    def _generate_pdf_bytes(self, char: Character) -> bytes | None:
+        """Genera il PDF in un file temporaneo e ne ritorna i byte — helper
+        comune ai 3 rami, dato che export_character_pdf() scrive solo su
+        percorso. Ritorna None se la generazione fallisce (mai un'eccezione,
+        stesso contratto di export_character_pdf())."""
+        import tempfile
+        fd, tmp_path = tempfile.mkstemp(suffix=".pdf")
+        os.close(fd)
+        try:
+            if not export_character_pdf(char.id, tmp_path):
+                return None
+            with open(tmp_path, "rb") as f:
+                return f.read()
+        except OSError as exc:
+            logger.error(f"Errore lettura PDF temporaneo ({tmp_path}): {exc}")
+            return None
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+    async def _on_mobile_export_pdf(self, char: Character):
+        picker = self._ensure_file_picker()
+        if picker is None:
+            return
+        pdf_bytes = self._generate_pdf_bytes(char)
+        if pdf_bytes is None:
+            self._show_error("Errore durante la generazione della scheda PDF.")
+            return
+        filename = suggested_pdf_filename(char.id)
+        try:
+            result_path = await picker.save_file(
+                dialog_title="Esporta scheda PDF",
+                file_name=filename,
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["pdf"],
+                src_bytes=pdf_bytes,
+            )
+        except Exception as exc:
+            logger.error(f"Errore FilePicker.save_file (mobile, PDF): {exc}")
+            self._show_error(f"Errore durante l'esportazione:\n{exc}")
+            return
+        if not result_path:
+            return
+        self._show_export_success_dialog(filename, result_path, system=None,
+                                          title="Scheda PDF esportata")
+
+    def _export_pdf_web(self, char: Character):
+        pdf_bytes = self._generate_pdf_bytes(char)
+        if pdf_bytes is None:
+            self._show_error("Errore durante la generazione della scheda PDF.")
+            return
+        filename = suggested_pdf_filename(char.id)
+        full_path = os.path.join(get_character_exports_path(), filename)
+        staging_path = os.path.join(get_web_export_staging_path(), filename)
+        written = False
+        for path in (full_path, staging_path):
+            try:
+                with open(path, "wb") as f:
+                    f.write(pdf_bytes)
+                written = True
+            except OSError as exc:
+                logger.error(f"Errore scrittura PDF export ({path}): {exc}")
+        if not written:
+            self._show_error("Errore durante il salvataggio della scheda PDF.")
+            return
+        self._show_export_success_dialog(
+            filename, full_path, system=None, download_url=f"/exports/{filename}",
+            title="Scheda PDF esportata",
+        )
+
+    def _export_pdf_desktop(self, char: Character, system: str):
+        """Chiamato in un thread separato — dialogo nativo di salvataggio,
+        stesso helper generico di ui/file_export.py già in uso per l'export
+        Mondo (.dndworld), invece di duplicare l'AppleScript/PowerShell/
+        zenity inline come fa ancora _export_desktop() per .dndchar."""
+        pdf_bytes = self._generate_pdf_bytes(char)
+        if pdf_bytes is None:
+            self._show_error("Errore durante la generazione della scheda PDF.")
+            return
+        default_name = suggested_pdf_filename(char.id)
+        path, error = file_export.native_save_dialog(
+            system, dialog_title="Esporta scheda PDF", default_name=default_name,
+            filter_label="Scheda PDF", filter_ext=".pdf",
+        )
+        if error:
+            logger.error(f"Dialogo salvataggio nativo fallito ({system}, PDF): {error}")
+            self._show_error(
+                "Non è stato possibile aprire la finestra di salvataggio del sistema:\n"
+                f"{error}\n\n"
+                "Su macOS potrebbe essere necessario autorizzare l'automazione: "
+                "Impostazioni di Sistema → Privacy e Sicurezza → Automazione."
+            )
+            return
+        if not path:
+            return
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
+        try:
+            with open(path, "wb") as f:
+                f.write(pdf_bytes)
+        except OSError as exc:
+            logger.error(f"Errore scrittura PDF export ({path}): {exc}")
+            self._show_error(f"Errore durante il salvataggio del file:\n{path}\n{exc}")
+            return
+        if not os.path.isfile(path):
+            logger.error(f"File PDF export non trovato dopo la scrittura: {path}")
+            self._show_error(
+                f"Il file non risulta presente dopo il salvataggio:\n{path}\n"
+                "Riprova, oppure scegli un'altra cartella."
+            )
+            return
+        self._show_export_success_dialog(os.path.basename(path), path, system=system,
+                                          title="Scheda PDF esportata")
+
     def _save_dialog_native(self, system: str, default_name: str) -> tuple[str | None, str | None]:
         """
         Dialogo di salvataggio nativo del SO — stesso pattern subprocess
@@ -1553,7 +1700,7 @@ class HomeView(ft.Column):
 
     def _show_export_success_dialog(
         self, filename: str, path: str, system: str | None,
-        download_url: str | None = None,
+        download_url: str | None = None, title: str = "Personaggio esportato",
     ):
         """
         `system`: `"Darwin"`/`"Windows"`/`"Linux"` per un export desktop (mostra
@@ -1608,7 +1755,7 @@ class HomeView(ft.Column):
 
         page.show_dialog(ft.AlertDialog(
             modal=True,
-            title=d.dialog_title("Personaggio esportato"),
+            title=d.dialog_title(title),
             content=ft.Column([
                 ft.Text(f'File salvato come "{filename}".',
                         color=d.T().text, size=13),

@@ -47,6 +47,15 @@ Sette parti:
     di profilo_tab.py non già coperto dai test [1]-[6] (il resto del
     metodo richiama solo funzioni di repository già testate sopra).
 
+[11] Rimozione classe secondaria (2026-08-20, `character_repo.
+    remove_multiclass_class()` + UI in profilo_tab.py, voce aperta dalla
+    revisione generale del 2026-08-19 in CLAUDE.md): rimozione completa di
+    una classe secondaria (mai la primaria — guardia dedicata), risync di
+    slot incantesimo (torna al singolo caster rimasto, azzerati se non è
+    più un incantatore) e risorse di classe; competenze/incantesimi
+    ottenuti dalla classe rimossa restano un limite noto e documentato
+    (nessuna colonna li lega alla classe di origine), non rimossi qui.
+
 Eseguire con:
     PYTHONPATH=".venv/lib/python3.13/site-packages:." python3 test_multiclasse.py
 """
@@ -456,6 +465,78 @@ def test_spells_view_multiclasse():
           _calc_max_prepared_value("Mago", 3, "int", scores, 0) == 5)
 
 
+def test_rimozione_classe_secondaria():
+    print("\n[11] Rimozione classe secondaria — remove_multiclass_class() (2026-08-20)")
+
+    # (a) Caso principale: Ranger4/Mago3 (stesso esempio PHB del test [5]) —
+    # rimuovere il Mago deve far tornare gli slot alla tabella del SOLO
+    # Ranger (half-caster, non più il pool combinato liv.5).
+    c = _make_character("RimozioneCaster", "Ranger", 4, saggezza=14, intelligenza=8)
+    character_repo.auto_init_spell_slots(c.id, "Ranger", 4)
+    mago_id = character_repo.add_character_class(c.id, "Mago", level=3)
+    character_repo.sync_character_total_level(c.id)
+    character_repo.sync_multiclass_spell_slots(c.id)
+    slots_before = {s.slot_level: s.total for s in character_repo.get_spell_slots(c.id)}
+    check("pre-rimozione: pool combinato liv.5 → slot 1 = 4", slots_before[1] == 4)
+
+    ok = character_repo.remove_multiclass_class(c.id, mago_id)
+    check("remove_multiclass_class ritorna True", ok is True)
+    classes_after = character_repo.get_character_classes(c.id)
+    check("resta una sola classe (Ranger, primaria)",
+          len(classes_after) == 1 and classes_after[0].class_name == "Ranger"
+          and classes_after[0].is_primary)
+    refreshed = character_repo.get_by_id(c.id)
+    check("livello totale torna a 4 (solo Ranger)", refreshed is not None and refreshed.level == 4)
+    slots_after = {s.slot_level: s.total for s in character_repo.get_spell_slots(c.id)}
+    check("post-rimozione: slot torna alla tabella half-caster del solo Ranger Lv4 (slot 1 = 3)",
+          slots_after[1] == 3 and slots_after[2] == 0)
+
+    # (b) Nessun incantatore resta: Guerriero (non-caster) + Mago rimosso →
+    # gli slot del pool combinato devono azzerarsi del tutto, non restare
+    # stantii (auto_init_spell_slots è un no-op silenzioso per un non-caster).
+    c2 = _make_character("RimozioneNonCaster", "Guerriero", 5, forza=16, intelligenza=14)
+    mago2_id = character_repo.add_character_class(c2.id, "Mago", level=3)
+    character_repo.sync_character_total_level(c2.id)
+    character_repo.sync_multiclass_spell_slots(c2.id)
+    check("pre-rimozione: pool combinato non a zero",
+          any(s.total > 0 for s in character_repo.get_spell_slots(c2.id)))
+    character_repo.remove_multiclass_class(c2.id, mago2_id)
+    check("post-rimozione: nessuna classe incantatrice → tutti gli slot a 0",
+          all(s.total == 0 for s in character_repo.get_spell_slots(c2.id)))
+
+    # (c) Risorse di classe: Barbaro+Monaco (stesso incrocio del test [4]) —
+    # rimuovendo il Monaco, "Punti Ki" deve sparire, "Furia" restare intatta
+    # (init_class_resources() già fa l'unione sulle classi rimaste).
+    c3 = _make_character("RimozioneRisorse", "Barbaro", 5, forza=16, costituzione=14)
+    monaco_id = character_repo.add_character_class(c3.id, "Monaco", level=3)
+    character_repo.sync_character_total_level(c3.id)
+    character_repo.init_class_resources(c3.id, "Monaco", 3, c3)
+    character_repo.remove_multiclass_class(c3.id, monaco_id)
+    resources = {r.name for r in character_repo.get_class_resources(c3.id)}
+    check("dopo rimozione Monaco: Punti Ki sparisce", "Punti Ki" not in resources)
+    check("dopo rimozione Monaco: Furia resta", "Furia" in resources)
+
+    # (d) Guardia: non deve mai essere possibile rimuovere la PRIMARIA.
+    c4 = _make_character("RimozionePrimaria", "Chierico", 5, saggezza=16)
+    primaria = character_repo.get_primary_character_class(c4.id)
+    ladro_id = character_repo.add_character_class(c4.id, "Ladro", level=1)
+    ok_primaria = character_repo.remove_multiclass_class(c4.id, primaria.id)
+    check("rimuovere la primaria ritorna False", ok_primaria is False)
+    check("la primaria resta al suo posto (2 classi ancora presenti)",
+          len(character_repo.get_character_classes(c4.id)) == 2)
+
+    # (e) Guardia: personaggio a classe singola — nessuna riga secondaria da
+    # rimuovere, deve fallire in sicurezza senza toccare nulla.
+    c5 = _make_character("RimozioneClasseSingola", "Guerriero", 3, forza=16)
+    sola = character_repo.get_primary_character_class(c5.id)
+    ok_singola = character_repo.remove_multiclass_class(c5.id, sola.id)
+    check("classe singola: remove_multiclass_class ritorna False", ok_singola is False)
+    check("classe singola: la riga resta", len(character_repo.get_character_classes(c5.id)) == 1)
+    # id inesistente sullo stesso personaggio: stessa sicurezza.
+    ok_ladro_su_c4_da_c5 = character_repo.remove_multiclass_class(c5.id, ladro_id)
+    check("id di classe di un altro personaggio: ritorna False", ok_ladro_su_c4_da_c5 is False)
+
+
 def main() -> int:
     print("=" * 66)
     print("Multiclasse — schema/repository layer (PHB IT cap.6, p.163-165)")
@@ -472,6 +553,7 @@ def main() -> int:
     test_level_up_classe_secondaria()
     test_leveling_class_view_proxy()
     test_spells_view_multiclasse()
+    test_rimozione_classe_secondaria()
     print("\n" + "=" * 66)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

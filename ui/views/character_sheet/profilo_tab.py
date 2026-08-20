@@ -20,7 +20,7 @@ import flet as ft
 import logging
 from config.settings import *
 from data.database import get_connection
-from data.models import Character, CharacterProficiency
+from data.models import Character, CharacterClass, CharacterProficiency
 import data.repositories.character_repo as character_repo
 from ui.image_library import show_image_library_picker
 from ui.mobile_webview_picker import pick_file_via_webview
@@ -312,7 +312,9 @@ class ProfiloTab(ScrollMemoryListView):
         # totali (PHB IT p.163, "Multiclasse" — il manuale non prevede più di
         # due classi per personaggio), oltre al tetto di livello 20 totale
         # già condiviso con Level up.
-        _n_owned_classes = len(character_repo.get_character_classes(c.id))
+        _owned_classes = character_repo.get_character_classes(c.id)
+        _n_owned_classes = len(_owned_classes)
+        _secondary_class = next((cc for cc in _owned_classes if not cc.is_primary), None)
         self._add_class_btn = ft.OutlinedButton(
             content=ft.Row([
                 ft.Icon(ft.Icons.ADD, size=14, color=design.T().text_2),
@@ -393,6 +395,39 @@ class ProfiloTab(ScrollMemoryListView):
                         + f"  •  {c.race or '—'}",
                         size=12, color=design.T().text_2,
                     ),
+                    # Rimozione classe secondaria (2026-08-20): visibile solo se
+                    # il personaggio è multiclasse — mai per la primaria (vedi
+                    # remove_multiclass_class in character_repo.py).
+                    # **Bug reale trovato da Davide (screenshot + click dal
+                    # vivo)**: la prima versione usava un Container+ink+
+                    # on_click (stesso idioma del picker "quale classe sale?"
+                    # sopra) — la riga era VISIBILE ma il click non apriva
+                    # mai il dialog, senza errori (un Container senza bgcolor
+                    # non è affidabile per l'hit-test del tap in Flet/
+                    # Flutter). Sostituito con `ft.TextButton` — stesso
+                    # controllo già usato e confermato funzionante ovunque
+                    # nell'app (Level up/Level down/Multiclasse qui sopra,
+                    # "Salva" XP qui sotto), solo con `content=` invece del
+                    # testo semplice per tenere icona+testo piccoli.
+                    ft.TextButton(
+                        content=ft.Row(
+                            [
+                                ft.Icon(ft.Icons.CLOSE, size=12, color=design.T().text_3),
+                                ft.Text(
+                                    f"Rimuovi {_secondary_class.class_name} "
+                                    f"(classe secondaria, Lv.{_secondary_class.level})",
+                                    size=11, color=design.T().text_3,
+                                ),
+                            ],
+                            spacing=4,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            tight=True,
+                        ),
+                        on_click=lambda e, cc=_secondary_class: self._on_remove_multiclass_click(cc),
+                        style=ft.ButtonStyle(
+                            padding=ft.Padding.symmetric(horizontal=4, vertical=0),
+                        ),
+                    ) if _secondary_class is not None else ft.Container(height=0),
                     ft.Row(
                         [
                             ft.Text("XP:", size=12, color=design.T().text_2),
@@ -1628,6 +1663,16 @@ class ProfiloTab(ScrollMemoryListView):
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 padding=ft.Padding.symmetric(horizontal=12, vertical=12),
+                # `bgcolor` esplicito, non solo `border` (bug reale trovato
+                # il 2026-08-20 sul pattern gemello della rimozione classe in
+                # questo stesso file: un Container senza bgcolor non è
+                # affidabile per l'hit-test del tap del suo `on_click` in
+                # Flet/Flutter — la riga era visibile ma il click non faceva
+                # nulla). Questo dialog non era mai stato cliccato dal vivo
+                # da Davide (verificato solo a livello di repository/logica,
+                # multiclasse_design.md §8.4) — stesso bug, probabilmente
+                # mai innescato finché nessuno ci ha davvero cliccato sopra.
+                bgcolor=design.T().surface,
                 border=ft.Border.all(1, design.T().border),
                 border_radius=design.field_style()['border_radius'],
                 on_click=_make_handler(cc.class_name),
@@ -4491,6 +4536,95 @@ class ProfiloTab(ScrollMemoryListView):
                 ft.ElevatedButton(
                     "Aggiungi Classe", on_click=do_add_class,
                     style=ft.ButtonStyle(bgcolor=design.T().primary_fill, color=design.T().on_primary_fill),
+                ),
+            ]),
+        )
+        page.show_dialog(dlg)
+
+    def _on_remove_multiclass_click(self, cc: "CharacterClass") -> None:
+        """
+        Conferma e rimuove per intero la classe SECONDARIA `cc` (mai la
+        primaria — l'unico punto d'ingresso a questa funzione, la riga
+        "Rimuovi ..." nell'header, esiste solo per `_secondary_class`).
+        PF: stima simmetrica a quella già usata dal Level down
+        (core.level_manager.estimate_hp_loss) applicata per ogni livello
+        della classe rimossa più l'eventuale bonus PF permanente di
+        sottoclasse (es. Resilienza Draconica) — è una stima, non
+        un'inversione esatta di quanto guadagnato, il dialog lo dichiara
+        esplicitamente. Tutto il resto (livello totale, slot incantesimo,
+        risorse di classe, CA) è gestito da
+        character_repo.remove_multiclass_class().
+        """
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+
+        cls_data = _loader.get_class(cc.class_name) or {}
+        hit_die = cls_data.get("hit_die") or 8
+        con_mod = get_modifier(c.con_score)
+        hp_estimate = cc.level * estimate_hp_loss(hit_die, con_mod)
+        hp_estimate += get_permanent_class_hp_bonus(cc.class_name, cc.subclass, cc.level)
+        hp_estimate = max(0, hp_estimate)
+        new_total_level = max(1, c.level - cc.level)
+
+        def _confirm(ev):
+            if page is None:
+                return
+            if not character_repo.remove_multiclass_class(c.id, cc.id):
+                show_error_dialog(page)
+                return
+            self.character.hp_max = max(1, self.character.hp_max - hp_estimate)
+            self.character.hp_current = min(self.character.hp_current, self.character.hp_max)
+            self.character.hit_dice_total = max(1, self.character.hit_dice_total - cc.level)
+            self.character.hit_dice_remaining = min(
+                self.character.hit_dice_remaining, self.character.hit_dice_total,
+            )
+            self.character.level = new_total_level
+            if not character_repo.update(self.character):
+                show_error_dialog(page)
+                return
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(ev):
+            if page:
+                page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=design.dialog_title(f"Rimuovi {cc.class_name}"),
+            content=ft.Container(
+                width=responsive_dialog_width(page, 380),
+                content=ft.Column([
+                    ft.Text(
+                        f'Rimuovere del tutto "{cc.class_name}" (Lv.{cc.level}) dal '
+                        f"personaggio? Il livello totale scenderà a {new_total_level}.",
+                        size=13, color=design.T().text,
+                    ),
+                    ft.Container(height=4),
+                    ft.Text(
+                        f"HP max verrà ridotto di ~{hp_estimate} PF "
+                        f"(stima media: {cc.level}×d{hit_die} + CON, come nel Level down).",
+                        size=12, color=design.T().text_2,
+                    ),
+                    ft.Container(height=4),
+                    ft.Container(
+                        content=ft.Text(
+                            "⚠ Competenze e incantesimi ottenuti da questa classe NON "
+                            "vengono rimossi automaticamente — toglili a mano dalle "
+                            "rispettive sezioni se necessario.",
+                            size=11, color=design.T().danger,
+                        ),
+                        bgcolor=design.T().note_bg, padding=8, border_radius=design.Radius.SM,
+                        border=ft.Border.all(1, design.T().danger),
+                    ),
+                ], spacing=4, tight=True),
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton(
+                    "Rimuovi classe", on_click=_confirm,
+                    style=ft.ButtonStyle(bgcolor=design.T().danger_fill, color=design.T().on_primary_fill),
                 ),
             ]),
         )

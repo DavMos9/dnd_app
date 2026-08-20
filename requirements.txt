@@ -34,6 +34,16 @@ qrcode==8.2
 # dnd_app/extensions/flet_file_picker/README.md.
 -e ./extensions/flet_file_picker
 
+# Aggiunte il 2026-08-20: export scheda personaggio in PDF (ricognizione già
+# fatta in docs/pdf_sheet_reference/, README.md) — overlay di testo con
+# reportlab, fuso con il template ufficiale (assets/character_sheet_
+# template.pdf) tramite pypdf. Entrambe pure Python (reportlab usa
+# opzionalmente `_rl_accel` in C ma degrada da solo se assente — nessuna
+# libreria di sistema richiesta), stesso motivo per cui non serve alcuna
+# estensione Flet dedicata qui, a differenza dei picker sotto.
+reportlab==5.0.0
+pypdf==6.16.1
+
 # Aggiunto il 2026-08-17: ultimo passo dell'aggiornamento in-app — consegnare
 # l'APK scaricato all'installer di pacchetti di SISTEMA su Android. Non
 # ottenibile dal Python (serve un FileProvider per l'URI content:// e un intent
