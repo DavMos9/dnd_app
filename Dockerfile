@@ -10,8 +10,11 @@ WORKDIR /app
 COPY . .
 
 RUN pip install --no-cache-dir \
-        flet==0.85.3 \
-        "Pillow>=10.0.0"
+        flet==0.86.5 \
+        "Pillow>=10.0.0" \
+        qrcode==8.2 \
+        reportlab==5.0.0 \
+        pypdf==6.16.1
 
 # Volume per il DB SQLite — montare dall'host per la persistenza
 VOLUME ["/root/.dnd_companion"]

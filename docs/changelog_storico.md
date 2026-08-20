@@ -11666,6 +11666,70 @@ vero `WorldHostServer` in un thread separato, ma sullo stesso processo/DB).
 
 ---
 
+## Audit documentazione e igiene repository dopo il rilascio v0.3.4 (2026-08-20)
+
+Richiesta di Davide dopo il rilascio di v0.3.4: aggiornare tutta la documentazione allo
+stato attuale del progetto, verificare che la repo GitHub (pubblica) sia in ordine, che
+`README.md` rispecchi al 100% il progetto e che `.gitignore` nasconda tutto ciò che non
+deve essere versionato, più un controllo generale di cosa manca o va cambiato.
+
+**Verifica repo/gitignore**: nessun file tra `.venv/`, `build/`, `__pycache__/`, `*.db`
+risultava tracciato (il `.gitignore` esistente li copre correttamente). Trovati e rimossi
+dall'indice due `.DS_Store` residui committati prima che la regola `.gitignore` esistesse
+(`data/.DS_Store`, `data/game_data/.DS_Store` — `git rm --cached`, restano sul disco,
+smettono solo di essere versionati).
+
+**`README.md` — non rispecchiava più il progetto reale su più punti**: versione Flet
+dichiarata 0.85.3 invece di 0.86.5 (aggiornata dal 2026-08-05); roadmap che elencava come
+"da fare" tre cose già completate da tempo (export PDF, aggiornamento automatico in-app —
+quest'ultimo dichiarato apertamente "rimandato" nel testo, mentre è **fatto** dal
+2026-08-17); Sezione Master descritta solo con "Incontri e Bottino", senza menzionare
+Oggetti Magici (264 voci + generatore), Artefatti DMG, generatore Ambiente con quantità, e
+senza il nuovo Dossier NPC di questa sessione; nessuna menzione di export/import
+`.dndchar`/`.dndworld` né del trasferimento personaggio su altro dispositivo; conteggio
+background PHB indicato 12 invece di 13 (Ciarlatano è stato aggiunto più avanti nello
+sviluppo); tabella piattaforme con iOS "✅" alla pari delle altre quattro, quando in realtà
+non fa parte della pipeline di release automatica (`.github/workflows/release.yml` builda
+solo Windows/macOS/Linux/Android) ed è buildabile solo a mano; albero della struttura file
+non più aggiornato (mancavano `core/pdf_sheet_exporter.py`, `ui/components/`,
+`ui/design.py`, `extensions/`, vari repository nuovi). Riscritto integralmente allineando
+Funzionalità/Piattaforme/Stack tecnico/Struttura/Roadmap allo stato reale del codice.
+
+**Licenza mancante**: il README linkava `[MIT](LICENSE)` ma nessun file `LICENSE` esisteva
+nella repo (verificato con una ricerca su tutto il progetto, solo licenze di dipendenze
+in `.venv`/`build`) — su una repo pubblica è un link rotto reale, non solo un dettaglio.
+Aggiunto `LICENSE` (MIT), coerente con quanto il README promette da sempre.
+
+**`Dockerfile` disallineato**: pin `flet==0.85.3`, la versione precedente all'aggiornamento
+del 2026-08-05 — un `docker compose up` oggi avrebbe installato una versione di Flet non
+più in lockstep con `flet-webview`/le altre estensioni pinnate a 0.86.5 nel resto del
+progetto, rischiando le stesse rotture d'API già documentate tra le due versioni.
+Corretto a 0.86.5, aggiunte anche `qrcode`/`reportlab`/`pypdf` (mancavano dall'immagine
+Docker, servono rispettivamente per la generazione QR e l'export PDF, entrambe feature
+pure Python già usate dall'app). **Non toccati** invece `flet-camera`/
+`flet-permission-handler`/`pyzbar` in `pyproject.toml` ma assenti da `requirements.txt`:
+verificato che è intenzionale (commenti esistenti nel file) — sono dipendenze
+Android/iOS-only per lo scanner QR, irraggiungibile su desktop, e `pyzbar` richiederebbe
+la libreria di sistema `libzbar` non garantita su ogni macchina di sviluppo.
+
+**`CLAUDE.md`**: la sezione "Piano di lavoro attivo" era già aggiornata (comprendeva già
+le voci di questa stessa sessione su zoom mappa/quantità Ambiente/Dossier NPC, scritte
+prima del rilascio). Corretti invece due punti stantii nelle sezioni di riferimento
+stabile: l'elenco dei 12 file background in "Struttura File" usava ancora i vecchi nomi
+derivati dall'inglese (Orfano/Studioso/Vagabondo invece di Monello/Sapiente/Forestiero, e
+mancava Ciarlatano) — la stessa regola critica di terminologia enunciata in cima al file
+veniva violata dal file stesso più in basso; la riga "Requisiti" in "Panoramica" suggeriva
+`pip install flet>=0.21.0`, un vincolo lasco incompatibile con la scelta deliberata di
+pinning esatto spiegata ovunque nel resto del documento; la frase di apertura della
+sezione "Panoramica" diceva ancora che il tracker di combattimento condiviso e
+l'esportazione `.dndworld` restavano da verificare dal vivo, smentita poche righe sotto
+nella stessa "Piano di lavoro attivo" (confermati dal vivo il 2026-08-18).
+
+Nessuna modifica al codice applicativo in questa sessione — solo documentazione,
+repository e `Dockerfile`. **Nessun commit fatto**, in attesa di conferma di Davide.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

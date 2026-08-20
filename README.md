@@ -18,13 +18,20 @@ App desktop e mobile scritta in Python + Flet, completamente offline, basata sul
   - Diario — voci di sessione con titolo, data e testo libero
 - **Level-up guidato** — ASI, talenti, sottoclasse, nuove abilità (perizia, metamagia, invocazioni, incantesimi)
 - **Sezione Incantesimi** — tutti gli incantesimi delle 8 classi PHB, preparazione e slot
-- **Mappe** — caricamento immagini, disegno freehand con penna/gomma, annotazioni persistenti
+- **Mappe** — caricamento immagini, disegno freehand con penna/gomma, annotazioni persistenti, zoom/pan con pinch (touch) e trackpad
 - **Dadi** — tira qualsiasi combinazione direttamente dall'app
 - **Compendio Talenti** — tutti i 42 talenti PHB con descrizione e prerequisiti
-- **Multiclasse** — fino a 2 classi per personaggio, con prerequisiti/competenze/slot incantesimo calcolati secondo il PHB, level-up per singola classe e vista Incantesimi separata per classe
-- **Mondi condivisi (LAN party)** — un Master ospita un mondo in rete locale (scoperta automatica o QR), i giocatori si uniscono col proprio personaggio; combattimento, note, mappe e appunti si sincronizzano in tempo reale; esportazione/importazione di un mondo intero in un file `.dndworld`
-- **Sezione Master** — rubrica NPC (razza PHB con auto-riempimento tipo creatura/taglia), Incontri e Bottino, tutto filtrato per mondo selezionato; azioni rapide a distanza sui personaggi dei giocatori
-- **Controllo aggiornamenti automatico** — notifica in-app quando è disponibile una nuova versione
+- **Multiclasse** — fino a 2 classi per personaggio, con prerequisiti/competenze/slot incantesimo calcolati secondo il PHB, level-up per singola classe, rimozione della classe secondaria e vista Incantesimi separata per classe
+- **Esportazione scheda in PDF** — scheda personaggio compilata su modulo ufficiale PHB, pronta per la stampa
+- **Esportazione/Importazione** — personaggio singolo (`.dndchar`) o mondo intero (`.dndworld`) in un file; trasferimento di un personaggio su un altro dispositivo con codice monouso
+- **Mondi condivisi (LAN party)** — un Master ospita un mondo in rete locale (scoperta automatica o QR), i giocatori si uniscono col proprio personaggio; combattimento, note, mappe, bottino e appunti si sincronizzano in tempo reale; interventi rapidi a distanza del Master; riconnessione automatica anche se l'host cambia rete
+- **Sezione Master**, tutto filtrato per il mondo selezionato:
+  - **Rubrica NPC** — razza PHB con auto-riempimento tipo creatura/taglia, ritratto opzionale che il Master può caricare e che appare come dossier ("carta d'identità") al giocatore quando l'NPC è collegato a una nota di campagna condivisa
+  - **Incontri** — generatore per Ambiente (tabelle DMG, quantità suggerite dal tiro con inserimento manuale sempre possibile) e per Difficoltà, tracker di combattimento condiviso in tempo reale con i giocatori
+  - **Oggetti Magici** — compendio di 264 voci dal DMG con generatore casuale (anche in modalità "Personalizzato")
+  - **Artefatti** — i 7 artefatti del DMG, pronti da assegnare
+  - **Bottino** — creazione/assegnazione di voci (incluse armi/armature con campi meccanici e danni magici multipli) e Deposito del Gruppo condiviso, reclamabile dai giocatori
+- **Aggiornamento automatico in-app** — controllo, download e installazione della nuova versione direttamente dall'app (nessuna disinstallazione richiesta)
 
 ---
 
@@ -32,11 +39,11 @@ App desktop e mobile scritta in Python + Flet, completamente offline, basata sul
 
 | Piattaforma | Stato |
 |---|---|
-| macOS | ✅ |
-| Windows | ✅ |
-| Linux | ✅ |
-| Android | ✅ |
-| iOS | ✅ |
+| macOS | ✅ build automatica ad ogni release |
+| Windows | ✅ build automatica ad ogni release |
+| Linux | ✅ build automatica ad ogni release |
+| Android | ✅ build automatica ad ogni release, firmata, aggiornamento in-app |
+| iOS | ⚠️ buildabile a mano (`flet build ipa`, richiede macOS + Xcode), non incluso nella pipeline di release automatica |
 
 ---
 
@@ -44,11 +51,12 @@ App desktop e mobile scritta in Python + Flet, completamente offline, basata sul
 
 | Componente | Tecnologia |
 |---|---|
-| GUI | [Flet 0.85.3](https://flet.dev) (Flutter-based) |
+| GUI | [Flet 0.86.5](https://flet.dev) (Flutter-based) |
 | Database | SQLite (WAL mode, FK cascade) |
-| Immagini | Pillow (foto personaggio e mappe) |
+| Immagini | Pillow (foto personaggio, mappe, ritratti NPC) |
+| PDF | ReportLab + pypdf (esportazione scheda) |
 | LLM / AI | Nessuno — logica offline pura |
-| Rete | Solo controllo aggiornamenti (facoltativo) |
+| Rete | Server LAN stdlib (`http.server`) per i Mondi condivisi, facoltativo; controllo/download aggiornamenti via GitHub Releases |
 
 ---
 
@@ -97,6 +105,18 @@ flet build ipa
 
 ---
 
+## 🐳 Modalità web (Docker)
+
+In alternativa alla build nativa, l'app gira anche in modalità web servita da un container:
+
+```bash
+docker compose up -d
+```
+
+Espone la UI su `http://localhost:8000`. Il database SQLite persiste in un volume Docker (`dnd_data`); la libreria immagini e gli export personaggio/mondo usano bind mount reali sull'host (`./dnd_image_library`, `./dnd_character_exports`) — utile per copiarci dentro file via SSH quando non c'è un file picker nativo del browser. Vedi i commenti in `docker-compose.yml`.
+
+---
+
 ## 📂 Struttura del progetto
 
 ```
@@ -109,13 +129,13 @@ dnd_app/
 │   └── settings.py            # Costanti D&D 5e, colori, helper
 │
 ├── core/                      # Logica di gioco pura (no Flet)
-│   ├── wizard_engine.py       # Logica scoring wizard
-│   ├── level_manager.py       # Step di level-up per classe
+│   ├── wizard_engine.py / level_manager.py / equipment_manager.py / weapon_calculator.py
 │   ├── npc_generator.py       # Generatore NPC (razza, allineamento, ruoli)
-│   ├── encounter_generator.py / encounter_calculator.py   # Incontri e difficoltà
+│   ├── encounter_generator.py / encounter_calculator.py / trap_generator.py   # Incontri, difficoltà, trappole DMG
 │   ├── loot_calculator.py / treasure_generator.py / magic_item_generator.py
-│   ├── world_backend.py / world_sync.py / world_permissions.py   # Mondi condivisi
-│   └── update_checker.py      # Controllo aggiornamenti via GitHub Releases
+│   ├── pdf_sheet_exporter.py  # Esportazione scheda personaggio in PDF
+│   ├── world_backend.py / world_sync.py / world_permissions.py / character_instances.py   # Mondi condivisi
+│   └── update_checker.py / update_downloader.py   # Controllo e download aggiornamenti via GitHub Releases
 │
 ├── network/                   # LAN party: scoperta, host/client, QR
 │   ├── discovery.py
@@ -124,26 +144,30 @@ dnd_app/
 │   └── qr_join.py
 │
 ├── data/
-│   ├── database.py            # init_db(), migrazione idempotente
+│   ├── database.py            # get_connection(), init_db(), migrazione idempotente
 │   ├── models.py              # Dataclass Character e entità correlate
 │   ├── game_data/
 │   │   ├── classes/           # 12 JSON classi PHB
 │   │   ├── races/             # 9 JSON razze PHB
-│   │   ├── backgrounds/       # 12 JSON background PHB
+│   │   ├── backgrounds/       # 13 JSON background PHB
+│   │   ├── equipment/         # Armi, armature, attrezzatura, veicoli, economia
 │   │   ├── spells/            # Incantesimi per classe
 │   │   ├── feats.json         # 42 talenti PHB
 │   │   └── invocations.json   # 32 invocazioni Warlock
 │   └── repositories/
-│       ├── character_repo.py  # CRUD personaggio
-│       ├── master_repo.py     # NPC di rubrica
+│       ├── character_repo.py  # CRUD personaggio (armi, inventario, valute, diario, ...)
+│       ├── master_repo.py     # Rubrica NPC, incontri
 │       ├── loot_repo.py / maps_repo.py
-│       └── world_repo.py / world_export.py / character_export.py   # Mondi condivisi
+│       └── world_repo.py / world_export.py / world_transfer_repo.py / character_export.py   # Mondi condivisi, export/import, trasferimento dispositivo
 │
 ├── ui/
 │   ├── app.py                 # Router principale
-│   ├── theme.py               # Helper widget e tema
+│   ├── design.py              # Design system "Arcane Ledger" (token, tema chiaro/scuro, componenti)
 │   ├── widgets.py             # Componenti riusabili (dropdown/multi-select con "Altro", ecc.)
-│   └── views/                 # Tutte le schermate (character_sheet/, master/, world/, ...)
+│   ├── components/            # Componenti condivisi (sync in background, dossier NPC, ...)
+│   └── views/                 # Tutte le schermate (character_sheet/, master/, world/, creation_wizard/, ...)
+│
+├── extensions/                # Estensioni Flet native su misura (picker foto/file, installer APK Android)
 │
 └── docs/                      # Design doc e changelog storico per feature
 ```
@@ -160,9 +184,7 @@ L'app non include il testo del manuale: i file JSON contengono i dati meccanici 
 
 ## 🗺 Roadmap
 
-- [ ] Export scheda in PDF
-- [ ] Verifica del multiplayer su Wi-Fi reale con dispositivi fisici
-- [ ] Aggiornamento automatico in-app (rimandato: rischio se lo scambio file va storto a metà)
+- [ ] Conferma su dispositivi touch reali dello zoom mappa e del Dossier NPC in un Mondo condiviso (rilasciati in v0.3.4, non ancora testati dal vivo)
 
 ---
 
