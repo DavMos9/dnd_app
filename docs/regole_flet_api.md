@@ -813,39 +813,46 @@ ft.ElevatedButton(
   l'URL **e** chiama l'handler. Utile per chiudere il dialogo contestualmente,
   senza annullare l'apertura.
 
-## `ft.Container` CLICCABILE — serve `bgcolor` esplicito, non solo `on_click`+`ink=True` (2026-08-20)
+## `ft.Container` cliccabile che non risponde al tap — causa non accertata, preferire `ft.TextButton` (2026-08-20)
 
-Un `ft.Container` con `on_click=...` e `ink=True` ma **senza `bgcolor`** è
-**inaffidabile per l'hit-test del tap**: il Container resta visibile (testo/icone/
-bordo disegnati normalmente) ma il click non fa scattare `on_click`, senza
-sollevare alcuna eccezione — silenzioso anche in un pacchetto desktop senza
-console. Trovato da un bug report di Davide con screenshot reale: la riga
-"Rimuovi NomeClasse" in `profilo_tab.py` (rimozione classe secondaria
-multiclasse) era perfettamente visibile ma cliccarla non apriva mai il dialog di
-conferma. Per estensione, trovato un bug gemello mai innescato prima in
-`_show_level_up_class_picker()` (stesso file) — corretto aggiungendo `bgcolor`.
+Bug report di Davide con screenshot reale: la riga "Rimuovi NomeClasse" in
+`profilo_tab.py` (rimozione classe secondaria multiclasse) — un
+`ft.Container(content=..., on_click=..., ink=True)` **senza `bgcolor`** — era
+perfettamente visibile ma il click non faceva scattare `on_click`, senza
+sollevare alcuna eccezione (silenzioso anche in un pacchetto desktop senza
+console). **Prima ipotesi ("serve sempre un `bgcolor` esplicito per l'hit-test")
+smentita da Davide stesso**: un Container identico, senza bgcolor, in
+`_show_level_up_class_picker()` (stesso file) risultava già confermato
+funzionante in una sessione precedente — quindi il `bgcolor` da solo non è la
+causa/soluzione generale. La causa reale non è stata accertata (ipotesi più
+plausibile: un conflitto di gesture con un antenato — l'header Profilo ha un
+intero blocco cliccabile per il cambio foto sull'avatar, il dialog del picker
+no — ma non verificato).
+
+**Fix confermato funzionante** (non per il `bgcolor`, ma perché non è più un
+Container nudo): sostituire il Container con un `ft.TextButton(content=...)` —
+stesso controllo già usato ovunque nell'app (Level up/Level down/Multiclasse,
+"Salva" XP).
 
 ```python
-# ❌ Rischioso — il click può non registrare, specie su un'area quasi vuota
+# Visto non affidabile in un caso reale (causa non del tutto chiara)
 ft.Container(content=..., on_click=handler, ink=True)
 
-# ✅ Sicuro — bgcolor esplicito garantisce l'hit-test su tutta l'area
-ft.Container(content=..., on_click=handler, ink=True, bgcolor=design.T().surface)
-
-# ✅ Alternativa più sicura ancora per "icona + testo cliccabile" piccolo:
-# un ft.TextButton con content= invece del Container manuale — stesso
-# controllo già usato ovunque nell'app (Level up/Level down/Multiclasse,
-# "Salva" XP), mai un problema di hit-test perché non è un Container nudo.
+# Fix verificato dal vivo — usare un bottone reale per "icona + testo
+# cliccabile", non un Container manuale, quando il controllo vive in un punto
+# della UI con altri gesture handler nelle vicinanze (es. un'area con
+# click-per-cambiare-foto).
 ft.TextButton(content=ft.Row([icon, text]), on_click=handler)
 ```
 
 **Non è stato fatto un audit sistematico** di tutti gli altri usi di `ink=True`
-nel progetto (21 file, la maggior parte quasi certamente a posto — un Container
-CON `bgcolor` sembra hit-testare correttamente, es. le card personaggio di
-`home_view.py`, confermate funzionanti in produzione). Se riemerge lo stesso
-sintomo ("il controllo è visibile ma il click non fa nulla, nessun errore") su
-una riga/area cliccabile mai testata dal vivo, controllare per primo se il suo
-Container ha un `bgcolor` esplicito.
+nel progetto (21 file, la maggior parte quasi certamente a posto — es. le card
+personaggio di `home_view.py`, confermate funzionanti in produzione). Se
+riemerge lo stesso sintomo ("il controllo è visibile ma il click non fa nulla,
+nessun errore") su una riga/area cliccabile mai testata dal vivo, il rimedio
+verificato è sostituire il Container con un bottone reale (`TextButton`/
+`OutlinedButton`/...) — **non** limitarsi ad aggiungere un `bgcolor`, che in
+questo progetto si è già dimostrato insufficiente da solo.
 
 ## PROGRESSBAR — vedi la sezione dedicata sopra
 

@@ -11251,22 +11251,27 @@ riga classe/razza) ma il click non apriva alcun dialog — nessun errore visibil
 Flet/Flutter senza colore di sfondo non è affidabile per l'hit-test del tap del proprio
 `on_click`. Corretto sostituendo il Container con un `ft.TextButton(content=...)` —
 lo stesso controllo già usato e confermato funzionante ovunque in questo header
-(Level up/Level down/Multiclasse, "Salva" XP). **Trovato per estensione anche un bug
-gemello, mai innescato prima** in `_show_level_up_class_picker()` (il dialog "quale
-classe sale?" per un level-up su un personaggio multiclasse): stesso identico
-pattern (Container senza bgcolor, solo `border`), mai verificato dal vivo da nessuno
-(`multiclasse_design.md` §8.4 lo segnalava esplicitamente come "verificato solo a
-livello di repository/logica, nessun accesso a screen recording in quella sessione")
-— corretto aggiungendo `bgcolor=design.T().surface` allo stesso Container, senza
-cambiarne lo stile a bottone (qui la resa a card va bene, il problema era solo
-l'assenza di sfondo). **Non è stato fatto un giro sistematico su tutto il resto
-dell'app** (21 file usano `ink=True`, la maggior parte già confermata funzionante in
-produzione — un Container CON `bgcolor` sembra hit-testare correttamente, solo il
-caso "trasparente" è a rischio) — se in futuro riemerge lo stesso sintomo ("il click
-non fa nulla, nessun errore") su una riga cliccabile mai testata dal vivo, controllare
-per primo se il suo Container ha un `bgcolor`. `compileall` pulito, `test_multiclasse.py`
-ancora 86/86 (nessuno di questi due bug è coperto da un test automatico — sono
-puramente di interazione UI, non di logica dati). **Nessun commit fatto.**
+(Level up/Level down/Multiclasse, "Salva" XP) — **verificato dal vivo da Davide,
+funziona**.
+
+**Ipotesi di causa poi SMENTITA da Davide**: per estensione, era stato aggiunto
+`bgcolor=design.T().surface` anche a `_show_level_up_class_picker()` (il dialog
+"quale classe sale?"), che usa lo stesso pattern Container-senza-bgcolor — ma
+Davide ha confermato che quel dialog **funzionava già e lo aveva già verificato
+in una sessione precedente**, quindi NON era un bug gemello: la "regola" *"un
+Container senza `bgcolor` non hit-testa il click"* dedotta dal primo caso è
+**falsificata da questo controesempio** (stesso pattern, nessun bgcolor, eppure
+funzionante). La causa reale del bug originale resta quindi non del tutto
+accertata — più plausibile un conflitto di gesture con un antenato (l'header
+Profilo ha un intero blocco cliccabile per il cambio foto sull'avatar, il dialog
+"quale classe sale?" no) che una regola generale su `bgcolor`. Il `bgcolor`
+aggiunto al picker resta nel codice (innocuo, non serviva ma non rompe nulla),
+ma **non va preso come una correzione di un bug reale** — vedi
+`regole_flet_api.md`, voce aggiornata di conseguenza. La sostituzione con
+`ft.TextButton` sulla riga "Rimuovi classe" resta l'unico fix verificato.
+`compileall` pulito, `test_multiclasse.py` ancora 86/86 (il bug UI non è coperto
+da un test automatico — puramente di interazione, non di logica dati). **Nessun
+commit fatto.**
 
 ---
 

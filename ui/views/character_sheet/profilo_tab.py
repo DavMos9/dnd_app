@@ -1663,15 +1663,14 @@ class ProfiloTab(ScrollMemoryListView):
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 padding=ft.Padding.symmetric(horizontal=12, vertical=12),
-                # `bgcolor` esplicito, non solo `border` (bug reale trovato
-                # il 2026-08-20 sul pattern gemello della rimozione classe in
-                # questo stesso file: un Container senza bgcolor non è
-                # affidabile per l'hit-test del tap del suo `on_click` in
-                # Flet/Flutter — la riga era visibile ma il click non faceva
-                # nulla). Questo dialog non era mai stato cliccato dal vivo
-                # da Davide (verificato solo a livello di repository/logica,
-                # multiclasse_design.md §8.4) — stesso bug, probabilmente
-                # mai innescato finché nessuno ci ha davvero cliccato sopra.
+                # `bgcolor` esplicito aggiunto il 2026-08-20 per analogia col
+                # bug (Container-senza-bgcolor che non riceveva il click)
+                # trovato sulla riga "Rimuovi classe" in questo stesso file —
+                # ma QUESTO dialog era già confermato funzionante da Davide
+                # in una sessione precedente, quindi non era un bug gemello
+                # reale (la "regola" dedotta dal primo caso è falsificata da
+                # questo controesempio, vedi regole_flet_api.md). Il bgcolor
+                # resta per coerenza/innocuo, ma non va letto come un fix.
                 bgcolor=design.T().surface,
                 border=ft.Border.all(1, design.T().border),
                 border_radius=design.field_style()['border_radius'],
