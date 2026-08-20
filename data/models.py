@@ -740,12 +740,21 @@ class LootStashEntry:
 
     `entry_kind`: "item" (oggetto generico/mondano) | "magic_item" (dal
     Compendio A-Z o dal Generatore) | "artifact" | "poison" | "gem" |
-    "art" (oggetto d'arte) | "coins" (voce puramente monetaria, usa solo i
-    5 campi valuta sotto, `name`/`description` restano vuoti).
+    "art" (oggetto d'arte) | "weapon" | "armor" | "coins" (voce puramente
+    monetaria, usa solo i 5 campi valuta sotto, `name`/`description`
+    restano vuoti).
 
     `description` porta sempre il testo ufficiale COMPLETO quando la voce
     proviene da una fonte trascritta (mai un riassunto) — stessa regola
     gia' seguita per il Compendio Oggetti Magici e gli Artefatti.
+
+    I campi `weapon_*`/`armor_*` (2026-08-20) sono usati SOLO da
+    `entry_kind in ("weapon", "armor")` — stessa semantica delle colonne
+    omonime su `weapons`/`inventory_items` (`data/repositories/
+    character_repo.py`): un'assegnazione/presa di una voce "weapon" crea una
+    riga in `weapons`, "armor" una riga in `inventory_items` con
+    `category="armor"`, non un oggetto generico. Per ogni altro
+    `entry_kind` restano ai default (''/0), mai popolati.
     """
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     stash_kind: str = "master"
@@ -761,6 +770,15 @@ class LootStashEntry:
     gold: int = 0
     platinum: int = 0
     added_by_device_id: str = ""  # device_id di chi ha aggiunto la voce (core/world_backend.py), vuoto in locale
+    weapon_damage_dice: str = ""
+    weapon_damage_type: str = ""
+    weapon_category: str = ""      # "semplice" | "guerra", stesso vocabolario di weapons.weapon_category
+    weapon_properties: str = ""
+    weapon_attack_bonus: int = 0   # bonus magico al tiro per colpire (0 = nessuno)
+    weapon_damage_bonus: int = 0   # bonus magico al danno (0 = nessuno)
+    armor_ca_value: int = 0
+    armor_type: str = ""           # "leggera" | "media" | "pesante" | "scudo"
+    armor_effects: str = ""
     created_at: str = ""
     updated_at: str = ""
 

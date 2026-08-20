@@ -76,6 +76,10 @@ _CATEGORY_BY_KIND: dict[str, str] = {
     "poison": "misc",
     "gem": "misc",
     "art": "misc",
+    "armor": "armor",
+    # "weapon" non ha voce qui di proposito: non crea mai un `inventory_item`
+    # generico, vedi `_create_recipient_item()`/`_handle_loot_assign` — una
+    # voce "weapon" diventa sempre una riga `weapons`, non `inventory_items`.
 }
 
 _KIND_LABELS: dict[str, str] = {
@@ -85,6 +89,8 @@ _KIND_LABELS: dict[str, str] = {
     "poison": "Veleno",
     "gem": "Gemma",
     "art": "Oggetto d'Arte",
+    "weapon": "Arma",
+    "armor": "Armatura",
     "coins": "Monete",
 }
 
@@ -102,6 +108,130 @@ _COIN_LABELS = {"copper": "mr", "silver": "ma", "electrum": "me", "gold": "mo", 
 # Costruttori del dict "voce assegnabile" — API pubblica per gli altri dialog
 # ---------------------------------------------------------------------------
 
+#: Default vuoto dei campi meccanici weapon/armor — stessi nomi delle
+#: colonne di `loot_stash_entries` (2026-08-20), riusato da `simple_item()`
+#: e `item_from_stash_entry()` per non ripetere 9 parametri ovunque.
+_EMPTY_MECHANICS: dict[str, Any] = {
+    "weapon_damage_dice": "", "weapon_damage_type": "", "weapon_category": "",
+    "weapon_properties": "", "weapon_attack_bonus": 0, "weapon_damage_bonus": 0,
+    "armor_ca_value": 0, "armor_type": "", "armor_effects": "",
+}
+
+#: Stesso elenco di `inventario_tab.py::_DAMAGE_TYPES` (senza "—", qui un
+#: campo vuoto è già "non specificato" di suo) — bug report Davide
+#: (2026-08-20): le voci arma/armatura del Bottino devono avere "le stesse
+#: caselle di quando crei l'arma... nella sezione giocatore".
+WEAPON_DAMAGE_TYPES: list[str] = [
+    "Taglio", "Perforazione", "Contundente",
+    "Fuoco", "Freddo", "Fulmine", "Tuono",
+    "Acido", "Veleno", "Psichico", "Radiante",
+    "Necrotico", "Forza",
+]
+WEAPON_CATEGORY_OPTIONS: list[tuple[str, str]] = [
+    ("", "— non specificata —"),
+    ("semplice", "Arma semplice"),
+    ("guerra", "Arma da guerra"),
+]
+ARMOR_TYPE_OPTIONS: list[tuple[str, str]] = [
+    ("", "— seleziona —"),
+    ("leggera", "Leggera (+ mod DES)"),
+    ("media", "Media (+ min(mod DES, 2))"),
+    ("pesante", "Pesante (DES ignorato)"),
+    ("scudo", "Scudo (bonus CA fisso)"),
+]
+
+
+def build_weapon_mechanics_fields(prefill: dict[str, Any] | None = None) -> tuple[ft.Control, "Callable[[], dict[str, Any]]"]:
+    """
+    Le caselle meccaniche di un'arma — stesso sottoinsieme di
+    `inventario_tab.py::_open_weapon_dialog` che si applica a un'arma
+    ancora senza personaggio (dado danno/tipo/categoria/proprietà/bonus
+    magici; NON le impostazioni post-equipaggiamento come Versatile a due
+    mani o l'override del totale d'attacco, che dipendono dal personaggio
+    che la riceverà, non dalla voce di bottino in sé). Ritorna il
+    controllo da inserire nel form e una funzione che, chiamata al
+    momento del salvataggio, legge i valori correnti nella forma attesa
+    da `simple_item(..., mechanics=...)`/`loot_repo.create_entry(**...)`.
+    """
+    prefill = prefill or {}
+    dice_tf = ft.TextField(label="Dado danno (es. 1d8)", dense=True,
+                            value=str(prefill.get("weapon_damage_dice", "")), **design.field_style())
+    dtype_dd = ft.Dropdown(
+        label="Tipo danno", dense=True, value=str(prefill.get("weapon_damage_type", "")) or None,
+        options=[ft.DropdownOption(key="", text="— non specificato —")]
+        + [ft.DropdownOption(key=t, text=t) for t in WEAPON_DAMAGE_TYPES],
+        **design.field_style(),
+    )
+    category_dd = ft.Dropdown(
+        label="Categoria", dense=True, value=str(prefill.get("weapon_category", "")) or None,
+        options=[ft.DropdownOption(key=k, text=label) for k, label in WEAPON_CATEGORY_OPTIONS],
+        **design.field_style(),
+    )
+    props_tf = ft.TextField(label="Proprietà (es. Accurata, Leggera, A due mani)", dense=True,
+                             value=str(prefill.get("weapon_properties", "")), **design.field_style())
+    atk_bonus_tf = ft.TextField(label="Bonus attacco (se magica)", dense=True,
+                                 value=str(prefill.get("weapon_attack_bonus", 0) or 0),
+                                 keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
+    dmg_bonus_tf = ft.TextField(label="Bonus danno (se magica)", dense=True,
+                                 value=str(prefill.get("weapon_damage_bonus", 0) or 0),
+                                 keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
+
+    def _read() -> dict[str, Any]:
+        def _int(tf: ft.TextField) -> int:
+            try:
+                return int((tf.value or "0").strip())
+            except ValueError:
+                return 0
+        return {
+            "weapon_damage_dice": (dice_tf.value or "").strip(),
+            "weapon_damage_type": dtype_dd.value or "",
+            "weapon_category": category_dd.value or "",
+            "weapon_properties": (props_tf.value or "").strip(),
+            "weapon_attack_bonus": _int(atk_bonus_tf),
+            "weapon_damage_bonus": _int(dmg_bonus_tf),
+        }
+
+    column = ft.Column(
+        [ft.Row([dice_tf, dtype_dd], spacing=10, wrap=True),
+         category_dd, props_tf,
+         ft.Row([atk_bonus_tf, dmg_bonus_tf], spacing=10, wrap=True)],
+        spacing=10,
+    )
+    return column, _read
+
+
+def build_armor_mechanics_fields(prefill: dict[str, Any] | None = None) -> tuple[ft.Control, "Callable[[], dict[str, Any]]"]:
+    """Controparte di `build_weapon_mechanics_fields()` per un'armatura —
+    stessi campi di `inventario_tab.py::_open_item_dialog` per un oggetto
+    di categoria "armor" (CA base, tipo, effetti testuali)."""
+    prefill = prefill or {}
+    ca_tf = ft.TextField(label="CA base", dense=True,
+                          value=str(prefill.get("armor_ca_value", 0) or 0),
+                          keyboard_type=ft.KeyboardType.NUMBER, **design.field_style())
+    type_dd = ft.Dropdown(
+        label="Tipo armatura", dense=True, value=str(prefill.get("armor_type", "")) or None,
+        options=[ft.DropdownOption(key=k, text=label) for k, label in ARMOR_TYPE_OPTIONS],
+        **design.field_style(),
+    )
+    effects_tf = ft.TextField(label="Effetti (testo libero)", dense=True, multiline=True,
+                               min_lines=2, max_lines=5,
+                               value=str(prefill.get("armor_effects", "")), **design.field_style())
+
+    def _read() -> dict[str, Any]:
+        try:
+            ca_value = int((ca_tf.value or "0").strip())
+        except ValueError:
+            ca_value = 0
+        return {
+            "armor_ca_value": ca_value,
+            "armor_type": type_dd.value or "",
+            "armor_effects": (effects_tf.value or "").strip(),
+        }
+
+    column = ft.Column([ft.Row([ca_tf, type_dd], spacing=10, wrap=True), effects_tf], spacing=10)
+    return column, _read
+
+
 def simple_item(
     entry_kind: str,
     name: str,
@@ -111,8 +241,10 @@ def simple_item(
     requires_attunement: bool = False,
     stash_entry_id: str = "",
     stash_kind: str = "",
+    mechanics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Voce non monetaria (oggetto/oggetto magico/artefatto/veleno/gemma/arte).
+    """Voce non monetaria (oggetto/oggetto magico/artefatto/veleno/gemma/
+    arte/arma/armatura).
 
     `stash_kind`: "master"/"party"/"" (non da uno stash) —
     contenitore d'ORIGINE della voce, se ne aveva uno. Serve a
@@ -120,7 +252,12 @@ def simple_item(
     d'origine deve passare dalla rete (`CMD_LOOT_STASH_DELETE`, solo per
     `"party"`) o restare locale (`"master"`, mai sincronizzato — vedi
     `_handle_loot_stash_delete` in `core/world_backend.py`, che rifiuta
-    apposta una voce non "party")."""
+    apposta una voce non "party").
+
+    `mechanics`: SOLO per `entry_kind in ("weapon", "armor")` — dict con le
+    9 chiavi di `_EMPTY_MECHANICS` sopra (stessi nomi di
+    `LootStashEntry`/`loot_stash_entries`). Per ogni altro `entry_kind`
+    resta ai default vuoti."""
     return {
         "entry_kind": entry_kind or "item",
         "name": name,
@@ -131,6 +268,8 @@ def simple_item(
         "coins": {},
         "stash_entry_id": stash_entry_id,
         "stash_kind": stash_kind,
+        **_EMPTY_MECHANICS,
+        **(mechanics or {}),
     }
 
 
@@ -147,6 +286,7 @@ def coins_item(coins: dict[str, int], *, source_note: str = "", stash_entry_id: 
         "coins": {k: max(0, coins.get(k, 0)) for k in _COIN_ORDER},
         "stash_entry_id": stash_entry_id,
         "stash_kind": stash_kind,
+        **_EMPTY_MECHANICS,
     }
 
 
@@ -174,6 +314,17 @@ def item_from_stash_entry(entry: LootStashEntry) -> dict[str, Any]:
         entry.entry_kind, entry.name, entry.description, entry.quantity,
         entry.source_note, requires_attunement=heuristic_attunement, stash_entry_id=entry.id,
         stash_kind=entry.stash_kind,
+        mechanics={
+            "weapon_damage_dice": entry.weapon_damage_dice,
+            "weapon_damage_type": entry.weapon_damage_type,
+            "weapon_category": entry.weapon_category,
+            "weapon_properties": entry.weapon_properties,
+            "weapon_attack_bonus": entry.weapon_attack_bonus,
+            "weapon_damage_bonus": entry.weapon_damage_bonus,
+            "armor_ca_value": entry.armor_ca_value,
+            "armor_type": entry.armor_type,
+            "armor_effects": entry.armor_effects,
+        },
     )
 
 
@@ -208,6 +359,88 @@ def save_items_to_stash(items: list[dict[str, Any]], *, stash_kind: str = "maste
         if ok:
             created += 1
     return created
+
+
+def _mechanics_kwargs(it: dict[str, Any]) -> dict[str, Any]:
+    """Le 9 chiavi weapon_*/armor_* di `it` (vedi `_EMPTY_MECHANICS`), per
+    `**`-splattarle in `loot_repo.create_entry()`/il payload
+    `CMD_LOOT_STASH_ADD` — evita di perderle quando una voce "weapon"/
+    "armor" viene rimandata al deposito/archivio invece che assegnata a un
+    personaggio (`_move_or_create_stash()`/`_create_stash_split()` sotto)."""
+    return {k: it.get(k, v) for k, v in _EMPTY_MECHANICS.items()}
+
+
+def _create_recipient_item(character_id: str, it: dict[str, Any], quantity: int) -> None:
+    """
+    Scrive UNA voce non monetaria sulla scheda di `character_id` — punto
+    unico per la scrittura locale (senza rete), usato sia dal ramo
+    "destinazione singola" sia dal ramo "quote multiple" di `_on_confirm()`
+    sotto. `it["entry_kind"] == "weapon"` crea una riga in `weapons` (mai
+    `inventory_items`: un'arma ha le sue caselle dedicate — dado danno,
+    tipo, categoria, proprietà, bonus magici — non un `description` libero);
+    `"armor"` crea comunque un `inventory_items`, ma con `category="armor"`
+    e i campi meccanici dedicati (CA, tipo, effetti), stessa forma già usata
+    da `inventario_tab.py` per un'armatura creata a mano dal giocatore.
+    `create_weapon()` non ha un parametro quantità (un'arma non si
+    "impila"): per `quantity>1` (raro, es. 3 spade identiche ripartite su 3
+    personaggi diversi) viene chiamata una volta per unità.
+    """
+    entry_kind = it.get("entry_kind", "item")
+    if entry_kind == "weapon":
+        for _ in range(max(1, quantity)):
+            character_repo.create_weapon(
+                character_id, it.get("name", ""),
+                damage_dice=it.get("weapon_damage_dice", ""),
+                damage_type=it.get("weapon_damage_type", ""),
+                attack_bonus=int(it.get("weapon_attack_bonus", 0) or 0),
+                damage_bonus=int(it.get("weapon_damage_bonus", 0) or 0),
+                properties=it.get("weapon_properties", ""),
+                weapon_category=it.get("weapon_category", ""),
+                magic_description=it.get("description", ""),
+                is_magical=bool(it.get("requires_attunement")) or bool(it.get("weapon_attack_bonus")
+                                                                        or it.get("weapon_damage_bonus")),
+            )
+    elif entry_kind == "armor":
+        character_repo.create_inventory_item(
+            character_id, it.get("name", ""), quantity=quantity, category="armor",
+            description=it.get("description", ""),
+            ca_value=int(it.get("armor_ca_value", 0) or 0),
+            armor_type=it.get("armor_type", ""),
+            effects=it.get("armor_effects", ""),
+            requires_attunement=bool(it.get("requires_attunement")),
+        )
+    else:
+        category = _CATEGORY_BY_KIND.get(entry_kind, "misc")
+        character_repo.create_inventory_item(
+            character_id, it.get("name", ""), quantity=quantity, category=category,
+            description=it.get("description", ""),
+            requires_attunement=bool(it.get("requires_attunement")),
+        )
+
+
+def _recipient_item_payload(it: dict[str, Any], target_character_id: str, quantity: int) -> dict[str, Any]:
+    """Controparte di `_create_recipient_item()` per il payload
+    `CMD_LOOT_ASSIGN` (scrittura via rete, applicata da
+    `core.world_backend._handle_loot_assign` — stessa identica logica di
+    branching per `weapon`/`armor`, duplicata lì perché gira sull'host, non
+    su questo dispositivo)."""
+    category = "armor" if it["entry_kind"] == "armor" else _CATEGORY_BY_KIND.get(it["entry_kind"], "misc")
+    return {
+        "target_character_id": target_character_id, "name": it.get("name", ""),
+        "quantity": quantity, "category": category,
+        "description": it.get("description", ""),
+        "requires_attunement": bool(it.get("requires_attunement")),
+        "effects": it.get("armor_effects", "") if it["entry_kind"] == "armor" else "",
+        "entry_kind": it["entry_kind"],
+        "weapon_damage_dice": it.get("weapon_damage_dice", ""),
+        "weapon_damage_type": it.get("weapon_damage_type", ""),
+        "weapon_category": it.get("weapon_category", ""),
+        "weapon_properties": it.get("weapon_properties", ""),
+        "weapon_attack_bonus": it.get("weapon_attack_bonus", 0),
+        "weapon_damage_bonus": it.get("weapon_damage_bonus", 0),
+        "armor_ca_value": it.get("armor_ca_value", 0),
+        "armor_type": it.get("armor_type", ""),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -602,6 +835,7 @@ def show_loot_assign_dialog(
                             "entry_kind": it["entry_kind"], "name": it.get("name", ""),
                             "description": it.get("description", ""), "quantity": quantity,
                             "source_note": it.get("source_note", ""),
+                            **_mechanics_kwargs(it),
                         },
                         target_type="loot_stash",
                     )
@@ -610,6 +844,7 @@ def show_loot_assign_dialog(
                         "master", it["entry_kind"], name=it.get("name", ""),
                         description=it.get("description", ""), quantity=quantity,
                         source_note=it.get("source_note", ""),
+                        **_mechanics_kwargs(it),
                     )
             elif stash_id:
                 loot_repo.move_entry(stash_id, new_kind, new_world_id=world_id if new_kind == "party" else "")
@@ -619,6 +854,7 @@ def show_loot_assign_dialog(
                     description=it.get("description", ""), quantity=quantity,
                     source_note=it.get("source_note", ""),
                     world_id=world_id if new_kind == "party" else "",
+                    **_mechanics_kwargs(it),
                 )
 
         def _create_stash_split(it: dict[str, Any], dest: str, quantity: int) -> None:
@@ -638,6 +874,7 @@ def show_loot_assign_dialog(
                         "entry_kind": it["entry_kind"], "name": it.get("name", ""),
                         "description": it.get("description", ""), "quantity": quantity,
                         "source_note": it.get("source_note", ""),
+                        **_mechanics_kwargs(it),
                     },
                     target_type="loot_stash",
                 )
@@ -647,6 +884,7 @@ def show_loot_assign_dialog(
                     description=it.get("description", ""), quantity=quantity,
                     source_note=it.get("source_note", ""),
                     world_id=world_id if new_kind == "party" else "",
+                    **_mechanics_kwargs(it),
                 )
 
         # -- Oggetti indivisibili --------------------------------------
@@ -659,20 +897,10 @@ def show_loot_assign_dialog(
                 if dest in (DEST_PARTY, DEST_ARCHIVE):
                     _move_or_create_stash(it, dest, qty)
                 elif world_id and backend is not None:
-                    loot_assign_items.append({
-                        "target_character_id": dest, "name": it.get("name", ""),
-                        "quantity": qty, "category": category,
-                        "description": it.get("description", ""),
-                        "requires_attunement": bool(it.get("requires_attunement")),
-                        "effects": "",
-                    })
+                    loot_assign_items.append(_recipient_item_payload(it, dest, qty))
                     _consume_stash_source(it)
                 else:
-                    character_repo.create_inventory_item(
-                        dest, it.get("name", ""), quantity=qty, category=category,
-                        description=it.get("description", ""),
-                        requires_attunement=bool(it.get("requires_attunement")),
-                    )
+                    _create_recipient_item(dest, it, qty)
                     _consume_stash_source(it)
                 n_items += 1
             else:
@@ -682,19 +910,9 @@ def show_loot_assign_dialog(
                     if dest in (DEST_PARTY, DEST_ARCHIVE):
                         _create_stash_split(it, dest, share)
                     elif world_id and backend is not None:
-                        loot_assign_items.append({
-                            "target_character_id": dest, "name": it.get("name", ""),
-                            "quantity": share, "category": category,
-                            "description": it.get("description", ""),
-                            "requires_attunement": bool(it.get("requires_attunement")),
-                            "effects": "",
-                        })
+                        loot_assign_items.append(_recipient_item_payload(it, dest, share))
                     else:
-                        character_repo.create_inventory_item(
-                            dest, it.get("name", ""), quantity=share, category=category,
-                            description=it.get("description", ""),
-                            requires_attunement=bool(it.get("requires_attunement")),
-                        )
+                        _create_recipient_item(dest, it, share)
                 # L'intera quantità è sempre completamente ripartita (per la
                 # validazione sopra) quindi la voce d'origine, se esisteva,
                 # è del tutto consumata — sempre cancellata qui (mai

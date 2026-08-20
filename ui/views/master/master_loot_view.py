@@ -40,16 +40,27 @@ _KIND_OPTIONS: list[tuple[str, str]] = [
     ("item", "Oggetto"),
     ("magic_item", "Oggetto Magico"),
     ("artifact", "Artefatto"),
+    ("weapon", "Arma"),
+    ("armor", "Armatura"),
     ("poison", "Veleno"),
     ("gem", "Gemma"),
     ("art", "Oggetto d'Arte"),
     ("coins", "Monete"),
 ]
 _KIND_LABELS: dict[str, str] = dict(_KIND_OPTIONS)
+#: entry_kind con caselle MECCANICHE dedicate invece del solo nome/
+#: descrizione/quantità libera — bug report Davide (2026-08-20): "non ti
+#: fa selezionare armi armature... devono avere le stesse caselle di
+#: quando crei l'arma o l'armatura nella sezione giocatore". Vedi
+#: `master_loot_assign_dialog.build_weapon_mechanics_fields()`/
+#: `build_armor_mechanics_fields()`.
+_MECHANICAL_KINDS: frozenset[str] = frozenset({"weapon", "armor"})
 _KIND_ICONS: dict[str, str] = {
     "item": ft.Icons.BACKPACK_OUTLINED,
     "magic_item": ft.Icons.AUTO_AWESOME,
     "artifact": ft.Icons.DIAMOND,
+    "weapon": ft.Icons.FLASH_ON,
+    "armor": ft.Icons.SHIELD,
     "poison": ft.Icons.SICK_OUTLINED,
     "gem": ft.Icons.DIAMOND_OUTLINED,
     "art": ft.Icons.PALETTE_OUTLINED,
@@ -64,6 +75,28 @@ _COIN_FIELDS: list[tuple[str, str]] = [
     ("platinum", "Platino (mp)"), ("gold", "Oro (mo)"), ("electrum", "Electrum (me)"),
     ("silver", "Argento (ma)"), ("copper", "Rame (mr)"),
 ]
+
+
+def _mechanics_summary(entry: LootStashEntry) -> str:
+    """Riepilogo a colpo d'occhio delle caselle meccaniche di una voce
+    "weapon"/"armor" (2026-08-20) — vuoto per ogni altro entry_kind."""
+    if entry.entry_kind == "weapon":
+        bits = [b for b in (entry.weapon_damage_dice, entry.weapon_damage_type) if b]
+        if entry.weapon_category:
+            bits.append(_KIND_LABELS.get(entry.weapon_category, entry.weapon_category))
+        if entry.weapon_attack_bonus:
+            bits.append(f"{entry.weapon_attack_bonus:+d} attacco")
+        if entry.weapon_damage_bonus:
+            bits.append(f"{entry.weapon_damage_bonus:+d} danno")
+        return " · ".join(bits)
+    if entry.entry_kind == "armor":
+        bits = []
+        if entry.armor_ca_value:
+            bits.append(f"CA {entry.armor_ca_value}")
+        if entry.armor_type:
+            bits.append(entry.armor_type.capitalize())
+        return " · ".join(bits)
+    return ""
 
 
 def _coin_summary(entry: LootStashEntry) -> str:
@@ -248,6 +281,8 @@ class MasterLootView(ft.Column):
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     ft.Text(subtitle, size=11, color=design.T().text_2) if subtitle else ft.Container(height=0),
+                    ft.Text(_mechanics_summary(entry), size=11, color=design.T().primary_icon,
+                            weight=ft.FontWeight.W_600) if _mechanics_summary(entry) else ft.Container(height=0),
                     ft.Text(f"Fonte: {entry.source_note}", size=10, color=design.T().text_3, italic=True)
                     if entry.source_note else ft.Container(height=0),
                     ft.Row(
@@ -434,6 +469,33 @@ class MasterLootView(ft.Column):
                                 min_lines=3, max_lines=10, **design.field_style())
         note_tf = ft.TextField(value=entry.source_note, label="Fonte / note", dense=True, **design.field_style())
 
+        # Voce "weapon"/"armor" (2026-08-20): stesse caselle meccaniche di
+        # `_open_add_dialog`, precompilate dai valori correnti — vedi
+        # `master_loot_assign_dialog.build_weapon_mechanics_fields()`/
+        # `build_armor_mechanics_fields()`.
+        mechanics_getter = None
+        content_controls: list[ft.Control] = [name_tf, qty_tf, desc_tf, note_tf]
+        if entry.entry_kind in _MECHANICAL_KINDS:
+            from ui.views.master.master_loot_assign_dialog import (
+                build_armor_mechanics_fields, build_weapon_mechanics_fields,
+            )
+            prefill = {
+                "weapon_damage_dice": entry.weapon_damage_dice,
+                "weapon_damage_type": entry.weapon_damage_type,
+                "weapon_category": entry.weapon_category,
+                "weapon_properties": entry.weapon_properties,
+                "weapon_attack_bonus": entry.weapon_attack_bonus,
+                "weapon_damage_bonus": entry.weapon_damage_bonus,
+                "armor_ca_value": entry.armor_ca_value,
+                "armor_type": entry.armor_type,
+                "armor_effects": entry.armor_effects,
+            }
+            builder = (build_weapon_mechanics_fields if entry.entry_kind == "weapon"
+                       else build_armor_mechanics_fields)
+            mechanics_control, mechanics_getter = builder(prefill)
+            content_controls.append(ft.Divider(height=1, color=design.T().border))
+            content_controls.append(mechanics_control)
+
         def save_item(ev: Any) -> None:
             if page is None:
                 return
@@ -441,6 +503,7 @@ class MasterLootView(ft.Column):
                 qty = max(1, int((qty_tf.value or "1").strip()))
             except ValueError:
                 qty = 1
+            mechanics = mechanics_getter() if mechanics_getter else {}
             backend = self._resolve_stash_backend()
             if self._world_id and entry.stash_kind == "party" and backend is not None:
                 backend.send_command(
@@ -449,6 +512,7 @@ class MasterLootView(ft.Column):
                         "entry_id": entry.id, "name": (name_tf.value or "").strip(),
                         "description": (desc_tf.value or "").strip(), "quantity": qty,
                         "source_note": (note_tf.value or "").strip(),
+                        **mechanics,
                     },
                     target_type="loot_stash", target_id=entry.id,
                 )
@@ -457,13 +521,14 @@ class MasterLootView(ft.Column):
                     entry.id, name=(name_tf.value or "").strip(),
                     description=(desc_tf.value or "").strip(), quantity=qty,
                     source_note=(note_tf.value or "").strip(),
+                    **mechanics,
                 )
             page.pop_dialog()
             self._refresh_list_only()
 
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title("Modifica Voce"),
-            content=ft.Column([name_tf, qty_tf, desc_tf, note_tf], spacing=10,
+            content=ft.Column(content_controls, spacing=10,
                                scroll=ft.ScrollMode.AUTO, width=responsive_dialog_width(page, 420)),
             actions=wrap_dialog_actions([
                 ft.TextButton("Annulla", on_click=lambda e: page.pop_dialog() if page else None),
@@ -476,7 +541,7 @@ class MasterLootView(ft.Column):
         page = self._page
         if page is None:
             return
-        state = {"kind": "item"}
+        state: dict[str, Any] = {"kind": "item", "mechanics_getter": None}
         kind_dd = ft.Dropdown(
             label="Tipo di voce", value="item",
             options=[ft.DropdownOption(key=k, text=label) for k, label in _KIND_OPTIONS],
@@ -496,6 +561,7 @@ class MasterLootView(ft.Column):
 
         def _render_fields() -> None:
             fields_col.controls.clear()
+            state["mechanics_getter"] = None
             if state["kind"] == "coins":
                 fields_col.controls.extend(
                     [coin_tfs["platinum"], coin_tfs["gold"], coin_tfs["electrum"],
@@ -503,6 +569,16 @@ class MasterLootView(ft.Column):
                 )
             else:
                 fields_col.controls.extend([name_tf, qty_tf, desc_tf, note_tf])
+                if state["kind"] in _MECHANICAL_KINDS:
+                    from ui.views.master.master_loot_assign_dialog import (
+                        build_armor_mechanics_fields, build_weapon_mechanics_fields,
+                    )
+                    builder = (build_weapon_mechanics_fields if state["kind"] == "weapon"
+                               else build_armor_mechanics_fields)
+                    mechanics_control, getter = builder()
+                    state["mechanics_getter"] = getter
+                    fields_col.controls.append(ft.Divider(height=1, color=design.T().border))
+                    fields_col.controls.append(mechanics_control)
             try:
                 fields_col.update()
             except RuntimeError:
@@ -557,6 +633,7 @@ class MasterLootView(ft.Column):
                     qty = max(1, int((qty_tf.value or "1").strip()))
                 except ValueError:
                     qty = 1
+                mechanics = state["mechanics_getter"]() if state["mechanics_getter"] else {}
                 if use_network:
                     backend.send_command(
                         self._world_id, self._device_id or "", perm.CMD_LOOT_STASH_ADD,
@@ -564,6 +641,7 @@ class MasterLootView(ft.Column):
                             "entry_kind": kind, "name": name,
                             "description": (desc_tf.value or "").strip(), "quantity": qty,
                             "source_note": (note_tf.value or "").strip(),
+                            **mechanics,
                         },
                         target_type="loot_stash",
                     )
@@ -572,6 +650,7 @@ class MasterLootView(ft.Column):
                         self._active_kind, kind, name=name, description=(desc_tf.value or "").strip(),
                         quantity=qty, source_note=(note_tf.value or "").strip(),
                         world_id=self._effective_world_id(),
+                        **mechanics,
                     )
             page.pop_dialog()
             self._refresh_list_only()

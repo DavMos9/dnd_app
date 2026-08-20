@@ -145,7 +145,7 @@ def show_artifacts_dialog(page: ft.Page, world_id: str = "", device_id: str = ""
         def _on_save_to_archive(ev: Any) -> None:
             from ui.views.master.master_loot_assign_dialog import save_items_to_stash
             from ui.widgets import show_snack
-            save_items_to_stash([_build_loot_item()])
+            save_items_to_stash([_build_loot_item()], world_id=world_id)
             show_snack(page, f"«{art.get('name', '')}» salvato nell'archivio.")
 
         page.show_dialog(ft.AlertDialog(
@@ -235,7 +235,7 @@ def show_artifacts_dialog(page: ft.Page, world_id: str = "", device_id: str = ""
             show_snack(page, "Tira prima una proprietà (premi uno dei pulsanti sopra).", tone="warning")
             return
         from ui.views.master.master_loot_assign_dialog import save_items_to_stash
-        save_items_to_stash([item])
+        save_items_to_stash([item], world_id=world_id)
         show_snack(page, "Proprietà salvata nell'archivio.")
 
     # ------------------------------------------------------------------

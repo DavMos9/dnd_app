@@ -1,12 +1,15 @@
 # Bottino: archivio, deposito comune, assegnazione e ripartizione
 
-> **Stato al 2026-07-31: passi 1-5 di §8 implementati e verificati** (schema
-> `loot_stash_entries` + repository, `core/loot_calculator.py`, tab "Bottino"
-> nella Sezione Master, dialogo di assegnazione condiviso, wiring nei 6 punti
-> di generazione). Dettaglio completo in `dnd_app/docs/funzionalita_e_todo.md`
-> e `dnd_app/docs/changelog_storico.md`. Resta solo il **passo 6** (deposito
-> del gruppo lato giocatore), bloccato sul modello mondo del Multiplayer — le
-> scelte di design restano tutte valide, questo documento non va riscritto.
+> **Stato al 2026-08-20: tutti i 6 passi di §8 implementati e verificati**
+> (schema `loot_stash_entries` + repository, `core/loot_calculator.py`, tab
+> "Bottino" nella Sezione Master, dialogo di assegnazione condiviso, wiring
+> nei 6 punti di generazione, e — ultimo, 2026-08-20 — il deposito del
+> gruppo lato giocatore, `WorldsView._shared_loot_section()` in
+> `ui/views/world/world_view.py`). **Revisione dello stesso giorno**: il
+> deposito del gruppo è passato da sola-lettura ad auto-servizio — un
+> giocatore può prendere una voce da solo (`CMD_LOOT_STASH_CLAIM`), vedi §6
+> più sotto per il dettaglio. Dettaglio completo in
+> `dnd_app/docs/funzionalita_e_todo.md` e `dnd_app/docs/changelog_storico.md`.
 >
 > **Aggiunta 2026-08-15**: il Generatore Oggetti Magici ha ora anche una
 > modalità "Personalizzato" (oggetto inventato dal Master, non pescato dal
@@ -86,14 +89,28 @@ tabelle avrebbe duplicato ogni operazione di spostamento.
 
 ## 3. Cosa può essere una voce di bottino
 
-`entry_kind` ∈ `item` · `magic_item` · `artifact` · `poison` · `gem` · `art` ·
-`coins`.
+`entry_kind` ∈ `item` · `magic_item` · `artifact` · `weapon` · `armor` ·
+`poison` · `gem` · `art` · `coins`.
 
 Tutte le voci portano con sé **il testo ufficiale integrale** già trascritto nel
 progetto (264 oggetti magici, 5 artefatti, 14 veleni, gemme e oggetti d'arte
 delle tabelle dei tesori): niente riassunti, niente rimandi. È la stessa
 convenzione già seguita dal Generatore Oggetti Magici quando scrive
 `description` sull'oggetto d'inventario.
+
+**`weapon`/`armor` (2026-08-20)** hanno, oltre a nome/descrizione, le caselle
+meccaniche della scheda giocatore invece di restare testo libero — bug report
+Davide: "devono avere le stesse caselle di quando crei l'arma o l'armatura
+nella sezione giocatore". `weapon`: dado danno, tipo danno, categoria
+(semplice/guerra), proprietà, bonus attacco/danno (per una versione magica).
+`armor`: CA base, tipo (leggera/media/pesante/scudo), effetti testuali. Alla
+presa/assegnazione, `weapon` crea sempre una riga vera in `weapons` (mai un
+oggetto d'inventario generico); `armor` crea un `inventory_items` con
+`category="armor"`. Stesso form (`master_loot_assign_dialog.
+build_weapon_mechanics_fields()`/`build_armor_mechanics_fields()`) riusato sia
+in "+ Aggiungi voce"/"Modifica Voce" del Bottino sia nell'Oggetto Magico
+Personalizzato del Generatore Oggetti Magici, quando la categoria scelta è
+un'arma o un'armatura.
 
 `coins` è l'unica voce **divisibile**, e ha un trattamento a parte (§5). Tutte
 le altre sono indivisibili: si assegnano a **un** destinatario. Con quantità
@@ -183,10 +200,18 @@ Generatore Oggetti Magici, **Compendio Oggetti Magici** (264 voci),
 **Artefatti**, **Veleni**, e le gemme/oggetti d'arte già prodotti dai Cumuli di
 Tesori.
 
-**Lato giocatore**: il deposito del gruppo compare come sezione in sola lettura
-(non può servirsi da solo — è il master a distribuire), e gli oggetti ricevuti
-arrivano normalmente in Inventario, con la riga corrispondente nel registro
-degli interventi.
+**Lato giocatore**: il deposito del gruppo compare come sezione con un pulsante
+**"Prendi" per voce** (design rivisto il 2026-08-20 — Davide: "i giocatori
+possono prendere da soli", sostituisce il design originale sola-lettura in cui
+solo il master distribuiva). Un membro con un proprio personaggio attivo in
+quel mondo può prendere una voce direttamente: va per intero (mai una quota,
+coerente con §3) sulla propria scheda — oggetto in Inventario, monete sommate
+alle proprie — e sparisce dal deposito per tutti, via il comando di rete
+`CMD_LOOT_STASH_CLAIM` (`core/world_backend.py::_handle_loot_stash_claim`), un
+solo giro di rete che applica ed elimina insieme. Un membro senza personaggio
+in quel mondo vede comunque il deposito, ma senza pulsante. Il master mantiene
+comunque le proprie azioni di assegnazione/spostamento/eliminazione dalla tab
+«Bottino» della Sezione Master, invariate.
 
 ---
 
@@ -221,7 +246,7 @@ degli interventi.
 3. La scheda «Bottino» nella Sezione Master.
 4. Il dialogo di assegnazione condiviso.
 5. Il collegamento dei sei punti di §6.
-6. Il deposito del gruppo lato giocatore (richiede il modello mondo, quindi
-   arriva col passo 2 del piano multiplayer).
+6. ✅ Il deposito del gruppo lato giocatore (richiede il modello mondo, quindi
+   arriva col passo 2 del piano multiplayer) — fatto il 2026-08-20.
 
 I passi 1-5 funzionano **senza rete**, su un dispositivo solo e nel deploy web.

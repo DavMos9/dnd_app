@@ -35,12 +35,13 @@ from typing import Any, cast
 from data.models import Character, DiaryEntry, CampaignNote, MasterCampaignNote
 import data.repositories.character_repo as character_repo
 from data.repositories import master_repo, world_repo
+from core import world_permissions as perm
 from core import world_sync
 from core.world_backend import LocalBackend, RemoteBackend
 from ui import design
 from ui.components.background_sync import BackgroundSyncLoop
 from ui.device_identity import resolve_device_id
-from ui.widgets import wrap_dialog_actions
+from ui.widgets import ScrollMemoryColumn, wrap_dialog_actions
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +213,18 @@ class DiaryView(ft.Column):
 
         # ── Container riferimenti aggiornabili ────────────────────────────
         self._detail_container: ft.Container = ft.Container(expand=True)
+        # BUG FIX (2026-08-20): la Column scrollabile del pannello sinistro
+        # (elenco note/voci) veniva ricreata da zero ad ogni `_refresh()`
+        # (`_build_left_panel()`, un `ft.Column(scroll=...)` nuovo ogni
+        # volta) — selezionare una voce, anche solo per cambiarne
+        # l'evidenziazione, riportava lo scroll in cima, stesso difetto già
+        # risolto altrove con `ScrollMemoryListView`/`ScrollMemoryColumn`
+        # (vedi il loro docstring in ui/widgets.py). Qui l'istanza è UNA
+        # SOLA, creata una volta e riusata: `_build_left_panel()` ne muta
+        # solo `.controls` invece di sostituirla.
+        self._left_scroll_col: ScrollMemoryColumn = ScrollMemoryColumn(
+            expand=True, spacing=0, scroll=ft.ScrollMode.AUTO,
+        )
         self._left_list_lv: ft.Column = ft.Column(spacing=2)
         self._left_list_label: ft.Text = ft.Text("", size=9,
                                                   weight=ft.FontWeight.BOLD,
@@ -225,6 +238,7 @@ class DiaryView(ft.Column):
         # lettura, vedi `_note_list_item`/`_build_note_reading_panel`).
         self.device_id: str | None = None
         self._shared_note_ids: set[str] = set()
+        self._device_id_cache: dict = {}
         self.backend = LocalBackend()
         self._remote_backends: dict[str, RemoteBackend] = {}
         self._sync_loop: BackgroundSyncLoop | None = None
@@ -247,6 +261,7 @@ class DiaryView(ft.Column):
         if page is None:
             return
         self.device_id = await resolve_device_id(page)
+        self._device_id_cache["id"] = self.device_id
         self._merge_shared_notes()
         self._build()
         try:
@@ -290,6 +305,7 @@ class DiaryView(ft.Column):
                 self.update()
             except RuntimeError:
                 pass
+            self._left_scroll_col.restore_scroll()
 
         loop = BackgroundSyncLoop(
             get_page=lambda: self.page,
@@ -351,6 +367,29 @@ class DiaryView(ft.Column):
             self._notes[cat] = character_repo.get_campaign_notes(
                 self.character.id, cat
             )
+            # BUG FIX (2026-08-20): senza questo, salvare/eliminare una
+            # propria nota faceva sparire dalla vista le note CONDIVISE dal
+            # master in quella stessa categoria fino al prossimo giro del
+            # polling periodico (`_start_world_sync`, ogni
+            # `_DIARY_SYNC_INTERVAL_S`) — questa funzione rilegge SOLO
+            # `campaign_notes` (le proprie), sovrascrivendo la lista già
+            # fusa da `_merge_shared_notes()` in `_load_all()`. Bug report
+            # Davide: "aggiunta nota da parte del giocatore... cancella
+            # nota master". Idempotente, stesso motivo del suo docstring.
+            self._merge_shared_notes()
+
+    def _push_campaign_note_to_world(self, kind: str, fields: dict) -> None:
+        """Invia la nota di campagna appena scritta/modificata/eliminata
+        verso l'host, best effort — no-op se il personaggio non è
+        un'istanza di un mondo. Vedi `core.world_sync.push_character_self_command`
+        e il docstring di `CMD_CAMPAIGN_NOTE_SELF_CREATE` in
+        `core/world_permissions.py` per il bug che risolve."""
+        if not self.character.world_id or self._page is None:
+            return
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache, kind, fields,
+        )
 
     # ──────────────────────────────────────────────────────────────────────────
     # Build principale
@@ -481,23 +520,28 @@ class DiaryView(ft.Column):
             # una Column non scrollabile) le categorie in fondo resterebbero
             # fuori schermo con la finestra ridotta. Niente scroll annidato —
             # stessa regola gia' stabilita per il CardPicker.
-            content=ft.Column(
-                [
-                    cat_nav,
-                    ft.Divider(height=1, color=design.T().border),
-                    list_label,
-                    ft.Container(
-                        content=self._left_list_lv,
-                        padding=ft.Padding.only(left=4, right=4, bottom=12),
-                    ),
-                ],
-                expand=True,
-                spacing=0,
-                scroll=ft.ScrollMode.AUTO,
-            ),
+            content=self._fill_left_scroll_col(cat_nav, list_label),
             width=200,
             bgcolor=design.T().parchment_alt,
         )
+
+    def _fill_left_scroll_col(
+        self, cat_nav: ft.Control, list_label: ft.Control,
+    ) -> ScrollMemoryColumn:
+        """Ripopola `self._left_scroll_col` IN PLACE (mai un `ft.Column`
+        nuovo) così l'offset di scroll ricordato resta valido dopo un
+        `_refresh()` — vedi il commento su `self._left_scroll_col` in
+        `__init__` per il bug che risolve."""
+        self._left_scroll_col.controls = [
+            cat_nav,
+            ft.Divider(height=1, color=design.T().border),
+            list_label,
+            ft.Container(
+                content=self._left_list_lv,
+                padding=ft.Padding.only(left=4, right=4, bottom=12),
+            ),
+        ]
+        return self._left_scroll_col
 
     def _cat_button(self, cat: dict[str, Any]) -> ft.Container:
         is_sel = cat["key"] == self._active_cat
@@ -1283,6 +1327,10 @@ class DiaryView(ft.Column):
         desc   = (self._nf_desc.value or "").strip()
         character_repo.update_campaign_note(note.id, name, desc, status, tags)
         logger.info("Campaign note aggiornata: %s", note.id)
+        self._push_campaign_note_to_world(perm.CMD_CAMPAIGN_NOTE_SELF_UPDATE, {
+            "note_id": note.id, "category": self._active_cat,
+            "name": name, "description": desc, "status": status, "tags": tags,
+        })
         self._note_edit = False
         self._load_notes(self._active_cat)
         self._refresh()
@@ -1299,6 +1347,9 @@ class DiaryView(ft.Column):
             if page is None:
                 return
             character_repo.delete_campaign_note(note.id)
+            self._push_campaign_note_to_world(
+                perm.CMD_CAMPAIGN_NOTE_SELF_DELETE, {"note_id": note.id},
+            )
             page.pop_dialog()
             self._load_notes(self._active_cat)
             notes = self._notes.get(self._active_cat, [])
@@ -1429,9 +1480,14 @@ class DiaryView(ft.Column):
             name   = (f_name.value or "").strip() or "Senza nome"
             status = (f_status.value or "").strip()
             desc   = (f_desc.value or "").strip()
-            character_repo.create_campaign_note(
+            new_id = character_repo.create_campaign_note(
                 self.character.id, cat, name, desc, status
             )
+            if new_id:
+                self._push_campaign_note_to_world(perm.CMD_CAMPAIGN_NOTE_SELF_CREATE, {
+                    "note_id": new_id, "category": cat,
+                    "name": name, "description": desc, "status": status, "tags": "",
+                })
             page.pop_dialog()
             self._load_notes(cat)
             notes = self._notes.get(cat, [])
@@ -1479,3 +1535,4 @@ class DiaryView(ft.Column):
             self.update()
         except RuntimeError:
             pass
+        self._left_scroll_col.restore_scroll()

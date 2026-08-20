@@ -837,7 +837,19 @@ class MapsView(ft.Column):
         self._swatch_refs.clear()
         self._mode_refs.clear()
         self._ersub_refs.clear()
-        self._maps = maps_repo.get_maps(self.character.id)
+        # BUG FIX (2026-08-20): mancava `+ self._shared_maps` (presente in
+        # `_build()`, la formula corretta) — tornare alla lista dopo aver
+        # aperto/creato una mappa PERSONALE faceva sparire dalla vista ogni
+        # mappa CONDIVISA dal master, senza autoripararsi: il ciclo di sync
+        # periodico (`_start_world_sync`) richiama `_refresh_shared_maps()`
+        # (che l'avrebbe corretto) solo quando `_signature()` cambia, cioè
+        # solo su un nuovo evento nel giornale del mondo — un'azione
+        # puramente locale come caricare una mappa propria non ne genera
+        # mai uno, quindi la mappa condivisa restava assente a tempo
+        # indeterminato, non solo per un istante. Bug report Davide:
+        # "carico manualmente una terza mappa, la mappa condivisa
+        # sparisce e rimangono solo le 2 mappe locali".
+        self._maps = maps_repo.get_maps(self.character.id) + self._shared_maps
         self.controls[-1] = ft.Container(expand=True, content=self._build_list_panel())
         try:
             self.update()

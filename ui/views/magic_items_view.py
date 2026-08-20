@@ -85,9 +85,18 @@ def _category_icon(category: str) -> str:
 class MagicItemsView(ft.Column):
     """Browser compendio Oggetti Magici: ricerca + filtri + card cliccabili."""
 
-    def __init__(self) -> None:
+    def __init__(self, world_id: str = "", device_id: str = "") -> None:
         super().__init__(expand=True, spacing=0, scroll=ft.ScrollMode.AUTO)
         self._page: ft.Page | None = None
+        #: Mondo correntemente selezionato in `MasterView` — "" per la
+        #: modalità locale. Senza questo, "Assegna…"/"Salva nell'archivio"
+        #: (sotto) userebbero sempre il default vuoto: personaggi/archivio
+        #: sbagliati (`get_master_visible_characters("")` mostra solo i
+        #: personaggi LOCALI, mai le istanze del mondo selezionato) e
+        #: un'assegnazione scritta solo sul dispositivo locale invece che
+        #: instradata via rete verso l'host del mondo.
+        self._world_id = world_id
+        self._device_id = device_id
         self._all_items: list[dict[str, Any]] = sorted(
             _loader.get_magic_items(), key=lambda it: it.get("name", "")
         )
@@ -311,12 +320,13 @@ class MagicItemsView(ft.Column):
 
         def _on_assign_loot(ev: Any) -> None:
             from ui.views.master.master_loot_assign_dialog import show_loot_assign_dialog
-            show_loot_assign_dialog(page, [_build_loot_item()])
+            show_loot_assign_dialog(page, [_build_loot_item()],
+                                     world_id=self._world_id, device_id=self._device_id)
 
         def _on_save_to_archive(ev: Any) -> None:
             from ui.views.master.master_loot_assign_dialog import save_items_to_stash
             from ui.widgets import show_snack
-            save_items_to_stash([_build_loot_item()])
+            save_items_to_stash([_build_loot_item()], world_id=self._world_id)
             show_snack(page, f"«{name}» salvato nell'archivio.")
 
         dlg = ft.AlertDialog(

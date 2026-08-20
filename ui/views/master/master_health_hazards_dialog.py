@@ -127,7 +127,7 @@ def show_health_hazards_dialog(page: ft.Page, world_id: str = "", device_id: str
         def _on_save_to_archive(ev: Any) -> None:
             from ui.views.master.master_loot_assign_dialog import save_items_to_stash
             from ui.widgets import show_snack
-            save_items_to_stash([_build_poison_loot_item(poison)])
+            save_items_to_stash([_build_poison_loot_item(poison)], world_id=world_id)
             show_snack(page, f"«{poison.get('name', '')}» salvato nell'archivio.")
 
         _text_dialog(

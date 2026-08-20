@@ -1182,3 +1182,79 @@ def resolve_rejoin_request(request_id: str, status: str) -> bool:
     finally:
         if conn is not None:
             conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Coda di ritentativo per i comandi `*.self_*` (`pending_self_commands`,
+# BUG FIX 2026-08-20) — vedi il commento sopra la CREATE TABLE in
+# data/database.py per il bug che risolve. Consumata da
+# `core.world_sync.push_pending_self_commands()`, popolata da
+# `core.world_sync.push_character_self_command()` sul solo ramo di
+# fallimento (host irraggiungibile o comando rifiutato).
+# ---------------------------------------------------------------------------
+
+def enqueue_pending_self_command(character_id: str, world_id: str, device_id: str,
+                                  kind: str, payload_json: str) -> bool:
+    """Registra un comando self-service non riuscito a raggiungere l'host,
+    da ritentare al prossimo giro utile. Una riga per invio fallito (id
+    proprio, mai deduplicata sullo stesso `character_id`+`kind`): due
+    modifiche diverse fatte offline sullo stesso campo devono arrivare
+    entrambe, nell'ordine in cui sono avvenute — l'ultima "vince" comunque
+    sull'host, che applica gli UPDATE in sequenza, ma nessuna deve andare
+    persa silenziosamente."""
+    import uuid as _uuid
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute(
+            """INSERT INTO pending_self_commands
+               (id, character_id, world_id, device_id, kind, payload, created_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (str(_uuid.uuid4()), character_id, world_id, device_id, kind,
+             payload_json, _now()),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Errore enqueue_pending_self_command: {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def list_pending_self_commands(world_id: str, device_id: str) -> list[tuple[str, str, str, str]]:
+    """Comandi in attesa per QUESTO mondo e QUESTO dispositivo, in ordine di
+    creazione (`FIFO` — vedi `enqueue_pending_self_command`). Ritorna
+    `(id, character_id, kind, payload)` per ciascuna riga."""
+    conn = None
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            """SELECT id, character_id, kind, payload FROM pending_self_commands
+               WHERE world_id=? AND device_id=? ORDER BY created_at ASC""",
+            (world_id, device_id),
+        ).fetchall()
+        return [(r["id"], r["character_id"], r["kind"], r["payload"]) for r in rows]
+    except Exception as e:
+        logger.error(f"Errore list_pending_self_commands: {e}")
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def delete_pending_self_command(pending_id: str) -> bool:
+    """Rimuove una riga dalla coda dopo un invio riuscito."""
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM pending_self_commands WHERE id=?", (pending_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Errore delete_pending_self_command: {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()

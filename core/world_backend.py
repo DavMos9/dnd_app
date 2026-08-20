@@ -977,13 +977,46 @@ def _handle_loot_assign(ctx: HandlerContext) -> CommandResult:
         bucket = _bucket(str(it.get("target_character_id", "")))
         if bucket is None:
             continue
-        created = character_repo.create_inventory_item(
-            bucket["character"].id, name, quantity=int(it.get("quantity", 1) or 1),
-            description=str(it.get("description", "")),
-            category=str(it.get("category", "misc")) or "misc",
-            requires_attunement=bool(it.get("requires_attunement", False)),
-            effects=str(it.get("effects", "")),
-        )
+        quantity = int(it.get("quantity", 1) or 1)
+        # "weapon"/"armor" (2026-08-20, bug report Davide: le voci
+        # arma/armatura devono avere le stesse caselle della scheda
+        # giocatore) scrivono su tabelle diverse dall'`inventory_items`
+        # generico — stessa logica di `_create_recipient_item()` in
+        # `master_loot_assign_dialog.py` (duplicata qui perché gira
+        # sull'host, non sul dispositivo del Master).
+        if str(it.get("entry_kind", "")) == "weapon":
+            ok = False
+            for _ in range(max(1, quantity)):
+                ok = character_repo.create_weapon(
+                    bucket["character"].id, name,
+                    damage_dice=str(it.get("weapon_damage_dice", "")),
+                    damage_type=str(it.get("weapon_damage_type", "")),
+                    attack_bonus=int(it.get("weapon_attack_bonus", 0) or 0),
+                    damage_bonus=int(it.get("weapon_damage_bonus", 0) or 0),
+                    properties=str(it.get("weapon_properties", "")),
+                    weapon_category=str(it.get("weapon_category", "")),
+                    magic_description=str(it.get("description", "")),
+                    is_magical=bool(it.get("requires_attunement"))
+                    or bool(it.get("weapon_attack_bonus") or it.get("weapon_damage_bonus")),
+                ) or ok
+            created = name if ok else None
+        elif str(it.get("entry_kind", "")) == "armor":
+            created = character_repo.create_inventory_item(
+                bucket["character"].id, name, quantity=quantity, category="armor",
+                description=str(it.get("description", "")),
+                ca_value=int(it.get("armor_ca_value", 0) or 0),
+                armor_type=str(it.get("armor_type", "")),
+                effects=str(it.get("armor_effects", "")),
+                requires_attunement=bool(it.get("requires_attunement", False)),
+            )
+        else:
+            created = character_repo.create_inventory_item(
+                bucket["character"].id, name, quantity=quantity,
+                description=str(it.get("description", "")),
+                category=str(it.get("category", "misc")) or "misc",
+                requires_attunement=bool(it.get("requires_attunement", False)),
+                effects=str(it.get("effects", "")),
+            )
         if created is not None:
             bucket["item_names"].append(name)
 
@@ -1662,6 +1695,355 @@ def _handle_spell_self_remove(ctx: HandlerContext) -> CommandResult:
     return CommandResult(True, event=event)
 
 
+def _weapon_fields_from_payload(payload: dict) -> dict:
+    """Estrae i campi arma comuni a create/update da un payload di
+    `CMD_WEAPON_SELF_UPSERT` — un solo punto per i due rami dell'handler
+    sotto, stesso principio di `_apply_condition_to_character` più sopra."""
+    return dict(
+        damage_dice=str(payload.get("damage_dice", "")),
+        damage_type=str(payload.get("damage_type", "")),
+        attack_bonus=int(payload.get("attack_bonus", 0) or 0),
+        damage_bonus=int(payload.get("damage_bonus", 0) or 0),
+        properties=str(payload.get("properties", "")),
+        is_equipped=bool(payload.get("is_equipped", False)),
+        is_magical=bool(payload.get("is_magical", False)),
+        magic_description=str(payload.get("magic_description", "")),
+        range_normal=int(payload.get("range_normal", 0) or 0),
+        range_max=int(payload.get("range_max", 0) or 0),
+        magic_damages=str(payload.get("magic_damages", "[]")),
+        versatile_damage_dice=str(payload.get("versatile_damage_dice", "")),
+        grip_two_handed=bool(payload.get("grip_two_handed", False)),
+        weapon_category=str(payload.get("weapon_category", "")),
+        proficiency_override=bool(payload.get("proficiency_override", False)),
+        finesse_ability=str(payload.get("finesse_ability", "")),
+        attack_total_override=bool(payload.get("attack_total_override", False)),
+        attack_override_value=int(payload.get("attack_override_value", 0) or 0),
+    )
+
+
+@register_handler(perm.CMD_WEAPON_SELF_UPSERT)
+def _handle_weapon_self_upsert(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore stesso crea/aggiorna una propria arma (`inventario_tab.py`,
+    sezione Armi) — estensione di `CMD_HP_SELF_UPDATE`, stesso principio di
+    `_handle_spell_self_upsert` ma senza una chiave naturale disponibile
+    (due armi possono avere lo stesso nome): identifica la riga per
+    `weapon_id`, generato lato client PRIMA della scrittura locale (vedi il
+    docstring di `CMD_WEAPON_SELF_UPSERT` in `core/world_permissions.py`) —
+    se non esiste ancora sull'host la crea con quello stesso id invece di
+    generarne uno nuovo, così client e host restano sempre allineati sullo
+    stesso id per questa riga.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può modificare le proprie armi.",
+        )
+    name = str(ctx.payload.get("name", "")).strip()
+    if not name:
+        return CommandResult(False, "Nome dell'arma mancante.")
+    weapon_id = str(ctx.payload.get("weapon_id", "")).strip()
+    fields = _weapon_fields_from_payload(ctx.payload)
+
+    existing = character_repo.get_weapon_by_id(weapon_id) if weapon_id else None
+    if existing is not None and existing.character_id == character.id:
+        ok = character_repo.update_weapon(weapon_id, name, **fields)
+    else:
+        ok = character_repo.create_weapon(
+            character.id, name, weapon_id=weapon_id or None, **fields,
+        )
+    if not ok:
+        return CommandResult(False, "Scrittura dell'arma fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_WEAPON_SELF_UPSERT, target_type="character", target_id=character.id,
+        summary=f"{character.name}: arma «{name}» aggiornata.",
+        payload=json.dumps({"weapon_id": weapon_id, "name": name}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_WEAPON_SELF_REMOVE)
+def _handle_weapon_self_remove(ctx: HandlerContext) -> CommandResult:
+    """Il giocatore stesso elimina una propria arma — controparte di
+    `_handle_weapon_self_upsert`."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può eliminare le proprie armi.",
+        )
+    weapon_id = str(ctx.payload.get("weapon_id", "")).strip()
+    if not weapon_id:
+        return CommandResult(False, "Id dell'arma mancante.")
+    existing = character_repo.get_weapon_by_id(weapon_id)
+    if existing is not None and existing.character_id != character.id:
+        return CommandResult(False, "Questa arma non appartiene a questo personaggio.")
+    if existing is None:
+        # Già assente sull'host (mai arrivata, o già rimossa) — idempotente,
+        # non un errore: stesso principio di CMD_LOOT_STASH_CLAIM su una
+        # voce già presa.
+        return CommandResult(True)
+    if not character_repo.delete_weapon(weapon_id):
+        return CommandResult(False, "Eliminazione dell'arma fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_WEAPON_SELF_REMOVE, target_type="character", target_id=character.id,
+        summary=f"{character.name}: arma «{existing.name}» eliminata.",
+        payload=json.dumps({"weapon_id": weapon_id, "name": existing.name}),
+    )
+    return CommandResult(True, event=event)
+
+
+def _inventory_fields_from_payload(payload: dict) -> dict:
+    """Stesso ruolo di `_weapon_fields_from_payload` per
+    `CMD_INVENTORY_SELF_UPSERT`."""
+    return dict(
+        quantity=int(payload.get("quantity", 1) or 1),
+        weight=float(payload.get("weight", 0.0) or 0.0),
+        description=str(payload.get("description", "")),
+        category=str(payload.get("category", "misc") or "misc"),
+        is_equipped=bool(payload.get("is_equipped", False)),
+        ca_value=int(payload.get("ca_value", 0) or 0),
+        armor_type=str(payload.get("armor_type", "")),
+        effects=str(payload.get("effects", "")),
+        requires_attunement=bool(payload.get("requires_attunement", False)),
+    )
+
+
+@register_handler(perm.CMD_INVENTORY_SELF_UPSERT)
+def _handle_inventory_self_upsert(ctx: HandlerContext) -> CommandResult:
+    """Il giocatore stesso crea/aggiorna un proprio oggetto d'inventario
+    (`inventario_tab.py`, sezioni Armature/Oggetti) — stesso principio di
+    `_handle_weapon_self_upsert`, `item_id` al posto di `weapon_id`. La
+    sintonia (`is_attuned`) è scritta a parte con
+    `character_repo.set_item_attunement()`, come fa già `inventario_tab.py`
+    in locale (`_write_attunement`) — non è un parametro di
+    `create_inventory_item`/`update_inventory_item`."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può modificare i propri oggetti.",
+        )
+    name = str(ctx.payload.get("name", "")).strip()
+    if not name:
+        return CommandResult(False, "Nome dell'oggetto mancante.")
+    item_id = str(ctx.payload.get("item_id", "")).strip()
+    fields = _inventory_fields_from_payload(ctx.payload)
+
+    existing = character_repo.get_inventory_item_by_id(item_id) if item_id else None
+    if existing is not None and existing.character_id == character.id:
+        ok = character_repo.update_inventory_item(item_id, name, **fields)
+        result_id = item_id
+    else:
+        result_id = character_repo.create_inventory_item(
+            character.id, name, item_id=item_id or None, **fields,
+        )
+        ok = result_id is not None
+    if ok and "is_attuned" in ctx.payload and result_id:
+        character_repo.set_item_attunement(result_id, bool(ctx.payload.get("is_attuned")))
+    if not ok:
+        return CommandResult(False, "Scrittura dell'oggetto fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_INVENTORY_SELF_UPSERT, target_type="character", target_id=character.id,
+        summary=f"{character.name}: oggetto «{name}» aggiornato.",
+        payload=json.dumps({"item_id": item_id, "name": name}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_INVENTORY_SELF_REMOVE)
+def _handle_inventory_self_remove(ctx: HandlerContext) -> CommandResult:
+    """Il giocatore stesso elimina un proprio oggetto — controparte di
+    `_handle_inventory_self_upsert`."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può eliminare i propri oggetti.",
+        )
+    item_id = str(ctx.payload.get("item_id", "")).strip()
+    if not item_id:
+        return CommandResult(False, "Id dell'oggetto mancante.")
+    existing = character_repo.get_inventory_item_by_id(item_id)
+    if existing is not None and existing.character_id != character.id:
+        return CommandResult(False, "Questo oggetto non appartiene a questo personaggio.")
+    if existing is None:
+        return CommandResult(True)
+    if not character_repo.delete_inventory_item(item_id):
+        return CommandResult(False, "Eliminazione dell'oggetto fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_INVENTORY_SELF_REMOVE, target_type="character", target_id=character.id,
+        summary=f"{character.name}: oggetto «{existing.name}» eliminato.",
+        payload=json.dumps({"item_id": item_id, "name": existing.name}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CURRENCY_SELF_UPDATE)
+def _handle_currency_self_update(ctx: HandlerContext) -> CommandResult:
+    """Il giocatore stesso aggiorna le proprie monete
+    (`inventario_tab.py::_on_edit_currency`) — estensione di
+    `CMD_HP_SELF_UPDATE`, valori assoluti come lì, idempotente."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può aggiornarne le monete.",
+        )
+    try:
+        copper = int(ctx.payload.get("copper", 0) or 0)
+        silver = int(ctx.payload.get("silver", 0) or 0)
+        electrum = int(ctx.payload.get("electrum", 0) or 0)
+        gold = int(ctx.payload.get("gold", 0) or 0)
+        platinum = int(ctx.payload.get("platinum", 0) or 0)
+    except (TypeError, ValueError):
+        return CommandResult(False, "Valori delle monete non validi.")
+    if not character_repo.update_currencies(
+        character.id, copper, silver, electrum, gold, platinum,
+    ):
+        return CommandResult(False, "Aggiornamento delle monete fallito.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CURRENCY_SELF_UPDATE, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha aggiornato le proprie monete.",
+        payload=json.dumps({
+            "copper": copper, "silver": silver, "electrum": electrum,
+            "gold": gold, "platinum": platinum,
+        }),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CAMPAIGN_NOTE_SELF_CREATE)
+def _handle_campaign_note_self_create(ctx: HandlerContext) -> CommandResult:
+    """
+    Il giocatore stesso crea una propria nota di campagna (NPC/luogo/
+    missiva — `diary_view.py`, sezione "Diario" della barra laterale,
+    DISTINTA dalle note condivise dal master su `master_campaign_notes`,
+    vedi il docstring di `CMD_CAMPAIGN_NOTE_SELF_CREATE` in
+    `core/world_permissions.py`). Stesso principio di
+    `_handle_custom_ability_self_create`.
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può creare una propria nota.",
+        )
+    category = str(ctx.payload.get("category", "")).strip()
+    name = str(ctx.payload.get("name", "")).strip()
+    description = str(ctx.payload.get("description", ""))
+    status = str(ctx.payload.get("status", ""))
+    tags = str(ctx.payload.get("tags", ""))
+    if not name:
+        return CommandResult(False, "Nome della nota mancante.")
+    note_id = str(ctx.payload.get("note_id", "")).strip()
+
+    result_id = character_repo.create_campaign_note(
+        character.id, category, name, description, status, tags,
+        note_id=note_id or None,
+    )
+    if result_id is None:
+        return CommandResult(False, "Creazione della nota fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CAMPAIGN_NOTE_SELF_CREATE, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha creato la nota «{name}».",
+        payload=json.dumps({"note_id": result_id, "category": category, "name": name}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CAMPAIGN_NOTE_SELF_UPDATE)
+def _handle_campaign_note_self_update(ctx: HandlerContext) -> CommandResult:
+    """Il giocatore modifica una propria nota di campagna già esistente
+    sull'host — stesso ripiego su una creazione se `note_id` è stale (un
+    resync completo l'ha rigenerato) già usato in
+    `_handle_custom_ability_self_update`, vedi il suo docstring per il perché."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può modificare una propria nota.",
+        )
+    category = str(ctx.payload.get("category", "")).strip()
+    name = str(ctx.payload.get("name", "")).strip()
+    description = str(ctx.payload.get("description", ""))
+    status = str(ctx.payload.get("status", ""))
+    tags = str(ctx.payload.get("tags", ""))
+    note_id = str(ctx.payload.get("note_id", "")).strip()
+    if not name:
+        return CommandResult(False, "Nome della nota mancante.")
+
+    existing = character_repo.get_campaign_note_by_id(note_id) if note_id else None
+    if existing is not None and existing.character_id == character.id:
+        ok = character_repo.update_campaign_note(note_id, name, description, status, tags)
+    else:
+        ok = character_repo.create_campaign_note(
+            character.id, category, name, description, status, tags,
+            note_id=note_id or None,
+        ) is not None
+    if not ok:
+        return CommandResult(False, "Aggiornamento della nota fallito.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CAMPAIGN_NOTE_SELF_UPDATE, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha modificato la nota «{name}».",
+        payload=json.dumps({"note_id": note_id, "category": category, "name": name}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_CAMPAIGN_NOTE_SELF_DELETE)
+def _handle_campaign_note_self_delete(ctx: HandlerContext) -> CommandResult:
+    """Il giocatore elimina una propria nota di campagna — controparte di
+    `_handle_campaign_note_self_create`."""
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(
+            False, "Solo il proprietario del personaggio può eliminare una propria nota.",
+        )
+    note_id = str(ctx.payload.get("note_id", "")).strip()
+    if not note_id:
+        return CommandResult(False, "Id della nota mancante.")
+    existing = character_repo.get_campaign_note_by_id(note_id)
+    if existing is not None and existing.character_id != character.id:
+        return CommandResult(False, "Questa nota non appartiene a questo personaggio.")
+    if existing is None:
+        return CommandResult(True)
+    if not character_repo.delete_campaign_note(note_id):
+        return CommandResult(False, "Eliminazione della nota fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_CAMPAIGN_NOTE_SELF_DELETE, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha eliminato la nota «{existing.name}».",
+        payload=json.dumps({"note_id": note_id, "name": existing.name}),
+    )
+    return CommandResult(True, event=event)
+
+
 @register_handler(perm.CMD_DIARY_ADD_ENTRY)
 def _handle_diary_add_entry(ctx: HandlerContext) -> CommandResult:
     """
@@ -2239,6 +2621,15 @@ def _loot_stash_entry_payload(entry) -> dict:
         "copper": entry.copper, "silver": entry.silver, "electrum": entry.electrum,
         "gold": entry.gold, "platinum": entry.platinum,
         "added_by_device_id": entry.added_by_device_id,
+        "weapon_damage_dice": entry.weapon_damage_dice,
+        "weapon_damage_type": entry.weapon_damage_type,
+        "weapon_category": entry.weapon_category,
+        "weapon_properties": entry.weapon_properties,
+        "weapon_attack_bonus": entry.weapon_attack_bonus,
+        "weapon_damage_bonus": entry.weapon_damage_bonus,
+        "armor_ca_value": entry.armor_ca_value,
+        "armor_type": entry.armor_type,
+        "armor_effects": entry.armor_effects,
         "created_at": entry.created_at, "updated_at": entry.updated_at,
     }
 
@@ -2257,6 +2648,15 @@ def _handle_loot_stash_add(ctx: HandlerContext) -> CommandResult:
         copper=int(ctx.payload.get("copper", 0) or 0), silver=int(ctx.payload.get("silver", 0) or 0),
         electrum=int(ctx.payload.get("electrum", 0) or 0), gold=int(ctx.payload.get("gold", 0) or 0),
         platinum=int(ctx.payload.get("platinum", 0) or 0), added_by_device_id=ctx.actor_device_id,
+        weapon_damage_dice=str(ctx.payload.get("weapon_damage_dice", "")),
+        weapon_damage_type=str(ctx.payload.get("weapon_damage_type", "")),
+        weapon_category=str(ctx.payload.get("weapon_category", "")),
+        weapon_properties=str(ctx.payload.get("weapon_properties", "")),
+        weapon_attack_bonus=int(ctx.payload.get("weapon_attack_bonus", 0) or 0),
+        weapon_damage_bonus=int(ctx.payload.get("weapon_damage_bonus", 0) or 0),
+        armor_ca_value=int(ctx.payload.get("armor_ca_value", 0) or 0),
+        armor_type=str(ctx.payload.get("armor_type", "")),
+        armor_effects=str(ctx.payload.get("armor_effects", "")),
     )
     if entry is None:
         return CommandResult(False, "Aggiunta al deposito del gruppo fallita.")
@@ -2285,6 +2685,15 @@ def _handle_loot_stash_update(ctx: HandlerContext) -> CommandResult:
         description=str(ctx.payload.get("description", "")),
         quantity=int(ctx.payload.get("quantity", entry.quantity) or 0),
         source_note=str(ctx.payload.get("source_note", "")),
+        weapon_damage_dice=str(ctx.payload.get("weapon_damage_dice", entry.weapon_damage_dice)),
+        weapon_damage_type=str(ctx.payload.get("weapon_damage_type", entry.weapon_damage_type)),
+        weapon_category=str(ctx.payload.get("weapon_category", entry.weapon_category)),
+        weapon_properties=str(ctx.payload.get("weapon_properties", entry.weapon_properties)),
+        weapon_attack_bonus=int(ctx.payload.get("weapon_attack_bonus", entry.weapon_attack_bonus) or 0),
+        weapon_damage_bonus=int(ctx.payload.get("weapon_damage_bonus", entry.weapon_damage_bonus) or 0),
+        armor_ca_value=int(ctx.payload.get("armor_ca_value", entry.armor_ca_value) or 0),
+        armor_type=str(ctx.payload.get("armor_type", entry.armor_type)),
+        armor_effects=str(ctx.payload.get("armor_effects", entry.armor_effects)),
     ):
         return CommandResult(False, "Aggiornamento della voce fallito.")
     updated = loot_repo.get_entry(entry_id)
@@ -2315,9 +2724,14 @@ def _handle_loot_stash_move(ctx: HandlerContext) -> CommandResult:
     entry = loot_repo.get_entry(entry_id) if entry_id else None
     if entry is None or entry.world_id != ctx.world_id:
         return CommandResult(False, "Voce non trovata in questo mondo.")
-    if not loot_repo.move_entry(
-        entry_id, new_kind, new_world_id=ctx.world_id if new_kind == "party" else "",
-    ):
+    # BUG FIX (2026-08-20, report Davide "sposta nell'archivio... archivio
+    # risulta sempre vuoto"): `world_id` resta lo stesso mondo in ENTRAMBE
+    # le direzioni — l'archivio del Master è privato/mai sincronizzato, ma
+    # resta comunque world-scoped come il deposito (vedi il docstring di
+    # `loot_repo.py`, "world-scoped su ENTRAMBI gli stash_kind"). Azzerarlo
+    # qui per `new_kind == "master"` faceva sparire la voce dalla vista
+    # Archivio, che filtra per il mondo correntemente selezionato.
+    if not loot_repo.move_entry(entry_id, new_kind, new_world_id=ctx.world_id):
         return CommandResult(False, "Spostamento della voce fallito.")
     updated = loot_repo.get_entry(entry_id)
     dest_label = "deposito del gruppo" if new_kind == "party" else "archivio privato"
@@ -2344,6 +2758,101 @@ def _handle_loot_stash_delete(ctx: HandlerContext) -> CommandResult:
         kind=perm.CMD_LOOT_STASH_DELETE, target_type="loot_stash", target_id=entry_id,
         summary=f"{ctx.actor_name} ha eliminato una voce dal deposito del gruppo.",
         payload=json.dumps({"entry_id": entry_id}),
+    )
+    return CommandResult(True, event=event)
+
+
+@register_handler(perm.CMD_LOOT_STASH_CLAIM)
+def _handle_loot_stash_claim(ctx: HandlerContext) -> CommandResult:
+    """
+    Un giocatore prende DA SOLO una voce dal deposito comune (decisione di
+    design 2026-08-20 — vedi il docstring di `perm.CMD_LOOT_STASH_CLAIM`).
+    `ctx.target_id` è il personaggio che riceve la voce: come
+    `_handle_hp_self_update`, il ruolo da solo non basta, serve anche
+    `perm.is_character_owner()` — un giocatore non può far "prendere" una
+    voce al personaggio di un altro.
+
+    A differenza di `_handle_loot_assign` (che lascia alla UI chiamante il
+    compito di eliminare la voce d'origine con un secondo comando
+    `CMD_LOOT_STASH_DELETE`, vedi `master_loot_assign_dialog.py::_on_confirm`),
+    qui applicazione + rimozione della voce avvengono nello STESSO handler:
+    un solo comando dal client, un solo giro di rete, e nessuna finestra in
+    cui la voce risulti sia ancora nel deposito sia già nell'inventario se
+    il secondo comando andasse perso.
+
+    La voce viene presa PER INTERO (mai una quota) — coerente con §3 di
+    `loot_design.md`, "tutte le voci non-coins sono indivisibili"; per le
+    monete, prendere per intero è la semplificazione scelta per l'auto-
+    servizio del giocatore (una ripartizione in percentuale resta
+    un'operazione del Master, vedi `show_loot_assign_dialog`/§5).
+    """
+    character = _resolve_world_character(ctx.world_id, ctx.target_id)
+    if character is None:
+        return CommandResult(False, "Personaggio non trovato in questo mondo.")
+    if not perm.is_character_owner(ctx.actor_device_id, character.owner_device_id):
+        return CommandResult(False, "Solo il proprietario del personaggio può prenderne il bottino.")
+
+    entry_id = str(ctx.payload.get("entry_id", ""))
+    entry = loot_repo.get_entry(entry_id) if entry_id else None
+    if entry is None or entry.stash_kind != "party" or entry.world_id != ctx.world_id:
+        return CommandResult(False, "Voce non trovata nel deposito del gruppo di questo mondo — "
+                                     "qualcun altro potrebbe averla già presa.")
+
+    if entry.entry_kind == "coins":
+        existing = character_repo.get_currencies(character.id)
+        ok = character_repo.update_currencies(
+            character.id,
+            (existing.copper if existing else 0) + entry.copper,
+            (existing.silver if existing else 0) + entry.silver,
+            (existing.electrum if existing else 0) + entry.electrum,
+            (existing.gold if existing else 0) + entry.gold,
+            (existing.platinum if existing else 0) + entry.platinum,
+        )
+        if not ok:
+            return CommandResult(False, "Aggiunta delle monete fallita.")
+        label = "monete"
+    else:
+        heuristic_attunement = "sintonia" in (entry.description + " " + entry.source_note).lower()
+        # "weapon"/"armor" scrivono su tabelle diverse da `inventory_items`
+        # generico — stessa logica di `_handle_loot_assign` sopra.
+        if entry.entry_kind == "weapon":
+            ok = True
+            for _ in range(max(1, entry.quantity)):
+                ok = character_repo.create_weapon(
+                    character.id, entry.name,
+                    damage_dice=entry.weapon_damage_dice, damage_type=entry.weapon_damage_type,
+                    attack_bonus=entry.weapon_attack_bonus, damage_bonus=entry.weapon_damage_bonus,
+                    properties=entry.weapon_properties, weapon_category=entry.weapon_category,
+                    magic_description=entry.description,
+                    is_magical=heuristic_attunement
+                    or bool(entry.weapon_attack_bonus or entry.weapon_damage_bonus),
+                ) and ok
+            created = entry.name if ok else None
+        elif entry.entry_kind == "armor":
+            created = character_repo.create_inventory_item(
+                character.id, entry.name, quantity=entry.quantity, category="armor",
+                description=entry.description, ca_value=entry.armor_ca_value,
+                armor_type=entry.armor_type, effects=entry.armor_effects,
+                requires_attunement=heuristic_attunement,
+            )
+        else:
+            created = character_repo.create_inventory_item(
+                character.id, entry.name, quantity=entry.quantity,
+                description=entry.description, category="misc",
+                requires_attunement=heuristic_attunement,
+            )
+        if created is None:
+            return CommandResult(False, "Aggiunta dell'oggetto fallita.")
+        label = f"«{entry.name}»"
+
+    if not loot_repo.delete_entry(entry.id):
+        return CommandResult(False, "Rimozione della voce dal deposito fallita.")
+
+    event = world_repo.append_event(
+        ctx.world_id, ctx.actor_device_id, ctx.actor_name,
+        kind=perm.CMD_LOOT_STASH_CLAIM, target_type="character", target_id=character.id,
+        summary=f"{character.name} ha preso {label} dal deposito del gruppo.",
+        payload=json.dumps({"entry_id": entry.id}),
     )
     return CommandResult(True, event=event)
 

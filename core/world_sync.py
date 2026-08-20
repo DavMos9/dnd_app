@@ -395,6 +395,16 @@ def apply_event_to_replica(local_world_id: str, event: WorldEvent, remote_backen
             if entry_id:
                 loot_repo.replica_delete_entry(entry_id)
 
+        elif event.kind == perm.CMD_LOOT_STASH_CLAIM:
+            # Il personaggio che ha preso la voce si rimaterializza già dal
+            # ramo generico CHARACTER_MUTATING_COMMANDS sopra (evento
+            # target_type="character") — qui serve solo far sparire la voce
+            # dal deposito comune sulle repliche di TUTTI gli altri membri
+            # del mondo, stessa identica forma di CMD_LOOT_STASH_DELETE.
+            entry_id = str(payload.get("entry_id", ""))
+            if entry_id:
+                loot_repo.replica_delete_entry(entry_id)
+
         elif event.kind == perm.DEVICE_TRANSFER_REDEEM_KIND:
             # Un membro ha spostato il proprio personaggio su un altro
             # dispositivo (§11.9). Due letture completamente diverse dello
@@ -647,6 +657,73 @@ def push_pending_instances(remote_backend, local_world_id: str, device_id: str) 
     return pushed
 
 
+def push_pending_self_commands(remote_backend, local_world_id: str, device_id: str) -> int:
+    """
+    Ritenta i comandi `*.self_*` di QUESTO dispositivo rimasti in coda
+    (`pending_self_commands`, BUG FIX 2026-08-20) — controparte generalizzata
+    di `push_pending_instances` sopra: se `push_character_self_command()`
+    fallisce perché l'host è irraggiungibile nel momento del salvataggio
+    (nota, arma, oggetto, incantesimo, ecc.), il comando resterebbe SOLO
+    locale finché non arriva un resync innescato da altro — che lo
+    cancellerebbe, esattamente il bug appena corretto altrove nella stessa
+    sessione. Vedi il docstring di `push_character_self_command` per il
+    dettaglio completo.
+
+    Va chiamata dallo stesso loop periodico che già chiama `sync_replica()`/
+    `push_pending_instances()` (`ui/views/world/world_view.py`), stesso
+    cooldown anti-spam condiviso. Ritorna il numero di comandi inviati con
+    successo in questo giro — l'ordine FIFO (`list_pending_self_commands`,
+    `ORDER BY created_at`) garantisce che, se più modifiche sullo stesso
+    campo erano rimaste in coda, l'host le applichi nello stesso ordine in
+    cui sono avvenute in locale.
+    """
+    if instance_push_cooldown_remaining() > 0:
+        return 0
+    pending = world_repo.list_pending_self_commands(local_world_id, device_id)
+    if not pending:
+        return 0
+    mark_instance_push()
+
+    pushed = 0
+    for pending_id, character_id, kind, payload_json in pending:
+        try:
+            payload = json.loads(payload_json)
+        except (json.JSONDecodeError, TypeError):
+            logger.error(
+                "push_pending_self_commands: payload illeggibile per %s (kind=%r), scartato",
+                pending_id, kind,
+            )
+            world_repo.delete_pending_self_command(pending_id)
+            continue
+        result = remote_backend.send_command(
+            local_world_id, device_id, kind, payload,
+            target_type="character", target_id=character_id,
+        )
+        if result.success:
+            world_repo.delete_pending_self_command(pending_id)
+            pushed += 1
+        else:
+            # A differenza di `push_character_self_command()` (dove
+            # un'eccezione di trasporto è già distinta da un rifiuto
+            # applicativo prima di arrivare a questo punto), `RemoteBackend.
+            # send_command()` non solleva mai — un host tornato di nuovo
+            # irraggiungibile PROPRIO durante questo ritentativo produce lo
+            # stesso `CommandResult(False, ...)` di un vero rifiuto
+            # applicativo (proprietà non verificata, payload non valido).
+            # Senza poterli distinguere qui, la scelta più sicura è NON
+            # rimuovere mai dalla coda su un fallimento: un comando
+            # legittimo riprova al giro successivo (costo: nessuno, stesso
+            # cooldown di sempre); un payload davvero non valido — non
+            # dovrebbe mai accadere, i payload sono costruiti dal codice
+            # stesso, mai da input libero dell'utente — resterebbe in coda
+            # ritentato invano, ma senza perdere né corrompere nulla.
+            logger.warning(
+                "push_pending_self_commands: %s (kind=%r) non riuscito, resta in coda: %s",
+                pending_id, kind, result.error,
+            )
+    return pushed
+
+
 def _backfill_map_annotations_if_empty(remote_backend, map_id: str) -> None:
     """
     Recupera una volta sola i tratti di disegno di una mappa condivisa
@@ -886,22 +963,33 @@ async def push_character_self_command(page, character, device_id_cache: dict, ki
                                        payload: dict) -> None:
     """
     Invia un comando self-service (diario, note di sessione, abilità
-    personalizzate, incantesimi) verso l'host per `character`, best effort —
-    stessa forma di `_push_hp_to_world`/`_push_condition_to_world`
+    personalizzate, incantesimi, armi/oggetti/monete/note di campagna)
+    verso l'host per `character`, best effort — stessa forma di
+    `_push_hp_to_world`/`_push_condition_to_world`
     (`ui/views/character_sheet/combattimento_tab.py`), estratta qui perché
-    ora serve identica a più tab (diario, esplorazione, incantesimi) invece
-    di essere duplicata in ognuno.
+    ora serve identica a più tab (diario, esplorazione, incantesimi,
+    inventario) invece di essere duplicata in ognuno.
 
-    Nessun retry automatico né debounce con "generation": a differenza dei
-    PF (un flusso continuo di piccoli cambiamenti mentre l'utente tocca la
+    Nessun retry SINCRONO né debounce con "generation": a differenza dei PF
+    (un flusso continuo di piccoli cambiamenti mentre l'utente tocca la
     scheda) queste sono azioni discrete e deliberate (un pulsante "Salva"),
     un invio per azione — stesso principio di `_push_condition_to_world`.
+    C'è però un retry ASINCRONO (BUG FIX 2026-08-20, bug report Davide
+    "cosa succede se il giocatore inserisce una nota mentre il mondo non è
+    hostato?"): se l'host non è raggiungibile ORA, il comando viene messo
+    in coda (`world_repo.enqueue_pending_self_command`, tabella
+    `pending_self_commands`) e ritentato dal prossimo giro di
+    `push_pending_self_commands()` — stesso principio già in uso per
+    `CMD_CHARACTER_INSTANCE_SYNC`/`host_sync_pending`, qui generalizzato a
+    qualunque comando self. Senza questo, la scrittura locale (già avvenuta
+    dal chiamante prima di invocare questa funzione, e che resta comunque
+    corretta) non arrivava MAI sull'host se non tornava a essere ripetuta a
+    mano — e nel frattempo un resync innescato da un evento non correlato
+    la cancellava, lo stesso identico bug appena corretto altrove.
 
-    No-op silenzioso se il personaggio non è un'istanza di un mondo, se la
-    pagina non è più disponibile, o se l'host non è raggiungibile — la
-    scrittura locale (già avvenuta dal chiamante prima di invocare questa
-    funzione) resta comunque corretta; senza questo comando l'host non la
-    vedrà mai finché non arriva un prossimo invio riuscito.
+    Un rifiuto ESPLICITO dell'host (`result.success is False`, es.
+    proprietà non verificata) non entra in coda: non è un problema di
+    raggiungibilità, ritentarlo all'infinito non lo farebbe mai riuscire.
 
     `device_id_cache` è un dict tenuto dal chiamante (es. `self._device_id_cache
     = {}` sul tab) per evitare di richiedere `resolve_device_id()` ad ogni
@@ -927,17 +1015,27 @@ async def push_character_self_command(page, character, device_id_cache: dict, ki
         return
     backend = resolve_backend_for_world(world, device_id, LocalBackend(), {})
     if backend is None:
+        # Host irraggiungibile ORA: in coda per il prossimo giro utile,
+        # non silenziosamente perso — vedi il docstring sopra.
+        world_repo.enqueue_pending_self_command(
+            character.id, world.id, device_id, kind, json.dumps(payload),
+        )
         return
 
     try:
-        backend.send_command(
+        result = backend.send_command(
             world.id, device_id, kind, payload,
             target_type="character", target_id=character.id,
         )
+        if not result.success:
+            logger.warning("Invio %s rifiutato per %s: %s", kind, character.id, result.error)
     except Exception as e:
-        # Best effort per definizione (vedi il docstring sopra): logga e
-        # basta, non deve mai interrompere l'esperienza sulla scheda.
+        # Errore di trasporto (non un rifiuto esplicito): stesso principio
+        # del ramo `backend is None` sopra, va ritentato.
         logger.warning("Invio %s fallito per %s: %s", kind, character.id, e)
+        world_repo.enqueue_pending_self_command(
+            character.id, world.id, device_id, kind, json.dumps(payload),
+        )
 
 
 # ---------------------------------------------------------------------------

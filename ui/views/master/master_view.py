@@ -651,7 +651,9 @@ class MasterView(ft.Column):
         elif key == "magic_items":
             try:
                 from ui.views.master.master_magic_items_view import MasterMagicItemsView
-                return MasterMagicItemsView()
+                return MasterMagicItemsView(
+                    world_id=self._active_world_id, device_id=self.device_id or "",
+                )
             except ImportError:
                 return self._placeholder(
                     ft.Icons.AUTO_AWESOME, "Oggetti Magici",

@@ -286,7 +286,7 @@ def show_treasure_generator_dialog(page: ft.Page, world_id: str = "", device_id:
         items = _build_loot_items()
         if not items:
             return
-        n = save_items_to_stash(items)
+        n = save_items_to_stash(items, world_id=world_id)
         show_snack(page, f"Salvato nell'archivio: {n} voc{'e' if n == 1 else 'i'}.")
 
     loot_btn_row = ft.Row(

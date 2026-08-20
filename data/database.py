@@ -540,6 +540,25 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # quando serve, senza bisogno di riscrivere righe esistenti.
     _add_column(cur, "master_npcs", "race", "TEXT DEFAULT ''")
 
+    # Bottino — campi meccanici per `entry_kind` "weapon"/"armor" (bug report
+    # Davide 2026-08-20: "il tipo di voce... non ti fa selezionare armi
+    # armature ecc... devono avere le stesse caselle di quando crei l'arma o
+    # l'armatura nella sezione giocatore"). Stessi nomi/semantica delle
+    # colonne già esistenti su `weapons`/`inventory_items` (vedi sopra) —
+    # un'assegnazione/presa di una voce "weapon"/"armor" scrive su quelle
+    # stesse tabelle, non su `inventory_items` generico. Default '' /0 per
+    # ogni voce esistente prima di questa colonna (item/magic_item/ecc. non
+    # le usano mai).
+    _add_column(cur, "loot_stash_entries", "weapon_damage_dice", "TEXT DEFAULT ''")
+    _add_column(cur, "loot_stash_entries", "weapon_damage_type", "TEXT DEFAULT ''")
+    _add_column(cur, "loot_stash_entries", "weapon_category", "TEXT DEFAULT ''")
+    _add_column(cur, "loot_stash_entries", "weapon_properties", "TEXT DEFAULT ''")
+    _add_column(cur, "loot_stash_entries", "weapon_attack_bonus", "INTEGER DEFAULT 0")
+    _add_column(cur, "loot_stash_entries", "weapon_damage_bonus", "INTEGER DEFAULT 0")
+    _add_column(cur, "loot_stash_entries", "armor_ca_value", "INTEGER DEFAULT 0")
+    _add_column(cur, "loot_stash_entries", "armor_type", "TEXT DEFAULT ''")
+    _add_column(cur, "loot_stash_entries", "armor_effects", "TEXT DEFAULT ''")
+
     _migrate_backfill_character_classes(cur)
 
 
@@ -1313,6 +1332,37 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_world_rejoin_requests_world_status
         ON world_rejoin_requests(world_id, status)
+    """)
+
+    # Coda di ritentativo per i comandi `*.self_*` (note/incantesimi/
+    # armi/oggetti/monete/abilità/diario/condizioni — vedi
+    # `core.world_sync.push_character_self_command`) — BUG FIX 2026-08-20,
+    # bug report Davide: "cosa succede se il giocatore inserisce una nota
+    # mentre il mondo non è hostato?". Prima di questa tabella la risposta
+    # era "resta solo in locale per sempre finché non arriva un resync
+    # innescato da altro, che la sovrascrive" — `push_character_self_command`
+    # era "best effort" senza alcun ritentativo, a differenza di
+    # `CMD_CHARACTER_INSTANCE_SYNC` (`characters.host_sync_pending` +
+    # `core.world_sync.push_pending_instances`, stesso principio esteso qui
+    # a QUALSIASI comando self, non solo alla creazione dell'istanza). Una
+    # riga per invio fallito (non un flag booleano come `host_sync_pending`:
+    # più comandi di kind diverso possono restare pendenti insieme, es. una
+    # nota E un'arma aggiunte nella stessa finestra offline), consumata in
+    # ordine di creazione da `core.world_sync.push_pending_self_commands()`.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS pending_self_commands (
+            id             TEXT PRIMARY KEY,
+            character_id   TEXT NOT NULL,
+            world_id       TEXT NOT NULL,
+            device_id      TEXT NOT NULL,
+            kind           TEXT NOT NULL,
+            payload        TEXT NOT NULL,
+            created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_pending_self_commands_world
+        ON pending_self_commands(world_id, created_at)
     """)
 
     # Codici di trasferimento di un personaggio su un ALTRO dispositivo

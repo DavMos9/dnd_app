@@ -28,11 +28,11 @@ from core.world_backend import CommandResult, LocalBackend, RemoteBackend, World
 from data.database import get_character_exports_path, get_web_export_staging_path
 from data.game_data.game_data_loader import GameDataLoader
 from data.models import (
-    Character, GameMap, World, WorldChangeRequest, WorldEvent, WorldMember,
+    Character, GameMap, LootStashEntry, World, WorldChangeRequest, WorldEvent, WorldMember,
     WorldRejoinRequest,
 )
 from data.repositories import (
-    character_repo, maps_repo, master_repo, settings_repo, world_export, world_repo,
+    character_repo, loot_repo, maps_repo, master_repo, settings_repo, world_export, world_repo,
 )
 from network.host_server import HostServerSlot, PendingJoinRequest, WorldHostServer, local_ip_hint
 from network.qr_join import build_join_text, build_transfer_text, generate_qr_png_base64
@@ -42,6 +42,9 @@ from ui import file_export
 from ui.mobile_webview_picker import pick_file_via_webview
 from ui.native_file_picker import pick_file_native, FilePickerUnavailable
 from ui.views.maps_view import _PEN_COLORS, _data_uri, _pick_desktop, _pick_from_library, _pick_mobile
+from ui.views.master.master_loot_view import (
+    _KIND_ICONS, _KIND_LABELS, _MAGIC_KINDS, _coin_summary, _mechanics_summary,
+)
 from ui.views.world.combat_status import wound_status_label
 from ui.views.world.qr_scanner_view import QrScannerView, qr_scanner_supported
 from ui.world_transfer import show_world_import_picker
@@ -617,6 +620,9 @@ class WorldsView(ft.Column):
         shared_maps_section = self._shared_maps_section(world, my_role)
         if shared_maps_section is not None:
             sections.append(shared_maps_section)
+        shared_loot_section = self._shared_loot_section(world)
+        if shared_loot_section is not None:
+            sections.append(shared_loot_section)
         if perm.can_perform(my_role, perm.CMD_XP_GRANT):
             sections.append(self._remote_actions_section(world))
         sections.append(self._members_section(world, my_role))
@@ -998,18 +1004,30 @@ class WorldsView(ft.Column):
     def _do_leave(self, world: World):
         """Esce dal mondo: invia `CMD_MEMBER_LEAVE` (rimuove il membro
         sull'host, archivia le sue istanze — vedi
-        `core.world_backend._handle_member_leave`), poi rimuove la replica
-        locale di QUESTO mondo (`world_repo.delete_world`, righe 403-419:
-        un semplice DELETE locale, safe anche su una replica non
-        autoritativa) così sparisce dalla lista mondi di questo
-        dispositivo — stesso passo finale già usato dall'owner in
-        `_do_delete` sopra, qui aggiunto esplicitamente perché lì la riga
-        viene già rimossa dall'handler sulla PROPRIA authoritative DB."""
+        `core.world_backend._handle_member_leave`), poi invalida la propria
+        sessione (`RemoteBackend.leave()` — `POST /leave`, BUG FIX
+        2026-08-20: mancava del tutto, il token restava valido sull'host
+        anche a mondo abbandonato), slega dal mondo la PROPRIA copia locale
+        di ogni istanza posseduta qui (`character_repo.detach_world_instances()`
+        — BUG FIX 2026-08-20: senza questo la riga restava con `world_id`
+        puntato a un mondo che sta per sparire, e il personaggio diventava
+        invisibile ovunque in Home, vedi il suo docstring) e infine rimuove
+        la replica locale di QUESTO mondo (`world_repo.delete_world`, righe
+        403-419: un semplice DELETE locale, safe anche su una replica non
+        autoritativa) così sparisce dalla lista mondi di questo dispositivo
+        — stesso passo finale già usato dall'owner in `_do_delete` sopra,
+        qui aggiunto esplicitamente perché lì la riga viene già rimossa
+        dall'handler sulla PROPRIA authoritative DB."""
         self.page.pop_dialog()
         result = self._send_command(world, perm.CMD_MEMBER_LEAVE, {})
         if not result.success:
             self._show_error(result.error)
             return
+        backend = self._remote_backends.pop(world.id, None)
+        if isinstance(backend, RemoteBackend):
+            backend.leave()
+        if self.device_id:
+            character_repo.detach_world_instances(world.id, self.device_id)
         world_repo.delete_world(world.id)
         self._current_world = None
         self._render()
@@ -1221,6 +1239,117 @@ class WorldsView(ft.Column):
             ft.Column(rows, spacing=d.Space.SM, tight=True),
             trailing=trailing,
         )
+
+    def _shared_loot_section(self, world: World) -> ft.Control | None:
+        """
+        Deposito del gruppo (passo 6 di `dnd_app/docs/loot_design.md` §6) —
+        visibile a QUALSIASI membro: il forziere comune del tavolo,
+        popolato dal Master dalla tab «Bottino» della Sezione Master
+        (`master_loot_view.py`, `stash_kind="party"`).
+
+        **Auto-servizio (2026-08-20, decisione di design di Davide che
+        sostituisce la sola-lettura originale di §6, "è il master a
+        distribuire")**: un membro con un proprio personaggio ATTIVO in
+        questo mondo (non archiviato) può premere «Prendi» per spostare
+        una voce direttamente sulla propria scheda, via
+        `CMD_LOOT_STASH_CLAIM` — un solo comando lato host che applica
+        l'oggetto/le monete E rimuove la voce dal deposito in un colpo
+        solo (vedi il docstring dell'handler in `core/world_backend.py`).
+        Un membro senza personaggio in questo mondo (es. un master puro)
+        vede comunque il deposito, ma senza pulsante — non c'è una scheda
+        su cui far arrivare la voce. Il Master mantiene comunque le sue
+        azioni di assegnazione/spostamento/eliminazione dalla tab
+        «Bottino» della Sezione Master, invariate.
+        """
+        entries = loot_repo.get_entries("party", world_id=world.id)
+        if not entries:
+            return None
+        assert self.device_id is not None
+        my_instance = next(
+            (c for c in character_repo.get_all_instances_of_world(world.id)
+             if c.owner_device_id == self.device_id and not c.world_instance_archived),
+            None,
+        )
+        p = d.T()
+        rows: list[ft.Control] = []
+        for entry in entries:
+            is_coins = entry.entry_kind == "coins"
+            is_magic = entry.entry_kind in _MAGIC_KINDS
+            title = "Monete" if is_coins else entry.name
+            subtitle = _coin_summary(entry) if is_coins else (
+                (entry.description or "").split("\n")[0][:110]
+            )
+            qty_bit = f" ×{entry.quantity}" if (not is_coins and entry.quantity != 1) else ""
+            icon_color = p.magic if is_magic else p.primary
+            card_children: list[ft.Control] = [
+                ft.Row(
+                    [
+                        ft.Icon(_KIND_ICONS.get(entry.entry_kind, ft.Icons.BACKPACK_OUTLINED),
+                                size=16, color=icon_color),
+                        ft.Container(width=8),
+                        ft.Text(f"{title}{qty_bit}", size=13, weight=ft.FontWeight.BOLD,
+                                color=p.text, expand=True, no_wrap=True,
+                                overflow=ft.TextOverflow.ELLIPSIS),
+                        d.chip(_KIND_LABELS.get(entry.entry_kind, entry.entry_kind),
+                               "magic" if is_magic else "neutral"),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Text(subtitle, size=11, color=p.text_2) if subtitle else ft.Container(height=0),
+                ft.Text(_mechanics_summary(entry), size=11, color=p.primary_icon,
+                        weight=ft.FontWeight.W_600) if _mechanics_summary(entry) else ft.Container(height=0),
+            ]
+            if my_instance is not None:
+                card_children.append(ft.Row(
+                    [ft.OutlinedButton(
+                        "Prendi", icon=ft.Icons.BACK_HAND_OUTLINED,
+                        on_click=lambda e, en=entry, ch=my_instance: self._confirm_claim_loot(world, ch, en),
+                    )],
+                    spacing=6,
+                ))
+            rows.append(d.card(
+                ft.Column(card_children, spacing=4),
+                accent=p.magic if is_magic else None,
+                density="dense",
+            ))
+        return d.section(
+            "Deposito del Gruppo",
+            ft.Column(rows, spacing=d.Space.SM, tight=True),
+        )
+
+    def _confirm_claim_loot(self, world: World, character: Character, entry: LootStashEntry) -> None:
+        p = d.T()
+        title = "le monete" if entry.entry_kind == "coins" else f"«{entry.name}»"
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=d.dialog_title("Prendi dal deposito", ft.Icons.BACK_HAND_OUTLINED),
+            content=ft.Text(
+                f"Prendere {title}? Andrà subito sulla scheda di {character.name} "
+                f"e sparirà dal deposito del gruppo per tutti.",
+                color=p.text,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=lambda e: self.page.pop_dialog(),
+                              style=ft.ButtonStyle(color=p.text_2)),
+                ft.ElevatedButton(
+                    "Prendi", icon=ft.Icons.BACK_HAND_OUTLINED,
+                    on_click=lambda e: self._do_claim_loot(world, character, entry),
+                    style=ft.ButtonStyle(bgcolor=p.primary_fill, color=p.on_primary_fill),
+                ),
+            ]),
+        )
+        self.page.show_dialog(dlg)
+
+    def _do_claim_loot(self, world: World, character: Character, entry: LootStashEntry) -> None:
+        self.page.pop_dialog()
+        result = self._send_command(
+            world, perm.CMD_LOOT_STASH_CLAIM, {"entry_id": entry.id},
+            target_type="character", target_id=character.id,
+        )
+        if not result.success:
+            self._show_error(result.error)
+            return
+        self._refresh_detail()
 
     def _shared_map_row(self, world: World, gm: GameMap, can_manage: bool) -> ft.Control:
         p = d.T()
@@ -3695,6 +3824,12 @@ class WorldsView(ft.Column):
                 # verificato raggiungibile da `sync_replica()` sopra.
                 if self.device_id:
                     world_sync.push_pending_instances(backend, world_id, self.device_id)
+                    # Stesso principio, generalizzato a QUALSIASI comando
+                    # self-service rimasto in coda (nota/arma/oggetto/
+                    # incantesimo/... salvato mentre l'host era offline —
+                    # BUG FIX 2026-08-20, vedi il docstring di
+                    # `push_pending_self_commands`).
+                    world_sync.push_pending_self_commands(backend, world_id, self.device_id)
             else:
                 self._detail_connection_state = "disconnected"
 

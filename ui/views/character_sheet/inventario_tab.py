@@ -18,6 +18,7 @@ import flet as ft
 import json
 import logging
 import re
+import uuid as _uuid
 from typing import Any, Callable, cast
 from data.models import Character, Currency, InventoryItem, Weapon
 import data.repositories.character_repo as character_repo
@@ -161,6 +162,7 @@ class InventarioTab(ScrollMemoryListView):
         self.character = character
         self._on_refresh = on_refresh
         self._page: ft.Page | None = None
+        self._device_id_cache: dict = {}
         self._currencies: Currency | None = character_repo.get_currencies(character.id)
         self._weapons: list[Weapon] = character_repo.get_weapons(character.id, equipped_only=False)
         self._items: list[InventoryItem] = character_repo.get_inventory(character.id)
@@ -181,6 +183,113 @@ class InventarioTab(ScrollMemoryListView):
 
     def did_mount(self) -> None:
         self._page = cast(ft.Page, self.page)
+
+    # ------------------------------------------------------------------
+    # Inoltro verso l'host (Multiplayer) — best effort, no-op se il
+    # personaggio non è un'istanza di un mondo. Vedi il docstring di
+    # `CMD_WEAPON_SELF_UPSERT`/`CMD_INVENTORY_SELF_UPSERT`/
+    # `CMD_CURRENCY_SELF_UPDATE` in `core/world_permissions.py` per il
+    # bug che questi inoltri risolvono: senza di essi, una qualunque
+    # modifica manuale di armi/oggetti/monete restava SOLO in locale e
+    # veniva cancellata dal primo resync completo successivo (qualunque
+    # evento lo innescasse — anche un'azione del master non correlata).
+    # Rilette da DB dopo la scrittura locale invece di ricostruire il
+    # payload a mano ad ogni chiamante: un solo punto che sa quali campi
+    # servono, tutti i ~10 punti di mutazione di questo tab lo richiamano
+    # passando solo l'id appena scritto.
+    # ------------------------------------------------------------------
+
+    def _push_weapon_to_world(self, weapon_id: str) -> None:
+        if not self.character.world_id or self._page is None:
+            return
+        w = character_repo.get_weapon_by_id(weapon_id)
+        if w is None:
+            return
+        from core import world_permissions as perm
+        from core import world_sync
+        fields = {
+            "weapon_id": w.id, "name": w.name, "damage_dice": w.damage_dice,
+            "damage_type": w.damage_type, "attack_bonus": w.attack_bonus,
+            "damage_bonus": w.damage_bonus, "properties": w.properties,
+            "is_equipped": w.is_equipped, "is_magical": w.is_magical,
+            "magic_description": w.magic_description,
+            "range_normal": w.range_normal, "range_max": w.range_max,
+            "magic_damages": w.magic_damages,
+            "versatile_damage_dice": w.versatile_damage_dice,
+            "grip_two_handed": w.grip_two_handed,
+            "weapon_category": w.weapon_category,
+            "proficiency_override": w.proficiency_override,
+            "finesse_ability": w.finesse_ability,
+            "attack_total_override": w.attack_total_override,
+            "attack_override_value": w.attack_override_value,
+        }
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache,
+            perm.CMD_WEAPON_SELF_UPSERT, fields,
+        )
+
+    def _push_weapon_remove_to_world(self, weapon_id: str) -> None:
+        if not self.character.world_id or self._page is None:
+            return
+        from core import world_permissions as perm
+        from core import world_sync
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache,
+            perm.CMD_WEAPON_SELF_REMOVE, {"weapon_id": weapon_id},
+        )
+
+    def _push_item_to_world(self, item_id: str) -> None:
+        if not self.character.world_id or self._page is None:
+            return
+        it = character_repo.get_inventory_item_by_id(item_id)
+        if it is None:
+            return
+        from core import world_permissions as perm
+        from core import world_sync
+        fields = {
+            "item_id": it.id, "name": it.name, "quantity": it.quantity,
+            "weight": it.weight, "description": it.description,
+            "category": it.category, "is_equipped": it.is_equipped,
+            "ca_value": it.ca_value, "armor_type": it.armor_type,
+            "effects": it.effects, "requires_attunement": it.requires_attunement,
+            "is_attuned": it.is_attuned,
+        }
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache,
+            perm.CMD_INVENTORY_SELF_UPSERT, fields,
+        )
+
+    def _push_item_remove_to_world(self, item_id: str) -> None:
+        if not self.character.world_id or self._page is None:
+            return
+        from core import world_permissions as perm
+        from core import world_sync
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache,
+            perm.CMD_INVENTORY_SELF_REMOVE, {"item_id": item_id},
+        )
+
+    def _push_currency_to_world(self) -> None:
+        if not self.character.world_id or self._page is None:
+            return
+        c = character_repo.get_currencies(self.character.id)
+        if c is None:
+            return
+        from core import world_permissions as perm
+        from core import world_sync
+        fields = {
+            "copper": c.copper, "silver": c.silver, "electrum": c.electrum,
+            "gold": c.gold, "platinum": c.platinum,
+        }
+        self._page.run_task(
+            world_sync.push_character_self_command,
+            self._page, self.character, self._device_id_cache,
+            perm.CMD_CURRENCY_SELF_UPDATE, fields,
+        )
 
     def _migrate_legacy_weapon_items(self) -> bool:
         """
@@ -976,6 +1085,7 @@ class InventarioTab(ScrollMemoryListView):
                 cur_now.gold, cur_now.platinum,
             )
             self._currencies = cur_now
+            self._push_currency_to_world()
             current_text.value = str(new_val)
             try:
                 current_text.update()
@@ -1384,6 +1494,7 @@ class InventarioTab(ScrollMemoryListView):
             magic_damages_str = json.dumps(magic_dmgs, ensure_ascii=False)
             is_magical = bool(magic_desc) or bool(magic_dmgs)
 
+            new_weapon_id = str(_uuid.uuid4())
             if is_new:
                 ok = character_repo.create_weapon(
                     self.character.id, name,
@@ -1402,6 +1513,7 @@ class InventarioTab(ScrollMemoryListView):
                     finesse_ability=finesse_ability,
                     attack_total_override=attack_total_override,
                     attack_override_value=atk_override_val,
+                    weapon_id=new_weapon_id,
                 )
             else:
                 assert weapon is not None
@@ -1426,6 +1538,7 @@ class InventarioTab(ScrollMemoryListView):
             if not ok:
                 show_error_dialog(page)
                 return
+            self._push_weapon_to_world(weapon.id if not is_new and weapon else new_weapon_id)
             page.pop_dialog()
             self._refresh()
 
@@ -1456,6 +1569,7 @@ class InventarioTab(ScrollMemoryListView):
             if page is None:
                 return
             character_repo.delete_weapon(weapon.id)
+            self._push_weapon_remove_to_world(weapon.id)
             page.pop_dialog()
             self._refresh()
 
@@ -1491,7 +1605,7 @@ class InventarioTab(ScrollMemoryListView):
         equip/disequip azzererebbe silenziosamente l'impugnatura/il dado a
         due mani già impostati su un'arma Versatile (vedi CLAUDE.md).
         """
-        return character_repo.update_weapon(
+        ok = character_repo.update_weapon(
             weapon.id, weapon.name,
             damage_dice=weapon.damage_dice,
             damage_type=weapon.damage_type,
@@ -1509,6 +1623,9 @@ class InventarioTab(ScrollMemoryListView):
                 grip_two_handed if grip_two_handed is not None else weapon.grip_two_handed
             ),
         )
+        if ok:
+            self._push_weapon_to_world(weapon.id)
+        return ok
 
     def _toggle_weapon_equipped(self, weapon: Weapon) -> None:
         """
@@ -1576,6 +1693,7 @@ class InventarioTab(ScrollMemoryListView):
                 if not ok:
                     show_error_dialog(self._page)
                     return False
+                self._push_item_to_world(i.id)
         new_ca = character_repo.calculate_and_update_ca(self.character.id)
         self.character.ac = new_ca
         return True
@@ -1719,6 +1837,7 @@ class InventarioTab(ScrollMemoryListView):
                 show_error_dialog(self._page)
             return
         item.is_attuned = value
+        self._push_item_to_world(item.id)
         self._refresh()
 
     def _toggle_item_equipped(self, item: InventoryItem) -> None:
@@ -1750,6 +1869,7 @@ class InventarioTab(ScrollMemoryListView):
         if not ok:
             show_error_dialog(self._page)
             return
+        self._push_item_to_world(item.id)
         if (item.category or "") == "armor":
             if new_state:
                 self._items = character_repo.get_inventory(self.character.id)
@@ -1794,6 +1914,7 @@ class InventarioTab(ScrollMemoryListView):
                 if not ok:
                     show_error_dialog(self._page)
                     return False
+                self._push_item_to_world(i.id)
         return True
 
     # ------------------------------------------------------------------
@@ -2003,6 +2124,7 @@ class InventarioTab(ScrollMemoryListView):
                         return
                 new_ca = character_repo.calculate_and_update_ca(self.character.id)
                 self.character.ac = new_ca
+            self._push_item_to_world(saved_id)
             page.pop_dialog()
             self._refresh()
 
@@ -2035,6 +2157,7 @@ class InventarioTab(ScrollMemoryListView):
             if page is None:
                 return
             character_repo.delete_inventory_item(item.id)
+            self._push_item_remove_to_world(item.id)
             page.pop_dialog()
             self._refresh()
 

@@ -31,7 +31,9 @@ from typing import Any
 import flet as ft
 
 from core import magic_item_generator as mig
-from data.game_data.game_data_loader import GameDataLoader, magic_item_rarity_bucket
+from data.game_data.game_data_loader import (
+    GameDataLoader, magic_item_category_base, magic_item_rarity_bucket,
+)
 from data.repositories import character_repo
 from ui.views.magic_items_view import (
     _rarity_color, _RARITY_LABELS, _RARITY_ORDER, _category_icon,
@@ -41,6 +43,25 @@ from ui import design
 
 logger = logging.getLogger(__name__)
 _loader = GameDataLoader()
+
+
+def _custom_mechanics_kind(category: str) -> str:
+    """
+    "weapon"/"armor"/"" a seconda della categoria scelta per un oggetto
+    magico personalizzato — bug report Davide (2026-08-20): "quando si
+    crea un oggetto magico personalizzato puoi creare armi e armature, ma
+    queste devono avere le stesse caselle di quando crei l'arma o
+    l'armatura nella sezione giocatore". Stesso `magic_item_category_base()`
+    già usato da `magic_items_view.py` per l'icona di categoria — "Arma
+    (qualsiasi spada)" e "Armatura" sono le uniche due categorie del
+    vocabolario `magic_items.json` che iniziano per "arma"/"armatura".
+    """
+    base = magic_item_category_base(category).strip().lower()
+    if base == "arma":
+        return "weapon"
+    if base == "armatura":
+        return "armor"
+    return ""
 
 
 def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_id: str = "") -> None:
@@ -105,9 +126,39 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
         border_color=design.T().border, focused_border_color=design.T().primary,
         bgcolor=design.T().surface, label_style=ft.TextStyle(color=design.T().text_2),
         text_style=design.field_style()['text_style'])
+    #: Bug report Davide (2026-08-20): quando la categoria scelta è
+    #: un'arma o un'armatura, il form deve mostrare le stesse caselle
+    #: meccaniche di `master_loot_view.py::_open_add_dialog()` (dado
+    #: danno/tipo/categoria/proprietà/bonus magici, oppure CA/tipo/
+    #: effetti) — non solo nome+descrizione libera. `mechanics_getter`
+    #: `None` = oggetto magico "puro" (entry_kind resta "magic_item").
+    custom_state: dict[str, Any] = {"mechanics_getter": None, "mechanics_kind": ""}
+    custom_mechanics_col = ft.Column(spacing=10)
+
+    def _render_custom_mechanics() -> None:
+        kind = _custom_mechanics_kind(custom_category_dd.value)
+        custom_state["mechanics_kind"] = kind
+        custom_mechanics_col.controls.clear()
+        if kind:
+            from ui.views.master.master_loot_assign_dialog import (
+                build_armor_mechanics_fields, build_weapon_mechanics_fields,
+            )
+            builder = build_weapon_mechanics_fields if kind == "weapon" else build_armor_mechanics_fields
+            mechanics_control, getter = builder()
+            custom_state["mechanics_getter"] = getter
+            custom_mechanics_col.controls.append(ft.Divider(height=1, color=design.T().border))
+            custom_mechanics_col.controls.append(mechanics_control)
+        else:
+            custom_state["mechanics_getter"] = None
+        try:
+            custom_mechanics_col.update()
+        except RuntimeError:
+            pass
+
     custom_category_dd = DropdownAltro(
         "Categoria", options=category_options,
         value=category_options[0] if category_options else "",
+        on_change=lambda ev: _render_custom_mechanics(),
     )
     custom_rarity_dd = ft.Dropdown(
         label="Rarità", value=_RARITY_ORDER[0], dense=True, border_radius=design.Radius.SM,
@@ -263,6 +314,12 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
             "requires_attunement": bool(custom_attunement_cb.value),
             "attunement_restriction": (custom_attunement_restriction_tf.value or "").strip(),
             "description": desc,
+            # "weapon"/"armor" (2026-08-20): un'arma/armatura magica
+            # personalizzata diventa una riga weapons/inventory_items
+            # meccanica vera, non un oggetto magico generico — vedi
+            # `_on_add_to_inventory()`/`_build_loot_items()` sotto.
+            "entry_kind": custom_state["mechanics_kind"] or "magic_item",
+            "mechanics": custom_state["mechanics_getter"]() if custom_state["mechanics_getter"] else {},
         }
         result_state["items"] = [item]
         feedback_text.value = ""
@@ -307,16 +364,27 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
             rarity_raw = item.get("rarity", "").strip()
             requires_att = bool(item.get("requires_attunement"))
             att_restriction = item.get("attunement_restriction", "")
+            entry_kind = item.get("entry_kind", "magic_item")
+            mechanics = item.get("mechanics", {})
             summary_bits = [b for b in (category, rarity_raw.capitalize()) if b]
             if requires_att:
                 summary_bits.append("Richiede sintonia" + (f" ({att_restriction})" if att_restriction else ""))
             if backend is not None:
-                loot_assign_items.append({
-                    "target_character_id": char_id, "name": name, "quantity": qty,
-                    "category": "magic", "description": item.get("description", ""),
-                    "requires_attunement": requires_att,
-                    "effects": " · ".join(summary_bits),
-                })
+                from ui.views.master.master_loot_assign_dialog import simple_item, _recipient_item_payload
+                payload_item = simple_item(
+                    entry_kind, name, description=item.get("description", ""),
+                    requires_attunement=requires_att, mechanics=mechanics,
+                )
+                loot_assign_items.append(_recipient_item_payload(payload_item, char_id, qty))
+                added += 1
+            elif entry_kind in ("weapon", "armor"):
+                from ui.views.master.master_loot_assign_dialog import _create_recipient_item, simple_item
+                _create_recipient_item(
+                    char_id,
+                    simple_item(entry_kind, name, description=item.get("description", ""),
+                                requires_attunement=requires_att, mechanics=mechanics),
+                    qty,
+                )
                 added += 1
             else:
                 ok = character_repo.create_inventory_item(
@@ -367,9 +435,11 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
             if requires_att:
                 note_bits.append("Richiede sintonia" + (f" ({att_restriction})" if att_restriction else ""))
             out.append(simple_item(
-                "magic_item", name, quantity=qty, description=item.get("description", ""),
+                item.get("entry_kind", "magic_item"), name, quantity=qty,
+                description=item.get("description", ""),
                 source_note=_source_label() + (" · " + " · ".join(note_bits) if note_bits else ""),
                 requires_attunement=requires_att,
+                mechanics=item.get("mechanics", {}),
             ))
         return out
 
@@ -386,7 +456,7 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
         items = _build_loot_items()
         if not items:
             return
-        n = save_items_to_stash(items)
+        n = save_items_to_stash(items, world_id=world_id)
         show_snack(page, f"Salvato nell'archivio: {n} voc{'e' if n == 1 else 'i'}.")
 
     loot_btn_row = ft.Row(
@@ -423,9 +493,11 @@ def show_magic_item_generator_dialog(page: ft.Page, world_id: str = "", device_i
         ]
 
     def _custom_body() -> list[ft.Control]:
+        _render_custom_mechanics()
         return [
             custom_name_tf,
             custom_category_dd.control,
+            custom_mechanics_col,
             custom_rarity_dd,
             custom_attunement_cb,
             custom_attunement_restriction_tf,

@@ -189,9 +189,22 @@ def test_compute_build_number() -> None:
         "ogni versionCode è > 1, il valore di tutti gli APK già installati",
         all(n > 1 for n in numeri),
     )
+    # BUG FIX (2026-08-20): confrontava `FIRST_SIGNED_VERSION` — un
+    # marcatore storico FISSO ("prima versione firmata", vedi il suo
+    # docstring in version.py, non pensato per cambiare) — invece di
+    # `APP_VERSION` (la versione in sorgente, quella che diventerà il
+    # PROSSIMO tag). Con `FIRST_SIGNED_VERSION` il controllo era
+    # strutturalmente destinato a fallire per sempre non appena fosse
+    # esistito un solo tag più recente (v0.3.1 in poi) — non era un
+    # controllo "prossima versione", confrontava contro il passato.
+    # Resta comunque un cancello PRE-RELEASE, non un'asserzione sempre
+    # verde: se questo fallisce, vuol dire che `APP_VERSION` in version.py
+    # non è ancora stato alzato dopo l'ultimo tag pubblicato — normale
+    # nell'intervallo tra un rilascio e il prossimo bump, non un bug.
     check(
-        "il prossimo versionCode supera quello di ogni tag già rilasciato",
-        version.compute_build_number(version.FIRST_SIGNED_VERSION) > max(numeri),
+        "il prossimo versionCode (APP_VERSION in sorgente) supera quello di "
+        "ogni tag già rilasciato",
+        version.compute_build_number(version.APP_VERSION) > max(numeri),
     )
 
 

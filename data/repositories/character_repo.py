@@ -584,6 +584,56 @@ def archive_world_instances(world_id: str, owner_device_id: str) -> int:
             conn.close()
 
 
+def detach_world_instances(world_id: str, owner_device_id: str) -> int:
+    """
+    Slega dal mondo tutte le istanze di `world_id` possedute da
+    `owner_device_id` sU QUESTO dispositivo, riportandole a personaggi
+    locali a tutti gli effetti (azzera `world_id`/`origin_character_id`/
+    `owner_device_id`/`world_seq`, `is_replica` resta 0 — era già così per
+    la propria istanza) — chiamata da
+    `ui/views/world/world_view.py::WorldsView._do_leave()` DOPO che il
+    giocatore ha lasciato volontariamente il mondo (`CMD_MEMBER_LEAVE`).
+
+    Diversa da `archive_world_instances` sopra (kick/espulsione, dati
+    congelati in attesa di una richiesta di rientro APPROVATA DAL MASTER):
+    qui è il giocatore stesso a uscire, la replica locale del mondo sta per
+    essere cancellata (`world_repo.delete_world`, subito dopo questa
+    chiamata) — un rientro non sarebbe nemmeno possibile (il mondo non
+    esiste più su questo dispositivo per proporne uno). BUG FIX
+    (2026-08-20): senza questo, la riga restava con `world_id` puntato a un
+    mondo appena cancellato — `HomeView._partition_characters()` la
+    raggruppa comunque per quel `world_id`, ma
+    `HomeView.refresh()` filtra le sezioni sui soli `available_worlds`
+    (`world_repo.get_worlds_for_device()`, che non lo contiene più): il
+    personaggio spariva del tutto dalla Home, non recuperabile da nessuna
+    sezione (non "locale", non "in un mondo", non "Rimosso dai mondi" —
+    quella sezione è solo per `world_instance_archived`, mai scritto qui).
+    Bug report Davide: "non mostrare la copia del personaggio nel mondo" —
+    dopo questo fix torna a comparire in "Non in un mondo", con tutti i
+    dati (livello, inventario, incantesimi) intatti.
+
+    Ritorna il numero di righe realmente slegate.
+    """
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.execute(
+            """UPDATE characters
+               SET world_id='', origin_character_id='', owner_device_id='',
+                   world_seq=0, host_sync_pending=0, updated_at=?
+               WHERE world_id=? AND owner_device_id=?""",
+            (datetime.now().isoformat(), world_id, owner_device_id),
+        )
+        conn.commit()
+        return cur.rowcount
+    except Exception as e:
+        logger.error(f"Errore detach_world_instances: {e}")
+        return 0
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def archive_world_instance(world_id: str, character_id: str) -> bool:
     """
     Archivia UNA singola istanza di personaggio in un mondo
@@ -2208,6 +2258,47 @@ def get_weapons(character_id: str, equipped_only: bool = True) -> list:
             conn.close()
 
 
+def get_weapon_by_id(weapon_id: str) -> "Weapon | None":
+    """Un'arma sola per id — stesso ruolo di `get_inventory_item_by_id`
+    per `CMD_WEAPON_SELF_UPSERT` (vedi `core/world_permissions.py`)."""
+    from data.models import Weapon
+    conn = None
+    try:
+        conn = get_connection()
+        r = conn.execute("SELECT * FROM weapons WHERE id=?", (weapon_id,)).fetchone()
+        if r is None:
+            return None
+        return Weapon(
+            id=r["id"],
+            character_id=r["character_id"],
+            name=r["name"],
+            damage_dice=r["damage_dice"],
+            damage_type=r["damage_type"],
+            attack_bonus=r["attack_bonus"],
+            damage_bonus=r["damage_bonus"],
+            properties=r["properties"],
+            is_magical=bool(r["is_magical"]),
+            magic_description=r["magic_description"] or "",
+            is_equipped=bool(r["is_equipped"]),
+            range_normal=r["range_normal"] or 0,
+            range_max=r["range_max"] or 0,
+            magic_damages=r["magic_damages"] or "[]",
+            versatile_damage_dice=r["versatile_damage_dice"] or "",
+            grip_two_handed=bool(r["grip_two_handed"]),
+            weapon_category=r["weapon_category"] or "" if "weapon_category" in r.keys() else "",
+            proficiency_override=bool(r["proficiency_override"]) if "proficiency_override" in r.keys() else False,
+            finesse_ability=r["finesse_ability"] or "" if "finesse_ability" in r.keys() else "",
+            attack_total_override=bool(r["attack_total_override"]) if "attack_total_override" in r.keys() else False,
+            attack_override_value=r["attack_override_value"] or 0 if "attack_override_value" in r.keys() else 0,
+        )
+    except Exception as e:
+        logger.error(f"Errore recupero arma {weapon_id}: {e}")
+        return None
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def get_prepared_spells(character_id: str) -> list:
     """Restituisce gli incantesimi preparati (is_prepared=True), ordinati per livello."""
     from data.models import KnownSpell
@@ -2416,6 +2507,43 @@ def get_inventory(character_id: str) -> list:
             conn.close()
 
 
+def get_inventory_item_by_id(item_id: str) -> "InventoryItem | None":
+    """Un solo oggetto per id — usata da `inventario_tab.py` per rileggere
+    lo stato appena scritto prima di inoltrarlo all'host (`CMD_INVENTORY_SELF_UPSERT`,
+    vedi il docstring in `core/world_permissions.py`) e dall'handler
+    dell'host per verificare a chi appartiene la riga esistente."""
+    from data.models import InventoryItem
+    conn = None
+    try:
+        conn = get_connection()
+        r = conn.execute(
+            "SELECT * FROM inventory_items WHERE id=?", (item_id,)
+        ).fetchone()
+        if r is None:
+            return None
+        return InventoryItem(
+            id=r["id"],
+            character_id=r["character_id"],
+            name=r["name"],
+            quantity=r["quantity"],
+            weight=r["weight"],
+            description=r["description"] or "",
+            category=r["category"] or "misc",
+            is_equipped=bool(r["is_equipped"]),
+            ca_value=r["ca_value"] or 0,
+            armor_type=r["armor_type"] or "",
+            effects=r["effects"] or "",
+            requires_attunement=bool(_col(r, "requires_attunement")),
+            is_attuned=bool(_col(r, "is_attuned")),
+        )
+    except Exception as e:
+        logger.error(f"Errore recupero oggetto {item_id}: {e}")
+        return None
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def create_weapon(character_id: str, name: str, damage_dice: str = "",
                   damage_type: str = "", attack_bonus: int = 0,
                   damage_bonus: int = 0, properties: str = "",
@@ -2428,7 +2556,8 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
                   proficiency_override: bool = False,
                   finesse_ability: str = "",
                   attack_total_override: bool = False,
-                  attack_override_value: int = 0) -> bool:
+                  attack_override_value: int = 0,
+                  weapon_id: str | None = None) -> bool:
     """Crea una nuova arma per il personaggio.
 
     versatile_damage_dice/grip_two_handed: dado danno a due mani e stato
@@ -2438,8 +2567,17 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
     weapon_category/proficiency_override/finesse_ability/
     attack_total_override/attack_override_value: calcolo automatico del
     tiro per colpire — vedi core/weapon_calculator.py e CLAUDE.md.
+
+    weapon_id: se passato, usa questo id invece di generarne uno nuovo —
+    serve a `core/world_backend.py::_handle_weapon_self_upsert` per
+    materializzare sull'host un'arma con lo STESSO id già scritto dal
+    client sulla propria replica locale (vedi il docstring di
+    `CMD_WEAPON_SELF_UPSERT` in `core/world_permissions.py`), così un
+    successivo upsert dallo stesso client aggiorna la riga invece di
+    duplicarla.
     """
     import uuid as _uuid
+    new_id = weapon_id or str(_uuid.uuid4())
     conn = None
     try:
         conn = get_connection()
@@ -2452,7 +2590,7 @@ def create_weapon(character_id: str, name: str, damage_dice: str = "",
                 proficiency_override, finesse_ability, attack_total_override,
                 attack_override_value)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (str(_uuid.uuid4()), character_id, name, damage_dice, damage_type,
+            (new_id, character_id, name, damage_dice, damage_type,
              attack_bonus, damage_bonus, properties, int(is_magical),
              magic_description, int(is_equipped), range_normal, range_max, magic_damages,
              versatile_damage_dice, int(grip_two_handed), weapon_category,
@@ -2531,7 +2669,8 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
                           category: str = "misc", is_equipped: bool = False,
                           ca_value: int = 0, armor_type: str = "",
                           effects: str = "",
-                          requires_attunement: bool = False) -> str | None:
+                          requires_attunement: bool = False,
+                          item_id: str | None = None) -> str | None:
     """Crea un nuovo oggetto nell'inventario.
 
     Ritorna l'id generato in caso di successo, None in caso di errore —
@@ -2542,9 +2681,12 @@ def create_inventory_item(character_id: str, name: str, quantity: int = 1,
     (es. risoluzione dei conflitti di equipaggiamento in
     core/equipment_manager.py, che ha bisogno dell'id per essere incluso
     nel calcolo — vedi inventario_tab.py → _open_item_dialog).
+
+    item_id: se passato, usa questo id invece di generarne uno nuovo —
+    stesso motivo di `create_weapon(weapon_id=...)`, vedi il suo docstring.
     """
     import uuid as _uuid
-    new_id = str(_uuid.uuid4())
+    new_id = item_id or str(_uuid.uuid4())
     conn = None
     try:
         conn = get_connection()
@@ -2828,11 +2970,49 @@ def get_campaign_notes(character_id: str,
             conn.close()
 
 
+def get_campaign_note_by_id(note_id: str) -> "CampaignNote | None":
+    """Una nota di campagna sola per id — usata dall'host per verificare a
+    chi appartiene la riga esistente prima di un `CMD_CAMPAIGN_NOTE_SELF_UPDATE`/
+    `_DELETE` (vedi `core/world_permissions.py`)."""
+    from data.models import CampaignNote
+    conn = None
+    try:
+        conn = get_connection()
+        r = conn.execute(
+            "SELECT * FROM campaign_notes WHERE id=?", (note_id,)
+        ).fetchone()
+        if r is None:
+            return None
+        return CampaignNote(
+            id=r["id"],
+            character_id=r["character_id"],
+            category=r["category"],
+            name=r["name"],
+            description=r["description"] or "",
+            status=r["status"] or "",
+            tags=r["tags"] or "",
+            created_at=r["created_at"] or "",
+            updated_at=r["updated_at"] or "",
+        )
+    except Exception as e:
+        logger.error(f"Errore recupero campaign_note {note_id}: {e}")
+        return None
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def create_campaign_note(character_id: str, category: str, name: str,
                           description: str = "", status: str = "",
-                          tags: str = "") -> bool:
-    """Crea una nuova nota di campagna."""
+                          tags: str = "", note_id: str | None = None) -> str | None:
+    """Crea una nuova nota di campagna. Ritorna l'id (nuovo o `note_id`
+    passato) in caso di successo, `None` in caso di errore.
+
+    note_id: se passato, usa questo id invece di generarne uno nuovo —
+    stesso motivo di `create_weapon(weapon_id=...)`, vedi il suo docstring
+    (`CMD_CAMPAIGN_NOTE_SELF_CREATE`, `core/world_permissions.py`)."""
     import uuid as _uuid
+    new_id = note_id or str(_uuid.uuid4())
     now = datetime.now().isoformat()
     conn = None
     try:
@@ -2842,14 +3022,14 @@ def create_campaign_note(character_id: str, category: str, name: str,
                (id, character_id, category, name, description, status, tags,
                 created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (str(_uuid.uuid4()), character_id, category, name,
+            (new_id, character_id, category, name,
              description, status, tags, now, now)
         )
         conn.commit()
-        return True
+        return new_id
     except Exception as e:
         logger.error(f"Errore creazione campaign_note: {e}")
-        return False
+        return None
     finally:
         if conn is not None:
             conn.close()

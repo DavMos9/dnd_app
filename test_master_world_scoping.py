@@ -59,6 +59,9 @@ from data.database import init_db  # noqa: E402
 from data.models import Character  # noqa: E402
 from data.repositories import character_repo, loot_repo, master_repo, world_repo  # noqa: E402
 from core.world_permissions import ROLE_MASTER, ROLE_OWNER, ROLE_PLAYER  # noqa: E402
+from core import world_permissions as perm  # noqa: E402
+from core.world_backend import LocalBackend  # noqa: E402
+from core import character_instances as ci  # noqa: E402
 
 _PASS = 0
 _FAIL: list[str] = []
@@ -303,6 +306,251 @@ def test_loot_world_scoped() -> None:
           not any(i.id == item_a.id for i in archive_ctx_a))
 
 
+def test_loot_stash_move_handler_preserves_world_id() -> None:
+    """
+    Bug report Davide (2026-08-20): «sposta nell'archivio da bottino...
+    archivio risulta sempre vuoto». A differenza del test sopra (che
+    esercita `loot_repo.move_entry()` direttamente), questo passa dal
+    VERO percorso usato da `master_loot_view.py` quando un mondo è
+    selezionato: il comando di rete `CMD_LOOT_STASH_MOVE` gestito da
+    `core/world_backend.py::_handle_loot_stash_move`. Quell'handler
+    azzerava `new_world_id` a "" quando la destinazione era "master" —
+    la voce restava tecnicamente spostata, ma spariva dalla vista
+    Archivio (che filtra per il mondo correntemente selezionato in
+    `MasterView`), esattamente il sintomo "salva ma risulta vuoto".
+    """
+    print("\n[7] core/world_backend._handle_loot_stash_move — CMD_LOOT_STASH_MOVE "
+          "via rete preserva il world_id in ENTRAMBE le direzioni (2026-08-20)")
+
+    world = world_repo.create_world("Mondo Loot Handler", "device-owner-7", "Owner")
+    assert world is not None
+    backend = LocalBackend()
+
+    party_entry = loot_repo.create_entry("party", "item", name="Ascia del Deposito", world_id=world.id)
+    assert party_entry is not None
+
+    result = backend.send_command(
+        world.id, "device-owner-7", perm.CMD_LOOT_STASH_MOVE,
+        {"entry_id": party_entry.id, "new_stash_kind": "master"},
+        target_type="loot_stash", target_id=party_entry.id,
+    )
+    check("CMD_LOOT_STASH_MOVE (deposito -> archivio) riesce", result.success)
+    moved = loot_repo.get_entry(party_entry.id)
+    check("la voce mantiene il world_id del mondo, non lo azzera",
+          moved is not None and moved.world_id == world.id)
+    check("la voce compare nell'archivio DI QUESTO mondo",
+          any(e.id == party_entry.id for e in loot_repo.get_entries("master", world_id=world.id)))
+    check("...e non nell'archivio 'locale' (world_id vuoto, il bug originale)",
+          not any(e.id == party_entry.id for e in loot_repo.get_entries("master", world_id="")))
+
+    # E la direzione opposta (archivio -> deposito) continuava già a
+    # funzionare — verificarla comunque, per non ri-romperla in futuro.
+    result_back = backend.send_command(
+        world.id, "device-owner-7", perm.CMD_LOOT_STASH_MOVE,
+        {"entry_id": party_entry.id, "new_stash_kind": "party"},
+        target_type="loot_stash", target_id=party_entry.id,
+    )
+    check("CMD_LOOT_STASH_MOVE (archivio -> deposito) riesce", result_back.success)
+    back = loot_repo.get_entry(party_entry.id)
+    check("torna nel deposito dello stesso mondo",
+          back is not None and back.world_id == world.id and back.stash_kind == "party")
+
+
+def test_loot_stash_claim() -> None:
+    """
+    Copre `CMD_LOOT_STASH_CLAIM` (decisione di design 2026-08-20, Davide:
+    "i giocatori possono prendere da soli" — sostituisce la sola-lettura
+    originale del Deposito del Gruppo). Un giocatore prende una voce DA
+    SOLO: l'handler applica oggetto/monete E rimuove la voce nello stesso
+    comando (`_handle_loot_stash_claim`), a differenza di `CMD_LOOT_ASSIGN`
+    che lascia alla UI del Master un secondo comando di eliminazione.
+    """
+    print("\n[8] core/world_backend._handle_loot_stash_claim — auto-servizio "
+          "dal deposito del gruppo (2026-08-20)")
+
+    world = world_repo.create_world("Mondo Deposito Interattivo", "dev-owner-8", "Owner")
+    assert world is not None
+    local = Character(name="Bramwell", class_name="Ladro", race="Halfling", level=3)
+    character_repo.create(local)
+    result = ci.create_or_resume_instance(world.id, local.id, "dev-player-8", mode="as_is")
+    assert result.success, result.error
+    instance = character_repo.get_by_id(result.character_id)
+    assert instance is not None
+    world_repo.join_world_by_code(world.join_code, "dev-player-8", "Il Giocatore")
+    world_repo.join_world_by_code(world.join_code, "dev-other-8", "Un altro giocatore")
+
+    backend = LocalBackend()
+
+    # Permesso: ruolo minimo player (non solo master/owner, a differenza
+    # degli altri comandi loot_stash.*).
+    check("ruolo minimo di loot_stash.claim è 'player'",
+          perm.can_perform(ROLE_PLAYER, perm.CMD_LOOT_STASH_CLAIM))
+
+    # -- Voce non monetaria -------------------------------------------------
+    item_entry = loot_repo.create_entry("party", "item", name="Pugnale +1", world_id=world.id)
+    assert item_entry is not None
+
+    # Un altro dispositivo NON può prendere per conto del personaggio di
+    # qualcun altro (stessa verifica di proprietà di hp.self_update).
+    result_wrong_owner = backend.send_command(
+        world.id, "dev-other-8", perm.CMD_LOOT_STASH_CLAIM,
+        {"entry_id": item_entry.id}, target_type="character", target_id=instance.id,
+    )
+    check("un dispositivo che non possiede il personaggio non può reclamare in sua vece",
+          not result_wrong_owner.success)
+    check("la voce resta nel deposito dopo il tentativo rifiutato",
+          loot_repo.get_entry(item_entry.id) is not None)
+
+    result_claim = backend.send_command(
+        world.id, "dev-player-8", perm.CMD_LOOT_STASH_CLAIM,
+        {"entry_id": item_entry.id}, target_type="character", target_id=instance.id,
+    )
+    check("il proprietario del personaggio può reclamare la voce", result_claim.success)
+    check("l'evento riguarda il personaggio (per far rimaterializzare le altre repliche)",
+          result_claim.event is not None and result_claim.event.target_type == "character"
+          and result_claim.event.target_id == instance.id)
+    inv = character_repo.get_inventory(instance.id)
+    check("l'oggetto è arrivato nell'inventario del personaggio",
+          any(i.name == "Pugnale +1" for i in inv))
+    check("la voce è sparita dal deposito del gruppo", loot_repo.get_entry(item_entry.id) is None)
+
+    # Reclamare di nuovo la stessa voce (già consumata) fallisce senza eccezioni.
+    result_again = backend.send_command(
+        world.id, "dev-player-8", perm.CMD_LOOT_STASH_CLAIM,
+        {"entry_id": item_entry.id}, target_type="character", target_id=instance.id,
+    )
+    check("reclamare due volte la stessa voce fallisce (già presa)", not result_again.success)
+
+    # -- Monete ---------------------------------------------------------
+    coins_entry = loot_repo.create_entry("party", "coins", world_id=world.id, gold=50, silver=3)
+    assert coins_entry is not None
+    before_currencies = character_repo.get_currencies(instance.id)
+    before_gold = before_currencies.gold if before_currencies else 0
+
+    result_coins = backend.send_command(
+        world.id, "dev-player-8", perm.CMD_LOOT_STASH_CLAIM,
+        {"entry_id": coins_entry.id}, target_type="character", target_id=instance.id,
+    )
+    check("reclamare le monete riesce", result_coins.success)
+    after_currencies = character_repo.get_currencies(instance.id)
+    check("le monete si sommano a quelle già presenti (mai sovrascritte)",
+          after_currencies is not None and after_currencies.gold == before_gold + 50
+          and after_currencies.silver == 3)
+    check("la voce monete è sparita dal deposito", loot_repo.get_entry(coins_entry.id) is None)
+
+    # -- Regressione: CMD_LOOT_ASSIGN/CMD_LOOT_STASH_CLAIM devono far
+    # rimaterializzare la replica di un TERZO dispositivo (bug pre-esistente
+    # trovato mentre si implementava questo comando: CMD_LOOT_ASSIGN non
+    # era mai stato aggiunto a CHARACTER_MUTATING_COMMANDS).
+    check("loot.assign è in CHARACTER_MUTATING_COMMANDS (bug fix 2026-08-20)",
+          perm.CMD_LOOT_ASSIGN in perm.CHARACTER_MUTATING_COMMANDS)
+    check("loot_stash.claim è in CHARACTER_MUTATING_COMMANDS",
+          perm.CMD_LOOT_STASH_CLAIM in perm.CHARACTER_MUTATING_COMMANDS)
+
+
+def test_loot_weapon_armor_mechanics() -> None:
+    """
+    Copre le caselle meccaniche di `entry_kind` "weapon"/"armor"
+    (bug report Davide 2026-08-20: "devono avere le stesse caselle di
+    quando crei l'arma o l'armatura nella sezione giocatore, manca il
+    danno il tipo di arma ecc."). Una voce "weapon" deve diventare una
+    riga `weapons` (mai un `inventory_items` generico) quando presa/
+    assegnata; una voce "armor" un `inventory_items` con
+    `category="armor"` e i campi CA/tipo/effetti.
+    """
+    print("\n[9] Bottino — campi meccanici arma/armatura (2026-08-20)")
+    from ui.views.master.master_loot_assign_dialog import _recipient_item_payload, simple_item
+
+    world = world_repo.create_world("Mondo Armi e Armature", "dev-owner-9", "Owner")
+    assert world is not None
+    local = Character(name="Aldric", class_name="Guerriero", race="Umano", level=4)
+    character_repo.create(local)
+    result = ci.create_or_resume_instance(world.id, local.id, "dev-player-9", mode="as_is")
+    assert result.success, result.error
+    instance = character_repo.get_by_id(result.character_id)
+    assert instance is not None
+    world_repo.join_world_by_code(world.join_code, "dev-player-9", "Il Giocatore")
+
+    backend = LocalBackend()
+
+    # -- Round trip nel repository -------------------------------------
+    weapon_entry = loot_repo.create_entry(
+        "party", "weapon", name="Spada Fiammeggiante", world_id=world.id,
+        description="Una spada avvolta dalle fiamme.",
+        weapon_damage_dice="1d8", weapon_damage_type="Fuoco", weapon_category="guerra",
+        weapon_properties="Accurata, Leggera", weapon_attack_bonus=1, weapon_damage_bonus=1,
+    )
+    assert weapon_entry is not None
+    reloaded = loot_repo.get_entry(weapon_entry.id)
+    check("i campi meccanici dell'arma sopravvivono al round trip",
+          reloaded is not None and reloaded.weapon_damage_dice == "1d8"
+          and reloaded.weapon_damage_type == "Fuoco" and reloaded.weapon_category == "guerra"
+          and reloaded.weapon_attack_bonus == 1 and reloaded.weapon_damage_bonus == 1)
+
+    armor_entry = loot_repo.create_entry(
+        "party", "armor", name="Corazza di Mitril", world_id=world.id,
+        description="Un'armatura leggerissima.",
+        armor_ca_value=16, armor_type="media", armor_effects="Nessun malus a Furtività",
+    )
+    assert armor_entry is not None
+    reloaded_armor = loot_repo.get_entry(armor_entry.id)
+    check("i campi meccanici dell'armatura sopravvivono al round trip",
+          reloaded_armor is not None and reloaded_armor.armor_ca_value == 16
+          and reloaded_armor.armor_type == "media"
+          and reloaded_armor.armor_effects == "Nessun malus a Furtività")
+
+    # -- Presa dal deposito (CMD_LOOT_STASH_CLAIM) ----------------------
+    before_weapons = {w.id for w in character_repo.get_weapons(instance.id, equipped_only=False)}
+    result_claim = backend.send_command(
+        world.id, "dev-player-9", perm.CMD_LOOT_STASH_CLAIM,
+        {"entry_id": weapon_entry.id}, target_type="character", target_id=instance.id,
+    )
+    check("presa dell'arma riuscita", result_claim.success)
+    new_weapons = [w for w in character_repo.get_weapons(instance.id, equipped_only=False)
+                   if w.id not in before_weapons]
+    check("è comparsa esattamente una nuova arma", len(new_weapons) == 1)
+    if new_weapons:
+        w = new_weapons[0]
+        check("l'arma presa ha nome/dado danno/tipo/categoria/bonus corretti",
+              w.name == "Spada Fiammeggiante" and w.damage_dice == "1d8"
+              and w.damage_type == "Fuoco" and w.weapon_category == "guerra"
+              and w.attack_bonus == 1 and w.damage_bonus == 1)
+    check("l'arma presa NON è finita anche in inventory_items",
+          not any(i.name == "Spada Fiammeggiante" for i in character_repo.get_inventory(instance.id)))
+
+    result_claim_armor = backend.send_command(
+        world.id, "dev-player-9", perm.CMD_LOOT_STASH_CLAIM,
+        {"entry_id": armor_entry.id}, target_type="character", target_id=instance.id,
+    )
+    check("presa dell'armatura riuscita", result_claim_armor.success)
+    armor_item = next((i for i in character_repo.get_inventory(instance.id)
+                        if i.name == "Corazza di Mitril"), None)
+    check("l'armatura presa è in inventory_items con CA/tipo/effetti corretti",
+          armor_item is not None and armor_item.category == "armor"
+          and armor_item.ca_value == 16 and armor_item.armor_type == "media"
+          and armor_item.effects == "Nessun malus a Furtività")
+
+    # -- Assegnazione dal Master (CMD_LOOT_ASSIGN) ----------------------
+    weapon_item = simple_item(
+        "weapon", "Ascia da Battaglia", description="Un'ascia pesante.",
+        mechanics={"weapon_damage_dice": "1d10", "weapon_damage_type": "Taglio",
+                   "weapon_category": "guerra", "weapon_attack_bonus": 0, "weapon_damage_bonus": 0,
+                   "weapon_properties": "A due mani"},
+    )
+    payload = _recipient_item_payload(weapon_item, instance.id, 1)
+    before_weapons_2 = {w.id for w in character_repo.get_weapons(instance.id, equipped_only=False)}
+    result_assign = backend.send_command(
+        world.id, "dev-owner-9", perm.CMD_LOOT_ASSIGN,
+        {"items": [payload], "coins": []}, target_type="world", target_id=world.id,
+    )
+    check("l'assegnazione di un'arma dal Master riesce", result_assign.success)
+    new_weapons_2 = [w for w in character_repo.get_weapons(instance.id, equipped_only=False)
+                     if w.id not in before_weapons_2]
+    check("è comparsa una nuova arma assegnata dal Master, con i campi giusti",
+          len(new_weapons_2) == 1 and new_weapons_2[0].name == "Ascia da Battaglia"
+          and new_weapons_2[0].damage_dice == "1d10" and new_weapons_2[0].weapon_category == "guerra")
+
+
 def main() -> int:
     print("=" * 62)
     print("Modalità Master world-scoped — fix duplicazione + selettore mondo")
@@ -316,6 +564,9 @@ def main() -> int:
     test_npcs_world_scoped()
     test_encounters_world_scoped()
     test_loot_world_scoped()
+    test_loot_stash_move_handler_preserves_world_id()
+    test_loot_stash_claim()
+    test_loot_weapon_armor_mechanics()
 
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

@@ -732,6 +732,300 @@ def test_worlds_view_remote_actions() -> None:
           updated is not None and updated.hp_current == 35)
 
 
+def test_worlds_view_shared_loot() -> None:
+    """
+    Copre `WorldsView._shared_loot_section()` (passo 6 di
+    `dnd_app/docs/loot_design.md` §6, deposito del gruppo lato giocatore):
+    sola lettura, visibile a QUALSIASI membro, mai l'archivio privato del
+    Master (`stash_kind="master"`), nessuna azione di modifica/assegnazione
+    esposta qui — l'assegnazione resta un privilegio della Sezione Master.
+    """
+    print("\n[9] WorldsView — sezione «Deposito del Gruppo» (bottino, passo 6)")
+    from data.repositories import loot_repo
+    from ui.views.world.world_view import WorldsView
+
+    world = world_repo.create_world("Mondo con Bottino", "dev-master-loot", "Master")
+    world_repo.join_world_by_code(world.join_code, "dev-player-loot", "Giocatore")
+
+    wv = WorldsView(on_back_to_home=lambda: None)
+    wv.device_id = "dev-master-loot"
+
+    check("nessuna voce nel deposito → sezione assente",
+          wv._shared_loot_section(world) is None)
+
+    # Una voce nell'archivio PRIVATO del Master non deve mai comparire qui.
+    loot_repo.create_entry("master", "item", name="Segreto del Master",
+                            world_id=world.id)
+    check("una voce nell'archivio del Master resta invisibile qui",
+          wv._shared_loot_section(world) is None)
+
+    loot_repo.create_entry("party", "magic_item", name="Ampolla di Ferro",
+                            description="Un piccolo contenitore magico.",
+                            world_id=world.id)
+    loot_repo.create_entry("party", "coins", world_id=world.id,
+                            gold=120, silver=7)
+
+    section = wv._shared_loot_section(world)
+    check("con voci nel deposito la sezione esiste", section is not None)
+    texts = " ".join(_texts(section))
+    check("il nome dell'oggetto compare", "Ampolla di Ferro" in texts)
+    check("il riepilogo delle monete compare", "120 mo" in texts and "7 ma" in texts)
+    check("l'archivio privato del Master resta fuori da questa sezione",
+          "Segreto del Master" not in texts)
+    check("nessuna azione di assegnazione/modifica/eliminazione esposta qui",
+          "Assegna" not in texts and "Elimina" not in texts and "Sposta" not in texts)
+
+    # Un giocatore semplice vede lo stesso deposito, sola lettura.
+    wv.device_id = "dev-player-loot"
+    player_section = wv._shared_loot_section(world)
+    player_texts = " ".join(_texts(player_section))
+    check("un giocatore vede lo stesso deposito del gruppo",
+          "Ampolla di Ferro" in player_texts)
+
+    # Compare anche nel dettaglio renderizzato per intero, per entrambi i ruoli.
+    wv._current_world = world
+    wv._render()
+    check("«Deposito del Gruppo» compare nel dettaglio del giocatore",
+          "DEPOSITO DEL GRUPPO" in " ".join(_texts(wv._body)).upper())
+    wv.device_id = "dev-master-loot"
+    wv._render()
+    check("«Deposito del Gruppo» compare anche nel dettaglio del master",
+          "DEPOSITO DEL GRUPPO" in " ".join(_texts(wv._body)).upper())
+
+
+class _FakePageDialogs:
+    """Sola `show_dialog`/`pop_dialog` — sufficiente per una vista che apre
+    un `ft.AlertDialog` senza montarla in un vero albero Flet."""
+
+    def __init__(self) -> None:
+        self.dialogs: list = []
+
+    def show_dialog(self, dlg) -> None:
+        self.dialogs.append(dlg)
+
+    def pop_dialog(self, *_a) -> None:
+        if self.dialogs:
+            self.dialogs.pop()
+
+    def update(self, *_a, **_k) -> None:
+        pass
+
+
+def _find_outlined_button(node, label: str):
+    """Cerca un `ft.OutlinedButton` con questa etichetta (`.content`, non
+    `.text` — vedi il commento in fondo alla funzione) in un (sotto)albero
+    di controlli Flet. Accetta sia una lista di controlli (es.
+    `dlg.actions`, o `wrap_dialog_actions()` che la avvolge in un'unica
+    `ft.Row`) sia un singolo controllo con `.content` (es. `ft.Container`,
+    come ritornato da `design.section()`/`design.card()`) — entrambe le
+    forme compaiono nell'albero costruito da questa view."""
+    if isinstance(node, list):
+        for c in node:
+            found = _find_outlined_button(c, label)
+            if found is not None:
+                return found
+        return None
+    if isinstance(node, ft.OutlinedButton) and node.content == label:
+        return node
+    inner = getattr(node, "controls", None)
+    if inner:
+        found = _find_outlined_button(inner, label)
+        if found is not None:
+            return found
+    content = getattr(node, "content", None)
+    if content is not None and not isinstance(content, str):
+        found = _find_outlined_button(content, label)
+        if found is not None:
+            return found
+    return None
+
+
+def _patch_worlds_view_page_property() -> None:
+    """Stesso identico pattern di `test_ingresso_lan_sincronizzazione.py`
+    (vedi il suo docstring per il perché): `WorldsView.page` è la proprietà
+    vera di Flet, senza setter — sostituita SOLO sulla classe `WorldsView`
+    con una che legge da `_test_fake_page` se presente."""
+    from ui.views.world.world_view import WorldsView
+
+    if getattr(WorldsView, "_test_page_patched", False):
+        return
+    original_page_property = WorldsView.page
+
+    def _page_getter(self):
+        fake = getattr(self, "_test_fake_page", None)
+        if fake is not None:
+            return fake
+        return original_page_property.fget(self)
+
+    WorldsView.page = property(_page_getter)
+    WorldsView._test_page_patched = True
+
+
+def test_worlds_view_claim_loot() -> None:
+    """
+    Copre il pulsante «Prendi» di `WorldsView._shared_loot_section()`
+    (decisione di design 2026-08-20, Davide: "i giocatori possono prendere
+    da soli" — sostituisce la sola-lettura originale). La logica di rete
+    (`CMD_LOOT_STASH_CLAIM`) è già coperta a fondo in
+    `test_master_world_scoping.py`; qui si verifica solo il cablaggio UI:
+    il pulsante compare/scompare in base al possesso di un personaggio in
+    QUESTO mondo, e il click reale (dialog di conferma incluso) porta
+    davvero all'effetto sul DB.
+    """
+    print("\n[11] WorldsView — pulsante «Prendi» del Deposito del Gruppo (2026-08-20)")
+    from core import character_instances as ci
+    from data.repositories import loot_repo
+    from ui.views.world.world_view import WorldsView
+
+    _patch_worlds_view_page_property()
+
+    world = world_repo.create_world("Mondo Deposito Interattivo UI", "dev-master-claim", "Master")
+    local = Character(name="Fenwick", class_name="Bardo", race="Gnomo", level=2)
+    character_repo.create(local)
+    result = ci.create_or_resume_instance(world.id, local.id, "dev-player-claim", mode="as_is")
+    assert result.success, result.error
+    instance = character_repo.get_by_id(result.character_id)
+    assert instance is not None
+    world_repo.join_world_by_code(world.join_code, "dev-player-claim", "Giocatore")
+
+    entry = loot_repo.create_entry("party", "item", name="Corda di Seta", world_id=world.id)
+    assert entry is not None
+
+    wv = WorldsView(on_back_to_home=lambda: None)
+
+    # Il master non ha un proprio personaggio in questo mondo: niente pulsante.
+    # (`_texts()` raccoglie solo `ft.Text.value`, non l'etichetta di
+    # `OutlinedButton.content` — una stringa semplice in questa versione di
+    # Flet, vedi `_find_outlined_button` — quindi qui serve quest'ultima.)
+    wv.device_id = "dev-master-claim"
+    master_section = wv._shared_loot_section(world)
+    check("il master (senza personaggio nel mondo) non vede «Prendi»",
+          _find_outlined_button(master_section, "Prendi") is None)
+
+    # Il giocatore, proprietario di un personaggio in questo mondo, lo vede.
+    wv.device_id = "dev-player-claim"
+    player_section = wv._shared_loot_section(world)
+    check("il giocatore (con un personaggio nel mondo) vede «Prendi»",
+          _find_outlined_button(player_section, "Prendi") is not None)
+
+    # Click reale: apre il dialog di conferma, poi conferma davvero.
+    wv._test_fake_page = _FakePageDialogs()
+    prendi_btn = _find_outlined_button(player_section, "Prendi")
+    check("il pulsante «Prendi» è raggiungibile nell'albero", prendi_btn is not None)
+    prendi_btn.on_click(None)
+    check("il click apre il dialog di conferma", len(wv._test_fake_page.dialogs) == 1)
+
+    confirm_dlg = wv._test_fake_page.dialogs[-1]
+    confirm_btn = None
+    for c in confirm_dlg.actions:
+        inner = getattr(c, "controls", None)
+        if inner:
+            for b in inner:
+                if isinstance(b, ft.ElevatedButton) and b.content == "Prendi":
+                    confirm_btn = b
+    check("il dialog di conferma ha un pulsante «Prendi»", confirm_btn is not None)
+    confirm_btn.on_click(None)
+
+    inv = character_repo.get_inventory(instance.id)
+    check("l'oggetto è arrivato davvero nell'inventario del personaggio",
+          any(i.name == "Corda di Seta" for i in inv))
+    check("la voce è sparita dal deposito del gruppo", loot_repo.get_entry(entry.id) is None)
+    check("la sezione ora è vuota (nessuna voce residua) -> None",
+          wv._shared_loot_section(world) is None)
+
+
+def test_custom_magic_item_weapon_armor_detection() -> None:
+    """
+    Copre `_custom_mechanics_kind()` in `master_magic_item_generator_dialog.py`
+    — bug report Davide (2026-08-20): un oggetto magico personalizzato di
+    categoria "Arma"/"Armatura" deve mostrare le caselle meccaniche dedicate
+    invece di restare un oggetto magico generico. Verifica solo la funzione
+    pura di categorizzazione (il resto del flusso — `simple_item()` con
+    `mechanics=`, `_recipient_item_payload()`, gli handler di rete — è già
+    coperto end-to-end in `test_master_world_scoping.py::
+    test_loot_weapon_armor_mechanics()`, che passa dagli stessi identici
+    costruttori).
+    """
+    print("\n[12] master_magic_item_generator_dialog — rilevamento arma/armatura "
+          "personalizzata (2026-08-20)")
+    from ui.views.master.master_magic_item_generator_dialog import _custom_mechanics_kind
+
+    check("'Arma (qualsiasi spada)' -> weapon",
+          _custom_mechanics_kind("Arma (qualsiasi spada)") == "weapon")
+    check("'Arma (qualsiasi arma da mischia)' -> weapon",
+          _custom_mechanics_kind("Arma (qualsiasi arma da mischia)") == "weapon")
+    check("'Armatura' -> armor", _custom_mechanics_kind("Armatura") == "armor")
+    check("'Oggetto meraviglioso' -> nessuna casella meccanica",
+          _custom_mechanics_kind("Oggetto meraviglioso") == "")
+    check("categoria vuota -> nessuna casella meccanica", _custom_mechanics_kind("") == "")
+
+
+def test_magic_items_view_world_scoped_loot() -> None:
+    """
+    Copre il bug report di Davide (2026-08-20): «se provo ad assegnare un
+    oggetto magico dalla sezione oggetti magici me li fa assegnare solo in
+    locale». Causa: `MasterMagicItemsView()` (`ui/views/master/master_view.py`,
+    tab «Oggetti Magici») era l'unica tab della Sezione Master istanziata
+    SENZA `world_id`/`device_id` — a differenza di NPC/Incontri/
+    Note/Bottino, tutte già world-scoped. `MagicItemsView` ora accetta
+    entrambi i parametri e li inoltra sia a `show_loot_assign_dialog()`
+    ("Assegna…") sia a `save_items_to_stash()` ("Salva nell'archivio").
+    """
+    print("\n[10] MagicItemsView — «Assegna…»/«Salva nell'archivio» "
+          "confinati al mondo selezionato (bug report 2026-08-20)")
+    from data.repositories import loot_repo
+    from ui.views.magic_items_view import MagicItemsView
+    import ui.views.master.master_loot_assign_dialog as loot_assign_dialog
+
+    world = world_repo.create_world("Mondo Oggetti Magici", "dev-master-mi", "Master")
+
+    mv = MagicItemsView(world_id=world.id, device_id="dev-master-mi")
+    check("world_id/device_id memorizzati", mv._world_id == world.id and mv._device_id == "dev-master-mi")
+
+    mv._page = _FakePageDialogs()
+    item = mv._all_items[0]
+
+    # "Salva nell'archivio" -> deve finire nell'archivio DI QUESTO mondo,
+    # non in world_id="" (il bug originale: spariva perché la vista
+    # Archivio filtra per il mondo selezionato).
+    mv._open_detail(item)
+    dlg = mv._page.dialogs[-1]
+    save_btn = _find_outlined_button(dlg.actions, "Salva nell'archivio")
+    check("dialog di dettaglio ha «Salva nell'archivio»", save_btn is not None)
+    save_btn.on_click(None)
+
+    archive_this_world = loot_repo.get_entries("master", world_id=world.id)
+    archive_no_world = loot_repo.get_entries("master", world_id="")
+    check("la voce salvata è nell'archivio del mondo selezionato",
+          any(e.name == item.get("name", "") for e in archive_this_world))
+    check("...e NON nell'archivio 'locale' (world_id vuoto, il bug originale)",
+          not any(e.name == item.get("name", "") for e in archive_no_world))
+
+    # "Assegna…" -> deve instradare world_id/device_id al dialog di
+    # assegnazione (che decide da lì se passare dalla rete), non lasciarli
+    # al default vuoto.
+    captured: dict[str, Any] = {}
+    orig_show = loot_assign_dialog.show_loot_assign_dialog
+
+    def _spy_show_loot_assign_dialog(page, items, **kwargs):
+        captured.update(kwargs)
+
+    loot_assign_dialog.show_loot_assign_dialog = _spy_show_loot_assign_dialog
+    try:
+        mv._open_detail(item)
+        dlg2 = mv._page.dialogs[-1]
+        assign_btn = _find_outlined_button(dlg2.actions, "Assegna…")
+        check("dialog di dettaglio ha «Assegna…»", assign_btn is not None)
+        assign_btn.on_click(None)
+    finally:
+        loot_assign_dialog.show_loot_assign_dialog = orig_show
+
+    check("«Assegna…» passa il world_id selezionato, non il default vuoto",
+          captured.get("world_id") == world.id)
+    check("«Assegna…» passa il device_id di questo dispositivo",
+          captured.get("device_id") == "dev-master-mi")
+
+
 def main() -> int:
     print("=" * 62)
     print("PASSO 2 — Modello mondo, senza rete")
@@ -746,6 +1040,10 @@ def main() -> int:
     test_device_identity()
     test_worlds_view()
     test_worlds_view_remote_actions()
+    test_worlds_view_shared_loot()
+    test_worlds_view_claim_loot()
+    test_magic_items_view_world_scoped_loot()
+    test_custom_magic_item_weapon_armor_detection()
 
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")

@@ -132,6 +132,11 @@ CMD_LOOT_STASH_MOVE = "loot_stash.move"
 CMD_LOOT_STASH_DELETE = "loot_stash.delete"
 
 MASTER_AND_OWNER_COMMANDS: frozenset[str] = frozenset({
+    # NOTA: `CMD_LOOT_STASH_CLAIM` (un giocatore prende da solo una voce del
+    # deposito comune) NON vive qui — è in `PLAYER_OWNED_COMMANDS` sotto,
+    # deliberatamente, a differenza di ADD/UPDATE/MOVE/DELETE che restano
+    # riservati al master (decisione di design 2026-08-20, Davide: "i
+    # giocatori possono prendere da soli").
     CMD_XP_GRANT, CMD_LOOT_ASSIGN, CMD_HP_DAMAGE, CMD_HP_HEAL,
     CMD_CONDITION_APPLY, CMD_CONDITION_REMOVE, CMD_RESOURCE_CONSUME,
     CMD_RESOURCE_RESTORE, CMD_CUSTOM_ABILITY_GRANT, CMD_BONUS_SPELL_GRANT,
@@ -213,6 +218,36 @@ CMD_CUSTOM_ABILITY_SELF_UPDATE = "custom_ability.self_update"
 CMD_SPELL_SELF_UPSERT = "spell.self_upsert"
 CMD_SPELL_SELF_REMOVE = "spell.self_remove"
 
+#: Stesso principio del gruppo sopra, per i campi che restavano scritti
+#: SOLO in locale da `inventario_tab.py` (armi, oggetti, monete) e
+#: `diary_view.py` (note NPC/luogo/missiva su `campaign_notes` — DISTINTE
+#: dalle note condivise dal master, `master_campaign_notes`, che vivono su
+#: una tabella separata e non passano mai da qui): un'aggiunta manuale del
+#: giocatore che non raggiungeva mai l'host veniva cancellata dal primo
+#: `_resync_character_from_host()` successivo (qualunque evento lo
+#: innescasse, anche un'azione del master non correlata) — non un
+#: conflitto "ultimo che scrive vince", un dato mai arrivato sull'host che
+#: il resync tratta come mai esistito. Bug report Davide 2026-08-20: "le
+#: mappe e le note o in generale le azioni fatte dal master sulla scheda
+#: personaggio... vengono sovrascritte dalle aggiunte manuali del
+#: giocatore" — la causa è questa, non un vero conflitto: il resync non
+#: sovrascrive con dati "sbagliati", sovrascrive con dati INCOMPLETI perché
+#: quanto aggiunto in locale non era mai stato inviato all'host.
+#: `weapon_id`/`item_id`/`note_id` nel payload di upsert: generato lato
+#: client PRIMA della scrittura locale (mai dal repository), così l'id
+#: della riga locale e quello sull'host coincidono fin dalla creazione —
+#: stesso principio già in uso per `CMD_CHARACTER_INSTANCE_SYNC`. Gli
+#: incantesimi (sopra) non ne hanno bisogno perché `upsert_known_spell()`
+#: identifica la riga per (character_id, name, spell_level), non per id.
+CMD_WEAPON_SELF_UPSERT = "weapon.self_upsert"
+CMD_WEAPON_SELF_REMOVE = "weapon.self_remove"
+CMD_INVENTORY_SELF_UPSERT = "inventory.self_upsert"
+CMD_INVENTORY_SELF_REMOVE = "inventory.self_remove"
+CMD_CURRENCY_SELF_UPDATE = "currency.self_update"
+CMD_CAMPAIGN_NOTE_SELF_CREATE = "campaign_note.self_create"
+CMD_CAMPAIGN_NOTE_SELF_UPDATE = "campaign_note.self_update"
+CMD_CAMPAIGN_NOTE_SELF_DELETE = "campaign_note.self_delete"
+
 #: Richiede il rientro nel mondo di UNA propria istanza archiviata.
 #: Ruolo minimo `player`, proprietà verificata come gli altri comandi di
 #: questo gruppo — un giocatore può
@@ -222,6 +257,19 @@ CMD_SPELL_SELF_REMOVE = "spell.self_remove"
 #: comando che tocca davvero `world_instance_archived` è la risposta del
 #: master, `CMD_CHARACTER_REJOIN_RESPOND` sopra.
 CMD_CHARACTER_REJOIN_REQUEST = "character_rejoin.request"
+
+#: Un giocatore prende DA SOLO una voce dal deposito comune del gruppo
+#: (`stash_kind="party"`) — controparte player-owned di
+#: `CMD_LOOT_STASH_ADD`/`_MOVE`/`_DELETE` sopra (master-only), decisione di
+#: design 2026-08-20 (Davide: "i giocatori possono prendere da soli",
+#: sostituisce il design originale sola-lettura di `loot_design.md` §6).
+#: Ruolo minimo `player`, proprietà verificata come `CMD_HP_SELF_UPDATE`:
+#: `ctx.target_id` è il personaggio che riceve la voce, l'handler rifiuta se
+#: `ctx.actor_device_id` non ne è il proprietario — un giocatore non può
+#: far "prendere" una voce al personaggio di un altro. La voce indivisibile
+#: viene presa per intero (mai una quota): coerente con §3 di
+#: `loot_design.md`, "tutte le voci non-coins sono indivisibili".
+CMD_LOOT_STASH_CLAIM = "loot_stash.claim"
 
 #: Emette/revoca un codice di trasferimento del personaggio su un altro
 #: dispositivo ("cambio dispositivo" — §11.9 del design doc).
@@ -264,10 +312,19 @@ PLAYER_OWNED_COMMANDS: frozenset[str] = frozenset({
     CMD_CUSTOM_ABILITY_SELF_UPDATE,
     CMD_SPELL_SELF_UPSERT,
     CMD_SPELL_SELF_REMOVE,
+    CMD_WEAPON_SELF_UPSERT,
+    CMD_WEAPON_SELF_REMOVE,
+    CMD_INVENTORY_SELF_UPSERT,
+    CMD_INVENTORY_SELF_REMOVE,
+    CMD_CURRENCY_SELF_UPDATE,
+    CMD_CAMPAIGN_NOTE_SELF_CREATE,
+    CMD_CAMPAIGN_NOTE_SELF_UPDATE,
+    CMD_CAMPAIGN_NOTE_SELF_DELETE,
     CMD_CHARACTER_REJOIN_REQUEST,
     CMD_DEVICE_TRANSFER_ISSUE,
     CMD_DEVICE_TRANSFER_REVOKE,
     CMD_MEMBER_LEAVE,
+    CMD_LOOT_STASH_CLAIM,
 })
 
 #: Ogni comando conosciuto -> ruolo minimo richiesto per inviarlo.
@@ -327,6 +384,18 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
     CMD_CUSTOM_ABILITY_SELF_UPDATE,
     CMD_SPELL_SELF_UPSERT,
     CMD_SPELL_SELF_REMOVE,
+    # Stesso principio di CMD_HP_SELF_UPDATE — un terzo dispositivo deve
+    # rimaterializzare il personaggio quando vede uno di questi eventi nel
+    # giornale (armi/oggetti/monete/note, vedi il docstring del gruppo
+    # sopra in world_permissions.py per il perché esistono).
+    CMD_WEAPON_SELF_UPSERT,
+    CMD_WEAPON_SELF_REMOVE,
+    CMD_INVENTORY_SELF_UPSERT,
+    CMD_INVENTORY_SELF_REMOVE,
+    CMD_CURRENCY_SELF_UPDATE,
+    CMD_CAMPAIGN_NOTE_SELF_CREATE,
+    CMD_CAMPAIGN_NOTE_SELF_UPDATE,
+    CMD_CAMPAIGN_NOTE_SELF_DELETE,
     # L'accettazione di una richiesta di rientro toglie l'archiviazione (e,
     # con `mode="refresh_from_local"`, sovrascrive anche il contenuto) —
     # stesso principio di CMD_CHARACTER_INSTANCE_REMOVE, verso opposto.
@@ -334,6 +403,22 @@ CHARACTER_MUTATING_COMMANDS: frozenset[str] = frozenset({
     # pendente, non muta mai il personaggio (stesso motivo per cui
     # CMD_CHANGE_REQUEST_PROPOSE non c'è).
     CMD_CHARACTER_REJOIN_RESPOND,
+    # BUG FIX (2026-08-20): CMD_LOOT_ASSIGN scrive su inventario/monete del
+    # personaggio destinatario (`_handle_loot_assign` in world_backend.py)
+    # ma non era mai stato aggiunto qui — un giocatore assegnatario su un
+    # dispositivo DIVERSO dall'host non vedeva mai l'oggetto ricevuto finché
+    # un altro evento mutante su quello stesso personaggio non forzava un
+    # resync completo (mai per costruzione, non "raro": ogni item assegnato
+    # da remoto ne soffriva). Trovato mentre si aggiungeva
+    # CMD_LOOT_STASH_CLAIM sotto, stessa identica forma (evento
+    # target_type="character" che deve rimaterializzare la replica).
+    CMD_LOOT_ASSIGN,
+    # Stesso principio di CMD_LOOT_ASSIGN: `_handle_loot_stash_claim` scrive
+    # su inventario/monete del personaggio che ha appena preso una voce dal
+    # deposito comune — un TERZO dispositivo (es. il master, o un
+    # co-master) deve rimaterializzarlo quando vede questo evento nel
+    # giornale.
+    CMD_LOOT_STASH_CLAIM,
 })
 
 # ---------------------------------------------------------------------------

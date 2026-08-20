@@ -8,6 +8,294 @@
 
 ## Note Importanti
 
+- **Sincronizzazione Multiplayer: armi/oggetti/monete/note del giocatore sovrascritte dai grant del master
+  (e viceversa) + «Esci dal mondo» non disconnetteva (2026-08-20, sessione notturna autonoma)** — bug report
+  Davide, la seconda volta ("in un'altra sessione ti avevo scritto queste istruzioni, le tue modifiche non hanno
+  avuto effetto"): "aggiunta nota da parte del giocatore dopo nota master, cancella nota master... succede lo
+  stesso con le mappe e incantesimi e tutto ciò che concede il master sulla scheda del giocatore (anche
+  assegnazione oggetti e incantesimi e abilità)... devono coesistere non si devono sovrascrivere" + "il giocatore
+  non ha la possibilità di lasciare e poi eliminare il mondo... l'abbandono del giocatore dal mondo deve
+  disconnettere il giocatore".
+
+  **Causa radice (note/oggetti)**: `core/world_sync.py::_resync_character_from_host()` rimaterializza per intero
+  un personaggio da un evento mutante qualsiasi (DELETE CASCADE + reinsert di tutte le 13 `CHILD_TABLES` di
+  `character_export.py` dallo snapshot dell'host). Incantesimi/diario/note di sessione/abilità custom erano già
+  stati messi in sicurezza in una sessione precedente con comandi `*.self_*` che li scrivono SULL'HOST prima che
+  un resync possa cancellarli — ma **`inventario_tab.py` (armi, oggetti, monete) e la creazione/modifica/
+  eliminazione di note NPC/luogo/missiva in `diary_view.py` (`campaign_notes`, tabella DIVERSA da
+  `master_campaign_notes` — quella del master, mai toccata da questo bug) erano rimasti fuori**, scrivendo SOLO
+  in locale. Risultato: una qualunque aggiunta manuale del giocatore spariva al primo evento mutante successivo
+  (anche un'azione del master non correlata, es. `xp.grant`) — non un vero conflitto "ultimo che scrive vince",
+  un dato mai arrivato sull'host che il resync tratta come mai esistito. Bug MINORE gemello in `diary_view.py`:
+  `_load_notes()` sovrascriveva `self._notes[cat]` con SOLO le proprie note appena salvate/eliminate, senza
+  richiamare `_merge_shared_notes()` — le note condivise dal master sparivano dalla vista per ~2s fino al
+  prossimo giro del polling periodico.
+
+  **Fix**: 8 nuovi comandi in `core/world_permissions.py` (`CMD_WEAPON_SELF_UPSERT`/`_REMOVE`,
+  `CMD_INVENTORY_SELF_UPSERT`/`_REMOVE`, `CMD_CURRENCY_SELF_UPDATE`, `CMD_CAMPAIGN_NOTE_SELF_CREATE`/`_UPDATE`/
+  `_DELETE`) con handler in `core/world_backend.py`, stesso principio di `CMD_HP_SELF_UPDATE`/
+  `CMD_SPELL_SELF_UPSERT` — ruolo minimo `player`, verifica `perm.is_character_owner()`, dentro
+  `CHARACTER_MUTATING_COMMANDS` (un terzo dispositivo, es. un co-master, deve rimaterializzare). A differenza
+  degli incantesimi (chiave naturale `character_id+name+level`), armi/oggetti/note non hanno una chiave naturale
+  (due armi possono avere lo stesso nome): `weapon_id`/`item_id`/`note_id` sono generati lato CLIENT prima della
+  scrittura locale e passati sia alla scrittura locale sia al comando, così client e host restano sullo stesso id
+  fin dalla creazione (stesso principio già in uso per `CMD_CHARACTER_INSTANCE_SYNC`) — `create_weapon()`/
+  `create_inventory_item()`/`create_campaign_note()` in `character_repo.py` ora accettano un id opzionale;
+  `create_campaign_note()` ritorna l'id creato invece di un bool (unico chiamante esistente non ne usava il
+  ritorno, cambio sicuro); nuovi `get_weapon_by_id()`/`get_inventory_item_by_id()`/`get_campaign_note_by_id()`
+  per la verifica di proprietà lato host e per rileggere lo stato da inoltrare. `inventario_tab.py`: nuovi
+  `_push_weapon_to_world()`/`_push_item_to_world()`/`_push_currency_to_world()` (rileggono la riga appena scritta
+  e inoltrano TUTTI i campi in un colpo solo, un solo punto invece di ricostruire il payload nei ~10 punti di
+  mutazione del tab — dialog armi/oggetti, elimina, equip/grip/sintonia/esclusione armatura, editor monete).
+  `diary_view.py`: `_load_notes()` ora richiama sempre `_merge_shared_notes()` in coda; nuovo
+  `_push_campaign_note_to_world()` agganciato a crea/modifica/elimina nota.
+
+  **Causa radice («Esci dal mondo»)**: `ui/views/world/world_view.py::WorldsView._do_leave()` inviava
+  `CMD_MEMBER_LEAVE` (rimozione membro + archiviazione istanze sull'host — già corretto) e cancellava la replica
+  locale del mondo, ma non chiamava MAI `RemoteBackend.leave()` (`POST /leave`, il meccanismo che invalida
+  davvero il token — già esisteva e già testato in isolamento in `test_lan_host_client.py`, semplicemente non
+  richiamato da qui): il token restava valido sull'host anche a mondo abbandonato. Fix: `_do_leave()` ora
+  recupera il `RemoteBackend` dalla cache (`self._remote_backends.pop(world.id, None)`) e chiama `.leave()` prima
+  di cancellare la replica locale. Lato "il master non deve più vedere il giocatore/personaggio": già corretto
+  a monte da `_handle_member_leave()`/`archive_world_instances()` (stessa archiviazione non distruttiva del kick,
+  filtrata da ogni query del master via `world_instance_archived=0`) — nessuna modifica necessaria lì, solo
+  verificato.
+
+  **Non affrontato in questo giro** (fuori scope dei bug riportati, verificato ma non toccato): le "mappe"
+  citate da Davide non condividono questo meccanismo — le mappe personali sono già escluse dal resync
+  (`skip_tables={"game_maps"}`) e le mappe condivise usano già comandi a evento incrementale
+  (`CMD_MAP_PUBLISH`/`_DRAW`/`_DELETE`/`_VISIBILITY`), non un full-replace; probabile che il sintomo riportato
+  fosse lo stesso pattern generale osservato su note/oggetti nella stessa sessione di test. `class_resources`/
+  `creature_entries`/`character_proficiencies` (altre 3 `CHILD_TABLES` senza self-command) non hanno un punto di
+  scrittura manuale diretto in UI paragonabile — non affrontate, da riconsiderare se Davide segnala lo stesso
+  sintomo lì.
+
+  **Aggiornamento della stessa sessione, dopo prima conferma di Davide** ("risolto per le note e gli altri
+  problemi, ma non per le mappe... quando seleziono una nota in diario, in una sezione ricarica la pagina e mi
+  porta in alto... cosa succede se il giocatore inserisce una nota/mappa mentre il mondo non è hostato? cosa
+  succede lato utente e master quando un giocatore abbandona il mondo?"). Ipotesi iniziale sulle mappe (nessun bug,
+  già protette diversamente) **smentita** dal secondo bug report di Davide con la riproduzione esatta: "avevo 2
+  mappe locali e una condivisa, carico manualmente una terza mappa, la mappa condivisa sparisce e rimangono solo
+  le 2 mappe locali" — bug reale trovato subito dopo. Quattro fix in totale in questo secondo giro:
+
+  1. **`diary_view.py` — scroll del pannello sinistro azzerato ad ogni selezione**: `_on_sel_note()`/
+     `_on_sel_diary()`/`_on_cat_click()` chiamavano tutti `_refresh()` (rebuild completo), e
+     `_build_left_panel()` creava un `ft.Column(scroll=...)` NUOVO ad ogni chiamata — stesso identico difetto già
+     risolto altrove con `ScrollMemoryListView`/`ScrollMemoryColumn` (`ui/widgets.py`), qui MAI applicato a questa
+     vista. Fix: `self._left_scroll_col` è ora un `ScrollMemoryColumn` UNICO creato in `__init__`,
+     `_build_left_panel()` ne ripopola solo `.controls` (nuovo `_fill_left_scroll_col()`), `_refresh()`/il
+     `_redraw()` del polling periodico chiamano `restore_scroll()` in coda.
+
+  2. **`_do_leave()` non staccava la PROPRIA istanza locale dal mondo** — bug più serio, trovato rispondendo alla
+     domanda "cosa succede lato utente quando un giocatore abbandona il mondo": `world_repo.delete_world()`
+     cancella la riga `worlds` ma (per design dichiarato nel suo stesso docstring, mai più vero dal passo 3 in
+     poi) NON tocca `characters` — la propria istanza restava con `world_id` puntato a un mondo appena sparito.
+     `HomeView._partition_characters()` la raggruppa comunque per quel `world_id` (`by_world[world_id]`), ma
+     `refresh()` filtra le sezioni sui soli `available_worlds` (`world_repo.get_worlds_for_device()`, che non lo
+     contiene più): **il personaggio spariva del tutto dalla Home, in nessuna sezione** (non "locale" — `world_id`
+     ancora valorizzato —, non "in un mondo" — il mondo non c'è più —, non "Rimosso dai mondi" — quella sezione è
+     solo per `world_instance_archived`, mai scritto per un'uscita volontaria). Fix: nuova
+     `character_repo.detach_world_instances(world_id, owner_device_id)` — azzera `world_id`/
+     `origin_character_id`/`owner_device_id`/`world_seq` sulla PROPRIA copia locale (mai quella sull'host, che
+     resta archiviata da `_handle_member_leave` come già corretto), riportandola a personaggio locale a tutti gli
+     effetti (dati intatti: livello, inventario, incantesimi). Deliberatamente NON lo stesso trattamento
+     dell'espulsione (`archive_world_instances`, congelata in attesa di un rientro approvato dal master): qui è
+     uscita volontaria, il mondo sta per sparire anche localmente, un "rientro" non sarebbe nemmeno proponibile.
+     Chiamata in `_do_leave()` subito prima di `world_repo.delete_world()`.
+
+  3. **`ui/views/maps_view.py::_back_to_list()` — mappa condivisa che sparisce caricandone una locale** — bug
+     riprodotto dal vivo da Davide (vedi sopra). Causa: `_build()` (chiamata all'apertura della sezione) compone
+     correttamente `self._maps = maps_repo.get_maps(character_id) + self._shared_maps`, ma `_back_to_list()`
+     (richiamata tornando alla lista dopo aver aperto/creato una mappa personale — lo stesso passo che segue un
+     caricamento manuale) faceva `self._maps = maps_repo.get_maps(character_id)`, **senza** `+ self._shared_maps`
+     — stesso identico difetto già corretto in `diary_view.py::_load_notes()` la sessione precedente, qui mai
+     toccato. Non autoguarito: il ciclo di sync periodico (`_start_world_sync`) richiama
+     `_refresh_shared_maps()` (che avrebbe corretto la lista) SOLO quando la firma `world.last_synced_seq` cambia
+     — un'azione puramente locale come caricare una mappa propria non genera mai un nuovo evento nel giornale del
+     mondo, quindi la mappa condivisa restava assente indefinitamente, non solo per un istante, esattamente come
+     descritto da Davide. Fix: una riga, `self._maps = maps_repo.get_maps(character_id) + self._shared_maps`.
+
+  4. **Coda di ritentativo per i comandi `*.self_*`** — chiude il "punto debole reale" segnalato rispondendo alla
+     domanda "cosa succede se il giocatore inserisce una nota mentre il mondo non è hostato?": prima di questo fix
+     la risposta era "resta solo in locale finché non arriva un resync innescato da altro, che la sovrascrive" —
+     `push_character_self_command()` era "best effort" senza alcun ritentativo, a differenza di
+     `CMD_CHARACTER_INSTANCE_SYNC` (`host_sync_pending`/`push_pending_instances`, passo 6 sopra). Nuova tabella
+     `pending_self_commands` (id, character_id, world_id, device_id, kind, payload, created_at — self-healing in
+     `data/database.py`) + `world_repo.enqueue_pending_self_command()`/`list_pending_self_commands()`/
+     `delete_pending_self_command()`: `push_character_self_command()` mette in coda quando l'host non è
+     raggiungibile ORA (`backend is None`) o il trasporto solleva un'eccezione; nuova
+     `core/world_sync.py::push_pending_self_commands()` (stesso principio di `push_pending_instances`, stesso
+     cooldown anti-spam condiviso) la svuota in ordine FIFO al prossimo giro utile, chiamata dallo stesso loop di
+     `ui/views/world/world_view.py::WorldsView._start_detail_sync` che già chiama `push_pending_instances`. Scelta
+     deliberata: su un fallimento **non** si rimuove mai dalla coda (a differenza di
+     `push_pending_instances`/`push_pending_instance`, dove un rifiuto e un problema di raggiungibilità restano
+     distinguibili) — `RemoteBackend.send_command()` non solleva mai, quindi un host tornato di nuovo
+     irraggiungibile PROPRIO durante un ritentativo produrrebbe lo stesso esito di un vero rifiuto applicativo; la
+     scelta più sicura è ritentare sempre, al costo (mai osservato in pratica: i payload sono costruiti dal codice
+     stesso, mai da input libero) di un comando davvero invalido ritentato invano senza mai corrompere nulla. Un
+     rifiuto esplicito immediato (host raggiungibile, comando rifiutato) resta invece "sparato e dimenticato" come
+     prima — ritentarlo non lo farebbe mai riuscire.
+
+  **Risposte alle due domande dirette di Davide, verificate a codice (non solo a parole) e comunicate in chat,
+  ora entrambe chiuse**: "cosa succede se il giocatore inserisce una nota/mappa/altro mentre il mondo non è
+  hostato" — la scrittura LOCALE è sempre corretta subito; l'invio all'host va in coda e viene ritentato da solo
+  al ritorno online (punto 4 sopra, prima restava perso). "Cosa succede lato utente/master quando un giocatore
+  abbandona il mondo" — lato giocatore: disconnesso, mondo rimosso dalla lista, PROPRIO personaggio tornato
+  locale con tutti i dati intatti (punto 2 sopra); lato master: membro rimosso, istanza archiviata (già corretto
+  prima di questa sessione, solo verificato).
+
+  **Terzo aggiornamento della stessa sessione**, su domanda diretta di Davide sui due residui ambientali del
+  `Verificato` sotto ("mi spieghi cosa sono e se è il caso di eliminarli?"). `test_qr_scan.py`: confermato NON un
+  bug — `qr_scanner_view.py` importa `flet_camera`/`flet_permission_handler` in un `try/except ImportError` già
+  commentato nel sorgente come "pacchetto non installato in questo ambiente"; su un dispositivo reale o in CI con
+  quei pacchetti installati i due controlli passerebbero. Nessuna azione. `test_versione_app.py`: trovato un vero
+  BUG NEL TEST, non nell'app — il controllo "il prossimo versionCode supera quello di ogni tag già rilasciato"
+  confrontava `compute_build_number(FIRST_SIGNED_VERSION)` invece di `compute_build_number(APP_VERSION)`:
+  `FIRST_SIGNED_VERSION` è un marcatore storico FISSO ("prima versione firmata", `version.py`, mai pensato per
+  cambiare), quindi il controllo era strutturalmente destinato a fallire per sempre non appena fosse esistito un
+  tag più recente di v0.3.0 (v0.3.1 in poi, già taggati) — confrontava contro il passato, non "il prossimo".
+  Corretto a `version.APP_VERSION`. **Resta comunque rosso anche dopo il fix** (verificato: `APP_VERSION="0.3.2"`
+  in sorgente è ancora identico all'ultimo tag già pubblicato, `v0.3.2` — stesso versionCode, non superiore): è il
+  comportamento CORRETTO ora, un cancello pre-release che segnala "alza `APP_VERSION` prima del prossimo tag", non
+  un'asserzione pensata per restare sempre verde tra un rilascio e l'altro.
+
+  Verificato: `compileall` pulito, suite intera 36/38 file al 100% (`test_qr_scan.py` per limite d'ambiente —
+  pacchetti mobile-native non installati qui — e `test_versione_app.py` per il cancello pre-release descritto
+  sopra, non un vero residuo "ambientale" dopo il fix del refuso; un terzo file, `test_fase_4.py`, ha mostrato UNA
+  volta un fallimento su un test preesistente non deterministico — tiro d20 casuale confrontato come sottostringa
+  — e riconfermato 3/3 volte subito dopo, nessuna relazione con questa sessione). `test_note_e_inventario_sync.py`
+  esteso a 93/93 (da 80): oltre a quanto sopra, riproduce anche il meccanismo esatto del bug delle mappe (una
+  `MapsView` con mappe locali + una condivisa, `_back_to_list()` senza il fix fa sparire quella condivisa) e la
+  coda di ritentativo end-to-end (host offline → comando in coda → host torna online tramite un vero
+  `WorldHostServer` → coda svuotata con successo, id preservato). Nessuna regressione sulle suite esistenti
+  (`test_mondo_senza_rete.py` 197/197, `test_master_remote_actions.py` 81/81, `test_lan_host_client.py` 113/113,
+  `test_note_sharing.py` 26/26, `test_world_view_remote_routing.py` 16/16, `test_character_instance_sync.py`
+  20/20, `test_home_sync_rimozione_mondo.py` 14/14, `test_istanze_personaggio.py` 67/67, `test_mappe_condivise.py`
+  82/82, `test_mappe_condivise_ui.py` 64/64). **Lavoro svolto in
+  autonomia notturna su mandato esplicito di Davide ("porta a termine il lavoro, hai il permesso di fare quello
+  che vuoi") — nessun commit fatto**, da rivedere e testare dal vivo su due dispositivi fisici al risveglio
+  (stesso limite di sempre: un vero conflitto a due database separati non è simulabile in modo affidabile in
+  questo sandbox, qui verificato con lo stesso meccanismo — snapshot host applicato via
+  `import_replica_character()` — usato da `_resync_character_from_host()` stesso).
+
+- **Bottino: deposito del gruppo interattivo + campi meccanici arma/armatura (2026-08-20)** — seconda revisione
+  dello stesso giorno del passo 6, su bug report/richieste dirette di Davide dopo averlo provato dal vivo.
+
+  **1. Deposito del gruppo, da sola-lettura ad auto-servizio** — Davide: "non ne capisco il senso, serve solo a
+  mostrare il bottino... il gruppo non può interagire con esso?". Risposta: sì, ora può. Nuovo comando
+  `CMD_LOOT_STASH_CLAIM` (`core/world_permissions.py`, ruolo minimo `player` — l'unico comando `loot_stash.*` NON
+  riservato a master/owner) e handler `_handle_loot_stash_claim()` in `core/world_backend.py`: un giocatore prende
+  una voce per intero (mai una quota) direttamente sulla propria scheda in UN solo comando che applica e rimuove
+  insieme (a differenza di `CMD_LOOT_ASSIGN`, che lascia alla UI un secondo comando `CMD_LOOT_STASH_DELETE`).
+  Verifica di proprietà come `CMD_HP_SELF_UPDATE` (`perm.is_character_owner`): un giocatore reclama solo per il
+  proprio personaggio. Pulsante «Prendi» per voce in `WorldsView._shared_loot_section()`, visibile solo a un
+  membro con un personaggio attivo in quel mondo. **Bug pre-esistente trovato e corretto nello stesso giro**:
+  `CMD_LOOT_ASSIGN` non era mai stato aggiunto a `CHARACTER_MUTATING_COMMANDS` — un oggetto assegnato dal Master a
+  un giocatore su un dispositivo DIVERSO dall'host non faceva mai rimaterializzare la replica di quel giocatore
+  (mai per costruzione, non un caso raro). Corretto insieme a `CMD_LOOT_STASH_CLAIM` (stessa forma). Design doc
+  aggiornato in `loot_design.md` §6.
+
+  **2. Campi meccanici per voci "weapon"/"armor"** — Davide: "il tipo di voce... non ti fa selezionare armi
+  armature... devono avere le stesse caselle di quando crei l'arma o l'armatura nella sezione giocatore, manca il
+  danno il tipo di arma ecc.", e la stessa lacuna nell'Oggetto Magico Personalizzato. Nuove 9 colonne
+  `loot_stash_entries.weapon_*`/`armor_*` (migrazione self-healing in `data/database.py`), nuovi campi omonimi su
+  `LootStashEntry`. Due nuovi `entry_kind`: "weapon" (dado danno, tipo danno, categoria semplice/guerra,
+  proprietà testo libero, bonus attacco/danno magici) e "armor" (CA base, tipo leggera/media/pesante/scudo,
+  effetti testo libero) — stesso sottoinsieme di campi già offerto e approvato da Davide (non l'intero dialog
+  armi del giocatore con Versatile/Accurata/override attacco: quelli dipendono dal personaggio che la riceverà,
+  non dalla voce di bottino). Form condivisi `build_weapon_mechanics_fields()`/`build_armor_mechanics_fields()` in
+  `master_loot_assign_dialog.py`, riusati da **entrambi** i punti lamentati da Davide: "+ Aggiungi voce"/"Modifica
+  Voce" di `master_loot_view.py`, e l'Oggetto Magico Personalizzato di `master_magic_item_generator_dialog.py`
+  (nuova `_custom_mechanics_kind()`: la categoria scelta — "Arma (qualsiasi spada)", "Armatura (scudo)", ecc. —
+  determina se mostrare le caselle meccaniche, riusando lo stesso `magic_item_category_base()` già impiegato da
+  `magic_items_view.py` per l'icona). **Una voce "weapon" assegnata/presa crea sempre una riga vera in `weapons`,
+  mai un `inventory_items` generico** (`character_repo.create_weapon()`); "armor" crea un `inventory_items` con
+  `category="armor"` e i campi CA/tipo/effetti — stessa logica duplicata correttamente nei 3 punti che scrivono su
+  un personaggio: `_handle_loot_assign`/`_handle_loot_stash_claim` (rete, in `core/world_backend.py`) e
+  `_create_recipient_item()` (locale, in `master_loot_assign_dialog.py`). I campi meccanici sopravvivono anche
+  quando una voce arma/armatura viene rimandata al deposito/archivio invece che assegnata (bug collaterale
+  trovato e corretto in corsa: `_move_or_create_stash()`/`_create_stash_split()` non li propagavano).
+
+  **Bug di battitura trovato durante l'implementazione**: l'INSERT di `loot_repo.create_entry()`/
+  `replica_upsert_entry()` aveva 25 colonne ma solo 24 placeholder `?` — un `?` mancante in entrambe le query dopo
+  l'aggiunta delle 9 nuove colonne (sqlite3 solleva `ProgrammingError`, `create_entry()` lo cattura e ritorna
+  `None` silenziosamente: **ogni voce di bottino, di qualunque tipo, avrebbe smesso di salvarsi** se non catturato
+  dai test prima del commit). Trovato subito dal primo giro di test dopo la migrazione schema, corretto.
+
+  Verificato: `compileall` pulito, suite intera 33/35 file al 100% (stessi 2 residui ambientali pre-esistenti —
+  `test_qr_scan.py`, `test_versione_app.py`). Nuovi test: `test_loot_stash_claim()`,
+  `test_loot_weapon_armor_mechanics()` in `test_master_world_scoping.py` (round trip repository, presa dal
+  deposito con verifica che l'arma finisca in `weapons` e MAI in `inventory_items`, assegnazione dal Master con
+  gli stessi campi); `test_worlds_view_claim_loot()` (click reale sul pulsante «Prendi», dialog di conferma
+  incluso) e `test_custom_magic_item_weapon_armor_detection()` in `test_mondo_senza_rete.py`. **Nessun commit
+  fatto.**
+  **Non affrontato in questo giro** (segnalato da Davide, richiede design): fields per veleni/gemme/oggetti
+  d'arte oltre ad arma/armatura — non richiesti esplicitamente, restano voci testo libero come prima.
+
+- **Bottino: "Salva nell'archivio"/"Sposta nell'archivio" risultavano vuoti, assegnazione dal Compendio Oggetti
+  Magici sempre locale (2026-08-20)** — bug report Davide dopo aver provato il passo 6. Tre cause distinte, stessa
+  famiglia (world-scoping incompleto):
+  1. **`save_items_to_stash(items)` chiamata senza `world_id=world_id` in TUTTI E SEI i punti che la usano**
+     (`master_artifacts_dialog.py` ×2, `master_health_hazards_dialog.py`, `master_magic_item_generator_dialog.py`,
+     `master_treasure_dialog.py`, `magic_items_view.py`) — le voci finivano sempre in `world_id=""`, invisibili
+     nella vista Archivio che filtra per il mondo selezionato in `MasterView`. `world_id` era già disponibile in
+     ogni chiamante (usato correttamente due righe sopra per "Assegna…"): un parametro dimenticato, non un problema
+     di design. Fix: aggiunto `world_id=world_id` a tutte e sei le chiamate.
+  2. **`core/world_backend.py::_handle_loot_stash_move`** azzerava `new_world_id` a `""` quando la destinazione era
+     `"master"` (`new_world_id=ctx.world_id if new_kind == "party" else ""`) — "Sposta all'Archivio" da
+     `master_loot_view.py` (tab Bottino, con un mondo selezionato) passa da questo handler via
+     `CMD_LOOT_STASH_MOVE`, quindi la voce spostata spariva dalla vista Archivio pur essendo tecnicamente ancora
+     nel DB. Fix: `new_world_id=ctx.world_id` sempre, in entrambe le direzioni — l'archivio del Master resta
+     privato/mai sincronizzato ma è comunque world-scoped, esattamente come il deposito del gruppo (stesso
+     principio già stabilito dall'audit del 2026-08-12, "loot_repo — Bottino... world-scoped su ENTRAMBI gli
+     stash_kind").
+  3. **`MagicItemsView` (tab "Oggetti Magici" della Sezione Master, `ui/views/magic_items_view.py`) era l'UNICA tab
+     istanziata senza `world_id`/`device_id`** (`MasterMagicItemsView()` in `master_view.py:654`, contro
+     `MasterLootView(world_id=..., device_id=...)`/`MasterNpcListView(world_id=...)`/ecc. per tutte le altre 4
+     tab) — "Assegna…" e "Salva nell'archivio" dal Compendio (264 voci) risultavano quindi SEMPRE locali:
+     `character_repo.get_master_visible_characters("")` mostra solo i personaggi locali (mai le istanze del mondo
+     selezionato, vedi il suo stesso docstring), e l'assegnazione non passava mai da `CMD_LOOT_ASSIGN` verso
+     l'host. Fix: `MagicItemsView.__init__` accetta ora `world_id`/`device_id`, li inoltra a
+     `show_loot_assign_dialog()`/`save_items_to_stash()`, `master_view.py` li passa come ogni altra tab.
+  **Audit di coerenza** (richiesto esplicitamente da Davide, "controlla anche le altre sezioni"): verificati tutti
+  i punti che generano bottino nella Sezione Master — Generatore Tesori, Generatore Oggetti Magici, Compendio
+  Oggetti Magici, Artefatti, Veleni (tutti e 5 ora coerenti) — e le due tab senza funzioni di bottino, Trappole e
+  Ambiente (`show_traps_dialog`/`show_forest_encounters_dialog`, nessun bug: non generano mai voci assegnabili,
+  quindi non necessitavano di questo wiring). Nessun'altra tab Master risultava mancante.
+  Nuovi test: `test_loot_stash_move_handler_preserves_world_id()` in `test_master_world_scoping.py` (sezione [7],
+  passa dal vero `CMD_LOOT_STASH_MOVE` via `LocalBackend`, non dalla funzione di repository direttamente, per
+  coprire lo strato che conteneva il bug reale); `test_magic_items_view_world_scoped_loot()` in
+  `test_mondo_senza_rete.py` (sezione [10], apre davvero il dialog di dettaglio di una voce del Compendio e clicca
+  "Salva nell'archivio"/"Assegna…" per verificare che il world_id/device_id arrivino corretti). Verificato:
+  `compileall` pulito, suite intera 33/35 file al 100% (stessi 2 residui ambientali pre-esistenti). **Nessun
+  commit fatto.**
+  **Non affrontato in questo giro, segnalato da Davide nello stesso bug report** (richiede più lavoro/decisioni di
+  design, vedi CLAUDE.md "Piano di lavoro attivo"): tipi di voce limitati in "+ Aggiungi voce" del Bottino (niente
+  arma/armatura con i campi dedicati danno/tipo arma/CA), stessa lacuna nell'Oggetto Magico Personalizzato quando
+  si sceglie di crearlo come arma/armatura, e una domanda di design aperta sullo scopo del Deposito del Gruppo
+  (oggi in sola lettura per i giocatori — Davide ne chiede conferma/chiarimento).
+
+- **Sistema Bottino, passo 6 — deposito del gruppo lato giocatore (2026-08-20)** — ultimo passo rimasto di
+  `loot_design.md` §8, sbloccato dal modello mondo del Multiplayer (passo 2, chiuso il 2026-08-05). Tutta
+  l'infrastruttura di rete (comandi `CMD_LOOT_STASH_*`, evento di giornale, sync via snapshot/evento incrementale
+  su `loot_repo.replica_upsert_entry`/`replica_delete_entry`) era **già stata costruita insieme ai passi 1-5** —
+  mancava solo la UI: nessuna vista lato giocatore mostrava mai il deposito comune (`stash_kind="party"`).
+  Aggiunta `WorldsView._shared_loot_section()` in `ui/views/world/world_view.py` — sola lettura, visibile a
+  QUALSIASI membro del mondo (non solo master/owner), stesso principio di `_shared_notes_section()`/
+  `_shared_maps_section()` già presenti nella stessa vista: mostra nome/quantità/riepilogo monete di ogni voce nel
+  deposito, mai l'archivio privato del Master (`stash_kind="master"`, resta un contenitore separato per
+  `world_id`+`stash_kind`). Nessun pulsante di assegnazione/modifica/eliminazione qui, per design (§6: "non può
+  servirsi da solo — è il master a distribuire"): l'assegnazione resta un privilegio della tab «Bottino» della
+  Sezione Master (`master_loot_view.py`), che già scrive su inventario/monete del destinatario e lascia una riga
+  nel registro mostrato da `_events_section()`, riusata as-is (nessuna modifica lì). Riuso diretto di
+  `_coin_summary()`/`_KIND_ICONS`/`_KIND_LABELS`/`_MAGIC_KINDS` da `master_loot_view.py` (stesso pattern di import
+  già in uso in questo file per `ui/views/maps_view.py`) invece di duplicare la logica di rendering. Nuovo test
+  `test_worlds_view_shared_loot()` in `test_mondo_senza_rete.py` (sezione [9], 10 controlli nuovi): sezione assente
+  a deposito vuoto, voce dell'archivio privato del Master mai visibile qui, voci del deposito visibili a master E
+  giocatore semplice, nessuna azione di modifica esposta. Verificato: `compileall` pulito, suite intera 33/35 file
+  al 100% (stessi 2 residui ambientali pre-esistenti — `test_qr_scan.py`, `test_versione_app.py`, non causati da
+  questo lavoro). **Nessun commit fatto.**
+
 - **Aggiornamento automatico in-app + trasferimento del personaggio su un altro dispositivo (2026-08-17)** — due
   richieste di Davide nella stessa sessione, che si sono rivelate lo stesso problema visto da due lati.
   Progettazione in `multiplayer_design.md` §11.9 (trasferimento) e `RELEASE.md` (firma di rilascio); dettaglio dei
