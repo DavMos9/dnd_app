@@ -517,3 +517,15 @@ e note in `test_qr_scan.py`, indipendenti da questa feature.
   tutto il resto del codice). Dettaglio completo, incluso il limite
   dichiarato su competenze/incantesimi non ripuliti automaticamente, in
   `changelog_storico.md`, voce omonima.
+- ~~**Export/import `.dndchar` e copia del personaggio perdevano la
+  classe secondaria.**~~ **Fatto (2026-08-24).** `character_export.py::
+  CHILD_TABLES` — la lista di tabelle figlio che export/import copiano
+  genericamente via introspezione dello schema — non includeva
+  `character_classes`, mai aggiunta quando la tabella è nata (§2 sopra).
+  Bug trovato dal vivo esportando e reimportando un personaggio
+  multiclasse reale; impatto più ampio del previsto perché
+  `core/character_instances.py::_copy_character()` (richiamata anche
+  quando un personaggio ENTRA in un mondo condiviso) usa la stessa
+  coppia di funzioni. Fix a una riga (aggiunta alla lista, il resto della
+  macchina è già generico); coperto da `test_export_import_multiclasse.py`.
+  Dettaglio completo in `changelog_storico.md`, voce omonima.
