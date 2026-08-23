@@ -4675,6 +4675,38 @@ class ProfiloTab(ScrollMemoryListView):
             self.character.level = new_level
             self.character.hp_max = max(1, self.character.hp_max - hp_loss)
             self.character.hp_current = min(self.character.hp_current, self.character.hp_max)
+            # BUG FIX (2026-08-23, stesso giro di playtest del fix
+            # character_classes.level qui sotto): do_level_up() fa sempre
+            # `c.hit_dice_total += 1` ("Dadi vita: +1 per ogni livello
+            # acquisito, PHB p.12"), ma qui non veniva mai tolto — un
+            # level-down lasciava per sempre un dado vita fantasma in più.
+            # Simmetrico all'incremento di do_level_up() (`remaining =
+            # min(remaining + 1, total)`, che mantiene invariato il numero
+            # di dadi già SPESI): qui `remaining - 1` mantiene invariato lo
+            # stesso numero di dadi spesi, non semplicemente un min() col
+            # nuovo totale (che regalerebbe un dado vita in più non
+            # guadagnato, l'esatta asimmetria di questo bug).
+            self.character.hit_dice_total = max(1, self.character.hit_dice_total - 1)
+            self.character.hit_dice_remaining = max(0, min(
+                self.character.hit_dice_remaining - 1, self.character.hit_dice_total,
+            ))
+            # BUG FIX (2026-08-23, trovato dal vivo durante un playtest):
+            # character_classes.level della classe primaria non veniva mai
+            # decrementato qui — solo do_level_up() lo risincronizzava (vedi
+            # il commento gemello lì, "vanno risincronizzati PRIMA del
+            # salvataggio"). Restava quindi fermo al valore precedente più
+            # alto: il prossimo Level Up leggeva quel valore stantio
+            # (get_primary_character_class().level) come "livello attuale"
+            # e proponeva un salto di livello sbagliato — riprodotto in
+            # sessione live: down 9→8 lasciava la riga classe a 9, il
+            # successivo "Level up" offriva "Avanzamento a Livello 10"
+            # invece di 9. Nessun target di classe da scegliere qui (a
+            # differenza di do_level_up, level-down non ha ancora un
+            # selettore multiclasse): si assume sempre la classe primaria,
+            # coerente con new_level = c.level - 1 poco sopra.
+            _primary_cc_ld = character_repo.get_primary_character_class(self.character.id)
+            if _primary_cc_ld is not None:
+                character_repo.set_character_class_level(_primary_cc_ld.id, new_level)
             if not character_repo.update(self.character):
                 show_error_dialog(page)
                 return

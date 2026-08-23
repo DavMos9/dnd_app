@@ -3201,8 +3201,16 @@ class WorldsView(ft.Column):
 
     def _archived_character_row(self, character: Character) -> ft.Control:
         p = d.T()
-        class_line = character.class_name
-        if character.subclass:
+        # BUG FIX (2026-08-24, stesso giro di audit multiclasse del fix
+        # export/import): usava solo characters.class_name/subclass, quindi
+        # un personaggio multiclasse archiviato mostrava solo la classe
+        # primaria — stessa causa di fondo (un campo legacy usato al posto
+        # di get_class_display_string()) della card "Test Sweep" con solo
+        # "Monaco" trovata testando l'import di un file .dndchar.
+        class_line = character_repo.get_class_display_string(
+            character.id, fallback_class_name=character.class_name,
+        )
+        if character.subclass and " / " not in class_line:
             class_line += f" ({character.subclass})"
         archived_on = (character.updated_at or "")[:10]
         return d.asymmetric_row(

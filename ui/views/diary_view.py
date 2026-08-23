@@ -65,6 +65,7 @@ CATEGORIES: list[dict[str, Any]] = [
         "list_label": "CAPITOLI",
         "add_label":  "Nuova Voce",
         "empty_msg":  "Nessuna voce ancora.\nPremi «Nuova Voce» per iniziare.",
+        "none_selected_msg": "Nessuna voce selezionata",
     },
     {
         "key":        "npc",
@@ -74,6 +75,7 @@ CATEGORIES: list[dict[str, Any]] = [
         "list_label": "PERSONAGGI",
         "add_label":  "Aggiungi PNG",
         "empty_msg":  "Nessun personaggio registrato.\nAggiungi i PNG che hai incontrato.",
+        "none_selected_msg": "Nessun personaggio selezionato",
     },
     {
         "key":        "npc_todo",
@@ -83,6 +85,7 @@ CATEGORIES: list[dict[str, Any]] = [
         "list_label": "DA TROVARE",
         "add_label":  "Aggiungi PNG",
         "empty_msg":  "Nessun personaggio da cercare.\nAggiungi chi devi ancora incontrare.",
+        "none_selected_msg": "Nessun personaggio selezionato",
     },
     {
         "key":        "place",
@@ -92,6 +95,7 @@ CATEGORIES: list[dict[str, Any]] = [
         "list_label": "LUOGHI",
         "add_label":  "Aggiungi Luogo",
         "empty_msg":  "Nessun luogo registrato.\nAggiungi i luoghi che hai esplorato.",
+        "none_selected_msg": "Nessun luogo selezionato",
     },
     {
         "key":        "place_todo",
@@ -101,6 +105,7 @@ CATEGORIES: list[dict[str, Any]] = [
         "list_label": "OBIETTIVI",
         "add_label":  "Aggiungi Luogo",
         "empty_msg":  "Nessun obiettivo segnato.\nAggiungi i luoghi che vuoi esplorare.",
+        "none_selected_msg": "Nessun obiettivo selezionato",
     },
     {
         "key":        "quest",
@@ -110,6 +115,7 @@ CATEGORIES: list[dict[str, Any]] = [
         "list_label": "MISSIONI",
         "add_label":  "Aggiungi Missione",
         "empty_msg":  "Nessuna missione registrata.\nTieni traccia delle tue quest.",
+        "none_selected_msg": "Nessuna missione selezionata",
     },
     {
         "key":        "faction",
@@ -119,6 +125,7 @@ CATEGORIES: list[dict[str, Any]] = [
         "list_label": "FAZIONI",
         "add_label":  "Aggiungi Fazione",
         "empty_msg":  "Nessuna fazione registrata.\nTieni traccia delle organizzazioni.",
+        "none_selected_msg": "Nessuna fazione selezionata",
     },
     # "event"/"secret": categorie di `MasterCampaignNote` non presenti tra
     # quelle del giocatore — aggiunte qui perché una nota condivisa dal
@@ -132,6 +139,7 @@ CATEGORIES: list[dict[str, Any]] = [
         "list_label": "EVENTI",
         "add_label":  "Aggiungi Evento",
         "empty_msg":  "Nessun evento registrato.",
+        "none_selected_msg": "Nessun evento selezionato",
     },
     {
         "key":        "secret",
@@ -141,6 +149,7 @@ CATEGORIES: list[dict[str, Any]] = [
         "list_label": "SEGRETI",
         "add_label":  "Aggiungi Segreto",
         "empty_msg":  "Nessun segreto registrato.",
+        "none_selected_msg": "Nessun segreto selezionato",
     },
 ]
 
@@ -933,7 +942,7 @@ class DiaryView(ft.Column):
         if note is None:
             return self._full_empty_state(
                 meta["icon_on"],
-                f"Nessuna {meta['label'].lower()} selezionata",
+                meta["none_selected_msg"],
                 meta["empty_msg"],
             )
         # Nota condivisa dal master: sola lettura, modificarla resta compito

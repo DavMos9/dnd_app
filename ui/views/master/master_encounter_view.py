@@ -494,12 +494,12 @@ class MasterEncounterView(ScrollMemoryColumn):
                         ft.IconButton(ft.Icons.REMOVE_CIRCLE_OUTLINE, icon_size=16,
                                       icon_color=design.T().danger_icon,
                                       tooltip="Applica danno",
-                                      on_click=lambda e, mm=m: self._on_hp_delta(mm, -1)),
+                                      on_click=lambda e, mm=m, nm=name: self._open_monster_damage_dialog(mm, nm)),
                         ft.Text(f"PF {hp_current}/{hp_max}", size=12, color=hp_color, weight=ft.FontWeight.W_600),
                         ft.IconButton(ft.Icons.ADD_CIRCLE_OUTLINE, icon_size=16,
                                       icon_color=design.T().primary_icon,
                                       tooltip="Applica cura",
-                                      on_click=lambda e, mm=m: self._on_hp_delta(mm, 1)),
+                                      on_click=lambda e, mm=m, nm=name: self._open_monster_heal_dialog(mm, nm)),
                     ],
                     spacing=0, tight=True,
                 )
@@ -1369,8 +1369,39 @@ class MasterEncounterView(ScrollMemoryColumn):
 
     def _on_hp_delta(self, member, delta: int):
         new_hp = max(0, member.hp_current + delta)
+        if member.hp_max:
+            new_hp = min(new_hp, member.hp_max)
         master_repo.update_member_hp(member.id, new_hp)
         self.refresh()
+
+    def _open_monster_damage_dialog(self, member, name: str) -> None:
+        """Stesso dialog "Applica danno" già in uso per un PG (`remote_
+        action_dialogs.show_damage_dialog`, condiviso con "Interviene a
+        distanza"), qui riusato per un mostro/NPC: prima del fix il click
+        applicava un punto ferita fisso (`_on_hp_delta(mm, -1)`), quindi
+        un danno a due cifre richiedeva un clic per punto — inutilizzabile
+        a metà scontro. Nessuna pipeline di comando qui: un mostro/NPC non
+        è un'istanza di `characters` da sincronizzare altrove, quindi il
+        payload scrive direttamente sulla riga dell'incontro via
+        `_on_hp_delta`, non tramite rete."""
+        page = self._page
+        if page is None:
+            return
+        from ui.components.remote_action_dialogs import show_damage_dialog
+        show_damage_dialog(
+            page, name,
+            lambda payload, mm=member: self._on_hp_delta(mm, -int(payload["amount"])),
+        )
+
+    def _open_monster_heal_dialog(self, member, name: str) -> None:
+        page = self._page
+        if page is None:
+            return
+        from ui.components.remote_action_dialogs import show_heal_dialog
+        show_heal_dialog(
+            page, name,
+            lambda payload, mm=member: self._on_hp_delta(mm, int(payload["amount"])),
+        )
 
     # ------------------------------------------------------------------
     # Azioni master su un PG istanza di mondo, direttamente dall'incontro:

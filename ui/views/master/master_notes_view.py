@@ -53,48 +53,56 @@ CATEGORIES: list[dict[str, Any]] = [
         "icon_off": ft.Icons.PEOPLE_OUTLINE, "icon_on": ft.Icons.PEOPLE,
         "list_label": "PERSONAGGI", "add_label": "Aggiungi PNG",
         "empty_msg": "Nessun personaggio registrato.\nAggiungi i PNG che vuoi tenere d'occhio.",
+        "none_selected_msg": "Nessun personaggio selezionato",
     },
     {
         "key": "npc_todo", "label": "PNG da Cercare",
         "icon_off": ft.Icons.PERSON_SEARCH_OUTLINED, "icon_on": ft.Icons.PERSON_SEARCH,
         "list_label": "DA TROVARE", "add_label": "Aggiungi PNG",
         "empty_msg": "Nessun personaggio da cercare.\nAggiungi chi il gruppo deve ancora incontrare.",
+        "none_selected_msg": "Nessun personaggio selezionato",
     },
     {
         "key": "place", "label": "Luoghi",
         "icon_off": ft.Icons.PLACE_OUTLINED, "icon_on": ft.Icons.PLACE,
         "list_label": "LUOGHI", "add_label": "Aggiungi Luogo",
         "empty_msg": "Nessun luogo registrato.\nAggiungi i luoghi della tua campagna.",
+        "none_selected_msg": "Nessun luogo selezionato",
     },
     {
         "key": "place_todo", "label": "Da Esplorare",
         "icon_off": ft.Icons.EXPLORE_OUTLINED, "icon_on": ft.Icons.EXPLORE,
         "list_label": "OBIETTIVI", "add_label": "Aggiungi Luogo",
         "empty_msg": "Nessun obiettivo segnato.\nAggiungi i luoghi che il gruppo non ha ancora esplorato.",
+        "none_selected_msg": "Nessun obiettivo selezionato",
     },
     {
         "key": "quest", "label": "Missioni",
         "icon_off": ft.Icons.ASSIGNMENT_OUTLINED, "icon_on": ft.Icons.ASSIGNMENT,
         "list_label": "MISSIONI", "add_label": "Aggiungi Missione",
         "empty_msg": "Nessuna missione registrata.\nTieni traccia delle quest della campagna.",
+        "none_selected_msg": "Nessuna missione selezionata",
     },
     {
         "key": "faction", "label": "Fazioni",
         "icon_off": ft.Icons.FLAG_OUTLINED, "icon_on": ft.Icons.FLAG,
         "list_label": "FAZIONI", "add_label": "Aggiungi Fazione",
         "empty_msg": "Nessuna fazione registrata.\nTieni traccia delle organizzazioni della campagna.",
+        "none_selected_msg": "Nessuna fazione selezionata",
     },
     {
         "key": "event", "label": "Eventi",
         "icon_off": ft.Icons.EVENT_OUTLINED, "icon_on": ft.Icons.EVENT,
         "list_label": "EVENTI", "add_label": "Aggiungi Evento",
         "empty_msg": "Nessun evento registrato.\nTieni traccia di eventi in corso o pianificati.",
+        "none_selected_msg": "Nessun evento selezionato",
     },
     {
         "key": "secret", "label": "Segreti",
         "icon_off": ft.Icons.LOCK_OUTLINE, "icon_on": ft.Icons.LOCK,
         "list_label": "SEGRETI", "add_label": "Aggiungi Segreto",
         "empty_msg": "Nessun segreto registrato.\nAppunti riservati al solo Master.",
+        "none_selected_msg": "Nessun segreto selezionato",
     },
 ]
 
@@ -488,7 +496,7 @@ class MasterNotesView(ft.Column):
         meta = _cat_meta(self._active_cat)
         if note is None:
             return self._full_empty_state(
-                meta["icon_on"], f"Nessuna {meta['label'].lower()} selezionata", meta["empty_msg"],
+                meta["icon_on"], meta["none_selected_msg"], meta["empty_msg"],
             )
         if self._note_edit:
             return self._build_note_edit_panel(note)

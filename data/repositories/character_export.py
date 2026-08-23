@@ -76,6 +76,17 @@ CHILD_TABLES: tuple[str, ...] = (
     # `_resync_character_from_host()` rimaterializza il personaggio
     # SOLO dalle tabelle elencate qui.
     "character_conditions",
+    # BUG FIX (2026-08-24, trovato dal vivo testando export/import
+    # .dndchar e "Crea copia"): mancava dalla lista fin dall'introduzione
+    # della tabella (2026-08-12, schema multiclasse) — un personaggio
+    # multiclasse esportato/importato o duplicato (anche via
+    # `core/character_instances.py::_copy_character`, quindi anche
+    # entrando in un mondo) perdeva silenziosamente ogni classe secondaria,
+    # tornando mono-classe. Ha lo stesso FK CASCADE delle altre tabelle qui
+    # sopra (vedi CREATE TABLE in data/database.py) quindi la sola aggiunta
+    # basta: `_write_character_and_children()` la gestisce già come tutte
+    # le altre (nuovo id, character_id riscritto al target).
+    "character_classes",
 )
 
 

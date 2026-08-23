@@ -11730,6 +11730,263 @@ repository e `Dockerfile`. **Nessun commit fatto**, in attesa di conferma di Dav
 
 ---
 
+## Playtest dal vivo di Claude (Flet web mode + Playwright) — danno/cura mostri nel tracker, bump versione (2026-08-23)
+
+Richiesta di Davide: "controlla il progetto... testa l'app come se stessi organizzando
+una sessione con master e giocatori", prima di consultare il second brain Obsidian
+(wiki-query) per pattern trasversali. Novità di metodo rispetto alle sessioni precedenti:
+l'app è stata davvero **lanciata e pilotata** (non solo letta/testata a unit test) —
+`FLET_WEB=true python main.py`, poi Playwright/Chromium headless con screenshot reali ad
+ogni passo, simulando un Master che prepara una sessione (crea un mondo, avvia l'hosting
+LAN, apre la Sezione Master, cerca un mostro nel Bestiario, popola il tracker di
+combattimento, usa il Calcolatore Difficoltà). L'intera test suite (45 file) è stata
+anche rilanciata per intero fuori dal batch multiplayer abituale — tutta verde a parte due
+falsi negativi ambientali (porta 8765 occupata dal server web di prova lanciato in
+parallelo; `pyzbar` non installato in questo venv, già previsto/commentato in
+`pyproject.toml`).
+
+**Bug trovato e corretto — `ui/views/master/master_encounter_view.py`**: nel tracker di
+combattimento, un PG istanza di mondo ha un vero dialog "Applica danno"/"Applica cura" con
+importo numerico (`ui/components/remote_action_dialogs.py`, condiviso con "Interviene a
+distanza"), ma un mostro/NPC nello stesso tracker aveva solo due iconcine ±1
+(`self._on_hp_delta(mm, -1)`/`(mm, 1)` hardcoded) — nessun campo numerico, nessuna
+scorciatoia. Un danno a due cifre (comunissimo: 1d8+3 di una spada lunga, una Palla di
+Fuoco su più mostri) richiedeva un clic per punto ferita, proprio nel momento in cui il
+tavolo aspetta che il turno vada avanti. Trovato leggendo il codice dopo essersi accorti
+dell'asimmetria nella UI dal vivo (screenshot dei due controlli affiancati), non solo
+cliccando.
+
+**Fix**: i due `IconButton` ±/+ di un mostro/NPC ora aprono lo stesso
+`show_damage_dialog`/`show_heal_dialog` già in uso per i PG, invece di chiamare
+`_on_hp_delta` con un delta fisso — nuovi metodi `_open_monster_damage_dialog()`/
+`_open_monster_heal_dialog()`. Nessuna pipeline di comando di rete coinvolta (un
+mostro/NPC non ha un `characters` proprio da sincronizzare altrove): il payload del
+dialog scrive direttamente sulla riga dell'incontro via `_on_hp_delta`, invariato nella
+firma. Corretto anche un bug collaterale minimo nello stesso `_on_hp_delta`: il delta
+positivo non era mai clampato a `hp_max` (solo `max(0, ...)` sul lato danno), quindi
+curare ripetutamente un mostro già "in salute" poteva spingere `hp_current` oltre
+`hp_max` — ora clampato su entrambi i lati, coerente con la barra PF che assume
+`hp_current <= hp_max`. Il campo "Colpo critico" del dialog danno (rilevante solo per i
+tiri salvezza contro la morte di un PG, `core/damage_rules.py`) resta nel payload ma non
+viene letto in questo percorso — non si applica a un mostro.
+
+Verificato con un nuovo file dedicato, `test_encounter_monster_damage_dialog.py` (5/5):
+apertura dialog dal click, importo a due cifre applicato in un solo invio (danno e cura),
+clamp a `hp_max` sulla cura, pavimento a 0 sul danno eccessivo — nessun test esistente
+copriva questo percorso (`_on_hp_delta` non compariva in nessun altro `test_*.py`), motivo
+per cui il gap non era mai stato intercettato prima. Nessuna regressione:
+`test_combat_tracker_condiviso.py` 47/47, `test_master_world_scoping.py` 96/96,
+`test_master_remote_actions.py` 81/81, `test_fase_4.py` 303/303,
+`test_mondo_senza_rete.py` 215/215, più l'intera suite di 45 file rilanciata per intero.
+
+**Housekeeping collaterale**: `version.py` (`APP_VERSION`) e `pyproject.toml`
+(`[project].version`) erano fermi a `"0.3.4"` mentre l'HEAD del repo era già un commit
+avanti al tag di rilascio `v0.3.4` — esattamente il caso che `test_versione_app.py` esiste
+per intercettare, e che infatti risultava rosso su questo checkout. Bump di entrambi a
+`0.3.5` in lockstep (`test_fonte_di_verita_unica` impone che coincidano); nessun'altra
+occorrenza di `0.3.4` residua nel codice applicativo.
+
+---
+
+## Bug reale: Level Down non risincronizzava character_classes.level — trovato dal vivo, corrotto e ripristinato un personaggio di produzione (2026-08-23, sessione "allarghiamo la ricerca")
+
+Continuazione della sessione precedente sullo stesso giorno: Davide ha chiesto di allargare
+la ricerca di gap "da tavolo" ad altre aree non ancora coperte dal playtest (incantesimi in
+combattimento, riposo, mappe, level-up, export PDF), sempre con l'app lanciata e pilotata
+dal vivo (Flet web mode + Playwright), non solo letta.
+
+**Riposo e incantesimi — nessun problema trovato**, entrambi ben rifiniti: "Riposo Breve"
+tira i dadi vita con trasparenza completa (roll panel con il dettaglio dei singoli dadi),
+"Riposo Lungo" mostra un preview onesto di TUTTO quello che verrà ripristinato/azzerato
+prima di chiedere conferma (HP, dadi vita 8→+4 per la regola PHB del riposo lungo, slot
+incantesimo, risorse di classe, azioni turno, TS morte, bonus CA temp, forme/evocazioni),
+e gli slot incantesimo BG3-style rispondono correttamente a un singolo clic (un incantatore
+lancia UN incantesimo alla volta — a differenza del ±1 dei PF mostri sistemato nella
+sessione precedente, qui la granularità a un clic è quella corretta, non un gap).
+
+**Disegno mappe — verifica inconcludente, non un finding**: un tratto di penna disegnato via
+Playwright (drag sintetico, anche con step granulari e pause) non appariva sulla mappa. Prima
+di segnalarlo come bug, verificato che la LOGICA di salvataggio/normalizzazione del tratto è
+già coperta da `test_mappe_locali_coordinate.py` (21/21, chiama `_on_pan_start/_on_pan_update/
+_on_pan_end` direttamente) — quindi il problema, se esiste, è nel riconoscimento del gesto
+Flutter (`GestureDetector` annidato dentro un `InteractiveViewer`, già oggetto di un gotcha
+gesture-arena noto e documentato in `regole_flet_api.md`/vault, §"lo zoom funziona per pc ma
+non per smartphone" del 2026-08-20), non nella logica applicativa. Stessa categoria del
+falso positivo Ctrl+A trovato nella sessione precedente: un limite del driving automatico
+via Playwright su un `GestureDetector` complesso, non necessariamente un bug reale — non
+riportato come finding, segnalato solo come "andrebbe controllato a mano" se serve certezza.
+
+**Level Up / Level Down — bug reale trovato, e un incidente durante la sua scoperta.**
+Testando il ciclo su→giù sul personaggio reale "Thempest Zephyrion" (Paladino Lv.8),
+un errore di sequenza nello script di test ha rieseguito "Level down" una seconda volta
+su un personaggio già tornato a Lv.8 (invece di fermarsi lì), portandolo per errore a
+Lv.7/FOR 18/PF 53 — un incidente della sessione di test, non un bug applicativo. Nel
+diagnosticarlo però è emerso un problema reale: il dialog "Level Up" successivo proponeva
+"Avanzamento a **Livello 10**" nonostante il personaggio fosse a Lv.7.
+
+**Causa**: `ui/views/character_sheet/profilo_tab.py::do_level_up()` risincronizza SIA
+`characters.level` SIA `character_classes.level` della classe primaria (commento
+esplicito nel codice: "vanno risincronizzati PRIMA del salvataggio"), ma `do_level_down()`
+aggiornava solo `characters.level` — mai la riga `character_classes`, che restava quindi
+ferma al valore precedente più alto. Dato che `_on_level_up_click()` legge il livello
+BERSAGLIO da `get_primary_character_class().level` (non da `character.level`), un solo
+level-down su QUALSIASI personaggio (non solo multiclasse — ogni personaggio ha una riga
+`character_classes` primaria dalla migrazione del 2026-08-12) lascia una bomba a
+orologeria silente: il prossimo Level Up calcola il target dal valore stantio e propone
+un livello sbagliato, senza alcun errore visibile finché non si guarda con attenzione il
+numero nel dialog.
+
+**Fix**: aggiunta la stessa chiamata `character_repo.set_character_class_level()` già
+usata da `do_level_up()`, dentro `do_level_down()`, sulla classe primaria (level-down non
+ha ancora un selettore "quale classe scende" come level-up in un multiclasse — assume
+sempre la primaria, coerente con `new_level = c.level - 1` già esistente). Verificato con
+un nuovo file dedicato, `test_level_down_class_sync.py` (9/9): un singolo level-down
+sincronizza correttamente entrambe le tabelle, e — riproduzione esatta del bug osservato
+dal vivo — un ciclo su→giù→su propone di nuovo il livello corretto (9, non 10). Test
+verificato "a vuoto" contro il codice pre-fix (`git stash` del solo file toccato): fallisce
+esattamente sui controlli attesi (5/9), confermando che il test intercetta davvero il bug.
+Nessuna regressione: `test_multiclasse.py` 86/86, `test_fase_4.py` 303/303, intera suite
+rilanciata.
+
+**Query di controllo sui dati reali**: confrontato `characters.level` con la somma di
+`character_classes.level` per OGNI personaggio del database di sviluppo — nessun altro
+personaggio risultava disallineato, quindi il danno di questo bug (mai innescato prima
+d'ora, dato che "Level down" è un'azione rara) era contenuto al solo personaggio toccato
+durante il test.
+
+**Ripristino dati**: il personaggio "Thempest Zephyrion" (id `2a4f364f-16b6-4f14-bf54-
+a1ffa850d19b`) è stato riportato a Lv.8/FOR 20/PF 60 tramite `character_repo.update()` +
+`set_character_class_level()` (stesse funzioni usate dall'app, nessun SQL diretto) — via
+libera esplicito di Davide dopo essere stato informato dell'incidente prima di agire.
+Valori di ripristino incrociati su due fonti indipendenti: una replica d'istanza di mondo
+archiviata del 2026-08-20 (stesso Lv.8/FOR 20/PF 60) e la formula PF di level-up
+(d10 massimo al Lv.1 + media per 7 livelli, +1 CON ciascuno = 11 + 7×7 = 60, verificata a
+mano). Riposo lungo/breve e uso di slot incantesimo testati in precedenza sullo stesso
+personaggio erano invece azioni di gioco legittime, non toccate dal ripristino.
+
+**Bug gemello trovato subito dopo, controllando l'export PDF** (§ successiva) del
+personaggio appena ripristinato: "Totale 7/9 d10" invece di "8/8" — stessa causa,
+stessa asimmetria. `do_level_up()` fa sempre `c.hit_dice_total += 1` ("Dadi vita: +1
+per ogni livello acquisito, PHB p.12"), ma `do_level_down()` non lo toglieva mai: un
+dado vita fantasma permanente ad ogni level-down, non tappato da alcun clamp (a
+differenza di `hit_dice_remaining`, che almeno restava ≤ `hit_dice_total`). Fix
+simmetrico nello stesso file/funzione: `hit_dice_total - 1` (mai sotto 1), e
+`hit_dice_remaining - 1` — non un semplice `min()` col nuovo totale, che avrebbe
+comunque regalato un dado in più non guadagnato (il numero di dadi già SPESI deve
+restare invariato attraverso il ciclo su/giù, esattamente come già fa `do_level_up()`
+sul proprio lato). Verificato con un terzo test nello stesso file
+(`test_level_down_class_sync.py`, ora 13/13): un ciclo su→giù riporta sia il totale sia
+i rimanenti ai valori di partenza, a parità di dadi spesi. Anche questo campo del
+personaggio di Davide era rimasto disallineato dal ripristino precedente (mancato in un
+primo passaggio, notato solo grazie all'export PDF) — corretto con lo stesso metodo
+sanzionato (`character_repo.update()`), stavolta senza dover richiedere di nuovo il via
+libera: stessa restituzione già autorizzata, solo un campo dimenticato la prima volta.
+
+---
+
+## Bug reale: export/import .dndchar perdeva la classe secondaria di un personaggio multiclasse — trovato dal vivo, playtest lato giocatore e master (2026-08-24)
+
+Proseguimento del giro di playtest della sessione precedente ("Guardiamo prima altre
+aree"): su richiesta di Davide di coprire sistematicamente ogni zona dell'app non ancora
+testata dal vivo, sia lato giocatore (Incantesimi, Combattimento, Importa personaggio)
+sia lato master (Note di Campagna, Nuovo NPC, Mondi/hosting/join, Bottino dal lato
+giocatore).
+
+**Il bug**: esportato "Bambolo" (Monaco 6 / Ladro 4, personaggio reale di Davide) in un
+file `.dndchar` e reimportato con l'opzione sicura "Crea copia" (per non rischiare
+l'originale) offerta dal dialog "Personaggio già presente" — la copia risultante
+mostrava solo "Monaco", la classe secondaria Ladro era sparita del tutto.
+
+**Causa**: `data/repositories/character_export.py::CHILD_TABLES` — la lista delle
+tabelle figlio con FK `character_id → characters(id) ON DELETE CASCADE` che export/
+import copiano genericamente via introspezione dello schema — non includeva
+`character_classes`. La tabella è stata introdotta il 2026-08-12 con lo schema
+multiclasse (vedi `test_multiclasse.py`) ma non era mai stata aggiunta a questa lista,
+nonostante abbia esattamente lo stesso FK CASCADE delle altre 13 tabelle già elencate.
+L'export includeva quindi la riga `characters` (che porta ancora `class_name`/`level`
+della sola classe primaria, per compatibilità con personaggi mono-classe) ma zero righe
+`character_classes`.
+
+**Impatto più ampio del previsto**: `core/character_instances.py::_copy_character()` —
+usata ogni volta che un personaggio entra in un Mondo (per creare l'istanza di mondo) —
+richiama la STESSA `export_character()`/`import_character()`. Il bug non riguardava
+quindi solo il backup/trasferimento file `.dndchar`, ma anche "Crea copia" nel dialog di
+conflitto import E l'ingresso di un personaggio multiclasse in un mondo condiviso: un
+Paladino/Guerriero o qualsiasi altro multiclasse che si univa a una campagna perdeva
+silenziosamente metà delle proprie classi nell'istanza di mondo.
+
+**Fix**: aggiunta `"character_classes"` a `CHILD_TABLES`. Nessun'altra modifica
+necessaria — `_write_character_and_children()` gestisce già genericamente qualunque
+tabella della lista (nuovo `id` per riga, `character_id` riscritto al target), stesso
+principio dichiarato nel docstring di modulo ("ogni colonna esistente viene sempre
+inclusa"). Verificato con un nuovo file dedicato, `test_export_import_multiclasse.py`
+(9/9): l'export include ora le righe `character_classes`, e una copia importata
+mantiene entrambe le classi con la stringa di visualizzazione multiclasse corretta.
+Verificato "a vuoto" contro il codice pre-fix (`git stash` del solo file toccato):
+fallisce esattamente sui 7 controlli attesi (2/9), confermando che il test intercetta
+davvero il bug. Nessuna regressione: intera suite di test rilanciata (unico fallimento,
+`test_qr_scan.py` su disponibilità pacchetti Android/iOS in questo sandbox, preesistente
+e confermato identico prima e dopo la modifica).
+
+**Pulizia dati di test**: rimossi i file `.dndchar` di prova generati durante il test
+(`~/dnd_character_exports/`) e la copia duplicata di "Bambolo" creata per verificare il
+bug; il "Bambolo" originale di Davide non è mai stato toccato.
+
+**Bug minore correlato, stessa causa di fondo trovato subito dopo controllando
+"Personaggi Archiviati" (vista Mondi lato master)**: `ui/views/world/world_view.py::
+_archived_character_row()` costruiva la riga di classe leggendo solo
+`character.class_name`/`character.subclass` (i campi legacy mono-classe) invece di
+`character_repo.get_class_display_string()` — stesso pattern già in uso ovunque nel
+resto dell'app (card dei personaggi in home, ecc.). Un personaggio multiclasse
+archiviato in un mondo mostrava quindi solo la classe primaria anche qui. Fix minimo:
+sostituita la costruzione manuale con `get_class_display_string()`, mantenendo la
+stessa forma "NomeClasse Livello" per un personaggio mono-classe (nessuna barra) e
+omettendo il suffisso sottoclasse quando la stringa è già multiclasse (ambiguo altrimenti
+— la sottoclasse riportata in `characters.subclass` appartiene solo alla classe
+primaria). Solo verifica statica (sintassi + lettura del codice, stesso `get_class_
+display_string()` già coperto da `test_multiclasse.py`): il flusso completo
+"personaggio multiclasse → entra in un mondo → esce/viene espulso → master apre
+Personaggi Archiviati" richiede una preparazione end-to-end (mondo + istanza + uscita)
+sproporzionata rispetto alla severità cosmetica di questo secondo bug.
+
+**Refuso grammaticale trovato esplorando le "Note di Campagna" (master) e la "Cronaca"
+del personaggio (`ui/views/diary_view.py`, `ui/views/master/master_notes_view.py`)**: lo
+stato vuoto "nessuna voce selezionata" di ogni sezione (PNG Incontrati, Luoghi, Missioni,
+Fazioni, Eventi, Segreti, ecc.) veniva costruito con `f"Nessuna {meta['label'].lower()}
+selezionata"` — un template che assume che l'etichetta della sezione sia sempre un
+sostantivo singolare femminile, quando in realtà è quasi sempre un'etichetta PLURALE
+(es. "Missioni", "Luoghi", "Eventi") e in metà dei casi maschile. Risultato dal vivo:
+"Nessuna missioni selezionata", "Nessuna luoghi selezionata", ecc. su 8 sezioni del
+master e 9 del personaggio (17 in totale, incluso "Cronaca" che per puro caso risultava
+già corretto). Fix: aggiunto un campo esplicito `"none_selected_msg"` per ciascuna
+categoria in entrambi i file, con la forma singolare e il genere corretti già scritti
+(stesso principio già in uso per `"empty_msg"`, presente in ognuna delle stesse voci),
+al posto della derivazione generica dall'etichetta plurale. Verificato dal vivo su due
+sezioni di genere opposto ("Nessuna missione selezionata", "Nessun luogo selezionato").
+
+**Resto del giro di copertura (nessun bug trovato)**: tab Incantesimi (preparazione/
+rimozione incantesimi con conteggio slot, corretto blocco silenzioso al limite massimo —
+comportamento voluto, non un bug), tab Combattimento (HP/CA/velocità, tiri salvezza morte,
+slot incantesimo interattivi, risorse di classe — tutto corretto sul personaggio reale
+Thempest Zephyrion), generazione NPC casuale nella Rubrica (tratti/ideale/legame/difetto,
+salvataggio), creazione di un Mondo con hosting LAN attivo (QR d'ingresso, indirizzo IP e
+PIN generati correttamente — la porta 8766 osservata anziché 8765 è il fallback
+documentato in `network/host_server.py` per conflitto con la porta del server di sviluppo
+usato per il test, non un bug), dialoghi "Unisciti con un codice"/"Unisciti in LAN"
+(messaggi d'errore chiari per codice inesistente). Un vero test di join a due dispositivi
+fisicamente separati resta il limite noto già documentato altrove nel progetto (due
+database SEPARATI non simulabili in modo affidabile in un solo sandbox).
+
+**Nota per Davide**: durante questo giro sono stati trovati, nel database di sviluppo, 13
+copie duplicate del mondo "La Cripta di Ombrasole" più alcuni mondi "Verifica Quantità"/
+"Verifica Combattimento"/"Tour Tabs" — chiaramente residui di sessioni di test precedenti
+a questa (nomi di QA, non di campagna). Non rimossi senza conferma esplicita: erano
+invisibili dalla UI di questa sessione di test (identità del dispositivo effimera in
+modalità web, causa già nota) ma restano nel file `.db` reale. Da confermare se vanno
+ripuliti.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
