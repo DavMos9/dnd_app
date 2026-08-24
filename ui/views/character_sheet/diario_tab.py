@@ -281,9 +281,24 @@ class DiarioTab(ScrollMemoryListView):
             label_style=ft.TextStyle(color=design.T().text_2),
             border_radius=design.field_style()['border_radius'])
 
+        _saved = False
+
         def save(ev):
-            if page is None:
+            # Guardia anti doppio-tap (BUG FIX 2026-08-24, bug report Davide:
+            # "a volte premi conferma, salva la nota ma non sparisce la
+            # finestra, si resettano solo vuoti i campi"): su smartphone un
+            # tap può generare due eventi click ravvicinati sullo stesso
+            # pulsante. Senza guardia, il secondo `on_click` in coda arriva
+            # DOPO che `page.pop_dialog()`/`self._refresh()` del primo hanno
+            # già ricostruito la scheda — ripete comunque `save()`
+            # sull'AlertDialog ancora visibile lato client in quell'istante,
+            # il cui secondo `page.pop_dialog()` non ha più nulla da
+            # chiudere (il dialog è concettualmente già stato rimosso), da
+            # cui la finestra che resta a schermo.
+            nonlocal _saved
+            if page is None or _saved:
                 return
+            _saved = True
             title = (f_title.value or "").strip() or "Senza titolo"
             date = (f_date.value or "").strip()
             content = (f_content.value or "").strip()

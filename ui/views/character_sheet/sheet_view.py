@@ -139,6 +139,13 @@ class SheetView(ft.Column):
             )
             if backend is not None and isinstance(backend, RemoteBackend):
                 self._connection_state = backend.connection_state()
+                # BUG FIX (2026-08-24): va PRIMA di `sync_replica()` — vedi
+                # il docstring identico in `diary_view.py::_start_world_sync`
+                # per il bug che risolve (una scrittura self-service fatta
+                # offline, ancora in coda, che un resync innescato da un
+                # evento non correlato cancellerebbe).
+                if self.device_id:
+                    world_sync.push_pending_self_commands(backend, world_id, self.device_id)
                 world_sync.sync_replica(backend, world_id)
             else:
                 # Nessun backend risolvibile (host irraggiungibile, token

@@ -11985,6 +11985,49 @@ invisibili dalla UI di questa sessione di test (identità del dispositivo effime
 modalità web, causa già nota) ma restano nel file `.db` reale. Da confermare se vanno
 ripuliti.
 
+## Due bug reali trovati da Davide sui suoi dispositivi dopo il rilascio v0.3.5 (2026-08-24)
+
+Dopo il rilascio v0.3.5, Davide ha aggiornato più dispositivi reali e verificato dal vivo
+join LAN, "Interviene a distanza" e QR — tutti e tre funzionanti, nessun bug. Durante lo
+stesso giro ha trovato due bug reali, entrambi con impatto diretto sul gameplay.
+
+**Bug 1 — le condizioni inflitte dal master non si sincronizzano live sullo schermo del
+giocatore.** Tutte le altre azioni del master (in particolare i PF) arrivano subito sullo
+schermo del giocatore; una condizione appena applicata resta invisibile finché il
+giocatore non cambia tab e torna indietro. Causa:
+`ui/views/character_sheet/combattimento_tab.py::CombattimentoTab.__init__()` carica le
+condizioni in due attributi cache (`self._conditions`, `self._cond_effects`), ma
+`_refresh()` — il metodo richiamato dal poll periodico di sincronizzazione
+(`sheet_view.py::_soft_refresh()`) — ricarica PF, slot incantesimo, competenze, armi,
+risorse di classe, ecc. ma non quei due attributi. I PF funzionano perché sono letti live
+da `self.character.hp_current`/`hp_max` a ogni build (e `self.character` viene
+correttamente riassegnato dentro `_refresh()`); le condizioni, uniche, restavano nella
+cache dell'apertura tab. Cambiare tab "ripara" il sintomo solo perché
+`sheet_view.py::_get_tab_content()` ricrea un `CombattimentoTab` da zero, rieseguendo
+`__init__()`. Fix: `_refresh()` ora ricarica anche `self._conditions`/`self._cond_effects`
+dalla stessa fonte usata da `__init__`. Coperto da
+`test_combattimento_tab_condition_refresh.py` (verificato a fallire senza il fix).
+
+**Bug 2 — un personaggio fatto entrare in un mondo con "Ricomincia dal 1° livello" non
+riparte davvero dal livello 1.** Riprodotto dal vivo: un Barbaro salvato in locale a
+Lv.11, fatto entrare in un mondo scegliendo di ripartire da Lv.1, mostrava correttamente
+"Lv.1" in scheda — ma al primo level-up successivo è saltato a Lv.12 invece che a Lv.2.
+Causa: `core/character_instances.py::_reset_to_level_one()` (richiamata da
+`create_or_resume_instance(..., mode="fresh")`) scriveva `characters.level = 1` ma non
+toccava la riga parallela `character_classes` — ogni personaggio, anche single-class, ne
+ha una dalla migrazione multiclasse del 2026-08-12 (vedi `multiclasse_design.md` §2). Il
+level-up (`profilo_tab.py`) legge il livello di partenza da
+`get_primary_character_class(...).level`, non da `characters.level`: restava a 11, quindi
+11+1=12 veniva ripropagato su `characters.level` da `sync_character_total_level()`,
+sovrascrivendo il 2 atteso. Stessa "forma" di bug del fix del 2026-08-23
+(`do_level_down()` disallineato da `character_classes.level`) e del fix export/import
+multiclasse di questa stessa giornata: una seconda tabella mantenuta a mano che uno
+specifico percorso di scrittura dimentica di aggiornare. Fix: `_reset_to_level_one()` ora
+azzera anche la riga `character_classes` primaria a Lv.1, e rimuove eventuali classi
+secondarie (un'istanza "Lv.1" è per definizione single-class, coerente con la creazione
+personaggio che è sempre single-class). Coperto da `test_join_fresh_level_reset.py`
+(verificato a fallire senza il fix).
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

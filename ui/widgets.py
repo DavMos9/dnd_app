@@ -968,6 +968,33 @@ def responsive_dialog_width(page: Any, base_width: int, margin: int = 32, min_wi
     return max(min_width, min(base_width, int(page_width) - margin))
 
 
+def responsive_dialog_height(page: Any, base_height: int, margin: int = 140, min_height: int = 260) -> int:
+    """
+    Analoga a `responsive_dialog_width()` sopra, ma per l'altezza — BUG FIX
+    (2026-08-24, bug report Davide: "se da nota apro il dossier del
+    personaggio la foto viene tagliata"). `npc_dossier.py::show_npc_dossier_dialog`
+    aveva un `height=` fisso (420px) pensato per il layout desktop, dove
+    `design.asymmetric_row()` (identità del PNG) dispone testo e ritratto
+    AFFIANCATI. Sotto il breakpoint "md" quella riga si impila (testo sopra,
+    ritratto sotto): il contenuto totale diventa più alto proprio su
+    smartphone, cioè esattamente dove i 420px fissi bastavano meno — e la
+    Column interna dal solo `scroll=ft.ScrollMode.AUTO` non basta a
+    proteggere da un overflow del contenitore genitore a altezza fissa
+    (stesso principio del `width=` fisso già corretto sopra da
+    `responsive_dialog_width`).
+
+    Uso: `height=responsive_dialog_height(page, 560)` al posto di
+    `height=420` — su una finestra desktop bassa il risultato resta
+    delimitato (mai sotto `min_height`, mai sopra `base_height`), su uno
+    smartphone (tipicamente più alto che largo) il dialog usa più dei 420px
+    originali fino a `base_height`, lasciando spazio al layout impilato.
+    """
+    page_height = getattr(page, "height", None)
+    if not page_height:
+        return base_height
+    return max(min_height, min(base_height, int(page_height) - margin))
+
+
 # ---------------------------------------------------------------------------
 # Cambio tema
 # ---------------------------------------------------------------------------

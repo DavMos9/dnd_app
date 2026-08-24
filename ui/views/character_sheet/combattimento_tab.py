@@ -4626,6 +4626,8 @@ class CombattimentoTab(ScrollMemoryListView):
         self._forme = character_repo.get_creature_entries(self.character.id, entry_type="forma")
         self._evocazioni = character_repo.get_creature_entries(self.character.id, entry_type="evocazione")
         self._custom_abilities = character_repo.get_custom_abilities(self.character.id, "combattimento")
+        self._conditions = character_repo.get_conditions(self.character.id)
+        self._cond_effects = character_repo.condition_effects(self.character.id)
         self.controls.clear()
         self._build()
         try:

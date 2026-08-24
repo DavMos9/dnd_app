@@ -28,7 +28,7 @@ import flet as ft
 
 from data.models import MasterNpc
 from ui.views.maps_view import _data_uri
-from ui.widgets import responsive_dialog_width, wrap_dialog_actions
+from ui.widgets import responsive_dialog_height, responsive_dialog_width, wrap_dialog_actions
 from ui import design
 
 
@@ -140,7 +140,12 @@ def show_npc_dossier_dialog(page: ft.Page, npc: MasterNpc) -> None:
         title=design.dialog_title("Dossier PNG", ft.Icons.BADGE_OUTLINED),
         content=ft.Container(
             content=build_npc_dossier_column(npc),
-            width=responsive_dialog_width(page, 440), height=420,
+            width=responsive_dialog_width(page, 440),
+            # 560, non 420 fisso: su smartphone `identity` (asymmetric_row)
+            # si impila (ritratto sotto il testo invece che affiancato),
+            # serve più altezza — vedi il docstring di
+            # `responsive_dialog_height` per il bug che risolve.
+            height=responsive_dialog_height(page, 560),
         ),
         actions=wrap_dialog_actions([
             ft.TextButton("Chiudi", on_click=lambda e: page.pop_dialog()),

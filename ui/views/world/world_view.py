@@ -4032,13 +4032,18 @@ class WorldsView(ft.Column):
             if backend is not None:
                 if isinstance(backend, RemoteBackend):
                     self._detail_connection_state = backend.connection_state()
-                world_sync.sync_replica(backend, world_id)
-                # Ritenta qui, non solo a comando dell'utente, il push di
-                # eventuali istanze create mentre l'host era offline
-                # (`host_sync_pending=1` — vedi
-                # `HomeView._push_instance_to_host`). Stesso backend appena
-                # verificato raggiungibile da `sync_replica()` sopra.
+                # BUG FIX (2026-08-24): va PRIMA di `sync_replica()`, non
+                # dopo com'era — un evento mutante non correlato scaricato da
+                # `sync_replica()` prima che una scrittura self-service
+                # ancora in coda venga spedita fa scattare
+                # `_resync_character_from_host()`, che rimaterializza
+                # l'intero personaggio dall'host (che non ha ancora quella
+                # scrittura) cancellandola. Stesso backend appena verificato
+                # raggiungibile da `_backend_for()` sopra.
                 if self.device_id:
+                    # Ritenta il push di eventuali istanze create mentre
+                    # l'host era offline (`host_sync_pending=1` — vedi
+                    # `HomeView._push_instance_to_host`).
                     world_sync.push_pending_instances(backend, world_id, self.device_id)
                     # Stesso principio, generalizzato a QUALSIASI comando
                     # self-service rimasto in coda (nota/arma/oggetto/
@@ -4046,6 +4051,7 @@ class WorldsView(ft.Column):
                     # BUG FIX 2026-08-20, vedi il docstring di
                     # `push_pending_self_commands`).
                     world_sync.push_pending_self_commands(backend, world_id, self.device_id)
+                world_sync.sync_replica(backend, world_id)
             else:
                 self._detail_connection_state = "disconnected"
 

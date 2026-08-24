@@ -618,6 +618,109 @@ def test_pending_self_command_retry_queue() -> None:
         host.stop()
 
 
+# ---------------------------------------------------------------------------
+# [12] BUG FIX 2026-08-24 — l'ORDINE tra svuotare la coda e risincronizzare
+# ---------------------------------------------------------------------------
+
+def test_offline_note_wiped_by_resync_before_queue_flush() -> None:
+    """Bug report Davide: 'se aggiungo una nota in locale mentre il mondo è
+    offline, quando il mondo torna online le note scritte durante il
+    periodo offline spariscono — quelle scritte mentre il mondo era online
+    si comportano correttamente'.
+
+    Causa: [11] sopra (`test_pending_self_command_retry_queue`) dimostra che
+    un comando self-service accodato viene ritentato con successo — ma solo
+    SE `push_pending_self_commands()` gira PRIMA che un resync (innescato da
+    un QUALSIASI evento mutante non correlato, es. xp.grant del master
+    arrivato mentre il dispositivo era offline) scarichi uno snapshot
+    dell'host ancora privo della scrittura in coda.
+    `ui/views/diary_view.py`/`sheet_view.py`/`spells_view.py`/`maps_view.py`
+    chiamavano `world_sync.sync_replica()` nel loro ciclo periodico senza
+    MAI chiamare `push_pending_self_commands()` — e persino
+    `ui/views/world/world_view.py`, l'unico punto che la chiamava, lo faceva
+    DOPO `sync_replica()`, non prima. Stesso identico meccanismo di [1]
+    (`test_bug_mechanism_reproduced`), qui applicato al percorso
+    coda-offline invece che a una scrittura diretta mai instradata.
+    """
+    print("\n[12a] Riproduzione: resync PRIMA di svuotare la coda cancella "
+          "la voce di diario scritta offline")
+    world, instance = _make_world_with_instance()
+
+    # Snapshot "host" catturato PRIMA della voce di diario offline — quello
+    # che un resync scaricherebbe se girasse prima che la coda sia svuotata.
+    stale_snapshot = character_export.export_character(instance.id)
+    assert stale_snapshot is not None
+
+    # Il giocatore scrive offline: la scrittura locale avviene comunque
+    # (`push_character_self_command()` la fa PRIMA di verificare l'host,
+    # vedi il chiamante in `diario_tab.py`/`diary_view.py`), il comando
+    # finisce in coda perché l'host non è raggiungibile in quel momento.
+    ok = character_repo.create_diary_entry(
+        instance.id, "Scritta offline", "Contenuto scritto senza rete", "",
+    )
+    check("la voce di diario offline si scrive in locale", ok)
+    entries = character_repo.get_diary_entries(instance.id)
+    check("la voce esiste subito dopo la scrittura locale",
+          any(e.title == "Scritta offline" for e in entries))
+    world_repo.enqueue_pending_self_command(
+        instance.id, world.id, "dev-player", perm.CMD_DIARY_SELF_ADD_ENTRY,
+        '{"title": "Scritta offline", "content": "Contenuto scritto senza rete", "session_date": ""}',
+    )
+
+    # ORDINE SBAGLIATO (il bug): un resync con lo snapshot stale gira PRIMA
+    # che la coda venga svuotata — stesso meccanismo di [1], qui sul diario.
+    result_id = character_export.import_replica_character(
+        stale_snapshot, instance.id, world_seq=1, skip_tables=frozenset({"game_maps"}),
+    )
+    check("il resync (snapshot stale) riesce", result_id == instance.id)
+    entries_after = character_repo.get_diary_entries(instance.id)
+    check("BUG RIPRODOTTO: la voce scritta offline è sparita dopo il resync",
+          not any(e.title == "Scritta offline" for e in entries_after))
+
+    print("[12b] FIX: svuotare la coda PRIMA del resync preserva la voce")
+    world2, instance2 = _make_world_with_instance("dev-owner-2", "dev-player-2")
+    stale_snapshot2 = character_export.export_character(instance2.id)
+    assert stale_snapshot2 is not None
+
+    ok2 = character_repo.create_diary_entry(
+        instance2.id, "Scritta offline 2", "Altro contenuto offline", "",
+    )
+    check("la seconda voce di diario offline si scrive in locale", ok2)
+    world_repo.enqueue_pending_self_command(
+        instance2.id, world2.id, "dev-player-2", perm.CMD_DIARY_SELF_ADD_ENTRY,
+        '{"title": "Scritta offline 2", "content": "Altro contenuto offline", "session_date": ""}',
+    )
+
+    # ORDINE CORRETTO (il fix, ora applicato in tutti e 5 i cicli di sync
+    # UI): la coda viene svuotata PRIMA di catturare/applicare lo snapshot
+    # del resync — `LocalBackend` instrada l'handler `_handle_diary_self_add_entry`
+    # sullo stesso processo, esattamente come farebbe un host raggiungibile.
+    backend = LocalBackend()
+    # [11] sopra ha già chiamato `push_pending_self_commands()` in questo
+    # stesso processo: senza reset, il cooldown anti-spam condiviso
+    # (`instance_push_cooldown_remaining()`, 10s) farebbe uscire subito con
+    # `0` invii, un falso negativo di questo test — non del fix.
+    world_sync.reset_client_cooldowns_for_tests()
+    pushed = world_sync.push_pending_self_commands(backend, world2.id, "dev-player-2")
+    check("FIX: il comando di diario in coda viene inviato con successo", pushed == 1)
+    check("FIX: la coda è ora vuota",
+          world_repo.list_pending_self_commands(world2.id, "dev-player-2") == [])
+
+    # Ora un resync (anche con lo snapshot stale, che PRIMA del push non
+    # conteneva la voce) non trova più nulla da cancellare: la voce è già
+    # stata scritta sull'host dal comando appena drenato, quindi un resync
+    # con uno snapshot FRESCO (quello che scaricherebbe DAVVERO un client a
+    # questo punto) la conferma invece di cancellarla.
+    fresh_snapshot2 = character_export.export_character(instance2.id)
+    result_id2 = character_export.import_replica_character(
+        fresh_snapshot2, instance2.id, world_seq=1, skip_tables=frozenset({"game_maps"}),
+    )
+    check("il resync (snapshot fresco, post-svuotamento) riesce", result_id2 == instance2.id)
+    entries_after2 = character_repo.get_diary_entries(instance2.id)
+    check("FIX: la voce scritta offline sopravvive quando la coda si svuota PRIMA del resync",
+          any(e.title == "Scritta offline 2" for e in entries_after2))
+
+
 def main() -> int:
     init_db()
     print("=" * 70)
@@ -632,6 +735,7 @@ def main() -> int:
     test_diary_left_panel_scroll_survives_refresh()
     test_maps_view_shared_map_survives_local_upload()
     test_pending_self_command_retry_queue()
+    test_offline_note_wiped_by_resync_before_queue_flush()
     print("\n" + "=" * 70)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

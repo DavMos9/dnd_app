@@ -232,6 +232,23 @@ def _reset_to_level_one(character_id: str) -> bool:
     character.level = 1
     character.xp = 0
 
+    # 2b. character_classes — characters.level da solo NON basta: ogni
+    #     personaggio (anche single-class) ha una riga character_classes
+    #     parallela (vedi multiclasse_design.md §2), ed è quella la fonte
+    #     letta dal level-up (profilo_tab.py: primary_class_level =
+    #     _primary_cc.level). Senza questo passo il reset è solo cosmetico:
+    #     characters.level torna a 1 ma character_classes.level resta al
+    #     valore vecchio, e il primo level-up successivo riparte da lì
+    #     invece che da 1. Un'istanza "Lv.1" è anche, per definizione,
+    #     single-class (la creazione personaggio è sempre single-class —
+    #     multiclass_flow.md), quindi le classi secondarie vengono rimosse
+    #     invece di azzerate.
+    for cc in character_repo.get_character_classes(character_id):
+        if cc.is_primary:
+            character_repo.set_character_class_level(cc.id, 1)
+        else:
+            character_repo.remove_character_class(cc.id)
+
     # 3. PF ricalcolati con la formula ESATTA di 1° livello (PHB p.12),
     #    non con la stima di perdita usata da "Scendi di livello" per un
     #    singolo gradino (qui non serve: si arriva al Lv.1 direttamente,

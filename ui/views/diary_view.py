@@ -201,11 +201,22 @@ class DiaryView(ft.Column):
 
         # ── Stato navigazione ──────────────────────────────────────────────
         self._active_cat: str = "diary"
+        # Pannello sinistro comprimibile (richiesta Davide 2026-08-24: "come
+        # fa Preview con l'app anteprima, che permette di nascondere le
+        # miniature") — su smartphone il pannello categorie+lista sottrae
+        # spazio prezioso al testo della nota/voce selezionata. `False` di
+        # default: comportamento invariato finché l'utente non lo comprime
+        # esplicitamente da `_build_header()`.
+        self._left_collapsed: bool = False
 
         # ── Stato Cronaca ──────────────────────────────────────────────────
         self._diary_entries: list[DiaryEntry] = []
         self._sel_diary_id: str | None = None
         self._diary_edit: bool = False
+        # Guardia anti doppio-tap per il salvataggio (BUG FIX 2026-08-24,
+        # vedi il docstring in `_on_diary_save_edit`/`_on_note_save_edit`).
+        self._diary_save_in_flight: bool = False
+        self._note_save_in_flight: bool = False
         # campi editor diario (impostati in _build_diary_edit_panel)
         self._ef_title:   ft.TextField = ft.TextField(**design.field_style())
         self._ef_date:    ft.TextField = ft.TextField(**design.field_style())
@@ -299,6 +310,20 @@ class DiaryView(ft.Column):
             )
             if backend is not None and isinstance(backend, RemoteBackend):
                 self._connection_state = backend.connection_state()
+                # BUG FIX (2026-08-24): va PRIMA di `sync_replica()`, non
+                # dopo — se una nota è stata scritta mentre l'host era
+                # irraggiungibile, resta in coda
+                # (`world_repo.enqueue_pending_self_command`) finché questo
+                # non la spedisce. Se `sync_replica()` girasse prima e
+                # scaricasse nel frattempo un QUALSIASI evento mutante su
+                # questo personaggio (anche non correlato, es. un
+                # aggiornamento del master), `_resync_character_from_host()`
+                # rimaterializza l'intero personaggio dall'host — che non ha
+                # ancora la nota in coda — cancellando silenziosamente la
+                # voce scritta offline. Bug report Davide: "note scritte
+                # mentre il mondo è offline spariscono quando torna online".
+                if self.device_id:
+                    world_sync.push_pending_self_commands(backend, world_id, self.device_id)
                 world_sync.sync_replica(backend, world_id)
             else:
                 self._connection_state = "disconnected"
@@ -422,12 +447,18 @@ class DiaryView(ft.Column):
             content=self._build_detail_panel(),
         )
 
+        # Pannello sinistro comprimibile (vedi `self._left_collapsed` in
+        # `__init__`): quando compresso, niente pannello né divisore — il
+        # dettaglio prende tutta la larghezza, utile su smartphone dove
+        # 200px fissi di categorie+lista sono un costo importante.
+        body_children: list[ft.Control] = []
+        if not self._left_collapsed:
+            body_children.append(self._build_left_panel())
+            body_children.append(ft.VerticalDivider(width=1, color=design.T().border))
+        body_children.append(self._detail_container)
+
         body = ft.Row(
-            [
-                self._build_left_panel(),
-                ft.VerticalDivider(width=1, color=design.T().border),
-                self._detail_container,
-            ],
+            body_children,
             expand=True,
             spacing=0,
             vertical_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -448,6 +479,14 @@ class DiaryView(ft.Column):
         return ft.Container(
             content=ft.Row(
                 [
+                    ft.IconButton(
+                        icon=ft.Icons.MENU_OPEN if not self._left_collapsed else ft.Icons.MENU,
+                        icon_size=18,
+                        icon_color=design.T().text_2,
+                        tooltip="Comprimi elenco" if not self._left_collapsed else "Espandi elenco",
+                        on_click=lambda e: self._on_toggle_left_panel(),
+                        padding=ft.Padding.all(4),
+                    ),
                     ft.Icon(meta["icon_on"], color=design.T().primary_icon, size=20),
                     ft.Container(width=10),
                     ft.Column(
@@ -1037,25 +1076,38 @@ class DiaryView(ft.Column):
         linked_npc = master_repo.get_npc_by_id(linked_npc_id) if linked_npc_id else None
         if linked_npc is not None:
             page_content_items.append(ft.Container(height=8))
+            # BUG FIX (2026-08-24, bug report Davide: "se viene aggiunto un
+            # personaggio alla nota... la nota su smartphone viene
+            # tagliata"): la Row interna era `tight=True`, quindi il `Text`
+            # col nome del PNG si prendeva la sua larghezza naturale
+            # (mai andare a capo) invece di restare dentro i limiti della
+            # pagina — con un nome lungo su uno smartphone stretto (i 56px
+            # di `padding` orizzontale di `page_content` qui sotto lasciano
+            # ancora meno margine) il bottone sborda oltre il bordo invece
+            # di accorciarsi, e la parte fuori schermo appare "tagliata".
+            # Fix: niente `tight=True`, il `Text` dentro un `Container`
+            # `expand=True` prende la larghezza disponibile e tronca con
+            # l'ellissi invece di sborda.
             page_content_items.append(
-                ft.Row(
-                    [
-                        ft.TextButton(
-                            content=ft.Row(
-                                [
-                                    ft.Icon(ft.Icons.BADGE_OUTLINED, size=15,
-                                             color=design.T().primary_icon),
-                                    ft.Text(f"Collegato a: {linked_npc.name}", size=12,
-                                             weight=ft.FontWeight.BOLD, color=design.T().primary),
-                                ],
-                                spacing=4, tight=True,
-                            ),
-                            on_click=lambda e, n=linked_npc: (
-                                show_npc_dossier_dialog(self._page, n) if self._page else None
-                            ),
+                ft.Container(
+                    content=ft.TextButton(
+                        content=ft.Row(
+                            [
+                                ft.Icon(ft.Icons.BADGE_OUTLINED, size=15,
+                                         color=design.T().primary_icon),
+                                ft.Text(f"Collegato a: {linked_npc.name}", size=12,
+                                         weight=ft.FontWeight.BOLD, color=design.T().primary,
+                                         overflow=ft.TextOverflow.ELLIPSIS, max_lines=1,
+                                         expand=True),
+                            ],
+                            spacing=4,
                         ),
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER,
+                        on_click=lambda e, n=linked_npc: (
+                            show_npc_dossier_dialog(self._page, n) if self._page else None
+                        ),
+                    ),
+                    alignment=ft.Alignment.CENTER,
+                    expand=True,
                 )
             )
 
@@ -1270,6 +1322,10 @@ class DiaryView(ft.Column):
         # Non resettare la selezione → ricorda l'ultima voce vista per categoria
         self._refresh()
 
+    def _on_toggle_left_panel(self) -> None:
+        self._left_collapsed = not self._left_collapsed
+        self._refresh()
+
     # ──────────────────────────────────────────────────────────────────────────
     # Event handlers — Cronaca
     # ──────────────────────────────────────────────────────────────────────────
@@ -1297,6 +1353,7 @@ class DiaryView(ft.Column):
 
     def _on_diary_start_edit(self) -> None:
         self._diary_edit = True
+        self._diary_save_in_flight = False
         self._update_detail()
 
     def _on_diary_cancel_edit(self) -> None:
@@ -1304,6 +1361,22 @@ class DiaryView(ft.Column):
         self._update_detail()
 
     def _on_diary_save_edit(self, entry: DiaryEntry) -> None:
+        # Guardia anti doppio-tap (BUG FIX 2026-08-24, bug report Davide: "a
+        # volte premi conferma, salva la nota ma non sparisce la finestra, si
+        # resettano solo vuoti i campi"): un tap su smartphone può generare
+        # due click ravvicinati sullo stesso pulsante "Salva". Senza
+        # guardia, il secondo arriva dopo che il primo ha già rieseguito
+        # `_refresh()` (che ricostruisce `_ef_title`/`_ef_date`/`_ef_content`
+        # SOLO se `_diary_edit` è ancora `True` — qui è appena stato messo a
+        # `False`, quindi il pannello richiesto è quello di sola lettura):
+        # il secondo evento agisce comunque sui vecchi campi ancora validi
+        # lato server in quel breve istante, con l'effetto visibile di un
+        # salvataggio che sembra non chiudere l'editor. Reimpostata a
+        # `False` solo quando una NUOVA sessione di modifica inizia
+        # (`_on_diary_start_edit`), non qui.
+        if self._diary_save_in_flight:
+            return
+        self._diary_save_in_flight = True
         title   = (self._ef_title.value or "").strip() or "Senza titolo"
         date    = (self._ef_date.value or "").strip()
         content = (self._ef_content.value or "").strip()
@@ -1361,6 +1434,7 @@ class DiaryView(ft.Column):
 
     def _on_note_start_edit(self) -> None:
         self._note_edit = True
+        self._note_save_in_flight = False
         self._update_detail()
 
     def _on_note_cancel_edit(self) -> None:
@@ -1368,6 +1442,10 @@ class DiaryView(ft.Column):
         self._update_detail()
 
     def _on_note_save_edit(self, note: CampaignNote) -> None:
+        # Guardia anti doppio-tap — stesso motivo di `_on_diary_save_edit`.
+        if self._note_save_in_flight:
+            return
+        self._note_save_in_flight = True
         name   = (self._nf_name.value or "").strip() or "Senza nome"
         status = (self._nf_status.value or "").strip()
         tags   = (self._nf_tags.value or "").strip()
@@ -1458,9 +1536,15 @@ class DiaryView(ft.Column):
             label_style=ft.TextStyle(color=design.T().text_2),
             border_radius=design.field_style()['border_radius'])
 
+        _saved = False
+
         def save(ev: Any) -> None:
-            if page is None:
+            # Guardia anti doppio-tap — stesso motivo di
+            # `diario_tab.py::_open_entry_dialog`.
+            nonlocal _saved
+            if page is None or _saved:
                 return
+            _saved = True
             title   = (f_title.value or "").strip() or "Senza titolo"
             date    = (f_date.value or "").strip()
             content = (f_content.value or "").strip()
@@ -1521,9 +1605,15 @@ class DiaryView(ft.Column):
             label_style=ft.TextStyle(color=design.T().text_2),
             border_radius=design.field_style()['border_radius'])
 
+        _saved = False
+
         def save(ev: Any) -> None:
-            if page is None:
+            # Guardia anti doppio-tap — stesso motivo di
+            # `diario_tab.py::_open_entry_dialog`.
+            nonlocal _saved
+            if page is None or _saved:
                 return
+            _saved = True
             name   = (f_name.value or "").strip() or "Senza nome"
             status = (f_status.value or "").strip()
             desc   = (f_desc.value or "").strip()
