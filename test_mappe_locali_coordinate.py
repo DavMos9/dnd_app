@@ -129,9 +129,16 @@ def _make_character() -> Character:
 
 
 def _resize_container(panel_root) -> ft.Container:
+    """Il Container che avvolge l'area di disegno (`on_size_change` verso
+    `MapDrawingCanvas.on_box_resize`) — identificato dal suo contenuto
+    diretto, un `ft.InteractiveViewer`: non basta più cercare "un
+    qualunque Container con on_size_change", dato che anche la barra
+    pillole della toolbar (breakpoint responsive) ne monta uno per conto
+    proprio."""
     c = _find(panel_root, lambda n: isinstance(n, ft.Container)
+              and isinstance(getattr(n, "content", None), ft.InteractiveViewer)
               and getattr(n, "on_size_change", None))
-    assert c is not None, "nessun Container con on_size_change trovato"
+    assert c is not None, "nessun Container(content=InteractiveViewer) con on_size_change trovato"
     return c
 
 
@@ -165,7 +172,7 @@ def test_pannello_inline_normalizza() -> None:
     check("il punto (400,300) in un riquadro 400x300 si salva come (1.0, 1.0)",
           stored == [[0.0, 0.0], [1.0, 1.0]])
 
-    canvas = mv._detail_canvas
+    canvas = mv._canvas._canvas[False]
     assert canvas is not None
     path = next(s for s in canvas.shapes if isinstance(s, cv.Path))
     end = path.elements[-1]
@@ -215,7 +222,7 @@ def test_schermo_intero_riquadro_indipendente() -> None:
     fs_resize = _resize_container(fs_overlay)
     fs_resize.on_size_change(_FakeSizeEvent(1200, 800))
 
-    fs_canvas = mv._fs_canvas
+    fs_canvas = mv._canvas._canvas[True]
     assert fs_canvas is not None
     fs_path = next(s for s in fs_canvas.shapes if isinstance(s, cv.Path))
     start, end = fs_path.elements[0], fs_path.elements[-1]
@@ -226,7 +233,7 @@ def test_schermo_intero_riquadro_indipendente() -> None:
 
     # Il pannello inline, riletto ORA, deve restare quello che era (i due
     # riquadri sono indipendenti, nessuno "vince" sull'altro).
-    detail_canvas = mv._detail_canvas
+    detail_canvas = mv._canvas._canvas[False]
     assert detail_canvas is not None
     detail_path = next(s for s in detail_canvas.shapes if isinstance(s, cv.Path))
     d_start, d_end = detail_path.elements[0], detail_path.elements[-1]
@@ -252,20 +259,23 @@ def test_gomma_tratto_riquadro_diverso() -> None:
     mv._open_detail(gm)
     panel = mv.controls[-1]
     resize = _resize_container(panel)
-    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
 
-    # Disegna un tratto verticale al centro di un riquadro 400x300.
+    # Disegna un tratto verticale al centro di un riquadro 400x300. Il
+    # `GestureDetector` non esiste finché il box non è noto (BUG FIX
+    # 2026-08-24) — va cercato DOPO il resize, non prima.
     resize.on_size_change(_FakeSizeEvent(400, 300))
+    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
+    assert gesture is not None
     gesture.on_pan_start(_FakeDragEvent(200, 100))
     gesture.on_pan_update(_FakeDragEvent(200, 200))
     gesture.on_pan_end(_FakeDragEvent(200, 200))
-    check("un tratto è stato salvato", len(mv._strokes) == 1)
+    check("un tratto è stato salvato", len(mv._canvas._strokes) == 1)
 
     # Ridimensiona a 800x600 (il doppio) e passa in modalità gomma.
     resize.on_size_change(_FakeSizeEvent(800, 600))
-    mv._draw_mode = "eraser"
-    mv._eraser_sub = "stroke"
-    mv._eraser_size = 20.0
+    mv._canvas._draw_mode = "eraser"
+    mv._canvas._eraser_sub = "stroke"
+    mv._canvas._eraser_size = 20.0
 
     # Il tratto ha solo 2 punti salvati (inizio/fine, un solo pan_update in
     # fase di disegno) — riscalati al nuovo riquadro sono (400,200) e
@@ -278,7 +288,7 @@ def test_gomma_tratto_riquadro_diverso() -> None:
     gesture.on_pan_update(_FakeDragEvent(400, 200))
     check("la gomma \"Tratto\" cancella il tratto nel punto RISCALATO corretto "
           "(400,200 nel riquadro 800x600, non più 200,100 del riquadro originale)",
-          len(mv._strokes) == 0)
+          len(mv._canvas._strokes) == 0)
 
 
 # ---------------------------------------------------------------------------
@@ -298,29 +308,32 @@ def test_gomma_libera_rinormalizza() -> None:
     mv._open_detail(gm)
     panel = mv.controls[-1]
     resize = _resize_container(panel)
-    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
 
     # Tratto orizzontale lungo tutto un riquadro 400x300, a metà altezza.
+    # Il `GestureDetector` non esiste finché il box non è noto (BUG FIX
+    # 2026-08-24) — va cercato DOPO il resize, non prima.
     resize.on_size_change(_FakeSizeEvent(400, 300))
+    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
+    assert gesture is not None
     gesture.on_pan_start(_FakeDragEvent(0, 150))
     for x in range(0, 401, 40):
         gesture.on_pan_update(_FakeDragEvent(x, 150))
     gesture.on_pan_end(_FakeDragEvent(400, 150))
-    check("un tratto è stato salvato", len(mv._strokes) == 1)
+    check("un tratto è stato salvato", len(mv._canvas._strokes) == 1)
 
     # Passa alla gomma libera, riquadro RADDOPPIATO (800x600): il tratto
     # ora attraversa (0,300)-(800,300). Cancella al centro (400,300).
     resize.on_size_change(_FakeSizeEvent(800, 600))
-    mv._draw_mode = "eraser"
-    mv._eraser_sub = "pixel"
-    mv._eraser_size = 40.0
+    mv._canvas._draw_mode = "eraser"
+    mv._canvas._eraser_sub = "pixel"
+    mv._canvas._eraser_size = 40.0
 
     gesture.on_pan_start(_FakeDragEvent(400, 300))
     gesture.on_pan_update(_FakeDragEvent(400, 300))
 
     check("il tratto è stato spezzato in due pezzi dalla cancellazione centrale",
-          len(mv._strokes) == 2)
-    for stroke in mv._strokes:
+          len(mv._canvas._strokes) == 2)
+    for stroke in mv._canvas._strokes:
         pts = stroke["points"]
         check("ogni pezzo rimasto è salvato come frazione [0,1] (rinormalizzato "
               "dopo il taglio in pixel assoluti)",
@@ -328,7 +341,7 @@ def test_gomma_libera_rinormalizza() -> None:
 
     # Ridisegnando allo stesso riquadro 800x600, i pezzi devono comparire
     # correttamente ai due lati del buco (non più intorno al centro).
-    canvas = mv._detail_canvas
+    canvas = mv._canvas._canvas[False]
     assert canvas is not None
     xs = []
     for shape in canvas.shapes:
@@ -367,27 +380,37 @@ def test_move_mode_rimuove_gesture_detector() -> None:
     mv._page = _FakePage()
     mv._open_detail(gm)
 
-    check("modalità di default 'pen'", mv._draw_mode == "pen")
-    stack = mv._detail_draw_stack
+    # BUG FIX 2026-08-24 (race di normalizzazione, vedi
+    # `MapDrawingCanvas.on_box_resize`): il `GestureDetector` di
+    # disegno/gomma NON è montato finché il riquadro non è noto — prima di
+    # qualunque `on_size_change` il canvas resta nudo (stesso ramo di
+    # "move"), per non rischiare di normalizzare un tratto contro un box
+    # 0×0. Qui si simula il resize prima di verificare lo stato "pen".
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+
+    check("modalità di default 'pen'", mv._canvas._draw_mode == "pen")
+    stack = mv._canvas._draw_stack[False]
     assert stack is not None
-    check("in modalità 'pen' il canvas è avvolto in un GestureDetector",
+    check("in modalità 'pen', a riquadro noto, il canvas è avvolto in un GestureDetector",
           isinstance(stack.controls[1], ft.GestureDetector))
-    viewer = mv._detail_interactive_viewer
+    viewer = mv._canvas._interactive_viewer[False]
     assert viewer is not None
     check("in modalità 'pen' l'InteractiveViewer non pannerebbe comunque (pan_enabled=False)",
           viewer.pan_enabled is False)
 
-    mv._select_mode("move", [], [], [], gm, is_fs=False)
-    check("il draw_mode è cambiato in 'move'", mv._draw_mode == "move")
+    mv._canvas._select_mode("move", is_fs=False)
+    check("il draw_mode è cambiato in 'move'", mv._canvas._draw_mode == "move")
     check("BUG FIX: in modalità 'move' il GestureDetector è sparito, "
           "il canvas è figlio diretto dello Stack",
-          stack.controls[1] is mv._detail_canvas)
+          stack.controls[1] is mv._canvas._canvas[False])
     check("l'InteractiveViewer ora ha pan_enabled=True (nessun concorrente nella gesture arena)",
           viewer.pan_enabled is True)
 
     # Tornando a "pen" il GestureDetector di disegno deve ricomparire —
     # altrimenti si perderebbe la possibilità di disegnare.
-    mv._select_mode("pen", [], [], [], gm, is_fs=False)
+    mv._canvas._select_mode("pen", is_fs=False)
     check("tornando a 'pen' il GestureDetector di disegno ricompare",
           isinstance(stack.controls[1], ft.GestureDetector))
 
@@ -398,6 +421,72 @@ def test_move_mode_rimuove_gesture_detector() -> None:
     gesture.on_pan_end(_FakeDragEvent(50, 50))
     check("il disegno funziona ancora dopo un giro pen→move→pen",
           bool(json.loads(maps_repo.get_map(gm.id).annotations)))
+
+
+# ---------------------------------------------------------------------------
+# [6] BUG FIX (2026-08-24): race di normalizzazione — nessun disegno prima
+#     che il riquadro sia noto
+# ---------------------------------------------------------------------------
+
+def test_nessun_gesture_prima_del_box_noto() -> None:
+    """
+    Bug report Davide (riprodotto su un personaggio nuovo, mappa caricata
+    da zero — quindi NON dati "legacy"): il disegno non corrisponde alla
+    mappa. Causa reale: `self._detail_box_size`/`self._fs_box_size`
+    partono a `[0.0, 0.0]` e vengono aggiornati SOLO da `on_size_change`
+    (un giro websocket client→server, non istantaneo) — un tratto
+    completato PRIMA che quell'evento arrivi veniva normalizzato con un
+    riquadro 0×0, che `geo.normalize_points()` (fallback documentato)
+    ritorna INVARIATO (pixel assoluti) — poi `geo.denormalize_points()`
+    giudica quei valori "legacy" per euristica e non li riscala mai più:
+    disallineamento permanente su dati freschissimi.
+
+    Fix: `MapDrawingCanvas` non monta il `GestureDetector` di
+    disegno/gomma finché il riquadro non è noto — il canvas resta nudo
+    (stesso ramo già usato per la modalità "move"), quindi nessun tratto
+    può essere completato con un box sconosciuto, per costruzione. Questo
+    test verifica che l'assenza del `GestureDetector` sia vera SUBITO dopo
+    l'apertura (nessun `on_size_change` ancora arrivato), e che compaia
+    solo dopo il primo resize.
+    """
+    print("\n[6] Nessun GestureDetector montato finché il riquadro non è noto "
+          "(BUG FIX 2026-08-24, disallineamento su dati freschi)")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Appena Aperta")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+
+    check("box del pannello inline non ancora noto subito dopo l'apertura",
+          mv._canvas._box_ready[False] is False)
+    stack = mv._canvas._draw_stack[False]
+    assert stack is not None
+    canvas = mv._canvas._canvas[False]
+    check("BUG FIX: prima di qualunque on_size_change, il canvas è nudo "
+          "(nessun GestureDetector che possa completare un tratto con box 0x0)",
+          stack.controls[1] is canvas and not isinstance(stack.controls[1], ft.GestureDetector))
+
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+
+    check("dopo il primo on_size_change il box è noto",
+          mv._canvas._box_ready[False] is True)
+    check("FIX: ora il GestureDetector è montato, il disegno può iniziare",
+          isinstance(stack.controls[1], ft.GestureDetector))
+
+    gesture = stack.controls[1]
+    gesture.on_pan_start(_FakeDragEvent(100, 100))
+    gesture.on_pan_update(_FakeDragEvent(300, 200))
+    gesture.on_pan_end(_FakeDragEvent(300, 200))
+    stored = json.loads(maps_repo.get_map(gm.id).annotations)[0]["points"]
+    check("il tratto disegnato dopo il resize si salva come frazione [0,1], "
+          "mai come pixel assoluti indistinguibili da dati legacy",
+          all(0.0 <= px <= 1.0 and 0.0 <= py <= 1.0 for px, py in stored))
 
 
 def main() -> int:
@@ -411,6 +500,7 @@ def main() -> int:
     test_gomma_tratto_riquadro_diverso()
     test_gomma_libera_rinormalizza()
     test_move_mode_rimuove_gesture_detector()
+    test_nessun_gesture_prima_del_box_noto()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

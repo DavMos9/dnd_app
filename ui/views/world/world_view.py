@@ -16,10 +16,8 @@ import logging
 import os
 import threading
 from datetime import datetime
-from typing import Any
 
 import flet as ft
-import flet.canvas as cv
 
 from config.settings import DRACONIDE_ANCESTRIES
 from core import character_instances
@@ -38,11 +36,11 @@ from data.repositories import (
 from network.host_server import HostServerSlot, PendingJoinRequest, WorldHostServer, local_ip_hint
 from network.qr_join import build_join_text, build_transfer_text, generate_qr_png_base64
 from ui.components.background_sync import BackgroundSyncLoop
-from ui import canvas_geometry as geo
+from ui.components.map_drawing_canvas import MapDrawingCanvas, data_uri as _data_uri
 from ui import file_export
 from ui.mobile_webview_picker import pick_file_via_webview
 from ui.native_file_picker import pick_file_native, FilePickerUnavailable
-from ui.views.maps_view import _PEN_COLORS, _data_uri, _pick_desktop, _pick_from_library, _pick_mobile
+from ui.views.maps_view import _pick_desktop, _pick_from_library, _pick_mobile
 from ui.views.master.master_loot_view import (
     _KIND_ICONS, _KIND_LABELS, _MAGIC_KINDS, _coin_summary, _mechanics_summary,
 )
@@ -1779,7 +1777,6 @@ class WorldsView(ft.Column):
         page = self.page
         if page is None:
             return
-        p = d.T()
 
         # Prima apertura su una replica: l'immagine non arriva mai via
         # evento/snapshot (§6.4) — un fetch pigro una tantum, poi in cache
@@ -1792,107 +1789,9 @@ class WorldsView(ft.Column):
                     gm.image_data = base64.b64encode(raw).decode("ascii")
                     maps_repo.update_map(gm.id, image_data=gm.image_data)
 
-        try:
-            strokes: list[dict] = json.loads(gm.annotations or "[]")
-        except (json.JSONDecodeError, TypeError):
-            strokes = []
-        #: Avviso una tantum per i tratti in formato legacy (salvati in
-        #: pixel assoluti — vedi il docstring di `ui.canvas_geometry`,
-        #: "nessuna migrazione": le dimensioni originali del riquadro non
-        #: sono recuperabili). Calcolato una sola volta all'apertura, sul
-        #: contenuto letto sopra — non si aggiorna da solo se altri tratti
-        #: legacy arrivano dopo via evento (caso raro: solo un dispositivo
-        #: ancora su una versione precedente potrebbe produrne di nuovi).
-        has_legacy = geo.has_legacy_strokes(gm.annotations or "[]")
-        canvas = cv.Canvas(expand=True)
         closed = [False]
-        pen_color_idx = [0]
 
-        # Dimensione CORRENTE del riquadro di disegno, in pixel — letta da
-        # `on_size_change` (§ `ui/canvas_geometry.py` per il perché: Flet
-        # 0.86.5 non offre altro modo di conoscerla). I punti persistiti
-        # sono frazioni [0,1] di questa dimensione, MAI pixel assoluti:
-        # due dispositivi/finestre di dimensione diversa convertono le
-        # stesse frazioni nei propri pixel assoluti, invece di ereditare
-        # la dimensione di chi ha disegnato per primo.
-        box_size = [0.0, 0.0]
-
-        # Dimensione NATIVA dell'immagine (vedi `geo.contain_rect()`):
-        # letta una volta sola, pigra (PIL non decodifica il raster per
-        # leggere `.size`), da
-        # `gm.image_data`. Con `fit=ft.BoxFit.CONTAIN` (sotto) l'immagine
-        # occupa solo una PARTE di `box_size` se l'aspect ratio non
-        # coincide — le coordinate normalizzate vanno prese rispetto a
-        # quella parte, non all'intero riquadro.
-        img_size = [0.0, 0.0]
-        if gm.image_data:
-            try:
-                from PIL import Image as PILImage
-                import io
-                with PILImage.open(io.BytesIO(base64.b64decode(gm.image_data))) as _img:
-                    img_size[0], img_size[1] = float(_img.width), float(_img.height)
-            except Exception as e:
-                logger.debug("Lettura dimensioni immagine mappa fallita: %s", e)
-
-        def _draw_rect() -> tuple[float, float, float, float]:
-            return geo.contain_rect(box_size[0], box_size[1], img_size[0], img_size[1])
-
-        def _path_from_abs_points(points: list, color: str, width: float) -> cv.Path | None:
-            if len(points) < 2:
-                return None
-            elems: list = [cv.Path.MoveTo(points[0][0], points[0][1])]
-            for x, y in points[1:]:
-                elems.append(cv.Path.LineTo(x, y))
-            return cv.Path(
-                elements=elems,
-                paint=ft.Paint(
-                    color=color, stroke_width=width,
-                    style=ft.PaintingStyle.STROKE, stroke_cap=ft.StrokeCap.ROUND,
-                ),
-            )
-
-        def _redraw(live_points: list[list[float]] | None = None):
-            """`live_points`: tratto in corso, non ancora salvato, già in
-            pixel assoluti del riquadro corrente (nessuna normalizzazione
-            necessaria: si vede solo qui, nello stesso istante in cui si
-            disegna) — feedback immediato sotto il dito/puntatore, stesso
-            principio di `MapsView._redraw_canvas`. I tratti già salvati in
-            `strokes` sono invece frazioni: si riconvertono in pixel
-            assoluti rispetto alla dimensione ATTUALE del riquadro ad ogni
-            chiamata, cosicché restino allineati anche se questo overlay è
-            più piccolo/grande di quello con cui furono disegnati."""
-            shapes: list[cv.Shape] = []
-            ox, oy, dw, dh = _draw_rect()
-            for stroke in strokes:
-                if stroke.get("type") != "stroke":
-                    continue
-                abs_points = geo.denormalize_points(
-                    stroke.get("points", []), dw, dh, ox, oy)
-                path = _path_from_abs_points(
-                    abs_points, stroke.get("color", _PEN_COLORS[0]), stroke.get("width", 5.0))
-                if path is not None:
-                    shapes.append(path)
-            if live_points and len(live_points) >= 2:
-                path = _path_from_abs_points(
-                    live_points, _PEN_COLORS[pen_color_idx[0]], pen_width_ref[0])
-                if path is not None:
-                    shapes.append(path)
-            canvas.shapes = shapes
-
-        def _on_box_resize(e: ft.LayoutSizeChangeEvent):
-            box_size[0], box_size[1] = e.width, e.height
-            _redraw()
-            _update_canvas()
-
-        _redraw()
-
-        def _update_canvas():
-            try:
-                canvas.update()
-            except RuntimeError:
-                pass
-
-        def _sync_to_world(batch: list[dict]):
+        def _sync_to_world(batch: list[dict]) -> None:
             """Invia il pacchetto SOLO come evento — mai una scorciatoia
             di scrittura diretta (§9.1, la stessa lezione già imparata più
             volte in questo progetto): `can_manage` implica
@@ -1905,191 +1804,14 @@ class WorldsView(ft.Column):
             if not result.success:
                 logger.warning("map.draw non riuscito per %s: %s", gm.id, result.error)
 
-        current_points: list[list[float]] = []
-        #: "pen" | "eraser", parità con la toolbar della mappa personale.
-        #: Gomma "a tratto intero": rimuove ogni
-        #: tratto che passa vicino al trascinamento, più semplice della
-        #: gomma "libera" (taglio per segmento) della mappa personale —
-        #: qui basta a colmare il gap funzionale segnalato, senza portare
-        #: tutta la geometria di taglio di `maps_view.py`.
-        draw_mode_ref = ["pen"]
-        pen_width_ref = [5.0]
-        #: id dei tratti da rimuovere, raccolti durante il trascinamento in
-        #: modalità gomma — rimossi tutti insieme a `_on_pan_end` (un solo
-        #: `replace_all`, non uno per tratto toccato).
-        eraser_hits: set[int] = set()
-        _ERASER_HIT_RADIUS = 14.0
-
-        def _dist_point_to_segment(px, py, ax, ay, bx, by) -> float:
-            dx, dy = bx - ax, by - ay
-            if dx == 0 and dy == 0:
-                return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
-            t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
-            cx, cy = ax + t * dx, ay + t * dy
-            return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
-
-        def _erase_near(x: float, y: float) -> None:
-            ox, oy, dw, dh = _draw_rect()
-            for idx, stroke in enumerate(strokes):
-                if idx in eraser_hits or stroke.get("type") != "stroke":
-                    continue
-                abs_points = geo.denormalize_points(stroke.get("points", []), dw, dh, ox, oy)
-                if len(abs_points) < 2:
-                    if abs_points and ((x - abs_points[0][0]) ** 2 + (y - abs_points[0][1]) ** 2) ** 0.5 <= _ERASER_HIT_RADIUS:
-                        eraser_hits.add(idx)
-                    continue
-                for (ax, ay), (bx, by) in zip(abs_points, abs_points[1:]):
-                    if _dist_point_to_segment(x, y, ax, ay, bx, by) <= _ERASER_HIT_RADIUS:
-                        eraser_hits.add(idx)
-                        break
-
-        def _on_pan_start(e: ft.DragStartEvent):
-            current_points.clear()
-            current_points.append([e.local_position.x, e.local_position.y])
-            if draw_mode_ref[0] == "eraser":
-                eraser_hits.clear()
-                _erase_near(e.local_position.x, e.local_position.y)
-
-        def _on_pan_update(e: ft.DragUpdateEvent):
-            current_points.append([e.local_position.x, e.local_position.y])
-            if draw_mode_ref[0] == "eraser":
-                _erase_near(e.local_position.x, e.local_position.y)
-                _redraw()
-            else:
-                _redraw(live_points=current_points)
-            _update_canvas()
-
-        def _on_pan_end(e: ft.DragEndEvent):
-            # `_sync_to_world` è l'UNICA scrittura sul DB (via
-            # `apply_stroke_batch`, dentro l'handler `CMD_MAP_DRAW`): `strokes`
-            # qui resta solo lo specchio locale per il rendering immediato —
-            # scrivere anche qui direttamente duplicherebbe il tratto al
-            # prossimo giro (l'handler legge le annotazioni correnti dal DB e
-            # ci APPENDE il pacchetto, non le sostituisce).
-            if draw_mode_ref[0] == "eraser":
-                if eraser_hits:
-                    for idx in sorted(eraser_hits, reverse=True):
-                        del strokes[idx]
-                    _sync_to_world([{"op": "replace_all", "strokes": strokes}])
-                eraser_hits.clear()
-            elif len(current_points) >= 2:
-                ox, oy, dw, dh = _draw_rect()
-                stroke = {
-                    "type": "stroke", "color": _PEN_COLORS[pen_color_idx[0]],
-                    "width": pen_width_ref[0],
-                    "points": geo.normalize_points(current_points, dw, dh, ox, oy),
-                }
-                strokes.append(stroke)
-                _sync_to_world([{"op": "add", **stroke}])
-            current_points.clear()
-            _redraw()
-            _update_canvas()
-
-        def _undo(e=None):
-            if strokes:
-                strokes.pop()
-            _sync_to_world([{"op": "replace_all", "strokes": strokes}])
-            _redraw()
-            _update_canvas()
-
-        def _clear_all(e=None):
-            strokes.clear()
-            _sync_to_world([{"op": "clear"}])
-            _redraw()
-            _update_canvas()
-
-        legacy_banner_ref: list[ft.Control] = []
-
-        def _clear_legacy_strokes(e=None):
-            """Rimuove SOLO i tratti in formato legacy (non normalizzati),
-            preservando quelli già corretti — l'utente può poi ridisegnarli
-            allineati. Vedi il commento su `has_legacy` sopra per il perché
-            nessuna migrazione automatica è possibile."""
-            strokes[:] = [
-                s for s in strokes
-                if s.get("type") != "stroke" or geo.looks_normalized(s.get("points", []))
-            ]
-            _sync_to_world([{"op": "replace_all", "strokes": strokes}])
-            if legacy_banner_ref:
-                legacy_banner_ref[0].visible = False
-                try:
-                    legacy_banner_ref[0].update()
-                except RuntimeError:
-                    pass
-            _redraw()
-            _update_canvas()
-
-        swatch_refs: list[ft.Container] = []
-
-        def _select_color(idx: int):
-            pen_color_idx[0] = idx
-            for i, sw in enumerate(swatch_refs):
-                sw.border = ft.Border.all(2, p.text) if i == idx else None
-                try:
-                    sw.update()
-                except RuntimeError:
-                    pass
-
-        def _swatch(idx: int) -> ft.Container:
-            c = ft.Container(
-                content=ft.Container(bgcolor=_PEN_COLORS[idx], border_radius=d.Radius.PILL,
-                                      expand=True),
-                width=24, height=24, border_radius=d.Radius.PILL, padding=2,
-                border=ft.Border.all(2, p.text) if idx == 0 else None,
-                on_click=lambda e, i=idx: _select_color(i),
-            )
-            swatch_refs.append(c)
-            return c
-
-        if gm.image_data:
-            img_layer: ft.Control = ft.Image(src=_data_uri(gm.image_data),
-                                             fit=ft.BoxFit.CONTAIN, expand=True)
-        else:
-            img_layer = ft.Container(
-                expand=True, bgcolor=p.surface_alt, alignment=ft.Alignment.CENTER,
-                content=ft.Column(
-                    [ft.Icon(ft.Icons.MAP_OUTLINED, size=48, color=p.border),
-                     d.muted("Nessuna immagine per questa mappa")],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-            )
-
-        stack_children: list[ft.Control] = [img_layer]
-        draw_gesture: ft.GestureDetector | None = None
-        if can_manage:
-            draw_gesture = ft.GestureDetector(
-                content=canvas, on_pan_start=_on_pan_start, on_pan_update=_on_pan_update,
-                on_pan_end=_on_pan_end, drag_interval=16, expand=True,
-            )
-            stack_children.append(draw_gesture)
-        else:
-            stack_children.append(canvas)
-        draw_stack = ft.Stack(stack_children, expand=True)
-
-        # Zoom/pan: `ft.InteractiveViewer` (Flet 0.86.5, confermato
-        # disponibile: nessuna nota contraria in `docs/regole_flet_api.md`)
-        # avvolge `draw_stack` invariato. Sempre
-        # `pan_enabled=False`: un trascinamento a UN dito deve continuare a
-        # disegnare (`draw_gesture` sopra), mai spostare la vista — un
-        # pinch a DUE dita (o lo scroll del trackpad, `trackpad_scroll_
-        # causes_scale`) resta comunque libero di ingrandire, i due gesti
-        # sono per natura disgiunti (1 dito vs. 2), nessun interruttore
-        # "modalità disegno/sposta" necessario per lo zoom. Il pan (spostare
-        # la vista quando si è ingranditi) invece SERVE un interruttore,
-        # perché userebbe lo stesso gesto a un dito del disegno — vedi
-        # `_select_draw_mode`, modalità "move" più sotto: solo lì
-        # `pan_enabled` passa a True e il gesture detector del disegno
-        # viene disattivato, mai contemporaneamente ai due attivi.
-        # `pan_enabled` parte da `not can_manage`: un giocatore in sola
-        # lettura non ha alcun gesture detector di disegno che reclami il
-        # trascinamento a un dito (vedi `stack_children` sopra, ramo
-        # `else`), quindi può spostare la vista subito, senza passare da
-        # un interruttore di modalità che per lui non esisterebbe nemmeno
-        # (la toolbar sotto è tutta dentro `if can_manage:`).
-        interactive_viewer = ft.InteractiveViewer(
-            content=draw_stack, pan_enabled=not can_manage, scale_enabled=True,
-            trackpad_scroll_causes_scale=True, min_scale=1.0, max_scale=5.0,
+        canvas = MapDrawingCanvas(
+            gm, on_batch=_sync_to_world if can_manage else None, can_manage=can_manage,
         )
+        draw_area = canvas.build_draw_area(is_fs=True)
+        toolbar_row: ft.Control | None = None
+        toolbar_body: ft.Container | None = None
+        if can_manage:
+            toolbar_row, toolbar_body = canvas.build_toolbar(is_fs=True)
 
         overlay_list: list[ft.Control] = []
 
@@ -2097,6 +1819,7 @@ class WorldsView(ft.Column):
             closed[0] = True
             if overlay_list and overlay_list[0] in page.overlay:
                 page.overlay.remove(overlay_list[0])
+            canvas.teardown_fullscreen()
             try:
                 page.update()
             except RuntimeError:
@@ -2118,123 +1841,23 @@ class WorldsView(ft.Column):
             bgcolor=d.CHROME.backdrop,
         )
 
-        # Pulsanti modalità Matita/Gomma, parità con la mappa personale.
-        # Solo due pillole, non l'intero sistema "tratto/libera" della mappa
-        # personale: qui basta a coprire i due usi principali, senza
-        # portare la geometria di taglio per segmento.
-        mode_btn_refs: list[ft.Container] = []
-
-        def _style_mode_btn(btn: ft.Container, sel: bool) -> None:
-            btn.bgcolor = p.primary_fill if sel else "transparent"
-            if isinstance(btn.content, ft.Row):
-                for c in btn.content.controls:
-                    c.color = p.on_primary_fill if sel else d.CHROME.text_muted
-
-        def _select_draw_mode(mode: str) -> None:
-            draw_mode_ref[0] = mode
-            for btn, key in zip(mode_btn_refs, ("pen", "eraser", "move")):
-                _style_mode_btn(btn, key == mode)
-                try:
-                    btn.update()
-                except RuntimeError:
-                    pass
-            # Modalità "Sposta" (zoom/pan): un trascinamento a un
-            # dito deve spostare la vista invece di disegnare — l'unico modo
-            # pulito di evitare due riconoscitori di gesture in competizione
-            # sullo stesso trascinamento è disattivare qui il gesture
-            # detector del disegno (mai contemporaneo a `pan_enabled=True`
-            # sull'InteractiveViewer, vedi il commento lì sopra).
-            is_move = mode == "move"
-            interactive_viewer.pan_enabled = is_move
-            try:
-                interactive_viewer.update()
-            except RuntimeError:
-                pass
-            if draw_gesture is not None:
-                draw_gesture.on_pan_start = None if is_move else _on_pan_start
-                draw_gesture.on_pan_update = None if is_move else _on_pan_update
-                draw_gesture.on_pan_end = None if is_move else _on_pan_end
-                try:
-                    draw_gesture.update()
-                except RuntimeError:
-                    pass
-
-        def _mode_btn(key: str, icon: Any, label: str) -> ft.Container:
-            btn = ft.Container(
-                content=ft.Row(
-                    [ft.Icon(icon, size=14), ft.Text(label, size=d.Size.LABEL,
-                                                      weight=ft.FontWeight.BOLD)],
-                    spacing=4, tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                padding=ft.Padding.symmetric(horizontal=d.Space.SM, vertical=d.Space.XS + 2),
-                border_radius=d.Radius.PILL,
-                on_click=lambda e, k=key: _select_draw_mode(k),
-                ink=True,
-            )
-            _style_mode_btn(btn, key == draw_mode_ref[0])
-            mode_btn_refs.append(btn)
-            return btn
-
-        def _on_pen_width_change(e: Any) -> None:
-            pen_width_ref[0] = float(e.control.value)
-
+        legacy_banner = canvas.build_legacy_banner()
         body: list[ft.Control] = [header]
-        if has_legacy and can_manage:
-            legacy_banner = ft.Container(
-                content=ft.Row(
-                    [
-                        ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=16, color=p.danger),
-                        ft.Text(
-                            "Alcuni tratti di questa mappa sono di un formato precedente e "
-                            "potrebbero non allinearsi su schermi diversi.",
-                            size=12, color=d.CHROME.text, expand=True,
-                        ),
-                        ft.TextButton(
-                            "Cancella tratti precedenti", icon=ft.Icons.DELETE_OUTLINE,
-                            on_click=_clear_legacy_strokes,
-                            style=ft.ButtonStyle(color=p.danger),
-                        ),
-                    ],
-                    spacing=d.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                padding=ft.Padding.symmetric(horizontal=16, vertical=8),
-                bgcolor=ft.Colors.with_opacity(0.12, p.danger),
-            )
-            legacy_banner_ref.append(legacy_banner)
+        if legacy_banner is not None:
             body.append(legacy_banner)
         body.append(
-            ft.Container(expand=True, content=interactive_viewer, on_size_change=_on_box_resize),
+            ft.Container(expand=True, content=draw_area,
+                         on_size_change=lambda e: canvas.on_box_resize(True, e)),
         )
-        if can_manage:
+        if can_manage and toolbar_row is not None and toolbar_body is not None:
             body.append(ft.Container(
-                content=ft.Row(
-                    [
-                        _mode_btn("pen", ft.Icons.EDIT_OUTLINED, "Matita"),
-                        _mode_btn("eraser", ft.Icons.AUTO_FIX_NORMAL, "Gomma"),
-                        _mode_btn("move", ft.Icons.OPEN_WITH, "Sposta"),
-                        ft.Container(width=d.Space.SM),
-                        *[_swatch(i) for i in range(len(_PEN_COLORS))],
-                        ft.Container(width=d.Space.SM),
-                        ft.Text("Spessore", size=d.Size.LABEL, color=d.CHROME.text_dim,
-                                weight=ft.FontWeight.BOLD),
-                        ft.Slider(
-                            min=1, max=20, value=pen_width_ref[0], divisions=19,
-                            active_color=p.primary_fill, thumb_color=d.CHROME.text,
-                            inactive_color=d.CHROME.border, width=110, height=32,
-                            on_change=_on_pen_width_change,
-                        ),
-                        ft.Container(width=d.Space.MD),
-                        ft.TextButton("Annulla ultimo", icon=ft.Icons.UNDO, on_click=_undo,
-                                      style=ft.ButtonStyle(color=d.CHROME.text)),
-                        ft.TextButton("Cancella tutto", icon=ft.Icons.DELETE_FOREVER_OUTLINED,
-                                      on_click=_clear_all,
-                                      style=ft.ButtonStyle(color=p.danger)),
-                    ],
-                    spacing=d.Space.SM, run_spacing=d.Space.SM,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    wrap=True,
-                ),
-                padding=d.Space.SM, bgcolor=d.CHROME.panel,
+                content=ft.Column([toolbar_row, toolbar_body], spacing=0),
+                bgcolor=d.CHROME.bg,
+                border_radius=ft.BorderRadius.only(
+                    top_left=d.Radius.LG, top_right=d.Radius.LG),
+                shadow=ft.BoxShadow(blur_radius=18, spread_radius=0,
+                                    offset=ft.Offset(0, -4),
+                                    color=ft.Colors.with_opacity(0.45, d.CHROME.canvas)),
             ))
 
         overlay = ft.Container(
@@ -2264,11 +1887,7 @@ class WorldsView(ft.Column):
                         fresh_strokes = json.loads(fresh.annotations or "[]")
                     except (json.JSONDecodeError, TypeError):
                         fresh_strokes = []
-                    if fresh_strokes != strokes:
-                        strokes.clear()
-                        strokes.extend(fresh_strokes)
-                        _redraw()
-                        _update_canvas()
+                    canvas.refresh_strokes(fresh_strokes)
 
             page.run_task(_watch_loop)
 

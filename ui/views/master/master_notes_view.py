@@ -194,6 +194,14 @@ class MasterNotesView(ft.Column):
         #: (False = categorie+lista, True = dettaglio nota). Ignorato su
         #: desktop/tablet, dove sono sempre entrambi visibili fianco a fianco.
         self._mobile_show_detail: bool = False
+        #: Pannello sinistro comprimibile su desktop/tablet (richiesta
+        #: Davide 2026-08-24, stessa identica funzione già aggiunta a
+        #: `ui/views/diary_view.py::DiaryView`) — indipendente da
+        #: `_is_mobile`/`_mobile_show_detail` sopra, che gestiscono già il
+        #: caso schermo davvero stretto con un drill-down a schermo intero;
+        #: qui serve invece a chi lavora su una finestra desktop/tablet e
+        #: vuole comunque più spazio per il dettaglio della nota.
+        self._left_collapsed: bool = False
         #: Membri del mondo attivo, per il selettore "Solo i giocatori
         #: selezionati" — vuoto se `world_id == ""` (modalità locale).
         self._world_members: list[WorldMember] = (
@@ -274,6 +282,8 @@ class MasterNotesView(ft.Column):
             # condiviso con l'altro pannello, non per lo schermo intero).
             body: ft.Control = self._detail_container if self._mobile_show_detail \
                 else self._build_left_panel()
+        elif self._left_collapsed:
+            body = self._detail_container
         else:
             body = ft.Row(
                 [
@@ -312,6 +322,17 @@ class MasterNotesView(ft.Column):
             [design.icon_badge(meta["icon_on"], tone="primary", size=32),
              ft.Container(width=10)]
         )
+        # Comprimi/espandi il pannello sinistro — solo su desktop/tablet
+        # (`not self._is_mobile`): su mobile il drill-down sopra già mostra
+        # un pannello alla volta, un secondo toggle sarebbe ridondante.
+        if not self._is_mobile:
+            leading.insert(0, ft.IconButton(
+                icon=ft.Icons.MENU_OPEN if not self._left_collapsed else ft.Icons.MENU,
+                icon_size=18, icon_color=design.T().text_2,
+                tooltip="Comprimi elenco" if not self._left_collapsed else "Espandi elenco",
+                on_click=lambda e: self._on_toggle_left_panel(),
+                padding=ft.Padding.all(4),
+            ))
         return ft.Container(
             content=ft.Row(
                 [
@@ -871,6 +892,10 @@ class MasterNotesView(ft.Column):
         """Solo mobile: dal dettaglio di una nota torna a categorie+lista."""
         self._mobile_show_detail = False
         self._note_edit = False
+        self._refresh()
+
+    def _on_toggle_left_panel(self) -> None:
+        self._left_collapsed = not self._left_collapsed
         self._refresh()
 
     # ──────────────────────────────────────────────────────────────────────

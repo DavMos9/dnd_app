@@ -27,7 +27,7 @@ from __future__ import annotations
 import flet as ft
 
 from data.models import MasterNpc
-from ui.views.maps_view import _data_uri
+from ui.components.map_drawing_canvas import data_uri as _data_uri
 from ui.widgets import responsive_dialog_height, responsive_dialog_width, wrap_dialog_actions
 from ui import design
 
@@ -56,7 +56,20 @@ def build_npc_dossier_column(npc: MasterNpc) -> ft.Control:
 
     if npc.image_data:
         photo: ft.Control = ft.Container(
-            content=ft.Image(src=_data_uri(npc.image_data), fit=ft.BoxFit.COVER),
+            # BUG FIX (2026-08-24, bug report Davide: "l'immagine viene
+            # comunque tagliata se la apro dalle note", confermato anche su
+            # desktop con spazio abbondante — non era un problema di
+            # altezza del dialog, vedi `responsive_dialog_height` sopra per
+            # quel fix distinto). `fit=COVER` riempie il riquadro 140x140
+            # ritagliando tutto ciò che non ci sta se l'immagine caricata
+            # non è quadrata — comportamento corretto per una MINIATURA
+            # (`master_npc_list_view.py`, lista/card), sbagliato per un
+            # "dossier" pensato per mostrare il RITRATTO INTERO (vedi il
+            # docstring del modulo, "tessera identificativa... foto a
+            # destra"). `CONTAIN` mostra sempre l'immagine per intero,
+            # aggiungendo spazio vuoto ai lati/sopra-sotto se le proporzioni
+            # non sono quadrate, invece di tagliarla.
+            content=ft.Image(src=_data_uri(npc.image_data), fit=ft.BoxFit.CONTAIN),
             width=140, height=140, border_radius=design.Radius.MD,
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             shadow=design.elevation(2),

@@ -188,6 +188,22 @@ def _find_all(root, pred):
     return [n for n in _iter_controls(root) if pred(n)]
 
 
+def _find_pill_button(root, label: str):
+    """Trova un pulsante-pillola della toolbar condivisa
+    (`ui/components/map_drawing_canvas.py::MapDrawingCanvas._build_top_row_content`,
+    stesso pattern di `ui/views/maps_view.py`) dal testo dell'etichetta —
+    un `ft.Container(on_click=..., content=ft.Row([Icon, Text(label)]))`,
+    non più un semplice `ft.TextButton` con `content` stringa."""
+    def _pred(n):
+        if not isinstance(n, ft.Container) or not getattr(n, "on_click", None):
+            return False
+        row = n.content
+        if not isinstance(row, ft.Row):
+            return False
+        return any(isinstance(c, ft.Text) and c.value == label for c in row.controls)
+    return _find(root, _pred)
+
+
 class _FakeOffset:
     def __init__(self, x: float, y: float):
         self.x = x
@@ -448,14 +464,27 @@ def test_overlay_disegno_master() -> None:
     check("l'overlay è stato aggiunto a page.overlay", len(fake_page.overlay) == 1)
     overlay = fake_page.overlay[0]
 
+    # BUG FIX 2026-08-24 (race di normalizzazione — vedi
+    # `ui/components/map_drawing_canvas.py::MapDrawingCanvas.on_box_resize`):
+    # il `GestureDetector` di disegno NON è montato finché il riquadro non
+    # è noto (nessun `on_size_change` ancora arrivato in quest'istante
+    # userebbe un box 0x0, che normalizzerebbe i punti in modo scorretto
+    # — proprio il bug segnalato da Davide "il disegno non corrisponde
+    # sulla mappa"). Va quindi simulato il resize PRIMA di cercare il
+    # GestureDetector, non dopo.
+    resize_container = _find(
+        overlay, lambda n: isinstance(n, ft.Container)
+        and isinstance(getattr(n, "content", None), ft.InteractiveViewer)
+        and getattr(n, "on_size_change", None),
+    )
+    assert resize_container is not None
+    resize_container.on_size_change(_FakeSizeEvent(400, 300))
+
     gesture = _find(overlay, lambda n: isinstance(n, ft.GestureDetector))
-    check("un master può disegnare: la mappa ha un GestureDetector", gesture is not None)
+    check("un master può disegnare: la mappa ha un GestureDetector "
+          "(dopo che il riquadro è noto)", gesture is not None)
     assert gesture is not None
 
-    # Nessun on_size_change ancora arrivato: box_size resta (0,0), i punti
-    # si salvano invariati (stesso comportamento pre-fix quando la
-    # dimensione non è nota) — verifica che il ramo "non normalizzare
-    # senza una dimensione nota" di `ui/canvas_geometry.py` funzioni.
     gesture.on_pan_start(_FakeDragEvent(10, 10))
     gesture.on_pan_update(_FakeDragEvent(20, 20))
     gesture.on_pan_end(_FakeDragEvent(20, 20))
@@ -465,19 +494,22 @@ def test_overlay_disegno_master() -> None:
     strokes = json.loads(after_draw.annotations or "[]")
     check("un tratto disegnato produce esattamente una annotazione persistita",
           len(strokes) == 1 and strokes[0].get("type") == "stroke")
-    check("senza una dimensione nota del riquadro, i punti restano invariati",
-          strokes[0].get("points") == [[10.0, 10.0], [20.0, 20.0]])
+    check("FIX: con un riquadro noto (400x300), i punti si salvano come "
+          "frazione [0,1] — mai più pixel assoluti indistinguibili da dati legacy",
+          strokes[0].get("points") == [[10 / 400, 10 / 300], [20 / 400, 20 / 300]])
     draw_events = [e for e in world_repo.get_events_since(world.id, 0)
                    if e.kind == perm.CMD_MAP_DRAW]
     check("il tratto produce un evento CMD_MAP_DRAW nel giornale", len(draw_events) == 1)
 
-    undo_btn = _find(overlay, lambda n: isinstance(n, ft.TextButton) and n.content == "Annulla ultimo")
-    check("il bottone 'Annulla ultimo' è presente", undo_btn is not None)
+    # "Annulla" (non più "Annulla ultimo" — le etichette sono ora quelle
+    # condivise di `MapDrawingCanvas`, stesse della mappa personale).
+    undo_btn = _find_pill_button(overlay, "Annulla")
+    check("il bottone 'Annulla' è presente", undo_btn is not None)
     assert undo_btn is not None
     undo_btn.on_click(None)
     after_undo = maps_repo.get_map(clone_id)
     assert after_undo is not None
-    check("dopo 'Annulla ultimo' non restano tratti",
+    check("dopo 'Annulla' non restano tratti",
           json.loads(after_undo.annotations or "[]") == [])
 
     close_btn = _find(overlay, lambda n: isinstance(n, ft.IconButton) and n.icon == ft.Icons.CLOSE)
@@ -506,8 +538,13 @@ def test_coordinate_normalizzate() -> None:
     wv._open_shared_map(world, shared_gm, True)
     overlay = fake_page.overlay[0]
 
+    # Identificato dal contenuto diretto (`ft.InteractiveViewer`), non da
+    # "un qualunque Container con on_size_change": la toolbar (breakpoint
+    # responsive) ne monta uno per conto proprio.
     resize_container = _find(
-        overlay, lambda n: isinstance(n, ft.Container) and getattr(n, "on_size_change", None),
+        overlay, lambda n: isinstance(n, ft.Container)
+        and isinstance(getattr(n, "content", None), ft.InteractiveViewer)
+        and getattr(n, "on_size_change", None),
     )
     check("il riquadro di disegno ha un on_size_change agganciato", resize_container is not None)
     assert resize_container is not None
