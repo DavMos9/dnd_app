@@ -56,6 +56,7 @@ import flet.canvas as cv  # noqa: E402
 from data.database import init_db  # noqa: E402
 from data.models import Character  # noqa: E402
 from data.repositories import character_repo, maps_repo  # noqa: E402
+from ui import canvas_geometry as geo  # noqa: E402
 
 _PASS = 0
 _FAIL: list[str] = []
@@ -489,6 +490,52 @@ def test_nessun_gesture_prima_del_box_noto() -> None:
           all(0.0 <= px <= 1.0 and 0.0 <= py <= 1.0 for px, py in stored))
 
 
+def test_tolleranza_sconfinamento_letterbox() -> None:
+    """
+    Bug report Davide (screenshot 2026-08-24): "il disegno a schermo pieno
+    e a schermo ridotto non corrisponde" per lo STESSO tratto, mai
+    ridisegnato. Trovato scavando nel DB reale (`dnd_companion.db`, mappa
+    "Mappa del mondo"): un tratto fresco, con `x` fino a -0.239 — fuori da
+    [0,1]. Causa: durante un trascinamento, `local_position` NON è mai
+    vincolato al riquadro del `GestureDetector` — un utente che disegna
+    vicino al bordo di un'immagine con `BoxFit.CONTAIN` può facilmente
+    sconfinare nella banda di letterboxing (fuori dal contenuto
+    dell'immagine, ma dentro il riquadro di disegno): quel punto
+    normalizzato è una frazione realistica ma < 0 o > 1, NON un pixel
+    assoluto. La vecchia euristica `looks_normalized()` (stretta a [0,1])
+    scambiava questo tratto per "legacy" e smetteva per sempre di
+    riscalarlo — disallineamento permanente su dati freschissimi, non
+    "legacy" in alcun senso.
+
+    Fix: `looks_normalized()` tollera un margine oltre [0,1]
+    (`_NORM_MARGIN`) — largo abbastanza da coprire uno sconfinamento reale
+    nella banda di letterboxing, ordini di grandezza sotto qualunque
+    valore che un vero pixel assoluto (legacy) potrebbe assumere.
+    """
+    print("\n[7] Tolleranza per sconfinamento nella banda di letterboxing "
+          "(BUG FIX 2026-08-24, prova diretta nel DB reale — mai più "
+          "scambiato per dato legacy)")
+
+    # Stessi valori osservati nel DB reale (mappa "Mappa del mondo").
+    real_stroke_points = [[-0.239, 0.273], [-0.230, 0.278], [0.097, 0.650]]
+    check("un tratto che sconfina leggermente oltre [0,1] è ANCORA "
+          "giudicato normalizzato (non più scambiato per legacy)",
+          geo.looks_normalized(real_stroke_points))
+
+    box_w, box_h = 1800.0, 1000.0
+    denorm = geo.denormalize_points(real_stroke_points, box_w, box_h)
+    check("viene riscalato rispetto al riquadro CORRENTE, non lasciato "
+          "invariato come farebbe con dati legacy",
+          denorm[0] == [-0.239 * box_w, 0.273 * box_h])
+
+    # Un vero tratto legacy (pixel assoluti, box tipicamente >> 3px) resta
+    # correttamente riconosciuto come tale — il margine non lo confonde.
+    legacy_points = [[340.5, 210.2], [512.0, 198.7]]
+    check("un vero tratto legacy (pixel assoluti) resta fuori tolleranza, "
+          "riconosciuto come non normalizzato",
+          not geo.looks_normalized(legacy_points))
+
+
 def main() -> int:
     print("=" * 62)
     print("Mappe locali — fix coordinate 2026-08-12 (inline/schermo intero/gomma)")
@@ -501,6 +548,7 @@ def main() -> int:
     test_gomma_libera_rinormalizza()
     test_move_mode_rimuove_gesture_detector()
     test_nessun_gesture_prima_del_box_noto()
+    test_tolleranza_sconfinamento_letterbox()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

@@ -772,20 +772,28 @@ class MapDrawingCanvas:
             if not compact:
                 row_children.append(
                     ft.Text(label, size=design.Size.LABEL, weight=ft.FontWeight.BOLD,
-                            font_family=design.Font.BODY),
+                            font_family=design.Font.BODY, no_wrap=True),
                 )
             c = ft.Container(
                 content=ft.Row(row_children, spacing=6, tight=True,
                                vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                # Hit-area estesa oltre il visivo (min 40px) — sotto la
-                # soglia touch raccomandata (44×44 iOS/48×48 Android) a
-                # 28px, guida ui-ux-pro-max.
-                width=40 if compact else None,
+                # NIENTE `width` esplicito qui (né in modalità compatta né
+                # estesa): un Container con `animate=` che passa da una
+                # larghezza numerica a `None` (o viceversa) chiede a Flutter
+                # di interpolare un `AnimatedContainer` verso una larghezza
+                # non vincolata — animazione mal definita, osservata
+                # produrre icona+testo sovrapposti/illeggibili nei pulsanti
+                # "Gomma"/"Sposta" al primo assestamento del layout (bug
+                # report Davide, screenshot 2026-08-24). La larghezza resta
+                # SEMPRE intrinseca al contenuto (icona sola in compatto,
+                # icona+testo altrimenti) — l'area di tocco minima (40px) è
+                # garantita dal solo `padding`, mai da `width`.
                 height=40,
-                padding=(ft.Padding.all(0) if compact else
+                padding=(ft.Padding.all(12) if compact else
                          ft.Padding.symmetric(horizontal=design.Space.MD, vertical=design.Space.SM)),
                 border_radius=design.Radius.PILL,
                 alignment=ft.Alignment.CENTER,
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 tooltip=label if compact else None,
                 on_click=lambda e, k=key: self._select_mode(k, is_fs),
                 ink=True,
@@ -827,18 +835,20 @@ class MapDrawingCanvas:
             if not compact:
                 row_children.append(
                     ft.Text(label, size=design.Size.LABEL, color=fg, weight=ft.FontWeight.BOLD,
-                            font_family=design.Font.BODY),
+                            font_family=design.Font.BODY, no_wrap=True),
                 )
             return ft.Container(
                 content=ft.Row(row_children, spacing=5, tight=True,
                                vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                width=40 if compact else None,
+                # Vedi commento in `_mbtn`: mai `width` numerico↔`None` sotto
+                # `animate`/`animate_scale` — stessa causa dello stesso bug.
                 height=40,
-                padding=(ft.Padding.all(0) if compact else
+                padding=(ft.Padding.all(12) if compact else
                          ft.Padding.symmetric(horizontal=design.Space.MD, vertical=design.Space.SM)),
                 border_radius=design.Radius.PILL,
                 bgcolor=bg,
                 alignment=ft.Alignment.CENTER,
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 tooltip=label if compact else None,
                 on_click=fn, ink=True,
                 animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),

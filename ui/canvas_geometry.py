@@ -111,12 +111,29 @@ def contain_rect(box_w: float, box_h: float, img_w: float, img_h: float) -> tupl
     return (box_w - draw_w) / 2, 0.0, draw_w, draw_h
 
 
+#: Margine di tolleranza oltre [0,1] per `looks_normalized()` — un tratto
+#: disegnato vicino al bordo dell'immagine, con `BoxFit.CONTAIN`, può
+#: legittimamente sconfinare per un tratto nella banda di letterboxing
+#: (fuori dal contenuto dell'immagine ma ancora dentro il riquadro di
+#: disegno): quel punto normalizzato è una frazione realistica ma < 0 o
+#: > 1, non un pixel assoluto. BUG FIX (2026-08-24, prova diretta nel DB:
+#: un tratto reale, fresco, con `x` fino a -0.24 — un'euristica [0,1]
+#: rigida lo scambiava per "legacy" e lo rendeva permanentemente
+#: disallineato, mai più riscalato). Un pixel assoluto vero eccede questo
+#: margine di ordini di grandezza (un riquadro di disegno di appena 2px
+#: non esiste), quindi allargarlo non rischia di scambiare dati legacy
+#: per normalizzati.
+_NORM_MARGIN = 1.0
+
+
 def looks_normalized(points: list) -> bool:
-    """Euristica: un tratto salvato in frazioni ha ogni coordinata in
-    [0, 1]. Lista vuota: nessun punto da giudicare, tratta come "già
+    """Euristica: un tratto salvato in frazioni ha ogni coordinata in un
+    intorno di [0, 1] (vedi `_NORM_MARGIN` per il perché non è [0,1]
+    stretto). Lista vuota: nessun punto da giudicare, tratta come "già
     normalizzato" (nessun effetto su `denormalize_points`, che con lista
     vuota non fa comunque nulla)."""
-    return all(0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 for x, y in points)
+    lo, hi = -_NORM_MARGIN, 1.0 + _NORM_MARGIN
+    return all(lo <= x <= hi and lo <= y <= hi for x, y in points)
 
 
 def normalize_points(points: list, box_w: float, box_h: float,
