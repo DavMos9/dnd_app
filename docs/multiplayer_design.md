@@ -389,6 +389,18 @@ voce "8b/8c":
   mappa aperta in un riquadro di dimensione diversa (finestra del master
   vs. schermo del giocatore) mostrava i tratti disallineati.
 
+**Rivisto (2026-08-25) — componente di disegno unificato** — dettaglio
+completo in `changelog_storico.md`, voce "Riprogettazione della modalità di
+disegno mappe": l'overlay di disegno del Master (qui) e il pannello del
+giocatore (`maps_view.py`) condividono ora un unico componente,
+`ui/components/map_drawing_canvas.py::MapDrawingCanvas` — prima erano due
+implementazioni quasi-duplicate, quella del Master senza la gomma "Libera".
+Corretta anche la causa reale (non solo apparente) del disallineamento
+immagine/tratto residuo, indipendente dal formato di coordinate sopra:
+`ft.Stack` di default non forza i figli `expand=True` a riempire lo spazio
+disponibile (`StackFit.LOOSE`), quindi immagine e canvas di disegno potevano
+essere centrati in due riquadri leggermente diversi.
+
 ### 6.5 Il combattimento visto dai giocatori
 
 Durante un incontro i giocatori vedono, sul proprio dispositivo: l'**ordine di

@@ -344,6 +344,66 @@ Salva via `character_repo.create()` + `_save_single_proficiency()` + `set_expert
 - Se `feats.json` vuoto → empty state con istruzione per popolarlo
 - Accessibile dalla sidebar come 6° voce "Talenti" con icona `MILITARY_TECH`
 
+### `ui/components/map_drawing_canvas.py` — `MapDrawingCanvas` (2026-08-25)
+Componente condiviso che racchiude l'intera modalità di disegno mappe: area disegno,
+toolbar, gomma, undo, storia. Estratto per unificare due implementazioni quasi-duplicate —
+quella storica lato giocatore (`maps_view.py`) e la reimplementazione ridotta lato Master
+(`world_view.py`, che non aveva la gomma "Libera"). Dettaglio completo del refactor e dei
+bug corretti in `changelog_storico.md`, voce "Riprogettazione della modalità di disegno
+mappe" (2026-08-25).
+
+- **Costruttore**: `MapDrawingCanvas(gm, on_batch, can_manage, page=...)`. `on_batch`
+  astrae la persistenza — il giocatore passa una closure verso il rewrite locale delle
+  annotazioni, il Master verso `CMD_MAP_DRAW`. `can_manage=False` (giocatore in sola
+  lettura su una mappa condivisa) non monta toolbar né `GestureDetector`. `page` abilita
+  `_safe_update()`, un fallback a `page.update()` se `ctrl.update()` solleva
+  `RuntimeError`.
+- **`build_draw_area(is_fs)`**: `ft.Stack([img_layer, gesture_layer], expand=True,
+  fit=ft.StackFit.EXPAND)` — il `fit=EXPAND` esplicito è **necessario**: `ft.Stack` di
+  default usa `StackFit.LOOSE`, che non forza i figli `expand=True` a riempire lo Stack e
+  causava disallineamento tra immagine e tratti disegnati (vedi changelog per l'analisi
+  completa). Riquadro di disegno tracciato via `on_size_change`, SEPARATO per pannello
+  inline e schermo intero (`self._box_size[is_fs]`), come nella vecchia implementazione.
+- **Pulsanti pillola** (`_mbtn` per Penna/Gomma/Sposta, `_esbtn` per le sotto-modalità
+  gomma Tratto/Libera): usano `animate_scale=ft.Animation(...)` (`AnimatedScale`), MAI
+  `animate=` (`AnimatedContainer`) — quest'ultimo, combinato con Icon+Text in una Row,
+  taglia/sovrappone le lettere minuscole del testo. Colore impostato al costruttore, non
+  mutato dopo.
+- **Undo multi-azione**: `self._history: list[str]` — snapshot JSON dell'intera
+  `self._strokes` (tetto 20 voci), presi prima di ogni azione distruttiva (fine tratto
+  penna, un gesto di cancellazione gomma, cancella tutto, pulizia tratti legacy).
+  `undo()` ripristina l'ultimo snapshot per intero — non un "pop" dell'ultimo tratto:
+  copre anche il caso "ho cancellato per sbaglio con la gomma".
+- **Responsive**: `_TOP_ROW_STACK_BP=950px` (sotto: i pallini colore scendono su riga
+  propria) e `_TOP_ROW_COMPACT_BP=650px` (sotto: pulsanti modalità/Annulla/Cancella tutto
+  passano a sola icona con tooltip). Mai `wrap=True` — vedi la regola generale
+  "`wrap=True` con figlio `expand=True` crasha silenziosamente" in `regole_flet_api.md`.
+- **Gomma** (`_eraser_sub: str = "stroke" | "pixel"`), ora paritaria su entrambi i
+  chiamanti:
+  - **Tratto** (`"stroke"`): rimuove interi stroke che il cursore tocca.
+  - **Libera** (`"pixel"`): taglia geometricamente i segmenti — `_circle_segment_ts()`
+    (intersezione linea-cerchio) + `_split_stroke_by_circle()`.
+- **Regola critica — BlendMode.CLEAR non funziona**: Flutter `CustomPaint` senza
+  `saveLayer` rende trasparente → nero. NON usare mai `BlendMode.CLEAR` per la gomma. La
+  cancellazione avviene modificando `_strokes` in memoria, non ridisegnando pixel.
+- **Fullscreen** (`page.overlay`): stack/toolbar proprio, canvas indipendente — stesso
+  principio del riquadro separato di cui sopra. `_update_all_canvases()` ridisegna
+  ENTRAMBI i canvas dalla stessa `self._strokes`, ciascuno scalato al proprio riquadro,
+  non "sincronizzato" in pixel.
+- **Persistenza**: `_strokes` serializzata come JSON in `game_maps.annotations` (colonna
+  `TEXT`). Formato stroke: `{"type": "stroke", "color": "#hex", "width": float, "points":
+  [[x,y], ...]}` — **`points` sono frazioni [0,1] del riquadro con cui si è disegnato**
+  (2026-08-12, non più pixel assoluti). Normalizzazione/denormalizzazione in
+  `ui/canvas_geometry.py` (puro, no Flet). `ui/canvas_geometry.py::looks_normalized()` usa
+  un margine di tolleranza (`_NORM_MARGIN = 1.0`, aggiunto 2026-08-25) per riconoscere
+  anche punti di lieve sconfinamento del letterbox durante il disegno freehand come già
+  normalizzati, distinti dai tratti VERAMENTE legacy pre-2026-08-12 (pixel assoluti, mai
+  migrati, riconosciuti/lasciati invariati per euristica).
+- **`_PEN_COLORS`/`_data_uri()`**: qui, non più in `maps_view.py` — `world_view.py` e
+  `ui/components/npc_dossier.py` li importano da questo modulo.
+- **Strumenti rimossi**: testo sulla mappa (rimosso — non funzionava in modo
+  soddisfacente con Flet 0.85.3).
+
 ### `ui/views/maps_view.py` — `MapsView`
 **Eredita da `ft.Column`** (expand=True).
 
@@ -351,39 +411,10 @@ Salva via `character_repo.create()` + `_save_single_proficiency()` + `set_expert
 (crea/modifica/elimina). Upload immagine cross-platform: `ft.FilePicker` su mobile, subprocess nativo
 (osascript/PowerShell/zenity) su desktop.
 
-**Dettaglio mappa** (dopo click card o fullscreen):
-- `ft.Stack` con: [0] immagine, [1] `ft.GestureDetector(content=cv.Canvas, expand=True)`
-- Toolbar bassa scura con: bottoni modalità (Penna / Gomma), colori swatch, Annulla (undo ultimo tratto), Cancella tutto
-
-**Modalità disegno** (`_draw_mode: str = "pen" | "eraser"`):
-- **Penna**: tratti freehand in `_strokes` (tipo `"stroke"`), slider larghezza 1–30px
-- **Gomma Tratto** (`_eraser_sub="stroke"`): rimuove interi stroke che il cursore tocca; visualizza cerchio cursore sul canvas
-- **Gomma Libera** (`_eraser_sub="pixel"`): taglia geometricamente i segmenti — usa `_circle_segment_ts()`
-  (intersezione linea-cerchio) e `_split_stroke_by_circle()` per tagliare esattamente al bordo del cerchio
-
-**Regola critica — BlendMode.CLEAR non funziona**: Flutter `CustomPaint` senza `saveLayer` rende trasparente →
-nero. NON usare mai `BlendMode.CLEAR` per la gomma. La cancellazione avviene modificando `_strokes` in memoria, non
-ridisegnando pixel.
-
-**Fullscreen** (`page.overlay`): stack/toolbar proprio, canvas indipendente (`self._fs_canvas`, riquadro proprio
-`self._fs_box_size`) — `_update_all_canvases()` ridisegna ENTRAMBI i canvas dalla stessa `self._strokes`, ma
-ciascuno scalato al proprio riquadro (vedi sotto), non "sincronizzato" in pixel.
-
-**Persistenza**: `_strokes` serializzata come JSON in `game_maps.annotations` (colonna `TEXT`). Formato stroke:
-`{"type": "stroke", "color": "#hex", "width": float, "points": [[x,y], ...]}` — **`points` sono frazioni [0,1] del
-riquadro con cui si è disegnato** (2026-08-12, non più pixel assoluti: bug corretto, "le annotazioni non si
-allineano se la mappa non è a schermo intero" — segnalato da Davide sulle mappe condivise, confermato presente
-anche qui). Normalizzazione/denormalizzazione in `ui/canvas_geometry.py` (puro, no Flet), dimensione del riquadro
-letta da `ft.Container(on_size_change=...)` — `self._detail_box_size`/`self._fs_box_size`, tracciati SEPARATAMENTE
-per pannello inline e schermo intero, mai un riquadro unico. `_redraw_canvas(canvas)` sceglie il riquadro giusto
-via `_box_size_for(canvas)`. La gomma (Tratto e Libera) denormalizza i punti dei tratti esistenti prima della
-geometria (radius/intersezioni di cerchio restano in pixel, coerenti con `self._eraser_size`) e rinormalizza il
-risultato prima di salvare — mai un mix frazioni/pixel nella stessa lista. Nessuna migrazione delle annotazioni
-già disegnate prima del fix: restano in pixel assoluti (indistinguibili a posteriori dalla dimensione con cui
-furono create), `ui/canvas_geometry.py::looks_normalized()` le riconosce per euristica (ogni punto in [0,1] = già
-normalizzato) e le lascia invariate.
-
-**Strumenti rimossi**: testo sulla mappa (rimosso — non funzionava in modo soddisfacente con Flet 0.85.3).
+**Dettaglio mappa** (dopo click card o fullscreen): area di disegno e toolbar delegate a
+`self._canvas: MapDrawingCanvas` (`ui/components/map_drawing_canvas.py`, vedi sopra) —
+`_build_detail_panel()`/`_open_fullscreen()` mantengono solo header/note/layout esterno,
+specifici di questa view.
 
 **Type stub workaround** (Flet 0.85.3):
 - `getattr(container.content, "controls", [])` invece di `container.content.controls` (Control non ha .controls)
@@ -1352,6 +1383,13 @@ mode multi-scheda) chiama `world_sync.start_lan_join()`; se l'esito è
 pulsante "Controlla di nuovo" che richiama `finish_pending_join()`,
 riusando lo stesso `RemoteBackend` già connesso invece di far reinserire
 tutti i campi.
+
+**Mappe condivise, overlay di disegno** (2026-08-25): il metodo che apre
+l'overlay di una mappa condivisa crea un `MapDrawingCanvas`
+(`ui/components/map_drawing_canvas.py`) locale, passandogli `on_batch` verso
+`CMD_MAP_DRAW` e `can_manage` in base al ruolo — sostituisce una closure di
+~500 righe prima duplicata da `maps_view.py` (vedi la voce `MapDrawingCanvas`
+sopra per i dettagli del componente e dei bug corretti in quel refactor).
 
 **`ui/mobile_webview_picker.py`** (2026-08-06, import di `flet_webview`
 corretto a import ritardato più sotto lo stesso giorno dopo un crash

@@ -12028,6 +12028,85 @@ secondarie (un'istanza "Lv.1" è per definizione single-class, coerente con la c
 personaggio che è sempre single-class). Coperto da `test_join_fresh_level_reset.py`
 (verificato a fallire senza il fix).
 
+## Riprogettazione della modalità di disegno mappe: componente condiviso, disallineamento, salto di layout, undo, responsive (2026-08-25)
+
+Bug report di Davide su `maps_view.py` (giocatore) e `world_view.py` (Master, mappe
+condivise): la barra strumenti "Gomma"/"Sposta" aveva scritte illeggibili/sovrapposte, il
+disegno a schermo pieno non corrispondeva a quello a schermo ridotto, ogni cambio
+Penna/Gomma/Sposta faceva "saltare" visivamente la mappa, "Annulla" ripristinava solo
+l'ultimo TRATTO invece dell'ultima AZIONE (una cancellazione accidentale con la gomma non
+si poteva disfare), e "Cancella tutto" non era visibile senza allargare la finestra.
+
+**Unificazione**: creato `ui/components/map_drawing_canvas.py` (classe `MapDrawingCanvas`),
+che sostituisce due implementazioni quasi-duplicate — quella storica di `maps_view.py`
+(lato giocatore) e la reimplementazione ridotta di `world_view.py` (lato Master, gomma
+senza la modalità "Libera"). `world_view.py` non importa più simboli privati da
+`maps_view.py` (`_PEN_COLORS`, `_data_uri`, ora in `map_drawing_canvas.py`); entrambi i
+chiamanti passano `on_batch` (persistenza — rewrite locale per il giocatore,
+`CMD_MAP_DRAW` per il Master) e `can_manage` (un giocatore in sola lettura su una mappa
+condivisa non monta toolbar né gesture). Gomma "Tratto"/"Libera" ora paritaria su entrambi
+i lati.
+
+**Causa REALE del disallineamento immagine/tratto** (sopravvissuta a due round di fix
+sbagliati basati solo su lettura di codice/log — risolta infine con controllo live
+dell'app via `cliclick`/`screencapture` e misura pixel-per-pixel degli screenshot, non per
+ipotesi): `build_draw_area()` mette immagine e `GestureDetector` in un `ft.Stack`, che di
+default ha `fit=StackFit.LOOSE` — i figli con `expand=True` NON sono forzati a riempire lo
+Stack. L'immagine (`fit=BoxFit.CONTAIN`) si autocentra correttamente nel proprio spazio
+"naturale", ma quello spazio poteva non coincidere col riquadro effettivamente misurato da
+`on_size_change` e usato per normalizzare/denormalizzare i punti dei tratti — da qui lo
+sfasamento, riproducibile ad ogni resize/passaggio schermo intero↔ridotto. Fix:
+`ft.Stack([img_layer, gesture_layer], expand=True, fit=ft.StackFit.EXPAND)`, che forza
+entrambi i figli a riempire esattamente lo stesso riquadro. Verificato dal vivo (resize a
+400/750/1000/1300pt, toggle schermo intero) — tratto sempre ancorato allo stesso punto
+della mappa.
+
+Due teorie intermedie, scartate come causa ma tenute come miglioria difensiva legittima:
+tolleranza allargata di `canvas_geometry.py::looks_normalized()` (`_NORM_MARGIN = 1.0`,
+per punti di sconfinamento del letterbox durante il disegno freehand — confermata reale su
+dati DB, ma non LA causa) e un helper `_safe_update()` con fallback a `page.update()` in
+caso di `RuntimeError` (mai effettivamente sollevato nello scenario riprodotto).
+
+**Salto visivo ad ogni cambio modalità**: causa nei pulsanti pillola (`_mbtn`, modalità;
+`_esbtn`, sotto-modalità gomma), che usavano `Container.animate=ft.Animation(...)`
+(`AnimatedContainer` Flutter) — combinato con Icon+Text in una Row, produceva anche il
+taglio/sovrapposizione delle lettere minuscole segnalato ("Gomma"/"Sposta"/"Tratto"/
+"Libera"). Scartate tre teorie prima di trovare la causa reale (confrontando col pulsante
+"Annulla", che renderizzava perfettamente): `clip_behavior=HARD_EDGE`, colore impostato
+via mutazione post-hoc invece che al costruttore, contenitore esterno di troppo attorno
+alla riga pillole — nessuna ha avuto effetto. Fix reale: `animate_scale=ft.Animation(...)`
+(`AnimatedScale`) al posto di `animate=`, più colore impostato direttamente al
+costruttore. Verificato dal vivo con screenshot ingranditi pixel-per-pixel su entrambe le
+famiglie di pulsanti.
+
+**Annulla (undo multi-azione)**: sostituito il "pop dell'ultimo tratto" con una cronologia
+di snapshot JSON dell'intera lista tratti (`self._history`, tetto 20 voci), scattati prima
+di ogni azione distruttiva (fine tratto penna, gesto di cancellazione con la gomma — uno
+snapshot per gesto, non per micro-update, per non inondare la cronologia — "Cancella
+tutto", pulizia tratti legacy). `undo()` ripristina l'intera lista dall'ultimo snapshot.
+Copre ora correttamente: disegno, entrambe le sotto-modalità gomma, cancella tutto.
+Verificato con test dedicato (disegna 2 tratti, cancella il primo per errore con la gomma,
+Annulla ripristina entrambi; Annulla successivi tornano indietro un'azione alla volta fino
+a lista vuota, poi diventano no-op sicuri).
+
+**Adattamento a schermo stretto/smartphone**: calcolo manuale della larghezza minima della
+barra (anche in modalità "sola icona") aveva mostrato che non sarebbe mai stata sufficiente
+su una larghezza reale di smartphone in verticale (~375-430pt contro ~583-941px
+necessari) — gap architetturale reale, non un'impressione sbagliata di Davide, che aveva
+notato il sintomo ("ho dovuto allargare la finestra per vedere Cancella tutto"). Scelto con
+Davide un layout a due righe stabile invece di un selettore "colore attivo + tocca per
+espandere": sotto `_TOP_ROW_STACK_BP=950px` i pallini colore scendono su una riga propria;
+sotto `_TOP_ROW_COMPACT_BP=650px` anche i pulsanti modalità/Annulla/Cancella tutto passano
+a sola icona con tooltip. Nessuno scroll orizzontale nascosto in nessun caso. Verificato
+dal vivo a 400/750/1000pt (nessun taglio/sovrapposizione a nessuna larghezza).
+
+Copertura test: `test_mappe_locali_coordinate.py` (nuovo test tolleranza letterbox, nuovo
+test undo multi-azione — 35/35), più l'intera batteria di regressione mappe/wrap
+(`test_mappe_condivise.py`, `test_mappe_condivise_http.py`, `test_mappe_condivise_ui.py`,
+`test_regressione_wrap_expand.py`) e delle suite adiacenti toccate solo di striscio
+(`test_fase_d.py`, `test_note_e_inventario_sync.py`) — 498 controlli totali, 0 fallimenti,
+`pyflakes` pulito su tutti i file toccati.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

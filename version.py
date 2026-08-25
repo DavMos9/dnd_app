@@ -16,7 +16,7 @@ qualunque livello (inclusa la CI, che lo carica con `sys.path.insert(0, '.')`
 per riusare `compute_build_number()` invece di riscrivere la formula in YAML).
 """
 
-APP_VERSION = "0.3.5"
+APP_VERSION = "0.3.6"
 GITHUB_REPO = "DavMos9/dnd_app"  # owner/repo su GitHub
 
 #: Prima versione firmata con la chiave di rilascio permanente.
