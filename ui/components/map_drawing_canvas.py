@@ -84,10 +84,23 @@ _TOOLBAR_BODY_H = 48
 #: annulla/cancella passano a icona-sola con tooltip invece di icona+testo —
 #: mai `wrap=True` (andrebbe a capo, un salto verticale indipendente) né
 #: scroll (nasconderebbe controlli, contro "no hidden UI actions" del
-#: progetto). Valore indicativo, verificato empiricamente: è la larghezza
-#: minima sotto cui i pulsanti con etichetta completa in italiano non
-#: entrano più su una riga sola.
-_TOP_ROW_COMPACT_BP = 480
+#: progetto). Riguarda SOLO la riga 1 (modalità/annulla/cancella, senza le
+#: pastiglie colore — vedi `_TOP_ROW_STACK_BP`): sotto questa soglia la
+#: riga 1 da sola non ci sta più con le etichette per esteso, verificato
+#: dal vivo (screenshot reali, non stimato).
+_TOP_ROW_COMPACT_BP = 650
+
+#: Sotto questa larghezza (punti) del riquadro toolbar, le pastiglie
+#: colore passano su una RIGA PROPRIA sotto modalità/annulla/cancella —
+#: mai tutte sulla stessa riga di tutto il resto: bug report Davide
+#: (2026-08-25) "ho dovuto allargare la scheda su pc per vedere cancella
+#: tutto" — anche in modalità compatta (sola icona), 7 pastiglie da 40px
+#: più modalità/separatori/annulla/cancella non entrano MAI su una riga
+#: sola sotto ~950px, quindi su uno smartphone in verticale (tipicamente
+#: 375-430pt) l'unica soluzione stabile è una seconda riga dedicata — MAI
+#: un salto imprevedibile: la soglia si valuta una volta sola per
+#: ridimensionamento, stesso identico meccanismo di `_TOP_ROW_COMPACT_BP`.
+_TOP_ROW_STACK_BP = 950
 
 
 def data_uri(b64: str) -> str:
@@ -211,15 +224,44 @@ class MapDrawingCanvas:
 
     def __init__(self, gm: GameMap, *,
                  on_batch: Callable[[list[dict]], None] | None,
-                 can_manage: bool = True):
+                 can_manage: bool = True,
+                 page: ft.Page | None = None):
         self.gm = gm
         self.can_manage = can_manage and on_batch is not None
         self._on_batch = on_batch
+        #: Riferimento di riserva per `_safe_update()` — un controllo
+        #: appena riassegnato (`canvas.shapes = ...` seguito da
+        #: `canvas.update()`) può sollevare `RuntimeError` se il client
+        #: non lo considera ancora "pronto" (osservato durante un
+        #: ridimensionamento live della finestra: molti `on_size_change` in
+        #: rapida successione, alcuni dei quali arrivano mentre il
+        #: sottoalbero è ancora a metà ricostruzione) — finora quell'errore
+        #: veniva insabbiato (`except RuntimeError: pass`), lasciando la
+        #: `cv.Canvas` visivamente ferma alla forma calcolata PRIMA del
+        #: resize finché un `page.update()` esterno non arrivava per
+        #: caso — da qui "il tratto si sposta/non corrisponde" segnalato
+        #: da Davide anche a parità di dati corretti (verificato a mano dai
+        #: log diagnostici: la matematica di normalizzazione tornava
+        #: giusta, mancava solo la conferma al client).
+        self._page = page
 
         try:
             self._strokes: list[dict] = json.loads(gm.annotations or "[]")
         except (json.JSONDecodeError, TypeError):
             self._strokes = []
+        #: Cronologia per `undo()` — uno snapshot JSON di `self._strokes`
+        #: PRIMA di ogni azione distruttiva (tratto, gomma "Tratto"/"Libera",
+        #: cancella tutto). BUG FIX (2026-08-25, richiesta Davide: "Annulla
+        #: annulla solo l'ultimo tratto, non l'ultima azione, per esempio se
+        #: cancello per sbaglio con la gomma [non si può annullare]"):
+        #: `undo()` faceva solo `self._strokes.pop()` — corretto per un
+        #: tratto appena disegnato, ma un'azione della gomma modifica o
+        #: rimuove tratti ESISTENTI senza aggiungerne uno nuovo in fondo,
+        #: quindi un pop successivo toglieva il tratto SBAGLIATO (l'ultimo
+        #: rimasto) invece di ripristinare quello cancellato per errore.
+        #: Limite a 20 voci: sufficiente per un "annulla" a più passi senza
+        #: crescita di memoria illimitata in una sessione di disegno lunga.
+        self._history: list[str] = []
         self._current_points: list[list[float]] = []
         self._eraser_cursor_pos: list[float] | None = None
 
@@ -267,6 +309,35 @@ class MapDrawingCanvas:
         self._toolbar_switcher: dict[bool, ft.AnimatedSwitcher | None] = {False: None, True: None}
         self._top_row_box: dict[bool, ft.Container | None] = {False: None, True: None}
         self._top_row_compact: dict[bool, bool] = {False: False, True: False}
+        #: `True` sotto `_TOP_ROW_STACK_BP` — le pastiglie colore passano
+        #: su una riga propria (vedi `_TOP_ROW_STACK_BP`).
+        self._top_row_stacked: dict[bool, bool] = {False: False, True: False}
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Aggiornamento sicuro
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _safe_update(self, ctrl: ft.BaseControl, what: str = "") -> None:
+        """`ctrl.update()` con fallback a `self.page.update()` se il primo
+        fallisce (vedi il commento su `self._page` nell'`__init__`): un
+        `RuntimeError` su un controllo appena riassegnato (`.shapes = ...`
+        seguito da `.update()`) veniva finora insabbiato, lasciando la
+        `cv.Canvas` visivamente ferma alla forma calcolata PRIMA
+        dell'ultimo evento — indistinguibile a occhio da un bug di
+        allineamento, ma in realtà solo un repaint mai arrivato al
+        client. Log a WARNING quando scatta il fallback: se questo non
+        compare mai nei log durante un resize, la causa del disallineamento
+        è altrove."""
+        try:
+            ctrl.update()
+        except RuntimeError:
+            logger.warning("DIAG map_draw: %s.update() ha sollevato RuntimeError "
+                            "(%s) — fallback a page.update()", type(ctrl).__name__, what)
+            if self._page is not None:
+                try:
+                    self._page.update()
+                except RuntimeError:
+                    pass
 
     # ──────────────────────────────────────────────────────────────────────
     # Persistenza
@@ -280,6 +351,15 @@ class MapDrawingCanvas:
         self.gm.annotations = json.dumps(self._strokes)
         if self._on_batch is not None:
             self._on_batch(batch)
+
+    def _snapshot(self) -> None:
+        """Salva lo stato ATTUALE di `self._strokes` nella cronologia,
+        PRIMA di applicare una modifica — chiamare all'inizio di ogni
+        azione distruttiva (tratto, gomma, cancella tutto/legacy), mai
+        dopo. Vedi il commento su `self._history` nell'`__init__`."""
+        self._history.append(json.dumps(self._strokes))
+        if len(self._history) > 20:
+            self._history.pop(0)
 
     # ──────────────────────────────────────────────────────────────────────
     # Area di disegno
@@ -314,7 +394,23 @@ class MapDrawingCanvas:
             )
 
         gesture_layer = self._canvas_layer_for_mode(self._draw_mode, is_fs, canvas)
-        stack = ft.Stack([img_layer, gesture_layer], expand=True)
+        # BUG FIX (2026-08-25) — causa REALE del disallineamento (confermata
+        # visivamente pixel per pixel, non più per ipotesi): `ft.Stack` ha
+        # `fit=StackFit.LOOSE` di default, quindi i figli NON sono forzati a
+        # riempire il riquadro nonostante il loro `expand=True` — Flutter
+        # concede all'`ft.Image` vincoli "liberi" e la piazza in alto a
+        # sinistra (allineamento di default dello `Stack`) invece di
+        # centrarla con `BoxFit.CONTAIN`. `contain_rect()` (canvas_geometry)
+        # calcola SEMPRE il rettangolo centrato corretto — ma finora quel
+        # rettangolo non corrispondeva a dove l'immagine veniva DAVVERO
+        # disegnata, da cui il disallineamento riprodotto ad ogni resize e
+        # perfino tra riquadri di forma diversa (inline/schermo intero,
+        # master/giocatore): l'offset di centratura calcolato in Python non
+        # è mai stato applicato dal client. `fit=ft.StackFit.EXPAND` forza
+        # ENTRAMBI i figli a riempire esattamente il riquadro, così
+        # l'immagine si centra davvero e il rettangolo calcolato coincide
+        # finalmente con quello renderizzato.
+        stack = ft.Stack([img_layer, gesture_layer], expand=True, fit=ft.StackFit.EXPAND)
         self._draw_stack[is_fs] = stack
 
         interactive_viewer = ft.InteractiveViewer(
@@ -341,10 +437,7 @@ class MapDrawingCanvas:
         canvas = self._canvas[is_fs]
         if canvas is not None:
             self._redraw_canvas(canvas, is_fs)
-            try:
-                canvas.update()
-            except RuntimeError:
-                pass
+            self._safe_update(canvas, f"on_box_resize is_fs={is_fs}")
 
         if not was_ready and self.can_manage:
             # Il riquadro era sconosciuto finora: il layer gesture era
@@ -354,10 +447,7 @@ class MapDrawingCanvas:
             stack = self._draw_stack[is_fs]
             if stack is not None and canvas is not None:
                 stack.controls[1] = self._canvas_layer_for_mode(self._draw_mode, is_fs, canvas)
-                try:
-                    stack.update()
-                except RuntimeError:
-                    pass
+                self._safe_update(stack, f"on_box_resize/stack is_fs={is_fs}")
 
     def _canvas_layer_for_mode(self, mode: str, is_fs: bool, canvas: cv.Canvas) -> ft.Control:
         """Il secondo figlio dello Stack sotto l'`InteractiveViewer`: avvolge
@@ -478,10 +568,7 @@ class MapDrawingCanvas:
             if canvas is None:
                 continue
             self._redraw_canvas(canvas, is_fs)
-            try:
-                canvas.update()
-            except RuntimeError:
-                pass
+            self._safe_update(canvas, f"_update_all_canvases is_fs={is_fs}")
 
     # ──────────────────────────────────────────────────────────────────────
     # Gesture handlers
@@ -491,12 +578,15 @@ class MapDrawingCanvas:
         is_fs = canvas is self._canvas[True]
         x, y = e.local_position.x, e.local_position.y
         if self._draw_mode == "eraser":
+            # Un solo snapshot per l'INTERO trascinamento della gomma (non
+            # uno per ogni micro-cancellazione lungo il percorso): "Annulla"
+            # deve ripristinare l'intera passata di gomma con un click solo,
+            # non un frammento minuscolo di essa — vedi il commento su
+            # `self._history` nell'`__init__`.
+            self._snapshot()
             self._eraser_cursor_pos = [x, y]
             self._redraw_canvas(canvas, is_fs)
-            try:
-                canvas.update()
-            except RuntimeError:
-                pass
+            self._safe_update(canvas, "on_pan_start/eraser")
             return
         self._current_points.clear()
         self._current_points.append([x, y])
@@ -511,17 +601,11 @@ class MapDrawingCanvas:
             else:
                 self._erase_segments_at(x, y, canvas)
             self._redraw_canvas(canvas, is_fs)
-            try:
-                canvas.update()
-            except RuntimeError:
-                pass
+            self._safe_update(canvas, "on_pan_update/eraser")
             return
         self._current_points.append([x, y])
         self._redraw_canvas(canvas, is_fs)
-        try:
-            canvas.update()
-        except RuntimeError:
-            pass
+        self._safe_update(canvas, "on_pan_update/pen")
 
     def _on_pan_end(self, e: ft.DragEndEvent, canvas: cv.Canvas) -> None:
         is_fs = canvas is self._canvas[True]
@@ -537,14 +621,12 @@ class MapDrawingCanvas:
                 "width": self._pen_width,
                 "points": geo.normalize_points(self._current_points, dw, dh, ox, oy),
             }
+            self._snapshot()
             self._strokes.append(stroke)
             self._push([{"op": "add", **stroke}])
         self._current_points.clear()
         self._redraw_canvas(canvas, is_fs)
-        try:
-            canvas.update()
-        except RuntimeError:
-            pass
+        self._safe_update(canvas, "on_pan_end")
 
     # ──────────────────────────────────────────────────────────────────────
     # Gomma "Tratto": rimuove stroke interi
@@ -620,12 +702,18 @@ class MapDrawingCanvas:
     # ──────────────────────────────────────────────────────────────────────
 
     def undo(self) -> None:
-        if self._strokes:
-            self._strokes.pop()
+        """Ripristina lo stato PRIMA dell'ultima azione (tratto, gomma,
+        cancella tutto/legacy) — non semplicemente "l'ultimo tratto": vedi
+        `self._history`/`_snapshot()`. Nessun effetto se non c'è ancora
+        nulla da annullare."""
+        if not self._history:
+            return
+        self._strokes = json.loads(self._history.pop())
         self._push([{"op": "replace_all", "strokes": self._strokes}])
         self._update_all_canvases()
 
     def clear_all(self) -> None:
+        self._snapshot()
         self._strokes.clear()
         self._push([{"op": "clear"}])
         self._update_all_canvases()
@@ -648,6 +736,7 @@ class MapDrawingCanvas:
         """Rimuove SOLO i tratti in formato legacy, preservando quelli già
         corretti — l'utente può poi ridisegnarli allineati. Nessuna
         migrazione automatica è possibile (vedi `ui.canvas_geometry`)."""
+        self._snapshot()
         self._strokes[:] = [
             s for s in self._strokes
             if s.get("type") != "stroke" or geo.looks_normalized(s.get("points", []))
@@ -740,24 +829,31 @@ class MapDrawingCanvas:
     def _build_top_row(self, is_fs: bool, mode_list: list, swatch_list: list) -> ft.Container:
         """Riga pillole modalità + swatch colore + annulla/cancella, in un
         Container che sorveglia la propria larghezza (`on_size_change`) per
-        passare a icona-sola sotto `_TOP_ROW_COMPACT_BP` — mai `wrap=True`
-        (andrebbe a capo, un salto verticale indipendente dal cambio
-        modalità) né scroll (nasconderebbe controlli)."""
-        content = self._build_top_row_content(is_fs, mode_list, swatch_list,
-                                               compact=self._top_row_compact[is_fs])
+        passare a icona-sola sotto `_TOP_ROW_COMPACT_BP` e/o le pastiglie
+        colore su una riga propria sotto `_TOP_ROW_STACK_BP` — mai
+        `wrap=True` (andrebbe a capo in modo imprevedibile, un salto
+        verticale indipendente dal cambio modalità) né scroll (nasconderebbe
+        controlli): entrambe le soglie si valutano una volta sola per
+        ridimensionamento, il layout risultante è sempre stabile."""
+        content = self._build_top_row_content(
+            is_fs, mode_list, swatch_list,
+            compact=self._top_row_compact[is_fs], stacked=self._top_row_stacked[is_fs])
 
         def _on_resize(e: ft.LayoutSizeChangeEvent) -> None:
             compact = e.width < _TOP_ROW_COMPACT_BP
-            if compact == self._top_row_compact[is_fs]:
+            stacked = e.width < _TOP_ROW_STACK_BP
+            if (compact == self._top_row_compact[is_fs]
+                    and stacked == self._top_row_stacked[is_fs]):
                 return
             self._top_row_compact[is_fs] = compact
+            self._top_row_stacked[is_fs] = stacked
             box = self._top_row_box[is_fs]
             if box is None:
                 return
             mode_list.clear()
             swatch_list.clear()
-            box.content = self._build_top_row_content(is_fs, mode_list, swatch_list,
-                                                       compact=compact)
+            box.content = self._build_top_row_content(
+                is_fs, mode_list, swatch_list, compact=compact, stacked=stacked)
             try:
                 box.update()
             except RuntimeError:
@@ -766,13 +862,28 @@ class MapDrawingCanvas:
         return ft.Container(content=content, on_size_change=_on_resize)
 
     def _build_top_row_content(self, is_fs: bool, mode_list: list, swatch_list: list,
-                                *, compact: bool) -> ft.Row:
+                                *, compact: bool, stacked: bool) -> ft.Control:
         def _mbtn(key: str, icon: Any, label: str) -> ft.Container:
-            row_children: list[ft.Control] = [ft.Icon(icon, size=15)]
+            # BUG FIX (2026-08-25) — causa REALE del testo illeggibile nei
+            # pulsanti modalità (confermato con un confronto diretto:
+            # "Annulla"/"Cancella tutto", stesso identico Container con
+            # `ink=True`+Row[Icon,Text], si leggono perfettamente — l'unica
+            # differenza è che il LORO `ft.Text` riceve `color=` già al
+            # costruttore, mentre qui il colore veniva impostato DOPO, con
+            # `_style_mode_btn()` che muta `.color` su un `ft.Text` già
+            # costruito ma mai ancora montato. Quella mutazione post-hoc
+            # lascia lo stile del testo in uno stato che Flutter renderizza
+            # mostrando solo la metà inferiore delle lettere minuscole
+            # (le maiuscole, come "LARGHEZZA", non ne risentivano) — colore
+            # impostato al costruttore, come già faceva `_action_btn`,
+            # risolve.
+            sel = key == self._draw_mode
+            fg = design.T().on_primary_fill if sel else design.CHROME.text_muted
+            row_children: list[ft.Control] = [ft.Icon(icon, size=15, color=fg)]
             if not compact:
                 row_children.append(
                     ft.Text(label, size=design.Size.LABEL, weight=ft.FontWeight.BOLD,
-                            font_family=design.Font.BODY, no_wrap=True),
+                            font_family=design.Font.BODY, no_wrap=True, color=fg),
                 )
             c = ft.Container(
                 content=ft.Row(row_children, spacing=6, tight=True,
@@ -781,35 +892,27 @@ class MapDrawingCanvas:
                 # estesa): un Container con `animate=` che passa da una
                 # larghezza numerica a `None` (o viceversa) chiede a Flutter
                 # di interpolare un `AnimatedContainer` verso una larghezza
-                # non vincolata — animazione mal definita, osservata
-                # produrre icona+testo sovrapposti/illeggibili nei pulsanti
-                # "Gomma"/"Sposta" al primo assestamento del layout (bug
-                # report Davide, screenshot 2026-08-24). La larghezza resta
-                # SEMPRE intrinseca al contenuto (icona sola in compatto,
-                # icona+testo altrimenti) — l'area di tocco minima (40px) è
-                # garantita dal solo `padding`, mai da `width`.
+                # non vincolata — animazione mal definita. La larghezza
+                # resta SEMPRE intrinseca al contenuto (icona sola in
+                # compatto, icona+testo altrimenti) — l'area di tocco
+                # minima (40px) è garantita dal solo `padding`, mai da
+                # `width`.
                 height=40,
                 padding=(ft.Padding.all(12) if compact else
                          ft.Padding.symmetric(horizontal=design.Space.MD, vertical=design.Space.SM)),
                 border_radius=design.Radius.PILL,
+                bgcolor=design.T().primary_fill if sel else "transparent",
                 alignment=ft.Alignment.CENTER,
-                clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 tooltip=label if compact else None,
                 on_click=lambda e, k=key: self._select_mode(k, is_fs),
                 ink=True,
-                animate=ft.Animation(design.Duration.FAST, design.CURVE),
+                animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
             )
-            self._style_mode_btn(c, key == self._draw_mode)
             mode_list.append(c)
             return c
 
-        mode_row = ft.Container(
-            content=ft.Row([_mbtn(k, ic, lb) for k, ic, lb in _MODE_DEFS],
-                           spacing=design.Space.XS),
-            bgcolor=design.CHROME.panel,
-            border_radius=design.Radius.PILL,
-            padding=design.Space.XS,
-        )
+        mode_row = ft.Row([_mbtn(k, ic, lb) for k, ic, lb in _MODE_DEFS],
+                           spacing=design.Space.XS)
 
         def _swatch(idx: int) -> ft.Container:
             c = ft.Container(
@@ -848,7 +951,6 @@ class MapDrawingCanvas:
                 border_radius=design.Radius.PILL,
                 bgcolor=bg,
                 alignment=ft.Alignment.CENTER,
-                clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 tooltip=label if compact else None,
                 on_click=fn, ink=True,
                 animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
@@ -865,6 +967,24 @@ class MapDrawingCanvas:
             return ft.Container(width=1, height=24,
                                 bgcolor=ft.Colors.with_opacity(0.5, design.CHROME.border),
                                 margin=ft.Margin.only(left=design.Space.SM, right=design.Space.SM))
+
+        if stacked:
+            # BUG FIX (2026-08-25, richiesta Davide: "ho dovuto allargare la
+            # scheda su pc per vedere cancella tutto") — sotto
+            # `_TOP_ROW_STACK_BP` le 7 pastiglie colore non entrano MAI
+            # insieme al resto sulla stessa riga (nemmeno in modalità
+            # compatta): qui vanno su una riga propria, sotto
+            # modalità/annulla/cancella. Layout stabile — deciso una volta
+            # sola per ridimensionamento da `_on_resize`, mai un salto
+            # imprevedibile come lo era il vecchio `wrap=True`.
+            return ft.Column(
+                [
+                    ft.Row([mode_row, _sep(), undo_btn, clearall_btn],
+                           spacing=design.Space.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    swatches,
+                ],
+                spacing=design.Space.SM,
+            )
 
         return ft.Row(
             [mode_row, _sep(), swatches, _sep(), undo_btn, clearall_btn],
@@ -911,17 +1031,25 @@ class MapDrawingCanvas:
             ersub_list.clear()
 
             def _esbtn(key: str, label: str) -> ft.Container:
+                # BUG FIX (2026-08-25): stessa causa e stesso rimedio di
+                # `_mbtn` — `animate=` (AnimatedContainer) tagliava le
+                # lettere minuscole di "Tratto"/"Libera"; `animate_scale=`
+                # no. Colore impostato al costruttore invece che mutato
+                # dopo con `_style_ersub_btn` (chiamata comunque, serve per
+                # gli aggiornamenti live da `_select_eraser_sub`).
+                sel = key == self._eraser_sub
                 c = ft.Container(
                     content=ft.Text(label, size=design.Size.LABEL, weight=ft.FontWeight.BOLD,
-                                    font_family=design.Font.BODY),
+                                    font_family=design.Font.BODY, no_wrap=True,
+                                    color=design.T().on_primary if sel else design.CHROME.text_muted),
                     padding=ft.Padding.symmetric(horizontal=design.Space.MD,
                                                  vertical=design.Space.XS + 2),
                     border_radius=design.Radius.PILL,
+                    bgcolor=design.T().primary_fill if sel else design.CHROME.btn,
                     on_click=lambda e, k=key: self._select_eraser_sub(k, is_fs),
                     ink=True,
-                    animate=ft.Animation(design.Duration.FAST, design.CURVE),
+                    animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
                 )
-                self._style_ersub_btn(c, key == self._eraser_sub)
                 ersub_list.append(c)
                 return c
 
@@ -1039,10 +1167,7 @@ class MapDrawingCanvas:
             if stack is None or canvas is None:
                 continue
             stack.controls[1] = self._canvas_layer_for_mode(key, panel_fs, canvas)
-            try:
-                stack.update()
-            except RuntimeError:
-                pass
+            self._safe_update(stack, f"_select_mode/stack panel_fs={panel_fs}")
 
         for panel_fs, mode_list in self._mode_refs.items():
             for i, (k, _, _) in enumerate(_MODE_DEFS):
@@ -1125,7 +1250,4 @@ class MapDrawingCanvas:
         canvas = self._canvas[False]
         if canvas is not None:
             self._redraw_canvas(canvas, False)
-            try:
-                canvas.update()
-            except RuntimeError:
-                pass
+            self._safe_update(canvas, "teardown_fullscreen")

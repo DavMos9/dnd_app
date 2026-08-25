@@ -245,7 +245,7 @@ class MapsView(ft.Column):
         # Sola lettura: `on_batch=None` — `MapDrawingCanvas` non monta
         # alcun `GestureDetector`/toolbar in questo caso (vedi
         # `can_manage` nel suo `__init__`), esattamente come prima.
-        ro_canvas = MapDrawingCanvas(gm, on_batch=None, can_manage=False)
+        ro_canvas = MapDrawingCanvas(gm, on_batch=None, can_manage=False, page=page)
         draw_stack = ro_canvas.build_draw_area(is_fs=True)
 
         overlay_list: list[ft.Control] = []
@@ -436,7 +436,7 @@ class MapsView(ft.Column):
         # disegno sulla propria mappa.
         self._canvas = MapDrawingCanvas(
             gm, on_batch=lambda batch: maps_repo.apply_stroke_batch(gm.id, batch),
-            can_manage=True,
+            can_manage=True, page=self._page,
         )
         self.controls[-1] = ft.Container(expand=True, content=self._build_detail_panel(gm))
         try:

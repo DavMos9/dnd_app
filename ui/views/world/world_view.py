@@ -1806,6 +1806,7 @@ class WorldsView(ft.Column):
 
         canvas = MapDrawingCanvas(
             gm, on_batch=_sync_to_world if can_manage else None, can_manage=can_manage,
+            page=page,
         )
         draw_area = canvas.build_draw_area(is_fs=True)
         toolbar_row: ft.Control | None = None

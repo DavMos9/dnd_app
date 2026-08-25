@@ -536,6 +536,87 @@ def test_tolleranza_sconfinamento_letterbox() -> None:
           not geo.looks_normalized(legacy_points))
 
 
+def test_annulla_ripristina_ultima_azione_non_solo_ultimo_tratto() -> None:
+    """
+    Bug report Davide: "Annulla annulla solo l'ultimo tratto, non l'ultima
+    azione, per esempio se cancello per sbaglio con la gomma [non si può
+    annullare]". Prima del fix, `undo()` faceva solo
+    `self._strokes.pop()` — corretto se l'ultima azione ha AGGIUNTO un
+    tratto, sbagliato se l'ultima azione lo ha RIMOSSO (la gomma): un pop
+    successivo toglieva un altro tratto ancora, non ripristinava quello
+    cancellato per errore. Fix: `self._history`, uno snapshot completo
+    PRIMA di ogni azione distruttiva — `undo()` ripristina quello snapshot
+    invece di limitarsi a togliere l'ultimo elemento della lista attuale.
+    """
+    print("\n[8] \"Annulla\" ripristina l'ultima AZIONE (anche una cancellazione "
+          "con la gomma), non solo l'ultimo tratto disegnato (BUG FIX 2026-08-25)")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Locale 8")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
+    assert gesture is not None
+
+    # Due tratti distinti, ben separati nello spazio.
+    gesture.on_pan_start(_FakeDragEvent(50, 50))
+    gesture.on_pan_update(_FakeDragEvent(50, 100))
+    gesture.on_pan_end(_FakeDragEvent(50, 100))
+    gesture.on_pan_start(_FakeDragEvent(350, 250))
+    gesture.on_pan_update(_FakeDragEvent(350, 280))
+    gesture.on_pan_end(_FakeDragEvent(350, 280))
+    check("due tratti disegnati", len(mv._canvas._strokes) == 2)
+
+    # La gomma "Tratto" cancella per errore il PRIMO tratto (vicino a
+    # 50,50..50,100) — nessun nuovo tratto viene aggiunto in fondo alla
+    # lista: un `pop()` naive toglierebbe il tratto SBAGLIATO (l'unico
+    # rimasto, quello vicino a 350,250).
+    mv._canvas._draw_mode = "eraser"
+    mv._canvas._eraser_sub = "stroke"
+    mv._canvas._eraser_size = 20.0
+    # `_erase_strokes_at` confronta la distanza dai PUNTI SALVATI del
+    # tratto (qui solo i due estremi, 50,50 e 50,100) — il click deve
+    # cadere entro il raggio (10) da uno di essi, non semplicemente "sulla
+    # linea".
+    gesture.on_pan_start(_FakeDragEvent(50, 50))
+    gesture.on_pan_update(_FakeDragEvent(50, 50))
+    check("la gomma ha cancellato il primo tratto per errore",
+          len(mv._canvas._strokes) == 1)
+
+    mv._canvas.undo()
+    check("BUG FIX: \"Annulla\" ripristina ENTRAMBI i tratti (l'azione "
+          "cancellata dalla gomma), non ne toglie un altro",
+          len(mv._canvas._strokes) == 2)
+
+    # Annullare ancora ripristina lo stato prima del SECONDO tratto disegnato
+    # (un tratto solo) — la cronologia è multi-livello, non un solo passo.
+    mv._canvas.undo()
+    check("un secondo \"Annulla\" torna indietro di un altro passo (un solo "
+          "tratto rimasto, quello disegnato per primo)",
+          len(mv._canvas._strokes) == 1)
+
+    # Un terzo "Annulla" consuma l'ultimo snapshot rimasto (lo stato PRIMA
+    # del primo tratto mai disegnato: nessun tratto).
+    mv._canvas.undo()
+    check("un terzo \"Annulla\" torna allo stato iniziale (nessun tratto)",
+          len(mv._canvas._strokes) == 0)
+
+    # Cronologia esaurita: ulteriori "Annulla" sono no-op sicuri (nessun
+    # crash, nessuna modifica ulteriore).
+    mv._canvas.undo()
+    mv._canvas.undo()
+    check("\"Annulla\" senza più cronologia è un no-op sicuro (nessun crash, "
+          "nessuna modifica ulteriore)",
+          len(mv._canvas._strokes) == 0 and mv._canvas._history == [])
+
+
 def main() -> int:
     print("=" * 62)
     print("Mappe locali — fix coordinate 2026-08-12 (inline/schermo intero/gomma)")
@@ -549,6 +630,7 @@ def main() -> int:
     test_move_mode_rimuove_gesture_detector()
     test_nessun_gesture_prima_del_box_noto()
     test_tolleranza_sconfinamento_letterbox()
+    test_annulla_ripristina_ultima_azione_non_solo_ultimo_tratto()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:
