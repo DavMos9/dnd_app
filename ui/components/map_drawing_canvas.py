@@ -417,12 +417,34 @@ class MapDrawingCanvas:
             content=stack,
             # Un giocatore in sola lettura non ha alcun GestureDetector di
             # disegno che reclami il trascinamento a un dito (vedi
-            # `_canvas_layer_for_mode`), quindi può spostare la vista da
-            # subito — un utente che può disegnare parte invece con
-            # `pan_enabled=False`: un trascinamento a un dito disegna finché
-            # non passa esplicitamente a "Sposta" (`_select_mode`).
-            pan_enabled=not self.can_manage,
-            scale_enabled=True, trackpad_scroll_causes_scale=True,
+            # `_canvas_layer_for_mode`), quindi può spostare/zoomare la vista
+            # da subito — un utente che può disegnare parte invece con
+            # `pan_enabled=False, scale_enabled=False`: un trascinamento a un
+            # dito disegna finché non passa esplicitamente a "Sposta"
+            # (`_select_mode`).
+            #
+            # BUG FIX (2026-08-26) — ritardo di 1-2s prima che il tratto
+            # inizi a comparire su schermo touch reale (segnalato da Davide),
+            # stessa causa del gemello già corretto il 2026-08-20 (pizzico
+            # rotto in modalità "Sposta"), ma nella direzione opposta: qui
+            # era `scale_enabled=True` FISSO, mai spento in modalità
+            # Penna/Gomma. Il `GestureDetector` figlio (disegno) e lo
+            # `ScaleGestureRecognizer` dell'`InteractiveViewer` restavano
+            # entrambi iscritti nella gesture arena di Flutter per lo stesso
+            # tocco: su un touchscreen reale l'arena deve stabilire se è un
+            # trascinamento a un dito o l'inizio di un pizzico a due, e
+            # quell'arbitraggio può ritardare sensibilmente la vittoria del
+            # riconoscitore di pan — nel frattempo i punti toccati vengono
+            # persi (il riconoscitore non può invocare `onPanStart` finché
+            # non vince). Su mouse/trackpad il problema non si vede (nessun
+            # secondo tocco possibile, l'arena si risolve subito). Fix: come
+            # per `pan_enabled`, spegnere anche `scale_enabled` ogni volta
+            # che si è in Penna/Gomma — nessun riconoscitore concorrente resta
+            # nell'arena, il pizzico durante il disegno si ottiene passando a
+            # "Sposta", esattamente come già succede per il pan.
+            pan_enabled=self._draw_mode == "move" or not self.can_manage,
+            scale_enabled=self._draw_mode == "move" or not self.can_manage,
+            trackpad_scroll_causes_scale=True,
             min_scale=1.0, max_scale=5.0,
         )
         self._interactive_viewer[is_fs] = interactive_viewer
@@ -1153,7 +1175,14 @@ class MapDrawingCanvas:
         for panel_fs, viewer in self._interactive_viewer.items():
             if viewer is None:
                 continue
-            viewer.pan_enabled = (key == "move") or not self.can_manage
+            # `scale_enabled` segue `pan_enabled` — vedi il commento in
+            # `build_draw_area` (BUG FIX 2026-08-26): se restasse acceso da
+            # solo in Penna/Gomma, il suo `ScaleGestureRecognizer` resterebbe
+            # comunque nella gesture arena e ritarderebbe l'inizio del
+            # tratto su schermo touch reale.
+            allow_viewer_gestures = (key == "move") or not self.can_manage
+            viewer.pan_enabled = allow_viewer_gestures
+            viewer.scale_enabled = allow_viewer_gestures
             try:
                 viewer.update()
             except RuntimeError:

@@ -12107,6 +12107,45 @@ test undo multi-azione — 35/35), più l'intera batteria di regressione mappe/w
 (`test_fase_d.py`, `test_note_e_inventario_sync.py`) — 498 controlli totali, 0 fallimenti,
 `pyflakes` pulito su tutti i file toccati.
 
+## Il tratto inizia con 1-2 secondi di ritardo su smartphone reale, perdendo il primo pezzo (2026-08-26)
+
+Bug report di Davide dopo aver testato v0.3.6 su smartphone reale (non riproducibile su
+desktop/mouse): in modalità Penna, passando il dito sullo schermo il tratto non inizia
+subito — per 1-2 secondi il movimento del dito non produce nulla, poi il disegno "riparte"
+da dove si trova il dito in quel momento, perdendo per sempre il primo pezzo del tratto.
+
+**Causa**: stessa competizione nella gesture arena di Flutter del bug gemello già corretto
+il 2026-08-20 ("il pizzico per zoomare non funziona su smartphone"), ma nella direzione
+opposta. `build_draw_area()` costruiva l'`ft.InteractiveViewer` con `scale_enabled=True`
+FISSO, mai spento in modalità Penna/Gomma (solo `pan_enabled` veniva spento per quelle
+modalità). Il `GestureDetector` figlio che gestisce il disegno e lo
+`ScaleGestureRecognizer` dell'`InteractiveViewer` padre restavano quindi entrambi iscritti
+nella gesture arena per lo stesso tocco: su un touchscreen reale l'arena deve stabilire se
+il tocco è un trascinamento a un dito (vince il disegno) o l'inizio di un pizzico a due
+dita (vince l'`InteractiveViewer`) prima di lasciar vincere il riconoscitore di pan del
+disegno — e quell'arbitraggio, misurato dal vivo, può ritardare sensibilmente la vittoria
+del riconoscitore di pan. Nel frattempo il riconoscitore di disegno non può ancora invocare
+`onPanStart`/`onPanUpdate` (non ha ancora vinto l'arena), quindi i punti toccati durante
+l'attesa non vengono mai registrati. Su mouse/trackpad il bug non si vede: un secondo
+tocco (il pizzico) non è mai possibile, quindi l'arena si risolve all'istante — coerente
+col fatto che il gemello del 2026-08-20 era anch'esso invisibile su desktop.
+
+**Fix**: come già succede per `pan_enabled`, ora anche `scale_enabled` si spegne ogni volta
+che si entra in modalità Penna/Gomma (`_select_mode()`, e al valore iniziale in
+`build_draw_area()`) — nessun riconoscitore concorrente resta nella gesture arena mentre si
+disegna, stesso principio già usato per il bug gemello (smontare del tutto il controllo
+concorrente invece di lasciarlo attivo ma "muto"). **Compromesso esplicito**: il pizzico
+per zoomare mentre si è attivamente in Penna/Gomma non è più disponibile (lo era prima,
+solo per il caso a due dita) — per zoomare durante il disegno bisogna passare a "Sposta",
+esattamente come già succedeva per il trascinamento a un dito. Verificato: `pyflakes`
+pulito, intera batteria mappe rilanciata (`test_mappe_locali_coordinate.py`,
+`test_mappe_condivise.py`, `test_mappe_condivise_http.py`, `test_mappe_condivise_ui.py`,
+`test_regressione_wrap_expand.py` — 260 controlli, 0 fallimenti). **Non verificabile da
+qui**: la causa è specifica all'arbitraggio hardware di un touchscreen reale, non
+riproducibile con mouse/trackpad né con l'automazione desktop (`cliclick`) usata nel resto
+di questa sessione — il fix va confermato da Davide su un dispositivo reale prima di
+considerarlo chiuso.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
