@@ -12514,6 +12514,67 @@ passati; le altre suite (`test_mappe_condivise_ui.py`, `test_mappe_condivise.py`
 
 ---
 
+## Il secondo dito di un pizzico arriva via on_interaction_end, non on_interaction_update — trovato pilotando l'app con touch reali via CDP (2026-08-26, v0.3.15)
+
+Davide, dopo aver testato v0.3.14: "adesso lo fa di nuovo quando poggio il primo dito,
+inoltre avvolte se appena entro nella pagina mappe apro subito una mappa, la pagina si
+ricarica e mi fa tornare di nuovo nella visualizzazione della lista delle mappe". Due
+bug scorrelati in un solo messaggio.
+
+**Bug 1 — il "pallino" al primo tocco, di nuovo.** Tre giri di fix (v0.3.11, v0.3.13,
+v0.3.14) erano tutti costruiti sulla stessa assunzione, mai verificata dal vivo: che il
+secondo dito di un pizzico arrivasse sempre via `_on_interaction_update()` con
+`pointer_count == 2`. Invece di scrivere un quarto fix "plausibile" sulla stessa base
+non verificata, questa volta l'app è stata avviata per davvero (`FLET_WEB=true`) e
+pilotata con un pizzico ASINCRONO simulato via CDP (`Input.dispatchTouchEvent` diretto
+— Playwright non offre multitouch nativo — due dita con ~45ms di scarto realistico fra
+i due tocchi, contro un database di test isolato con un personaggio e una mappa
+usa-e-getta, mai i dati reali di Davide) con un log diagnostico temporaneo su ogni
+evento. Risultato, inatteso: il secondo dito arriva come un `_on_interaction_end()` **con
+`pointer_count` già a 2** — non un `_on_interaction_update()` — perché Flutter, quando
+un secondo dito si aggiunge a un gesto "scale" già avviato, chiude il gesto vecchio
+(`onEnd`) e il campo `pointerCount` di quell'evento riflette il conteggio GIÀ
+aggiornato (verificato anche sul sorgente reale,
+`ScaleGestureRecognizer._reconfigure()`, una volta rilette le chiamate nell'ordine
+giusto). Nessuno dei fix precedenti controllava `pointer_count` dentro
+`_on_interaction_end()`: la cancellazione bufferizzata pensata per non perdere un vero
+tap rapido scattava quindi anche qui, cancellando qualcosa nel punto del primo tocco —
+riprodotto e confermato con una mappa di prova (un tratto spariva PRIMA del fix,
+sopravviveva DOPO). Fix: `_on_interaction_end()` ora controlla `e.pointer_count >= 2`
+PRIMA di qualunque logica basata su `kind` — se vero, scarta disegno/gomma in corso
+senza applicare nulla, il nuovo `_on_interaction_start()` che arriva subito dopo (già
+con `pointer_count >= 2`) si classifica correttamente come "view" da solo. Verificato
+anche che l'erasione a un dito solo genuina continui a funzionare (stessa app dal
+vivo, drag lungo un tratto reale, tratto cancellato correttamente).
+
+**Bug 2 — la pagina Mappe torna alla lista da sola.** `MapsView.did_mount()` avvia
+`_init_world_sync()` in un task asincrono (risoluzione `device_id`, non istantanea per
+un personaggio con `world_id`); se l'utente apre il dettaglio di una mappa PRIMA che
+quel task finisca, il successivo `_refresh_shared_maps()` chiamava incondizionatamente
+`_build()` — che rimonta SEMPRE il pannello LISTA, qualunque cosa fosse montata prima —
+scavalcando il dettaglio appena aperto sotto i piedi dell'utente. Riproducibile solo
+per personaggi con un mondo associato, da cui l'"avvolte" di Davide. Fix:
+`_refresh_shared_maps()` aggiorna comunque i dati (`self._shared_maps`) ma non tocca
+`self.controls` quando `self._current_gm is not None` (l'utente è nel dettaglio) —
+`_back_to_list()` li leggerà comunque quando l'utente esce.
+
+`test_mappe_locali_coordinate.py`: nuovo test [12] per il bug 1 (verifica diretta che
+un secondo dito arrivato via `on_interaction_end` non cancelli nulla), riscritto [11]
+con la semantica corretta di `pointer_count` per un dito che si solleva (era
+`pointer_count=2`, sbagliato — il conteggio POST-rimozione di un dito su due è 1, non
+2, causa dello stesso equivoco), nuovo test [13] per il bug 2. 66/66 controlli passati;
+le altre suite restano verdi senza modifiche.
+
+**Lezione per il progetto**: tre giri di fix costruiti sulla stessa assunzione
+mai verificata dal vivo — per quanto ciascuno letto con cura sul sorgente Dart — non
+hanno trovato quello che un singolo log diagnostico contro l'app reale ha trovato in un
+colpo solo. La lettura del sorgente resta preziosa (spiega IL PERCHÉ, non solo il
+cosa), ma qui da sola non bastava: mancava sapere in quale ESATTO evento Flet/Flutter
+consegna l'informazione, cosa che solo un pizzico vero (o, qui, simulato via CDP con
+timing realistico) contro l'app in esecuzione poteva rivelare.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

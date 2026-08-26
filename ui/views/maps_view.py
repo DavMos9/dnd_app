@@ -196,13 +196,29 @@ class MapsView(ft.Column):
         """Ricarica la lista mappe condivise visibili a questo giocatore e
         ridisegna — chiamata dal ciclo periodico di sync, dopo la
         risoluzione di `device_id`, e ad ogni chiusura del viewer di sola
-        lettura."""
+        lettura.
+
+        BUG FIX (2026-08-26): Davide — "se appena entro nella pagina mappe
+        apro subito una mappa, la pagina si ricarica e mi fa tornare di
+        nuovo nella visualizzazione della lista delle mappe". Causa: `_build()`
+        sotto rimonta SEMPRE il pannello LISTA (`self.controls[-1] =
+        Container(_build_list_panel())`), qualunque cosa fosse montata
+        prima — se l'utente ha aperto `_open_detail(gm)` nella finestra fra
+        `did_mount()` e il completamento asincrono di `_init_world_sync()`
+        (un giro `resolve_device_id()` non istantaneo), quel `_build()`
+        gli toglie il dettaglio da sotto i piedi. `self._current_gm` non è
+        `None` esattamente mentre l'utente è nel dettaglio (vedi
+        `_open_detail()`/`_back_to_list()`): qui basta aggiornare
+        `self._shared_maps` (i dati) SENZA toccare `self.controls` — verrà
+        letta comunque da `_back_to_list()` quando l'utente esce."""
         if not self.character.world_id:
             return
         self._shared_maps = [
             m for m in maps_repo.get_shared_maps(self.character.world_id)
             if m.visible_to_players
         ]
+        if self._current_gm is not None:
+            return
         self._build()
         try:
             self.update()

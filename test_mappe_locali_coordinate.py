@@ -55,7 +55,7 @@ import flet.canvas as cv  # noqa: E402
 
 from data.database import init_db  # noqa: E402
 from data.models import Character  # noqa: E402
-from data.repositories import character_repo, maps_repo  # noqa: E402
+from data.repositories import character_repo, maps_repo, world_repo  # noqa: E402
 from ui import canvas_geometry as geo  # noqa: E402
 from ui.components import map_drawing_canvas as mdc  # noqa: E402
 
@@ -989,15 +989,18 @@ def test_coda_fantasma_pizzico_non_cancella_al_sollevamento() -> None:
     mv._canvas._static_shapes[False] = None
 
     # -- Un vero pizzico: parte già a due dita, zoomma, poi il PRIMO dito si
-    # solleva (pointer_count=2 -> onEnd con kind "view"), e SUBITO dopo
-    # (clock finto a passo minuscolo, ben sotto `_VIEW_TAIL_GRACE_S`) il
-    # dito rimasto riapre un gesto a un dito solo — la "coda fantasma".
+    # solleva — un solo dito RIMANE giù, quindi l'`onEnd` di Flutter
+    # riporta `pointer_count=1` (il conteggio DOPO la rimozione, verificato
+    # dal vivo — vedi il punto 7 del docstring del modulo per il caso
+    # gemello e opposto, un dito che si AGGIUNGE) — e SUBITO dopo (clock
+    # finto a passo minuscolo, ben sotto `_VIEW_TAIL_GRACE_S`) il dito
+    # rimasto riapre un gesto a un dito solo — la "coda fantasma".
     old_time = mdc.time
     mdc.time = _FakeTimeModule(step=0.001, start=old_time._t)
     try:
         viewer.on_interaction_start(_FakeScaleStartEvent(200, 150, pointer_count=2))
         viewer.on_interaction_update(_FakeScaleUpdateEvent(200, 150, pointer_count=2, scale=1.5))
-        viewer.on_interaction_end(_FakeScaleEndEvent(pointer_count=2))
+        viewer.on_interaction_end(_FakeScaleEndEvent(pointer_count=1))
         check("la fine del pizzico è tracciata come fine di un gesto 'view'",
               mv._canvas._last_view_end_t[False] > -1e9)
 
@@ -1021,6 +1024,146 @@ def test_coda_fantasma_pizzico_non_cancella_al_sollevamento() -> None:
           "cancella normalmente", mv._canvas._strokes == [])
 
 
+def test_secondo_dito_arriva_via_on_interaction_end() -> None:
+    """
+    Bug report Davide (2026-08-26, dopo v0.3.14): "adesso lo fa di nuovo
+    quando poggio il primo dito". I fix [10]/[10b]/[11] correggevano tutti
+    l'IPOTESI (mai verificata dal vivo) che il secondo dito di un pizzico
+    arrivasse sempre via `_on_interaction_update()` con `pointer_count ==
+    2`. Riprodotto per davvero (app avviata in `FLET_WEB=true`, pizzico
+    asincrono simulato via CDP `Input.dispatchTouchEvent` con ~45ms di
+    scarto fra le due dita, log diagnostico temporaneo): il secondo dito
+    arriva invece come un `_on_interaction_end()` con `pointer_count` GIÀ
+    a 2 — non un `_on_interaction_update()` — perché Flutter chiude il
+    gesto a un dito solo quando il secondo si aggiunge, e il campo
+    `pointerCount` di quell'evento riflette il conteggio DOPO l'aggiunta
+    (`ScaleGestureRecognizer._reconfigure()`, verificato sul sorgente
+    reale). Prima di questo fix, `_on_interaction_end()` non controllava
+    `pointer_count`: la cancellazione bufferizzata del punto 5 (pensata
+    per non perdere un vero tap rapido) scattava anche qui, cancellando
+    qualcosa nel punto del primo tocco — verificato dal vivo con una
+    mappa di prova (un tratto sopravviveva al pizzico DOPO il fix,
+    spariva PRIMA).
+    """
+    print("\n[12] Il secondo dito di un pizzico che arriva via "
+          "on_interaction_end (non on_interaction_update) non cancella "
+          "nulla al primo tocco (BUG FIX 2026-08-26, settimo giro)")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Secondo Dito Via End")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+    viewer = _viewer_of(panel)
+    canvas = mv._canvas._canvas[False]
+    assert canvas is not None
+
+    mv._canvas._draw_mode = "eraser"
+    x0, y0, dw0, dh0 = mv._canvas._draw_rect_for(canvas)
+    stroke_x = x0 + dw0 * 0.5
+    stroke_y = y0 + dh0 * 0.5
+    mv._canvas._strokes = [{
+        "type": "stroke", "color": "#ffffff", "width": 5.0,
+        "points": geo.normalize_points([[stroke_x, stroke_y], [stroke_x + 10, stroke_y]],
+                                        dw0, dh0, x0, y0),
+    }]
+    mv._canvas._static_shapes[False] = None
+
+    # -- Primo dito, da solo, esattamente sopra al tratto.
+    viewer.on_interaction_start(_FakeScaleStartEvent(stroke_x, stroke_y))
+    check("il primo dito da solo viene classificato come gomma (unica "
+          "informazione disponibile in quel momento)",
+          mv._canvas._gesture_kind[False] == "erase")
+
+    # -- Il secondo dito arriva come un on_interaction_end, non un
+    # on_interaction_update — il fatto empirico centrale di questo giro.
+    viewer.on_interaction_end(_FakeScaleEndEvent(pointer_count=2))
+    check("BUG FIX: nessuna cancellazione è stata applicata quando il "
+          "secondo dito arriva via on_interaction_end",
+          mv._canvas._strokes != [])
+    check("il tratto toccato dal primo dito è ancora integro",
+          len(mv._canvas._strokes) == 1)
+
+    # -- Segue subito un on_interaction_start a due dita — già classificato
+    # correttamente come "view" dal primo istante, nessun ritardo.
+    viewer.on_interaction_start(_FakeScaleStartEvent(200, 150, pointer_count=2))
+    check("il nuovo gesto a due dita è 'view' fin da subito",
+          mv._canvas._gesture_kind[False] == "view")
+
+    # -- Controprova: lo stesso identico scenario in modalità Penna non
+    # deve produrre un tratto spurio.
+    mv._canvas._draw_mode = "pen"
+    viewer.on_interaction_start(_FakeScaleStartEvent(60, 60))
+    viewer.on_interaction_end(_FakeScaleEndEvent(pointer_count=2))
+    check("in modalità Penna, lo stesso scenario non salva nessun tratto "
+          "spurio", len(mv._canvas._strokes) == 1
+          and mv._canvas._current_points == [])
+
+
+def test_refresh_mappe_condivise_non_scavalca_il_dettaglio_aperto() -> None:
+    """
+    Bug report Davide (2026-08-26): "avvolte se appena entro nella pagina
+    mappe apro subito una mappa, la pagina si ricarica e mi fa tornare di
+    nuovo nella visualizzazione della lista delle mappe, come se avesse
+    rifatto il caricamento della pagina e refreshato". Causa: `did_mount()`
+    avvia `_init_world_sync()` in un task asincrono (risoluzione
+    `device_id`, non istantanea); se l'utente apre `_open_detail(gm)`
+    PRIMA che quel task finisca, il successivo `_refresh_shared_maps()`
+    chiamava incondizionatamente `_build()` — che rimonta SEMPRE il
+    pannello LISTA — scavalcando il dettaglio appena aperto. Riproducibile
+    solo per personaggi con `world_id` valorizzato (solo lì
+    `_init_world_sync`/`_refresh_shared_maps` fanno qualcosa), da cui
+    l'"avvolte" di Davide.
+    """
+    print("\n[13] _refresh_shared_maps() non riporta alla lista un utente "
+          "già dentro il dettaglio di una mappa (BUG FIX 2026-08-26)")
+    from ui.views.maps_view import MapsView
+
+    world = world_repo.create_world("Mondo di prova", "dev-owner-refresh", "Il Master")
+    assert world is not None
+    character = _make_character()
+    character.world_id = world.id
+    character_repo.update(character)
+
+    gm = maps_repo.create_map(character.id, "Mappa Dettaglio Aperto")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._build()
+    mv._open_detail(gm)
+    detail_content = mv.controls[-1]
+    check("_open_detail() ha montato il pannello di dettaglio",
+          mv._current_gm is gm and detail_content is not None)
+
+    # Simula il completamento TARDIVO di `_init_world_sync()` (device_id
+    # risolto solo ORA, dopo che l'utente è già entrato nel dettaglio) —
+    # esattamente la race del bug report.
+    mv._refresh_shared_maps()
+
+    check("BUG FIX: il pannello di dettaglio resta montato dopo "
+          "_refresh_shared_maps(), non torna alla lista",
+          mv.controls[-1] is detail_content and mv._current_gm is gm)
+
+    # -- Controprova: quando l'utente NON è nel dettaglio (lista mappe),
+    # _refresh_shared_maps() deve continuare a ridisegnare la lista come
+    # prima — il fix non deve rompere l'aggiornamento normale.
+    mv._back_to_list()
+    check("tornati alla lista, _current_gm è di nuovo None",
+          mv._current_gm is None)
+    list_content_before = mv.controls[-1]
+    mv._refresh_shared_maps()
+    check("in lista, _refresh_shared_maps() ricostruisce comunque il "
+          "pannello (comportamento normale preservato)",
+          mv.controls[-1] is not list_content_before)
+
+
 def main() -> int:
     print("=" * 62)
     print("Mappe locali — fix coordinate 2026-08-12 (inline/schermo intero/gomma)")
@@ -1039,6 +1182,8 @@ def main() -> int:
     test_secondo_dito_in_ritardo_non_lascia_cursore_congelato()
     test_dito_solo_genuino_dipinge_dopo_la_soglia_di_conferma()
     test_coda_fantasma_pizzico_non_cancella_al_sollevamento()
+    test_secondo_dito_arriva_via_on_interaction_end()
+    test_refresh_mappe_condivise_non_scavalca_il_dettaglio_aperto()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

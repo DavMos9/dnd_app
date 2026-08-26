@@ -116,6 +116,40 @@ corretti qui:
      reattivo, solo ritardato di una soglia sotto la percezione umana,
      stesso principio del punto 5.
 
+  7. **Il segno tornava al primo tocco, dopo che il punto 6 aveva
+     spostato il sintomo alla fine** (2026-08-26, settimo giro): Davide,
+     "adesso lo fa di nuovo quando poggio il primo dito". I punti 4-6
+     assumevano tutti che il SECONDO dito di un pizzico arrivasse sempre
+     via `_on_interaction_update()` con `pointer_count == 2` — mai un
+     nuovo `_on_interaction_start()` a metà gesto. Invece di continuare a
+     ipotizzare, qui si è avviata l'app per davvero (`FLET_WEB=true`),
+     pilotata con un pizzico asincrono simulato via CDP
+     (`Input.dispatchTouchEvent`, due dita con ~45ms di scarto realistico
+     fra i due tocchi — Playwright non offre multitouch nativo, serve il
+     protocollo Chrome DevTools direttamente) e log diagnostico temporaneo
+     su ogni evento. Risultato, inatteso: il secondo dito arriva come un
+     `_on_interaction_end()` **con `pointer_count` già a 2** — non un
+     `_on_interaction_update()` — perché Flutter, quando aggiunge un nuovo
+     dito a un gesto "scale" già avviato, chiude il gesto vecchio
+     (`onEnd`) e il campo `pointerCount` di quell'evento riflette il
+     conteggio GIÀ aggiornato (letto dopo che il nuovo dito è stato
+     registrato), non quello di quando il gesto era partito — coerente col
+     sorgente reale (`ScaleGestureRecognizer._reconfigure()`,
+     `packages/flutter/lib/src/gestures/scale.dart`) una volta rilette le
+     due chiamate nell'ordine giusto. Nessuno dei fix precedenti
+     controllava `pointer_count` dentro `_on_interaction_end()`: la
+     cancellazione bufferizzata del punto 5 (pensata per non perdere un
+     vero tap rapido) scattava quindi anche qui, cancellando qualcosa nel
+     punto del primo tocco. Qui `_on_interaction_end()` controlla
+     `e.pointer_count >= 2` PRIMA di qualunque logica basata su `kind`:
+     se vero, scarta disegno/gomma in corso senza applicare nulla — il
+     `_on_interaction_start()` che arriva subito dopo, già con
+     `pointer_count >= 2`, si classifica correttamente come "view" da
+     solo. Lezione per il progetto: dopo tre giri basati sulla stessa
+     assunzione mai verificata dal vivo, il log diagnostico contro l'app
+     reale ha trovato in un colpo solo quello che tre letture del sorgente
+     Dart, per quanto corrette nel dettaglio, non avevano fatto emergere.
+
 Le due viste NON sono libere di divergere di nuovo: `MapDrawingCanvas` è
 l'UNICO punto che sa costruire canvas/gesture/toolbar per una mappa
 disegnabile — un chiamante che riscrivesse la propria copia invece di usare
@@ -887,13 +921,15 @@ class MapDrawingCanvas:
         dell'`InteractiveViewer` — vedi punto 4 del docstring del modulo):
         decide QUI se il gesto è disegno/gomma o zoom/pan, in base
         all'unica informazione disponibile in questo istante
-        (`pointer_count`). Rivalutato UNA volta sola, in
-        `_on_interaction_update()`, SOLO nel verso disegno/gomma → view
-        (mai il contrario): un pizzico vero raramente tocca lo schermo con
+        (`pointer_count`). Un pizzico vero raramente tocca lo schermo con
         entrambe le dita nello stesso istante, quindi la prima dito arriva
-        sempre da solo qui — vedi il commento nel ramo `pointer_count >= 2`
-        di `_on_interaction_update()` per il perché (BUG FIX 2026-08-26,
-        "pallino" lasciato dalla gomma durante un pizzico)."""
+        sempre da solo qui — se un secondo dito si aggiunge poco dopo,
+        Flutter chiude questo stesso gesto con un `_on_interaction_end()`
+        il cui `pointer_count` riflette GIÀ il nuovo conteggio (verificato
+        dal vivo, non un `_on_interaction_update()` come assunto nei fix
+        precedenti — vedi il punto 7 del docstring del modulo), e un nuovo
+        `_on_interaction_start()` con `pointer_count >= 2` arriva subito
+        dopo, già classificato correttamente come "view" qui sotto."""
         is_fs = canvas is self._canvas[True]
         view = (
             self._draw_mode == "move"
@@ -953,25 +989,14 @@ class MapDrawingCanvas:
             return
 
         if e.pointer_count >= 2:
-            # BUG FIX (2026-08-26, segnalato da Davide): un pizzico vero a
-            # due dita quasi non tocca MAI lo schermo in modo perfettamente
-            # simultaneo — il primo dito arriva con `pointer_count == 1`,
-            # fa scattare `_on_interaction_start()` che lo classifica come
-            # "draw"/"erase" (l'unica informazione disponibile in quel
-            # momento), POI il secondo dito arriva qui come un
-            # `on_interaction_update` con `pointer_count == 2`, non un
-            # nuovo `_on_interaction_start()` (Flutter non lo rifà mai a
-            # metà gesto). Senza questo ramo il gesto restava bloccato su
-            # "erase"/"draw" per tutta la sua durata — in modalità Gomma il
-            # cursore già disegnato al tocco del primo dito (vedi
-            # `_on_interaction_start`) restava congelato lì fino al
-            # sollevamento delle dita: il "pallino" segnalato. Qui si
-            # riclassifica il gesto come "view" nel momento stesso in cui
-            # arriva un secondo dito — stesso principio che Flutter applica
-            # a se stesso in `_onScaleUpdate` (`_gestureType = _getGestureType
-            # (details)` quando il gesto era ancora genericamente "pan"):
-            # mai bloccarsi sulla prima informazione se il gesto la
-            # smentisce quasi subito.
+            # Un secondo dito PUÒ arrivare anche qui invece che tramite
+            # `_on_interaction_end()` (il percorso più comune — vedi il
+            # punto 7 del docstring del modulo, verificato dal vivo): ad
+            # esempio se il gesto era già "started" a due dita e ne arriva
+            # una terza. Stesso trattamento in entrambi i casi: mai
+            # bloccarsi sulla prima informazione se il gesto la smentisce
+            # — riclassifica a "view" e scarta senza applicare qualunque
+            # disegno/gomma in corso.
             self._gesture_kind[is_fs] = "view"
             # `_gesture_painted[is_fs]` distingue se c'è DAVVERO qualcosa da
             # ripulire sul client (punto 5 del docstring del modulo): nel
@@ -1047,6 +1072,23 @@ class MapDrawingCanvas:
         is_fs = canvas is self._canvas[True]
         kind = self._gesture_kind.pop(is_fs, None)
         self._gesture_ref_focal[is_fs] = None
+        if e.pointer_count >= 2:
+            # BUG FIX (2026-08-26, settimo giro) — vedi punto 7 del
+            # docstring del modulo: quando un SECONDO dito si aggiunge
+            # mentre un gesto a un dito solo è già "avviato", Flutter non
+            # lo consegna come un `on_interaction_update` (l'assunto di
+            # TUTTI i fix precedenti, punti 4-6) ma chiude il vecchio gesto
+            # con un `onEnd` il cui `pointerCount` riflette già il NUOVO
+            # conteggio — verificato dal vivo (log diagnostico contro
+            # l'app reale, non solo sul sorgente). Non è una vera fine:
+            # scarta qualunque disegno/gomma in corso SENZA applicarlo — un
+            # nuovo `_on_interaction_start()` con `pointer_count >= 2`
+            # arriva subito dopo, già classificato correttamente come
+            # "view".
+            self._eraser_cursor_pos = None
+            self._pending_erase_points[is_fs] = []
+            self._current_points.clear()
+            return
         if kind == "view":
             # Vedi punto 6 del docstring del modulo: se il dito rimasto si
             # muove prima di sollevarsi a sua volta, Flutter riapre un
