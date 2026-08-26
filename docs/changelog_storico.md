@@ -12262,6 +12262,59 @@ presunto. Verificare contro il sorgente ufficiale (non contro la sola documentaz
 che qui era corretta ma facile da leggere distrattamente) ha risolto in un colpo quello che
 due round di fix plausibili-ma-sbagliati non avevano risolto.
 
+## Lo zoom si perdeva ad ogni cambio modalità, il pizzico era impossibile mentre si disegnava (2026-08-26, quarto giro)
+
+Con il ritardo del tratto finalmente risolto (v0.3.9, vedi sopra), Davide ha segnalato due
+problemi legati allo stesso meccanismo: **"se uso sposta e zoommo poi vado a penna e
+ricarica la foto non zoommata"**, e **"vorrei che anche nella sezione penna si possa
+zoommare con il pizzico e viceversa"**.
+
+Causa del primo: il fix v0.3.9 (giustamente) smontava l'`ft.InteractiveViewer` in
+Penna/Gomma per togliere il suo `ScaleGestureRecognizer` dalla gesture arena — ma uno
+`InteractiveViewer` appena creato riparte SEMPRE dalla trasformazione identità (Flutter
+mantiene la Matrix4 di zoom/pan nello *State* del widget, che smontare/rimontare distrugge
+e ricrea da zero). Ogni cambio Penna↔Sposta ricreava quindi un `InteractiveViewer`
+letteralmente diverso: lo zoom impostato in "Sposta" non poteva sopravvivere al passaggio
+successivo, per costruzione.
+
+Il secondo problema (pizzico impossibile mentre si disegna) è la stessa causa vista da un
+altro lato: se il rimedio per il ritardo del tratto era "non montare mai un secondo
+recognizer mentre si disegna", allora il pizzico — che richiede un `ScaleGestureRecognizer`
+— era strutturalmente incompatibile con la modalità Penna così com'era.
+
+**Fix (quarto giro)**: invece di due widget diversi che si alternano, un solo
+`ft.InteractiveViewer` per pannello, costruito una volta in `build_draw_area()` e mai più
+sostituito per tutta la vita del pannello — la sua Matrix4 interna sopravvive quindi a
+qualunque cambio modalità, per costruzione. Il disegno/la gomma non passano più da un
+secondo `ft.GestureDetector` con `on_pan_*` (che riprodurrebbe esattamente il problema del
+ritardo, vedi sopra): usano `on_interaction_start/update/end`, gli STESSI eventi
+`onScaleStart/Update/End` che l'`InteractiveViewer` cablava già incondizionatamente (lo
+stesso fatto verificato nel giro precedente, qui usato a favore invece che aggirato). Un
+solo `GestureRecognizer` per pannello, per costruzione nessuna gara nell'arena possibile:
+
+- Un tocco singolo (`pointer_count == 1`) in Penna/Gomma disegna/cancella — deciso una sola
+  volta all'inizio del gesto (`_on_interaction_start()`), mai rivalutato durante, stesso
+  principio del `_gestureType` che Flutter stesso usa internamente.
+- Due o più tocchi (`pointer_count >= 2`) pizzicano SEMPRE, in QUALUNQUE modalità
+  (`scale_enabled=True` non cambia mai) — `pan_enabled` (True solo in "Sposta", o sempre in
+  sola lettura) decide solo se un dito singolo sposta ANCHE la vista.
+- La Matrix4 di zoom/pan non è leggibile da Flet come proprietà — `MapDrawingCanvas` ne
+  tiene uno specchio Python (`_view_scale`/`_view_offset`), aggiornato con la STESSA
+  formula che Flutter usa internamente (`interactive_viewer.dart::_onScaleUpdate`,
+  riletta apposta per questo fix): il punto di contenuto sotto il fuoco del gesto resta
+  fisso sotto il fuoco per tutta la sua durata, sia che cambi solo la traslazione (un dito
+  in "Sposta") sia che cambi anche la scala (pizzico) — la stessa equazione copre entrambi
+  i casi. Lo specchio serve SOLO a convertire un tocco singolo (disegno) da coordinate di
+  schermo a coordinate di contenuto — la resa visiva resta comunque quella nativa di
+  Flutter, mai ricostruita a mano.
+
+Aggiornati i test che simulavano `ft.GestureDetector.on_pan_*` (non esiste più un
+`GestureDetector` di disegno) per usare `ft.InteractiveViewer.on_interaction_*`
+(`test_mappe_locali_coordinate.py`, `test_mappe_condivise_ui.py`); riscritto il test [5] di
+`test_mappe_locali_coordinate.py` (ora verifica la persistenza dello zoom tra modalità e il
+pizzico funzionante in Penna, coi valori numerici attesi dalla formula). Batteria completa
+rilanciata dopo il fix, `pyflakes` pulito.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

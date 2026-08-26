@@ -210,9 +210,29 @@ class _FakeOffset:
         self.y = y
 
 
-class _FakeDragEvent:
-    def __init__(self, x: float, y: float):
-        self.local_position = _FakeOffset(x, y)
+class _FakeScaleStartEvent:
+    """Imita `ft.ScaleStartEvent` — l'unico evento che
+    `MapDrawingCanvas._on_interaction_start()` legge ora (BUG FIX
+    2026-08-26, quarto giro: un solo `ft.InteractiveViewer` per pannello,
+    mai sostituito, gestisce sia disegno/gomma [1 dito] sia pan/zoom
+    [2+ dita] — vedi il punto 4 del docstring del modulo di
+    `map_drawing_canvas.py`)."""
+
+    def __init__(self, x: float, y: float, pointer_count: int = 1):
+        self.local_focal_point = _FakeOffset(x, y)
+        self.pointer_count = pointer_count
+
+
+class _FakeScaleUpdateEvent:
+    def __init__(self, x: float, y: float, pointer_count: int = 1, scale: float = 1.0):
+        self.local_focal_point = _FakeOffset(x, y)
+        self.pointer_count = pointer_count
+        self.scale = scale
+
+
+class _FakeScaleEndEvent:
+    def __init__(self, pointer_count: int = 1):
+        self.pointer_count = pointer_count
 
 
 class _FakeSizeEvent:
@@ -466,28 +486,29 @@ def test_overlay_disegno_master() -> None:
 
     # BUG FIX 2026-08-24 (race di normalizzazione — vedi
     # `ui/components/map_drawing_canvas.py::MapDrawingCanvas.on_box_resize`):
-    # il `GestureDetector` di disegno NON è montato finché il riquadro non
-    # è noto (nessun `on_size_change` ancora arrivato in quest'istante
-    # userebbe un box 0x0, che normalizzerebbe i punti in modo scorretto
-    # — proprio il bug segnalato da Davide "il disegno non corrisponde
-    # sulla mappa"). Va quindi simulato il resize PRIMA di cercare il
-    # GestureDetector, non dopo.
+    # un gesto ricevuto PRIMA che il riquadro sia noto (nessun
+    # `on_size_change` ancora arrivato in quest'istante userebbe un box
+    # 0x0, che normalizzerebbe i punti in modo scorretto — proprio il bug
+    # segnalato da Davide "il disegno non corrisponde sulla mappa") viene
+    # trattato come "view" (mai disegno), non come tratto — vedi il punto
+    # 4 del docstring del modulo di `map_drawing_canvas.py`. Va quindi
+    # simulato il resize PRIMA di disegnare, non dopo.
     resize_container = _find(
         overlay, lambda n: isinstance(n, ft.Container)
-        and isinstance(getattr(n, "content", None), ft.Container)
+        and isinstance(getattr(n, "content", None), ft.InteractiveViewer)
         and getattr(n, "on_size_change", None),
     )
     assert resize_container is not None
     resize_container.on_size_change(_FakeSizeEvent(400, 300))
 
-    gesture = _find(overlay, lambda n: isinstance(n, ft.GestureDetector))
-    check("un master può disegnare: la mappa ha un GestureDetector "
-          "(dopo che il riquadro è noto)", gesture is not None)
-    assert gesture is not None
+    viewer = _find(overlay, lambda n: isinstance(n, ft.InteractiveViewer))
+    check("un master può disegnare: la mappa ha un InteractiveViewer "
+          "(dopo che il riquadro è noto)", viewer is not None)
+    assert viewer is not None
 
-    gesture.on_pan_start(_FakeDragEvent(10, 10))
-    gesture.on_pan_update(_FakeDragEvent(20, 20))
-    gesture.on_pan_end(_FakeDragEvent(20, 20))
+    viewer.on_interaction_start(_FakeScaleStartEvent(10, 10))
+    viewer.on_interaction_update(_FakeScaleUpdateEvent(20, 20))
+    viewer.on_interaction_end(_FakeScaleEndEvent())
 
     after_draw = maps_repo.get_map(clone_id)
     assert after_draw is not None
@@ -538,15 +559,16 @@ def test_coordinate_normalizzate() -> None:
     wv._open_shared_map(world, shared_gm, True)
     overlay = fake_page.overlay[0]
 
-    # Identificato dal contenuto diretto — lo slot `ft.Container` che
-    # `build_draw_area()` restituisce (BUG FIX 2026-08-26, terzo giro: non
-    # più un `ft.InteractiveViewer` diretto, vedi `_wrap_stack_for_mode()`)
-    # — non "un qualunque Container con on_size_change": la toolbar
-    # (breakpoint responsive) ne monta uno per conto proprio, e quello ha
-    # come contenuto una Row/Column, non un Container.
+    # Identificato dal contenuto diretto — l'`ft.InteractiveViewer` UNICO
+    # che `build_draw_area()` restituisce (BUG FIX 2026-08-26, quarto
+    # giro: mai più sostituito ai cambi modalità, vedi il punto 4 del
+    # docstring del modulo di `map_drawing_canvas.py`) — non "un
+    # qualunque Container con on_size_change": la toolbar (breakpoint
+    # responsive) ne monta uno per conto proprio, e quello ha come
+    # contenuto una Row/Column, non un InteractiveViewer.
     resize_container = _find(
         overlay, lambda n: isinstance(n, ft.Container)
-        and isinstance(getattr(n, "content", None), ft.Container)
+        and isinstance(getattr(n, "content", None), ft.InteractiveViewer)
         and getattr(n, "on_size_change", None),
     )
     check("il riquadro di disegno ha un on_size_change agganciato", resize_container is not None)
@@ -555,10 +577,10 @@ def test_coordinate_normalizzate() -> None:
     # Riquadro "piccolo" (es. l'anteprima non a schermo intero su uno
     # smartphone) — disegna un tratto che tocca l'angolo in basso a destra.
     resize_container.on_size_change(_FakeSizeEvent(400, 300))
-    gesture = _find(overlay, lambda n: isinstance(n, ft.GestureDetector))
-    gesture.on_pan_start(_FakeDragEvent(0, 0))
-    gesture.on_pan_update(_FakeDragEvent(400, 300))
-    gesture.on_pan_end(_FakeDragEvent(400, 300))
+    viewer = _find(overlay, lambda n: isinstance(n, ft.InteractiveViewer))
+    viewer.on_interaction_start(_FakeScaleStartEvent(0, 0))
+    viewer.on_interaction_update(_FakeScaleUpdateEvent(400, 300))
+    viewer.on_interaction_end(_FakeScaleEndEvent())
 
     stored = json.loads(maps_repo.get_map(clone_id).annotations)[0]["points"]
     check("il punto (400,300) in un riquadro 400x300 si salva come frazione (1.0, 1.0)",
@@ -645,9 +667,22 @@ def test_overlay_replica_fetch_e_watch_loop() -> None:
         check("l'overlay lato replica si apre comunque", len(fake_page.overlay) == 1)
         overlay = fake_page.overlay[0]
 
-        gesture = _find(overlay, lambda n: isinstance(n, ft.GestureDetector))
-        check("un giocatore NON può disegnare: nessun GestureDetector nell'overlay",
-              gesture is None)
+        # BUG FIX 2026-08-26 (quarto giro): un `ft.InteractiveViewer` è
+        # SEMPRE montato ora, anche per un giocatore in sola lettura (può
+        # comunque spostarsi/zoommare sulla mappa) — vedi il punto 4 del
+        # docstring del modulo di `map_drawing_canvas.py`. Non è più
+        # "nessun InteractiveViewer" il segnale di sola lettura, ma
+        # "nessun tratto si salva mai, qualunque gesto si tenti".
+        viewer = _find(overlay, lambda n: isinstance(n, ft.InteractiveViewer))
+        check("un giocatore in sola lettura vede comunque un InteractiveViewer "
+              "(può spostarsi/zoommare, solo non disegnare)", viewer is not None)
+        assert viewer is not None
+        viewer.on_interaction_start(_FakeScaleStartEvent(10, 10))
+        viewer.on_interaction_update(_FakeScaleUpdateEvent(20, 20))
+        viewer.on_interaction_end(_FakeScaleEndEvent())
+        check("un giocatore NON può disegnare: un tentativo di tratto non "
+              "salva nessuna annotazione",
+              json.loads(maps_repo.get_map(clone_id).annotations or "[]") == [])
         undo_btn = _find(overlay, lambda n: isinstance(n, ft.TextButton)
                           and n.content == "Annulla ultimo")
         check("nessun controllo di disegno per un giocatore", undo_btn is None)

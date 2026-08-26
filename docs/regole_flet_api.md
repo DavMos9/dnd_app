@@ -865,7 +865,7 @@ regola non può essere dimenticata in silenzio in un dialogo nuovo.
 
 ---
 
-## `ft.InteractiveViewer` + `ft.GestureDetector` figlio: `pan_enabled`/`scale_enabled` NON tolgono mai nulla dalla gesture arena — solo NON montare il controllo lo fa (2026-08-20, 2026-08-26 ×2)
+## `ft.InteractiveViewer` + `ft.GestureDetector` figlio: `pan_enabled`/`scale_enabled` NON tolgono mai nulla dalla gesture arena — solo NON montare il controllo lo fa (2026-08-20, 2026-08-26 ×3)
 
 Un `ft.GestureDetector` con `on_pan_*` annidato dentro il `content` di un
 `ft.InteractiveViewer` (`ui/components/map_drawing_canvas.py`, area di
@@ -911,25 +911,60 @@ possibile, l'arena si risolve all'istante):
   il contenuto tra `InteractiveViewer` e `stack` nudo ad ogni cambio
   modalità), esattamente lo stesso principio già efficace nel 2026-08-20 —
   ma applicato al genitore, non al figlio.
+- **2026-08-26, terzo tentativo — lo zoom si perdeva ad ogni cambio
+  modalità, il pizzico era impossibile mentre si disegnava.** Effetto
+  collaterale del fix precedente: uno `slot` che ricrea un
+  `InteractiveViewer` DIVERSO ad ogni cambio Penna↔Sposta perde la Matrix4
+  interna di zoom/pan ogni volta (un widget appena creato riparte sempre
+  dall'identità) — e un `InteractiveViewer` non montato in Penna/Gomma
+  significa, per definizione, nessun pizzico possibile lì. **Fix finale**:
+  invece di alternare due widget diversi, un solo `InteractiveViewer` per
+  pannello, montato una volta e MAI PIÙ sostituito — la sua Matrix4
+  sopravvive quindi a ogni cambio modalità. Il disegno non usa più un
+  secondo `ft.GestureDetector` con `on_pan_*` (che riprodurrebbe il bug del
+  tentativo precedente): usa `on_interaction_start/update/end`, gli STESSI
+  eventi `onScaleStart/Update/End` che l'`InteractiveViewer` cabla comunque
+  incondizionatamente — **un solo `GestureRecognizer` per pannello,
+  nessun secondo widget da mettere in gara**. Un tocco singolo
+  (`pointer_count == 1`) disegna in Penna/Gomma; due o più tocchi pizzicano
+  SEMPRE (`scale_enabled=True` in ogni modalità), deciso una volta sola
+  all'inizio del gesto e mai rivalutato durante — stesso principio del
+  `_gestureType` che Flutter stesso usa internamente
+  (`interactive_viewer.dart::_onScaleUpdate`, riletto apposta per questo
+  fix). Poiché Flet non espone la Matrix4 come proprietà leggibile, uno
+  specchio Python (`_view_scale`/`_view_offset` in
+  `map_drawing_canvas.py`) la ricostruisce con la STESSA formula di
+  Flutter, usato solo per convertire un tocco singolo da coordinate di
+  schermo a coordinate di contenuto — il rendering resta comunque quello
+  nativo del framework.
 
-**Regola generale, corretta**: quando un `GestureDetector`/riconoscitore
-condivide un'area con un `InteractiveViewer` (o un altro widget con
-riconoscitori propri), **non fidarsi di flag con un nome tipo
+**Regola generale, corretta due volte**: quando un `GestureDetector`/
+riconoscitore condivide un'area con un `InteractiveViewer` (o un altro
+widget con riconoscitori propri), **non fidarsi di flag con un nome tipo
 `XxxEnabled`** per capire se un controllo resta nella gesture arena — solo
 leggendo il sorgente si scopre se quel flag gate la COSTRUZIONE del
 riconoscitore (lo toglie davvero dall'arena) o solo la sua LOGICA INTERNA
-dopo che ha già vinto (non lo toglie affatto, come qui). L'unico rimedio
-verificato resta: **non costruire/montare il controllo affatto** nella
-modalità in cui non deve competere — mai un flag "disabilitato" lasciato
-comunque nell'albero. Il sintomo (nessun errore, nessuna eccezione,
-comportamento sbagliato solo su hardware touch reale, un flag apparentemente
-corretto che non risolve nulla) rende questa classe di bug invisibile sia
-alla lettura del codice sia ai test automatici di questo progetto (nessun
-sandbox qui può simulare un vero multi-touch) — va sempre confermata dal
-vivo su un dispositivo reale, E il rimedio scelto va verificato contro il
-sorgente ufficiale del framework quando il nome di un flag suggerisce un
-comportamento che poi non si conferma dal vivo. Vedi anche
-`docs/changelog_storico.md` per il dettaglio completo di tutti gli episodi.
+dopo che ha già vinto (non lo toglie affatto). Il rimedio "non
+costruire/montare il controllo affatto nella modalità in cui non deve
+competere" resta corretto ma, se applicato ingenuamente scambiando un
+widget con un altro a seconda della modalità, introduce un secondo problema
+distinto: **quel widget porta con sé uno stato (qui, la trasformazione di
+zoom/pan) che uno smontaggio/rimontaggio distrugge**. La lezione finale,
+più generale: quando serve che PIÙ tipi di gesto (qui: disegno a un dito,
+pizzico a più dita) coesistano nella stessa area senza mai competere,
+**instradali tutti attraverso un unico widget/riconoscitore già presente,
+distinguendoli nel proprio codice (qui: `pointer_count`)** — mai un secondo
+widget "spento" via flag, e mai nemmeno un widget che si alterna con un
+altro se quello che sparisce porta con sé uno stato da preservare. Il
+sintomo di questa intera classe di bug (nessun errore, nessuna eccezione,
+comportamento sbagliato solo su hardware touch reale) la rende invisibile
+sia alla lettura del codice sia ai test automatici di questo progetto
+(nessun sandbox qui può simulare un vero multi-touch) — va sempre
+confermata dal vivo su un dispositivo reale, E il rimedio scelto va
+verificato contro il sorgente ufficiale del framework quando il nome di un
+flag suggerisce un comportamento che poi non si conferma dal vivo. Vedi
+anche `docs/changelog_storico.md` per il dettaglio completo di tutti gli
+episodi.
 
 ---
 

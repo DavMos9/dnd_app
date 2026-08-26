@@ -355,50 +355,50 @@ mappe" (2026-08-25).
 - **Costruttore**: `MapDrawingCanvas(gm, on_batch, can_manage, page=...)`. `on_batch`
   astrae la persistenza — il giocatore passa una closure verso il rewrite locale delle
   annotazioni, il Master verso `CMD_MAP_DRAW`. `can_manage=False` (giocatore in sola
-  lettura su una mappa condivisa) non monta toolbar né `GestureDetector`. `page` abilita
-  `_safe_update()`, un fallback a `page.update()` se `ctrl.update()` solleva
-  `RuntimeError`.
-- **`build_draw_area(is_fs)`**: `ft.Stack([img_layer, gesture_layer], expand=True,
+  lettura su una mappa condivisa) non monta la toolbar e tratta ogni gesto come pan/zoom,
+  mai disegno. `page` abilita `_safe_update()`, un fallback a `page.update()` se
+  `ctrl.update()` solleva `RuntimeError`.
+- **`build_draw_area(is_fs)`**: `ft.Stack([img_layer, canvas], expand=True,
   fit=ft.StackFit.EXPAND)` — il `fit=EXPAND` esplicito è **necessario**: `ft.Stack` di
   default usa `StackFit.LOOSE`, che non forza i figli `expand=True` a riempire lo Stack e
   causava disallineamento tra immagine e tratti disegnati (vedi changelog per l'analisi
   completa). Riquadro di disegno tracciato via `on_size_change`, SEPARATO per pannello
   inline e schermo intero (`self._box_size[is_fs]`), come nella vecchia implementazione.
-- **`ft.InteractiveViewer` (zoom/pan) montato SOLO in modalità "Sposta"/sola lettura, MAI
-  con `pan_enabled=False`/`scale_enabled=False`** (`_wrap_stack_for_mode()`, stato finale
-  dopo tre giri di fix il 2026-08-26 — dettaglio completo, incluso il perché dei primi due
-  tentativi sbagliati, in `changelog_storico.md`): `build_draw_area()` non restituisce più
-  direttamente un `ft.InteractiveViewer`, ma un `ft.Container` "slot" il cui `.content` si
-  scambia tra `ft.InteractiveViewer(pan_enabled=True, scale_enabled=True, ...)` (modalità
-  "Sposta"/sola lettura) e lo `stack` NUDO, senza alcun `InteractiveViewer`, in Penna/Gomma
-  — `_select_mode()` ricostruisce `slot.content` ad ogni cambio modalità, stesso principio
-  già usato per il `GestureDetector` di disegno (`stack.controls[1]`). **Causa REALE**
-  (confermata leggendo il sorgente ufficiale di Flutter,
-  `packages/flutter/lib/src/widgets/interactive_viewer.dart::build()`, non per analogia):
-  `InteractiveViewer` costruisce SEMPRE un `GestureDetector` interno con
-  `onScaleStart`/`onScaleUpdate`/`onScaleEnd` cablati incondizionatamente — `pan_enabled`
-  e `scale_enabled` sono controllati SOLO dentro il corpo degli handler, DOPO che il
-  riconoscitore ha già vinto la gesture arena, mai per decidere se costruire il
-  `GestureDetector`. Impostarli a `False` (fix intermedio, 2026-08-26, poi rivelatosi
-  insufficiente) NON toglie quindi nulla dalla competizione con il `GestureDetector` di
-  disegno per lo stesso tocco — un `InteractiveViewer` "disabilitato" tramite quei flag
-  resta comunque iscritto nella gesture arena esattamente come uno abilitato. Il vero
-  rimedio (identico nel principio al gemello 2026-08-20, "pizzico rotto in modalità
-  Sposta": mai lasciare un controllo concorrente montato con handler "muti", va tolto
-  dall'albero) è non costruire affatto l'`InteractiveViewer` quando si disegna. Vedi
-  `regole_flet_api.md` per la regola generale riusabile. Compromesso invariato nella
-  sostanza, ora strutturalmente garantito: niente pizzico/pan a un dito mentre si è
-  attivamente in Penna/Gomma, si passa a "Sposta".
+- **Un solo `ft.InteractiveViewer` per pannello, montato una volta e mai più sostituito**
+  (stato finale dopo QUATTRO giri di fix, l'ultimo il 2026-08-26 — dettaglio completo,
+  incluso il perché dei primi tre tentativi sbagliati, in `changelog_storico.md`):
+  `build_draw_area()` restituisce direttamente quell'`InteractiveViewer`, con
+  `content=stack` e `scale_enabled=True` SEMPRE (il pizzico zoomma in ogni modalità);
+  `pan_enabled` è l'unica proprietà che cambia con la modalità (`True` solo in "Sposta", o
+  sempre in sola lettura). Non esiste più un `ft.GestureDetector` separato per
+  disegno/gomma: quegli eventi arrivano da `on_interaction_start/update/end`, gli STESSI
+  `onScaleStart/Update/End` che `InteractiveViewer` cabla comunque incondizionatamente
+  (**causa REALE** del giro precedente, confermata leggendo il sorgente ufficiale di
+  Flutter, `packages/flutter/lib/src/widgets/interactive_viewer.dart::build()`, non per
+  analogia) — un solo `GestureRecognizer` per pannello, per costruzione nessuna gara
+  nell'arena possibile con nient'altro. `_on_interaction_start()` decide, una volta sola
+  per gesto, se si tratta di disegno/gomma (`pointer_count == 1`, modalità Penna/Gomma,
+  riquadro noto) o di pan/zoom (tutto il resto, incluso qualunque gesto a 2+ dita, in
+  QUALUNQUE modalità). Poiché Flet non espone la Matrix4 interna come proprietà leggibile,
+  `_view_scale`/`_view_offset` ne tengono uno specchio Python, aggiornato con la STESSA
+  formula di `interactive_viewer.dart::_onScaleUpdate` (il punto di contenuto sotto il
+  fuoco del gesto resta fisso sotto il fuoco per tutta la sua durata) — usato SOLO per
+  convertire un tocco singolo da coordinate di schermo a coordinate di contenuto
+  (`_to_scene()`); il rendering resta comunque quello nativo di Flutter. Vedi
+  `regole_flet_api.md` per la regola generale riusabile. Compromesso nuovo rispetto ai giri
+  precedenti: lo zoom impostato in una modalità sopravvive al passaggio a un'altra (stesso
+  widget, mai ricreato) e il pizzico funziona SEMPRE, anche mentre si disegna.
 - **Cache dei tratti già salvati durante un trascinamento** (`_committed_shapes()`/
   `self._static_shapes[is_fs]`, 2026-08-26): `_redraw_canvas()` ricalcolava da zero TUTTI i
-  tratti già salvati (denormalizzazione + `cv.Path`) ad ogni singolo `on_pan_update`, costo
-  O(punti totali sulla mappa) per fotogramma. `_committed_shapes(is_fs)` calcola quella
-  lista una volta e la mette in cache; `_redraw_canvas()` la invalida sempre (usato ovunque
-  i tratti POSSONO essere cambiati: resize, cambio modalità, fine tratto, gomma, annulla,
-  cancella tutto), `_redraw_live_stroke()` (SOLO in `_on_pan_update()` durante un
-  trascinamento penna) la riusa e ricalcola solo il tratto in corso — un miglioramento di
-  prestazioni reale di per sé, anche se NON era la causa del ritardo di disegno touch
-  (esclusa da Davide testando a mappa vuota; la causa reale è il punto sopra).
+  tratti già salvati (denormalizzazione + `cv.Path`) ad ogni singolo
+  `on_interaction_update`, costo O(punti totali sulla mappa) per fotogramma.
+  `_committed_shapes(is_fs)` calcola quella lista una volta e la mette in cache;
+  `_redraw_canvas()` la invalida sempre (usato ovunque i tratti POSSONO essere cambiati:
+  resize, cambio modalità, fine tratto, gomma, annulla, cancella tutto),
+  `_redraw_live_stroke()` (SOLO durante un trascinamento penna in corso) la riusa e
+  ricalcola solo il tratto in corso — un miglioramento di prestazioni reale di per sé,
+  anche se NON era la causa del ritardo di disegno touch (esclusa da Davide testando a
+  mappa vuota; la causa reale era la gesture arena, vedi il punto sopra).
 - **Pulsanti pillola** (`_mbtn` per Penna/Gomma/Sposta, `_esbtn` per le sotto-modalità
   gomma Tratto/Libera): usano `animate_scale=ft.Animation(...)` (`AnimatedScale`), MAI
   `animate=` (`AnimatedContainer`) — quest'ultimo, combinato con Icon+Text in una Row,
