@@ -374,11 +374,19 @@ class InventarioTab(ScrollMemoryListView):
             self.controls.append(section_header("Sintonia", design.T().warning))
             self.controls.append(self._section_attunement())
         self.controls.append(section_header("Armi"))
-        self.controls.append(self._section_armi())
+        # Riferimenti salvati come attributi: i toggle rapidi di equip
+        # (`_toggle_weapon_equipped`/`_toggle_weapon_grip`/
+        # `_toggle_item_equipped`) li mutano in-place invece di passare da
+        # `_refresh()` pieno — vedi il piano "Fluidità transizioni e
+        # animazioni".
+        self._weapons_ref = self._section_armi()
+        self.controls.append(self._weapons_ref)
         self.controls.append(section_header("Armature"))
-        self.controls.append(self._section_armature())
+        self._armor_ref = self._section_armature()
+        self.controls.append(self._armor_ref)
         self.controls.append(section_header("Oggetti"))
-        self.controls.append(self._section_oggetti())
+        self._oggetti_ref = self._section_oggetti()
+        self.controls.append(self._oggetti_ref)
 
     # ------------------------------------------------------------------
     # Monete
@@ -744,6 +752,7 @@ class InventarioTab(ScrollMemoryListView):
                 bottom=ft.BorderSide(1, design.T().border),
             ),
             border_radius=design.Radius.MD,
+            animate=ft.Animation(design.Duration.FAST, design.CURVE),
         )
 
     # ------------------------------------------------------------------
@@ -896,6 +905,7 @@ class InventarioTab(ScrollMemoryListView):
                 bottom=ft.BorderSide(1, design.T().border),
             ),
             border_radius=design.Radius.MD,
+            animate=ft.Animation(design.Duration.FAST, design.CURVE),
         )
 
     def _on_add_armor(self) -> None:
@@ -1649,7 +1659,7 @@ class InventarioTab(ScrollMemoryListView):
             if not self._update_weapon_equipped_flag(weapon, False):
                 show_error_dialog(self._page)
                 return
-            self._refresh()
+            self._refresh_weapons_only()
             return
 
         candidates = [
@@ -1677,8 +1687,13 @@ class InventarioTab(ScrollMemoryListView):
         if unequip_shield:
             if not self._unequip_shield_and_recalc_ca():
                 return
+            self._refresh_weapons_only()
+            self._refresh_armor_only()
+            if self._on_refresh:
+                self._on_refresh()
+            return
 
-        self._refresh()
+        self._refresh_weapons_only()
 
     def _unequip_shield_and_recalc_ca(self) -> bool:
         """Disequipaggia l'eventuale scudo indossato e ricalcola la CA —
@@ -1720,7 +1735,7 @@ class InventarioTab(ScrollMemoryListView):
             if not self._update_weapon_equipped_flag(weapon, weapon.is_equipped, new_grip):
                 show_error_dialog(self._page)
                 return
-            self._refresh()
+            self._refresh_weapons_only()
             return
 
         candidates = [
@@ -1753,8 +1768,13 @@ class InventarioTab(ScrollMemoryListView):
         if unequip_shield:
             if not self._unequip_shield_and_recalc_ca():
                 return
+            self._refresh_weapons_only()
+            self._refresh_armor_only()
+            if self._on_refresh:
+                self._on_refresh()
+            return
 
-        self._refresh()
+        self._refresh_weapons_only()
 
     # ------------------------------------------------------------------
     # Sintonia (Fase 4, feature 3 — DMG p.138)
@@ -1883,7 +1903,11 @@ class InventarioTab(ScrollMemoryListView):
                     return
             new_ca = character_repo.calculate_and_update_ca(self.character.id)
             self.character.ac = new_ca
-        self._refresh()
+            self._refresh_armor_only()
+            if self._on_refresh:
+                self._on_refresh()
+        else:
+            self._refresh_oggetti_only()
 
     def _enforce_armor_exclusivity(self, target_id: str) -> bool:
         """
@@ -2319,6 +2343,43 @@ class InventarioTab(ScrollMemoryListView):
     # ------------------------------------------------------------------
     # Refresh
     # ------------------------------------------------------------------
+
+    def _refresh_weapons_only(self) -> None:
+        """Aggiorna solo la sezione Armi dopo un equip/disequip/cambio
+        impugnatura rapido — questi flussi non toccano Armature/Oggetti a
+        meno che non forzino lo sganciamento di uno scudo (gestito a parte
+        da `_refresh_armor_only()`, vedi i chiamanti)."""
+        self._weapons = character_repo.get_weapons(self.character.id, equipped_only=False)
+        new_section = self._section_armi()
+        self._weapons_ref.content = new_section.content
+        try:
+            self._weapons_ref.update()
+        except RuntimeError:
+            pass
+
+    def _refresh_armor_only(self) -> None:
+        """Aggiorna solo la sezione Armature dopo un equip/disequip rapido
+        (armatura/scudo) o lo sganciamento in cascata di uno scudo da un
+        cambio di impugnatura arma."""
+        self._items = character_repo.get_inventory(self.character.id)
+        new_section = self._section_armature()
+        self._armor_ref.content = new_section.content
+        try:
+            self._armor_ref.update()
+        except RuntimeError:
+            pass
+
+    def _refresh_oggetti_only(self) -> None:
+        """Aggiorna solo la sezione Oggetti dopo l'equip/disequip rapido di
+        un oggetto non-armatura (nessun effetto a cascata, nessun ricalcolo
+        CA)."""
+        self._items = character_repo.get_inventory(self.character.id)
+        new_section = self._section_oggetti()
+        self._oggetti_ref.content = new_section.content
+        try:
+            self._oggetti_ref.update()
+        except RuntimeError:
+            pass
 
     def _refresh(self) -> None:
         refreshed = character_repo.get_by_id(self.character.id)

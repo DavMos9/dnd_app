@@ -12575,6 +12575,88 @@ timing realistico) contro l'app in esecuzione poteva rivelare.
 
 ---
 
+## L'app "si aggiorna a scatti" — HP/slot/equip ricostruivano l'intera tab ad ogni click, vanificando le animazioni già presenti (2026-08-26, v0.3.16, primo giro)
+
+Davide: "Dobbiamo rendere le transizioni, le animazioni tutto più fluido, adesso
+l'app si aggiorna a scatti aggiornamenti di vita passaggio da una pagina all'altra
+selezione slot e tutto ciò che richiede un'animazione", esteso poi esplicitamente a
+tutta l'app (Home, lato giocatore, lato Master), con vincolo esplicito: solo aspetto
+visivo, nessun cambio di logica/funzionalità.
+
+**Causa**, verificata leggendo il codice (non ipotizzata): `ui/design.py` ha già da
+tempo un'infrastruttura di animazione corretta (`Duration.FAST/BASE/SLOW` + `CURVE =
+EASE_OUT`, usata in `hp_bar()`, `dot_button()`, `slot_dots()` e altrove), ma viene
+sistematicamente vanificata. Ogni tab della scheda personaggio (tutte
+`ScrollMemoryListView`) ha un `_refresh()` che per QUALUNQUE variazione — anche un
+singolo "−1 HP" o un tap su un pallino slot — fa `self.controls.clear()` +
+`self._build()`, ricostruendo l'intera tab con `Control` Python nuovi: Flutter lato
+client non vede una transizione di proprietà su un widget esistente, vede una
+rimozione seguita da un'aggiunta, senza interpolazione possibile — uno scatto secco.
+Lo stesso pattern esiste identico lato Master (`master_encounter_view.py`,
+`master_notes_view.py`, `master_view.py`). Il progetto aveva già imparato questa
+lezione una volta (bug B10, sopra in questo stesso file): eliminare i rebuild totali
+PRIMA di aggiungere animazioni, principio ribadito in `docs/restyle_design.md`
+(righe 303-320).
+
+Pattern corretto già in produzione, riusato come riferimento:
+`sheet_view.py::_soft_refresh()`/`_refresh_bar_and_header()` (riferimenti persistenti,
+update mirato) e, lato Master, `master_loot_view.py::_refresh_list_only()` — prima
+usati solo per la sync in background, mai per le azioni utente dirette.
+
+**Fix, primo giro (i due casi esplicitamente segnalati)**:
+- `combattimento_tab.py` — HP: `self._hp_stats_row` (il `ResponsiveRow` HP+Stats)
+  salvato come attributo in `_build()`; nuovo `_refresh_hp_only()` ricarica solo i
+  dati HP e sostituisce `self._hp_stats_row.controls[0].content`, senza toccare il
+  resto della tab. Danno/Cura/HP-temp/Modifica-HP/TS-morte lo usano tutti — TRANNE
+  quando il danno interrompe la concentrazione (`outcome.concentration_broken`): lì
+  la sezione "Concentrazione" compare/scompare in `_build()` (cambiamento
+  strutturale, sposta indici), quindi resta il `_refresh()` pieno, con lo stesso
+  criterio "sezioni condizionali → rebuild pieno, sezioni fisse → update mirato" da
+  applicare al resto del piano. Slot: `self._spell_slots_ref` salvato allo stesso
+  modo; nuovo `_refresh_slots_only()` per `_toggle_slot()`.
+- `inventario_tab.py` — equip: `self._weapons_ref`/`self._armor_ref`/
+  `self._oggetti_ref` salvati in `_build()`; `_refresh_weapons_only()`/
+  `_refresh_armor_only()`/`_refresh_oggetti_only()` per
+  `_toggle_weapon_equipped`/`_toggle_weapon_grip`/`_toggle_item_equipped`. L'equip di
+  un'arma/scudo può avere effetti a cascata (disequip automatico di altre armi o
+  dello scudo, ricalcolo CA) — in quel caso si aggiornano ENTRAMBE le sezioni
+  coinvolte (Armi + Armature) più l'header/stat-bar via `self._on_refresh()`, mai un
+  `_refresh()` pieno dell'intera tab. Aggiunto anche `animate=Duration.FAST` al
+  bordo 4px delle card equip (prima assente).
+- `master_encounter_view.py::_on_hp_delta()` (equivalente Master del danno/cura
+  giocatore, per mostri/PNG nel tracker di combattimento) — `_populate_list()`
+  popola `self._member_card_refs: dict[member_id, Container]`; nuovo
+  `_refresh_member_card(member_id)` ricostruisce SOLO la card del combattente
+  toccato e la sostituisce in-place, lasciando le altre card (e lo scroll della
+  lista) intatte. Danno/cura di un PG istanza di mondo passano invece da un comando
+  di rete asincrono (`_send_pg_remote_command`) e restano fuori scope per questo
+  giro: l'aggiornamento arriva comunque tramite il ciclo di sync periodico già
+  esistente, non tramite un click diretto da rendere fluido qui.
+
+**Verifica**: 44/46 file di test passati senza regressioni (i 2 non collegati:
+`test_qr_scan.py` fallisce per pacchetti Android/iOS assenti in questo sandbox,
+pre-esistente; una singola esecuzione di `test_fase_4.py` dentro il sweep completo ha
+mostrato un fallimento isolato su un controllo di un tiro di dado casuale, non
+riproducibile in 3 esecuzioni isolate consecutive — flakiness pre-esistente del test,
+non una regressione: nessuno dei file toccati in questo giro genera/mostra tiri di
+dado). In particolare `test_fase_4.py` (concentrazione, TS morte, oggetti magici e
+sintonia) e `test_layout_incontri_e_pf_autosync.py` (Danno/Cura/Condizione su un PG
+istanza di mondo) passano invariati — nessun cambio di dati mostrati, solo di
+QUANDO/COME i controlli Flet vengono ricreati.
+
+**Resta da fare** (vedi il piano completo salvato in sessione — Fase 0 su
+`diario_tab.py`/`esplorazione_tab.py`/`profilo_tab.py` e sui restanti file Master
+`master_notes_view.py`/`master_view.py`/`master_encounter_list_view.py`, poi Fase 2
+per confermare che le animazioni interpolino davvero avendo continuità di istanza —
+in particolare la barra HP e i pallini slot ricreano ancora i loro `Container` interni
+ad ogni chiamata, quindi lo scatto GROSSO di tab/sezione è eliminato ma il singolo
+riempimento/pallino non "morphizza" ancora pixel per pixel, limite già accettato nel
+piano per il ritorno/costo — e infine Fase 3, fade `AnimatedSwitcher` sul cambio
+sezione giocatore e tab Master, lasciando secca la navigazione di primo livello
+Home/Worlds/Master).
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

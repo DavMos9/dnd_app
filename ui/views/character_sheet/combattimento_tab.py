@@ -367,6 +367,15 @@ class CombattimentoTab(ScrollMemoryListView):
 
     def _build(self):
         c = self.character
+        # Riferimenti salvati come attributi: `_refresh_hp_only()` e
+        # `_refresh_slots_only()` li mutano in-place invece di passare da
+        # `_refresh()` pieno (`self.controls.clear()` + `self._build()`),
+        # che ricostruendo tutta la tab vanificava l'`animate=` già presente
+        # su `design.hp_bar()`/`design.dot_button()` — vedi il piano
+        # "Fluidità transizioni e animazioni".
+        self._hp_stats_row = design.asymmetric_row(
+            self._section_hp(c), self._section_stats(c), ratio=(7, 5))
+        self._spell_slots_ref = self._section_spell_slots(c)
         controls: list[ft.Control] = [
             # HP è l'unico elemento "hero" del tab (numero grande, colore
             # dinamico, bottoni Danno/Cura) — affiancarlo alle statistiche di
@@ -377,8 +386,7 @@ class CombattimentoTab(ScrollMemoryListView):
             # l'accoppiamento visivo con l'HP rende il titolo ridondante, il
             # contenuto (CA/velocità/iniziativa/ispirazione) resta
             # autoesplicativo dalle etichette dei singoli riquadri.
-            design.asymmetric_row(self._section_hp(c), self._section_stats(c),
-                                   ratio=(7, 5)),
+            self._hp_stats_row,
             section_header("Indebolimento"),
             self._section_exhaustion(c),
             section_header("Condizioni"),
@@ -405,7 +413,7 @@ class CombattimentoTab(ScrollMemoryListView):
             section_header("Armatura e Scudo Equipaggiati"),
             self._section_armor(),
             section_header("Magia"),
-            self._section_spell_slots(c),
+            self._spell_slots_ref,
         ]
         if self._resources:
             controls += [
@@ -614,13 +622,13 @@ class CombattimentoTab(ScrollMemoryListView):
             c.death_saves_success = n if c.death_saves_success != n else n - 1
             character_repo.update_death_saves(c.id, c.death_saves_success, c.death_saves_failure)
             self._schedule_hp_world_sync()
-            self._refresh()
+            self._refresh_hp_only()
 
         def set_failure(n: int):
             c.death_saves_failure = n if c.death_saves_failure != n else n - 1
             character_repo.update_death_saves(c.id, c.death_saves_success, c.death_saves_failure)
             self._schedule_hp_world_sync()
-            self._refresh()
+            self._refresh_hp_only()
 
         status_label = (
             ft.Text("PERSONAGGIO INCONSCIO", size=9, color=design.T().danger,
@@ -1115,7 +1123,13 @@ class CombattimentoTab(ScrollMemoryListView):
 
             self._schedule_hp_world_sync()
             page.pop_dialog()
-            self._refresh()
+            if outcome.concentration_broken:
+                # La sezione "Concentrazione" compare/scompare in _build()
+                # in base a c.concentrating_spell: cambiamento strutturale,
+                # serve il rebuild pieno (vedi _refresh_hp_only()).
+                self._refresh()
+            else:
+                self._refresh_hp_only()
             if outcome.death_note:
                 self._show_rule_notice(
                     "Tiri Salvezza contro Morte", outcome.death_note, design.T().danger
@@ -1170,7 +1184,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 character_repo.update_death_saves(c.id, 0, 0)
             self._schedule_hp_world_sync()
             page.pop_dialog()
-            self._refresh()
+            self._refresh_hp_only()
 
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title("Applica Cura"),
@@ -1213,7 +1227,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 return
             self._schedule_hp_world_sync()
             page.pop_dialog()
-            self._refresh()
+            self._refresh_hp_only()
 
         def reset(ev: Any) -> None:
             if page is None:
@@ -1224,7 +1238,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 return
             self._schedule_hp_world_sync()
             page.pop_dialog()
-            self._refresh()
+            self._refresh_hp_only()
 
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title("HP Temporanei"),
@@ -1268,7 +1282,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 return
             self._schedule_hp_world_sync()
             page.pop_dialog()
-            self._refresh()
+            self._refresh_hp_only()
 
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title("Modifica HP"),
@@ -2509,7 +2523,7 @@ class CombattimentoTab(ScrollMemoryListView):
                 else:
                     slot.used = max(0, slot.used - 1)
                 character_repo.update_spell_slot(self.character.id, slot_level, slot.used)
-                self._refresh()
+                self._refresh_slots_only()
                 return
 
     def _on_configure_slots_click(self, e):
@@ -4601,6 +4615,46 @@ class CombattimentoTab(ScrollMemoryListView):
         if not self._page:
             return
         show_stat_block_dialog(self._page, c.name, creature_entry_dict(c))
+
+    # ------------------------------------------------------------------
+    # Refresh mirati (solo visivo: stessi dati di `_refresh()`, ma senza
+    # ricostruire l'intera tab — vedi il piano "Fluidità transizioni e
+    # animazioni")
+    # ------------------------------------------------------------------
+
+    def _refresh_hp_only(self) -> None:
+        """
+        Aggiorna solo la card HP (numero, barra, HP temp, TS morte) dopo
+        Danno/Cura/HP temporanei/Modifica HP — questi flussi non toccano
+        altre sezioni della tab TRANNE quando fanno scattare un cambiamento
+        strutturale (es. la concentrazione si interrompe e la sezione
+        "Concentrazione" compare/scompare in `_build()`): in quei casi il
+        chiamante deve usare `_refresh()` pieno, non questo metodo.
+        """
+        refreshed = character_repo.get_by_id(self.character.id)
+        if refreshed:
+            self.character = refreshed
+        hp_container = self._hp_stats_row.controls[0]
+        hp_container.content = self._section_hp(self.character)
+        try:
+            hp_container.update()
+        except RuntimeError:
+            pass
+        if self._on_refresh:
+            self._on_refresh()
+
+    def _refresh_slots_only(self) -> None:
+        """
+        Aggiorna solo la sezione Magia (slot + incantesimi preparati) dopo
+        un tap su un pallino slot — `_toggle_slot()` non tocca nient'altro
+        nella tab.
+        """
+        new_section = self._section_spell_slots(self.character)
+        self._spell_slots_ref.content = new_section.content
+        try:
+            self._spell_slots_ref.update()
+        except RuntimeError:
+            pass
 
     # ------------------------------------------------------------------
     # Refresh
