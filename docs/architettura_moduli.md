@@ -364,6 +364,18 @@ mappe" (2026-08-25).
   causava disallineamento tra immagine e tratti disegnati (vedi changelog per l'analisi
   completa). Riquadro di disegno tracciato via `on_size_change`, SEPARATO per pannello
   inline e schermo intero (`self._box_size[is_fs]`), come nella vecchia implementazione.
+- **`ft.InteractiveViewer` (zoom/pan) + `GestureDetector` figlio (disegno)**: `pan_enabled`
+  e `scale_enabled` sull'`InteractiveViewer` si spengono INSIEME ogni volta che si è in
+  Penna/Gomma (`_select_mode()`), non solo `pan_enabled` — un `GestureDetector` figlio con
+  `on_pan_*` compete SEMPRE nella gesture arena di Flutter con lo `ScaleGestureRecognizer`
+  del padre se quest'ultimo resta attivo anche con un solo flag, indipendentemente da cosa
+  fanno gli handler: su un touchscreen reale (mai su mouse/trackpad) questo ha causato sia
+  "il pizzico per zoomare non funziona" (2026-08-20, fix: niente `GestureDetector` affatto
+  in modalità "Sposta") sia "il tratto inizia con 1-2 secondi di ritardo, perdendo il primo
+  pezzo" (2026-08-26, fix: `scale_enabled` spento insieme a `pan_enabled` in Penna/Gomma) —
+  vedi `regole_flet_api.md` per la regola generale riusabile e `changelog_storico.md` per
+  il dettaglio di entrambi gli episodi. Compromesso esplicito di entrambi i fix: niente
+  pizzico-per-zoomare mentre si è attivamente in Penna/Gomma, si passa a "Sposta".
 - **Pulsanti pillola** (`_mbtn` per Penna/Gomma/Sposta, `_esbtn` per le sotto-modalità
   gomma Tratto/Libera): usano `animate_scale=ft.Animation(...)` (`AnimatedScale`), MAI
   `animate=` (`AnimatedContainer`) — quest'ultimo, combinato con Icon+Text in una Row,

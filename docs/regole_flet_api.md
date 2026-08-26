@@ -865,6 +865,53 @@ regola non può essere dimenticata in silenzio in un dialogo nuovo.
 
 ---
 
+## `ft.InteractiveViewer` + `ft.GestureDetector` figlio: chi resta nella gesture arena conta più di cosa fanno gli handler, e si vede SOLO su touch reale (2026-08-20, 2026-08-26)
+
+Un `ft.GestureDetector` con `on_pan_*` annidato dentro il `content` di un
+`ft.InteractiveViewer` (`ui/components/map_drawing_canvas.py`, area di
+disegno mappe) compete SEMPRE con lo `ScaleGestureRecognizer` del padre
+nella gesture arena di Flutter per lo stesso tocco — **indipendentemente
+da cosa fanno gli handler** (anche se fanno subito `return`) e
+**indipendentemente dai flag `pan_enabled`/`scale_enabled`** se il
+`GestureDetector` figlio resta comunque montato/costruito. L'unico modo
+verificato per togliere un controllo dalla competizione è NON costruirlo
+affatto (o, per il padre, passare `None`/`False` a ENTRAMBI `pan_enabled`
+e `scale_enabled` insieme — Flet/Flutter non registra il recognizer di
+scala se nessuno dei due è attivo). Bug osservato in entrambe le
+direzioni, mai su mouse/trackpad (un secondo tocco non è mai possibile,
+l'arena si risolve all'istante):
+
+- **2026-08-20 — il pizzico per zoomare non funziona su smartphone.** Il
+  `GestureDetector` di disegno restava montato anche in modalità "Sposta"
+  (handler `on_pan_*` con `return` immediato) — il suo `PanGestureRecognizer`
+  vinceva comunque un pinch a due dita prima che potesse arrivare allo
+  `ScaleGestureRecognizer` del padre. Fix: in "Sposta" il `GestureDetector`
+  non viene proprio costruito (canvas nudo, figlio diretto dello `Stack`).
+- **2026-08-26 — il tratto inizia con 1-2 secondi di ritardo, perdendo il
+  primo pezzo.** Direzione opposta: `scale_enabled=True` restava fisso
+  sull'`InteractiveViewer` anche in modalità Penna/Gomma. Il
+  `ScaleGestureRecognizer` del padre restava quindi nell'arena insieme al
+  `PanGestureRecognizer` del disegno; l'arbitraggio "è un trascinamento a
+  un dito o l'inizio di un pizzico?" su hardware touch reale può ritardare
+  sensibilmente la vittoria del disegno — i punti toccati nel frattempo
+  vengono persi (il recognizer non invoca `onPanStart` finché non vince).
+  Fix: `scale_enabled` ora si spegne insieme a `pan_enabled` ogni volta
+  che si è in Penna/Gomma.
+
+**Regola generale**: quando un `GestureDetector`/riconoscitore controlla
+la stessa area di un `InteractiveViewer` (o di un altro widget con
+riconoscitori propri), non basta far sì che gli handler del "perdente"
+non facciano nulla — bisogna **smontarlo/disattivarlo del tutto** per la
+modalità in cui non deve competere. Il sintomo (nessun errore, nessuna
+eccezione, comportamento sbagliato solo su hardware touch reale) rende
+questa classe di bug invisibile sia alla lettura del codice sia ai test
+automatici di questo progetto (nessun sandbox qui può simulare un vero
+multi-touch) — va sempre confermata dal vivo su un dispositivo reale.
+Vedi anche `docs/changelog_storico.md` per il dettaglio completo di
+entrambi gli episodi.
+
+---
+
 
 ---
 
