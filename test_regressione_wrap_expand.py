@@ -355,7 +355,7 @@ def test_master_view_set_mobile() -> None:
             mv = MasterView(on_back_to_home=lambda: None, active_tab="notes",
                              is_mobile=start_mobile)
             old_tab_bar = mv._tab_bar_container
-            old_content = mv._content_area.content
+            old_content = mv._content_switcher.content
             check(f"[notes] stato iniziale _compact_tabs={start_mobile} rispettato",
                   mv._compact_tabs == start_mobile)
             check(f"[notes] contenuto iniziale è MasterNotesView con _is_mobile allineato",
@@ -372,7 +372,7 @@ def test_master_view_set_mobile() -> None:
                   mv._tab_bar_container is not old_tab_bar)
             check("[notes] tab bar sostituita anche dentro self.controls",
                   mv._tab_bar_container in mv.controls and old_tab_bar not in mv.controls)
-            new_content = mv._content_area.content
+            new_content = mv._content_switcher.content
             check(f"[notes] MasterNotesView aggiornata in place (stessa istanza) "
                   f"con _is_mobile propagato a {target_mobile}",
                   new_content is old_content and getattr(new_content, "_is_mobile", None) == target_mobile)

@@ -273,6 +273,12 @@ class MasterNotesView(ft.Column):
         self._detail_container = ft.Container(expand=(not self._is_mobile),
                                                content=self._build_detail_panel())
         self.scroll = ft.ScrollMode.AUTO if self._is_mobile else None
+        # Riferimento salvato: `_update_left_panel()` lo muta in-place
+        # (selezione di una nota su desktop/tablet) invece di passare da
+        # `_refresh()` pieno — vedi il piano "Fluidità transizioni e
+        # animazioni". Ricostruito comunque ad ogni `_build()`, quindi
+        # valido anche nei rami dove viene semplicemente montato as-is.
+        self._left_panel_ref = self._build_left_panel()
 
         if self._is_mobile:
             # Drill-down a schermo intero invece di due pannelli fissi
@@ -281,13 +287,13 @@ class MasterNotesView(ft.Column):
             # il vero problema (padding/larghezze pensate per uno spazio
             # condiviso con l'altro pannello, non per lo schermo intero).
             body: ft.Control = self._detail_container if self._mobile_show_detail \
-                else self._build_left_panel()
+                else self._left_panel_ref
         elif self._left_collapsed:
             body = self._detail_container
         else:
             body = ft.Row(
                 [
-                    self._build_left_panel(),
+                    self._left_panel_ref,
                     ft.VerticalDivider(width=1, color=design.T().border),
                     self._detail_container,
                 ],
@@ -913,7 +919,13 @@ class MasterNotesView(ft.Column):
         self._note_edit = False
         if self._is_mobile:
             self._mobile_show_detail = True
-        self._refresh()
+            # Il pannello mostrato cambia (lista -> dettaglio): serve il
+            # rebuild pieno per rimontare `body` sul contenitore giusto —
+            # vedi `_build()`.
+            self._refresh()
+            return
+        self._update_left_panel()
+        self._update_detail()
 
     def _on_note_start_edit(self) -> None:
         self._note_edit = True
@@ -981,7 +993,13 @@ class MasterNotesView(ft.Column):
         logger.info("Master campaign note aggiornata: %s", note.id)
         self._note_edit = False
         self._load_notes(self._active_cat)
-        self._refresh()
+        # Non cambia il conteggio della categoria (solo modifica, non
+        # crea/elimina): niente header, solo lista (nome/stato possono
+        # essere cambiati) e dettaglio. Su mobile il pannello sinistro non
+        # è montato durante la modifica di una nota già aperta — l'update
+        # è comunque innocuo (guardia RuntimeError in `_update_left_panel`).
+        self._update_left_panel()
+        self._update_detail()
 
     def _on_note_delete(self) -> None:
         page = self._page
@@ -1122,6 +1140,20 @@ class MasterNotesView(ft.Column):
         self._detail_container.content = self._build_detail_panel()
         try:
             self._detail_container.update()
+        except RuntimeError:
+            pass
+
+    def _update_left_panel(self) -> None:
+        """Aggiorna in-place il pannello sinistro (elenco note, evidenzia la
+        selezione corrente) — usato solo su desktop/tablet, dove il layout
+        a due colonne resta fisso e non serve toccare `body`/l'header. Su
+        mobile il pannello sinistro non è nemmeno montato mentre si legge
+        una nota (drill-down), quindi i chiamanti devono restare su
+        `_refresh()` pieno in quel caso."""
+        new_panel = self._build_left_panel()
+        self._left_panel_ref.content = new_panel.content
+        try:
+            self._left_panel_ref.update()
         except RuntimeError:
             pass
 

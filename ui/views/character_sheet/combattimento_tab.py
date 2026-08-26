@@ -416,10 +416,13 @@ class CombattimentoTab(ScrollMemoryListView):
             self._spell_slots_ref,
         ]
         if self._resources:
+            self._class_resources_ref = self._section_class_resources()
             controls += [
                 section_header("Risorse di Classe"),
-                self._section_class_resources(),
+                self._class_resources_ref,
             ]
+        else:
+            self._class_resources_ref = None
         if self._features:
             controls += [
                 section_header("Abilità di Classe"),
@@ -1448,7 +1451,7 @@ class CombattimentoTab(ScrollMemoryListView):
             self.character.inspiration = not self.character.inspiration  # rollback in memoria
             show_error_dialog(self._page)
             return
-        self._refresh()
+        self._refresh_stats_only()
 
     def _on_edit_stats_click(self, e):
         page = self._page
@@ -2689,7 +2692,8 @@ class CombattimentoTab(ScrollMemoryListView):
             slot = next((s for s in self._slots if s.slot_level == lv), None)
             new_total = (slot.total if slot else 0) + 1
             character_repo.update_spell_slot_total(self.character.id, lv, new_total)
-            self._refresh()
+            self._refresh_resources_only()
+            self._refresh_slots_only()
 
         def on_convert(e: Any) -> None:
             if not convert_dd.value:
@@ -2702,7 +2706,8 @@ class CombattimentoTab(ScrollMemoryListView):
             character_repo.update_spell_slot(self.character.id, lv, slot.used + 1)
             sp_res.current_value = min(sp_res.max_value, sp_res.current_value + lv)
             character_repo.update_class_resource(sp_res.id, sp_res.current_value)
-            self._refresh()
+            self._refresh_resources_only()
+            self._refresh_slots_only()
 
         return ft.Column(
             [
@@ -2809,7 +2814,7 @@ class CombattimentoTab(ScrollMemoryListView):
             show_error_dialog(self._page, "Impossibile dichiarare la Frenesia.")
             return
         c.frenzy_active = True
-        self._refresh()
+        self._refresh_resources_only()
 
     def _on_cancel_frenzy(self, e: Any) -> None:
         c = self.character
@@ -2817,7 +2822,7 @@ class CombattimentoTab(ScrollMemoryListView):
             show_error_dialog(self._page, "Impossibile annullare la dichiarazione di Frenesia.")
             return
         c.frenzy_active = False
-        self._refresh()
+        self._refresh_resources_only()
 
     def _on_end_frenzy(self, e: Any) -> None:
         c = self.character
@@ -3038,17 +3043,17 @@ class CombattimentoTab(ScrollMemoryListView):
         else:
             res.current_value = min(res.max_value, res.current_value + 1)
         character_repo.update_class_resource(res.id, res.current_value)
-        self._refresh()
+        self._refresh_resources_only()
 
     def _decrement_resource(self, res: ClassResource):
         res.current_value = max(0, res.current_value - 1)
         character_repo.update_class_resource(res.id, res.current_value)
-        self._refresh()
+        self._refresh_resources_only()
 
     def _increment_resource(self, res: ClassResource):
         res.current_value = min(res.max_value, res.current_value + 1)
         character_repo.update_class_resource(res.id, res.current_value)
-        self._refresh()
+        self._refresh_resources_only()
 
     # ------------------------------------------------------------------
     # Tratti di Razza
@@ -4642,6 +4647,38 @@ class CombattimentoTab(ScrollMemoryListView):
             pass
         if self._on_refresh:
             self._on_refresh()
+
+    def _refresh_stats_only(self) -> None:
+        """
+        Aggiorna solo il riquadro Statistiche (CA, Velocità, Iniziativa,
+        Ispirazione) dopo `_toggle_inspiration()` — cambio isolato, nessun
+        effetto su altre sezioni.
+        """
+        stats_container = self._hp_stats_row.controls[1]
+        stats_container.content = self._section_stats(self.character)
+        try:
+            stats_container.update()
+        except RuntimeError:
+            pass
+
+    def _refresh_resources_only(self) -> None:
+        """
+        Aggiorna solo la sezione Risorse di Classe dopo un uso/recupero
+        rapido (cerchietti, counter −/+, dichiarazione Frenesia, conversione
+        Incantesimi Flessibili) — non tocca il resto della tab. Se la
+        sezione non esiste (personaggio senza risorse di classe, non
+        dovrebbe capitare dato che i chiamanti agiscono su una risorsa già
+        presente) ricade su `_refresh()` pieno.
+        """
+        if self._class_resources_ref is None:
+            self._refresh()
+            return
+        new_section = self._section_class_resources()
+        self._class_resources_ref.content = new_section.content
+        try:
+            self._class_resources_ref.update()
+        except RuntimeError:
+            pass
 
     def _refresh_slots_only(self) -> None:
         """

@@ -12657,6 +12657,105 @@ Home/Worlds/Master).
 
 ---
 
+## Fluidità, secondo giro: Master (Note/tab bar/tracker), fade sul cambio sezione, e un bug di scroll trovato completando il piano (2026-08-26, v0.3.17)
+
+Davide: "Completa tutto il piano hai tutti i permessi non ti fermare finché non
+hai finito". Completamento del piano "Fluidità transizioni e animazioni"
+(v0.3.16 sopra copriva solo HP/slot/equip lato giocatore + PF mostro Master).
+
+**Fase 0 (verifica per-tab)**: confermato che `diario_tab.py`/
+`esplorazione_tab.py`/`profilo_tab.py` non hanno azioni rapide ripetute
+analoghe a HP/slot — tutte le loro azioni passano da dialog deliberati
+(nuova voce, modifica, elimina, level up/down) dove un rebuild pieno resta
+accettabile: nessuna modifica a questi tre file. Stessa conclusione per
+`master_encounter_list_view.py` (create/delete/archivia/riapri incontro sono
+azioni che cambiano la LISTA stessa, non il valore di un elemento stabile).
+
+**Fase 1 — Combattimento (giocatore), completamento**: trovati altri due
+casi rapidi non ancora coperti in v0.3.16 — `_toggle_inspiration()` (nuovo
+`_refresh_stats_only()`, riusa `self._hp_stats_row.controls[1]`) e le
+risorse di classe a cerchietti/counter (`_toggle_resource`/
+`_decrement_resource`/`_increment_resource`/dichiarazione-annullamento
+Frenesia/conversione Incantesimi Flessibili — nuovo
+`_refresh_resources_only()`, con refresh incrociato risorse+slot quando la
+conversione tocca entrambi).
+
+**Fase 1 — Master**:
+- `master_view.py::_on_tab_click()` — faceva `_build()` pieno (ricostruiva
+  anche header e pannello strumenti, invarianti rispetto al tab) ad ogni
+  cambio tab, vanificando l'`animate=` della tab bar. Ora aggiorna solo la
+  tab bar (stesso pattern indice-swap già usato da `set_mobile()`/
+  `_on_tools_panel_toggle()` in questo stesso file) e il contenuto.
+- `master_notes_view.py::_on_sel_note()`/`_on_note_save_edit()` — su
+  desktop/tablet (layout a due colonne fisso) aggiornano solo pannello
+  sinistro (nuovo `_update_left_panel()`, stesso principio del
+  `_update_detail()` già esistente) + dettaglio, mai `_refresh()` pieno. Su
+  mobile `_on_sel_note()` resta `_refresh()` pieno per la prima apertura di
+  una nota (il drill-down cambia davvero quale pannello è montato — cambio
+  strutturale legittimo), ma non per il salvataggio di una modifica (il
+  pannello dettaglio è già quello mostrato, nessun cambio di struttura).
+
+**Fase 3 — fade `AnimatedSwitcher`**: `ui/app.py::content_area` e
+`master_view.py::_content_area` ora avvolgono il contenuto dinamico in un
+`AnimatedSwitcher` (`Duration.BASE`/`CURVE`, transizione FADE) — attivato
+rispettivamente in `_on_nav_click()` (cambio sezione giocatore) e
+`_on_tab_click()` (cambio tab Master). La navigazione di primo livello
+(`_navigate()`: Home/Worlds/Master) resta secca, per scelta esplicita
+(context-switch pesante, azione meno frequente). `master_view.py::
+set_mobile()` doveva essere adattato: leggeva/scriveva
+`self._content_area.content` per propagare la modalità mobile alla vista
+figlia — ora `_content_area.content` è sempre lo switcher, quindi legge/
+scrive `self._content_switcher.content` (la vista figlia vera).
+`test_regressione_wrap_expand.py` aggiornato di conseguenza (stesso motivo).
+
+**Bug trovato completando il piano, non nella richiesta originale**:
+verificando dal vivo in browser (Playwright, scroll a metà tab Inventario +
+equip armatura) la vista tornava in cima nonostante il refresh mirato della
+sola sezione Armature non toccasse `self.controls`. Causa:
+`sheet_view.py::_refresh_bar_and_header()` (chiamata da `_on_refresh()` per
+sincronizzare l'header quando cambia CA/HP/ispirazione) fa un `self.update()`
+sull'intero sottoalbero di `SheetView` — Flutter azzera lo scroll di
+qualunque `ScrollMemoryListView`/`ScrollMemoryColumn` annidata sotto,
+esattamente il motivo per cui quelle classi esistono (vedi il loro docstring
+in `ui/widgets.py`) — ma questo metodo non richiamava mai `restore_scroll()`
+sul tab attivo dopo il proprio `update()`. Bug preesistente: la vecchia
+`_refresh()` piena chiamava `restore_scroll()` (proprio) PRIMA di
+`_on_refresh()`, quindi quest'ultimo lo vanificava comunque — semplicemente
+mai notato/isolato prima. Fix: `_refresh_bar_and_header()` ora richiama
+`restore_scroll()` su `self.content_container.content` (il tab attivo), se
+esposto (`getattr` con guardia, nessun crash sui tab senza quel metodo).
+
+**Verifica**: la riproduzione dal vivo via Playwright per QUESTO bug
+specifico si è rivelata inaffidabile — sia lo scroll simulato via touch CDP
+sia via `mouse.wheel()` non facevano scattare l'evento `on_scroll` di Flet
+in modo abbastanza affidabile da testare `restore_scroll()` in isolamento
+(confermato riproducendo lo stesso mancato ripristino anche su un percorso
+di codice INVARIATO, mai toccato da questo piano — quindi non un problema
+del fix, del metodo di test). Verificato invece con un test deterministico
+diretto (nuovo `test_fluidita_refresh_mirati.py`, 9 test/40 controlli):
+costruisce una `SheetView` reale, sostituisce `content_container.content`
+con un oggetto fittizio che espone `restore_scroll()` e conta le chiamate —
+conferma che `_refresh_bar_and_header()` lo richiama esattamente una volta,
+e che non solleva eccezioni quando il contenuto non espone quel metodo.
+Lo stesso file verifica anche, per ogni refresh mirato introdotto in questo
+giro e nel precedente: che i riferimenti persistenti (`_hp_stats_row`,
+`_spell_slots_ref`, `_class_resources_ref`, `_weapons_ref`, `_armor_ref`,
+`_oggetti_ref`, `_member_card_refs`, `_left_panel_ref`/`_detail_container`,
+`_tools_panel_container`) restino la STESSA istanza dopo un'azione rapida
+(prova diretta che non è avvenuto alcun rebuild), e che `self.controls`
+resti la stessa lista dov'è previsto. 47/47 file di test della suite
+completa passano (esclusi 2 fallimenti pre-esistenti scollegati: pacchetti
+Android/iOS assenti nel sandbox, e la versione in sorgente non ancora
+taggata — normale prima di un rilascio). Verificato anche dal vivo in
+browser (Playwright, personaggio Bardo di prova con slot/risorse/arma/
+armatura): Danno/Cura/ispirazione/slot/risorse di classe/equip
+arma/equip armatura con ricalcolo CA, fade sul cambio sezione giocatore e
+sul cambio tab Master, selezione nota Master — nessuna eccezione lato
+client, nessun dato mancante o stantio, layout coerente a transizione
+completata.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

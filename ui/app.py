@@ -384,10 +384,27 @@ class DnDApp:
         self._mobile = self._is_mobile()
         self._rebuild_route = self._show_main_layout
 
+        # `_section_switcher` avvolge SOLO il contenuto di sezione in un
+        # AnimatedSwitcher (fade ~200ms) — vedi il piano "Fluidità
+        # transizioni e animazioni": `docs/restyle_design.md` scartava
+        # `AnimatedSwitcher` sul cambio tab perché "uno switcher animerebbe
+        # due alberi diversi" quando anche l'INTERNO di ogni tab veniva
+        # ricostruito ad ogni interazione (rendendo un fade qui ridondante
+        # rispetto al problema vero). Con i refresh mirati introdotti nelle
+        # singole tab (Fase 1 del piano), il cambio di sezione resta l'UNICO
+        # punto in cui l'albero cambia davvero — il caso d'uso corretto per
+        # uno switcher, non più in contraddizione con quella nota.
+        self._section_switcher = ft.AnimatedSwitcher(
+            content=self._get_section_view(self.active_section),
+            duration=design.Duration.BASE,
+            switch_in_curve=design.CURVE,
+            switch_out_curve=design.CURVE,
+            transition=ft.AnimatedSwitcherTransition.FADE,
+        )
         self.content_area = ft.Container(
             expand=True,
             bgcolor=design.T().bg,
-            content=self._get_section_view(self.active_section),
+            content=self._section_switcher,
         )
 
         if self._mobile:
@@ -642,7 +659,7 @@ class DnDApp:
             self.bottom_nav.content = self._build_bottom_nav().content
         else:
             self.nav_rail.content = self._build_nav_rail().content
-        self.content_area.content = self._get_section_view(key)
+        self._section_switcher.content = self._get_section_view(key)
         self.page.update()
 
     # ------------------------------------------------------------------

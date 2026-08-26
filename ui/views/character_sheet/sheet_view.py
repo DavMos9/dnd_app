@@ -725,6 +725,23 @@ class SheetView(ft.Column):
             self.update()
         except RuntimeError:
             pass
+        # BUG FIX (2026-08-26, piano "Fluidità transizioni e animazioni"):
+        # `self.update()` sopra risincronizza l'intero sottoalbero di
+        # `SheetView` lato client (stat bar + header + contenuto del tab
+        # corrente) — Flutter perde lo scroll di qualunque
+        # `ScrollMemoryListView`/`ScrollMemoryColumn` annidata sotto,
+        # esattamente il motivo per cui quelle classi esistono (vedi il loro
+        # docstring in `ui/widgets.py`). Riprodotto dal vivo: un equip
+        # armatura (che ricalcola la CA e richiama questo metodo per
+        # aggiornarla in header) riportava in cima un tab Inventario su cui
+        # l'utente aveva scrollato, anche se il refresh mirato del tab
+        # stesso (`_refresh_armor_only()`) non aveva toccato nulla —
+        # `_on_refresh()` interveniva DOPO il `restore_scroll()` del tab e
+        # lo vanificava. Stesso meccanismo per qualunque refresh mirato che
+        # chiama `_on_refresh()` (HP, ispirazione, equip con ricalcolo CA).
+        tab_restore = getattr(self.content_container.content, "restore_scroll", None)
+        if callable(tab_restore):
+            tab_restore()
 
     def _refresh_all(self):
         """
