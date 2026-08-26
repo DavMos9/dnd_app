@@ -12353,11 +12353,60 @@ Nuovo test `test_secondo_dito_in_ritardo_non_lascia_cursore_congelato()` in
 `test_mappe_locali_coordinate.py` (sia ramo Gomma sia ramo Penna). Batteria completa
 rilanciata, `pyflakes` pulito.
 
-**Terzo bug segnalato, non ancora risolto**: "quando seleziono sposta fa un brutto effetto
-scatto" — causa non identificata con certezza nel codice (né la toolbar né l'area di
-disegno mostrano una struttura che dovrebbe cambiare bruscamente al solo cambio modalità).
-In attesa di un dettaglio più preciso da Davide prima di tentare un fix, per non ripetere
-l'errore già fatto due volte su questo stesso modulo (fix "plausibile" mai verificato).
+## Il "brutto effetto scatto" passando a "Sposta" — la mappa scompariva per un istante (2026-08-26, v0.3.12)
+
+Il terzo bug di questo giro ("quando seleziono sposta fa un brutto effetto scatto...
+come se l'intera scheda si ricaricasse, la mappa scompare e poi ricompare") non aveva
+una causa identificabile con certezza solo leggendo il codice — né la toolbar né l'area
+di disegno mostravano una struttura che dovesse cambiare bruscamente al solo cambio
+modalità. Piuttosto che tentare un terzo fix "plausibile" su questo stesso modulo (i
+primi due erano già stati sbagliati due volte prima di trovare la causa vera), Davide ha
+suggerito di provare l'app direttamente: "prova tu stesso dall'app aprila e vedi, non
+posso mandarti un video, sul pc lo fa uguale ma meno accentuato".
+
+**Riprodotto dal vivo, non per ipotesi**: avviata l'app in modalità web
+(`FLET_WEB=true`), pilotata con Playwright/Chromium headless contro il DB reale di
+sviluppo (una mappa personale già annotata) — un burst di screenshot a intervalli di
+30ms e, per conferma definitiva, una registrazione video estratta fotogramma per
+fotogramma con `ffmpeg`. Risultato: la mappa spariva DAVVERO per ~100ms (immagine
+completamente assente, solo sfondo nero con i tratti disegnati ancora visibili sopra) —
+ma SOLO nelle transizioni che cambiano `pan_enabled` sull'`InteractiveViewer`
+(Penna/Gomma → Sposta e viceversa). Un confronto diretto A/B/C (Penna→Gomma,
+Gomma→Sposta, Sposta→Penna, stessa mappa, stesso identico meccanismo di toolbar)
+isolava con certezza `pan_enabled` come innesco: Penna→Gomma (che non lo tocca mai)
+non produceva MAI il vuoto, ogni transizione che lo toccava lo produceva sempre.
+
+Due tentativi di fix, **entrambi verificati dal vivo e scartati** (non solo per
+teoria — riprodotti di nuovo dopo ognuno, esattamente la disciplina che questo
+progetto si è già imposto due volte su questo stesso modulo):
+1. Una `key=` stabile su `Image`/`Canvas`/`Stack`, nell'ipotesi che Flutter perdesse
+   l'identità di quei widget quando l'`InteractiveViewer` ricostruisce il suo
+   `content` — nessun cambiamento osservato.
+2. Raggruppare tutte le mutazioni di `_select_mode()` (viewer, pulsanti modalità,
+   corpo della toolbar) in un solo `page.update()` finale invece di 3-4 giri separati
+   sul socket — nessun cambiamento osservato nemmeno qui.
+
+**Causa reale**: `ft.Image` ha una proprietà dedicata a esattamente questo sintomo,
+`gapless_playback`, la cui documentazione lo descrive alla lettera — *"Whether to
+continue showing the old image (`True`), or briefly show nothing (`False`), when the
+image provider changes"*. Il cambio di `pan_enabled` fa sì che Flutter tratti l'`Image`
+come se il suo "image provider" fosse cambiato — senza `gapless_playback=True` (il
+default è `False`), Flutter mostra un fotogramma vuoto DURANTE la transizione **per
+design**, non per un bug del framework. `gapless_playback=True` sull'`Image` di
+`build_draw_area()` elimina il vuoto in entrambe le direzioni, verificato di nuovo con
+lo stesso protocollo screenshot/video. Le `key=` e il batch di `page.update()`
+restano nel codice (buona pratica, pulizia legittima) ma nessuno dei due era la causa —
+solo `gapless_playback` lo era.
+
+**Lezione per il progetto**: la terza volta che questo modulo produceva un sintomo
+touch/rendering ambiguo, la disciplina già imparata ("non fidarsi di una spiegazione
+plausibile, verificare dal vivo") si è estesa da "verificare la CAUSA" a "verificare
+anche ogni singolo RIMEDIO tentato" — i primi due tentativi qui erano entrambi
+ragionevoli sulla carta, ed entrambi si sarebbero potuti spacciare per "il fix" senza
+la controprova visiva diretta. Avviare l'app stessa (via Playwright, senza bisogno di
+un dispositivo reale per un bug che si riproduce anche su desktop) invece di
+continuare a ragionare solo sul codice ha reso possibile trovare la causa vera al primo
+giro invece che al terzo.
 
 ---
 

@@ -476,17 +476,53 @@ class MapDrawingCanvas:
         self._view_offset[is_fs] = [0.0, 0.0]
         self._gesture_kind[is_fs] = None
 
-        canvas = cv.Canvas(expand=True)
+        # BUG FIX (2026-08-26, seguito a v0.3.11) — Davide: "quando seleziono
+        # sposta fa un brutto effetto scatto... come se l'intera scheda si
+        # ricaricasse, la mappa scompare e poi ricompare". Riprodotto dal
+        # vivo (screenshot a raffica e video, non per ipotesi — vedi il
+        # metodo usato nel changelog): l'immagine spariva per ~100ms SOLO
+        # nelle transizioni che cambiano `pan_enabled` sull'`InteractiveViewer`
+        # (Penna/Gomma → Sposta e viceversa) — MAI in Penna → Gomma (che non
+        # lo tocca affatto), confermando che è proprio quel cambio a
+        # innescarlo. Due tentativi PRECEDENTI, entrambi VERIFICATI E
+        # SCARTATI (non solo per teoria — riprodotti dal vivo dopo ognuno):
+        #   1. Una `key=` stabile su Image/Canvas/Stack, nell'ipotesi che
+        #      Flutter perdesse la loro identità quando l'InteractiveViewer
+        #      ricostruisce il suo `content` — non ha cambiato nulla.
+        #   2. Raggruppare tutte le mutazioni di `_select_mode()` in un solo
+        #      `page.update()` finale invece di più giri separati (vedi
+        #      `_select_mode()`) — nemmeno questo ha eliminato il fotogramma
+        #      vuoto da solo.
+        # Causa REALE: `ft.Image` ha una proprietà dedicata a esattamente
+        # questo sintomo — `gapless_playback` — la cui documentazione lo
+        # descrive alla lettera: "Whether to continue showing the old image
+        # (True), or briefly show nothing (False), when the image provider
+        # changes." Il cambio di `pan_enabled` fa sì che Flutter tratti
+        # l'`Image` come se il suo "image provider" fosse cambiato — senza
+        # `gapless_playback=True` (il default è `False`), Flutter mostra
+        # apposta un fotogramma vuoto durante la transizione, per design.
+        # Le `key=` restano comunque (buona pratica di identità stabile,
+        # anche se qui non erano la causa) e il batch di `page.update()`
+        # resta come pulizia del codice — nessuno dei due va rimosso, ma
+        # nessuno dei due basta da solo: è `gapless_playback=True`
+        # sull'`Image` (poco sotto) il fix verificato.
+        img_key = f"map-img-{id(self)}-{is_fs}"
+        canvas_key = f"map-canvas-{id(self)}-{is_fs}"
+        stack_key = f"map-stack-{id(self)}-{is_fs}"
+
+        canvas = cv.Canvas(expand=True, key=canvas_key)
         self._canvas[is_fs] = canvas
         self._redraw_canvas(canvas, is_fs)
 
         if self.gm.image_data:
             img_layer: ft.Control = ft.Image(
                 src=data_uri(self.gm.image_data), fit=ft.BoxFit.CONTAIN, expand=True,
+                key=img_key, gapless_playback=True,
             )
         else:
             img_layer = ft.Container(
                 expand=True,
+                key=img_key,
                 content=ft.Column(
                     [ft.Icon(ft.Icons.MAP_OUTLINED, size=64, color=design.T().border),
                      ft.Text("Nessuna immagine", size=13, color=design.T().text_3)],
@@ -513,7 +549,7 @@ class MapDrawingCanvas:
         # ENTRAMBI i figli a riempire esattamente il riquadro, così
         # l'immagine si centra davvero e il rettangolo calcolato coincide
         # finalmente con quello renderizzato.
-        stack = ft.Stack([img_layer, canvas], expand=True, fit=ft.StackFit.EXPAND)
+        stack = ft.Stack([img_layer, canvas], expand=True, fit=ft.StackFit.EXPAND, key=stack_key)
         self._draw_stack[is_fs] = stack
 
         viewer = ft.InteractiveViewer(
@@ -1396,6 +1432,15 @@ class MapDrawingCanvas:
     # ── Mode / color / eraser-sub selectors ──────────────────────────────
 
     def _select_mode(self, key: str, is_fs: bool) -> None:
+        """Il fix VERO del "brutto effetto scatto" segnalato da Davide è
+        `gapless_playback=True` sull'`ft.Image` — vedi il commento su
+        `img_key` in `build_draw_area()` per l'analisi completa e i due
+        tentativi precedenti scartati dopo verifica dal vivo. Qui le
+        mutazioni restano comunque raggruppate in un solo `page.update()`
+        finale invece di un `.update()` per controllo — non è quello che
+        elimina il fotogramma vuoto (verificato: da solo non bastava), ma
+        resta una pulizia legittima (un solo giro sul socket invece di
+        tre-quattro separati)."""
         self._draw_mode = key
         self._eraser_cursor_pos = None
 
@@ -1405,21 +1450,16 @@ class MapDrawingCanvas:
         # (o sempre, in sola lettura), altrimenti resta libero per
         # disegno/gomma. `scale_enabled` non cambia mai: il pizzico a due
         # dita zoomma in QUALSIASI modalità.
-        for panel_fs, viewer in self._viewer.items():
+        for viewer in self._viewer.values():
             if viewer is None:
                 continue
             viewer.pan_enabled = (not self.can_manage) or key == "move"
-            self._safe_update(viewer, f"_select_mode/viewer panel_fs={panel_fs}")
 
-        for panel_fs, mode_list in self._mode_refs.items():
+        for mode_list in self._mode_refs.values():
             for i, (k, _, _) in enumerate(_MODE_DEFS):
                 if i >= len(mode_list):
                     break
                 self._style_mode_btn(mode_list[i], k == key)
-                try:
-                    mode_list[i].update()
-                except RuntimeError:
-                    pass
 
         # Aggiorna il body DI ENTRAMBI i pannelli — l'AnimatedSwitcher
         # anima solo l'opacità (mai la dimensione, il Container esterno ha
@@ -1429,8 +1469,10 @@ class MapDrawingCanvas:
             if switcher is None:
                 continue
             switcher.content = self._build_toolbar_body(panel_fs, self._ersub_refs[panel_fs])
+
+        if self._page is not None:
             try:
-                switcher.update()
+                self._page.update()
             except RuntimeError:
                 pass
 
