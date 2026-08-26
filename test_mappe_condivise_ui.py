@@ -474,7 +474,7 @@ def test_overlay_disegno_master() -> None:
     # GestureDetector, non dopo.
     resize_container = _find(
         overlay, lambda n: isinstance(n, ft.Container)
-        and isinstance(getattr(n, "content", None), ft.InteractiveViewer)
+        and isinstance(getattr(n, "content", None), ft.Container)
         and getattr(n, "on_size_change", None),
     )
     assert resize_container is not None
@@ -538,12 +538,15 @@ def test_coordinate_normalizzate() -> None:
     wv._open_shared_map(world, shared_gm, True)
     overlay = fake_page.overlay[0]
 
-    # Identificato dal contenuto diretto (`ft.InteractiveViewer`), non da
-    # "un qualunque Container con on_size_change": la toolbar (breakpoint
-    # responsive) ne monta uno per conto proprio.
+    # Identificato dal contenuto diretto — lo slot `ft.Container` che
+    # `build_draw_area()` restituisce (BUG FIX 2026-08-26, terzo giro: non
+    # più un `ft.InteractiveViewer` diretto, vedi `_wrap_stack_for_mode()`)
+    # — non "un qualunque Container con on_size_change": la toolbar
+    # (breakpoint responsive) ne monta uno per conto proprio, e quello ha
+    # come contenuto una Row/Column, non un Container.
     resize_container = _find(
         overlay, lambda n: isinstance(n, ft.Container)
-        and isinstance(getattr(n, "content", None), ft.InteractiveViewer)
+        and isinstance(getattr(n, "content", None), ft.Container)
         and getattr(n, "on_size_change", None),
     )
     check("il riquadro di disegno ha un on_size_change agganciato", resize_container is not None)

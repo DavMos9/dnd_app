@@ -132,14 +132,18 @@ def _make_character() -> Character:
 def _resize_container(panel_root) -> ft.Container:
     """Il Container che avvolge l'area di disegno (`on_size_change` verso
     `MapDrawingCanvas.on_box_resize`) — identificato dal suo contenuto
-    diretto, un `ft.InteractiveViewer`: non basta più cercare "un
-    qualunque Container con on_size_change", dato che anche la barra
-    pillole della toolbar (breakpoint responsive) ne monta uno per conto
-    proprio."""
+    diretto, lo "slot" `ft.Container` che `build_draw_area()` restituisce
+    (BUG FIX 2026-08-26, terzo giro: non più un `ft.InteractiveViewer`
+    diretto, ora uno slot il cui contenuto si scambia tra
+    `InteractiveViewer` e `Stack` nudo a seconda della modalità — vedi
+    `_wrap_stack_for_mode()`): non basta più cercare "un qualunque
+    Container con on_size_change", dato che anche la barra pillole della
+    toolbar (breakpoint responsive) ne monta uno per conto proprio, e
+    quello ha come contenuto diretto una Row/Column, non un Container."""
     c = _find(panel_root, lambda n: isinstance(n, ft.Container)
-              and isinstance(getattr(n, "content", None), ft.InteractiveViewer)
+              and isinstance(getattr(n, "content", None), ft.Container)
               and getattr(n, "on_size_change", None))
-    assert c is not None, "nessun Container(content=InteractiveViewer) con on_size_change trovato"
+    assert c is not None, "nessun Container(content=Container-slot) con on_size_change trovato"
     return c
 
 
@@ -396,24 +400,35 @@ def test_move_mode_rimuove_gesture_detector() -> None:
     assert stack is not None
     check("in modalità 'pen', a riquadro noto, il canvas è avvolto in un GestureDetector",
           isinstance(stack.controls[1], ft.GestureDetector))
-    viewer = mv._canvas._interactive_viewer[False]
-    assert viewer is not None
-    check("in modalità 'pen' l'InteractiveViewer non pannerebbe comunque (pan_enabled=False)",
-          viewer.pan_enabled is False)
+    slot = mv._canvas._viewer_slot[False]
+    assert slot is not None
+    # BUG FIX 2026-08-26 (terzo giro): in "pen" NON deve esserci alcun
+    # InteractiveViewer nell'albero — non basta spegnere pan_enabled/
+    # scale_enabled, il suo GestureDetector interno resta comunque
+    # iscritto nella gesture arena di Flutter (vedi
+    # `_wrap_stack_for_mode`). Lo slot contiene lo `stack` nudo.
+    check("in modalità 'pen' NESSUN InteractiveViewer è montato (niente "
+          "concorrente nella gesture arena, non solo pan_enabled=False)",
+          slot.content is stack and not isinstance(slot.content, ft.InteractiveViewer))
 
     mv._canvas._select_mode("move", is_fs=False)
     check("il draw_mode è cambiato in 'move'", mv._canvas._draw_mode == "move")
     check("BUG FIX: in modalità 'move' il GestureDetector è sparito, "
           "il canvas è figlio diretto dello Stack",
           stack.controls[1] is mv._canvas._canvas[False])
-    check("l'InteractiveViewer ora ha pan_enabled=True (nessun concorrente nella gesture arena)",
-          viewer.pan_enabled is True)
+    check("in modalità 'move' l'InteractiveViewer è montato ed è libero "
+          "(pan_enabled=True, scale_enabled=True, nessun concorrente)",
+          isinstance(slot.content, ft.InteractiveViewer)
+          and slot.content.pan_enabled is True
+          and slot.content.scale_enabled is True)
 
     # Tornando a "pen" il GestureDetector di disegno deve ricomparire —
     # altrimenti si perderebbe la possibilità di disegnare.
     mv._canvas._select_mode("pen", is_fs=False)
     check("tornando a 'pen' il GestureDetector di disegno ricompare",
           isinstance(stack.controls[1], ft.GestureDetector))
+    check("tornando a 'pen' l'InteractiveViewer sparisce di nuovo dallo slot",
+          slot.content is stack and not isinstance(slot.content, ft.InteractiveViewer))
 
     # Disegnare deve ancora funzionare dopo il giro di andata/ritorno.
     gesture = stack.controls[1]

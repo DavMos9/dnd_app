@@ -12196,6 +12196,72 @@ segnalato da Davide, ma nessun profiling è stato fatto sul dispositivo reale �
 confermare che risolva effettivamente il sintomo sui trascinamenti brevi prima di
 considerarlo chiuso.
 
+## Trovata la causa REALE (terzo giro): `pan_enabled`/`scale_enabled` non tolgono mai nulla dalla gesture arena (2026-08-26)
+
+Davide ha testato v0.3.8 (fix della cache) avendo PRIMA cancellato tutti i tratti dalla
+mappa di prova — quindi il costo di ridisegno dei tratti già salvati (causa del fix
+precedente) è escluso per costruzione: il sintomo persisteva identico anche a mappa vuota.
+Precisazione ulteriore, decisiva: **un tratto lungo viene disegnato, ma con del "lag"; uno
+breve perde proprio la prima parte**, come se il sistema iniziasse a percepire il tocco
+solo dopo un certo ritardo fisso — non un costo che cresce con qualcosa sulla mappa (già
+escluso), ma un ritardo iniziale pressoché costante prima che QUALUNQUE input inizi a
+essere processato.
+
+**Causa REALE, questa volta confermata leggendo il sorgente ufficiale di Flutter**
+(`packages/flutter/lib/src/widgets/interactive_viewer.dart`, scaricato da
+`github.com/flutter/flutter` per verifica diretta, non per analogia): il metodo `build()`
+di `InteractiveViewer` costruisce SEMPRE un `GestureDetector` interno con `onScaleStart`,
+`onScaleUpdate`, `onScaleEnd` cablati — **incondizionatamente**, mai `null` in base a
+`panEnabled`/`scaleEnabled`. Quei due flag vengono controllati SOLO dentro il corpo degli
+handler (`_onScaleUpdate` eccetera), cioè DOPO che il riconoscitore ha già vinto la gesture
+arena — la documentazione ufficiale lo conferma esplicitamente: *"The interaction
+callbacks will be called even if the interaction is disabled with panEnabled or
+scaleEnabled"*. Il fix del 2026-08-26 (v0.3.7, "spegnere `scale_enabled` insieme a
+`pan_enabled`") **non aveva mai tolto nulla dalla gesture arena**: il suo
+`ScaleGestureRecognizer` interno restava iscritto ESATTAMENTE come prima, competendo
+sempre con il `GestureDetector` di disegno per lo stesso tocco. Il fix sembrava plausibile
+(e la spiegazione teorica del meccanismo di arena era corretta) ma il rimedio applicato —
+un semplice toggle di due flag booleani — non otteneva l'effetto voluto, perché quei flag
+non fanno quello che il nome suggerisce lasciare intendere.
+
+Questo spiega perfettamente sia la persistenza del bug dopo v0.3.7 sia il pattern
+lungo/lag vs. breve/perso: l'arbitraggio dell'arena su un tocco reale richiede un tempo
+misurabile prima che il riconoscitore di pan del disegno vinca; un trascinamento lungo ha
+il tempo di "recuperare" (il dito resta giù ben oltre quel ritardo, il tratto compare con
+lag ma compare), uno breve si conclude (il dito si solleva, `on_pan_end`) prima che
+l'arena si sia mai risolta a favore del disegno, perdendo la parte toccata durante l'attesa.
+
+**Fix reale, questa volta verificato contro il sorgente**: seguendo lo STESSO principio già
+efficace del gemello 2026-08-20 (non lasciare un `GestureDetector` con handler "muti" —
+toglierlo proprio dall'albero), l'`ft.InteractiveViewer` stesso ora non viene più montato
+affatto in modalità Penna/Gomma — `_wrap_stack_for_mode()` restituisce lo `stack` nudo in
+quel caso, un `InteractiveViewer(pan_enabled=True, scale_enabled=True)` SOLO in modalità
+"Sposta"/sola lettura. Nessun `ScaleGestureRecognizer` esiste per il tocco quando si
+disegna: nessuna arena da arbitrare, per costruzione — non un flag che ne modula il
+comportamento interno. `build_draw_area()` ora restituisce un `ft.Container` "slot" (il
+cui contenuto si scambia tra `InteractiveViewer` e `stack` nudo ad ogni cambio modalità,
+`_select_mode()`) invece dell'`InteractiveViewer` direttamente — nessuna modifica richiesta
+ai chiamanti (`maps_view.py`/`world_view.py`), che già avvolgevano il valore di ritorno in
+un `Container(on_size_change=...)` esterno, qualunque esso fosse.
+
+**Compromesso invariato nella sostanza, ora vero per davvero**: niente pizzico/pan a un
+dito mentre si è attivamente in Penna/Gomma — era già l'intento dei due fix precedenti (che
+in realtà non lo garantivano), ora lo slot lo rende strutturalmente impossibile.
+
+Aggiornati i test che cercavano il vecchio `ft.InteractiveViewer` diretto
+(`test_mappe_locali_coordinate.py` test [5], `test_mappe_condivise_ui.py` test [3]/[3b]) per
+cercare invece lo slot `ft.Container`; aggiunte due asserzioni dirette in [5] che
+verificano l'assenza/presenza dell'`InteractiveViewer` nello slot ad ogni cambio modalità
+(non solo il valore dei flag, che si è dimostrato fuorviante). Batteria completa rilanciata:
+303 controlli, 0 fallimenti, `pyflakes` pulito.
+
+**Lezione per il progetto**: una spiegazione plausibile di un meccanismo Flutter (la
+gesture arena) non basta da sola a garantire che il rimedio scelto — qui, due flag booleani
+il cui nome suggerisce "disattiva l'interazione" — abbia davvero l'effetto strutturale
+presunto. Verificare contro il sorgente ufficiale (non contro la sola documentazione API,
+che qui era corretta ma facile da leggere distrattamente) ha risolto in un colpo quello che
+due round di fix plausibili-ma-sbagliati non avevano risolto.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

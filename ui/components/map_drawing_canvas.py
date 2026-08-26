@@ -288,7 +288,13 @@ class MapDrawingCanvas:
         # ── Stato per-pannello (chiave: is_fs) ──────────────────────────
         self._canvas: dict[bool, cv.Canvas | None] = {False: None, True: None}
         self._draw_stack: dict[bool, ft.Stack | None] = {False: None, True: None}
-        self._interactive_viewer: dict[bool, ft.InteractiveViewer | None] = {False: None, True: None}
+        #: Container "slot" il cui `.content` viene scambiato tra
+        #: `ft.InteractiveViewer(stack)` (modalità "Sposta"/sola lettura) e
+        #: `stack` nudo (Penna/Gomma) — vedi `_wrap_stack_for_mode()` e il
+        #: BUG FIX (2026-08-26, terzo giro) nel suo commento: NON basta
+        #: spegnere `pan_enabled`/`scale_enabled` sull'`InteractiveViewer`,
+        #: va tolto proprio l'`InteractiveViewer` dall'albero.
+        self._viewer_slot: dict[bool, ft.Container | None] = {False: None, True: None}
         #: Dimensione CORRENTE (pixel) del riquadro — letta da
         #: `on_size_change`, MAI sincrona (Flet 0.86.5 non offre altro
         #: modo). Parte a [0,0]: un tratto completato prima del primo
@@ -386,11 +392,55 @@ class MapDrawingCanvas:
     # Area di disegno
     # ──────────────────────────────────────────────────────────────────────
 
-    def build_draw_area(self, *, is_fs: bool) -> ft.InteractiveViewer:
+    def _wrap_stack_for_mode(self, is_fs: bool, stack: ft.Stack, mode: str) -> ft.Control:
+        """Avvolge `stack` in un `ft.InteractiveViewer` (zoom/pan) oppure lo
+        lascia nudo, a seconda della modalità — MAI un `InteractiveViewer`
+        con `pan_enabled=False, scale_enabled=False` per "disattivarlo": vedi
+        sotto.
+
+        BUG FIX (2026-08-26, terzo giro) — il fix precedente (spegnere
+        `pan_enabled`/`scale_enabled` insieme quando si è in Penna/Gomma)
+        NON risolveva il ritardo di 1-2s su un trascinamento breve, come
+        segnalato da Davide anche a mappa vuota (quindi non per il costo di
+        ridisegno dei tratti già salvati, causa scartata dal secondo fix).
+        Causa REALE, confermata leggendo il sorgente Flutter di
+        `InteractiveViewer` (`packages/flutter/lib/src/widgets/
+        interactive_viewer.dart`, metodo `build()`): il `GestureDetector`
+        interno dell'`InteractiveViewer`, con `onScaleStart`/`onScaleUpdate`/
+        `onScaleEnd`, viene costruito e agganciato SEMPRE — `pan_enabled` e
+        `scale_enabled` non tolgono mai quei callback (restano cablati
+        incondizionatamente), si limitano a un controllo interno FATTO DENTRO
+        l'handler una volta che ha già vinto l'arena. Il suo
+        `ScaleGestureRecognizer` è quindi SEMPRE iscritto nella gesture arena
+        di Flutter, identico prima e dopo il fix del 2026-08-26 (v0.3.7): il
+        `GestureDetector` di disegno competeva con lui per lo stesso tocco
+        ESATTAMENTE come prima, il fix `scale_enabled` non aveva mai
+        rimosso nulla dall'arena — solo l'apparenza di averlo fatto.
+
+        Stesso principio del gemello 2026-08-20 (pizzico rotto in modalità
+        "Sposta", corretto NON montando il `GestureDetector` di disegno
+        affatto, non lasciandolo con handler che fanno `return`): qui la
+        cura è la stessa, ma sul lato opposto — in Penna/Gomma non si monta
+        l'`InteractiveViewer` affatto, il suo `ScaleGestureRecognizer`
+        semplicemente non esiste per quel tocco, nessuna arena da
+        arbitrare. Compromesso invariato: niente pizzico/pan a un dito
+        mentre si è attivamente in Penna/Gomma, si passa a "Sposta" — era
+        già l'intento dei fix precedenti, ora è vero per davvero."""
+        if mode == "move" or not self.can_manage:
+            return ft.InteractiveViewer(
+                content=stack,
+                pan_enabled=True, scale_enabled=True,
+                trackpad_scroll_causes_scale=True,
+                min_scale=1.0, max_scale=5.0,
+            )
+        return stack
+
+    def build_draw_area(self, *, is_fs: bool) -> ft.Container:
         """Immagine + canvas (+ gesture se `can_manage`) avvolti in un
-        `ft.InteractiveViewer` per zoom/pan. Il chiamante deve avvolgere il
-        risultato in un `ft.Container(expand=True, on_size_change=lambda e:
-        self._canvas.on_box_resize(is_fs, e))` — l'evento non può essere
+        `ft.InteractiveViewer` per zoom/pan SOLO in modalità "Sposta"/sola
+        lettura — vedi `_wrap_stack_for_mode()`. Il chiamante deve avvolgere
+        il risultato in un `ft.Container(expand=True, on_size_change=lambda
+        e: self._canvas.on_box_resize(is_fs, e))` — l'evento non può essere
         intercettato qui dentro (Flet non offre `on_resize` su un controllo
         qualunque, solo su un `Container` che lo racchiude)."""
         canvas = cv.Canvas(expand=True)
@@ -434,42 +484,10 @@ class MapDrawingCanvas:
         stack = ft.Stack([img_layer, gesture_layer], expand=True, fit=ft.StackFit.EXPAND)
         self._draw_stack[is_fs] = stack
 
-        interactive_viewer = ft.InteractiveViewer(
-            content=stack,
-            # Un giocatore in sola lettura non ha alcun GestureDetector di
-            # disegno che reclami il trascinamento a un dito (vedi
-            # `_canvas_layer_for_mode`), quindi può spostare/zoomare la vista
-            # da subito — un utente che può disegnare parte invece con
-            # `pan_enabled=False, scale_enabled=False`: un trascinamento a un
-            # dito disegna finché non passa esplicitamente a "Sposta"
-            # (`_select_mode`).
-            #
-            # BUG FIX (2026-08-26) — ritardo di 1-2s prima che il tratto
-            # inizi a comparire su schermo touch reale (segnalato da Davide),
-            # stessa causa del gemello già corretto il 2026-08-20 (pizzico
-            # rotto in modalità "Sposta"), ma nella direzione opposta: qui
-            # era `scale_enabled=True` FISSO, mai spento in modalità
-            # Penna/Gomma. Il `GestureDetector` figlio (disegno) e lo
-            # `ScaleGestureRecognizer` dell'`InteractiveViewer` restavano
-            # entrambi iscritti nella gesture arena di Flutter per lo stesso
-            # tocco: su un touchscreen reale l'arena deve stabilire se è un
-            # trascinamento a un dito o l'inizio di un pizzico a due, e
-            # quell'arbitraggio può ritardare sensibilmente la vittoria del
-            # riconoscitore di pan — nel frattempo i punti toccati vengono
-            # persi (il riconoscitore non può invocare `onPanStart` finché
-            # non vince). Su mouse/trackpad il problema non si vede (nessun
-            # secondo tocco possibile, l'arena si risolve subito). Fix: come
-            # per `pan_enabled`, spegnere anche `scale_enabled` ogni volta
-            # che si è in Penna/Gomma — nessun riconoscitore concorrente resta
-            # nell'arena, il pizzico durante il disegno si ottiene passando a
-            # "Sposta", esattamente come già succede per il pan.
-            pan_enabled=self._draw_mode == "move" or not self.can_manage,
-            scale_enabled=self._draw_mode == "move" or not self.can_manage,
-            trackpad_scroll_causes_scale=True,
-            min_scale=1.0, max_scale=5.0,
-        )
-        self._interactive_viewer[is_fs] = interactive_viewer
-        return interactive_viewer
+        slot = ft.Container(content=self._wrap_stack_for_mode(is_fs, stack, self._draw_mode),
+                             expand=True)
+        self._viewer_slot[is_fs] = slot
+        return slot
 
     def on_box_resize(self, is_fs: bool, e: ft.LayoutSizeChangeEvent) -> None:
         box = self._box_size[is_fs]
@@ -1242,21 +1260,18 @@ class MapDrawingCanvas:
         self._draw_mode = key
         self._eraser_cursor_pos = None
 
-        for panel_fs, viewer in self._interactive_viewer.items():
-            if viewer is None:
+        # Scambia l'`InteractiveViewer` dentro/fuori dallo slot — mai un
+        # semplice toggle di `pan_enabled`/`scale_enabled` sullo stesso
+        # `InteractiveViewer`: vedi `_wrap_stack_for_mode()` (BUG FIX
+        # 2026-08-26, terzo giro) per il perché quel toggle da solo non
+        # basta a togliere il suo `ScaleGestureRecognizer` dalla gesture
+        # arena di Flutter.
+        for panel_fs, slot in self._viewer_slot.items():
+            stack = self._draw_stack[panel_fs]
+            if slot is None or stack is None:
                 continue
-            # `scale_enabled` segue `pan_enabled` — vedi il commento in
-            # `build_draw_area` (BUG FIX 2026-08-26): se restasse acceso da
-            # solo in Penna/Gomma, il suo `ScaleGestureRecognizer` resterebbe
-            # comunque nella gesture arena e ritarderebbe l'inizio del
-            # tratto su schermo touch reale.
-            allow_viewer_gestures = (key == "move") or not self.can_manage
-            viewer.pan_enabled = allow_viewer_gestures
-            viewer.scale_enabled = allow_viewer_gestures
-            try:
-                viewer.update()
-            except RuntimeError:
-                pass
+            slot.content = self._wrap_stack_for_mode(panel_fs, stack, key)
+            self._safe_update(slot, f"_select_mode/viewer_slot panel_fs={panel_fs}")
 
         # Ricostruisce il layer gesture di OGNI pannello montato (inline e
         # schermo intero condividono `self._draw_mode`) — stesso principio
@@ -1339,7 +1354,7 @@ class MapDrawingCanvas:
         invariati."""
         self._canvas[True] = None
         self._draw_stack[True] = None
-        self._interactive_viewer[True] = None
+        self._viewer_slot[True] = None
         self._mode_refs[True] = []
         self._swatch_refs[True] = []
         self._ersub_refs[True] = []
