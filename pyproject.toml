@@ -1,6 +1,6 @@
 [project]
 name = "dnd-companion"
-version = "0.3.15"
+version = "0.3.16"
 description = "DnD 5e Companion App — Compagno digitale per giocatori"
 # NOTA (2026-08-05, upgrade Flet 0.85.3 → 0.86.5): da 0.86 flet build sceglie
 # il Python da imbarcare in base a questo campo, e di default userebbe l'ultimo
