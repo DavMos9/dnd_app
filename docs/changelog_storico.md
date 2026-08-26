@@ -12315,6 +12315,50 @@ Aggiornati i test che simulavano `ft.GestureDetector.on_pan_*` (non esiste più 
 pizzico funzionante in Penna, coi valori numerici attesi dalla formula). Batteria completa
 rilanciata dopo il fix, `pyflakes` pulito.
 
+## Il pizzico lasciava un "pallino" congelato sullo schermo (2026-08-26, v0.3.11)
+
+Davide, testando v0.3.10 su device reale: "il sistema in generale funziona bene, solo che
+quando pizzico con 2 dita lascia 2 pallini dove ho messo le dita per pizzicare per zoommare
+o spostare". Più un secondo bug scoperto nello stesso giro di test, non collegato: "la
+scritta mappe su smartphone manda la E accapo" (il testo del pulsante mappe della barra di
+navigazione mobile va a capo, "MAPP"/"E" su due righe).
+
+**Causa del pallino congelato**: un pizzico vero a due dita quasi non tocca MAI lo schermo
+in modo perfettamente simultaneo. Flutter fa scattare `onScaleStart` per il PRIMO dito da
+solo (`pointer_count == 1`) — `_on_interaction_start()` (v0.3.10) lo classificava come
+disegno/gomma, l'unica informazione disponibile in quel momento. Il secondo dito arriva poi
+come un `on_interaction_update` con `pointer_count == 2`, MAI un nuovo
+`_on_interaction_start()` (Flutter non lo rifà mai a metà gesto): in modalità Gomma, il
+cursore già disegnato al tocco del primo dito restava quindi congelato lì per tutta la
+durata del pizzico, fino al sollevamento delle dita — il "pallino" segnalato.
+
+**Fix**: `_on_interaction_update()` ora riclassifica il gesto come "view" nel momento
+stesso in cui arriva un secondo dito — stesso principio che Flutter applica a se stesso
+internamente (`_onScaleUpdate`: `_gestureType = _getGestureType(details)` quando il gesto
+era ancora genericamente "pan", riletto nel sorgente durante il fix precedente): mai
+bloccarsi sulla prima informazione se il gesto la smentisce quasi subito. La
+riclassificazione cancella subito qualunque traccia di disegno/gomma già iniziata
+(`_eraser_cursor_pos`/`_current_points`) e applica IMMEDIATAMENTE lo stesso evento come
+primo aggiornamento di zoom/pan (`_apply_view_update()`, estratta come funzione condivisa
+dal ramo "view" normale) — `e.scale` è già cumulativo rispetto al vero inizio del gesto,
+quindi il primo fotogramma del pizzico non va perso.
+
+**Fix del testo a capo**: `ft.Text(s["label"], ...)` nella barra di navigazione mobile
+(`ui/app.py::_build_bottom_nav`) non aveva `no_wrap`/`max_lines`/`overflow` — a 68px di
+larghezza container e 9px di font, "Mappe" andava a capo su alcuni device. Aggiunto
+`no_wrap=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS`, stesso pattern già in uso
+altrove nel progetto (`maps_view.py`, `roll_panel.py`).
+
+Nuovo test `test_secondo_dito_in_ritardo_non_lascia_cursore_congelato()` in
+`test_mappe_locali_coordinate.py` (sia ramo Gomma sia ramo Penna). Batteria completa
+rilanciata, `pyflakes` pulito.
+
+**Terzo bug segnalato, non ancora risolto**: "quando seleziono sposta fa un brutto effetto
+scatto" — causa non identificata con certezza nel codice (né la toolbar né l'area di
+disegno mostrano una struttura che dovrebbe cambiare bruscamente al solo cambio modalità).
+In attesa di un dettaglio più preciso da Davide prima di tentare un fix, per non ripetere
+l'errore già fatto due volte su questo stesso modulo (fix "plausibile" mai verificato).
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

@@ -602,6 +602,7 @@ class DnDApp:
                                 color=p.nav_accent if is_sel else p.nav_muted,
                                 text_align=ft.TextAlign.CENTER,
                                 weight=ft.FontWeight.BOLD if is_sel else ft.FontWeight.NORMAL,
+                                no_wrap=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
                             ),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,

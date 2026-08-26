@@ -580,6 +580,29 @@ class MapDrawingCanvas:
         min_tx, min_ty = vw - s * vw, vh - s * vh
         return min(0.0, max(min_tx, tx)), min(0.0, max(min_ty, ty))
 
+    def _apply_view_update(self, is_fs: bool, e: ft.ScaleUpdateEvent) -> None:
+        """Aggiorna `_view_scale`/`_view_offset` da un evento "view" —
+        stessa formula di Flutter (`interactive_viewer.dart::
+        _onScaleUpdate`, verificata sul sorgente reale — vedi il commento
+        su `self._view_scale` nell'`__init__`): il punto di CONTENUTO che
+        si trovava sotto il fuoco all'inizio del gesto (`_gesture_ref_focal`,
+        già in coordinate di contenuto) resta sotto il fuoco ATTUALE per
+        tutta la durata del gesto, sia che cambi solo la traslazione (un
+        dito, modalità "Sposta") sia che cambi anche la scala (pizzico):
+        entrambi i casi, in Flutter, si riducono alla STESSA equazione —
+        non serve distinguerli qui. Chiamata sia dal ramo "view" normale di
+        `_on_interaction_update()` sia dalla riclassificazione
+        disegno/gomma → view (stesso evento, applicato subito invece di
+        aspettare il fotogramma successivo)."""
+        ref = self._gesture_ref_focal[is_fs]
+        if ref is None:
+            return
+        s_new = max(_MIN_SCALE, min(_MAX_SCALE, self._gesture_scale_start[is_fs] * e.scale))
+        fx, fy = e.local_focal_point.x, e.local_focal_point.y
+        tx, ty = self._clamp_view_offset(is_fs, s_new, fx - s_new * ref[0], fy - s_new * ref[1])
+        self._view_scale[is_fs] = s_new
+        self._view_offset[is_fs] = [tx, ty]
+
     # ──────────────────────────────────────────────────────────────────────
     # Render
     # ──────────────────────────────────────────────────────────────────────
@@ -725,10 +748,15 @@ class MapDrawingCanvas:
     def _on_interaction_start(self, e: ft.ScaleStartEvent, canvas: cv.Canvas) -> None:
         """Un solo `GestureRecognizer` per pannello (quello, sempre presente,
         dell'`InteractiveViewer` — vedi punto 4 del docstring del modulo):
-        decide QUI, una volta sola per l'intero gesto, se si tratta di
-        disegno/gomma o di zoom/pan — mai rivalutato in `_on_interaction_update()`
-        (stesso principio del `_gestureType` di Flutter, che si blocca al
-        primo gesto riconosciuto)."""
+        decide QUI se il gesto è disegno/gomma o zoom/pan, in base
+        all'unica informazione disponibile in questo istante
+        (`pointer_count`). Rivalutato UNA volta sola, in
+        `_on_interaction_update()`, SOLO nel verso disegno/gomma → view
+        (mai il contrario): un pizzico vero raramente tocca lo schermo con
+        entrambe le dita nello stesso istante, quindi la prima dito arriva
+        sempre da solo qui — vedi il commento nel ramo `pointer_count >= 2`
+        di `_on_interaction_update()` per il perché (BUG FIX 2026-08-26,
+        "pallino" lasciato dalla gomma durante un pizzico)."""
         is_fs = canvas is self._canvas[True]
         view = (
             self._draw_mode == "move"
@@ -765,31 +793,47 @@ class MapDrawingCanvas:
         kind = self._gesture_kind.get(is_fs)
 
         if kind == "view":
-            # Stessa formula di Flutter (`interactive_viewer.dart::
-            # _onScaleUpdate`, verificata sul sorgente reale — vedi il
-            # commento su `self._view_scale` nell'`__init__`): il punto di
-            # CONTENUTO che si trovava sotto il fuoco all'inizio del gesto
-            # (`_gesture_ref_focal`, già in coordinate di contenuto) resta
-            # sotto il fuoco ATTUALE per tutta la durata del gesto, sia che
-            # cambi solo la traslazione (un dito, modalità "Sposta") sia che
-            # cambi anche la scala (pizzico): entrambi i casi, in Flutter,
-            # si riducono alla STESSA equazione — non serve distinguerli qui.
-            ref = self._gesture_ref_focal[is_fs]
-            if ref is None:
-                return
-            s_new = max(_MIN_SCALE, min(_MAX_SCALE, self._gesture_scale_start[is_fs] * e.scale))
-            fx, fy = e.local_focal_point.x, e.local_focal_point.y
-            tx, ty = self._clamp_view_offset(is_fs, s_new, fx - s_new * ref[0], fy - s_new * ref[1])
-            self._view_scale[is_fs] = s_new
-            self._view_offset[is_fs] = [tx, ty]
+            self._apply_view_update(is_fs, e)
             return
 
         if e.pointer_count >= 2:
-            # Un secondo dito si è aggiunto A META' di un tratto/gomma in
-            # corso: non c'è un modo pulito di continuare (il fuoco non è
-            # più quello di un tocco singolo) — il tratto resta quello
-            # accumulato finora, `_on_interaction_end()` lo chiude come
-            # fine-gesto normale. Nessun ulteriore punto viene aggiunto.
+            # BUG FIX (2026-08-26, segnalato da Davide): un pizzico vero a
+            # due dita quasi non tocca MAI lo schermo in modo perfettamente
+            # simultaneo — il primo dito arriva con `pointer_count == 1`,
+            # fa scattare `_on_interaction_start()` che lo classifica come
+            # "draw"/"erase" (l'unica informazione disponibile in quel
+            # momento), POI il secondo dito arriva qui come un
+            # `on_interaction_update` con `pointer_count == 2`, non un
+            # nuovo `_on_interaction_start()` (Flutter non lo rifà mai a
+            # metà gesto). Senza questo ramo il gesto restava bloccato su
+            # "erase"/"draw" per tutta la sua durata — in modalità Gomma il
+            # cursore già disegnato al tocco del primo dito (vedi
+            # `_on_interaction_start`) restava congelato lì fino al
+            # sollevamento delle dita: il "pallino" segnalato. Qui si
+            # riclassifica il gesto come "view" nel momento stesso in cui
+            # arriva un secondo dito — stesso principio che Flutter applica
+            # a se stesso in `_onScaleUpdate` (`_gestureType = _getGestureType
+            # (details)` quando il gesto era ancora genericamente "pan"):
+            # mai bloccarsi sulla prima informazione se il gesto la
+            # smentisce quasi subito.
+            self._gesture_kind[is_fs] = "view"
+            if kind == "erase":
+                self._eraser_cursor_pos = None
+                self._redraw_canvas(canvas, is_fs)
+                self._safe_update(canvas, "on_interaction_update/erase-reclassified")
+            elif kind == "draw":
+                self._current_points.clear()
+                self._redraw_canvas(canvas, is_fs)
+                self._safe_update(canvas, "on_interaction_update/draw-reclassified")
+            self._gesture_scale_start[is_fs] = self._view_scale[is_fs]
+            self._gesture_ref_focal[is_fs] = self._to_scene(
+                is_fs, e.local_focal_point.x, e.local_focal_point.y)
+            # Applica SUBITO questo stesso evento come primo aggiornamento
+            # "view" — non aspettare il prossimo fotogramma: `e.scale` è
+            # già cumulativo rispetto al VERO inizio del gesto (il primo
+            # dito, quando era ancora scale≈1.0), quindi riflette già
+            # correttamente il pizzico fatto finora.
+            self._apply_view_update(is_fs, e)
             return
 
         x, y = self._to_scene(is_fs, e.local_focal_point.x, e.local_focal_point.y)
