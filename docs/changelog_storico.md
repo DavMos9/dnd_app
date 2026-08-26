@@ -12146,6 +12146,56 @@ riproducibile con mouse/trackpad né con l'automazione desktop (`cliclick`) usat
 di questa sessione — il fix va confermato da Davide su un dispositivo reale prima di
 considerarlo chiuso.
 
+## Il fix precedente non basta: il ritardo resta sui trascinamenti BREVI (2026-08-26, seguito)
+
+Davide ha testato v0.3.7 (fix `scale_enabled`) su smartphone reale: il ritardo persiste,
+ma **solo per tratti piccoli, cioè trascinamenti che durano poco** — informazione nuova
+che restringe il campo, dato che la competizione nella gesture arena (fix precedente) non
+avrebbe una ragione ovvia per dipendere dalla durata del trascinamento.
+
+**Causa trovata rileggendo il codice**: `_redraw_canvas()` ricalcolava da zero **tutti** i
+tratti già salvati sulla mappa (denormalizzazione + costruzione di un oggetto `cv.Path`
+per ciascuno) ad **ogni singolo** `on_pan_update` del tratto in corso — non solo quello
+nuovo. Il costo per fotogramma di trascinamento è quindi proporzionale al numero totale di
+punti già presenti sulla mappa, non al singolo tratto che si sta disegnando: più cresce
+l'annotazione di una mappa (o più a lungo si è testato ripetutamente sulla stessa mappa
+senza mai "Cancella tutto", come capita naturalmente in un giro di test), più ogni
+fotogramma diventa costoso — e più lento su hardware mobile che sul Mac usato per lo
+sviluppo. Un trascinamento **breve** può concludersi (il dito si solleva, arriva
+`on_pan_end`) prima ancora che il primo ridisegno completo abbia fatto il giro
+client↔server e sia tornato a schermo — coerente con "il primo pezzo del tratto non viene
+scritto" concentrato proprio sui trascinamenti più rapidi, mentre un tratto più lungo ha
+il tempo di "recuperare" visivamente prima che il dito si sollevi.
+
+**Fix**: `_redraw_canvas()` è stato diviso in due parti. `_committed_shapes(is_fs)`
+calcola le shape dei tratti GIÀ salvati una volta sola e le mette in cache
+(`self._static_shapes[is_fs]`); resta invariato quando l'unica cosa che cambia è il
+tratto in corso. `_redraw_canvas()` (usato ovunque tranne durante un trascinamento penna:
+resize, cambio modalità, fine tratto, gomma, annulla, cancella tutto) invalida sempre
+quella cache prima di ricalcolare — nessun punto di mutazione di `self._strokes` rischia
+di lasciare la cache disallineata, perché tutti quei punti chiamano comunque
+`_redraw_canvas()` o `_update_all_canvases()`. La nuova `_redraw_live_stroke()`, usata SOLO
+da `_on_pan_update()` in modalità Penna durante un trascinamento, riusa la cache e
+ricalcola solo la `Path` del tratto in corso — passando da un costo O(punti totali sulla
+mappa) a O(punti del solo tratto in corso) per ogni fotogramma di trascinamento.
+
+Nuovo test `test_mappe_locali_coordinate.py` [9] (+7 controlli): verifica per IDENTITÀ di
+oggetto Python (non solo per valore) che le shape dei tratti già salvati restino lo STESSO
+oggetto tra un `on_pan_update` e il successivo dello stesso trascinamento (prova diretta
+che la cache viene riusata, non silenziosamente ricreata con contenuto identico), e che si
+invalidi correttamente dopo il commit di un tratto e dopo una cancellazione con la gomma.
+Batteria completa rilanciata: `test_mappe_locali_coordinate.py` (42/42),
+`test_mappe_condivise.py`, `test_mappe_condivise_http.py`, `test_mappe_condivise_ui.py`,
+`test_regressione_wrap_expand.py` — 302 controlli, 0 fallimenti, `pyflakes` pulito.
+
+**Onestà sul livello di certezza**: è la SECONDA ipotesi di causa per lo stesso sintomo (la
+prima, la gesture arena, resta comunque un fix legittimo di suo — corregge un bug reale e
+distinto, il pizzico durante il disegno). Questa ottimizzazione è un miglioramento di
+prestazioni reale e misurabile a prescindere da chi sia LA causa esatta del ritardo
+segnalato da Davide, ma nessun profiling è stato fatto sul dispositivo reale — resta da
+confermare che risolva effettivamente il sintomo sui trascinamenti brevi prima di
+considerarlo chiuso.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

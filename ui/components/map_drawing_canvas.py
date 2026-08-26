@@ -300,6 +300,27 @@ class MapDrawingCanvas:
         #: non monta il `GestureDetector` di disegno/gomma — vedi punto 2
         #: del docstring del modulo.
         self._box_ready: dict[bool, bool] = {False: False, True: False}
+        #: Cache delle shape dei tratti GIÀ SALVATI (`self._strokes`),
+        #: `None` = da ricalcolare. BUG FIX (2026-08-26) — Davide ha
+        #: segnalato che il ritardo prima che un tratto inizi a comparire
+        #: (già "corretto" con `scale_enabled`, ma persiste per i
+        #: trascinamenti BREVI) è più probabile in trascinamenti che
+        #: durano poco: `_redraw_canvas()` ricalcolava TUTTI i tratti già
+        #: salvati (denormalizzazione + oggetto `cv.Path`) ad OGNI singolo
+        #: `on_pan_update`, non solo quello in corso — un costo O(punti
+        #: totali sulla mappa) per ogni fotogramma di trascinamento, tanto
+        #: più pesante quanti più tratti la mappa accumula, e più lento su
+        #: hardware mobile che su un Mac da sviluppo. Un trascinamento
+        #: BREVE può concludersi (il dito si solleva) prima che anche solo
+        #: il primo ridisegno completo torni dal client — da cui "il primo
+        #: pezzo del tratto non viene scritto" concentrato proprio sui
+        #: trascinamenti più rapidi. `_committed_shapes()` calcola questa
+        #: lista una volta sola e la riusa finché `self._strokes` non
+        #: cambia DAVVERO (nuovo tratto, gomma, annulla, cancella tutto,
+        #: resize) — vedi `_redraw_canvas()` (invalida sempre) vs
+        #: `_redraw_live_stroke()` (la riusa, ricalcola solo il tratto in
+        #: corso).
+        self._static_shapes: dict[bool, list[cv.Shape] | None] = {False: None, True: None}
 
         # ── Riferimenti toolbar (per-pannello, per lo stile in-place) ───
         self._mode_refs: dict[bool, list[ft.Container]] = {False: [], True: []}
@@ -516,20 +537,26 @@ class MapDrawingCanvas:
         box_w, box_h = self._box_size_for(canvas)
         return geo.contain_rect(box_w, box_h, self._img_size[0], self._img_size[1])
 
-    def _redraw_canvas(self, canvas: cv.Canvas, is_fs: bool) -> None:
-        """Ridisegna: stroke penna + cursore gomma. NON usa
-        `BlendMode.CLEAR` (non funziona su CustomPaint senza saveLayer) —
-        la cancellazione muta `self._strokes` e ridisegna da zero.
+    def _committed_shapes(self, is_fs: bool) -> list[cv.Shape]:
+        """Le shape dei tratti GIÀ SALVATI (`self._strokes`) — calcolate una
+        volta e messe in cache (`self._static_shapes[is_fs]`) finché
+        qualcosa non le invalida davvero (vedi `_redraw_canvas`, che
+        invalida sempre prima di ricalcolare). NON include il tratto in
+        corso né il cursore della gomma: quelli cambiano ad ogni
+        fotogramma di un trascinamento e li aggiunge chi chiama (vedi
+        `_redraw_canvas`/`_redraw_live_stroke`) — vedi il commento su
+        `self._static_shapes` nell'`__init__` per il perché di questa
+        separazione.
 
         I tratti salvati sono frazioni [0,1] del riquadro con cui furono
         disegnati — si riconvertono in pixel assoluti rispetto al riquadro
-        CORRENTE ad ogni chiamata, cosicché lo stesso tratto resti allineato
-        sia inline sia a schermo intero. Il tratto in corso e il cursore
-        della gomma restano invece in pixel assoluti as-is: si vedono solo
-        sul canvas che sta ricevendo la gesture in questo istante."""
-        ox, oy, dw, dh = self._draw_rect_for(canvas)
+        CORRENTE ad ogni ricalcolo, cosicché lo stesso tratto resti allineato
+        sia inline sia a schermo intero."""
+        cached = self._static_shapes[is_fs]
+        if cached is not None:
+            return cached
+        ox, oy, dw, dh = self._draw_rect_for(self._canvas[is_fs])
         shapes: list[cv.Shape] = []
-
         for stroke in self._strokes:
             if stroke.get("type", "stroke") != "stroke":
                 continue
@@ -548,6 +575,24 @@ class MapDrawingCanvas:
                     stroke_cap=ft.StrokeCap.ROUND,
                 ),
             ))
+        self._static_shapes[is_fs] = shapes
+        return shapes
+
+    def _redraw_canvas(self, canvas: cv.Canvas, is_fs: bool) -> None:
+        """Ridisegna TUTTO: stroke salvati (ricalcolati da zero — vedi sotto)
+        + tratto penna in corso + cursore gomma. NON usa `BlendMode.CLEAR`
+        (non funziona su CustomPaint senza saveLayer) — la cancellazione
+        muta `self._strokes` e ridisegna da zero.
+
+        Invalida SEMPRE la cache di `_committed_shapes()` prima di
+        ricalcolare: è la scelta giusta qui perché ogni chiamante di
+        `_redraw_canvas()` lo fa esattamente quando i tratti salvati
+        POSSONO essere cambiati (resize, cambio modalità, fine tratto,
+        gomma, annulla, cancella tutto...) — mai durante il singolo
+        fotogramma di un trascinamento penna in corso, per cui esiste
+        invece `_redraw_live_stroke()` (riusa la cache, non la invalida)."""
+        self._static_shapes[is_fs] = None
+        shapes = list(self._committed_shapes(is_fs))
 
         if len(self._current_points) >= 2 and self._draw_mode == "pen":
             elems = [cv.Path.MoveTo(self._current_points[0][0], self._current_points[0][1])]
@@ -583,6 +628,31 @@ class MapDrawingCanvas:
                 ),
             ))
 
+        canvas.shapes = shapes
+
+    def _redraw_live_stroke(self, canvas: cv.Canvas, is_fs: bool) -> None:
+        """Variante leggera di `_redraw_canvas()`, usata SOLO da
+        `_on_pan_update()` in modalità Penna durante un trascinamento in
+        corso (BUG FIX 2026-08-26, vedi `self._static_shapes`
+        nell'`__init__`): riusa `_committed_shapes()` dalla cache — i
+        tratti già salvati non cambiano mentre si disegna un tratto nuovo
+        — e ricalcola SOLO la Path del tratto in corso, invece di rifare
+        da zero il lavoro per ogni singolo tratto già sulla mappa ad ogni
+        fotogramma."""
+        shapes = list(self._committed_shapes(is_fs))
+        if len(self._current_points) >= 2:
+            elems = [cv.Path.MoveTo(self._current_points[0][0], self._current_points[0][1])]
+            for x, y in self._current_points[1:]:
+                elems.append(cv.Path.LineTo(x, y))
+            shapes.append(cv.Path(
+                elements=elems,
+                paint=ft.Paint(
+                    color=PEN_COLORS[self._pen_color_idx],
+                    stroke_width=self._pen_width,
+                    style=ft.PaintingStyle.STROKE,
+                    stroke_cap=ft.StrokeCap.ROUND,
+                ),
+            ))
         canvas.shapes = shapes
 
     def _update_all_canvases(self) -> None:
@@ -626,7 +696,7 @@ class MapDrawingCanvas:
             self._safe_update(canvas, "on_pan_update/eraser")
             return
         self._current_points.append([x, y])
-        self._redraw_canvas(canvas, is_fs)
+        self._redraw_live_stroke(canvas, is_fs)
         self._safe_update(canvas, "on_pan_update/pen")
 
     def _on_pan_end(self, e: ft.DragEndEvent, canvas: cv.Canvas) -> None:

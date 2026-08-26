@@ -617,6 +617,95 @@ def test_annulla_ripristina_ultima_azione_non_solo_ultimo_tratto() -> None:
           len(mv._canvas._strokes) == 0 and mv._canvas._history == [])
 
 
+# ---------------------------------------------------------------------------
+# [9] Cache dei tratti già salvati durante un trascinamento in corso
+# ---------------------------------------------------------------------------
+
+def test_cache_tratti_salvati_durante_trascinamento() -> None:
+    """
+    Bug report Davide (2026-08-26, dopo il fix `scale_enabled`): "il bug è
+    ancora presente, solo per tratti piccoli/trascinamenti brevi". Causa
+    trovata leggendo il codice: `_redraw_canvas()` ricalcolava da zero
+    TUTTI i tratti già salvati (denormalizzazione + `cv.Path`) ad OGNI
+    singolo `on_pan_update`, non solo il tratto in corso — costo O(punti
+    totali sulla mappa) per ogni fotogramma di trascinamento. Fix:
+    `_committed_shapes()` calcola quella lista una volta e la mette in
+    cache; `_redraw_live_stroke()` (usato durante un trascinamento penna)
+    la riusa senza ricalcolarla, `_redraw_canvas()` (usato altrove) la
+    invalida sempre prima. Verificato qui per IDENTITÀ degli oggetti
+    `cv.Path` (non solo per valore): le shape dei tratti già salvati
+    devono restare lo STESSO oggetto Python tra un `on_pan_update` e il
+    successivo durante lo stesso trascinamento — se venissero ricreate
+    (anche con contenuto identico) la cache non starebbe funzionando.
+    """
+    print("\n[9] I tratti già salvati non vengono ricalcolati ad ogni fotogramma "
+          "di un trascinamento penna in corso (BUG FIX 2026-08-26)")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Locale 9")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+    gesture = _find(panel, lambda n: isinstance(n, ft.GestureDetector))
+    assert gesture is not None
+    canvas = mv._canvas._canvas[False]
+    assert canvas is not None
+
+    # Due tratti già salvati sulla mappa.
+    gesture.on_pan_start(_FakeDragEvent(10, 10))
+    gesture.on_pan_update(_FakeDragEvent(10, 50))
+    gesture.on_pan_end(_FakeDragEvent(10, 50))
+    gesture.on_pan_start(_FakeDragEvent(200, 200))
+    gesture.on_pan_update(_FakeDragEvent(200, 250))
+    gesture.on_pan_end(_FakeDragEvent(200, 250))
+    check("due tratti già salvati", len(mv._canvas._strokes) == 2)
+
+    # Terzo tratto: inizia un nuovo trascinamento (non ancora committato).
+    gesture.on_pan_start(_FakeDragEvent(100, 100))
+    gesture.on_pan_update(_FakeDragEvent(100, 120))
+    committed_paths = [s for s in canvas.shapes if isinstance(s, cv.Path)]
+    check("dopo il primo on_pan_update del terzo tratto: 3 Path totali "
+          "(2 già salvati + 1 in corso)", len(committed_paths) == 3)
+    # Le shape dei DUE tratti già salvati, per identità di oggetto — sono
+    # le prime nella lista (append order: prima i salvati, poi quello in
+    # corso — vedi `_redraw_live_stroke`).
+    saved_shapes_first_frame = committed_paths[:2]
+
+    gesture.on_pan_update(_FakeDragEvent(100, 140))
+    committed_paths_2 = [s for s in canvas.shapes if isinstance(s, cv.Path)]
+    check("un secondo on_pan_update sullo stesso trascinamento: ancora 3 "
+          "Path totali, non 4 o più", len(committed_paths_2) == 3)
+    check("BUG FIX: le shape dei DUE tratti già salvati sono gli STESSI "
+          "oggetti Python del fotogramma precedente (cache riusata, non "
+          "ricalcolata) — solo il tratto in corso cambia",
+          committed_paths_2[0] is saved_shapes_first_frame[0]
+          and committed_paths_2[1] is saved_shapes_first_frame[1])
+
+    # Fine del terzo tratto: ora committato, la cache DEVE invalidarsi e
+    # includerlo (altrimenti sparirebbe dal disegno finale).
+    gesture.on_pan_end(_FakeDragEvent(100, 140))
+    check("dopo il commit, 3 tratti salvati", len(mv._canvas._strokes) == 3)
+    final_paths = [s for s in canvas.shapes if isinstance(s, cv.Path)]
+    check("dopo il commit il ridisegno include tutti e 3 i tratti (nessuno "
+          "perso per una cache non invalidata)", len(final_paths) == 3)
+
+    # La gomma cancella un tratto: la cache deve invalidarsi anche qui.
+    mv._canvas._draw_mode = "eraser"
+    mv._canvas._eraser_sub = "stroke"
+    mv._canvas._eraser_size = 20.0
+    gesture.on_pan_start(_FakeDragEvent(10, 10))
+    gesture.on_pan_update(_FakeDragEvent(10, 10))
+    check("la gomma cancella un tratto e la cache lo riflette subito",
+          len(mv._canvas._strokes) == 2
+          and len([s for s in canvas.shapes if isinstance(s, cv.Path)]) == 2)
+
+
 def main() -> int:
     print("=" * 62)
     print("Mappe locali — fix coordinate 2026-08-12 (inline/schermo intero/gomma)")
@@ -631,6 +720,7 @@ def main() -> int:
     test_nessun_gesture_prima_del_box_noto()
     test_tolleranza_sconfinamento_letterbox()
     test_annulla_ripristina_ultima_azione_non_solo_ultimo_tratto()
+    test_cache_tratti_salvati_durante_trascinamento()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

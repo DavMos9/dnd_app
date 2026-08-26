@@ -376,6 +376,17 @@ mappe" (2026-08-25).
   vedi `regole_flet_api.md` per la regola generale riusabile e `changelog_storico.md` per
   il dettaglio di entrambi gli episodi. Compromesso esplicito di entrambi i fix: niente
   pizzico-per-zoomare mentre si è attivamente in Penna/Gomma, si passa a "Sposta".
+- **Cache dei tratti già salvati durante un trascinamento** (`_committed_shapes()`/
+  `self._static_shapes[is_fs]`, 2026-08-26 — SECONDA causa dello stesso sintomo, il fix
+  `scale_enabled` sopra non bastava per i trascinamenti brevi): `_redraw_canvas()`
+  ricalcolava da zero TUTTI i tratti già salvati (denormalizzazione + `cv.Path`) ad ogni
+  singolo `on_pan_update`, costo O(punti totali sulla mappa) per fotogramma — un
+  trascinamento breve poteva concludersi prima ancora che il primo ridisegno completo
+  tornasse a schermo. `_committed_shapes(is_fs)` calcola quella lista una volta e la mette
+  in cache; `_redraw_canvas()` la invalida sempre (usato ovunque i tratti POSSONO essere
+  cambiati: resize, cambio modalità, fine tratto, gomma, annulla, cancella tutto),
+  `_redraw_live_stroke()` (SOLO in `_on_pan_update()` durante un trascinamento penna) la
+  riusa e ricalcola solo il tratto in corso.
 - **Pulsanti pillola** (`_mbtn` per Penna/Gomma/Sposta, `_esbtn` per le sotto-modalità
   gomma Tratto/Libera): usano `animate_scale=ft.Animation(...)` (`AnimatedScale`), MAI
   `animate=` (`AnimatedContainer`) — quest'ultimo, combinato con Icon+Text in una Row,
