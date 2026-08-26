@@ -57,6 +57,32 @@ from data.database import init_db  # noqa: E402
 from data.models import Character  # noqa: E402
 from data.repositories import character_repo, maps_repo  # noqa: E402
 from ui import canvas_geometry as geo  # noqa: E402
+from ui.components import map_drawing_canvas as mdc  # noqa: E402
+
+
+class _FakeTimeModule:
+    """Sostituisce l'attributo `time` dentro `map_drawing_canvas` (mai il
+    vero modulo stdlib `time`, che resterebbe condiviso con tutto il resto
+    del processo) — BUG FIX 2026-08-26, quinto giro: `_on_interaction_*`
+    ora ritarda la prima pennellata di `_INTENT_CONFIRM_S` per non lasciare
+    "pallini" durante un pizzico (vedi il punto 5 del docstring del
+    modulo). Passo di default 1.0s: molto oltre `_INTENT_CONFIRM_S`,
+    così ogni singolo `on_interaction_update` di un test esistente (che
+    simula un trascinamento a un dito, non un pizzico) resta "confermato"
+    subito, come un trascinamento reale che dura più di qualche decina di
+    ms — nessuna modifica necessaria ai test che non riguardano
+    specificamente la finestra di conferma."""
+
+    def __init__(self, step: float = 1.0, start: float = 1_000_000.0):
+        self._t = start
+        self.step = step
+
+    def monotonic(self) -> float:
+        self._t += self.step
+        return self._t
+
+
+mdc.time = _FakeTimeModule()
 
 _PASS = 0
 _FAIL: list[str] = []
@@ -775,17 +801,24 @@ def test_secondo_dito_in_ritardo_non_lascia_cursore_congelato() -> None:
     `_on_interaction_start()` lo classificava come disegno/gomma (l'unica
     informazione disponibile in quel momento) — poi il secondo dito arriva
     come un `on_interaction_update` con `pointer_count == 2`, MAI un nuovo
-    `_on_interaction_start()` (Flutter non lo rifà mai a metà gesto). In
-    modalità Gomma il cursore già disegnato al tocco del primo dito
-    restava congelato lì per tutta la durata del pizzico — il "pallino"
-    segnalato. Fix: `_on_interaction_update()` riclassifica il gesto come
-    "view" nel momento in cui arriva un secondo dito, cancellando
-    qualunque traccia di disegno/gomma già iniziata — stesso principio che
-    Flutter applica a se stesso in `_onScaleUpdate()` per il caso gemello.
+    `_on_interaction_start()` (Flutter non lo rifà mai a metà gesto).
+
+    Il fix v0.3.11 (riclassificare a "view" e ripulire quando arriva il
+    secondo dito) NON bastava: Davide l'ha confermato ancora presente,
+    con la diagnosi corretta — il primo dito, da solo, dipingeva
+    IMMEDIATAMENTE il cursore gomma (o un segmento cortissimo in Penna),
+    quel fotogramma arrivava DAVVERO al client via un `_safe_update()`
+    separato, e "ripulirlo" col fotogramma successivo non impedisce che
+    l'occhio lo veda comparire per un istante. Fix v0.3.13 (qui): nessuna
+    pennellata parte finché non è trascorsa `_INTENT_CONFIRM_S` — un vero
+    pizzico ha il secondo dito ben dentro quella finestra, quindi qui sotto
+    NON deve comparire NESSUNA `cv.Circle`/`cv.Path` in nessun momento,
+    nemmeno subito dopo `on_interaction_start` — non solo "sparire dopo",
+    ma "mai apparsa" — vedi il punto 5 del docstring del modulo.
     """
     print("\n[10] Un pizzico che inizia con un dito solo (fisiologico, mai "
-          "perfettamente simultaneo) non lascia il cursore gomma congelato "
-          "sullo schermo (BUG FIX 2026-08-26, seguito a v0.3.10)")
+          "perfettamente simultaneo) non dipinge MAI nulla sullo schermo, "
+          "nemmeno per un fotogramma (BUG FIX 2026-08-26, quinto giro)")
     from ui.views.maps_view import MapsView
 
     character = _make_character()
@@ -802,19 +835,24 @@ def test_secondo_dito_in_ritardo_non_lascia_cursore_congelato() -> None:
     canvas = mv._canvas._canvas[False]
     assert canvas is not None
 
-    # -- Ramo Gomma: il primo dito (da solo) fa scattare il cursore.
+    # -- Ramo Gomma: il primo dito (da solo) NON deve dipingere nulla —
+    # a differenza del vecchio comportamento "dipingi subito, ripulisci
+    # dopo", qui semplicemente non c'è ancora nulla da ripulire.
     mv._canvas._draw_mode = "eraser"
     viewer.on_interaction_start(_FakeScaleStartEvent(100, 100))
-    check("il primo dito da solo, in modalità Gomma, disegna il cursore "
-          "(comportamento corretto PRIMA che arrivi un secondo dito)",
-          any(isinstance(s, cv.Circle) for s in canvas.shapes))
-
-    # Il secondo dito arriva — stesso gesto, un on_interaction_update con
-    # pointer_count=2, MAI un nuovo on_interaction_start.
-    viewer.on_interaction_update(_FakeScaleUpdateEvent(120, 100, pointer_count=2, scale=1.3))
-    check("BUG FIX: appena arriva il secondo dito, il cursore gomma sparisce "
-          "(non resta congelato per tutta la durata del pizzico)",
+    check("BUG FIX: il primo dito da solo, in modalità Gomma, NON dipinge "
+          "ancora il cursore (resta in attesa di conferma)",
           not any(isinstance(s, cv.Circle) for s in canvas.shapes))
+
+    # Il secondo dito arriva SUBITO — stesso gesto, un on_interaction_update
+    # con pointer_count=2, MAI un nuovo on_interaction_start, ben dentro la
+    # finestra di conferma (il mock del clock qui non serve nemmeno: fra
+    # start e questo update non passa nessuna chiamata a time.monotonic()
+    # nel ramo "view", quindi non importa quanto sia "lento" il clock finto
+    # — il punto è che non è MAI stato dipinto nulla).
+    viewer.on_interaction_update(_FakeScaleUpdateEvent(120, 100, pointer_count=2, scale=1.3))
+    check("dopo il secondo dito, ancora nessuna cv.Circle è mai comparsa "
+          "sul canvas", not any(isinstance(s, cv.Circle) for s in canvas.shapes))
     check("il gesto è stato riclassificato a 'view'",
           mv._canvas._gesture_kind[False] == "view")
     check("il pizzico, una volta riclassificato, zoomma davvero (non resta "
@@ -841,6 +879,67 @@ def test_secondo_dito_in_ritardo_non_lascia_cursore_congelato() -> None:
           mv._canvas._strokes == [] and mv._canvas._current_points == [])
 
 
+def test_dito_solo_genuino_dipinge_dopo_la_soglia_di_conferma() -> None:
+    """
+    Controparte di [10]: un tocco a un dito solo che resta a un dito solo
+    (nessun pizzico) deve continuare a disegnare/cancellare normalmente —
+    il fix di [10] ritarda la prima pennellata, non la impedisce. Verifica
+    anche il "recupero": una gomma che tocca e stacca il dito PRIMA che la
+    soglia scada (un tap rapido, non un trascinamento) non deve perdere la
+    cancellazione — viene applicata comunque in `on_interaction_end()`.
+    """
+    print("\n[10b] Un dito solo genuino continua a disegnare/cancellare "
+          "normalmente dopo la soglia di conferma (BUG FIX 2026-08-26, "
+          "quinto giro)")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Dito Solo")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+    viewer = _viewer_of(panel)
+    canvas = mv._canvas._canvas[False]
+    assert canvas is not None
+
+    # -- Penna: un trascinamento vero (più fotogrammi, clock finto di
+    # default con passo 1.0s >> _INTENT_CONFIRM_S) deve produrre un tratto
+    # visibile DURANTE il trascinamento, non solo al rilascio.
+    mv._canvas._draw_mode = "pen"
+    viewer.on_interaction_start(_FakeScaleStartEvent(50, 50))
+    viewer.on_interaction_update(_FakeScaleUpdateEvent(80, 60))
+    check("un trascinamento penna genuino disegna la linea in corso PRIMA "
+          "del rilascio (non solo dopo la soglia iniziale)",
+          any(isinstance(s, cv.Path) for s in canvas.shapes))
+    viewer.on_interaction_end(_FakeScaleEndEvent())
+    check("il tratto penna genuino viene salvato normalmente",
+          len(mv._canvas._strokes) == 1)
+
+    # -- Gomma: un tap rapido (start seguito subito da end, MAI un update
+    # con pointer_count==1 nel mezzo) non deve perdere la cancellazione —
+    # `on_interaction_end()` recupera i punti bufferizzati.
+    mv._canvas._draw_mode = "eraser"
+    x0, y0, dw0, dh0 = mv._canvas._draw_rect_for(canvas)
+    stroke_x = x0 + dw0 * 0.5
+    stroke_y = y0 + dh0 * 0.5
+    mv._canvas._strokes = [{
+        "type": "stroke", "color": "#ffffff", "width": 5.0,
+        "points": geo.normalize_points([[stroke_x, stroke_y], [stroke_x + 10, stroke_y]],
+                                        dw0, dh0, x0, y0),
+    }]
+    mv._canvas._static_shapes[False] = None
+    viewer.on_interaction_start(_FakeScaleStartEvent(stroke_x, stroke_y))
+    viewer.on_interaction_end(_FakeScaleEndEvent())
+    check("BUG FIX: un tap-gomma rapido (nessun on_interaction_update nel "
+          "mezzo) cancella comunque il tratto toccato, recuperato al "
+          "rilascio", mv._canvas._strokes == [])
+
+
 def main() -> int:
     print("=" * 62)
     print("Mappe locali — fix coordinate 2026-08-12 (inline/schermo intero/gomma)")
@@ -857,6 +956,7 @@ def main() -> int:
     test_annulla_ripristina_ultima_azione_non_solo_ultimo_tratto()
     test_cache_tratti_salvati_durante_trascinamento()
     test_secondo_dito_in_ritardo_non_lascia_cursore_congelato()
+    test_dito_solo_genuino_dipinge_dopo_la_soglia_di_conferma()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

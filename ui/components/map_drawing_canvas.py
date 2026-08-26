@@ -60,6 +60,32 @@ corretti qui:
      matematica (verificata contro il sorgente reale di Flutter,
      `interactive_viewer.dart`, non per analogia).
 
+  5. **"Pallini" lasciati sullo schermo durante un pizzico** (2026-08-26,
+     quinto giro): il punto 4 riclassifica il gesto da disegno/gomma a
+     "view" non appena arriva un secondo dito, ma solo IN `_on_interaction_
+     update()` — nel frattempo il primo dito, da solo, aveva già dipinto
+     qualcosa (il cursore della gomma all'istante del tocco, o un
+     segmento cortissimo — che coi capi arrotondati sembra un puntino —
+     dopo anche un solo fotogramma di trascinamento). Ripulire DOPO che è
+     già stato disegnato lascia comunque un fotogramma visibile sul
+     client reale (un giro websocket separato dalla ripulitura), tanto
+     più percepibile quanto più la connessione è lenta — Davide l'ha
+     confermato ancora presente dopo il fix del punto 4, con una diagnosi
+     corretta ("dato che non metto le dita in simultanea... fa il puntino
+     dove tocca prima il dito"). Qui il fix è strutturale, non più
+     correttivo: `_on_interaction_start()`/`_on_interaction_update()` non
+     dipingono più NULLA (né cursore gomma né tratto penna) finché non è
+     trascorsa `_INTENT_CONFIRM_S` dall'inizio del gesto con un solo dito
+     — se un secondo dito arriva prima (il caso normale di un pizzico),
+     zero pennellate sono MAI arrivate al client, nulla da ripulire. I
+     punti toccati durante l'attesa restano bufferizzati
+     (`self._current_points` per la penna, `self._pending_erase_points`
+     per la gomma) e vengono "recuperati" tutti insieme non appena la
+     soglia scade o il gesto termina prima di allora (tocco singolo
+     rapido) — nessun punto viene mai perso, solo il primo ridisegno
+     visibile è ritardato di un tempo sotto la soglia di percezione umana
+     del ritardo.
+
 Le due viste NON sono libere di divergere di nuovo: `MapDrawingCanvas` è
 l'UNICO punto che sa costruire canvas/gesture/toolbar per una mappa
 disegnabile — un chiamante che riscrivesse la propria copia invece di usare
@@ -72,6 +98,7 @@ import base64
 import json
 import logging
 import math
+import time
 from typing import Any, Callable, cast
 
 import flet as ft
@@ -134,6 +161,13 @@ _TOP_ROW_STACK_BP = 950
 #: subito dopo uno zoom al limite finirebbe leggermente disallineato.
 _MIN_SCALE = 1.0
 _MAX_SCALE = 5.0
+
+#: Finestra di conferma prima di dipingere QUALUNQUE segno visibile
+#: (cursore gomma o linea penna) dal tocco di un dito solo — vedi il punto
+#: 5 del docstring del modulo (BUG FIX 2026-08-26, "pallini" residui
+#: durante il pizzico). Un dito genuino resta comunque reattivo: la soglia
+#: è sotto la percezione umana di "ritardo" (~100ms).
+_INTENT_CONFIRM_S = 0.08
 
 
 def data_uri(b64: str) -> str:
@@ -356,6 +390,24 @@ class MapDrawingCanvas:
         #: gesto).
         self._gesture_ref_focal: dict[bool, tuple[float, float] | None] = {False: None, True: None}
         self._gesture_scale_start: dict[bool, float] = {False: 1.0, True: 1.0}
+        #: Istante (`time.monotonic()`) in cui il gesto CORRENTE è
+        #: iniziato con un dito solo — vedi punto 5 del docstring del
+        #: modulo. `_gesture_painted` diventa `True` la prima volta che
+        #: il gesto ha DAVVERO dipinto qualcosa (dopo `_INTENT_CONFIRM_S`,
+        #: o subito se già `True` in questo stesso gesto): finché resta
+        #: `False`, niente è mai arrivato al client, quindi una eventuale
+        #: riclassificazione a "view" non ha nulla da ripulire.
+        self._gesture_start_t: dict[bool, float] = {False: 0.0, True: 0.0}
+        self._gesture_painted: dict[bool, bool] = {False: False, True: False}
+        #: Punti (coordinate di contenuto) toccati dalla gomma PRIMA che
+        #: `_INTENT_CONFIRM_S` scada — rigiocati in ordine non appena la
+        #: soglia scade (o al sollevamento del dito, se prima), così un
+        #: tocco/trascinamento genuino non perde nulla di ciò che ha
+        #: "cancellato" durante l'attesa. Il tratto penna non ha bisogno
+        #: dell'equivalente: `self._current_points` bufferizza già tutto,
+        #: `_redraw_live_stroke()` disegna l'intera polilinea in un colpo
+        #: solo appena si comincia a dipingere.
+        self._pending_erase_points: dict[bool, list[list[float]]] = {False: [], True: []}
         #: Dimensione CORRENTE (pixel) del riquadro — letta da
         #: `on_size_change`, MAI sincrona (Flet 0.86.5 non offre altro
         #: modo). Parte a [0,0]: un tratto completato prima del primo
@@ -808,17 +860,27 @@ class MapDrawingCanvas:
             return
 
         x, y = self._to_scene(is_fs, e.local_focal_point.x, e.local_focal_point.y)
+        # Nessuna pennellata QUI, in nessuno dei due rami — vedi punto 5 del
+        # docstring del modulo: finché non è passata `_INTENT_CONFIRM_S`
+        # (o il gesto non è già stato "confermato" da un fotogramma
+        # precedente, impossibile al primissimo tocco), il tocco potrebbe
+        # ancora rivelarsi il primo dito di un pizzico — dipingere subito
+        # significherebbe dover ripulire un fotogramma già arrivato al
+        # client reale.
+        self._gesture_start_t[is_fs] = time.monotonic()
+        self._gesture_painted[is_fs] = False
         if self._draw_mode == "eraser":
             self._gesture_kind[is_fs] = "erase"
             # Un solo snapshot per l'INTERO trascinamento della gomma (non
             # uno per ogni micro-cancellazione lungo il percorso): "Annulla"
             # deve ripristinare l'intera passata di gomma con un click solo,
             # non un frammento minuscolo di essa — vedi il commento su
-            # `self._history` nell'`__init__`.
+            # `self._history` nell'`__init__`. Va bene prenderlo subito:
+            # non dipinge nulla di suo, e se il gesto si rivela un pizzico
+            # non viene mai consumato (nessuna cancellazione applicata).
             self._snapshot()
             self._eraser_cursor_pos = [x, y]
-            self._redraw_canvas(canvas, is_fs)
-            self._safe_update(canvas, "on_interaction_start/eraser")
+            self._pending_erase_points[is_fs] = [[x, y]]
             return
         self._gesture_kind[is_fs] = "draw"
         self._current_points.clear()
@@ -853,14 +915,23 @@ class MapDrawingCanvas:
             # mai bloccarsi sulla prima informazione se il gesto la
             # smentisce quasi subito.
             self._gesture_kind[is_fs] = "view"
+            # `_gesture_painted[is_fs]` distingue se c'è DAVVERO qualcosa da
+            # ripulire sul client (punto 5 del docstring del modulo): nel
+            # caso normale di un pizzico vero, il secondo dito arriva ben
+            # prima di `_INTENT_CONFIRM_S` e non è mai stato dipinto
+            # nulla — niente ridisegno/`_safe_update` da mandare, quindi
+            # nessun fotogramma "pallino" può mai comparire sul client.
             if kind == "erase":
                 self._eraser_cursor_pos = None
-                self._redraw_canvas(canvas, is_fs)
-                self._safe_update(canvas, "on_interaction_update/erase-reclassified")
+                self._pending_erase_points[is_fs] = []
+                if self._gesture_painted[is_fs]:
+                    self._redraw_canvas(canvas, is_fs)
+                    self._safe_update(canvas, "on_interaction_update/erase-reclassified")
             elif kind == "draw":
                 self._current_points.clear()
-                self._redraw_canvas(canvas, is_fs)
-                self._safe_update(canvas, "on_interaction_update/draw-reclassified")
+                if self._gesture_painted[is_fs]:
+                    self._redraw_canvas(canvas, is_fs)
+                    self._safe_update(canvas, "on_interaction_update/draw-reclassified")
             self._gesture_scale_start[is_fs] = self._view_scale[is_fs]
             self._gesture_ref_focal[is_fs] = self._to_scene(
                 is_fs, e.local_focal_point.x, e.local_focal_point.y)
@@ -873,8 +944,32 @@ class MapDrawingCanvas:
             return
 
         x, y = self._to_scene(is_fs, e.local_focal_point.x, e.local_focal_point.y)
+        # Un dito solo confermato (pointer_count == 1 su questo evento, kind
+        # già "erase"/"draw"): dipinge davvero solo se il gesto è già
+        # "confermato" da un fotogramma precedente, oppure se è trascorsa
+        # `_INTENT_CONFIRM_S` da quando ha toccato — vedi punto 5 del
+        # docstring del modulo. Prima di allora bufferizza soltanto: se il
+        # secondo dito arriva nel frattempo, il ramo `pointer_count >= 2`
+        # sopra scarta il buffer senza che nulla sia mai stato disegnato.
+        confirmed = self._gesture_painted[is_fs] or (
+            time.monotonic() - self._gesture_start_t[is_fs] >= _INTENT_CONFIRM_S
+        )
         if kind == "erase":
             self._eraser_cursor_pos = [x, y]
+            if not confirmed:
+                self._pending_erase_points[is_fs].append([x, y])
+                return
+            if not self._gesture_painted[is_fs]:
+                # La soglia scade proprio ora: recupera in ordine tutti i
+                # punti toccati durante l'attesa, così un trascinamento
+                # rapido non perde il tratto iniziale di cancellazione.
+                for px, py in self._pending_erase_points[is_fs]:
+                    if self._eraser_sub == "stroke":
+                        self._erase_strokes_at(px, py, canvas)
+                    else:
+                        self._erase_segments_at(px, py, canvas)
+                self._pending_erase_points[is_fs] = []
+                self._gesture_painted[is_fs] = True
             if self._eraser_sub == "stroke":
                 self._erase_strokes_at(x, y, canvas)
             else:
@@ -884,6 +979,9 @@ class MapDrawingCanvas:
             return
         if kind == "draw":
             self._current_points.append([x, y])
+            if not confirmed:
+                return
+            self._gesture_painted[is_fs] = True
             self._redraw_live_stroke(canvas, is_fs)
             self._safe_update(canvas, "on_interaction_update/pen")
 
@@ -896,6 +994,18 @@ class MapDrawingCanvas:
 
         self._eraser_cursor_pos = None
         if kind == "erase":
+            # Il gesto è finito prima che `_INTENT_CONFIRM_S` scadesse (tocco
+            # rapido, non un pizzico — altrimenti `kind` sarebbe già "view",
+            # vedi sopra): recupera ORA i punti bufferizzati, così una
+            # cancellazione veloce non va persa — vedi punto 5 del docstring
+            # del modulo.
+            if not self._gesture_painted[is_fs]:
+                for px, py in self._pending_erase_points[is_fs]:
+                    if self._eraser_sub == "stroke":
+                        self._erase_strokes_at(px, py, canvas)
+                    else:
+                        self._erase_segments_at(px, py, canvas)
+                self._pending_erase_points[is_fs] = []
             self._update_all_canvases()
             return
         if len(self._current_points) >= 2:

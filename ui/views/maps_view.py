@@ -73,9 +73,16 @@ class MapsView(ft.Column):
     vedi `ui/components/map_drawing_canvas.py`.
     """
 
-    def __init__(self, character: Character):
+    def __init__(self, character: Character, *, is_mobile: bool = False):
         super().__init__(expand=True, spacing=0)
         self.character = character
+        # Solo per `design.hero_title("Mappe", is_mobile=...)` nella
+        # toolbar in alto (vedi `_build_top_toolbar()`): senza, il titolo
+        # di sezione restava sempre a `Size.HERO` (40px) anche su
+        # smartphone, dove risultava sproporzionato — bug segnalato da
+        # Davide distinto da quello (già corretto) dell'etichetta "Mappe"
+        # nella bottom nav, che invece andava a capo.
+        self._is_mobile = is_mobile
         self._page: ft.Page | None = None
         self._maps: list[GameMap] = []
         # `ScrollMemoryListView`: `_refresh_shared_maps()` ricostruisce
@@ -296,7 +303,8 @@ class MapsView(ft.Column):
                 [
                     design.icon_badge(ft.Icons.MAP, tone="primary"),
                     ft.Container(width=design.Space.MD),
-                    ft.Container(content=design.hero_title("Mappe"), expand=True),
+                    ft.Container(content=design.hero_title("Mappe", is_mobile=self._is_mobile),
+                                 expand=True),
                     ft.ElevatedButton(
                         "＋ Nuova Mappa", icon=ft.Icons.MAP,
                         on_click=lambda e: self._open_create_dialog(),

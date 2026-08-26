@@ -686,7 +686,7 @@ class DnDApp:
                 return self._placeholder_view("Mappe", ft.Icons.MAP, "")
             char = character_repo.get_by_id(self.current_character_id)
             if char:
-                return MapsView(char)
+                return MapsView(char, is_mobile=self._mobile)
             return self._placeholder_view("Mappe", ft.Icons.MAP, "")
         elif key == "dice":
             from ui.views.dice_view import DiceView

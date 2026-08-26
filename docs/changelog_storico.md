@@ -12410,6 +12410,68 @@ giro invece che al terzo.
 
 ---
 
+## Il "pallino" del pizzico persisteva anche dopo v0.3.11 — fix strutturale, non più correttivo (2026-08-26, v0.3.13)
+
+Davide, dopo aver testato v0.3.12 (fix dello "scatto" su "Sposta"): "ok risolto il
+problema di quando si cambia a sposta, ma persiste ancora il problema di quando si
+pizzica, la mia impressione è che dato che non metto le dita in simultanea sullo
+schermo, inevitabilmente toccherò lo schermo qualche millisecondo prima con un dito,
+fa il puntino dove tocca prima il dito". Diagnosi corretta, e utile: spiega perché il
+fix v0.3.11 non bastava.
+
+Il fix precedente (v0.3.11) riclassificava il gesto a "view" e ripuliva cursore/tratto
+in corso non appena arrivava un secondo dito — ma solo DOPO che il primo dito, da
+solo, aveva già dipinto qualcosa: il cursore della gomma veniva disegnato
+IMMEDIATAMENTE al tocco (`_on_interaction_start`), e quel fotogramma raggiungeva
+davvero il client via un `_safe_update()` separato PRIMA che il secondo dito arrivasse
+a innescare la ripulitura. "Ripulire dopo" non impedisce che l'occhio veda comparire
+il pallino per un istante — tanto più visibile quanto più la connessione è lenta,
+esattamente il tipo di sintomo che un test automatico (eventi sincroni, nessun vero
+ritardo di rete) non avrebbe mai potuto cogliere da solo, e che infatti il test [10]
+esistente non copriva: verificava solo che il cursore SPARISSE dopo la riclassifica,
+mai che non fosse MAI comparso.
+
+**Fix strutturale**: `_on_interaction_start()`/`_on_interaction_update()` non dipingono
+più nulla (né cursore gomma né tratto penna) al primo tocco — nessuna `_redraw_canvas`/
+`_safe_update`, quindi zero pennellate arrivano mai al client finché non è trascorsa
+una soglia di conferma (`_INTENT_CONFIRM_S = 80ms`) dall'inizio del gesto con un solo
+dito. Un vero pizzico ha il secondo dito ben dentro quella finestra (la stessa
+osservazione empirica già alla base del fix v0.3.11): quando arriva, il gesto si
+riclassifica a "view" e NON C'È NULLA DA RIPULIRE, perché non è mai stato disegnato
+niente — l'unico modo per garantire "mai un fotogramma visibile" è non produrne mai
+uno prematuro, non correggerlo a posteriori.
+
+I punti toccati durante l'attesa non vengono persi: la penna li bufferizza già in
+`self._current_points` (nessuna struttura nuova necessaria — `_redraw_live_stroke()`
+disegna l'intera polilinea in un colpo solo appena si comincia a dipingere), la gomma
+li bufferizza in un nuovo `self._pending_erase_points` e li "recupera" in ordine non
+appena la soglia scade — o, se il gesto termina prima che scada (un tap-gomma rapido,
+non un trascinamento), al rilascio del dito (`_on_interaction_end`). Un dito solo
+genuino continua quindi a disegnare/cancellare normalmente, con un ritardo di ~80ms
+sulla primissima pennellata — sotto la soglia di percezione umana del ritardo, e
+comunque non peggiore del giro websocket già presente in ogni update.
+
+`test_mappe_locali_coordinate.py` — riscritto il test [10] per verificare la garanzia
+più forte (nessuna `cv.Circle`/`cv.Path` compare in NESSUN momento durante un pizzico
+che inizia a un dito solo, non solo che sparisca dopo), aggiunto [10b] per la
+controparte (un dito solo genuino disegna/cancella normalmente dopo la soglia, e un
+tap-gomma rapido senza `on_interaction_update` nel mezzo non perde la cancellazione).
+Le altre suite (`test_mappe_condivise_ui.py`, `test_mappe_condivise.py`,
+`test_regressione_wrap_expand.py`) restano verdi senza modifiche: il ritardo di 80ms
+non serviva a nessun'altra logica testata lì.
+
+**Bug scorrelato, stesso giro**: Davide ha segnalato anche che "il titolo mappa nella
+sezione mappe... continua ad essere troppo grande" — non l'etichetta "Mappe" della
+bottom nav (già corretta in v0.3.11, quella andava a capo), ma il titolo di sezione in
+alto (`design.hero_title("Mappe")` in `_build_top_toolbar()`), che non riceveva mai
+`is_mobile` e restava sempre a `Size.HERO` (40px) anche su smartphone, dove
+`hero_title()` prevede invece `Size.DISPLAY` (32px) sotto la soglia mobile — lo stesso
+pattern già usato altrove (es. `master_notes_view.py`). `MapsView` ora accetta
+`is_mobile: bool = False` nel costruttore (passato da `ui/app.py::_get_section_view()`
+come `self._mobile`, già calcolato centralmente) e lo inoltra a `hero_title()`.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei
