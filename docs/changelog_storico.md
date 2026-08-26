@@ -12472,6 +12472,48 @@ come `self._mobile`, già calcolato centralmente) e lo inoltra a `hero_title()`.
 
 ---
 
+## Il segno si spostava dall'inizio alla fine del pizzico — Flutter riapre il gesto quando un dito si solleva (2026-08-26, v0.3.14)
+
+Davide, dopo aver testato v0.3.13: "ok, adesso il titolo va bene, e per lo zoom rimane
+il segno quando tolgo l'ultimo dito dallo schermo e non più quando metto il primo dito
+sullo schermo". Il fix precedente aveva funzionato esattamente come previsto per
+l'INIZIO del pizzico (nessun segno più al primo tocco) — ma il sintomo si era spostato
+alla FINE, un indizio preciso che restava una seconda causa strutturalmente simile,
+non ancora coperta.
+
+Verificato sul sorgente reale di Flutter (`packages/flutter/lib/src/gestures/
+scale.dart::ScaleGestureRecognizer._reconfigure()`, via `gh api`, non per analogia):
+il gesto "scale" (`onScaleStart/Update/End`, quello che questo componente usa per
+disegno/gomma/pizzico) chiude il gesto corrente (`onEnd`) a OGNI cambiamento nel
+numero di dita mentre è già "avviato" — non solo quando se ne aggiunge uno, ma anche
+quando se ne toglie uno. Se, dopo che il PRIMO dei due diti di un pizzico si solleva, il
+dito RIMASTO si muove anche minimamente prima di sollevarsi a sua volta (fisiologico:
+due dita raramente si staccano in un istante identico), Flutter RIAPRE un gesto nuovo
+per quel dito solo (`onStart`, un secondo `_on_interaction_start` con
+`pointer_count == 1`) — senza che l'utente abbia davvero staccato e ritoccato lo
+schermo. Prima di questo fix, `_on_interaction_start()` non aveva modo di distinguere
+questa "coda fantasma" da un tocco genuino, e la classificava come disegno/gomma: in
+Gomma, la logica che applica deliberatamente la cancellazione bufferizzata anche su un
+gesto brevissimo (per non perdere un vero tap rapido, fix v0.3.13) cancellava qualcosa
+esattamente nel punto in cui l'ultimo dito si era sollevato — il "segno" segnalato.
+
+**Fix**: `_on_interaction_end()` registra l'istante in cui l'ultimo gesto "view" è
+terminato (`self._last_view_end_t`); `_on_interaction_start()` tratta un nuovo tocco a
+un dito solo arrivato entro `_VIEW_TAIL_GRACE_S` (0.15s) da quella fine come
+continuazione del "view" invece che come un tocco nuovo — stesso principio della
+finestra di conferma già introdotta in v0.3.13, applicato simmetricamente alla fine del
+gesto invece che solo all'inizio. Un tocco deliberato genuino, capitato per coincidenza
+subito dopo un pizzico, resta comunque reattivo con lo stesso ritardo impercettibile.
+
+`test_mappe_locali_coordinate.py` — nuovo test [11]: simula un pizzico che finisce con
+un dito solo che si "riapre" (clock finto a passo minuscolo per restare dentro la
+finestra), verifica che NON cancelli il tratto sotto di esso, e verifica la controprova
+(un tap genuino arrivato DOPO la finestra cancella normalmente). 57/57 controlli
+passati; le altre suite (`test_mappe_condivise_ui.py`, `test_mappe_condivise.py`,
+`test_regressione_wrap_expand.py`) restano verdi senza modifiche.
+
+---
+
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del
 > progetto (il file principale era cresciuto fino a superare 860 KB, causando compattazioni troppo frequenti della
 > chat). Il contenuto è verbatim, nessuna informazione è stata riassunta o rimossa. Per la mappa completa dei

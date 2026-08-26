@@ -940,6 +940,87 @@ def test_dito_solo_genuino_dipinge_dopo_la_soglia_di_conferma() -> None:
           "rilascio", mv._canvas._strokes == [])
 
 
+def test_coda_fantasma_pizzico_non_cancella_al_sollevamento() -> None:
+    """
+    Bug report Davide (2026-08-26, dopo v0.3.13): "adesso... rimane il
+    segno quando tolgo l'ultimo dito dallo schermo e non più quando metto
+    il primo dito sullo schermo". Il fix [10]/[10b] elimina la pennellata
+    prematura all'INIZIO di un pizzico, ma non copre la FINE: quando il
+    primo dei due diti si solleva, Flutter chiude il gesto "view"
+    (`onEnd`) — se il dito rimasto si muove anche minimamente prima di
+    sollevarsi a sua volta, Flutter RIAPRE un gesto a un dito solo per lui
+    (`onStart`, verificato sul sorgente reale di
+    `ScaleGestureRecognizer._reconfigure()`), SENZA che l'utente abbia
+    davvero staccato e ritoccato lo schermo. Prima di questo fix,
+    `_on_interaction_start()` classificava quella coda fantasma come
+    disegno/gomma — in Gomma, la logica del punto 5 (che applica
+    DELIBERATAMENTE la cancellazione bufferizzata anche su un gesto
+    brevissimo, per non perdere un vero tap rapido) cancellava qualcosa
+    nel punto in cui l'ultimo dito si è sollevato.
+    """
+    print("\n[11] Una coda fantasma di pizzico (il dito rimasto si muove "
+          "prima di sollevarsi) non cancella nulla al sollevamento (BUG "
+          "FIX 2026-08-26, sesto giro)")
+    from ui.views.maps_view import MapsView
+
+    character = _make_character()
+    gm = maps_repo.create_map(character.id, "Mappa Coda Fantasma")
+    assert gm is not None
+
+    mv = MapsView(character)
+    mv._page = _FakePage()
+    mv._open_detail(gm)
+    panel = mv.controls[-1]
+    resize = _resize_container(panel)
+    resize.on_size_change(_FakeSizeEvent(400, 300))
+    viewer = _viewer_of(panel)
+    canvas = mv._canvas._canvas[False]
+    assert canvas is not None
+
+    mv._canvas._draw_mode = "eraser"
+    x0, y0, dw0, dh0 = mv._canvas._draw_rect_for(canvas)
+    stroke_x = x0 + dw0 * 0.5
+    stroke_y = y0 + dh0 * 0.5
+    mv._canvas._strokes = [{
+        "type": "stroke", "color": "#ffffff", "width": 5.0,
+        "points": geo.normalize_points([[stroke_x, stroke_y], [stroke_x + 10, stroke_y]],
+                                        dw0, dh0, x0, y0),
+    }]
+    mv._canvas._static_shapes[False] = None
+
+    # -- Un vero pizzico: parte già a due dita, zoomma, poi il PRIMO dito si
+    # solleva (pointer_count=2 -> onEnd con kind "view"), e SUBITO dopo
+    # (clock finto a passo minuscolo, ben sotto `_VIEW_TAIL_GRACE_S`) il
+    # dito rimasto riapre un gesto a un dito solo — la "coda fantasma".
+    old_time = mdc.time
+    mdc.time = _FakeTimeModule(step=0.001, start=old_time._t)
+    try:
+        viewer.on_interaction_start(_FakeScaleStartEvent(200, 150, pointer_count=2))
+        viewer.on_interaction_update(_FakeScaleUpdateEvent(200, 150, pointer_count=2, scale=1.5))
+        viewer.on_interaction_end(_FakeScaleEndEvent(pointer_count=2))
+        check("la fine del pizzico è tracciata come fine di un gesto 'view'",
+              mv._canvas._last_view_end_t[False] > -1e9)
+
+        viewer.on_interaction_start(_FakeScaleStartEvent(stroke_x, stroke_y))
+        check("BUG FIX: la coda fantasma viene riconosciuta come 'view', non "
+              "come un nuovo tocco gomma",
+              mv._canvas._gesture_kind[False] == "view")
+        viewer.on_interaction_end(_FakeScaleEndEvent())
+        check("BUG FIX: nessuna cancellazione avviene al sollevamento della "
+              "coda fantasma", mv._canvas._strokes != [])
+    finally:
+        mdc.time = old_time
+
+    # -- Controprova: un tocco genuino ARRIVATO DOPO la finestra di
+    # diffidenza (clock avanzato oltre `_VIEW_TAIL_GRACE_S`) deve invece
+    # cancellare normalmente — il fix non deve rompere un tap-gomma reale
+    # che capita per caso subito dopo un pizzico.
+    viewer.on_interaction_start(_FakeScaleStartEvent(stroke_x, stroke_y))
+    viewer.on_interaction_end(_FakeScaleEndEvent())
+    check("un tap-gomma genuino, arrivato dopo la finestra di diffidenza, "
+          "cancella normalmente", mv._canvas._strokes == [])
+
+
 def main() -> int:
     print("=" * 62)
     print("Mappe locali — fix coordinate 2026-08-12 (inline/schermo intero/gomma)")
@@ -957,6 +1038,7 @@ def main() -> int:
     test_cache_tratti_salvati_durante_trascinamento()
     test_secondo_dito_in_ritardo_non_lascia_cursore_congelato()
     test_dito_solo_genuino_dipinge_dopo_la_soglia_di_conferma()
+    test_coda_fantasma_pizzico_non_cancella_al_sollevamento()
     print("\n" + "=" * 62)
     print(f"Controlli passati: {_PASS} — falliti: {len(_FAIL)}")
     if _FAIL:

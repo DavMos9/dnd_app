@@ -86,6 +86,36 @@ corretti qui:
      visibile è ritardato di un tempo sotto la soglia di percezione umana
      del ritardo.
 
+  6. **Il segno restava al sollevamento dell'ULTIMO dito, non più al primo
+     tocco** (2026-08-26, sesto giro): il punto 5 elimina la pennellata
+     prematura all'INIZIO di un pizzico, ma Davide ha segnalato che il
+     segno si spostava alla FINE — "rimane il segno quando tolgo l'ultimo
+     dito dallo schermo e non più quando metto il primo dito". Causa
+     verificata sul sorgente reale di Flutter
+     (`packages/flutter/lib/src/gestures/scale.dart::_reconfigure()`, non
+     per analogia): il gesto "view" a due dita non finisce sempre in un
+     colpo solo. Quando il PRIMO dei due si solleva, Flutter chiude quel
+     gesto (`onEnd`, che qui arriva come `_on_interaction_end` con
+     `kind == "view"`, innocuo) — ma se il dito RIMASTO si muove anche
+     minimamente prima di sollevarsi a sua volta (fisiologico: raramente
+     due dita si staccano in un istante perfettamente identico), Flutter
+     RIAPRE un gesto nuovo per quel dito solo (`onStart`, un secondo
+     `_on_interaction_start` con `pointer_count == 1`) — SENZA che l'utente
+     abbia davvero staccato e ritoccato lo schermo. Prima di questo fix,
+     `_on_interaction_start()` non aveva modo di distinguere questa "coda"
+     fantasma da un tocco genuino: la classificava come disegno/gomma —
+     in Gomma, `_on_interaction_end()` del punto 5 applica DELIBERATAMENTE
+     la cancellazione bufferizzata anche su un gesto brevissimo (per non
+     perdere un vero tap rapido), quindi cancellava qualcosa nel punto
+     esatto in cui l'ultimo dito si è sollevato. Qui `_on_interaction_start()`
+     tiene traccia di quando l'ULTIMO gesto "view" è terminato
+     (`self._last_view_end_t`): un nuovo tocco a un dito solo entro
+     `_VIEW_TAIL_GRACE_S` da quella fine viene trattato anch'esso come
+     "view" (ignorato ai fini di disegno/gomma) invece che come un tocco
+     nuovo — un vero tocco deliberato subito dopo un pizzico resta comunque
+     reattivo, solo ritardato di una soglia sotto la percezione umana,
+     stesso principio del punto 5.
+
 Le due viste NON sono libere di divergere di nuovo: `MapDrawingCanvas` è
 l'UNICO punto che sa costruire canvas/gesture/toolbar per una mappa
 disegnabile — un chiamante che riscrivesse la propria copia invece di usare
@@ -168,6 +198,19 @@ _MAX_SCALE = 5.0
 #: durante il pizzico). Un dito genuino resta comunque reattivo: la soglia
 #: è sotto la percezione umana di "ritardo" (~100ms).
 _INTENT_CONFIRM_S = 0.08
+
+#: Finestra di "diffidenza" dopo la fine di un gesto "view" (pizzico/pan) —
+#: vedi il punto 6 del docstring del modulo (BUG FIX 2026-08-26, sesto
+#: giro): il `ScaleGestureRecognizer` di Flutter (verificato sul sorgente
+#: reale, `packages/flutter/lib/src/gestures/scale.dart::_reconfigure()`)
+#: chiude il gesto corrente (`onEnd`) a OGNI cambio nel numero di dita —
+#: anche quando un dito si solleva mentre l'altro resta giù, non solo
+#: quando se ne aggiunge uno — e lo riapre (`onStart`) per le dita rimaste,
+#: SENZA che l'utente abbia davvero staccato e ritoccato lo schermo. Un
+#: `_on_interaction_start()` con un dito solo che arriva a meno di questa
+#: soglia dalla fine dell'ultimo gesto "view" è quasi certamente questa
+#: "coda" fantasma, non un tocco nuovo — vedi lì.
+_VIEW_TAIL_GRACE_S = 0.15
 
 
 def data_uri(b64: str) -> str:
@@ -408,6 +451,12 @@ class MapDrawingCanvas:
         #: `_redraw_live_stroke()` disegna l'intera polilinea in un colpo
         #: solo appena si comincia a dipingere.
         self._pending_erase_points: dict[bool, list[list[float]]] = {False: [], True: []}
+        #: Istante in cui l'ULTIMO gesto "view" è terminato per questo
+        #: pannello — vedi punto 6 del docstring del modulo. Parte
+        #: volutamente lontanissimo nel passato: prima di qualunque gesto
+        #: reale, `_on_interaction_start()` non deve MAI sospettare una
+        #: "coda" fantasma.
+        self._last_view_end_t: dict[bool, float] = {False: -1e9, True: -1e9}
         #: Dimensione CORRENTE (pixel) del riquadro — letta da
         #: `on_size_change`, MAI sincrona (Flet 0.86.5 non offre altro
         #: modo). Parte a [0,0]: un tratto completato prima del primo
@@ -852,6 +901,15 @@ class MapDrawingCanvas:
             or not self._box_ready[is_fs]  # box ancora sconosciuto: vedi punto 2
             or e.pointer_count >= 2         # due o più dita: sempre zoom/pan
         )
+        # Coda fantasma di un pizzico appena finito — vedi punto 6 del
+        # docstring del modulo: Flutter può riaprire un gesto a un dito
+        # solo per il dito rimasto quando il primo dei due si solleva,
+        # senza che l'utente abbia davvero staccato e ritoccato lo
+        # schermo. Trattarla come "view" (ignorata ai fini di
+        # disegno/gomma) invece che come un tocco nuovo.
+        view = view or (
+            time.monotonic() - self._last_view_end_t[is_fs] < _VIEW_TAIL_GRACE_S
+        )
         if view:
             self._gesture_kind[is_fs] = "view"
             self._gesture_scale_start[is_fs] = self._view_scale[is_fs]
@@ -989,7 +1047,15 @@ class MapDrawingCanvas:
         is_fs = canvas is self._canvas[True]
         kind = self._gesture_kind.pop(is_fs, None)
         self._gesture_ref_focal[is_fs] = None
-        if kind == "view" or kind is None:
+        if kind == "view":
+            # Vedi punto 6 del docstring del modulo: se il dito rimasto si
+            # muove prima di sollevarsi a sua volta, Flutter riapre un
+            # gesto a un dito solo per lui — `_on_interaction_start()` usa
+            # questo istante per riconoscerlo come coda fantasma, non un
+            # tocco nuovo.
+            self._last_view_end_t[is_fs] = time.monotonic()
+            return
+        if kind is None:
             return
 
         self._eraser_cursor_pos = None
