@@ -12835,6 +12835,102 @@ rifinitura `MasterLootView` (`_update_entry_card()` per sostituire una sola
 card in `_refresh_list_only()`). Piano completo con la forma target di ogni
 punto salvato per quando Davide deciderà di riprendere questo lavoro.
 
+## Refresh mirati, Fase 2 — Rubrica NPC, Incontri, rifinitura Bottino, sezioni rimanenti di Mondi (2026-08-27/28, v0.3.20)
+
+Ripresa della Fase 2 lasciata solo pianificata sopra, su richiesta di
+Davide ("procedi con il resto del piano"). Stessa regola guida della Fase
+1: un punto di chiamata passa a un aggiornamento mirato solo se l'azione
+non può cambiare quali elementi esistono, il loro ordine a schermo, o il
+contenuto di una sezione "sorella" — altrimenti resta sul rebuild completo.
+
+**1. `MasterNpcListView` (Rubrica NPC).** Non aveva ancora nessuna
+`ScrollMemoryColumn` — aggiunta ora, spostando lo scroll dalla vista intera
+(header incluso) al solo elenco (`self._list_col`), così titolo e barra di
+ricerca restano fissi. Nuovo `_sync_npc_row(npc_id)`, usato da creazione/
+modifica/eliminazione: ricarica sempre `master_repo.get_npcs()` da DB, poi
+— dato che l'elenco è ordinato per nome — se la posizione alfabetica
+dell'NPC non è cambiata scambia solo quella riga in posizione; se un
+NPC esce dai risultati (eliminato o filtrato dalla ricerca) rimuove solo
+quella riga; se la posizione È cambiata (es. una rinomina che sposta
+l'NPC nell'ordinamento) o la riga non era ancora montata (creazione),
+ricostruisce l'intera lista come rete di sicurezza invece di rischiare un
+ordine sbagliato con uno scambio cieco.
+
+**2. `MasterEncounterListView` (lista Incontri).** Stessa
+`ScrollMemoryColumn` aggiunta. Nuovo `_remove_encounter_row(encounter_id)`
+per eliminazione e per "Riapri" da Archiviati (che sposta l'incontro fuori
+dal filtro Attivi/Archiviati corrente) — una semplice rimozione, sicura
+perché l'ordinamento per data di ultima modifica delle righe restanti non
+cambia togliendo un elemento. Creazione/generazione di un nuovo incontro
+lasciate deliberatamente sul refresh completo: navigano subito alla vista
+del tracker, quindi non c'è alcun flash da evitare.
+
+**3. `MasterLootView`, rifinitura.** Nuovo `_update_entry_card(entry_id)`:
+l'elenco è ordinato per data di creazione, mai toccata da un aggiornamento
+in posto (`loot_repo.update_entry()`), quindi lo scambio in posizione è
+sempre sicuro qui, senza bisogno del ramo "posizione cambiata" usato per
+NPC. Usato solo da "Modifica Voce" per un tipo non monetario — "Modifica
+Monete" resta sul `_refresh_list_only()` di sempre perché quel percorso fa
+elimina+ricrea (id e data di creazione nuovi, la voce si sposterebbe in
+fondo alla lista, non un semplice aggiornamento in posto).
+
+**4. `WorldsView`, 3 sezioni aggiuntive containerizzate.** `_hosting_section`
+(avvia/ferma hosting, approva/rifiuta richiesta d'ingresso, "Aggiorna
+richieste"), `_shared_maps_section` (pubblica/carica/nascondi/elimina
+mappa) e `_pending_change_requests_section` (accetta/rifiuta una
+"Richiesta in sospeso") sono ora ciascuna in un `ft.Container` persistente
+con helper dedicato (`_update_hosting_section()`/
+`_update_shared_maps_section()`/`_update_pending_requests_section()`),
+stesso pattern della Fase 1. **Deliberatamente NON containerizzate/
+ricablate**: `_remote_actions_section` ("Interviene a distanza") e
+`_pending_rejoin_requests_section` ("Richieste di rientro") condividono lo
+stesso funnel `_send_remote_command()`, usato anche per PE/danno/cura/
+condizione/proponi-modifica — un'azione lì può aggiornare l'UNA o l'ALTRA
+sezione a seconda del tipo di comando (es. `_respond_rejoin_request()`
+chiama lo stesso `_send_remote_command()` usato dalle righe di "Interviene
+a distanza"), quindi ricablare solo a una delle due avrebbe rischiato di
+lasciare l'altra con dati vecchi — stessa lezione della cache non
+ricaricata del 2026-08-24 (vedi "Refresh reload solo parziale"), qui
+applicata **prima** di introdurre il bug invece che dopo averlo trovato.
+Rinomina/codice ingresso/zona pericolosa/personaggi archiviati/Registro
+eventi/Backup restano sul rebuild completo: bassa frequenza, nessun punto
+di chiamata locale ne avrebbe beneficiato.
+
+Rilasciato come v0.3.20. **Verificato dal vivo da Davide**: Rubrica NPC
+(crea/modifica anche con riordino alfabetico/elimina), Incontri (elimina/
+riapri), Bottino (modifica voce non monetaria), Mondi (mappe condivise,
+hosting LAN, richieste in sospeso) — "tutti i test passati".
+
+## Bug fix — "Aggiungi all'inventario" nel Generatore Tesori non sincronizzava in un mondo condiviso (2026-08-27, v0.3.21)
+
+Bug report di Davide durante i test della release v0.3.20 sopra (non
+correlato al lavoro di refresh mirati — trovato mentre testava il
+Bottino): nel dialog "Genera Tesoro", il pulsante blu "Aggiungi
+all'inventario" aggiungeva monete/oggetti al personaggio scelto ma la
+scheda di quel personaggio non li vedeva; comparivano solo dopo aver
+premuto anche "Assegna…", e a quel punto insieme a quelli già aggiunti in
+precedenza col pulsante blu.
+
+**Causa** (`ui/views/master/master_treasure_dialog.py`): `_on_add_to_inventory`
+scriveva SEMPRE in locale via `character_repo.update_currencies()`/
+`create_inventory_item()` diretti, anche con un `world_id` di mondo
+condiviso valorizzato — a differenza di "Assegna…" (`_on_assign_loot`),
+che passa da `CMD_LOOT_ASSIGN` (`core/world_backend.py::_handle_loot_assign`)
+quando c'è un mondo. Una scrittura diretta non genera un evento in
+`world_events`/non fa salire `latest_seq`: né il tick di sync periodico né
+una scheda personaggio aperta su un altro dispositivo se ne accorgono mai.
+Quando poi arrivava un "Assegna…" separato (che genera un evento reale),
+`_resync_character_from_host()` rimaterializza lo STATO ATTUALE completo
+del personaggio dall'host — che a quel punto includeva già la scrittura
+diretta precedente — spiegando perché comparivano insieme.
+
+**Fix**: `_on_add_to_inventory` ora instrada anch'esso su `CMD_LOOT_ASSIGN`
+quando `world_id` è valorizzato, con lo stesso `_resolve_backend()` (pattern
+copiato identico da `master_loot_assign_dialog.py`) — resta una scrittura
+locale diretta solo in modalità locale (`world_id == ""`), dove non esiste
+alcuna replica da sincronizzare. Rilasciato come v0.3.21. **Verificato dal
+vivo da Davide**: "tutti i test passati".
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

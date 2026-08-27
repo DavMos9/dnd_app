@@ -1382,6 +1382,40 @@ lunghezza) — quelle restano su `refresh()` completo, così come il tick di
 sync `_async_sync_redraw`. Dettaglio completo in `changelog_storico.md`,
 voce "Refresh mirati invece di rebuild aggressivo... (2026-08-27, v0.3.19)".
 
+**Refresh mirati, Fase 2 (2026-08-27/28, v0.3.20)**: altre 3 sezioni
+containerizzate allo stesso modo — `_hosting_section`
+(`_update_hosting_section()`), `_shared_maps_section`
+(`_update_shared_maps_section()`), `_pending_change_requests_section`
+(`_update_pending_requests_section()`). **Deliberatamente non toccate**:
+`_remote_actions_section`/`_pending_rejoin_requests_section` condividono
+lo stesso funnel `_send_remote_command()` (usato anche per PE/danno/cura/
+condizione/proponi-modifica) — un'azione lì può toccare l'una o l'altra
+sezione a seconda del comando, quindi ricablare solo a una avrebbe
+rischiato dati vecchi nell'altra; restano sul `_refresh_detail()` completo.
+Stesso giro: `ui/views/master/master_npc_list_view.py` (`MasterNpcListView`)
+e `ui/views/master/master_encounter_list_view.py`
+(`MasterEncounterListView`) hanno ora una `ScrollMemoryColumn` (prima
+assente) + un helper di riga mirato (`_sync_npc_row()`/
+`_remove_encounter_row()`, cerca per `data=<id>` taggato sul controllo
+della riga); `ui/views/master/master_loot_view.py` (`MasterLootView`)
+ha un nuovo `_update_entry_card()` per "Modifica Voce" non monetaria
+(sicuro perché l'elenco è ordinato per data di creazione, mai toccata da
+un aggiornamento in posto). Dettaglio completo in `changelog_storico.md`,
+voce "Refresh mirati, Fase 2... (2026-08-27/28, v0.3.20)".
+
+**`ui/views/master/master_treasure_dialog.py`** — dialog "Genera Tesoro"
+(`show_treasure_generator_dialog(page, world_id="", device_id="")`), tira
+tesoro individuale/cumulo per fascia di CR (`core/treasure_generator.py`) +
+Cimelio (1d100). **Bug fix (2026-08-27, v0.3.21)**: "Aggiungi
+all'inventario" scriveva sempre in locale via `character_repo` diretto,
+anche con un `world_id` di mondo condiviso — a differenza di "Assegna…"
+(instrada su `CMD_LOOT_ASSIGN`), quindi non generava l'evento che fa
+arrivare l'aggiunta al tick di sync/a una scheda personaggio aperta su un
+altro dispositivo. Ora `_on_add_to_inventory` instrada anch'esso su
+`CMD_LOOT_ASSIGN` quando `world_id` è valorizzato (stesso
+`_resolve_backend()` di `master_loot_assign_dialog.py`), scrittura diretta
+solo in modalità locale. Dettaglio completo in `changelog_storico.md`.
+
 **`core/character_instances.py`** (Multiplayer passo 3, 2026-08-05) — no
 Flet, ma usa repository/DB direttamente (come `world_backend.py`).
 `InstanceMode = Literal["as_is", "fresh"]`. `create_or_resume_instance(
