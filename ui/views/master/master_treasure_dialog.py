@@ -15,12 +15,28 @@ senza parametri non giustifica una schermata dedicata).
 Accessibile da `MasterView` (bottone in header, "Genera Tesoro").
 
 **Bottino** (`dnd_app/docs/loot_design.md` §6): oltre alla scorciatoia
-"Aggiungi all'inventario" (un solo destinatario, invariata), due pulsanti
+"Aggiungi all'inventario" (un solo destinatario), due pulsanti
 "Assegna…"/"Salva nell'archivio" che aprono
 `master_loot_assign_dialog.show_loot_assign_dialog()`/chiamano
 `save_items_to_stash()` sull'intero risultato del tiro (monete, gemme/oggetti
 d'arte, oggetti magici, cimelio) — così un tesoro tirato ma non ancora
 distribuito non si perde più chiudendo il dialogo.
+
+**Bug fix (2026-08-27)**: "Aggiungi all'inventario" scriveva SEMPRE in
+locale via `character_repo` diretto, anche con un `world_id` valorizzato —
+a differenza di "Assegna…", che passa da `CMD_LOOT_ASSIGN`
+(`core/world_backend.py::_handle_loot_assign`) quando c'è un mondo
+condiviso. La scrittura diretta non genera un `world_events`/non fa salire
+`latest_seq`, quindi né il tick di sync periodico né una scheda personaggio
+aperta su un altro dispositivo se ne accorgono mai — le monete restavano
+invisibili al giocatore finché non arrivava un evento successivo (es. un
+"Assegna…" separato) a forzare un resync completo del personaggio, che
+allora mostrava anche la scrittura diretta precedente insieme. Ora
+"Aggiungi all'inventario" instrada anch'esso su `CMD_LOOT_ASSIGN` quando
+`world_id` è valorizzato (stesso `_resolve_backend()` di
+`master_loot_assign_dialog.py`); resta una scrittura locale diretta solo in
+modalità locale (`world_id == ""`), dove non c'è alcuna replica da
+sincronizzare.
 """
 
 from __future__ import annotations
@@ -32,7 +48,10 @@ from typing import Any, cast
 import flet as ft
 
 from core import treasure_generator as tg
-from data.repositories import character_repo
+from core import world_permissions as perm
+from core import world_sync
+from core.world_backend import LocalBackend
+from data.repositories import character_repo, world_repo
 from ui.widgets import responsive_dialog_width
 from ui import design
 
@@ -57,6 +76,19 @@ def show_treasure_generator_dialog(page: ft.Page, world_id: str = "", device_id:
     result_state: dict[str, Any] = {}
     trinket_state: dict[str, Any] = {}
     characters = character_repo.get_master_visible_characters(world_id)
+    _remote_backends: dict[str, Any] = {}
+
+    def _resolve_backend():
+        """Stesso pattern di `master_loot_assign_dialog.py::_resolve_backend()`
+        — `None` senza un mondo selezionato o con l'host irraggiungibile."""
+        if not world_id:
+            return None
+        world = world_repo.get_world(world_id)
+        if world is None:
+            return None
+        return world_sync.resolve_backend_for_world(
+            world, device_id, LocalBackend(), _remote_backends,
+        )
 
     mode_group = ft.RadioGroup(
         value="individual",
@@ -177,51 +209,87 @@ def show_treasure_generator_dialog(page: ft.Page, world_id: str = "", device_id:
         if not char_id or not result_state:
             return
         currency_map = {"mr": "copper", "ma": "silver", "me": "electrum", "mo": "gold", "mp": "platinum"}
-        existing = character_repo.get_currencies(char_id)
-        totals = {
-            "copper": existing.copper if existing else 0,
-            "silver": existing.silver if existing else 0,
-            "electrum": existing.electrum if existing else 0,
-            "gold": existing.gold if existing else 0,
-            "platinum": existing.platinum if existing else 0,
-        }
+        coin_deltas = {"copper": 0, "silver": 0, "electrum": 0, "gold": 0, "platinum": 0}
         for c in result_state.get("coins", []):
             field = currency_map.get(c["currency"])
             if field and c.get("amount"):
-                totals[field] += c["amount"]
-        ok_currency = character_repo.update_currencies(
-            char_id, totals["copper"], totals["silver"], totals["electrum"],
-            totals["gold"], totals["platinum"],
-        )
+                coin_deltas[field] += c["amount"]
 
-        added_items = 0
+        # Voci non monetarie in forma "payload rete" (stesse chiavi lette da
+        # `core.world_backend._handle_loot_assign`) — usate sia per il
+        # percorso di rete sia (leggendo solo name/quantity/category/
+        # description) per la scrittura diretta qui sotto, un solo posto
+        # dove elencare gemme/arte/oggetti magici/cimelio.
+        remote_items: list[dict[str, Any]] = []
         ga = result_state.get("gems_or_art")
         if ga and ga.get("items"):
             label = "Gemma" if ga["type"] == "gems" else "Oggetto d'arte"
             for name, qty in Counter(ga["items"]).items():
-                character_repo.create_inventory_item(
-                    char_id, name, quantity=qty, category="misc",
-                    description=f"{label} da {ga['value']} mo (Generatore Tesori)",
-                )
-                added_items += 1
+                remote_items.append({
+                    "target_character_id": char_id, "name": name, "quantity": qty,
+                    "category": "misc", "entry_kind": "item",
+                    "description": f"{label} da {ga['value']} mo (Generatore Tesori)",
+                })
         for name, qty in Counter(result_state.get("magic_items", [])).items():
-            character_repo.create_inventory_item(
-                char_id, name, quantity=qty, category="magic",
-                description="Oggetto magico (Generatore Tesori — descrizione completa non ancora disponibile)",
-            )
-            added_items += 1
+            remote_items.append({
+                "target_character_id": char_id, "name": name, "quantity": qty,
+                "category": "magic", "entry_kind": "magic_item",
+                "description": "Oggetto magico (Generatore Tesori — descrizione completa non ancora disponibile)",
+            })
         if trinket_state:
-            character_repo.create_inventory_item(
-                char_id, "Cimelio", quantity=1, category="misc",
-                description=trinket_state["description"],
-            )
-            added_items += 1
+            remote_items.append({
+                "target_character_id": char_id, "name": "Cimelio", "quantity": 1,
+                "category": "misc", "entry_kind": "item",
+                "description": trinket_state["description"],
+            })
 
         char_name = next((c.name for c in characters if c.id == char_id), "personaggio")
-        if ok_currency:
-            feedback_text.value = f"Aggiunto a {char_name}: monete aggiornate" + (f" + {added_items} oggetti" if added_items else "")
+        backend = _resolve_backend()
+        if world_id and backend is not None:
+            # Mondo condiviso: passa da `CMD_LOOT_ASSIGN` come "Assegna…",
+            # non più una scrittura locale diretta — genera l'evento che fa
+            # arrivare l'aggiunta al tick di sync/alla scheda del
+            # personaggio su un altro dispositivo (bug fix 2026-08-27, vedi
+            # il docstring del modulo).
+            result = backend.send_command(
+                world_id, device_id, perm.CMD_LOOT_ASSIGN,
+                {
+                    "items": remote_items,
+                    "coins": [{"target_character_id": char_id, **coin_deltas}]
+                    if any(coin_deltas.values()) else [],
+                },
+                target_type="world", target_id=world_id,
+            )
+            if not result.success:
+                feedback_text.value = result.error or "Assegnazione fallita."
+                try:
+                    feedback_text.update()
+                except RuntimeError:
+                    pass
+                return
+            added_items = len(remote_items)
+            feedback_text.value = f"Aggiunto a {char_name}: monete aggiornate" + (
+                f" + {added_items} oggetti" if added_items else "")
         else:
-            feedback_text.value = "Errore nell'aggiornamento delle valute — vedi log."
+            existing = character_repo.get_currencies(char_id)
+            ok_currency = character_repo.update_currencies(
+                char_id,
+                (existing.copper if existing else 0) + coin_deltas["copper"],
+                (existing.silver if existing else 0) + coin_deltas["silver"],
+                (existing.electrum if existing else 0) + coin_deltas["electrum"],
+                (existing.gold if existing else 0) + coin_deltas["gold"],
+                (existing.platinum if existing else 0) + coin_deltas["platinum"],
+            )
+            for it in remote_items:
+                character_repo.create_inventory_item(
+                    char_id, it["name"], quantity=it["quantity"], category=it["category"],
+                    description=it["description"],
+                )
+            if ok_currency:
+                feedback_text.value = f"Aggiunto a {char_name}: monete aggiornate" + (
+                    f" + {len(remote_items)} oggetti" if remote_items else "")
+            else:
+                feedback_text.value = "Errore nell'aggiornamento delle valute — vedi log."
         try:
             feedback_text.update()
         except RuntimeError:
