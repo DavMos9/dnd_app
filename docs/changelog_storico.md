@@ -12754,6 +12754,102 @@ sul cambio tab Master, selezione nota Master — nessuna eccezione lato
 client, nessun dato mancante o stantio, layout coerente a transizione
 completata.
 
+## Fluidità, terzo giro: fade troppo lento, mancante su tab scheda/sezione Mondi, e un rebuild di stat bar/header su ogni HP/equip mai necessario (2026-08-27, v0.3.18)
+
+Feedback dell'utente dopo aver provato v0.3.17 su dispositivo reale, quattro
+punti distinti:
+
+1. **Il fade era troppo lento** ("quasi impercettibile" richiesto). Le
+   `AnimatedSwitcher` introdotte nel secondo giro (`ui/app.py::
+   _section_switcher`, `master_view.py::_content_switcher`) usavano
+   `Duration.BASE` (200ms) — percepito come un ritardo, non come fluidità.
+   Aggiunta `design.Duration.INSTANT = 100` (nuova costante, non tocca
+   `FAST`/`BASE`/`SLOW` già usati altrove per non alterare animazioni
+   indipendenti) e usata su TUTTI gli `AnimatedSwitcher` di questo piano.
+
+2. **Il fade non era implementato tra i tab della scheda personaggio**
+   (Profilo/Combattimento/Esplorazione/Inventario/Diario) né **all'ingresso
+   nella sezione Mondi**. Il primo: `sheet_view.py::content_container` era
+   un `ft.Container` semplice — `_switch_tab()` sostituiva `.content` senza
+   alcuna transizione. Aggiunto `self._tab_switcher` (`AnimatedSwitcher`,
+   FADE, `Duration.INSTANT`) come figlio persistente di `content_container`;
+   `_switch_tab()`/`_refresh_all()`/`_soft_refresh()` ora scrivono su
+   `_tab_switcher.content` invece che su `content_container.content`
+   direttamente. Il secondo: `ui/app.py::_navigate()` — punto unico di
+   navigazione per Home/Scheda/Master/Mondi/form di creazione — faceva
+   `page.controls.clear()` + `page.add()` ad ogni cambio vista, un taglio
+   netto per scelta esplicita del piano precedente ("comporta un
+   context-switch pesante, il fade rischia di introdurre più fastidio che
+   beneficio"). L'utente ha chiesto esplicitamente il contrario per la
+   sezione Mondi: `_navigate()` ora crea un `AnimatedSwitcher` persistente
+   (`self._root_switcher`) alla prima chiamata e da lì in poi muta solo
+   `.content` — stesso principio degli altri switcher, applicato per la
+   prima volta al livello di navigazione più esterno.
+
+3. **Un'azione isolata (HP, equip, risorsa) sembrava "ricaricare tutta la
+   pagina" e riportava in cima.** Causa reale, non il fade: ogni refresh
+   mirato introdotto nel primo/secondo giro (`_refresh_hp_only()`,
+   l'equip armatura in `inventario_tab.py`, ecc.) chiama
+   `self._on_refresh()` = `SheetView._refresh_bar_and_header()` per tenere
+   `self.character` sincronizzato (serve quando l'utente cambia tab, dato
+   che `_get_tab_content()` costruisce il nuovo tab da `self.character`).
+   Ma quel metodo ricostruiva SEMPRE stat bar (`_build_stat_bar()`, 6
+   punteggi) e header (`_build_header_and_tabs()`, nome/bonus
+   competenza/LED connessione/livello-classe-razza) e chiamava
+   `self.update()` — un ripaint dell'intera fascia superiore della scheda
+   ad OGNI singolo danno/cura/equip/uso risorsa, anche se nessuno dei due
+   mostra HP/CA/risorse/slot. Percepito esattamente come "la pagina si
+   ricarica". Aggiunto `SheetView._header_signature()`: una tupla dei soli
+   campi che stat bar/header mostrano davvero (6 punteggi, bonus
+   competenza override, livello, classe, sottoclasse, razza, sottorazza,
+   world_id, stato connessione) più una cache dell'ultima firma renderizzata
+   (`self._header_signature_cache`, inizializzata in `_build()`). Ora
+   `_refresh_bar_and_header()` ricostruisce stat bar/header (e ripristina lo
+   scroll del tab, fix del secondo giro) SOLO se la firma è cambiata
+   davvero — altrimenti si limita a rileggere `self.character`/
+   `self.proficiencies` dal DB, senza toccare l'albero UI. Cambio
+   centralizzato in un unico punto: nessuna delle tab
+   (`combattimento_tab.py`, `inventario_tab.py`) è stata toccata, il
+   beneficio si applica automaticamente a ogni chiamante presente e futuro
+   di `self._on_refresh()`. Lo stato di connessione al mondo (LED
+   nell'header, aggiornato da un loop in background) resta incluso nella
+   firma apposta per non introdurre una regressione: senza di esso il LED
+   sarebbe rimasto stantio ogni volta che cambiava senza che nessun altro
+   campo del personaggio cambiasse.
+
+4. **"Vorrei un'altra animazione, non il fade" per l'HP.** L'utente ha
+   chiesto esplicitamente che il numero e la barra HP (non l'intera card:
+   bottoni Danno/Cura, tasto modifica e TS morte devono restare fermi)
+   ricevano un'animazione diversa dal fade usato per cambi sezione/tab.
+   `combattimento_tab.py::_section_hp()` è stato diviso: `_hp_value_block()`
+   (nuovo) costruisce SOLO numero HP/max/HP temp + `design.hp_bar()`;
+   `_section_hp()` mantiene un `ft.AnimatedSwitcher` persistente
+   (`self._hp_value_switcher`, creato una sola volta e poi riusato
+   mutandone `.content`) con `transition=SCALE` invece di FADE, e lo
+   incapsula insieme a bottoni/TS morte (rebuilt ad ogni chiamata, ma senza
+   bisogno di continuità d'istanza dato che non animano). Verificato dal
+   vivo in browser (Playwright): uno screenshot catturato a metà
+   transizione mostra il numero/barra vecchi e nuovi sovrapposti in scala —
+   prova diretta che lo switcher anima davvero, non un taglio netto — e la
+   card si assesta pulita, senza artefatti residui.
+
+Verificato: `test_fluidita_refresh_mirati.py` aggiornato — il test [6]
+(`test_sheet_view_refresh_bar_and_header_ripristina_lo_scroll_del_tab`) ora
+copre esplicitamente sia il caso "nessun campo cambiato → nessun rebuild/
+nessun restore_scroll" sia il caso "un campo cambia davvero (livello) →
+rebuild e restore_scroll scattano" (41/41 controlli, era 40). Riferimenti a
+`content_container.content` nel test aggiornati a `_tab_switcher.content`
+per lo stesso motivo. 47/47 file della suite completa passano (esclusi
+`test_qr_scan.py`, ambiente sandbox, e — prima del bump di versione in
+questo stesso commit — il controllo versione/tag, atteso). Live in browser
+con personaggio di prova (Bardo Lv.3): danno ripetuto con animazione SCALE
+visibile su numero/barra e nessun flash di stat bar/header; cambio rapido
+tra i 5 tab della scheda con fade breve, nessuna eccezione anche cliccando
+più tab in rapida successione mentre una transizione precedente era ancora
+in corso; ingresso in Home→Mondi e Home→Master tramite il nuovo
+`_root_switcher`, entrambi puliti; cambio tab Master. Nessuna eccezione
+lato client in nessuno scenario.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

@@ -195,9 +195,26 @@ class SheetView(ft.Column):
     def _build(self):
         self._stat_bar_container = self._build_stat_bar()
         self._header_container = self._build_header_and_tabs()
+        # Baseline per `_refresh_bar_and_header()`: senza questa riga il
+        # PRIMO refresh mirato (es. il primo danno subito) troverebbe
+        # l'attributo assente e fallirebbe.
+        self._header_signature_cache = self._header_signature()
+        # `_tab_switcher` avvolge SOLO il contenuto del tab attivo in un
+        # AnimatedSwitcher (fade breve) — stesso principio di
+        # `ui/app.py::_section_switcher`/`MasterView._content_switcher`, vedi
+        # il piano "Fluidità transizioni e animazioni". `content_container`
+        # resta il wrapper esterno (styling/expand), immutato da qui in poi:
+        # solo `_tab_switcher.content` cambia ad ogni cambio tab.
+        self._tab_switcher = ft.AnimatedSwitcher(
+            content=self._get_tab_content("profilo"),
+            duration=design.Duration.INSTANT,
+            switch_in_curve=design.CURVE,
+            switch_out_curve=design.CURVE,
+            transition=ft.AnimatedSwitcherTransition.FADE,
+        )
         self.content_container = ft.Container(
             expand=True,
-            content=self._get_tab_content("profilo"),
+            content=self._tab_switcher,
         )
 
         self.controls = [
@@ -703,16 +720,47 @@ class SheetView(ft.Column):
     # Refresh globale (dopo modifica caratteristiche o bonus competenza)
     # ------------------------------------------------------------------
 
+    def _header_signature(self) -> tuple:
+        """
+        Sottoinsieme di `self.character`/`self._connection_state` che stat
+        bar (`_build_stat_bar`, 6 punteggi) e header (`_build_header_and_
+        tabs`, nome/bonus competenza/LED connessione/livello-classe-razza)
+        mostrano davvero. HP, CA, risorse di classe, slot incantesimo,
+        equip NON compaiono in nessuno dei due — quindi non serve
+        ricostruirli quando cambia solo uno di quelli.
+        """
+        c = self.character
+        return (
+            tuple(getattr(c, f"{k}_score") for k in ABILITY_KEYS),
+            c.proficiency_bonus_override, c.level, c.class_name,
+            c.subclass, c.race, c.subrace, c.world_id,
+            self._connection_state,
+        )
+
     def _refresh_bar_and_header(self):
         """
-        Ricarica il personaggio dal DB e aggiorna SOLO stat bar e header.
-        Chiamato dai tab dopo il loro self-refresh, per tenere la top bar
-        sincronizzata senza ricostruire il contenuto del tab.
+        Ricarica il personaggio dal DB; ricostruisce stat bar e header SOLO
+        se uno dei campi che mostrano (vedi `_header_signature()`) è
+        davvero cambiato rispetto all'ultimo rendering. Chiamato dai tab
+        dopo il loro self-refresh mirato (HP, ispirazione, risorse, slot,
+        equip) per tenere `self.character` sincronizzato — serve quando
+        l'utente cambia tab, dato che `_get_tab_content()` costruisce il
+        nuovo tab da `self.character` — ma prima ricostruiva SEMPRE stat
+        bar e header anche se nessuno dei due mostra HP/CA/risorse: ogni
+        singola azione ripitturava l'intera fascia superiore della scheda,
+        percepito come "la pagina si ricarica" invece di un aggiornamento
+        mirato. Vedi il piano "Fluidità transizioni e animazioni", secondo
+        giro.
         """
         updated = character_repo.get_by_id(self.character.id)
         if updated:
             self.character = updated
         self.proficiencies = character_repo.get_proficiencies(self.character.id)
+
+        new_sig = self._header_signature()
+        if updated is not None and new_sig == self._header_signature_cache:
+            return
+        self._header_signature_cache = new_sig
 
         new_bar = self._build_stat_bar()
         new_hdr = self._build_header_and_tabs()
@@ -739,7 +787,10 @@ class SheetView(ft.Column):
         # `_on_refresh()` interveniva DOPO il `restore_scroll()` del tab e
         # lo vanificava. Stesso meccanismo per qualunque refresh mirato che
         # chiama `_on_refresh()` (HP, ispirazione, equip con ricalcolo CA).
-        tab_restore = getattr(self.content_container.content, "restore_scroll", None)
+        # Da qui in avanti questo ramo scatta solo per un cambio vero di
+        # stat bar/header (raro), non più ad ogni HP/equip — ma lo scroll
+        # va comunque ripristinato quando succede.
+        tab_restore = getattr(self._tab_switcher.content, "restore_scroll", None)
         if callable(tab_restore):
             tab_restore()
 
@@ -753,7 +804,7 @@ class SheetView(ft.Column):
         self._refresh_bar_and_header()
 
         # Ricostruisce il tab corrente
-        self.content_container.content = self._get_tab_content(self.active_tab)
+        self._tab_switcher.content = self._get_tab_content(self.active_tab)
 
         try:
             self.update()
@@ -777,14 +828,14 @@ class SheetView(ft.Column):
         aperto in quel momento.
         """
         self._refresh_bar_and_header()
-        content = self.content_container.content
+        content = self._tab_switcher.content
         tab_refresh = getattr(content, "_refresh", None)
         if callable(tab_refresh):
             tab_refresh()
             return
         # Tab placeholder senza un proprio _refresh() (non dovrebbe più
         # capitare: tutti e 5 i tab reali ce l'hanno) — fallback sicuro.
-        self.content_container.content = self._get_tab_content(self.active_tab)
+        self._tab_switcher.content = self._get_tab_content(self.active_tab)
         try:
             self.update()
         except RuntimeError:
@@ -803,7 +854,7 @@ class SheetView(ft.Column):
         for k, btn in self._tab_buttons.items():
             self._style_tab_button(btn, k == key)
 
-        self.content_container.content = self._get_tab_content(key)
+        self._tab_switcher.content = self._get_tab_content(key)
         self.update()
 
     # ------------------------------------------------------------------

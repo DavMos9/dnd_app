@@ -475,17 +475,27 @@ class CombattimentoTab(ScrollMemoryListView):
     # Sezione HP
     # ------------------------------------------------------------------
 
-    def _section_hp(self, c: Character) -> ft.Container:
+    def _hp_color(self, c: Character) -> str:
         hp_ratio = (c.hp_current / c.hp_max) if c.hp_max > 0 else 0.0
         hp_ratio = max(0.0, min(1.0, hp_ratio))
-
         if hp_ratio > 0.5:
-            hp_color = design.T().success
-        elif hp_ratio > 0.25:
-            hp_color = design.T().warning
-        else:
-            hp_color = design.T().danger
+            return design.T().success
+        if hp_ratio > 0.25:
+            return design.T().warning
+        return design.T().danger
 
+    def _hp_value_block(self, c: Character) -> ft.Control:
+        """
+        Numero HP + barra: l'UNICA parte del riquadro HP che riceve
+        un'animazione dedicata al proprio cambiamento (SCALE, non fade —
+        vedi `_section_hp()`/`self._hp_value_switcher`) invece del fade
+        usato per i cambi di sezione/tab. Bottoni Danno/Cura, tasto
+        modifica e TS morte restano fuori da questo blocco e non
+        "pulsano" ad ogni variazione — solo ciò che l'utente segnala di
+        voler vedere animato. Vedi il piano "Fluidità transizioni e
+        animazioni", secondo giro (feedback utente su v0.3.17).
+        """
+        hp_color = self._hp_color(c)
         p = design.T()
         hp_label = ft.Row(
             [
@@ -535,6 +545,30 @@ class CombattimentoTab(ScrollMemoryListView):
 
         bar = design.hp_bar(c.hp_current, c.hp_max, c.hp_temp)
 
+        return ft.Column([hp_label, ft.Container(height=design.Space.SM), bar],
+                          spacing=0, tight=True)
+
+    def _section_hp(self, c: Character) -> ft.Container:
+        value_block = self._hp_value_block(c)
+        # `_hp_value_switcher` è creato UNA VOLTA (prima chiamata, da
+        # `_build()`) e poi riusato: solo così l'AnimatedSwitcher anima
+        # davvero la propria transizione invece di ripartire da zero ad
+        # ogni ricostruzione — stesso principio di `_tab_switcher` in
+        # `sheet_view.py`, ma con `transition=SCALE` invece di FADE (vedi
+        # `_hp_value_block()`).
+        if getattr(self, "_hp_value_switcher", None) is None:
+            self._hp_value_switcher = ft.AnimatedSwitcher(
+                content=value_block,
+                duration=design.Duration.FAST,
+                switch_in_curve=design.CURVE,
+                switch_out_curve=design.CURVE,
+                transition=ft.AnimatedSwitcherTransition.SCALE,
+            )
+        else:
+            self._hp_value_switcher.content = value_block
+
+        hp_color = self._hp_color(c)
+        p = design.T()
         btn_damage = ft.ElevatedButton(
             "Danno",
             icon=ft.Icons.REMOVE_CIRCLE_OUTLINE,
@@ -570,9 +604,7 @@ class CombattimentoTab(ScrollMemoryListView):
         )
 
         rows: list[ft.Control] = [
-            hp_label,
-            ft.Container(height=design.Space.SM),
-            bar,
+            self._hp_value_switcher,
             ft.Container(height=design.Space.MD),
             ft.Row([btn_damage, ft.Container(width=design.Space.MD), btn_heal], spacing=0),
             ft.Row([edit_btn], alignment=ft.MainAxisAlignment.END),

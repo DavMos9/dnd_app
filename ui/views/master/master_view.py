@@ -135,7 +135,7 @@ class MasterView(ft.Column):
         # mobile alla vista figlia corrente.
         self._content_switcher = ft.AnimatedSwitcher(
             content=ft.Container(),  # placeholder — _build() lo sostituisce subito sotto
-            duration=design.Duration.BASE,
+            duration=design.Duration.INSTANT,
             switch_in_curve=design.CURVE,
             switch_out_curve=design.CURVE,
             transition=ft.AnimatedSwitcherTransition.FADE,

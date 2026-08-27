@@ -222,10 +222,12 @@ def test_inventario_refresh_mirati() -> None:
 
 
 def test_sheet_view_refresh_bar_and_header_ripristina_lo_scroll_del_tab() -> None:
-    print("\n[6] BUG FIX (2026-08-26, trovato dal vivo via Playwright): "
-          "SheetView._refresh_bar_and_header() deve richiamare "
-          "restore_scroll() sul tab attivo, altrimenti il suo update() "
-          "sull'intero sottoalbero azzera lo scroll di qualunque "
+    print("\n[6] BUG FIX (2026-08-26, trovato dal vivo via Playwright) + "
+          "ottimizzazione (2026-08-27, feedback utente su v0.3.17): "
+          "SheetView._refresh_bar_and_header() ricostruisce stat bar/header "
+          "SOLO se un campo che mostrano è davvero cambiato, e in quel caso "
+          "richiama restore_scroll() sul tab attivo — altrimenti il suo "
+          "update() sull'intero sottoalbero azzera lo scroll di qualunque "
           "ScrollMemoryListView annidata sotto")
     from ui.views.character_sheet.sheet_view import SheetView
 
@@ -239,7 +241,22 @@ def test_sheet_view_refresh_bar_and_header_ripristina_lo_scroll_del_tab() -> Non
         def restore_scroll(self) -> None:
             calls["n"] += 1
 
-    sv.content_container.content = _FakeTabContent()
+    sv._tab_switcher.content = _FakeTabContent()
+
+    # Nessun campo di stat bar/header cambiato (caso HP/equip/risorse): la
+    # ricostruzione va saltata, quindi restore_scroll() non deve scattare —
+    # è esattamente il ripaint superfluo di tutta la fascia superiore
+    # segnalato dall'utente su ogni singola azione.
+    sv._refresh_bar_and_header()
+    check("nessun rebuild/restore_scroll se stat bar e header non cambiano",
+          calls["n"] == 0)
+
+    # Un campo mostrato da stat bar/header CAMBIA davvero (livello) — qui
+    # la ricostruzione è dovuta e deve ripristinare lo scroll del tab.
+    updated_char = character_repo.get_by_id(c.id)
+    assert updated_char is not None
+    updated_char.level += 1
+    assert character_repo.update(updated_char)
     sv._refresh_bar_and_header()
 
     check("restore_scroll() del tab attivo è stato chiamato esattamente una volta",
@@ -248,7 +265,11 @@ def test_sheet_view_refresh_bar_and_header_ripristina_lo_scroll_del_tab() -> Non
     # Nessun crash se il contenuto del tab non espone restore_scroll()
     # (es. un placeholder ft.Container()) — getattr deve fare da guardia.
     import flet as ft
-    sv.content_container.content = ft.Container()
+    sv._tab_switcher.content = ft.Container()
+    updated_char = character_repo.get_by_id(c.id)
+    assert updated_char is not None
+    updated_char.level += 1
+    assert character_repo.update(updated_char)
     try:
         sv._refresh_bar_and_header()
         no_crash = True

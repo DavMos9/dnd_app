@@ -85,6 +85,11 @@ class DnDApp:
         # invece di un aggiornamento in place — vedi `_on_page_resize()`.
         self._active_top_view: Any = None
         self._on_main_layout: bool = False
+        #: Avvolge le viste di primo livello (Home/Scheda/Master/Mondi/form
+        #: creazione) in una dissolvenza breve invece del taglio netto di
+        #: `page.controls.clear()` — creato alla prima `_navigate()`, poi
+        #: riusato (solo `.content` cambia). Vedi `_navigate()`.
+        self._root_switcher: ft.AnimatedSwitcher | None = None
 
         self._setup_page()
         self._show_home()
@@ -100,17 +105,34 @@ class DnDApp:
 
     def _navigate(self, control: ft.Control) -> None:
         """
-        Punto unico di navigazione di primo livello: azzera la pagina e monta
-        `control` avvolto in `ft.SafeArea`, così header e barre superiori non
-        finiscono mai sotto la tacca o la barra di stato su un telefono con
-        notch. Centralizzare qui evita di doverlo ricordare ad ogni nuova
-        vista di primo livello.
+        Punto unico di navigazione di primo livello: monta `control` avvolto
+        in `ft.SafeArea`, così header e barre superiori non finiscono mai
+        sotto la tacca o la barra di stato su un telefono con notch.
+        Centralizzare qui evita di doverlo ricordare ad ogni nuova vista di
+        primo livello.
 
         `ft.SafeArea` è un no-op su desktop/web, dove `MediaQuery` non
         riporta intrusioni di sistema — nessun rischio di padding indesiderato.
+
+        Il cambio vista (Home ↔ Scheda/Master/Mondi/form creazione) passa da
+        un `AnimatedSwitcher` persistente invece di `page.controls.clear()` +
+        `page.add()`: stesso principio di `_section_switcher`/
+        `MasterView._content_switcher` — una dissolvenza breve al posto del
+        taglio netto. Creato una sola volta, poi si muta solo `.content`.
         """
-        self.page.controls.clear()
-        self.page.add(ft.SafeArea(content=control, expand=True))
+        safe = ft.SafeArea(content=control, expand=True)
+        if self._root_switcher is None:
+            self._root_switcher = ft.AnimatedSwitcher(
+                content=safe,
+                duration=design.Duration.INSTANT,
+                switch_in_curve=design.CURVE,
+                switch_out_curve=design.CURVE,
+                transition=ft.AnimatedSwitcherTransition.FADE,
+            )
+            self.page.controls.clear()
+            self.page.add(self._root_switcher)
+        else:
+            self._root_switcher.content = safe
         self.page.update()
 
     # ------------------------------------------------------------------
@@ -396,7 +418,7 @@ class DnDApp:
         # uno switcher, non più in contraddizione con quella nota.
         self._section_switcher = ft.AnimatedSwitcher(
             content=self._get_section_view(self.active_section),
-            duration=design.Duration.BASE,
+            duration=design.Duration.INSTANT,
             switch_in_curve=design.CURVE,
             switch_out_curve=design.CURVE,
             transition=ft.AnimatedSwitcherTransition.FADE,
