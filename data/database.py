@@ -567,6 +567,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # di characters.image_data/game_maps.image_data. '' = nessuna foto.
     _add_column(cur, "master_npcs", "image_data", "TEXT DEFAULT ''")
 
+    # Override manuale della Scurovisione (2026-08-27) — stesso principio di
+    # passive_perception_override/carry_capacity_override sopra, ma con -1
+    # come sentinel di "non impostato" invece di 0 (0 qui è un valore
+    # esplicito valido: "Nessuna scurovisione", diverso da "usa la razza").
+    _add_column(cur, "characters", "darkvision_override", "REAL DEFAULT -1")
+
     _migrate_backfill_character_classes(cur)
 
 

@@ -45,6 +45,18 @@ Costanti globali:
 - **`EXHAUSTION_LEVELS`**: `dict[int, str]` — 6 livelli di Indebolimento (Exhaustion) cumulativi, PHB IT. Usata da
   feature come Frenesia (Barbaro) e da incantesimi come Guarigione (rimuove 1 livello). Aggiunta il 2026-07-03, NON
   ancora collegata a un tracker UI (vedi TODO)
+- **`resolve_dragonide_trait_texts(subrace, level, character)`** (2026-08-27) → dict `{"Discendenza Draconica":
+  str, "Resistenza ai Danni": str, "Arma a Soffio": str}` — incrocia `subrace` (la
+  discendenza scelta, es. "Blu") con `dragonide.json → traits[].options[]` e calcola i numeri reali del
+  personaggio (dado danno per livello, CD = 8 + `char_prof_bonus()` + `get_modifier(con_score)`). `{}` se la
+  discendenza non è impostata/non riconosciuta — il chiamante mostra in quel caso il testo generico del JSON.
+  Usata da `profilo_tab.py::_build_razza()` (Tratti Razziali) e da `get_race_resource_description()` sotto.
+- **`get_race_resource_description(character, resource_name)`** (2026-08-27) → `str` (descrizione) o `""` — testo
+  di consultazione per una risorsa RAZZIALE mostrata in "Risorse di Classe" (Combattimento): Dragonide (riusa
+  la funzione sopra), Mezzorco (Tenacia Implacabile), Tiefling (Eredità Infernale, 2 incantesimi innati),
+  Elfo → sottorazza Elfo Oscuro/Drow (Magia Drow, 2 incantesimi innati) — per un incantesimo innato calcola
+  anche CD/bonus attacco reali. Ritorna `""` per qualunque risorsa di CLASSE (Furia, Ki, ecc. — quelle restano
+  consultabili solo via "Abilità di Classe"). Usata da `combattimento_tab.py::_resource_name_control()`.
 
 ### `data/models.py`
 Dataclass `Character` con tutti i campi (identità, 6 punteggi, HP, combattimento,
@@ -57,6 +69,10 @@ stato turno, incantesimi, fisico, personalità, timestamp).
 - `totem_animal: str = ""` — animale totem Barbaro Percorso del Totem (Orso/Aquila/Lupo)
 - `land_terrain: str = ""` — terreno Druido Cerchio della Terra (8 opzioni)
 - `pact_boon: str = ""` — Warlock Dono del Patto: "Patto della Catena/Lama/Tomo"
+- `darkvision_override: float = -1.0` (2026-08-27) — override manuale della Scurovisione in metri: -1 = non
+  impostato (usa `GameDataLoader.get_resolved_race().darkvision`), 0 = "Nessuna" esplicito (diverso dal
+  sentinel). `character_repo.update_darkvision_override()`; UI in `esplorazione_tab.py::_on_edit_darkvision()`,
+  letto anche da `profilo_tab.py::_build_razza()` — unici 2 render site, entrambi sincronizzati.
 
 `Weapon`:
 - `magic_damages: str = "[]"` — JSON array danni magici extra
@@ -204,6 +220,10 @@ UI Flet scritta in questo giro):
   multiclasse avrebbe sovrascritto il totale), `new_total_level` separato per il bonus competenza. A fine
   funzione risincronizza `character_classes`/`characters.level`. Zero comportamento diverso per un personaggio a
   classe singola (28 file di regressione pre-esistenti invariati).
+- `update_darkvision_override(character_id, value)` (2026-08-27) — stesso pattern di
+  `update_carry_capacity_override()`: `UPDATE characters SET darkvision_override=?`. -1 = non impostato (usa la
+  razza), 0 = "Nessuna" esplicito. Vedi `Character.darkvision_override` sopra e `_add_column` in
+  `data/database.py::_migrate()`.
 
 ### `core/wizard_engine.py`
 - `WizardEngine`: accumula punteggi da risposte, calcola raccomandazione
@@ -741,11 +761,25 @@ Struttura gerarchica JSON per classi, razze e background PHB. Utilizzabile in fu
     `create_creature_entry(...)`, `update_creature_hp(creature_id, hp_current)`, `delete_creature_entry(creature_id)`
   - ⚠️ `monsters.json` (343 mostri) non ancora auditato riga per riga contro il Manuale dei Mostri —
     vedi checklist audit dati più sotto
-- **Sezione Indebolimento** (`_section_exhaustion`, tra Statistiche e Azioni Turno, 2026-07-16):
+- **Sezione Indebolimento** (`_section_exhaustion`, 2026-07-16 — **dal 2026-08-27 dentro la card di
+  `_section_stats()`** invece che sezione a sé stante a piena larghezza, vedi sotto):
   - Counter −/+ per `character.exhaustion_level` (0-6), colore grigio→ambra→rosso
   - Lista effetti cumulativi da `EXHAUSTION_LEVELS` (config/settings.py) attivi al livello corrente
   - `_on_exhaustion_increment`/`_on_exhaustion_decrement` → `character_repo.update_exhaustion_level()` + `_refresh()`
   - Nessun enforcement automatico (non dimezza velocità/HP max da sola) — sezione di sola consultazione
+  - **2026-08-27**: ritorna il contenuto interno (`ft.Column`, niente più `Container`/bordo/ombra propri, un
+    `ft.Divider` al posto dell'header di sezione rimosso) — `_section_stats()` la aggiunge in coda alla propria
+    `ft.Column`, dentro la stessa `design.card()` di CA/Velocità/Iniziativa/Ispirazione (`_build()` non la
+    chiama più separatamente). Eredita così lo stesso comportamento responsive di `design.asymmetric_row()`
+    (va a capo su smartphone insieme al resto invece di restare un blocco separato).
+- **Risorse RAZZIALI cliccabili in "Risorse di Classe"** (2026-08-27) — nuovo
+  `_resource_name_control(res, display_name=None)`, condiviso dalle 3 righe risorsa
+  (`_resource_unlimited_row`/`_resource_circles_row`/`_resource_counter_row`): interroga
+  `config/settings.py::get_race_resource_description(character, res.name)`; se non vuota, il nome diventa un
+  `Container` cliccabile (icona ℹ) → `_show_resource_description()` (`AlertDialog` semplice). Copre solo le
+  risorse di origine RAZZIALE (Soffio del Dragonide, Tenacia Implacabile, incantesimi innati Tiefling/Elfo
+  Oscuro) — le risorse di CLASSE restano consultabili solo via "Abilità di Classe" (nessuna duplicazione,
+  `get_race_resource_description()` ritorna `""` per quelle e la riga resta testo semplice non cliccabile).
 - **Sezione Frenesia** (`_section_frenzy`, 2026-07-19, solo Barbaro Cammino del Berserker — dentro "Risorse di
   Classe", subito dopo Incantesimi Flessibili): chip "Dichiara Frenesia" (grigio) → "Termina Ira (+1
   Indebolimento)" (rosso) + link "Annulla dichiarazione (senza Indebolimento)";
@@ -771,8 +805,17 @@ Struttura gerarchica JSON per classi, razze e background PHB. Utilizzabile in fu
 - ~~Sezione Competenze Armatura e Armi~~ — **spostata in `profilo_tab.py` il 2026-07-16** (richiesta Davide: "le
   competenze non le dobbiamo lasciare in esplorazione ma andrebbero messe in profilo").
   `_section_armi_armature()`/`_ARMOR_TOKEN_LABELS`/`_WEAPON_TOKEN_LABELS` non esistono più in questo file — vedi
-  `ProfiloTab` sotto per la stessa sezione nella nuova posizione. `_on_delete_proficiency()` resta qui (ancora
-  usata da Lingue/Strumenti, mai stata esclusiva di questa sezione).
+  `ProfiloTab` sotto per la stessa sezione nella nuova posizione.
+- **Lingue/Strumenti (2026-08-27)** — ~~Lingue~~ **si è spostata sotto Competenze in `ProfiloTab`**
+  (`_section_lingue_header()`/`_section_lingue()` NON esistono più qui, vedi `ProfiloTab::_section_lingue()`
+  sotto). **Strumenti resta qui ma non è più sola lettura**: `_section_strumenti_header()` ha un pulsante
+  "+ Aggiungi" (`_open_add_tool_dialog()`, tendina catalogo `game_data.get_all_tool_names()` + Veicoli
+  terrestri/acquatici + "compila a mano" per uno strumento inventato) e ogni riga ha un ✕ rimuovi
+  (`_on_delete_tool()`, query `DELETE FROM character_proficiencies` diretta — nessuna funzione dedicata nel
+  repository, stesso pattern già in uso in `ProfiloTab::_on_delete_proficiency()`, duplicata qui non condivisa).
+  Anche **Scurovisione** ha un override manuale ora (vedi `Character.darkvision_override` sopra):
+  `_section_sensi()` → riga "Scurovisione" cliccabile (`_editable_info_row`, stesso pattern di "Camminata") →
+  `_on_edit_darkvision()` (`RadioGroup` Sì/No + campo metri + "Usa valore di razza").
 
 ### `ui/views/character_sheet/inventario_tab.py` e `diario_tab.py`
 - Entrambi accettano `on_refresh: Callable[[], None] | None = None` → chiamato a fine `_refresh()` per sincronizzare la top bar (es. dopo level-up che aggiorna l'inventario)
@@ -801,7 +844,13 @@ Container principale della scheda personaggio (post-selezione):
 - **Header**: avatar cliccabile (dialog percorso file), nome, livello, classe, razza, XP inline + Salva, bottone "Sali di Livello" (visibile quando XP ≥ soglia prossimo livello)
 - **Ogni sezione ha "✎ Modifica"** → `AlertDialog` con `TextField`:
   - Anagrafica, Tratti Razziali, Dettagli Fisici, Personalità, Storia
-- **Tratti Razziali**: velocità, scurovisione, tratti speciali da `_loader.get_resolved_race(c.race, c.subrace)` (solo JSON)
+- **Tratti Razziali**: velocità, scurovisione (`c.darkvision_override if >= 0 else` valore razza, vedi
+  `Character.darkvision_override` sopra), tratti speciali da `_loader.get_resolved_race(c.race, c.subrace)` (solo
+  JSON). **Dragonide (2026-08-27)**: i 3 tratti legati alla discendenza scelta ("Discendenza Draconica",
+  "Resistenza ai Danni", "Arma a Soffio") vengono risolti sui valori reali via
+  `config/settings.py::resolve_dragonide_trait_texts(c.subrace, c.level, c)` invece di mostrare il testo generico
+  del JSON (elenco di tutte le 10 discendenze) — solo se `c.race == "Dragonide"` e la discendenza (`c.subrace`,
+  es. "Blu") è riconosciuta, altrimenti resta il testo generico.
 - **Caratteristiche**: modificabili dalla MiniStatBar (non più sezione separata nel profilo tab)
 - **Competenze**: TUTTE le 18 abilità (non solo competenti), su 2 colonne:
   - ● rosso = competente | ★ blu = maestria | ○ grigio = non competente
@@ -811,10 +860,14 @@ Container principale della scheda personaggio (post-selezione):
 - **Level Up guidato** (`_on_level_up_click`):
   - Scelta HP: massimo / media / dado manuale (con calcolo CON)
   - ASI ai livelli appropriati per classe (default: 4,8,12,16,19; Guerriero/Ladro hanno livelli extra)
-  - ASI: RadioGroup +2/+1+1/Talento; `+2` e `+1+1` salvati come `proficiency_type="asi_record"` con `bonus_data={"ability":{...}}` e `level_obtained=new_level` (per reversal in level-down)
+  - ASI: RadioGroup +2/+1+1/Talento; `+2` e `+1+1` salvati come `proficiency_type="asi_record"` con `bonus_data={"ability":{...}}` e `level_obtained=new_level` (per reversal in level-down).
+    **2026-08-27**: `stat_options` (dropdown +2/+1+1) esclude le caratteristiche già a 20 — prima restavano
+    selezionabili (l'applicazione le clampava comunque a `min(20,...)`, ma l'ASI veniva "consumata" senza alcun
+    beneficio e senza avviso, bug report Davide)
   - Feat: `feat_bonus_dd` dropdown che appare solo per feat con `choose_one` — permette di scegliere quale stat
     aumentare; bonus applicato su `character.*_score` e salvato in `bonus_data={"ability":{stat:1}, "other":{...}}`
-    del proficiency "feat"; `other_bonuses` supporta `initiative` e `speed`
+    del proficiency "feat"; `other_bonuses` supporta `initiative` e `speed`. Stesso filtro tetto-20 del punto sopra
+    applicato anche qui (2026-08-27).
   - Notifica aumento Bonus Competenza
   - Salva e aggiorna scheda via `_refresh()`
   - **Validazione obbligatoria** (`do_level_up`): prima del salvataggio verifica tutti i campi obbligatori
@@ -837,6 +890,14 @@ Container principale della scheda personaggio (post-selezione):
     `_ARMOR_TOKEN_LABELS`/`_WEAPON_TOKEN_LABELS`; nomi arma specifica (es. "Stocco") mostrati as-is
   - Nessun "+ Aggiungi" (derivate dalla classe, non scelte del giocatore) — rimovibili per house rule
   - `_on_delete_proficiency()` locale (stesso schema SQL già in uso in `esplorazione_tab.py`, non condiviso tra i due file)
+- **Sezione Lingue** (`_section_lingue`, 2026-08-27 — spostata sotto "Competenze", subito prima di "Competenze
+  Armatura e Armi") — sostituisce la vecchia "Altre Competenze" (Lingue+Strumenti insieme): ora filtra solo
+  `proficiency_type == "language"`. Gli Strumenti si gestiscono invece direttamente in `EsplorazioneTab` (vedi
+  sopra), non più da qui. `_open_add_competenza_dialog()` ha un nuovo parametro `lock_type: str | None = None`:
+  quando chiamato da questa sezione (`lock_type="language"`) nasconde il selettore Tipo, fisso su "Lingua" —
+  evita che una competenza aggiunta da qui venga salvata come Strumento/Arma/Armatura e sparisca dalla vista
+  (bug potenziale, mai il comportamento voluto per questa sezione). Tendina catalogo invariata (`LANGUAGES`,
+  15 lingue PHB) con "— nessuno, compila a mano —" per una lingua inventata dal giocatore.
 - **Selezione incantesimi/trucchetti/talenti** (SPELL_LEARN, CANTRIP_LEARN, SPELL_SWAP, ARCANUM_SPELL,
   MONK_DISCIPLINE, BORROWED_*, talento ASI, Stile di Combattimento, scelte iniziali Warlock/Mago/Monaco) —
   **`CardPicker` invece di `Dropdown`+`dropdown_with_info()` dal 2026-07-16**, vedi Note Importanti per il

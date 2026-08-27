@@ -85,6 +85,12 @@ class Character:
     # alterano, es. "Corporatura Possente" (raddoppia il carico).
     carry_capacity_override: float = 0.0
 
+    # Override manuale della Scurovisione in metri (-1 = non impostato, usa
+    # il valore della razza in data/game_data/races/*.json; 0 = "Nessuna"
+    # esplicito, per personaggi di razze con scurovisione che la perdono, o
+    # senza, a cui il master la concede — talenti/oggetti magici/varianti).
+    darkvision_override: float = -1.0
+
     # Appunti di sessione (testo libero, per note al volo durante il gioco)
     session_notes: str = ""
 

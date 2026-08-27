@@ -708,3 +708,157 @@ def get_race_display_traits(
         "advantage_saves": advantage_saves,
         "passive_traits": passive_traits,
     }
+
+
+def resolve_dragonide_trait_texts(
+    subrace: str,
+    level: int,
+    character=None,
+) -> dict[str, str]:
+    """
+    Per il Dragonide, sostituisce il testo generico dei 3 tratti legati alla
+    Discendenza Draconica ("Discendenza Draconica", "Resistenza ai Danni",
+    "Arma a Soffio", dragonide.json) con i valori reali della discendenza
+    scelta (`subrace`, es. "Blu" — vedi wizard_view.py/manual_form.py, che
+    riusano il campo sottorazza per questa scelta anche se Dragonide non ha
+    vere sottorazze) e i numeri calcolati per il personaggio (CD del soffio,
+    dado danno per livello). Ritorna {} se la discendenza non è impostata o
+    non corrisponde a nessuna opzione nota — i chiamanti devono in quel caso
+    mostrare il testo generico del JSON invariato.
+    """
+    import json as _json
+    import os as _os
+
+    races_dir = _os.path.join(
+        _os.path.dirname(_os.path.dirname(__file__)),
+        "data", "game_data", "races",
+    )
+    candidate = _os.path.join(races_dir, "dragonide.json")
+    if not _os.path.exists(candidate):
+        return {}
+    try:
+        with open(candidate, encoding="utf-8") as fh:
+            data = _json.load(fh)
+    except Exception:
+        return {}
+
+    ancestry_trait = next(
+        (t for t in data.get("traits", []) if t.get("name") == "Discendenza Draconica"), None
+    )
+    if not ancestry_trait:
+        return {}
+    sub_key = (subrace or "").lower().strip()
+    option = next(
+        (o for o in ancestry_trait.get("options", []) if o.get("dragon", "").lower() == sub_key),
+        None,
+    )
+    if not option:
+        return {}
+
+    dragon = option["dragon"]
+    damage = option["damage"]
+    breath = option["breath"]
+    save_ability = "Destrezza" if option.get("save") == "dex" else "Costituzione"
+
+    prof_bonus = char_prof_bonus(character) if character else 2
+    con_mod = get_modifier(getattr(character, "con_score", 10)) if character else 0
+    dc = 8 + prof_bonus + con_mod
+    dice_count = 2 + (max(0, level - 1) // 5)
+
+    return {
+        "Discendenza Draconica": (
+            f"Antenato {dragon}. Determina il tipo di danno della Resistenza ai Danni "
+            f"({damage}) e la forma dell'Arma a Soffio ({breath}, TS {save_ability})."
+        ),
+        "Resistenza ai Danni": f"Hai resistenza ai danni da {damage} (Discendenza {dragon}).",
+        "Arma a Soffio": (
+            f"Come azione, puoi espirare energia distruttiva di tipo {damage} — {breath}. "
+            f"Danno: {dice_count}d6 ({damage}). TS {save_ability} CD {dc} per dimezzare. "
+            f"Usi = 1 / riposo breve o lungo."
+        ),
+    }
+
+
+def get_race_resource_description(character, resource_name: str) -> str:
+    """
+    Testo di descrizione per una risorsa RAZZIALE mostrata nella sezione
+    "Risorse di Classe" del tab Combattimento (es. "Soffio del Dragonide",
+    "Tenacia Implacabile", "Intimorire Infernale (razziale)", "Oscurità
+    (drow)") — permette di renderla cliccabile per la consultazione, stesso
+    principio già usato per le Abilità di Classe. Ritorna "" se `resource_name`
+    non corrisponde a nessuna risorsa razziale nota (il chiamante non deve
+    rendere cliccabile la riga in quel caso — tipicamente una risorsa di
+    CLASSE, non di razza).
+
+    Non copre le risorse di classe (Furia, Ki, Incanalare Divinità, ecc.):
+    quelle hanno già una consultazione dedicata nella sezione "Abilità di
+    Classe" della stessa tab, con una struttura diversa (JSON classe, non
+    razza) — duplicarla qui non aggiungerebbe informazione.
+    """
+    import json as _json
+    import os as _os
+
+    race_name = (getattr(character, "race", "") or "").strip() if character else ""
+    subrace   = (getattr(character, "subrace", "") or "").strip() if character else ""
+    level     = getattr(character, "level", 1) if character else 1
+    if not race_name:
+        return ""
+
+    if race_name.lower() == "dragonide" and resource_name == "Soffio del Dragonide":
+        texts = resolve_dragonide_trait_texts(subrace, level, character)
+        return texts.get("Arma a Soffio", "")
+
+    races_dir = _os.path.join(
+        _os.path.dirname(_os.path.dirname(__file__)),
+        "data", "game_data", "races",
+    )
+    race_key = race_name.lower().replace(" ", "").replace("'", "")
+    candidate = _os.path.join(races_dir, f"{race_key}.json")
+    if not _os.path.exists(candidate):
+        return ""
+    try:
+        with open(candidate, encoding="utf-8") as fh:
+            data = _json.load(fh)
+    except Exception:
+        return ""
+
+    def _search(traits: list[dict]) -> str:
+        for trait in traits:
+            res = trait.get("resource")
+            if res and res.get("name") == resource_name:
+                return trait.get("description", "")
+            for spell in trait.get("innate_spells", []):
+                if spell.get("resource_name") == resource_name:
+                    ability_label = {"cha": "Carisma", "wis": "Saggezza", "int": "Intelligenza"}.get(
+                        spell.get("ability", "cha"), "Carisma"
+                    )
+                    ability_score = getattr(character, f"{spell.get('ability', 'cha')}_score", 10) if character else 10
+                    prof_bonus = char_prof_bonus(character) if character else 2
+                    mod = get_modifier(ability_score)
+                    dc = 8 + prof_bonus + mod
+                    atk = prof_bonus + mod
+                    return (
+                        f"Lancia l'incantesimo {spell['name']} (livello {spell.get('cast_level', 0)}°) "
+                        f"usando {ability_label} come modificatore (CD tiro salvezza {dc}, "
+                        f"bonus attacco incantesimo +{atk}). "
+                        f"Usi = 1 / riposo lungo, disponibile dal {spell.get('min_char_level', 1)}° livello."
+                    )
+            for res in trait.get("resources", []):
+                if res.get("name") == resource_name:
+                    return trait.get("description", "")
+        return ""
+
+    desc = _search(data.get("traits", []))
+    if desc:
+        return desc
+
+    subrace_norm = subrace.lower()
+    if subrace_norm:
+        for sr in data.get("subraces", []):
+            if sr.get("name", "").lower() in subrace_norm or subrace_norm in sr.get("name", "").lower():
+                desc = _search(sr.get("traits", []))
+                if desc:
+                    return desc
+                break
+
+    return ""

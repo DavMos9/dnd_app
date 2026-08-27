@@ -215,10 +215,10 @@ class ProfiloTab(ScrollMemoryListView):
         self.controls.append(self._build_storia(c))
         self.controls.append(section_header("Competenze"))
         self.controls.append(self._build_competenze(c, prof_bonus, skill_map, save_map))
+        self.controls.append(section_header("Lingue"))
+        self.controls.append(self._section_lingue())
         self.controls.append(section_header("Competenze Armatura e Armi"))
         self.controls.append(self._section_armi_armature())
-        self.controls.append(section_header("Altre Competenze"))
-        self.controls.append(self._section_altre_competenze())
         self.controls.append(section_header("Talenti"))
         self.controls.append(self._build_talenti(c))
 
@@ -645,12 +645,20 @@ class ProfiloTab(ScrollMemoryListView):
     def _build_razza(self, c: Character) -> ft.Container:
         race_info = _loader.get_resolved_race(c.race, c.subrace)
         speed = race_info.get("speed", c.speed or 9)
-        darkvision = race_info.get("darkvision", 0)
+        darkvision = c.darkvision_override if c.darkvision_override >= 0 else race_info.get("darkvision", 0)
         traits = race_info.get("traits", [])
+
+        # Dragonide: i tratti "Discendenza Draconica"/"Resistenza ai
+        # Danni"/"Arma a Soffio" arrivano dal JSON ancora generici (elencano
+        # tutte e 10 le discendenze possibili) — la discendenza scelta
+        # (c.subrace, es. "Blu") li risolve ai valori reali del personaggio.
+        dragon_texts: dict[str, str] = {}
+        if (c.race or "").strip().lower() == "dragonide":
+            dragon_texts = resolve_dragonide_trait_texts(c.subrace, c.level, c)
 
         rows: list[ft.Control] = [
             self._info_row("Velocità", f"{speed:g} m"),
-            self._info_row("Scurovisione", f"{darkvision} m" if darkvision else "Nessuna"),
+            self._info_row("Scurovisione", f"{darkvision:g} m" if darkvision else "Nessuna"),
         ]
         if traits:
             rows.append(ft.Container(height=4))
@@ -660,7 +668,7 @@ class ProfiloTab(ScrollMemoryListView):
             for t in traits:
                 # t è un dict {"name": ..., "description": ...} dal JSON razza
                 name = t.get("name", "")
-                desc = t.get("description", "")
+                desc = dragon_texts.get(name, t.get("description", ""))
                 rows.append(ft.Container(
                     content=ft.Column([
                         ft.Text(name.strip(), size=12, weight=ft.FontWeight.BOLD,
@@ -910,19 +918,20 @@ class ProfiloTab(ScrollMemoryListView):
         )
 
     # ------------------------------------------------------------------
-    # Altre Competenze — Lingue, Strumenti, Veicoli, Giochi. Stesso dato
-    # (proficiency_type "language"/"tool") mostrato in sola lettura in
-    # Esplorazione.
+    # Lingue (proficiency_type "language") — spostata sotto Competenze
+    # (era "Altre Competenze", condivisa con Strumenti, mostrata in sola
+    # lettura in Esplorazione). Gli Strumenti restano invece in Esplorazione
+    # con la propria gestione (_section_strumenti), non qui.
     # ------------------------------------------------------------------
 
-    def _section_altre_competenze(self) -> ft.Container:
-        entries = [p for p in self.proficiencies if p.proficiency_type in ("language", "tool")]
+    def _section_lingue(self) -> ft.Container:
+        entries = [p for p in self.proficiencies if p.proficiency_type == "language"]
 
         header_row = ft.Row(
             [
                 ft.ElevatedButton(
                     "+ Aggiungi", icon=ft.Icons.ADD,
-                    on_click=lambda e: self._open_add_competenza_dialog("language"),
+                    on_click=lambda e: self._open_add_competenza_dialog("language", lock_type="language"),
                     style=ft.ButtonStyle(
                         bgcolor=design.T().primary_fill, color=design.T().on_primary_fill,
                         padding=ft.Padding.symmetric(horizontal=10, vertical=4),
@@ -933,18 +942,15 @@ class ProfiloTab(ScrollMemoryListView):
         )
 
         if not entries:
-            rows: list[ft.Control] = [header_row, muted_text(
-                "Nessuna lingua, strumento, veicolo o gioco registrato", 12)]
+            rows: list[ft.Control] = [header_row, muted_text("Nessuna lingua registrata", 12)]
         else:
             rows = [header_row]
-            for p in sorted(entries, key=lambda x: (x.proficiency_type, x.name)):
-                icon = ft.Icons.TRANSLATE if p.proficiency_type == "language" else ft.Icons.BUILD
-                label = p.name + ("  (Maestria)" if p.is_expert else "")
+            for p in sorted(entries, key=lambda x: x.name):
                 rows.append(
                     ft.Row(
                         [
-                            ft.Icon(icon, size=14, color=design.T().text_3),
-                            ft.Text(label, size=13, color=design.T().text, expand=True),
+                            ft.Icon(ft.Icons.TRANSLATE, size=14, color=design.T().text_3),
+                            ft.Text(p.name, size=13, color=design.T().text, expand=True),
                             ft.IconButton(
                                 icon=ft.Icons.CLOSE,
                                 icon_color=design.T().text_3,
@@ -1007,19 +1013,27 @@ class ProfiloTab(ScrollMemoryListView):
             return list(self._ARMOR_TOKEN_LABELS.items())
         return []
 
-    def _open_add_competenza_dialog(self, default_type: str = "language") -> None:
+    def _open_add_competenza_dialog(
+        self, default_type: str = "language", lock_type: str | None = None,
+    ) -> None:
         page = self._page
         if page is None:
             return
 
+        # lock_type: dialog usato dalla sola sezione Lingue — niente
+        # selettore Tipo, il tipo resta fisso per evitare di aggiungere da
+        # lì una competenza (es. Strumento) che poi non comparirebbe più
+        # nella lista (gestita altrove, vedi Esplorazione).
         type_dd = ft.Dropdown(
             label="Tipo",
-            value=default_type,
+            value=lock_type or default_type,
             options=[ft.DropdownOption(key=k, text=lbl) for k, lbl in self._COMPETENZA_TIPI],
             text_style=ft.TextStyle(size=13, color=design.T().text),
             border_color=design.T().border, focused_border_color=design.T().primary,
             bgcolor=design.T().surface,
-            border_radius=design.field_style()['border_radius'])
+            border_radius=design.field_style()['border_radius'],
+            visible=lock_type is None,
+            disabled=lock_type is not None)
         catalog_dd = ft.Dropdown(
             label="Suggerimenti dal catalogo",
             value=None,
@@ -1099,8 +1113,9 @@ class ProfiloTab(ScrollMemoryListView):
             page.pop_dialog()
             self._refresh()
 
+        _titles = {"language": "Aggiungi Lingua"}
         page.show_dialog(ft.AlertDialog(
-            title=design.dialog_title("Aggiungi Competenza"),
+            title=design.dialog_title(_titles.get(lock_type or "", "Aggiungi Competenza")),
             content=ft.Column(
                 [type_dd, catalog_dd, f_name, expert_cb, error_text],
                 spacing=10, scroll=ft.ScrollMode.AUTO,
@@ -1778,9 +1793,15 @@ class ProfiloTab(ScrollMemoryListView):
         hp_choice.on_change = on_hp_choice_change
 
         # --- Widget ASI ---
+        # Esclude le caratteristiche già a 20: il PHB vieta di superare questo
+        # tetto con l'ASI, e senza questo filtro il giocatore poteva
+        # selezionare una caratteristica già al massimo e sprecare l'intero
+        # miglioramento (l'applicazione la clampava comunque a 20, ma senza
+        # alcun avviso).
         stat_options = [
             ft.DropdownOption(key=k, text=f"{n} (attuale: {getattr(c, k + '_score')})")
             for k, n in zip(ABILITY_KEYS, ABILITY_SCORES)
+            if getattr(c, k + '_score') < 20
         ]
         feat_names = _loader.get_feat_names()
 
@@ -1925,7 +1946,8 @@ class ProfiloTab(ScrollMemoryListView):
             fd = _loader.get_feat(name)
             ab = fd.get("ability_bonus") if fd else None
             if ab and ab.get("choose_one"):
-                opts = ab.get("options", [])
+                # Stesso filtro tetto-20 dell'ASI sopra.
+                opts = [k for k in ab.get("options", []) if getattr(c, k + '_score', 0) < 20]
                 feat_bonus_dd.options = [
                     ft.DropdownOption(key=k, text=_stat_name_map.get(k, k))
                     for k in opts

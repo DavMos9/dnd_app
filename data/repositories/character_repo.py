@@ -86,6 +86,9 @@ def _row_to_character(row) -> Character:
         max_prepared_spells_override=d.get("max_prepared_spells_override", 0) or 0,
         passive_perception_override=d.get("passive_perception_override", 0) or 0,
         carry_capacity_override=d.get("carry_capacity_override", 0) or 0,
+        # .get(..., -1.0) senza `or`: 0 è un valore esplicito valido qui
+        # ("Nessuna scurovisione"), diverso dal sentinel -1 ("non impostato").
+        darkvision_override=d.get("darkvision_override", -1.0),
         exhaustion_level=d.get("exhaustion_level", 0) or 0,
         frenzy_active=bool(d.get("frenzy_active", 0) or 0),
         concentrating_spell=d.get("concentrating_spell", "") or "",
@@ -3427,6 +3430,29 @@ def update_carry_capacity_override(character_id: str, value: float) -> bool:
         return True
     except Exception as e:
         logger.error(f"Errore update_carry_capacity_override: {e}")
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def update_darkvision_override(character_id: str, value: float) -> bool:
+    """
+    Salva l'override manuale della Scurovisione in metri (-1 = non impostato,
+    usa il valore della razza; 0 = "Nessuna" esplicito) — vedi
+    `Character.darkvision_override` in data/models.py.
+    """
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE characters SET darkvision_override=?, updated_at=? WHERE id=?",
+            (value, datetime.now().isoformat(), character_id),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Errore update_darkvision_override: {e}")
         return False
     finally:
         if conn is not None:

@@ -12599,6 +12599,143 @@ noto ("non si anima un albero ricostruito da zero"). La lezione si ripete:
 solo l'app reale, non la lettura del codice o un browser headless, rivela
 come si comporta davvero il renderer.
 
+## Sei richieste su Tratti Razziali/Risorse di Razza, bug ASI tetto-20, Lingue/Strumenti/Scurovisione, Indebolimento nel riquadro statistiche (2026-08-27)
+
+Sei richieste distinte di Davide, tutte in un solo giro di sessione, nessuna
+verificata dal vivo sul renderer nativo desktop/mobile a fine sessione
+(solo `py_compile` + smoke test diretto delle funzioni pure di
+`config/settings.py` con oggetti `SimpleNamespace`) — **da confermare da
+Davide alla prossima apertura dell'app**, per la stessa regola già nota
+del progetto (solo il renderer reale rivela problemi di layout Flet).
+
+**1. Tratti Razziali generici → risolti sui dati reali del personaggio.**
+`ui/views/character_sheet/profilo_tab.py::_build_razza()` mostrava il testo
+grezzo di `dragonide.json` per "Discendenza Draconica"/"Resistenza ai
+Danni"/"Arma a Soffio" — ancora l'elenco di tutte le 10 discendenze
+possibili, mai risolto sulla discendenza scelta dal giocatore alla
+creazione (`Character.subrace`, es. "Blu" — il Dragonide non ha vere
+sottorazze PHB, il campo è riusato per questa scelta, vedi
+`wizard_view.py`/`manual_form.py`). Nuova
+`config/settings.py::resolve_dragonide_trait_texts(subrace, level,
+character)`: incrocia `subrace` con `dragonide.json → traits[].options[]`
+(già completo di danno/forma del soffio/caratteristica del TS, fonte unica,
+nessun dato duplicato a mano) e calcola i numeri reali del personaggio (dado
+danno per livello, CD = 8 + bonus competenza + mod Costituzione via
+`char_prof_bonus()`/`get_modifier()` già esistenti). `_build_razza()` la usa
+per sostituire il testo dei 3 tratti SOLO per `c.race == "Dragonide"`; se la
+discendenza non è impostata o non riconosciuta, resta il testo generico del
+JSON (nessuna eccezione). Non riguarda le altre 8 razze: nessuna ha un
+tratto testuale con formula-non-risolta equivalente.
+
+**2. Risorse RAZZIALI (Soffio del Dragonide e affini) ora cliccabili in
+"Risorse di Classe" per leggerne la descrizione.** Bug report di Davide:
+"Soffio del Dragonide" compare tra le risorse (già corretto — vedi
+`get_race_resource_defaults()` in `config/settings.py`, esistente) ma senza
+alcun modo di consultarne la descrizione, a differenza delle Abilità di
+Classe (sezione distinta, già cliccabile). Analisi di tutte le 9 razze:
+oltre al Dragonide, altre 3 hanno un'abilità a usi limitati equivalente —
+Mezzorco (Tenacia Implacabile), Tiefling (Eredità Infernale: Intimorire
+Infernale/Oscurità, incantesimi innati dal 3°/5° livello), Elfo → sola
+sottorazza Elfo Oscuro/Drow (Magia Drow: Luminescenza/Oscurità, stesso
+schema). Nuova `config/settings.py::get_race_resource_description(character,
+resource_name)`: per il Dragonide riusa `resolve_dragonide_trait_texts()`
+sopra; per le altre cerca il tratto proprietario in
+`traits[]`/`subraces[].traits[]` via `resource`/`resources[]`/
+`innate_spells[].resource_name`, e per un incantesimo innato calcola CD/bonus
+attacco reali (stessa formula del punto 1, caratteristica dell'incantesimo
+letta dal JSON). Ritorna `""` per qualunque risorsa di CLASSE (Furia, Ki,
+ecc. — quelle restano consultabili solo via "Abilità di Classe", nessuna
+duplicazione). `combattimento_tab.py`: nuovo `_resource_name_control()`
+condiviso dalle 3 righe risorsa (cerchietti/counter/illimitata) — se la
+descrizione non è vuota, il nome diventa un `Container` cliccabile con icona
+ℹ che apre `_show_resource_description()` (`AlertDialog` semplice).
+
+**3. Bug: l'ASI permetteva di selezionare una caratteristica già a 20.**
+Riproduzione di Davide: al level-up, una caratteristica a 20 restava
+selezionabile nel dropdown ASI/scelta bonus talento — l'applicazione
+(`profilo_tab.py`, dentro il dialog di level-up) già clampava il risultato a
+`min(20, ...)`, quindi l'ASI veniva comunque "consumata" e registrata
+(`asi_record`) senza alcun beneficio reale, senza nessun avviso al
+giocatore. Fix chirurgico, stessa causa in 2 punti: `stat_options` (dropdown
+"+2"/"+1+1") e le opzioni di `feat_bonus_dd` (bonus `choose_one` di un
+talento) ora escludono `getattr(c, k + '_score') >= 20`. Se tutte le
+caratteristiche sono già a 20 (caso limite teorico ad alto livello), il
+dropdown resta vuoto e la validazione esistente blocca comunque il salvataggio
+finché non si sceglie "Talento" — nessuna nuova UI per questo caso limite,
+non richiesto e non necessario.
+
+**4. Lingue spostate sotto Competenze in Profilo; Strumenti restano in
+Esplorazione ma ora gestibili direttamente lì; nuovo override manuale della
+Scurovisione.** Tre richieste collegate:
+- **Lingue**: la vecchia sezione "Altre Competenze" di `profilo_tab.py`
+  (Lingue+Strumenti insieme, con Esplorazione in sola lettura) è diventata
+  `_section_lingue()` — solo Lingue, filtrata su `proficiency_type ==
+  "language"`, spostata subito sotto "Competenze" nell'ordine di `_build()`.
+  Il dialog "+ Aggiungi" (`_open_add_competenza_dialog`, generico, condiviso
+  anche da "Competenze Armatura e Armi") ha un nuovo parametro `lock_type`:
+  quando chiamato da Lingue nasconde il selettore Tipo (fisso su
+  `"language"`) invece di lasciarlo scegliere anche Strumento/Arma/Armatura
+  da lì — evitava che una competenza aggiunta dalla sezione Lingue sparisse
+  dalla vista pur essendo salvata correttamente altrove. La tendina
+  "Suggerimenti dal catalogo" resta quella già esistente (`LANGUAGES` in
+  `config/settings.py`, 15 lingue PHB) con voce "— nessuno, compila a mano —"
+  per una lingua inventata dal giocatore (campo Nome sempre libero).
+- **Strumenti**: `esplorazione_tab.py::_section_strumenti()` era sola
+  lettura ("editing centralizzato in ProfiloTab" — commento ormai
+  disallineato dal codice reale). Ora gestita interamente qui: nuovo
+  pulsante "+ Aggiungi" nell'header (`_open_add_tool_dialog()`, stesso
+  pattern tendina-catalogo (`GameDataLoader.get_all_tool_names()` +
+  Veicoli terrestri/acquatici) + "compila a mano") e ✕ rimuovi per riga
+  (`_on_delete_tool()`, stessa query diretta `DELETE FROM
+  character_proficiencies` già usata da `profilo_tab.py`, nessuna funzione
+  nuova nel repository — non ne esisteva una condivisa prima di questa
+  sessione).
+- **Scurovisione**: nessun campo esisteva per un override manuale — era
+  puramente calcolata da `GameDataLoader.get_resolved_race()`, mai
+  modificabile (bug/gap segnalato da Davide: niente modo di dire "Sì/No, e
+  se sì quanti metri" per talenti/oggetti magici/house rule). Nuova colonna
+  `characters.darkvision_override REAL DEFAULT -1` (migrazione
+  `_add_column`, `data/database.py`) + `Character.darkvision_override:
+  float = -1.0` (`data/models.py`) — **-1 = non impostato** (usa il valore
+  di razza, comportamento di sempre), **0 = "Nessuna" esplicito** (diverso
+  dal sentinel: un valore legittimo, non "usa la razza"). Nuova
+  `character_repo.update_darkvision_override()` (stesso pattern di
+  `update_carry_capacity_override`). UI: la riga "Scurovisione" in
+  `esplorazione_tab.py::_section_sensi()` è ora cliccabile
+  (`_editable_info_row`, stesso pattern già in uso per "Camminata") →
+  `_on_edit_darkvision()`, `RadioGroup` Sì/No + campo metri (visibile solo
+  se "Sì") + azione "Usa valore di razza" per tornare al sentinel -1.
+  **Sincronizzato in 2 punti**, gli unici due render site esistenti:
+  `esplorazione_tab.py` (sopra) e `profilo_tab.py::_build_razza()` (Tratti
+  Razziali), entrambi ora leggono `c.darkvision_override if
+  c.darkvision_override >= 0 else race_info.get("darkvision", 0)`. Nessuna
+  modifica al Multiplayer: `update_darkvision_override()` scrive solo in
+  locale, stesso comportamento già accettato per `update_speed()` (nessun
+  invio esplicito verso l'host da questo dialog, si affida al resync
+  periodico generale come per la Velocità).
+
+**5. Sezione Indebolimento spostata dentro il riquadro CA/Velocità/
+Iniziativa/Ispirazione, stesso comportamento responsive.** Richiesta di
+Davide: era una sezione a piena larghezza a sé stante
+(`section_header("Indebolimento")` + `_section_exhaustion()`, con bordo e
+ombra propri) sotto la riga HP+Statistiche di `combattimento_tab.py::_build()`
+— voleva che si comportasse come il resto della card CA/Velocità/Iniziativa/
+Ispirazione (va a capo su smartphone insieme al resto, non resta un blocco
+separato). `_section_exhaustion()` ora ritorna il contenuto interno (un
+`ft.Column`, niente più `Container`/bordo/ombra propri) invece di una card a
+sé, con un `ft.Divider` in testa al posto dell'header di sezione rimosso;
+`_section_stats()` la aggiunge in coda alla propria `ft.Column`, dentro lo
+stesso `design.card()` — la card intera è già la colonna "minor" (5/12) di
+`design.asymmetric_row()`, che impila le due colonne a piena larghezza sotto
+il breakpoint "md" (comportamento esistente, non nuovo — l'Indebolimento ora
+lo eredita perché vive nella stessa card).
+
+`test_multiclasse.py`/`test_connessioni_db.py`/altre suite esistenti non
+rieseguite in questa sessione (limite noto: nessun cambiamento a schema DB
+condiviso da altre feature, solo una colonna nuova additiva e funzioni
+nuove/isolate) — **da eseguire e da verificare dal vivo prima del prossimo
+rilascio**. Nessun commit fatto.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

@@ -3,13 +3,12 @@ Tab Esplorazione della scheda personaggio.
 
 Struttura (ListView scrollabile):
   - Percezione Passiva   — valore calcolato (10 + mod SAG + eventuale competenza)
-  - Sensi                — scurovisione, altri sensi speciali da razza
-  - Velocità             — base + nuoto / scalata / volo (se presenti)
-  - Lingue               — dalla scheda proficiencies (type="language"), sola
-                        lettura (editing centralizzato in ProfiloTab, vedi
-                        ProfiloTab._section_altre_competenze)
-  - Strumenti            — dalla scheda proficiencies (type="tool"), sola
-                        lettura, stesso motivo di Lingue
+  - Sensi                — scurovisione (override manuale, ✎ Modifica), altri
+                        sensi speciali da razza; Velocità base + nuoto /
+                        scalata / volo (se presenti)
+  - Strumenti            — dalla scheda proficiencies (type="tool"), gestita
+                        qui (+ Aggiungi/rimuovi) — Lingue si è spostata sotto
+                        Competenze in ProfiloTab (2026-08-27)
   - Tiri Salvezza        — griglia compatta 6 valori con indicatore competenza
   - Abilità              — griglia compatta 18 abilità con modificatore calcolato
 """
@@ -20,6 +19,7 @@ from typing import Any, Callable, cast
 from config.settings import *
 from data.models import Character, CharacterProficiency, CustomAbility
 import data.repositories.character_repo as character_repo
+from data.database import get_connection
 from data.game_data.game_data_loader import game_data
 from ui.theme import section_header, muted_text, label_text, show_error_dialog
 from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
@@ -151,8 +151,6 @@ class EsplorazioneTab(ScrollMemoryListView):
         ))
         self.controls.append(section_header("Sensi e Velocità"))
         self.controls.append(self._section_sensi(c))
-        self.controls.append(self._section_lingue_header())
-        self.controls.append(self._section_lingue())
         self.controls.append(self._section_strumenti_header())
         self.controls.append(self._section_strumenti())
         self.controls.append(self._section_custom_abilities_header())
@@ -376,7 +374,10 @@ class EsplorazioneTab(ScrollMemoryListView):
 
     def _section_sensi(self, c: Character) -> ft.Container:
         race_info = game_data.get_resolved_race(c.race, c.subrace)
-        darkvision = race_info.get("darkvision", 0)
+        darkvision = (
+            c.darkvision_override if c.darkvision_override >= 0
+            else race_info.get("darkvision", 0)
+        )
 
         rows: list[ft.Control] = []
 
@@ -403,10 +404,12 @@ class EsplorazioneTab(ScrollMemoryListView):
 
         rows.append(ft.Container(height=8))
 
-        if darkvision:
-            rows.append(self._info_row("Scurovisione", f"{darkvision} m"))
-        else:
-            rows.append(self._info_row("Scurovisione", "Nessuna"))
+        dv_note = "" if c.darkvision_override < 0 else " (manuale)"
+        rows.append(self._editable_info_row(
+            "Scurovisione",
+            f"{darkvision:g} m{dv_note}" if darkvision else f"Nessuna{dv_note}",
+            on_click=self._on_edit_darkvision,
+        ))
 
         rows.append(
             muted_text(
@@ -471,47 +474,123 @@ class EsplorazioneTab(ScrollMemoryListView):
         )
         page.show_dialog(dlg)
 
+    def _on_edit_darkvision(self) -> None:
+        page = self._page
+        if page is None:
+            return
+        c = self.character
+        race_info = game_data.get_resolved_race(c.race, c.subrace)
+        race_default = race_info.get("darkvision", 0)
+        current = (
+            c.darkvision_override if c.darkvision_override >= 0 else race_default
+        )
+
+        tf = ft.TextField(
+            label="Scurovisione (metri)",
+            value=f"{current:g}" if current else f"{race_default or 18:g}",
+            hint_text="es. 18, 36",
+            visible=current > 0,
+            **design.field_style())
+
+        toggle = ft.RadioGroup(
+            content=ft.Row([
+                ft.Radio(value="no", label="No"),
+                ft.Radio(value="si", label="Sì"),
+            ], spacing=16),
+            value="si" if current > 0 else "no",
+        )
+
+        def _on_toggle(e):
+            tf.visible = toggle.value == "si"
+            try:
+                tf.update()
+            except RuntimeError:
+                pass
+
+        toggle.on_change = _on_toggle
+
+        def _save(e):
+            if toggle.value == "no":
+                value = 0.0
+            else:
+                raw = (tf.value or "").strip().replace(",", ".")
+                try:
+                    value = max(0.0, float(raw))
+                except ValueError:
+                    cast(Any, tf).error_text = "Inserisci un numero valido (es. 18)"
+                    tf.update()
+                    return
+            if not character_repo.update_darkvision_override(c.id, value):
+                show_error_dialog(page, "Errore nel salvataggio della Scurovisione.")
+                return
+            c.darkvision_override = value
+            page.pop_dialog()
+            self._refresh()
+
+        def _reset(e):
+            if not character_repo.update_darkvision_override(c.id, -1.0):
+                show_error_dialog(page, "Errore nel salvataggio della Scurovisione.")
+                return
+            c.darkvision_override = -1.0
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=design.dialog_title("Modifica Scurovisione"),
+            content=ft.Column(
+                [
+                    muted_text(
+                        f"Valore di razza: {race_default:g} m" if race_default else
+                        "Valore di razza: Nessuna",
+                        11,
+                    ),
+                    toggle,
+                    tf,
+                ],
+                spacing=12,
+                tight=True,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Usa valore di razza", on_click=_reset),
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton("Applica", on_click=_save),
+            ]),
+        )
+        page.show_dialog(dlg)
+
     # ------------------------------------------------------------------
-    # Lingue — sola lettura (editing centralizzato in ProfiloTab, vedi
-    # ProfiloTab._section_altre_competenze: principio "Tutto in Profilo")
-    # ------------------------------------------------------------------
-
-    def _section_lingue_header(self) -> ft.Container:
-        # Usa section_header() invece di reimplementarlo a mano: stesso
-        # header già usato più sotto per "Tiri Salvezza"/"Abilità", una sola
-        # fonte di verità.
-        return section_header("Lingue")
-
-    def _section_lingue(self) -> ft.Container:
-        lingue = [p for p in self._profs if p.proficiency_type == "language"]
-
-        if not lingue:
-            rows: list[ft.Control] = [muted_text("Nessuna lingua registrata — usa + Aggiungi", 12)]
-        else:
-            # Nessuna icona per riga: la sezione è già titolata "Lingue" e
-            # un'icona identica ripetuta su ogni riga non aggiungerebbe
-            # informazione (a differenza di ★/● in Strumenti qui sotto, che
-            # comunica competenza/maestria).
-            rows = []
-            for p in sorted(lingue, key=lambda x: x.name):
-                rows.append(
-                    ft.Text(
-                        p.name,
-                        size=13,
-                        color=design.T().text,
-                    )
-                )
-
-        return self._compact_card(rows)
-
-    # ------------------------------------------------------------------
-    # Strumenti — sola lettura (editing centralizzato in ProfiloTab, vedi
-    # ProfiloTab._section_altre_competenze)
+    # Strumenti (proficiency_type "tool") — Lingue si è spostata sotto
+    # Competenze in ProfiloTab (2026-08-27), Strumenti resta invece qui con
+    # la propria gestione diretta (+ Aggiungi/rimuovi), stesso principio del
+    # dialog "Aggiungi Lingua" di ProfiloTab: tendina dal catalogo PHB
+    # (equipment.json → strumenti/veicoli/giochi) con voce "compila a mano"
+    # per uno strumento inventato dal giocatore.
     # ------------------------------------------------------------------
 
     def _section_strumenti_header(self) -> ft.Container:
-        # Stesso motivo di _section_lingue_header.
-        return section_header("Strumenti")
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Container(width=3, height=14, bgcolor=design.T().primary_fill, border_radius=1),
+                    ft.Container(width=8),
+                    ft.Text("STRUMENTI", size=10, color=design.T().text_2,
+                            weight=ft.FontWeight.BOLD, style=ft.TextStyle(letter_spacing=2)),
+                    ft.Container(width=8),
+                    ft.Container(expand=True, height=1, bgcolor=design.T().border),
+                    ft.Container(width=8),
+                    ft.TextButton(
+                        "+ Aggiungi", icon=ft.Icons.ADD,
+                        on_click=lambda e: self._open_add_tool_dialog(),
+                        style=ft.ButtonStyle(color=design.T().primary),
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.only(top=16, bottom=6),
+        )
 
     def _section_strumenti(self) -> ft.Container:
         strumenti = [p for p in self._profs if p.proficiency_type == "tool"]
@@ -535,12 +614,134 @@ class EsplorazioneTab(ScrollMemoryListView):
                                 expand=True,
                             ),
                             muted_text(lvl_text, 11),
+                            ft.IconButton(
+                                icon=ft.Icons.CLOSE,
+                                icon_color=design.T().text_3,
+                                icon_size=14,
+                                tooltip="Rimuovi",
+                                on_click=lambda e, pp=s: self._on_delete_tool(pp),
+                                padding=ft.Padding.all(2),
+                            ),
                         ],
                         spacing=6,
                     )
                 )
 
         return self._compact_card(rows)
+
+    def _tool_catalog_options(self) -> list[tuple[str, str]]:
+        opts = [(n, n) for n in game_data.get_all_tool_names()]
+        # Veicoli: il PHB concede competenza per categoria ampia ("veicoli
+        # terrestri" o "acquatici"), non per singolo modello — vedi
+        # equipment/mounts_and_vehicles.json -> rules -> "competenza_in_un_veicolo".
+        opts += [
+            ("Veicoli (terrestri)", "Veicoli (terrestri)"),
+            ("Veicoli (acquatici)", "Veicoli (acquatici)"),
+        ]
+        return opts
+
+    def _open_add_tool_dialog(self) -> None:
+        page = self._page
+        if page is None:
+            return
+
+        catalog_dd = ft.Dropdown(
+            label="Suggerimenti dal catalogo",
+            value=None,
+            options=(
+                [ft.DropdownOption(key="", text="— nessuno, compila a mano —")]
+                + [ft.DropdownOption(key=val, text=lbl) for val, lbl in self._tool_catalog_options()]
+            ),
+            **design.field_style())
+        f_name = ft.TextField(label="Nome *", value="", **design.field_style())
+        expert_cb = ft.Checkbox(label="Maestria (raddoppia il bonus competenza)", value=False)
+        error_text = ft.Text("", size=11, color=design.T().danger)
+
+        def on_catalog_select(ev: ft.Event[ft.Dropdown]) -> None:
+            val = catalog_dd.value or ""
+            if val:
+                f_name.value = val
+                try:
+                    f_name.update()
+                except RuntimeError:
+                    pass
+
+        catalog_dd.on_select = on_catalog_select
+
+        def _set_error(msg: str) -> None:
+            error_text.value = msg
+            try:
+                error_text.update()
+            except RuntimeError:
+                pass
+
+        def save(ev: Any) -> None:
+            name = (f_name.value or "").strip()
+            if not name:
+                _set_error("Il nome è obbligatorio.")
+                return
+            duplicate = any(
+                p.proficiency_type == "tool" and p.name.strip().lower() == name.lower()
+                for p in self._profs
+            )
+            if duplicate:
+                _set_error("Questo strumento è già presente sulla scheda.")
+                return
+            ok = character_repo._save_single_proficiency(
+                self.character.id, "tool", name, is_expert=bool(expert_cb.value)
+            )
+            if not ok:
+                show_error_dialog(page)
+                return
+            page.pop_dialog()
+            self._refresh()
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title("Aggiungi Strumento"),
+            content=ft.Column(
+                [catalog_dd, f_name, expert_cb, error_text],
+                spacing=10, scroll=ft.ScrollMode.AUTO,
+            ),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla",
+                              on_click=lambda ev: page.pop_dialog() if page else None),
+                ft.ElevatedButton("Salva", on_click=save,
+                                  style=ft.ButtonStyle(
+                                      bgcolor=design.T().primary_fill, color=design.T().on_primary_fill)),
+            ]),
+        ))
+
+    def _on_delete_tool(self, prof: CharacterProficiency) -> None:
+        page = self._page
+        if page is None:
+            return
+
+        def _confirm(e):
+            try:
+                with get_connection() as conn:
+                    conn.execute(
+                        "DELETE FROM character_proficiencies WHERE id = ?",
+                        (prof.id,),
+                    )
+            except Exception as ex:
+                logger.error("Errore eliminazione strumento: %s", ex)
+            page.pop_dialog()
+            self._refresh()
+
+        def _cancel(e):
+            page.pop_dialog()
+
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title("Rimuovi Strumento"),
+            content=ft.Text(f"Rimuovere \"{prof.name}\" dalle competenze?", size=13,
+                             color=design.T().text),
+            actions=wrap_dialog_actions([
+                ft.TextButton("Annulla", on_click=_cancel),
+                ft.ElevatedButton("Rimuovi", on_click=_confirm,
+                                  style=ft.ButtonStyle(bgcolor=design.T().danger_fill,
+                                                        color=design.T().on_primary_fill)),
+            ]),
+        ))
 
     # ------------------------------------------------------------------
     # Abilità Speciali custom — voci additive, es. concesse dal master; non

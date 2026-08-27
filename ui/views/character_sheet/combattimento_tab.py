@@ -4,9 +4,10 @@ Tab Combattimento della scheda personaggio.
 Struttura (ListView scrollabile):
   - HP Tracker        — barra HP colorata, danno/cura, HP temp,
                         tiri salvezza morte (sempre visibili)
-  - Statistiche       — CA, Velocità, Iniziativa (calcolata), Ispirazione toggle
-  - Indebolimento     — livello Exhaustion 0-6 (counter −/+), effetti
-                        cumulativi testuali PHB, nessun enforcement automatico
+  - Statistiche       — CA, Velocità, Iniziativa (calcolata), Ispirazione toggle,
+                        Indebolimento (livello Exhaustion 0-6, counter −/+, effetti
+                        cumulativi testuali PHB, nessun enforcement automatico) —
+                        stessa card, non più sezione a sé (2026-08-27)
   - Azioni Turno      — Azione / Azione Bonus / Reazione + tracker movimento
                         Nuovo Turno (snapshot per undo) + Annulla
   - Tiri Salvezza & Abilità — riferimento rapido con competenze evidenziate
@@ -379,8 +380,6 @@ class CombattimentoTab(ScrollMemoryListView):
             # autoesplicativo dalle etichette dei singoli riquadri.
             design.asymmetric_row(self._section_hp(c), self._section_stats(c),
                                    ratio=(7, 5)),
-            section_header("Indebolimento"),
-            self._section_exhaustion(c),
             section_header("Condizioni"),
             self._section_conditions(),
         ]
@@ -1421,6 +1420,12 @@ class CombattimentoTab(ScrollMemoryListView):
                         ],
                         alignment=ft.MainAxisAlignment.END,
                     ),
+                    # Indebolimento vive qui (non più come sezione a sé
+                    # stante) per condividere lo stesso comportamento
+                    # responsive di questa card — su smartphone va a capo
+                    # insieme a CA/Velocità/Iniziativa/Ispirazione invece di
+                    # restare un blocco separato a piena larghezza.
+                    self._section_exhaustion(c),
                 ],
                 spacing=6,
             ),
@@ -1545,7 +1550,7 @@ class CombattimentoTab(ScrollMemoryListView):
     # Indebolimento (Exhaustion)
     # ------------------------------------------------------------------
 
-    def _section_exhaustion(self, c: Character) -> ft.Container:
+    def _section_exhaustion(self, c: Character) -> ft.Column:
         """
         Livello di Indebolimento (Exhaustion), PHB IT — condizione cumulativa
         0 (nessuno) - 6 (morte). Nessun effetto meccanico viene applicato
@@ -1619,27 +1624,19 @@ class CombattimentoTab(ScrollMemoryListView):
                     )
                 )
 
-        return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Row(
-                        [
-                            ft.Text("INDEBOLIMENTO", size=10, color=design.T().text_3,
-                                    weight=ft.FontWeight.BOLD,
-                                    style=ft.TextStyle(letter_spacing=0.8)),
-                        ],
-                    ),
-                    counter_row,
-                    ft.Divider(color=design.T().border, height=8),
-                    ft.Column(effect_rows, spacing=4),
-                ],
-                spacing=8,
-            ),
-            bgcolor=design.T().surface,
-            padding=14,
-            border=ft.Border.only(left=ft.BorderSide(3, level_color)),
-            shadow=design.elevation(1),
-            border_radius=design.Radius.MD,
+        # Nessun Container/bordo proprio: questa sezione vive dentro la card
+        # di _section_stats() (vedi _build()), non più come blocco a sé
+        # stante — il Divider sopra la separa dal resto della card.
+        return ft.Column(
+            [
+                ft.Divider(color=design.T().border, height=16),
+                ft.Text("INDEBOLIMENTO", size=10, color=design.T().text_3,
+                        weight=ft.FontWeight.BOLD,
+                        style=ft.TextStyle(letter_spacing=0.8)),
+                counter_row,
+                ft.Column(effect_rows, spacing=4),
+            ],
+            spacing=8,
         )
 
     def _on_exhaustion_increment(self, e: Any) -> None:
@@ -2815,14 +2812,52 @@ class CombattimentoTab(ScrollMemoryListView):
         c.exhaustion_level = new_level
         self._refresh()
 
+    def _resource_name_control(self, res: ClassResource, display_name: str | None = None) -> ft.Control:
+        """
+        Etichetta del nome di una riga di `_section_class_resources()` — se
+        la risorsa è RAZZIALE (Soffio del Dragonide, Tenacia Implacabile,
+        risorse innate di Tiefling/Elfo Oscuro, ecc.), diventa cliccabile
+        per consultarne la descrizione (stesso principio già usato per
+        "Abilità di Classe", che però copre solo le feature di classe — le
+        risorse di classe vere e proprie restano già consultabili lì e non
+        hanno bisogno di questa seconda affordance).
+        """
+        text = display_name or res.name
+        desc = get_race_resource_description(self.character, res.name)
+        if not desc:
+            return ft.Text(text, size=12, color=design.T().text,
+                            weight=ft.FontWeight.W_600, expand=True)
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Text(text, size=12, color=design.T().text, weight=ft.FontWeight.W_600),
+                    ft.Icon(ft.Icons.INFO_OUTLINE, size=12, color=design.T().text_3),
+                ],
+                spacing=4, tight=True,
+            ),
+            expand=True,
+            on_click=lambda e, r=res, d=desc: self._show_resource_description(r.name, d),
+            ink=True,
+            tooltip="Mostra descrizione",
+        )
+
+    def _show_resource_description(self, name: str, description: str) -> None:
+        page = self._page
+        if page is None:
+            return
+        page.show_dialog(ft.AlertDialog(
+            title=design.dialog_title(name),
+            content=ft.Text(description, size=13, color=design.T().text),
+            actions=[ft.TextButton("Chiudi", on_click=lambda ev: page.pop_dialog() if page else None)],
+        ))
+
     def _resource_unlimited_row(self, res: ClassResource) -> ft.Row:
         """Riga per risorse senza limite di utilizzi (es. Furia del Barbaro al 20° livello)."""
         reset_icon  = "☽" if res.reset_on == "short_rest" else "☀"
         reset_label = "Ripristino: riposo breve" if res.reset_on == "short_rest" else "Ripristino: riposo lungo"
         return ft.Row(
             [
-                ft.Text(res.name, size=12, color=design.T().text,
-                        weight=ft.FontWeight.W_600, expand=True),
+                self._resource_name_control(res),
                 ft.Text(reset_icon, size=14, color=design.T().text_3, tooltip=reset_label),
                 ft.Container(width=6),
                 ft.Container(
@@ -2863,8 +2898,7 @@ class CombattimentoTab(ScrollMemoryListView):
 
         return ft.Row(
             [
-                ft.Text(display_name, size=12, color=design.T().text,
-                        weight=ft.FontWeight.W_600, expand=True),
+                self._resource_name_control(res, display_name),
                 ft.Text(reset_icon, size=14, color=design.T().text_3,
                         tooltip=reset_label),
                 ft.Container(width=6),
@@ -2896,8 +2930,7 @@ class CombattimentoTab(ScrollMemoryListView):
         return ft.Column([
             ft.Row(
                 [
-                    ft.Text(res.name, size=12, color=design.T().text,
-                            weight=ft.FontWeight.W_600, expand=True),
+                    self._resource_name_control(res),
                     ft.Text(reset_icon, size=14, color=design.T().text_3,
                             tooltip=reset_label),
                     ft.Container(width=8),
