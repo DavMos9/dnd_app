@@ -62,11 +62,6 @@ class Radius:
 
 class Duration:
     """Durate delle animazioni, in millisecondi."""
-    #: Dissolvenza di un intero contenitore (cambio sezione/tab/vista di
-    #: primo livello, `AnimatedSwitcher`): deve solo smussare il taglio
-    #: netto, non essere percepita come un caricamento — più lenta di così
-    #: (provato con `BASE`) si sente come un ritardo, non come fluidità.
-    INSTANT = 100
     FAST = 120
     BASE = 200
     SLOW = 320

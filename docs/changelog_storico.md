@@ -12573,282 +12573,31 @@ cosa), ma qui da sola non bastava: mancava sapere in quale ESATTO evento Flet/Fl
 consegna l'informazione, cosa che solo un pizzico vero (o, qui, simulato via CDP con
 timing realistico) contro l'app in esecuzione poteva rivelare.
 
----
+## Il piano "Fluidità transizioni e animazioni" (v0.3.16-0.3.18) è stato annullato — l'app non funzionava più sul dispositivo reale (2026-08-27, v0.3.19)
 
-## L'app "si aggiorna a scatti" — HP/slot/equip ricostruivano l'intera tab ad ogni click, vanificando le animazioni già presenti (2026-08-26, v0.3.16, primo giro)
+Le tre release del piano "Fluidità transizioni e animazioni" (v0.3.16,
+v0.3.17, v0.3.18 — refresh mirati su HP/slot/equip/risorse, fade sul cambio
+sezione/tab/vista, animazione dedicata sull'HP) sono state riportate
+interamente allo stato precedente su richiesta esplicita di Davide: la
+v0.3.18 installata sul dispositivo reale mostrava una schermata distorta con
+pulsanti spostati — causa nota (un `AnimatedSwitcher` di primo livello senza
+`expand=True`, individuato e corretto in locale) ma il feedback dell'utente
+dopo il fix è stato netto: "non va bene, l'app non si aggiorna
+correttamente hai rotto il funzionamento dell'app, torniamo alla versione
+precedente alla mia richiesta di animazioni".
 
-Davide: "Dobbiamo rendere le transizioni, le animazioni tutto più fluido, adesso
-l'app si aggiorna a scatti aggiornamenti di vita passaggio da una pagina all'altra
-selezione slot e tutto ciò che richiede un'animazione", esteso poi esplicitamente a
-tutta l'app (Home, lato giocatore, lato Master), con vincolo esplicito: solo aspetto
-visivo, nessun cambio di logica/funzionalità.
-
-**Causa**, verificata leggendo il codice (non ipotizzata): `ui/design.py` ha già da
-tempo un'infrastruttura di animazione corretta (`Duration.FAST/BASE/SLOW` + `CURVE =
-EASE_OUT`, usata in `hp_bar()`, `dot_button()`, `slot_dots()` e altrove), ma viene
-sistematicamente vanificata. Ogni tab della scheda personaggio (tutte
-`ScrollMemoryListView`) ha un `_refresh()` che per QUALUNQUE variazione — anche un
-singolo "−1 HP" o un tap su un pallino slot — fa `self.controls.clear()` +
-`self._build()`, ricostruendo l'intera tab con `Control` Python nuovi: Flutter lato
-client non vede una transizione di proprietà su un widget esistente, vede una
-rimozione seguita da un'aggiunta, senza interpolazione possibile — uno scatto secco.
-Lo stesso pattern esiste identico lato Master (`master_encounter_view.py`,
-`master_notes_view.py`, `master_view.py`). Il progetto aveva già imparato questa
-lezione una volta (bug B10, sopra in questo stesso file): eliminare i rebuild totali
-PRIMA di aggiungere animazioni, principio ribadito in `docs/restyle_design.md`
-(righe 303-320).
-
-Pattern corretto già in produzione, riusato come riferimento:
-`sheet_view.py::_soft_refresh()`/`_refresh_bar_and_header()` (riferimenti persistenti,
-update mirato) e, lato Master, `master_loot_view.py::_refresh_list_only()` — prima
-usati solo per la sync in background, mai per le azioni utente dirette.
-
-**Fix, primo giro (i due casi esplicitamente segnalati)**:
-- `combattimento_tab.py` — HP: `self._hp_stats_row` (il `ResponsiveRow` HP+Stats)
-  salvato come attributo in `_build()`; nuovo `_refresh_hp_only()` ricarica solo i
-  dati HP e sostituisce `self._hp_stats_row.controls[0].content`, senza toccare il
-  resto della tab. Danno/Cura/HP-temp/Modifica-HP/TS-morte lo usano tutti — TRANNE
-  quando il danno interrompe la concentrazione (`outcome.concentration_broken`): lì
-  la sezione "Concentrazione" compare/scompare in `_build()` (cambiamento
-  strutturale, sposta indici), quindi resta il `_refresh()` pieno, con lo stesso
-  criterio "sezioni condizionali → rebuild pieno, sezioni fisse → update mirato" da
-  applicare al resto del piano. Slot: `self._spell_slots_ref` salvato allo stesso
-  modo; nuovo `_refresh_slots_only()` per `_toggle_slot()`.
-- `inventario_tab.py` — equip: `self._weapons_ref`/`self._armor_ref`/
-  `self._oggetti_ref` salvati in `_build()`; `_refresh_weapons_only()`/
-  `_refresh_armor_only()`/`_refresh_oggetti_only()` per
-  `_toggle_weapon_equipped`/`_toggle_weapon_grip`/`_toggle_item_equipped`. L'equip di
-  un'arma/scudo può avere effetti a cascata (disequip automatico di altre armi o
-  dello scudo, ricalcolo CA) — in quel caso si aggiornano ENTRAMBE le sezioni
-  coinvolte (Armi + Armature) più l'header/stat-bar via `self._on_refresh()`, mai un
-  `_refresh()` pieno dell'intera tab. Aggiunto anche `animate=Duration.FAST` al
-  bordo 4px delle card equip (prima assente).
-- `master_encounter_view.py::_on_hp_delta()` (equivalente Master del danno/cura
-  giocatore, per mostri/PNG nel tracker di combattimento) — `_populate_list()`
-  popola `self._member_card_refs: dict[member_id, Container]`; nuovo
-  `_refresh_member_card(member_id)` ricostruisce SOLO la card del combattente
-  toccato e la sostituisce in-place, lasciando le altre card (e lo scroll della
-  lista) intatte. Danno/cura di un PG istanza di mondo passano invece da un comando
-  di rete asincrono (`_send_pg_remote_command`) e restano fuori scope per questo
-  giro: l'aggiornamento arriva comunque tramite il ciclo di sync periodico già
-  esistente, non tramite un click diretto da rendere fluido qui.
-
-**Verifica**: 44/46 file di test passati senza regressioni (i 2 non collegati:
-`test_qr_scan.py` fallisce per pacchetti Android/iOS assenti in questo sandbox,
-pre-esistente; una singola esecuzione di `test_fase_4.py` dentro il sweep completo ha
-mostrato un fallimento isolato su un controllo di un tiro di dado casuale, non
-riproducibile in 3 esecuzioni isolate consecutive — flakiness pre-esistente del test,
-non una regressione: nessuno dei file toccati in questo giro genera/mostra tiri di
-dado). In particolare `test_fase_4.py` (concentrazione, TS morte, oggetti magici e
-sintonia) e `test_layout_incontri_e_pf_autosync.py` (Danno/Cura/Condizione su un PG
-istanza di mondo) passano invariati — nessun cambio di dati mostrati, solo di
-QUANDO/COME i controlli Flet vengono ricreati.
-
-**Resta da fare** (vedi il piano completo salvato in sessione — Fase 0 su
-`diario_tab.py`/`esplorazione_tab.py`/`profilo_tab.py` e sui restanti file Master
-`master_notes_view.py`/`master_view.py`/`master_encounter_list_view.py`, poi Fase 2
-per confermare che le animazioni interpolino davvero avendo continuità di istanza —
-in particolare la barra HP e i pallini slot ricreano ancora i loro `Container` interni
-ad ogni chiamata, quindi lo scatto GROSSO di tab/sezione è eliminato ma il singolo
-riempimento/pallino non "morphizza" ancora pixel per pixel, limite già accettato nel
-piano per il ritorno/costo — e infine Fase 3, fade `AnimatedSwitcher` sul cambio
-sezione giocatore e tab Master, lasciando secca la navigazione di primo livello
-Home/Worlds/Master).
-
----
-
-## Fluidità, secondo giro: Master (Note/tab bar/tracker), fade sul cambio sezione, e un bug di scroll trovato completando il piano (2026-08-26, v0.3.17)
-
-Davide: "Completa tutto il piano hai tutti i permessi non ti fermare finché non
-hai finito". Completamento del piano "Fluidità transizioni e animazioni"
-(v0.3.16 sopra copriva solo HP/slot/equip lato giocatore + PF mostro Master).
-
-**Fase 0 (verifica per-tab)**: confermato che `diario_tab.py`/
-`esplorazione_tab.py`/`profilo_tab.py` non hanno azioni rapide ripetute
-analoghe a HP/slot — tutte le loro azioni passano da dialog deliberati
-(nuova voce, modifica, elimina, level up/down) dove un rebuild pieno resta
-accettabile: nessuna modifica a questi tre file. Stessa conclusione per
-`master_encounter_list_view.py` (create/delete/archivia/riapri incontro sono
-azioni che cambiano la LISTA stessa, non il valore di un elemento stabile).
-
-**Fase 1 — Combattimento (giocatore), completamento**: trovati altri due
-casi rapidi non ancora coperti in v0.3.16 — `_toggle_inspiration()` (nuovo
-`_refresh_stats_only()`, riusa `self._hp_stats_row.controls[1]`) e le
-risorse di classe a cerchietti/counter (`_toggle_resource`/
-`_decrement_resource`/`_increment_resource`/dichiarazione-annullamento
-Frenesia/conversione Incantesimi Flessibili — nuovo
-`_refresh_resources_only()`, con refresh incrociato risorse+slot quando la
-conversione tocca entrambi).
-
-**Fase 1 — Master**:
-- `master_view.py::_on_tab_click()` — faceva `_build()` pieno (ricostruiva
-  anche header e pannello strumenti, invarianti rispetto al tab) ad ogni
-  cambio tab, vanificando l'`animate=` della tab bar. Ora aggiorna solo la
-  tab bar (stesso pattern indice-swap già usato da `set_mobile()`/
-  `_on_tools_panel_toggle()` in questo stesso file) e il contenuto.
-- `master_notes_view.py::_on_sel_note()`/`_on_note_save_edit()` — su
-  desktop/tablet (layout a due colonne fisso) aggiornano solo pannello
-  sinistro (nuovo `_update_left_panel()`, stesso principio del
-  `_update_detail()` già esistente) + dettaglio, mai `_refresh()` pieno. Su
-  mobile `_on_sel_note()` resta `_refresh()` pieno per la prima apertura di
-  una nota (il drill-down cambia davvero quale pannello è montato — cambio
-  strutturale legittimo), ma non per il salvataggio di una modifica (il
-  pannello dettaglio è già quello mostrato, nessun cambio di struttura).
-
-**Fase 3 — fade `AnimatedSwitcher`**: `ui/app.py::content_area` e
-`master_view.py::_content_area` ora avvolgono il contenuto dinamico in un
-`AnimatedSwitcher` (`Duration.BASE`/`CURVE`, transizione FADE) — attivato
-rispettivamente in `_on_nav_click()` (cambio sezione giocatore) e
-`_on_tab_click()` (cambio tab Master). La navigazione di primo livello
-(`_navigate()`: Home/Worlds/Master) resta secca, per scelta esplicita
-(context-switch pesante, azione meno frequente). `master_view.py::
-set_mobile()` doveva essere adattato: leggeva/scriveva
-`self._content_area.content` per propagare la modalità mobile alla vista
-figlia — ora `_content_area.content` è sempre lo switcher, quindi legge/
-scrive `self._content_switcher.content` (la vista figlia vera).
-`test_regressione_wrap_expand.py` aggiornato di conseguenza (stesso motivo).
-
-**Bug trovato completando il piano, non nella richiesta originale**:
-verificando dal vivo in browser (Playwright, scroll a metà tab Inventario +
-equip armatura) la vista tornava in cima nonostante il refresh mirato della
-sola sezione Armature non toccasse `self.controls`. Causa:
-`sheet_view.py::_refresh_bar_and_header()` (chiamata da `_on_refresh()` per
-sincronizzare l'header quando cambia CA/HP/ispirazione) fa un `self.update()`
-sull'intero sottoalbero di `SheetView` — Flutter azzera lo scroll di
-qualunque `ScrollMemoryListView`/`ScrollMemoryColumn` annidata sotto,
-esattamente il motivo per cui quelle classi esistono (vedi il loro docstring
-in `ui/widgets.py`) — ma questo metodo non richiamava mai `restore_scroll()`
-sul tab attivo dopo il proprio `update()`. Bug preesistente: la vecchia
-`_refresh()` piena chiamava `restore_scroll()` (proprio) PRIMA di
-`_on_refresh()`, quindi quest'ultimo lo vanificava comunque — semplicemente
-mai notato/isolato prima. Fix: `_refresh_bar_and_header()` ora richiama
-`restore_scroll()` su `self.content_container.content` (il tab attivo), se
-esposto (`getattr` con guardia, nessun crash sui tab senza quel metodo).
-
-**Verifica**: la riproduzione dal vivo via Playwright per QUESTO bug
-specifico si è rivelata inaffidabile — sia lo scroll simulato via touch CDP
-sia via `mouse.wheel()` non facevano scattare l'evento `on_scroll` di Flet
-in modo abbastanza affidabile da testare `restore_scroll()` in isolamento
-(confermato riproducendo lo stesso mancato ripristino anche su un percorso
-di codice INVARIATO, mai toccato da questo piano — quindi non un problema
-del fix, del metodo di test). Verificato invece con un test deterministico
-diretto (nuovo `test_fluidita_refresh_mirati.py`, 9 test/40 controlli):
-costruisce una `SheetView` reale, sostituisce `content_container.content`
-con un oggetto fittizio che espone `restore_scroll()` e conta le chiamate —
-conferma che `_refresh_bar_and_header()` lo richiama esattamente una volta,
-e che non solleva eccezioni quando il contenuto non espone quel metodo.
-Lo stesso file verifica anche, per ogni refresh mirato introdotto in questo
-giro e nel precedente: che i riferimenti persistenti (`_hp_stats_row`,
-`_spell_slots_ref`, `_class_resources_ref`, `_weapons_ref`, `_armor_ref`,
-`_oggetti_ref`, `_member_card_refs`, `_left_panel_ref`/`_detail_container`,
-`_tools_panel_container`) restino la STESSA istanza dopo un'azione rapida
-(prova diretta che non è avvenuto alcun rebuild), e che `self.controls`
-resti la stessa lista dov'è previsto. 47/47 file di test della suite
-completa passano (esclusi 2 fallimenti pre-esistenti scollegati: pacchetti
-Android/iOS assenti nel sandbox, e la versione in sorgente non ancora
-taggata — normale prima di un rilascio). Verificato anche dal vivo in
-browser (Playwright, personaggio Bardo di prova con slot/risorse/arma/
-armatura): Danno/Cura/ispirazione/slot/risorse di classe/equip
-arma/equip armatura con ricalcolo CA, fade sul cambio sezione giocatore e
-sul cambio tab Master, selezione nota Master — nessuna eccezione lato
-client, nessun dato mancante o stantio, layout coerente a transizione
-completata.
-
-## Fluidità, terzo giro: fade troppo lento, mancante su tab scheda/sezione Mondi, e un rebuild di stat bar/header su ogni HP/equip mai necessario (2026-08-27, v0.3.18)
-
-Feedback dell'utente dopo aver provato v0.3.17 su dispositivo reale, quattro
-punti distinti:
-
-1. **Il fade era troppo lento** ("quasi impercettibile" richiesto). Le
-   `AnimatedSwitcher` introdotte nel secondo giro (`ui/app.py::
-   _section_switcher`, `master_view.py::_content_switcher`) usavano
-   `Duration.BASE` (200ms) — percepito come un ritardo, non come fluidità.
-   Aggiunta `design.Duration.INSTANT = 100` (nuova costante, non tocca
-   `FAST`/`BASE`/`SLOW` già usati altrove per non alterare animazioni
-   indipendenti) e usata su TUTTI gli `AnimatedSwitcher` di questo piano.
-
-2. **Il fade non era implementato tra i tab della scheda personaggio**
-   (Profilo/Combattimento/Esplorazione/Inventario/Diario) né **all'ingresso
-   nella sezione Mondi**. Il primo: `sheet_view.py::content_container` era
-   un `ft.Container` semplice — `_switch_tab()` sostituiva `.content` senza
-   alcuna transizione. Aggiunto `self._tab_switcher` (`AnimatedSwitcher`,
-   FADE, `Duration.INSTANT`) come figlio persistente di `content_container`;
-   `_switch_tab()`/`_refresh_all()`/`_soft_refresh()` ora scrivono su
-   `_tab_switcher.content` invece che su `content_container.content`
-   direttamente. Il secondo: `ui/app.py::_navigate()` — punto unico di
-   navigazione per Home/Scheda/Master/Mondi/form di creazione — faceva
-   `page.controls.clear()` + `page.add()` ad ogni cambio vista, un taglio
-   netto per scelta esplicita del piano precedente ("comporta un
-   context-switch pesante, il fade rischia di introdurre più fastidio che
-   beneficio"). L'utente ha chiesto esplicitamente il contrario per la
-   sezione Mondi: `_navigate()` ora crea un `AnimatedSwitcher` persistente
-   (`self._root_switcher`) alla prima chiamata e da lì in poi muta solo
-   `.content` — stesso principio degli altri switcher, applicato per la
-   prima volta al livello di navigazione più esterno.
-
-3. **Un'azione isolata (HP, equip, risorsa) sembrava "ricaricare tutta la
-   pagina" e riportava in cima.** Causa reale, non il fade: ogni refresh
-   mirato introdotto nel primo/secondo giro (`_refresh_hp_only()`,
-   l'equip armatura in `inventario_tab.py`, ecc.) chiama
-   `self._on_refresh()` = `SheetView._refresh_bar_and_header()` per tenere
-   `self.character` sincronizzato (serve quando l'utente cambia tab, dato
-   che `_get_tab_content()` costruisce il nuovo tab da `self.character`).
-   Ma quel metodo ricostruiva SEMPRE stat bar (`_build_stat_bar()`, 6
-   punteggi) e header (`_build_header_and_tabs()`, nome/bonus
-   competenza/LED connessione/livello-classe-razza) e chiamava
-   `self.update()` — un ripaint dell'intera fascia superiore della scheda
-   ad OGNI singolo danno/cura/equip/uso risorsa, anche se nessuno dei due
-   mostra HP/CA/risorse/slot. Percepito esattamente come "la pagina si
-   ricarica". Aggiunto `SheetView._header_signature()`: una tupla dei soli
-   campi che stat bar/header mostrano davvero (6 punteggi, bonus
-   competenza override, livello, classe, sottoclasse, razza, sottorazza,
-   world_id, stato connessione) più una cache dell'ultima firma renderizzata
-   (`self._header_signature_cache`, inizializzata in `_build()`). Ora
-   `_refresh_bar_and_header()` ricostruisce stat bar/header (e ripristina lo
-   scroll del tab, fix del secondo giro) SOLO se la firma è cambiata
-   davvero — altrimenti si limita a rileggere `self.character`/
-   `self.proficiencies` dal DB, senza toccare l'albero UI. Cambio
-   centralizzato in un unico punto: nessuna delle tab
-   (`combattimento_tab.py`, `inventario_tab.py`) è stata toccata, il
-   beneficio si applica automaticamente a ogni chiamante presente e futuro
-   di `self._on_refresh()`. Lo stato di connessione al mondo (LED
-   nell'header, aggiornato da un loop in background) resta incluso nella
-   firma apposta per non introdurre una regressione: senza di esso il LED
-   sarebbe rimasto stantio ogni volta che cambiava senza che nessun altro
-   campo del personaggio cambiasse.
-
-4. **"Vorrei un'altra animazione, non il fade" per l'HP.** L'utente ha
-   chiesto esplicitamente che il numero e la barra HP (non l'intera card:
-   bottoni Danno/Cura, tasto modifica e TS morte devono restare fermi)
-   ricevano un'animazione diversa dal fade usato per cambi sezione/tab.
-   `combattimento_tab.py::_section_hp()` è stato diviso: `_hp_value_block()`
-   (nuovo) costruisce SOLO numero HP/max/HP temp + `design.hp_bar()`;
-   `_section_hp()` mantiene un `ft.AnimatedSwitcher` persistente
-   (`self._hp_value_switcher`, creato una sola volta e poi riusato
-   mutandone `.content`) con `transition=SCALE` invece di FADE, e lo
-   incapsula insieme a bottoni/TS morte (rebuilt ad ogni chiamata, ma senza
-   bisogno di continuità d'istanza dato che non animano). Verificato dal
-   vivo in browser (Playwright): uno screenshot catturato a metà
-   transizione mostra il numero/barra vecchi e nuovi sovrapposti in scala —
-   prova diretta che lo switcher anima davvero, non un taglio netto — e la
-   card si assesta pulita, senza artefatti residui.
-
-Verificato: `test_fluidita_refresh_mirati.py` aggiornato — il test [6]
-(`test_sheet_view_refresh_bar_and_header_ripristina_lo_scroll_del_tab`) ora
-copre esplicitamente sia il caso "nessun campo cambiato → nessun rebuild/
-nessun restore_scroll" sia il caso "un campo cambia davvero (livello) →
-rebuild e restore_scroll scattano" (41/41 controlli, era 40). Riferimenti a
-`content_container.content` nel test aggiornati a `_tab_switcher.content`
-per lo stesso motivo. 47/47 file della suite completa passano (esclusi
-`test_qr_scan.py`, ambiente sandbox, e — prima del bump di versione in
-questo stesso commit — il controllo versione/tag, atteso). Live in browser
-con personaggio di prova (Bardo Lv.3): danno ripetuto con animazione SCALE
-visibile su numero/barra e nessun flash di stat bar/header; cambio rapido
-tra i 5 tab della scheda con fade breve, nessuna eccezione anche cliccando
-più tab in rapida successione mentre una transizione precedente era ancora
-in corso; ingresso in Home→Mondi e Home→Master tramite il nuovo
-`_root_switcher`, entrambi puliti; cambio tab Master. Nessuna eccezione
-lato client in nessuno scenario.
+Questa versione riporta tutti i file toccati dal piano esattamente allo
+stato del tag `v0.3.15` (`ui/app.py`, `ui/design.py`,
+`ui/views/character_sheet/{combattimento,inventario,sheet_view}.py`,
+`ui/views/master/{master_encounter_view,master_notes_view,master_view}.py`,
+`test_regressione_wrap_expand.py`; rimosso `test_fluidita_refresh_mirati.py`,
+introdotto dal piano). Nessun'altra modifica: la vera causa del problema
+segnalato da Davide ("si aggiorna a scatti") resta da investigare da capo,
+con verifica dal vivo sul dispositivo reale ad ogni passo invece che solo
+via web/Playwright — vedi `docs/restyle_design.md` per il principio già
+noto ("non si anima un albero ricostruito da zero"). La lezione si ripete:
+solo l'app reale, non la lettura del codice o un browser headless, rivela
+come si comporta davvero il renderer.
 
 ---
 

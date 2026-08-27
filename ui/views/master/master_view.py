@@ -123,25 +123,7 @@ class MasterView(ft.Column):
         self.device_id: str | None = None
         self._masterable_worlds: list[World] = []
 
-        # `_content_switcher` avvolge SOLO il contenuto del tab in un
-        # AnimatedSwitcher (fade ~200ms) — stesso principio di
-        # `ui/app.py::_section_switcher`, vedi il piano "Fluidità
-        # transizioni e animazioni": ora che `_on_tab_click()` non fa più
-        # `_build()` pieno (Fase 1 del piano), il cambio tab è l'unico punto
-        # in cui l'albero del contenuto cambia davvero — il caso d'uso
-        # corretto per uno switcher. `set_mobile()` legge/scrive
-        # `self._content_switcher.content` (non `_content_area.content`,
-        # che ora è sempre lo switcher stesso) per propagare la modalità
-        # mobile alla vista figlia corrente.
-        self._content_switcher = ft.AnimatedSwitcher(
-            content=ft.Container(),  # placeholder — _build() lo sostituisce subito sotto
-            duration=design.Duration.INSTANT,
-            switch_in_curve=design.CURVE,
-            switch_out_curve=design.CURVE,
-            transition=ft.AnimatedSwitcherTransition.FADE,
-        )
-        self._content_area = ft.Container(expand=True, bgcolor=design.T().bg,
-                                          content=self._content_switcher)
+        self._content_area = ft.Container(expand=True, bgcolor=design.T().bg)
         #: Riferimenti ai due controlli di chrome persistente (pannello
         #: strumenti — selettore mondo + Generatori Rapidi, tab bar) —
         #: salvati per poterne nascondere/mostrare la visibilità SENZA
@@ -240,7 +222,7 @@ class MasterView(ft.Column):
             shadow=design.elevation(1),
         )
 
-        self._content_switcher.content = self._get_tab_content(self.active_tab)
+        self._content_area.content = self._get_tab_content(self.active_tab)
 
         self.controls.append(header)
         # Pannello strumenti (selettore mondo + Generatori Rapidi) su una
@@ -337,7 +319,7 @@ class MasterView(ft.Column):
             idx = self.controls.index(self._tab_bar_container)
             self.controls[idx] = new_tab_bar
         self._tab_bar_container = new_tab_bar
-        content = self._content_switcher.content
+        content = self._content_area.content
         content_set_mobile = getattr(content, "set_mobile", None)
         if content_set_mobile is not None:
             content_set_mobile(is_mobile)
@@ -617,23 +599,10 @@ class MasterView(ft.Column):
         )
 
     def _on_tab_click(self, key: str):
-        """
-        Cambio tab: aggiorna solo la tab bar (nuova pillola evidenziata) e
-        il contenuto — MAI `_build()` pieno, che ricostruirebbe anche
-        header/pannello strumenti (invarianti rispetto al tab attivo) e
-        vanificherebbe l'`animate=` già presente sulle pillole
-        (`_build_tab_bar()`, riga 540) — stesso principio già applicato da
-        `set_mobile()`/`_on_tools_panel_toggle()` in questo stesso file.
-        """
         if key == self.active_tab:
             return
         self.active_tab = key
-        new_tab_bar = self._build_tab_bar()
-        if self._tab_bar_container is not None and self._tab_bar_container in self.controls:
-            idx = self.controls.index(self._tab_bar_container)
-            self.controls[idx] = new_tab_bar
-        self._tab_bar_container = new_tab_bar
-        self._content_switcher.content = self._get_tab_content(self.active_tab)
+        self._build()
         try:
             self.update()
         except RuntimeError:

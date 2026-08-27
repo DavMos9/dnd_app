@@ -85,11 +85,6 @@ class DnDApp:
         # invece di un aggiornamento in place — vedi `_on_page_resize()`.
         self._active_top_view: Any = None
         self._on_main_layout: bool = False
-        #: Avvolge le viste di primo livello (Home/Scheda/Master/Mondi/form
-        #: creazione) in una dissolvenza breve invece del taglio netto di
-        #: `page.controls.clear()` — creato alla prima `_navigate()`, poi
-        #: riusato (solo `.content` cambia). Vedi `_navigate()`.
-        self._root_switcher: ft.AnimatedSwitcher | None = None
 
         self._setup_page()
         self._show_home()
@@ -105,34 +100,17 @@ class DnDApp:
 
     def _navigate(self, control: ft.Control) -> None:
         """
-        Punto unico di navigazione di primo livello: monta `control` avvolto
-        in `ft.SafeArea`, così header e barre superiori non finiscono mai
-        sotto la tacca o la barra di stato su un telefono con notch.
-        Centralizzare qui evita di doverlo ricordare ad ogni nuova vista di
-        primo livello.
+        Punto unico di navigazione di primo livello: azzera la pagina e monta
+        `control` avvolto in `ft.SafeArea`, così header e barre superiori non
+        finiscono mai sotto la tacca o la barra di stato su un telefono con
+        notch. Centralizzare qui evita di doverlo ricordare ad ogni nuova
+        vista di primo livello.
 
         `ft.SafeArea` è un no-op su desktop/web, dove `MediaQuery` non
         riporta intrusioni di sistema — nessun rischio di padding indesiderato.
-
-        Il cambio vista (Home ↔ Scheda/Master/Mondi/form creazione) passa da
-        un `AnimatedSwitcher` persistente invece di `page.controls.clear()` +
-        `page.add()`: stesso principio di `_section_switcher`/
-        `MasterView._content_switcher` — una dissolvenza breve al posto del
-        taglio netto. Creato una sola volta, poi si muta solo `.content`.
         """
-        safe = ft.SafeArea(content=control, expand=True)
-        if self._root_switcher is None:
-            self._root_switcher = ft.AnimatedSwitcher(
-                content=safe,
-                duration=design.Duration.INSTANT,
-                switch_in_curve=design.CURVE,
-                switch_out_curve=design.CURVE,
-                transition=ft.AnimatedSwitcherTransition.FADE,
-            )
-            self.page.controls.clear()
-            self.page.add(self._root_switcher)
-        else:
-            self._root_switcher.content = safe
+        self.page.controls.clear()
+        self.page.add(ft.SafeArea(content=control, expand=True))
         self.page.update()
 
     # ------------------------------------------------------------------
@@ -406,27 +384,10 @@ class DnDApp:
         self._mobile = self._is_mobile()
         self._rebuild_route = self._show_main_layout
 
-        # `_section_switcher` avvolge SOLO il contenuto di sezione in un
-        # AnimatedSwitcher (fade ~200ms) — vedi il piano "Fluidità
-        # transizioni e animazioni": `docs/restyle_design.md` scartava
-        # `AnimatedSwitcher` sul cambio tab perché "uno switcher animerebbe
-        # due alberi diversi" quando anche l'INTERNO di ogni tab veniva
-        # ricostruito ad ogni interazione (rendendo un fade qui ridondante
-        # rispetto al problema vero). Con i refresh mirati introdotti nelle
-        # singole tab (Fase 1 del piano), il cambio di sezione resta l'UNICO
-        # punto in cui l'albero cambia davvero — il caso d'uso corretto per
-        # uno switcher, non più in contraddizione con quella nota.
-        self._section_switcher = ft.AnimatedSwitcher(
-            content=self._get_section_view(self.active_section),
-            duration=design.Duration.INSTANT,
-            switch_in_curve=design.CURVE,
-            switch_out_curve=design.CURVE,
-            transition=ft.AnimatedSwitcherTransition.FADE,
-        )
         self.content_area = ft.Container(
             expand=True,
             bgcolor=design.T().bg,
-            content=self._section_switcher,
+            content=self._get_section_view(self.active_section),
         )
 
         if self._mobile:
@@ -681,7 +642,7 @@ class DnDApp:
             self.bottom_nav.content = self._build_bottom_nav().content
         else:
             self.nav_rail.content = self._build_nav_rail().content
-        self._section_switcher.content = self._get_section_view(key)
+        self.content_area.content = self._get_section_view(key)
         self.page.update()
 
     # ------------------------------------------------------------------

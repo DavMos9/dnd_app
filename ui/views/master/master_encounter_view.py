@@ -164,13 +164,6 @@ class MasterEncounterView(ScrollMemoryColumn):
         self._members: list[dict] = []  # resolved, vedi master_repo.get_encounter_members_resolved
         self._header_area = ft.Container()
         self._list_col = ft.Column(spacing=8)
-        #: member.id -> Container della sua card, popolato da `_populate_list()`
-        #: — permette a `_refresh_member_card()` di aggiornare in-place la
-        #: SOLA card toccata da `_on_hp_delta()` invece di richiamare
-        #: `refresh()` pieno (che ricostruisce tutte le card, vanificando
-        #: l'`animate=` di `_member_card()`) — vedi il piano "Fluidità
-        #: transizioni e animazioni".
-        self._member_card_refs: dict[str, ft.Container] = {}
         #: Cache di connessioni `RemoteBackend` per mondo, tenuta da questa
         #: vista sull'intera durata di un incontro aperto — stesso pattern
         #: di `WorldsView._remote_backends`, passata a
@@ -398,43 +391,14 @@ class MasterEncounterView(ScrollMemoryColumn):
 
     def _populate_list(self):
         self._list_col.controls.clear()
-        self._member_card_refs = {}
         if not self._members:
             self._list_col.controls.append(self._empty_state())
             return
         current_idx = self.encounter.current_turn_index if self.encounter else 0
         for i, resolved in enumerate(self._members):
-            card = self._member_card(resolved, is_current=(i == current_idx))
-            self._member_card_refs[resolved["member"].id] = card
-            self._list_col.controls.append(card)
-
-    def _refresh_member_card(self, member_id: str) -> None:
-        """
-        Aggiorna in-place la sola card del combattente indicato dopo un
-        cambio PF diretto (`_on_hp_delta`) — non tocca le altre card né la
-        posizione di scroll. Se il combattente non è (più) nella lista
-        risolta o l'ordine dei turni è cambiato nel frattempo, ricade su
-        `refresh()` pieno: stesso principio già usato in
-        `combattimento_tab.py::_refresh_hp_only()`.
-        """
-        card_ref = self._member_card_refs.get(member_id)
-        if card_ref is None:
-            self.refresh()
-            return
-        self._members = master_repo.get_encounter_members_resolved(
-            self.encounter_id, active_only=True)
-        current_idx = self.encounter.current_turn_index if self.encounter else 0
-        for i, resolved in enumerate(self._members):
-            if resolved["member"].id == member_id:
-                new_card = self._member_card(resolved, is_current=(i == current_idx))
-                card_ref.content = new_card.content
-                try:
-                    card_ref.update()
-                except RuntimeError:
-                    pass
-                return
-        # Non più nella lista risolta (rimosso nel frattempo) — fallback.
-        self.refresh()
+            self._list_col.controls.append(
+                self._member_card(resolved, is_current=(i == current_idx))
+            )
 
     def _empty_state(self) -> ft.Control:
         return design.empty_state(
@@ -1408,7 +1372,7 @@ class MasterEncounterView(ScrollMemoryColumn):
         if member.hp_max:
             new_hp = min(new_hp, member.hp_max)
         master_repo.update_member_hp(member.id, new_hp)
-        self._refresh_member_card(member.id)
+        self.refresh()
 
     def _open_monster_damage_dialog(self, member, name: str) -> None:
         """Stesso dialog "Applica danno" già in uso per un PG (`remote_
