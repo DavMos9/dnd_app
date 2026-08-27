@@ -30,7 +30,9 @@ from core.world_backend import LocalBackend
 from data.models import MasterCampaignNote, MasterNpc, WorldMember
 from data.repositories import master_repo, world_repo
 from ui.components.npc_dossier import show_npc_dossier_dialog
-from ui.widgets import wrap_dialog_actions, responsive_dialog_width, show_snack
+from ui.widgets import (
+    ScrollMemoryColumn, wrap_dialog_actions, responsive_dialog_width, show_snack,
+)
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -226,6 +228,12 @@ class MasterNotesView(ft.Column):
         self._nf_member_checks: dict[str, ft.Checkbox] = {}
 
         self._detail_container: ft.Container = ft.Container(expand=True)
+        # Stessa istanza persistente riusata di `diary_view.py::DiaryView`
+        # (vedi il suo commento su `_left_scroll_col`) — qui mancava del
+        # tutto: ogni `_refresh()` ricreava un `ft.Column` nuovo, perdendo la
+        # posizione di scroll ad ogni azione. `_build_left_panel()` ne muta
+        # solo `.controls`/`.expand`/`.scroll`, mai l'istanza.
+        self._left_scroll_col: ScrollMemoryColumn = ScrollMemoryColumn(spacing=0)
         self._left_list_lv: ft.Column = ft.Column(spacing=2)
 
         self._load_all()
@@ -396,6 +404,23 @@ class MasterNotesView(ft.Column):
             controls=items, spacing=2,
         )
 
+        # Ripopola l'istanza persistente `self._left_scroll_col` IN PLACE
+        # (mai un `ft.Column` nuovo) così l'offset di scroll ricordato resta
+        # valido dopo un `_refresh()` — vedi il commento su
+        # `self._left_scroll_col` in `__init__`.
+        self._left_scroll_col.controls = [
+            cat_nav, ft.Divider(height=1, color=design.T().border), list_label,
+            ft.Container(content=self._left_list_lv,
+                         padding=ft.Padding.only(left=4, right=4, bottom=12)),
+        ]
+        # Su mobile lo scroll di questo pannello è responsabilità della
+        # `MasterNotesView` esterna (un solo pannello alla volta, header
+        # incluso, scorrono insieme) — niente scroll annidato. Su
+        # desktop/tablet resta un pannello indipendente nel layout a due
+        # colonne (pattern master-detail), con scroll proprio invariato.
+        self._left_scroll_col.expand = not self._is_mobile
+        self._left_scroll_col.scroll = None if self._is_mobile else ft.ScrollMode.AUTO
+
         return ft.Container(
             # Un'unica regione scrollabile per tutto il pannello: se solo la
             # lista scorresse (`ListView(expand=True)` dentro una Column NON
@@ -404,18 +429,7 @@ class MasterNotesView(ft.Column):
             # schermo senza modo di raggiungerle. Qui scorre l'intero
             # pannello, e la lista è una Column normale — niente scroll
             # annidato, stessa regola già stabilita per il CardPicker.
-            # Su mobile lo scroll di questo pannello è responsabilità della
-            # `MasterNotesView` esterna (un solo pannello alla volta, header
-            # incluso, scorrono insieme) — niente scroll annidato. Su
-            # desktop/tablet resta un pannello indipendente nel layout a due
-            # colonne (pattern master-detail), con scroll proprio invariato.
-            content=ft.Column(
-                [cat_nav, ft.Divider(height=1, color=design.T().border), list_label,
-                 ft.Container(content=self._left_list_lv,
-                              padding=ft.Padding.only(left=4, right=4, bottom=12))],
-                expand=(not self._is_mobile), spacing=0,
-                scroll=(None if self._is_mobile else ft.ScrollMode.AUTO),
-            ),
+            content=self._left_scroll_col,
             # Larghezza fissa 200px SOLO quando condivide la riga col
             # pannello di dettaglio (desktop/tablet, vedi _build()) — su
             # mobile questo pannello è l'unico visibile e deve prendersi
@@ -499,6 +513,7 @@ class MasterNotesView(ft.Column):
                     if is_sel else None),
             on_click=lambda e, nid=note.id: self._on_sel_note(nid),
             ink=True,
+            data=note.id,
         )
 
     def _left_empty(self, msg: str) -> ft.Container:
@@ -909,11 +924,23 @@ class MasterNotesView(ft.Column):
         # da fermi sulla lista, toccarla deve portare alla pagina di lettura.
         if already_showing and (not self._is_mobile or self._mobile_show_detail):
             return
+        old_id = self._sel_note_id
         self._sel_note_id = note_id
         self._note_edit = False
         if self._is_mobile:
+            # Il drill-down cambia la STRUTTURA della vista (lista →
+            # dettaglio a schermo intero): resta sul rebuild completo, come
+            # da piano (Fase 1b, punto 4).
             self._mobile_show_detail = True
-        self._refresh()
+            self._refresh()
+            return
+        # Desktop/tablet: selezione non cambia quali note esistono né il
+        # loro ordine → aggiornamento mirato (dettaglio + le 2 righe
+        # coinvolte), niente salto di scroll.
+        self._update_detail()
+        if old_id:
+            self._update_list_row_note(old_id)
+        self._update_list_row_note(note_id)
 
     def _on_note_start_edit(self) -> None:
         self._note_edit = True
@@ -981,7 +1008,10 @@ class MasterNotesView(ft.Column):
         logger.info("Master campaign note aggiornata: %s", note.id)
         self._note_edit = False
         self._load_notes(self._active_cat)
-        self._refresh()
+        # `get_master_campaign_notes` non riordina in base ai campi
+        # modificabili qui: aggiornamento mirato invece di `_refresh()`.
+        self._update_detail()
+        self._update_list_row_note(note.id)
 
     def _on_note_delete(self) -> None:
         page = self._page
@@ -1125,6 +1155,25 @@ class MasterNotesView(ft.Column):
         except RuntimeError:
             pass
 
+    def _update_list_row_note(self, note_id: str) -> None:
+        """Sostituisce UNA riga di `self._left_list_lv` (trovata per
+        `data=note_id`) senza rebuild del resto della lista/scroll — stessa
+        funzione di `diary_view.py::DiaryView._update_list_row_note`. Usare
+        solo quando selezione/contenuto cambia ma non l'ordine/conteggio
+        delle note (vedi tabella di rewiring nel piano)."""
+        notes = self._notes.get(self._active_cat, [])
+        for n in notes:
+            if n.id == note_id:
+                for j, ctrl in enumerate(self._left_list_lv.controls):
+                    if getattr(ctrl, "data", None) == note_id:
+                        self._left_list_lv.controls[j] = self._note_list_item(n)
+                        break
+                break
+        try:
+            self._left_list_lv.update()
+        except RuntimeError:
+            pass
+
     def set_mobile(self, is_mobile: bool) -> None:
         """
         Aggiornamento "in place" quando la finestra viene ridimensionata
@@ -1154,3 +1203,4 @@ class MasterNotesView(ft.Column):
             self.update()
         except RuntimeError:
             pass
+        self._left_scroll_col.restore_scroll()

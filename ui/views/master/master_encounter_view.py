@@ -221,6 +221,39 @@ class MasterEncounterView(ScrollMemoryColumn):
             pass
         self.restore_scroll()
 
+    def _update_member_card(self, *, member_id: str | None = None,
+                             character_id: str | None = None) -> None:
+        """Aggiornamento mirato (piano refresh mirati, Fase 1d): rilegge
+        SEMPRE gli stessi dati di `refresh()` (mai un `WorldMember`/
+        `resolved` già in memoria — un altro dispositivo può averlo
+        cambiato nel frattempo), ma sostituisce SOLO la scheda alla
+        posizione corrispondente invece di ricostruire l'intera lista.
+
+        Valido SOLO per danno/cura/condizione su un singolo membro — mai
+        per modifica di iniziativa (riordina `_members`, di cui
+        `current_idx` è un indice posizionale) o rimozione membro (cambia
+        la lunghezza): quelle restano sul `refresh()` completo."""
+        self.encounter = master_repo.get_encounter_by_id(self.encounter_id)
+        self._members = master_repo.get_encounter_members_resolved(
+            self.encounter_id, active_only=True)
+        current_idx = self.encounter.current_turn_index if self.encounter else 0
+        for i, resolved in enumerate(self._members):
+            m = resolved["member"]
+            if (member_id is not None and m.id == member_id) or \
+               (character_id is not None and m.character_id == character_id):
+                if i < len(self._list_col.controls):
+                    self._list_col.controls[i] = self._member_card(
+                        resolved, is_current=(i == current_idx))
+                    try:
+                        self._list_col.update()
+                    except RuntimeError:
+                        pass
+                    return
+                break
+        # id non trovato (es. rimosso nel frattempo da un altro dispositivo)
+        # — fallback sicuro sul rebuild completo invece di non fare nulla.
+        self.refresh()
+
     # ------------------------------------------------------------------
     # Sincronizzazione automatica in background — stessa infrastruttura di
     # `WorldsView._start_detail_sync`
@@ -1372,7 +1405,9 @@ class MasterEncounterView(ScrollMemoryColumn):
         if member.hp_max:
             new_hp = min(new_hp, member.hp_max)
         master_repo.update_member_hp(member.id, new_hp)
-        self.refresh()
+        # Danno/cura non cambia ordine/lunghezza della lista: aggiornamento
+        # mirato invece di `refresh()` completo (piano Fase 1d).
+        self._update_member_card(member_id=member.id)
 
     def _open_monster_damage_dialog(self, member, name: str) -> None:
         """Stesso dialog "Applica danno" già in uso per un PG (`remote_
@@ -1453,7 +1488,10 @@ class MasterEncounterView(ScrollMemoryColumn):
             target_type="character", target_id=character_id,
         )
         if result.success:
-            self.refresh()
+            # Danno/cura/condizione su un PG non cambia ordine/lunghezza
+            # della lista: aggiornamento mirato invece di `refresh()`
+            # completo (piano Fase 1d).
+            self._update_member_card(character_id=character_id)
         elif page:
             show_snack(page, result.error, tone="danger")
 

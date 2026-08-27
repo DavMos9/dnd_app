@@ -236,6 +236,24 @@ class WorldsView(ft.Column):
         # `ft.Column` semplice perderebbe lo scroll ogni volta anche senza
         # alcuna azione dell'utente.
         self._body = ScrollMemoryColumn(spacing=d.Space.MD, scroll=ft.ScrollMode.AUTO, expand=True)
+
+        # Container persistenti per le 4 sezioni "calde" (piano refresh
+        # mirati, Fase 1c): permettono a un'azione locale di aggiornare SOLO
+        # la sezione toccata (`_update_members_section()`/
+        # `_update_shared_loot_section()`) senza ricostruire l'intero
+        # `self._body`. Restano SEMPRE nell'albero prodotto da
+        # `_render_detail()` — mai più un append condizionale — con
+        # `.visible` a governarne la presenza, così un `.update()` mirato
+        # non incontra mai un controllo non ancora montato. Il tick di sync
+        # periodico (`_async_redraw_detail`) resta invariato: ricostruisce
+        # ancora tutto tramite `_render_detail()`, che ripopola anche questi
+        # container allo stesso modo — nessun percorso doppio da mantenere
+        # allineato.
+        self._members_container: ft.Container = ft.Container()
+        self._live_combat_container: ft.Container = ft.Container(visible=False)
+        self._shared_notes_container: ft.Container = ft.Container(visible=False)
+        self._shared_loot_container: ft.Container = ft.Container(visible=False)
+
         self._build_shell()
         self._render_loading()
 
@@ -610,24 +628,26 @@ class WorldsView(ft.Column):
                 sections.append(pending_rejoin_section)
         if is_owner and world.is_local_host:
             sections.append(self._hosting_section(world))
-        live_combat_section = self._live_combat_section(world)
-        if live_combat_section is not None:
-            sections.append(live_combat_section)
-        shared_notes_section = self._shared_notes_section(world)
-        if shared_notes_section is not None:
-            sections.append(shared_notes_section)
+        self._live_combat_container.content = self._live_combat_section(world)
+        self._live_combat_container.visible = self._live_combat_container.content is not None
+        sections.append(self._live_combat_container)
+        self._shared_notes_container.content = self._shared_notes_section(world)
+        self._shared_notes_container.visible = self._shared_notes_container.content is not None
+        sections.append(self._shared_notes_container)
         shared_maps_section = self._shared_maps_section(world, my_role)
         if shared_maps_section is not None:
             sections.append(shared_maps_section)
-        shared_loot_section = self._shared_loot_section(world)
-        if shared_loot_section is not None:
-            sections.append(shared_loot_section)
+        self._shared_loot_container.content = self._shared_loot_section(world)
+        self._shared_loot_container.visible = self._shared_loot_container.content is not None
+        sections.append(self._shared_loot_container)
         if perm.can_perform(my_role, perm.CMD_XP_GRANT):
             sections.append(self._remote_actions_section(world))
             archived_section = self._archived_characters_section(world)
             if archived_section is not None:
                 sections.append(archived_section)
-        sections.append(self._members_section(world, my_role))
+        self._members_container.content = self._members_section(world, my_role)
+        self._members_container.visible = True
+        sections.append(self._members_container)
         sections.append(self._events_section(world))
 
         if is_owner:
@@ -834,7 +854,13 @@ class WorldsView(ft.Column):
     def _member_command(self, world: World, kind: str, member: WorldMember):
         result = self._send_command(world, kind, {"device_id": member.device_id})
         if result.success:
-            self._refresh_detail()
+            # Promuovere/retrocedere/espellere non cambia altre sezioni del
+            # dettaglio: aggiornamento mirato invece di `_refresh_detail()`
+            # completo (piano refresh mirati, Fase 1c).
+            assert self.device_id is not None
+            my_member = world_repo.get_member(world.id, self.device_id)
+            my_role = my_member.role if my_member else ""
+            self._update_members_section(world, my_role)
         else:
             self._show_error(result.error)
 
@@ -1463,7 +1489,10 @@ class WorldsView(ft.Column):
         if not result.success:
             self._show_error(result.error)
             return
-        self._refresh_detail()
+        # "Prendi" tocca solo il deposito condiviso (sparisce da lì) e la
+        # scheda del personaggio (non mostrata qui): aggiornamento mirato
+        # invece di `_refresh_detail()` completo.
+        self._update_shared_loot_section(world)
 
     def _shared_map_row(self, world: World, gm: GameMap, can_manage: bool) -> ft.Control:
         p = d.T()
@@ -3605,6 +3634,69 @@ class WorldsView(ft.Column):
         self._render()
         try:
             self.page.update()
+        except RuntimeError:
+            pass
+
+    # ------------------------------------------------------------------
+    # Aggiornamenti mirati per sezione "calda" (piano refresh mirati,
+    # Fase 1c) — ognuno rilegge SEMPRE `world` fresco dal DB (mai un
+    # oggetto Python già in memoria, stesso motivo per cui
+    # `_resync_character_from_host()` rimaterializza l'intero personaggio
+    # ad ogni evento: vedi `core/world_sync.py`) e sostituisce SOLO il
+    # contenuto del proprio container persistente — mai `_render_detail()`
+    # per intero. Usare solo quando l'azione non cambia quali sezioni
+    # esistono/il loro ordine (regola guida del piano). Il tick di sync
+    # periodico (`_async_redraw_detail`) resta sul percorso completo,
+    # invariato in questa fase.
+    # ------------------------------------------------------------------
+
+    def _update_members_section(self, world: World, my_role: str) -> None:
+        fresh = world_repo.get_world(world.id)
+        if fresh is None:
+            return
+        self._members_container.content = self._members_section(fresh, my_role)
+        try:
+            self._members_container.update()
+        except RuntimeError:
+            pass
+
+    def _update_shared_loot_section(self, world: World) -> None:
+        fresh = world_repo.get_world(world.id)
+        if fresh is None:
+            return
+        self._shared_loot_container.content = self._shared_loot_section(fresh)
+        self._shared_loot_container.visible = self._shared_loot_container.content is not None
+        try:
+            self._shared_loot_container.update()
+        except RuntimeError:
+            pass
+
+    def _update_shared_notes_section(self, world: World) -> None:
+        """Predisposto per la Fase 2: oggi nessuna azione LOCALE di
+        `WorldsView` tocca le note condivise (cambiano solo da
+        `MasterNotesView`), quindi arrivano solo tramite il tick di sync —
+        vedi il piano, Fase 1c passo 4."""
+        fresh = world_repo.get_world(world.id)
+        if fresh is None:
+            return
+        self._shared_notes_container.content = self._shared_notes_section(fresh)
+        self._shared_notes_container.visible = self._shared_notes_container.content is not None
+        try:
+            self._shared_notes_container.update()
+        except RuntimeError:
+            pass
+
+    def _update_live_combat_section(self, world: World) -> None:
+        """Predisposto per la Fase 2, stesso motivo di
+        `_update_shared_notes_section` — il combattimento live cambia solo
+        da `MasterEncounterView`."""
+        fresh = world_repo.get_world(world.id)
+        if fresh is None:
+            return
+        self._live_combat_container.content = self._live_combat_section(fresh)
+        self._live_combat_container.visible = self._live_combat_container.content is not None
+        try:
+            self._live_combat_container.update()
         except RuntimeError:
             pass
 

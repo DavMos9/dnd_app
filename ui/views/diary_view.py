@@ -705,6 +705,7 @@ class DiaryView(ft.Column):
                     if is_sel else None),
             on_click=lambda e, eid=entry.id: self._on_sel_diary(eid),
             ink=True,
+            data=entry.id,
         )
 
     # ── Lista note ─────────────────────────────────────────────────────────────
@@ -770,6 +771,7 @@ class DiaryView(ft.Column):
                     if is_sel else None),
             on_click=lambda e, nid=note.id: self._on_sel_note(nid),
             ink=True,
+            data=note.id,
         )
 
     def _left_empty(self, msg: str) -> ft.Container:
@@ -1333,23 +1335,38 @@ class DiaryView(ft.Column):
     def _on_sel_diary(self, entry_id: str) -> None:
         if entry_id == self._sel_diary_id and not self._diary_edit:
             return
+        old_id = self._sel_diary_id
         self._sel_diary_id = entry_id
         self._diary_edit = False
-        self._refresh()
+        # Selezione/navigazione non cambia quali voci esistono né il loro
+        # ordine: aggiornamento mirato (dettaglio + le 2 righe coinvolte)
+        # invece di ricostruire l'intera vista (niente salto di scroll).
+        self._update_detail()
+        if old_id:
+            self._update_list_row_diary(old_id)
+        self._update_list_row_diary(entry_id)
 
     def _on_prev(self) -> None:
         idx = self._diary_index()
         if idx > 0:
+            old_id = self._sel_diary_id
             self._sel_diary_id = self._diary_entries[idx - 1].id
             self._diary_edit = False
-            self._refresh()
+            self._update_detail()
+            if old_id:
+                self._update_list_row_diary(old_id)
+            self._update_list_row_diary(self._sel_diary_id)
 
     def _on_next(self) -> None:
         idx = self._diary_index()
         if idx < len(self._diary_entries) - 1:
+            old_id = self._sel_diary_id
             self._sel_diary_id = self._diary_entries[idx + 1].id
             self._diary_edit = False
-            self._refresh()
+            self._update_detail()
+            if old_id:
+                self._update_list_row_diary(old_id)
+            self._update_list_row_diary(self._sel_diary_id)
 
     def _on_diary_start_edit(self) -> None:
         self._diary_edit = True
@@ -1384,7 +1401,11 @@ class DiaryView(ft.Column):
         logger.info("Voce diario aggiornata: %s", entry.id)
         self._diary_edit = False
         self._load_diary()
-        self._refresh()
+        # L'ordinamento (per `created_at`, non toccato da una modifica di
+        # testo/data) non cambia con questo salvataggio: aggiornamento
+        # mirato invece di `_refresh()` completo.
+        self._update_detail()
+        self._update_list_row_diary(entry.id)
 
     def _on_diary_delete(self) -> None:
         page = self._page
@@ -1428,9 +1449,15 @@ class DiaryView(ft.Column):
     def _on_sel_note(self, note_id: str) -> None:
         if note_id == self._sel_note_id and not self._note_edit:
             return
+        old_id = self._sel_note_id
         self._sel_note_id = note_id
         self._note_edit = False
-        self._refresh()
+        # Stesso ragionamento di `_on_sel_diary`: selezione non cambia
+        # quali note esistono né il loro ordine.
+        self._update_detail()
+        if old_id:
+            self._update_list_row_note(old_id)
+        self._update_list_row_note(note_id)
 
     def _on_note_start_edit(self) -> None:
         self._note_edit = True
@@ -1458,7 +1485,10 @@ class DiaryView(ft.Column):
         })
         self._note_edit = False
         self._load_notes(self._active_cat)
-        self._refresh()
+        # `get_campaign_notes` ordina per `created_at ASC`, non toccato da
+        # questa modifica: aggiornamento mirato invece di `_refresh()`.
+        self._update_detail()
+        self._update_list_row_note(note.id)
 
     def _on_note_delete(self) -> None:
         page = self._page
@@ -1662,6 +1692,38 @@ class DiaryView(ft.Column):
         self._detail_container.content = self._build_detail_panel()
         try:
             self._detail_container.update()
+        except RuntimeError:
+            pass
+
+    def _update_list_row_diary(self, entry_id: str) -> None:
+        """Sostituisce UNA riga di `self._left_list_lv` (trovata per
+        `data=entry_id`) senza toccare il resto della lista/scroll — usare
+        solo quando selezione/contenuto cambia ma non l'ordine/conteggio
+        delle voci (vedi tabella di rewiring nel piano)."""
+        for i, e in enumerate(self._diary_entries):
+            if e.id == entry_id:
+                for j, ctrl in enumerate(self._left_list_lv.controls):
+                    if getattr(ctrl, "data", None) == entry_id:
+                        self._left_list_lv.controls[j] = self._diary_list_item(e, i + 1)
+                        break
+                break
+        try:
+            self._left_list_lv.update()
+        except RuntimeError:
+            pass
+
+    def _update_list_row_note(self, note_id: str) -> None:
+        """Equivalente di `_update_list_row_diary` per `self._notes[cat]`."""
+        notes = self._notes.get(self._active_cat, [])
+        for n in notes:
+            if n.id == note_id:
+                for j, ctrl in enumerate(self._left_list_lv.controls):
+                    if getattr(ctrl, "data", None) == note_id:
+                        self._left_list_lv.controls[j] = self._note_list_item(n)
+                        break
+                break
+        try:
+            self._left_list_lv.update()
         except RuntimeError:
             pass
 
