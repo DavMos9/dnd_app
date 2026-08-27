@@ -12736,6 +12736,105 @@ condiviso da altre feature, solo una colonna nuova additiva e funzioni
 nuove/isolate) — **da eseguire e da verificare dal vivo prima del prossimo
 rilascio**. Nessun commit fatto.
 
+## Refresh mirati invece di rebuild aggressivo dell'intera pagina — Note (giocatore+master) e sezioni calde di Mondi/Tracker incontri (2026-08-27, v0.3.19)
+
+Richiesta di Davide dopo test manuali: passare da una nota all'altra della
+stessa categoria (es. "PNG Incontrati") ricostruiva **l'intera pagina** e
+riportava lo scroll in cima, anche se cambiava solo un piccolo elemento.
+Voleva un aggiornamento mirato (solo il controllo interessato + i suoi
+collegati) al posto del rebuild completo, tranne quando davvero necessario
+per la correttezza — controllato sia lato giocatore sia lato master/mondo,
+**senza rompere la sincronizzazione multiplayer**. Gestito interamente in
+Plan Mode (piano approvato salvato prima dell'implementazione); prima di
+procedere, controllati `changelog_storico.md` e il Second Brain su richiesta
+esplicita di Davide — trovato che questo È la "B10" della revisione
+2026-07-26 (già affrontata una volta, ma con un fix deliberatamente limitato
+al solo ripristino dello scroll, non all'eliminazione del rebuild — vedi la
+voce "Refresh reload solo parziale" più sotto per la lezione sulla cache
+applicata qui) e che il pattern (rebuild totale ad ogni interazione, anche
+"−1 HP") è in realtà presente in TUTTE le tab della scheda personaggio, non
+solo in Note/Mondi — restato fuori scope su richiesta esplicita di Davide,
+lavoro a sé già noto (B10).
+
+**Regola guida usata per classificare ogni punto di chiamata**: un handler
+passa a un aggiornamento mirato solo se l'azione non può cambiare quali
+elementi esistono, il loro ordine a schermo, o il contenuto di una sezione
+"sorella" — altrimenti resta sul rebuild completo.
+
+**1. Note lato giocatore (`ui/views/diary_view.py`).** `_diary_list_item()`/
+`_note_list_item()` ora taggano il `Container` con `data=entry.id`/
+`data=note.id`. Nuovi `_update_list_row_diary()`/`_update_list_row_note()`
+(cercano la riga per `data==id` dentro `self._left_list_lv.controls` e la
+sostituiscono in posizione, poi `.update()`). `_on_sel_diary`/`_on_prev`/
+`_on_next`/`_on_diary_save_edit`/`_on_sel_note`/`_on_note_save_edit` ora
+chiamano `_update_detail()` + le righe coinvolte invece di `_refresh()`
+completo. Delete/create/cambio categoria/toggle pannello restano sul
+`_refresh()` completo (cambiano conteggio/struttura).
+
+**2. Note lato master (`ui/views/master/master_notes_view.py`).** Stessa
+struttura (stesso `_update_detail()` già esistente, sotto-usato). In più:
+la view non aveva **nessuna** `ScrollMemoryColumn` — aggiunta ora
+(`self._left_scroll_col`, ripopolata IN PLACE da `_build_left_panel()`,
+`restore_scroll()` chiamato in `_refresh()`), prima ogni azione perdeva
+davvero la posizione di scroll, non solo "sfarfallava". `_on_sel_note` è
+mirato SOLO su desktop/tablet — su mobile resta sul `_refresh()` completo
+perché cambia anche `_mobile_show_detail` (drill-down a schermo intero, un
+cambio strutturale).
+
+**3. `WorldsView` (`ui/views/world/world_view.py`) — solo le 4 sezioni
+"calde".** Decisione di scope di Davide: pianificare tutte le ~10 sezioni
+del dettaglio mondo, ma implementare per prime solo Membri/Combattimento
+live/Note condivise/Bottino condiviso. Le 4 sezioni ora vivono in
+`ft.Container` persistenti (`self._members_container`/
+`_live_combat_container`/`_shared_notes_container`/`_shared_loot_container`),
+sempre presenti nell'albero prodotto da `_render_detail()` (mai più append
+condizionale — `.visible` ne governa la presenza). Di ~15 punti di chiamata
+di `_refresh_detail()`, solo 2 toccano una sezione calda ed sono stati
+rewired: `_member_command` (promuovi/degrada/espelli) →
+`_update_members_section()`, `_do_claim_loot` ("Prendi" dal deposito) →
+`_update_shared_loot_section()`. Predisposti ma non ancora cablati a
+un'azione locale: `_update_shared_notes_section()`/
+`_update_live_combat_section()` (oggi quelle 2 sezioni cambiano solo da
+altre view — Note Master, Tracker incontri — quindi arrivano solo dal tick
+di sync). **Il tick di sync periodico (`_async_redraw_detail`) resta
+INVARIATO**, ricostruisce ancora tutto tramite `_render_detail()` — nessun
+percorso doppio da mantenere allineato, rischio di sincronizzazione zero
+per questa fase.
+
+**4. `MasterEncounterView` (`ui/views/master/master_encounter_view.py`).**
+Nuovo `_update_member_card(*, member_id=None, character_id=None)`: rilegge
+SEMPRE `master_repo.get_encounter_members_resolved()` fresco (mai un
+oggetto già in memoria — un altro dispositivo può averlo cambiato nel
+frattempo), poi sostituisce solo la card alla posizione corrispondente;
+fallback su `refresh()` completo se l'id non viene trovato (es. rimosso nel
+frattempo). Usato da `_on_hp_delta` e dall'esito positivo di
+`_send_pg_remote_command` (danno/cura/condizione — le uniche 3 azioni che
+lo chiamano). **Esplicitamente NON usato** da `_on_edit_initiative` (cambia
+l'ordinamento stesso, di cui `current_turn_index` è un indice posizionale —
+uno scambio-in-posizione sarebbe silenziosamente sbagliato) né da
+`_on_remove_member` (cambia la lunghezza della lista) né dal tick di sync
+`_async_sync_redraw` (percorso di resync autoritativo, resta invariato).
+
+**Lezione applicata da un bug reale del 2026-08-24** (vedi "Refresh reload
+solo parziale" più sotto): ogni helper mirato nuovo rilegge sempre gli
+stessi dati che il rebuild completo leggerebbe per quella porzione di
+schermo — verificato esplicitamente, prima di cablare ciascun handler, che
+la funzione di rendering chiamata (`_build_detail_panel()`, `_member_card()`,
+`_members_section()`/`_shared_loot_section()`) non dipenda da un `self.xxx`
+popolato solo da `__init__()`/un `_load_*()` che l'helper non richiama.
+
+**Verificato dal vivo da Davide** (build v0.3.19, dopo il rilascio) su
+tutti i punti sopra + sincronizzazione multiplayer su due dispositivi:
+"Ho testato tutto quello che mi hai chiesto e sembra funzionare tutto senza
+problemi" — nessun problema segnalato.
+
+**Fase 2 (non implementata, solo pianificata)**: `MasterNpcListView`, le
+restanti ~6 sezioni di `WorldsView` (hosting, richieste pendenti, azioni
+remote, personaggi archiviati, Registro/Backup), `MasterEncounterListView`,
+rifinitura `MasterLootView` (`_update_entry_card()` per sostituire una sola
+card in `_refresh_list_only()`). Piano completo con la forma target di ogni
+punto salvato per quando Davide deciderà di riprendere questo lavoro.
+
 ---
 
 > Questo file è stato estratto da `CLAUDE.md` il 2026-07-31 durante la riorganizzazione della documentazione del

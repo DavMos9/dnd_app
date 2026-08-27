@@ -503,6 +503,14 @@ specifici di questa view.
   CRUD via `character_repo`: `get_campaign_notes`, `create_campaign_note`, `update_campaign_note`, `delete_campaign_note`
 - Flet 0.85.3: nessun `expand=True` su `Column` dentro `Row` dentro `ListView`; `cast(list[ft.Control], [...])`
   per `actions=`; `Any` per gli handler (stesse regole del resto del progetto)
+- **Refresh mirati (2026-08-27)**: selezione/navigazione/salvataggio di una voce o nota NON ricostruiscono
+  più l'intera vista — `_diary_list_item()`/`_note_list_item()` sono taggati `data=id`, e
+  `_update_list_row_diary()`/`_update_list_row_note()` sostituiscono solo la riga coinvolta mentre
+  `_update_detail()` (già esistente) sostituisce solo il pannello destro. Restano sul `_refresh()` completo
+  SOLO le azioni che cambiano conteggio/ordine (elimina, crea, cambio categoria, toggle pannello). Stesso
+  pattern applicato a `MasterNotesView` (`ui/views/master/master_notes_view.py`, layout gemello lato Master,
+  che in più ha guadagnato una `ScrollMemoryColumn` — prima non ne aveva nessuna). Dettaglio completo in
+  `changelog_storico.md`, voce "Refresh mirati invece di rebuild aggressivo... (2026-08-27, v0.3.19)".
 
 ### `ui/views/character_sheet/inventario_tab.py` — `InventarioTab` (RISCRITTO con CRUD completo)
 **Eredita da `ft.ListView`**.
@@ -1353,6 +1361,26 @@ pulsante di azione (promuovi/retrocedi/espelli/rinomina/elimina) è mostrato
 solo se `world_permissions.can_perform(my_role, ...)` è vero — mai un
 controllo hardcoded sul ruolo. Tutte le mutazioni passano da
 `self.backend.send_command(...)`, mai una scrittura diretta su `world_repo`.
+
+**Refresh mirati per le 4 sezioni "calde" (2026-08-27)**: Membri/
+Combattimento live/Note condivise/Bottino condiviso vivono ora in
+`ft.Container` persistenti (`self._members_container`/
+`_live_combat_container`/`_shared_notes_container`/`_shared_loot_container`),
+sempre presenti nell'albero prodotto da `_render_detail()` (`.visible` ne
+governa la presenza, mai più un append condizionale). Solo 2 azioni locali
+rewired su ~15 punti di chiamata di `_refresh_detail()`:
+`_member_command()` → `_update_members_section()`, `_do_claim_loot()` →
+`_update_shared_loot_section()` — le restanti ~13 azioni (rinomina, mappe,
+richieste, hosting, azioni remote...) restano sul rebuild completo. Il tick
+di sync periodico (`_async_redraw_detail`) è **invariato**: ricostruisce
+ancora tutto tramite `_render_detail()`. Stesso pattern in
+`ui/views/master/master_encounter_view.py::MasterEncounterView`: nuovo
+`_update_member_card(*, member_id=None, character_id=None)` per
+danno/cura/condizione (rilegge sempre i dati freschi dal DB), MAI per
+modifica iniziativa (riordina la lista) o rimozione membro (cambia la
+lunghezza) — quelle restano su `refresh()` completo, così come il tick di
+sync `_async_sync_redraw`. Dettaglio completo in `changelog_storico.md`,
+voce "Refresh mirati invece di rebuild aggressivo... (2026-08-27, v0.3.19)".
 
 **`core/character_instances.py`** (Multiplayer passo 3, 2026-08-05) — no
 Flet, ma usa repository/DB direttamente (come `world_backend.py`).

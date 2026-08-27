@@ -31,7 +31,7 @@ from data.models import MasterEncounter
 from data.repositories import master_repo
 from ui.theme import primary_button
 from ui.views.master.master_encounter_view import MasterEncounterView
-from ui.widgets import wrap_dialog_actions, responsive_dialog_width
+from ui.widgets import ScrollMemoryColumn, wrap_dialog_actions, responsive_dialog_width
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,11 @@ class MasterEncounterListView(ft.Column):
         self._encounters: list[MasterEncounter] = []
         self._show_archived: bool = False
         self._open_encounter_id: str | None = None
-        self._list_col = ft.Column(spacing=10)
+        #: Scorre indipendentemente dall'header (titolo/pulsanti/switch
+        #: archivio restano fissi) e ricorda la posizione tra un
+        #: aggiornamento mirato e l'altro — stesso pattern di
+        #: `master_npc_list_view.py`.
+        self._list_col = ScrollMemoryColumn(spacing=10, expand=True, scroll=ft.ScrollMode.AUTO)
         self._body_area = ft.Container(expand=True)
         self._build()
         self.refresh()
@@ -93,7 +97,10 @@ class MasterEncounterListView(ft.Column):
             self.controls.append(self._body_area)
             return
 
-        self.scroll = ft.ScrollMode.AUTO
+        # Lo scroll vive sul solo `self._list_col` (ScrollMemoryColumn),
+        # non più su `self` — header (titolo/pulsanti/switch archivio)
+        # resta fisso in cima.
+        self.scroll = None
 
         # Unico momento "hero" di questa tab (Arcane Ledger): il titolo era
         # prima un `title_text()` di taglia fissa (18px) come qualunque altro
@@ -129,6 +136,7 @@ class MasterEncounterListView(ft.Column):
         body = ft.Container(
             content=self._list_col,
             padding=ft.Padding.only(left=16, right=16, bottom=16),
+            expand=True,
         )
         self.controls.append(header)
         self.controls.append(body)
@@ -178,6 +186,33 @@ class MasterEncounterListView(ft.Column):
             self.update()
         except RuntimeError:
             pass
+        self._list_col.restore_scroll()
+
+    def _remove_encounter_row(self, encounter_id: str) -> None:
+        """
+        Aggiornamento mirato dopo eliminazione o "Riapri" (che sposta
+        l'incontro fuori dalla lista Attivi/Archiviati corrente per
+        filtro): rimuove solo la riga interessata — l'ordinamento per
+        ultima modifica delle righe restanti non cambia togliendo un
+        elemento, quindi non serve ricostruire l'intera lista. Ricarica
+        comunque `self._encounters` da DB per restare coerente con
+        `master_repo` prima di valutare lo stato vuoto.
+        """
+        all_encounters = master_repo.get_encounters(include_archived=True, world_id=self._world_id)
+        self._encounters = [e for e in all_encounters if e.is_archived == self._show_archived]
+        controls = self._list_col.controls
+        idx = next((i for i, c in enumerate(controls) if getattr(c, "data", None) == encounter_id), None)
+        if idx is not None:
+            controls.pop(idx)
+            if not self._encounters and not controls:
+                controls.append(self._empty_state())
+        else:
+            self._populate_list()
+        try:
+            self._list_col.update()
+        except RuntimeError:
+            pass
+        self._list_col.restore_scroll()
 
     def _populate_list(self):
         self._list_col.controls.clear()
@@ -202,7 +237,7 @@ class MasterEncounterListView(ft.Column):
 
     def _on_reopen(self, enc: MasterEncounter) -> None:
         master_repo.archive_encounter(enc.id, archived=False)
-        self.refresh()
+        self._remove_encounter_row(enc.id)
 
     def _encounter_card(self, enc: MasterEncounter) -> ft.Control:
         members = master_repo.get_encounter_members(enc.id, active_only=True)
@@ -215,7 +250,7 @@ class MasterEncounterListView(ft.Column):
                 tooltip="Riapri incontro",
                 on_click=lambda e, en=enc: self._on_reopen(en),
             ))
-        return ft.Container(
+        card = ft.Container(
             content=ft.Row(
                 [
                     design.icon_badge(card_icon, tone="primary", size=44),
@@ -257,6 +292,10 @@ class MasterEncounterListView(ft.Column):
             ink=True,
             animate_scale=ft.Animation(design.Duration.FAST, design.CURVE),
         )
+        # Tag per trovare/rimuovere questa riga da `_remove_encounter_row()`
+        # senza tracciare un indice esterno.
+        card.data = enc.id
+        return card
 
     def _confirm_delete(self, enc: MasterEncounter):
         if not self._page:
@@ -266,7 +305,7 @@ class MasterEncounterListView(ft.Column):
         def _do_delete(e: Any):
             master_repo.delete_encounter(enc.id)
             page.pop_dialog()
-            self.refresh()
+            self._remove_encounter_row(enc.id)
 
         dlg = ft.AlertDialog(
             title=design.dialog_title("Elimina incontro?"),

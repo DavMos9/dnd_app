@@ -254,6 +254,25 @@ class WorldsView(ft.Column):
         self._shared_notes_container: ft.Container = ft.Container(visible=False)
         self._shared_loot_container: ft.Container = ft.Container(visible=False)
 
+        # Container persistenti per 3 sezioni aggiuntive (piano refresh
+        # mirati, Fase 2): a differenza delle 4 "calde" sopra, qui SOLO le
+        # azioni locali che toccano esclusivamente quella sezione sono state
+        # ricablate — `_hosting_section` (approva/rifiuta ingresso, avvia/
+        # ferma hosting, aggiorna richieste) e `_shared_maps_section`
+        # (pubblica/carica/nascondi/elimina mappa) sono ciascuna
+        # self-contained; `_pending_change_requests_section` idem per
+        # accetta/rifiuta. Esplicitamente NON containerizzate/ricablate:
+        # `_remote_actions_section` e `_pending_rejoin_requests_section`
+        # condividono lo stesso funnel `_send_remote_command()` (usato anche
+        # per PE/danno/cura/condizione/proponi-modifica) — un'azione lì può
+        # aggiornare l'UNA o l'ALTRA sezione a seconda del tipo di comando,
+        # quindi restano sul `_refresh_detail()` completo per non rischiare
+        # una sezione rimasta con dati vecchi (stessa lezione della cache
+        # non ricaricata del 2026-08-24, vedi commit del piano).
+        self._hosting_container: ft.Container = ft.Container()
+        self._shared_maps_container: ft.Container = ft.Container(visible=False)
+        self._pending_requests_container: ft.Container = ft.Container(visible=False)
+
         self._build_shell()
         self._render_loading()
 
@@ -619,24 +638,26 @@ class WorldsView(ft.Column):
             sections.append(self._rename_section(world))
 
         sections.append(self._join_code_section(world, is_owner))
-        pending_requests_section = self._pending_change_requests_section(world)
-        if pending_requests_section is not None:
-            sections.append(pending_requests_section)
+        self._pending_requests_container.content = self._pending_change_requests_section(world)
+        self._pending_requests_container.visible = self._pending_requests_container.content is not None
+        sections.append(self._pending_requests_container)
         if perm.can_perform(my_role, perm.CMD_CHARACTER_REJOIN_RESPOND):
             pending_rejoin_section = self._pending_rejoin_requests_section(world)
             if pending_rejoin_section is not None:
                 sections.append(pending_rejoin_section)
         if is_owner and world.is_local_host:
-            sections.append(self._hosting_section(world))
+            self._hosting_container.content = self._hosting_section(world)
+            self._hosting_container.visible = True
+            sections.append(self._hosting_container)
         self._live_combat_container.content = self._live_combat_section(world)
         self._live_combat_container.visible = self._live_combat_container.content is not None
         sections.append(self._live_combat_container)
         self._shared_notes_container.content = self._shared_notes_section(world)
         self._shared_notes_container.visible = self._shared_notes_container.content is not None
         sections.append(self._shared_notes_container)
-        shared_maps_section = self._shared_maps_section(world, my_role)
-        if shared_maps_section is not None:
-            sections.append(shared_maps_section)
+        self._shared_maps_container.content = self._shared_maps_section(world, my_role)
+        self._shared_maps_container.visible = self._shared_maps_container.content is not None
+        sections.append(self._shared_maps_container)
         self._shared_loot_container.content = self._shared_loot_section(world)
         self._shared_loot_container.visible = self._shared_loot_container.content is not None
         sections.append(self._shared_loot_container)
@@ -1610,7 +1631,7 @@ class WorldsView(ft.Column):
                 world, perm.CMD_MAP_PUBLISH, {"map_id": map_id},
             )
             if result.success:
-                self._refresh_detail()
+                self._update_shared_maps_section(world)
             else:
                 self._show_error(result.error)
 
@@ -1705,7 +1726,7 @@ class WorldsView(ft.Column):
                 "visible_to_players": visible_state[0],
             })
             if result.success:
-                self._refresh_detail()
+                self._update_shared_maps_section(world)
             else:
                 self._show_error(result.error)
 
@@ -1753,7 +1774,7 @@ class WorldsView(ft.Column):
             "map_id": gm.id, "visible_to_players": not gm.visible_to_players,
         })
         if result.success:
-            self._refresh_detail()
+            self._update_shared_maps_section(world)
         else:
             self._show_error(result.error)
 
@@ -1788,7 +1809,7 @@ class WorldsView(ft.Column):
             page.pop_dialog()
         result = self._send_command(world, perm.CMD_MAP_DELETE, {"map_id": gm.id})
         if result.success:
-            self._refresh_detail()
+            self._update_shared_maps_section(world)
         else:
             self._show_error(result.error)
 
@@ -2742,7 +2763,7 @@ class WorldsView(ft.Column):
             target_type="character", target_id=request.character_id,
         )
         if result.success:
-            self._refresh_detail()
+            self._update_pending_requests_section(world)
         else:
             self._show_error(result.error)
 
@@ -2997,7 +3018,7 @@ class WorldsView(ft.Column):
         rows.append(ft.Row(
             [
                 d.pill(ft.Icons.REFRESH, "Aggiorna richieste", color=p.text_2,
-                       on_click=lambda e: self._refresh_detail()),
+                       on_click=lambda e: self._update_hosting_section(world)),
                 d.pill(ft.Icons.WIFI_OFF, "Ferma hosting", color=p.danger,
                        on_click=lambda e: self._stop_hosting(world)),
             ],
@@ -3101,24 +3122,24 @@ class WorldsView(ft.Column):
             self._show_error(str(e))
             return
         self._host_server = server
-        self._refresh_detail()
+        self._update_hosting_section(world)
 
     def _stop_hosting(self, world: World):
         if self._host_server is not None:
             self._host_server.stop()
             self._host_server = None
-        self._refresh_detail()
+        self._update_hosting_section(world)
 
     def _approve_join(self, world: World, request_id: str):
         if self._host_server is not None:
             if not self._host_server.approve(request_id):
                 self._show_error("Approvazione fallita — la richiesta potrebbe essere scaduta.")
-        self._refresh_detail()
+        self._update_hosting_section(world)
 
     def _reject_join(self, world: World, request_id: str):
         if self._host_server is not None:
             self._host_server.reject(request_id)
-        self._refresh_detail()
+        self._update_hosting_section(world)
 
     # ------------------------------------------------------------------
     # Backup del mondo — esportazione/importazione
@@ -3697,6 +3718,55 @@ class WorldsView(ft.Column):
         self._live_combat_container.visible = self._live_combat_container.content is not None
         try:
             self._live_combat_container.update()
+        except RuntimeError:
+            pass
+
+    def _update_hosting_section(self, world: World) -> None:
+        """Aggiornamento mirato dopo avvia/ferma hosting, approva/rifiuta
+        una richiesta di ingresso, o "Aggiorna richieste" — tutte azioni
+        self-contained dentro `_hosting_section` (non toccano membri/note/
+        bottino/mappe). Chiamato solo da handler già gated a owner+host, la
+        stessa condizione che decide se `self._hosting_container` è nella
+        pagina — vedi `_render_detail`."""
+        fresh = world_repo.get_world(world.id)
+        if fresh is None:
+            return
+        self._hosting_container.content = self._hosting_section(fresh)
+        try:
+            self._hosting_container.update()
+        except RuntimeError:
+            pass
+
+    def _update_shared_maps_section(self, world: World) -> None:
+        """Aggiornamento mirato dopo pubblica/carica/nascondi/elimina una
+        mappa condivisa — self-contained dentro `_shared_maps_section`.
+        Ricalcola `my_role` da sé (stesso pattern di `_member_command`),
+        così ogni chiamante passa solo il `world` che già ha a disposizione."""
+        fresh = world_repo.get_world(world.id)
+        if fresh is None:
+            return
+        my_member = world_repo.get_member(fresh.id, self.device_id)
+        my_role = my_member.role if my_member else ""
+        self._shared_maps_container.content = self._shared_maps_section(fresh, my_role)
+        self._shared_maps_container.visible = self._shared_maps_container.content is not None
+        try:
+            self._shared_maps_container.update()
+        except RuntimeError:
+            pass
+
+    def _update_pending_requests_section(self, world: World) -> None:
+        """Aggiornamento mirato dopo accetta/rifiuta una "Richiesta in
+        sospeso" (`_respond_change_request`) — **non** usato per le
+        richieste di rientro (sezione diversa) né per alcuna azione di
+        "Interviene a distanza" (`_send_remote_command`, funnel condiviso
+        con la sezione di rientro — vedi il commento nel costruttore)."""
+        fresh = world_repo.get_world(world.id)
+        if fresh is None:
+            return
+        self._pending_requests_container.content = self._pending_change_requests_section(fresh)
+        self._pending_requests_container.visible = self._pending_requests_container.content is not None
+        try:
+            self._pending_requests_container.update()
         except RuntimeError:
             pass
 

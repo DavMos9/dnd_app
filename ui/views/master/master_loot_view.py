@@ -266,7 +266,7 @@ class MasterLootView(ft.Column):
         qty_bit = f" ×{entry.quantity}" if (not is_coins and entry.quantity != 1) else ""
         icon_color = design.T().magic if is_magic else design.T().primary
 
-        return design.card(
+        card = design.card(
             ft.Column(
                 [
                     ft.Row(
@@ -316,6 +316,10 @@ class MasterLootView(ft.Column):
             accent=design.T().magic if is_magic else None,
             density="dense",
         )
+        # Tag per trovare/sostituire questa riga da `_update_entry_card()`
+        # senza tracciare un indice esterno.
+        card.data = entry.id
+        return card
 
     def _refresh(self) -> None:
         self._build()
@@ -330,6 +334,33 @@ class MasterLootView(ft.Column):
             self._list_col.update()
         except RuntimeError:
             pass
+
+    def _update_entry_card(self, entry_id: str) -> None:
+        """
+        Aggiornamento mirato dopo la modifica di UNA voce non monetaria
+        (`save_item`, sia locale sia via `CMD_LOOT_STASH_UPDATE`):
+        l'elenco è ordinato per data di creazione, mai toccata da un
+        aggiornamento in posto (`loot_repo.update_entry()`), quindi uno
+        scambio in posizione è sempre sicuro qui — a differenza di NPC/
+        Incontri non serve un ramo "posizione cambiata" come rete di
+        sicurezza. **Non usato per «Modifica Monete»**: quel percorso fa
+        elimina+ricrea (id e `created_at` nuovi, la voce si sposta in
+        fondo), quindi resta su `_refresh_list_only()`.
+        """
+        entries = loot_repo.get_entries(self._active_kind, world_id=self._effective_world_id())
+        idx = next((i for i, en in enumerate(entries) if en.id == entry_id), None)
+        controls = self._list_col.controls
+        current_idx = next(
+            (i for i, c in enumerate(controls) if getattr(c, "data", None) == entry_id), None
+        )
+        if idx is not None and current_idx is not None:
+            controls[current_idx] = self._entry_card(entries[idx])
+            try:
+                self._list_col.update()
+            except RuntimeError:
+                pass
+        else:
+            self._refresh_list_only()
 
     # ------------------------------------------------------------------
     # Azioni
@@ -569,7 +600,7 @@ class MasterLootView(ft.Column):
                     **mechanics,
                 )
             page.pop_dialog()
-            self._refresh_list_only()
+            self._update_entry_card(entry.id)
 
         page.show_dialog(ft.AlertDialog(
             title=design.dialog_title("Modifica Voce"),

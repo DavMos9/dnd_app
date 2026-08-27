@@ -28,7 +28,10 @@ from ui.components.monster_picker import (
 from ui.components.npc_dossier import build_npc_dossier_column
 from ui.theme import body_text, muted_text, primary_button
 from ui.views.maps_view import _data_uri, _pick_desktop, _pick_from_library, _pick_mobile
-from ui.widgets import DropdownAltro, MultiSelectAltro, wrap_dialog_actions, responsive_dialog_width
+from ui.widgets import (
+    DropdownAltro, MultiSelectAltro, ScrollMemoryColumn, wrap_dialog_actions,
+    responsive_dialog_width,
+)
 from ui import design
 
 logger = logging.getLogger(__name__)
@@ -74,7 +77,11 @@ class MasterNpcListView(ft.Column):
         self._world_id = world_id
         self._npcs: list[MasterNpc] = []
         self._search_query: str = ""
-        self._list_col = ft.Column(spacing=10)
+        #: Scorre in modo indipendente dall'header (titolo + ricerca resta
+        #: fisso) e ricorda la posizione tra un aggiornamento mirato e
+        #: l'altro — stesso pattern di `master_notes_view.py` (Fase 1b),
+        #: qui applicato a un elenco singolo invece che a un pannello sinistro.
+        self._list_col = ScrollMemoryColumn(spacing=10, expand=True, scroll=ft.ScrollMode.AUTO)
         self._build()
         self.refresh()
 
@@ -87,6 +94,11 @@ class MasterNpcListView(ft.Column):
 
     def _build(self):
         self.controls.clear()
+        # Lo scroll vive sul solo `self._list_col` (ScrollMemoryColumn),
+        # non più su `self` — header (titolo + ricerca) resta fisso in
+        # cima, e la memoria di scroll ha un singolo contenitore stabile
+        # da tracciare invece del contenitore esterno.
+        self.scroll = None
         # Unico momento "hero" di questa tab (Arcane Ledger): prima un
         # `title_text()` di taglia fissa (18px) come qualunque altra
         # etichetta, qui è la vera intestazione della schermata "Rubrica NPC".
@@ -119,6 +131,7 @@ class MasterNpcListView(ft.Column):
         body = ft.Container(
             content=self._list_col,
             padding=ft.Padding.only(left=16, right=16, bottom=16),
+            expand=True,
         )
         self.controls.append(header)
         self.controls.append(body)
@@ -130,6 +143,51 @@ class MasterNpcListView(ft.Column):
             self.update()
         except RuntimeError:
             pass
+        self._list_col.restore_scroll()
+
+    def _sync_npc_row(self, npc_id: str) -> None:
+        """
+        Aggiornamento mirato dopo creazione/modifica/eliminazione di UN
+        NPC: ricarica sempre la lista da DB (mai fidarsi dell'oggetto in
+        memoria), poi:
+          - id non più presente tra i risultati → riga rimossa (semplice
+            `pop`, l'ordine delle righe restanti non cambia);
+          - id trovato nella stessa posizione alfabetica già mostrata →
+            scambio in posizione (caso comune: modifica che non tocca il
+            nome, o nome che resta nello stesso punto dell'ordinamento);
+          - id trovato ma in una posizione diversa (es. rinomina che
+            sposta l'NPC nell'ordinamento alfabetico) o riga non ancora
+            mostrata (creazione) → ricostruzione completa della lista come
+            rete di sicurezza, per non rischiare un ordine sbagliato.
+        La ricerca (`_search_query`) resta fuori da questo percorso: un
+        NPC che esce dai risultati di ricerca dopo una modifica è già
+        gestito dal ramo "rimossa" sopra, dato che `get_npcs()` la
+        applica di nuovo.
+        """
+        self._npcs = master_repo.get_npcs(self._search_query, self._world_id)
+        target_idx = next((i for i, n in enumerate(self._npcs) if n.id == npc_id), None)
+        controls = self._list_col.controls
+        current_idx = next(
+            (i for i, c in enumerate(controls) if getattr(c, "data", None) == npc_id), None
+        )
+
+        if target_idx is None:
+            if current_idx is not None:
+                controls.pop(current_idx)
+                if not self._npcs and not controls:
+                    controls.append(self._empty_state())
+            else:
+                self._populate_list()
+        elif current_idx == target_idx:
+            controls[current_idx] = self._npc_card(self._npcs[target_idx])
+        else:
+            self._populate_list()
+
+        try:
+            self._list_col.update()
+        except RuntimeError:
+            pass
+        self._list_col.restore_scroll()
 
     def _on_search_change(self, e: Any):
         self._search_query = e.control.value or ""
@@ -183,7 +241,7 @@ class MasterNpcListView(ft.Column):
             if npc.image_data else
             design.icon_badge(icon, tone=tone, size=44)
         )
-        return design.card(
+        card = design.card(
             ft.Row(
                 [
                     avatar,
@@ -209,6 +267,10 @@ class MasterNpcListView(ft.Column):
             density="dense",
             on_click=lambda e, n=npc: self._open_detail(n),
         )
+        # Tag per trovare/sostituire questa riga da `_sync_npc_row()` senza
+        # tracciare un indice esterno.
+        card.data = npc.id
+        return card
 
     @staticmethod
     def _chip(text: str, color: str) -> ft.Container:
@@ -315,7 +377,7 @@ class MasterNpcListView(ft.Column):
         def _do_delete(e: Any):
             master_repo.delete_npc(npc.id)
             page.pop_dialog()
-            self.refresh()
+            self._sync_npc_row(npc.id)
 
         dlg = ft.AlertDialog(
             title=design.dialog_title("Elimina NPC?"),
@@ -783,8 +845,11 @@ class MasterNpcListView(ft.Column):
                 npc.race = kwargs["race"]
                 npc.image_data = kwargs["image_data"]
                 ok = master_repo.update_npc(npc)
+                saved_id = npc.id if ok else None
             else:
-                ok = master_repo.create_npc(**kwargs) is not None
+                created = master_repo.create_npc(**kwargs)
+                ok = created is not None
+                saved_id = created.id if created is not None else None
 
             if not ok:
                 error_text.value = "Errore durante il salvataggio. Riprova."
@@ -795,7 +860,7 @@ class MasterNpcListView(ft.Column):
                 return
 
             page.pop_dialog()
-            self.refresh()
+            self._sync_npc_row(saved_id)
 
         dlg = ft.AlertDialog(
             title=design.dialog_title("Modifica NPC" if is_edit else "Nuovo NPC"),
