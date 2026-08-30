@@ -42,7 +42,7 @@ from ui.image_library import show_image_library_picker
 from ui.mobile_webview_picker import pick_file_via_webview
 from ui.native_image_picker import pick_image_native, ImagePickerUnavailable
 from ui import design
-from ui.widgets import ScrollMemoryListView, wrap_dialog_actions
+from ui.widgets import ScrollMemoryListView, wrap_dialog_actions, show_snack
 
 logger = logging.getLogger(__name__)
 
@@ -482,6 +482,8 @@ class MapsView(ft.Column):
         def save_notes(ev):
             maps_repo.update_map(gm.id, notes=notes_tf.value or "")
             gm.notes = notes_tf.value or ""
+            if self._page is not None:
+                show_snack(self._page, "Note salvate.")
 
         header_row = ft.Row(
             [

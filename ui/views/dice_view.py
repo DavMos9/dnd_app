@@ -266,7 +266,7 @@ class DiceView(ft.Column):
             else:
                 chosen = min(r1, r2)
                 adv_str = f"svant. ({r1}, {r2})"
-            total = chosen + self._modifier
+            total = max(1, chosen + self._modifier)
             mod_str = (f" {'+' if self._modifier > 0 else ''}{self._modifier}"
                        if self._modifier != 0 else "")
             detail = f"{adv_str}{mod_str}"
@@ -276,7 +276,7 @@ class DiceView(ft.Column):
                             else design.T().text)
         else:
             rolls = [random.randint(1, d) for _ in range(self._count)]
-            total = sum(rolls) + self._modifier
+            total = max(1, sum(rolls) + self._modifier)
             mod_str = (f" {'+' if self._modifier > 0 else ''}{self._modifier}"
                        if self._modifier != 0 else "")
             rolls_str = ", ".join(str(r) for r in rolls)

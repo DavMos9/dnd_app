@@ -925,7 +925,6 @@ class CombattimentoTab(ScrollMemoryListView):
                                   on_click=lambda e: self._end_concentration()),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                wrap=True,
             ),
             bgcolor=p.surface,
             padding=12,
